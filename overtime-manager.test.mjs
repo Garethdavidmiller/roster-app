@@ -58,9 +58,18 @@ function fakeHost() { return { innerHTML: '' }; }
 function render(over = {}) {
     const host = fakeHost();
     renderWeekDetail(/** @type {any} */ (host), { ...WIN, ...over.win },
-        { participants: over.participants || PARTICIPANTS, submissions: over.submissions || submissions() },
-        { dates: DATES, now: Date.parse('2026-08-19T09:00:00Z') });
+        { participants: over.participants || PARTICIPANTS, submissions: over.submissions || submissions(),
+          roster: over.roster || {}, rosterKnown: over.rosterKnown !== false },
+        { dates: DATES, now: Date.parse('2026-08-19T09:00:00Z'), grade: over.grade });
     return host.innerHTML;
+}
+
+/** One date's PANEL — anchored on the panel head, because the week-glance strip names every date
+    above the panels and a bare `indexOf` on a date lands in the strip instead. */
+function panelFor(html, dateLabel) {
+    const at = html.indexOf(`ot-day-panel-head">${dateLabel}`);
+    assert.ok(at > -1, `no day panel for ${dateLabel}`);
+    return html.slice(at);
 }
 
 /** The markup between a section heading and the next section heading. */
@@ -215,32 +224,193 @@ describe('the header', () => {
     });
 });
 
+describe('the grade filter is about the reviewer, not the week', () => {
+    const MIXED = [
+        { memberName: 'A. One',   grade: 'CEA', rosterOrder: 1 },
+        { memberName: 'B. Two',   grade: 'CES', rosterOrder: 2 },
+    ];
+
+    test('a grade handed in is the grade rendered', () => {
+        // The coordinator holds the choice across week switches and passes it back in. Without
+        // this parameter the workspace resets to ALL on every render — and every week switch IS a
+        // render, so a clerk working the CEA line was returned to the whole team each time they
+        // moved between weeks, which is most of what this page is for.
+        const html = render({ participants: MIXED, grade: 'CES' });
+        assert.match(html, /data-grade="CES"[^>]*aria-pressed="true"/);
+        assert.match(html, /CES only/, 'and the print scope follows it');
+        assert.equal(/data-grade="ALL"[^>]*aria-pressed="true"/.test(html), false);
+    });
+
+    test('with none handed in it opens on all grades', () => {
+        const html = render({ participants: MIXED });
+        assert.match(html, /data-grade="ALL"[^>]*aria-pressed="true"/);
+    });
+
+    test('a single-grade population still offers no filter', () => {
+        // A control that filters to the same page invites a press that changes nothing — which is
+        // why the restricted beta, one CEA, correctly shows no strip at all.
+        const html = render({ participants: [MIXED[0]] });
+        assert.equal(/data-grade=/.test(html), false);
+    });
+});
+
+describe('the roster beside the answer', () => {
+    /** A. One works 07:00–15:00 on the Sunday and is on a rest day the Monday. */
+    const ROSTER = { 'A. One': {
+        '2026-08-30': { shift: '07:00-15:00', isRest: false, hasTime: true,
+            overnight: false, start: '07:00', end: '15:00', rosteredMinutes: 480 },
+        '2026-08-31': { shift: 'RD', isRest: true, hasTime: false,
+            overnight: false, start: '', end: '', rosteredMinutes: 0 },
+    } };
+
+    test('every row states what that person is rostered to work that day', () => {
+        // The audit's top item. "Available after 15:00" is only actionable next to the duty it was
+        // built from — and the member's form HAD that duty, so the app knew the fact and dropped it
+        // at the point of decision.
+        const html = render({ roster: ROSTER });
+        assert.match(html, /07:00–15:00/, 'the Sunday duty');
+        assert.match(html, /Rest/, 'and the Monday rest day, in the app\'s own chip');
+    });
+
+    test('a roster that could not be read SAYS so, rather than showing nothing', () => {
+        // Nothing is the dangerous rendering: an absent badge looks like a rest day at a glance,
+        // and a clerk would ring somebody who is on a shift.
+        const html = render({ roster: {} });
+        assert.match(html, /Roster unavailable/);
+    });
+
+    test('a roster that has moved under an anchored answer is flagged', () => {
+        // A. One's Monday answer is "after 15:00", and the roster now says rest day — so the
+        // boundary they anchored to is gone. The declaration STANDS (it is what they said), and
+        // the row says the ground moved. Same predicate the member's own form uses, so both ends
+        // of the record notice the same fact.
+        const html = render({ roster: ROSTER });
+        assert.match(html, /Roster changed since this answer/);
+    });
+
+    test('and an answer that still matches its roster is NOT flagged', () => {
+        // The teeth: a warning on every anchored answer would be worse than none, because a clerk
+        // would stop reading it.
+        const html = render({ roster: { 'A. One': {
+            ...ROSTER['A. One'],
+            '2026-08-31': { shift: '07:00-15:00', isRest: false, hasTime: true,
+                overnight: false, start: '07:00', end: '15:00', rosteredMinutes: 480 },
+        } } });
+        assert.equal(/Roster changed since this answer/.test(html), false);
+    });
+});
+
+describe('an unknown answer is never positive availability', () => {
+    /** A submission that exists but says nothing about the second date. */
+    const gappy = () => new Map([['A. One', { memberName: 'A. One',
+        days: { '2026-08-30': { mode: 'all_day' } }, history: null }]]);
+
+    test('a missing day does not put somebody under Available', () => {
+        // `!isUnavailable(undefined)` is TRUE, so the old negation filed them as available — with
+        // no answer chip beside their name to contradict it. The server normalises all seven days
+        // so this cannot happen today; the direction is what matters, because the failure mode is
+        // manufacturing a body for a shift.
+        const html = render({ participants: [PARTICIPANTS[0]], submissions: gappy() });
+        const available = sectionOf(panelFor(html, 'Mon 31 Aug'), 'Available');
+        assert.equal(/A\. One/.test(available), false,
+            'a day with no answer is not an offer of availability');
+    });
+
+    test('it falls through to No response, which is what it is', () => {
+        // Not "Not available" — they did not decline, they said nothing about this date. The
+        // three sections stay three.
+        const html = render({ participants: [PARTICIPANTS[0]], submissions: gappy() });
+        const monday = panelFor(html, 'Mon 31 Aug');
+        assert.match(sectionOf(monday, 'No response'), /A\. One/);
+        assert.equal(/A\. One/.test(sectionOf(monday, 'Not available')), false);
+    });
+
+    test('and the week-glance count does not count them either', () => {
+        // The count and the sections must agree; a number that disagrees with the rows beneath it
+        // is the defect the grade filter was built to avoid.
+        const html = render({ participants: [PARTICIPANTS[0]], submissions: gappy() });
+        assert.match(html, /aria-label="Mon 31 Aug — 0 with some availability"/);
+        assert.match(html, /aria-label="Sun 30 Aug — 1 with some availability"/);
+    });
+});
+
+describe('the week glance states counts, never verdicts', () => {
+    test('a day nobody offered anything on is marked, because zero always means the same', () => {
+        const html = render({ participants: [PARTICIPANTS[1]] });   // B. Two: unavailable all week
+        assert.match(html, /ot-glance-day--none/);
+    });
+
+    test('but no count above zero is dressed as adequate or inadequate', () => {
+        // The amber "1–2 is low" band was the app judging a number it has no basis for: four people
+        // available only before 07:00 do not fill a 15:00–23:00 vacancy. Only the reviewer knows
+        // which shift is short.
+        const html = render();
+        assert.equal(/ot-glance-day--low/.test(html), false, 'the amber band is gone');
+        assert.match(html, /how many people offered SOME availability/,
+            'and the strip says what its numbers are');
+    });
+});
+
 describe('change markers', () => {
-    test('a change after the initial deadline is flagged', () => {
-        const html = render({ submissions: submissions({
-            'A. One': { history: { lateInitial: false, changedSinceInitial: true } } }) });
-        assert.match(html, /Changed since initial deadline/);
+    /** A history whose initial revision said `was` on the first date. */
+    const initialWas = (was) => ({
+        lateInitial: false, changedSinceInitial: true,
+        initialRevision: { revision: 1, days: { '2026-08-30': was, '2026-08-31': was } },
     });
 
-    test('a late first submission is flagged', () => {
+    test('a changed day says WHAT it changed from, not merely that it changed', () => {
+        // The flag used to read "Changed since initial deadline" and stop there — repeated under
+        // the person's name on all seven days, saying only that some day somewhere had moved. The
+        // initial revision is already downloaded (that is the point of immutable revisions), so the
+        // row can carry the actual before-and-after on the day it happened, which is what a clerk
+        // revisiting a decision needs.
         const html = render({ submissions: submissions({
-            'A. One': { history: { lateInitial: true, changedSinceInitial: false } } }) });
-        assert.match(html, /Submitted after initial deadline/);
-        assert.equal(/Changed since initial deadline/.test(html), false);
+            'A. One': { history: initialWas({ mode: 'unavailable' }) } }) });
+        assert.match(html, /Changed after initial deadline/);
+        assert.match(html, /was Not available/,
+            'the previous answer is the whole value of keeping revisions');
     });
 
-    test('late WINS over changed when a history somehow carries both', () => {
-        // `deriveHistory` cannot produce both — late means there is no initial revision, so there is
-        // nothing to have changed from — which is exactly why the earlier version of this test had
-        // no teeth: swapping the `else if` for a second `if` changed nothing it looked at.
-        //
-        // The guard still matters, because this render takes `history` from a caller. Two chips
-        // saying different things about one submission would read as two separate events.
+    test('and it appears ONLY on the day that actually moved', () => {
+        // The reason the old flag was nearly useless: on a seven-day week it appeared seven times
+        // for one change, so it could not point at anything. Here the initial said `unavailable` on
+        // both dates and the head says `all_day` then `after` — so both moved; the discriminating
+        // case is an initial that MATCHES on one date.
         const html = render({ submissions: submissions({
-            'A. One': { history: { lateInitial: true, changedSinceInitial: true } } }) });
+            'A. One': { history: {
+                lateInitial: false, changedSinceInitial: true,
+                initialRevision: { revision: 1, days: {
+                    '2026-08-30': { mode: 'all_day' },              // same as now → no marker
+                    '2026-08-31': { mode: 'unavailable' },          // moved → marker
+                } },
+            } } }) });
+        assert.equal((html.match(/Changed after initial deadline/g) || []).length, 1,
+            'one marker for one changed day');
+        assert.match(html, /was Not available/);
+    });
+
+    test('a key reorder is not a change of mind', () => {
+        // Structural comparison, for the same reason the member's form uses it: the head and the
+        // revision pass through different producers, and a reordered object is the same answer.
+        const html = render({ submissions: submissions({
+            'A. One': { history: {
+                lateInitial: false, changedSinceInitial: false,
+                initialRevision: { revision: 1, days: {
+                    '2026-08-30': { mode: 'all_day' },
+                    '2026-08-31': { from: '15:00', mode: 'after' },   // reversed keys, same answer
+                } },
+            } } }) });
+        assert.equal(/Changed after initial deadline/.test(html), false);
+    });
+
+    test('a late first submission is flagged, and never ALSO as changed', () => {
+        // `deriveHistory` cannot produce both — late means there is no initial revision, so there
+        // is nothing to have changed from. The guard still matters because this render takes
+        // `history` from a caller, and two chips about one submission read as two events.
+        const html = render({ submissions: submissions({
+            'A. One': { history: { ...initialWas({ mode: 'unavailable' }), lateInitial: true } } }) });
         assert.match(html, /Submitted after initial deadline/);
-        assert.equal(/Changed since initial deadline/.test(html), false,
-            'a late submission must not ALSO be flagged as changed');
+        assert.equal(/Changed after initial deadline/.test(html), false);
     });
 
     test('no history at all means no marker — never a guessed one', () => {

@@ -30,7 +30,7 @@ import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, isOvertimeReviewer, canOpenOvertime } from './auth-policy.js';
-import { initCardCollapse } from './overlay.js';
+import { initCardCollapse, confirmDialog } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -75,6 +75,19 @@ export function init() {
     let myWindows = [];
     /** One resync in flight at a time; a second visibilitychange mid-read must not stack. */
     let resyncing = false;
+    /** The form currently on screen — the `{ isDirty, setPhase }` handle it returned. @type {any} */
+    let currentForm = null;
+    /** Which week that form is for, so a resync knows whether a moved window is the visible one. */
+    /** @type {string|null} */
+    let currentFormWeek = null;
+    /**
+     * The grade the REVIEWER is working, held across week switches.
+     *
+     * Lives here rather than inside the workspace because the workspace is re-rendered from scratch
+     * on every week change — so anything it owns is reset by the act of changing week, which is
+     * precisely the thing that made the filter unusable. Page-scoped, so a reload clears it.
+     */
+    let reviewGrade = 'ALL';
 
     // ── Nav + chrome, always, so an unauthorised visitor can leave ──────────────────────────────
 
@@ -212,14 +225,23 @@ export function init() {
      * BECOMING VISIBLE near a deadline, not a timer: a timer burns battery all afternoon to catch
      * a case that, when it matters, always arrives through this event.
      *
-     * ── IT RE-RENDERS ONLY WHEN A PHASE ACTUALLY CHANGED ────────────────────────────────────────
+     * ── IT RE-RENDERS ONLY WHEN A PHASE ACTUALLY CHANGED, AND THEN ONLY IF IT MUST ──────────────
      *
      * The blunt version — reload the card whenever the window is near a deadline — would WIPE a
      * half-filled form under the member's thumb, which is worse than the stale line it fixes. So
-     * this re-reads state (which also refreshes the clock offset that `submitDisposition` uses),
-     * compares phases, and repaints only when one genuinely moved. A member mid-form whose week
-     * just closed loses their picks, and honestly: the server would refuse them anyway, and the
-     * closed view says what to do instead.
+     * this re-reads state (which also refreshes the clock offset that `submitDisposition` uses) and
+     * compares phases.
+     *
+     * Until v20.86 ANY phase move then reloaded, with a comment reasoning that a member mid-form
+     * whose week just closed loses their picks and the server would have refused them anyway. That
+     * is true of `FINAL_OPEN → CLOSED`. It is not true of `INITIAL_OPEN → FINAL_OPEN`, where the
+     * form stays fully submittable — so there the reload destroyed work for nothing, and the
+     * realistic case is exactly the one this whole function was written for: answering at 11:58,
+     * pocket, reopen at 12:02, five days' answers gone. The window is ±5 minutes of EITHER deadline,
+     * so it is the initial deadline that most often triggers it.
+     *
+     * A still-open move is therefore handed to the form to absorb (`setPhase` repaints the head and
+     * touches nothing else). Only a form that must lose its controls is rebuilt.
      */
     function wireDeadlineResync() {
         document.addEventListener('visibilitychange', async () => {
@@ -230,16 +252,50 @@ export function init() {
             resyncing = true;
             try {
                 const r = await OTD.getMyOvertimeState();
-                if (r.ok) {
-                    const phases = new Map((r.data.windows || []).map(
-                        (/** @type {any} */ w) => [w.weekEnding, w.phase]));
-                    const moved = myWindows.some(
-                        (/** @type {any} */ w) => phases.get(w.weekEnding) !== w.phase);
-                    if (moved) await loadMine();
-                }
+                if (!r.ok) return;
+                const phases = new Map((r.data.windows || []).map(
+                    (/** @type {any} */ w) => [w.weekEnding, w.phase]));
+                const moved = myWindows.filter(
+                    (/** @type {any} */ w) => phases.get(w.weekEnding)
+                        && phases.get(w.weekEnding) !== w.phase);
+                if (!moved.length) return;
+                // Record every move on the window objects — the week LIST rows read `phase` too, and
+                // leaving them stale would be the same lie in a quieter place.
+                for (const w of moved) w.phase = phases.get(w.weekEnding);
+                // The form on screen is the only one that can absorb a change in place. If it took
+                // the new phase, nothing else is needed; if it refused (it is closing), rebuild.
+                const onScreen = currentForm && currentFormWeek
+                    && moved.some((/** @type {any} */ w) => w.weekEnding === currentFormWeek);
+                if (onScreen && currentForm.setPhase(phases.get(currentFormWeek))) return;
+                await loadMine();
             } finally {
                 resyncing = false;
             }
+        });
+    }
+
+    /**
+     * Ask before throwing away answers the member has not submitted.
+     *
+     * Everything on this page that shows a form REPLACES the card body to do it — opening another
+     * week, going back to the list, a resync that has to rebuild. None of them could see that the
+     * form held unsaved work, because the answers live inside `renderWeekForm`'s closure; the handle
+     * it now returns is what makes the question askable at all.
+     *
+     * Deliberately NOT persisted. A draft in localStorage would be a second, invisible copy of a
+     * declaration about somebody's own availability, surviving sign-out on a shared station PC and
+     * capable of disagreeing with the server. In-session is the whole requirement: the loss this
+     * prevents happens seconds later, on the same page.
+     * @returns {Promise<boolean>} true when it is safe to proceed
+     */
+    async function confirmDiscard() {
+        if (!currentForm?.isDirty()) return true;
+        return confirmDialog({
+            title: 'Leave without submitting?',
+            message: 'You have answers on this form that have not been submitted. '
+                + 'They will be lost if you leave it now.',
+            confirmLabel: 'Leave',
+            cancelLabel: 'Stay on this form',
         });
     }
 
@@ -262,6 +318,11 @@ export function init() {
         if (!host) return;
         renderLoading(host, 'Loading your forms…');
         mineFailed = false;
+        // The form on screen is about to be replaced whatever happens below, so the handle to it
+        // must go now. A stale one would let a later resync call `setPhase` on a detached node —
+        // and, worse, let `confirmDiscard` warn about unsaved answers that are no longer anywhere.
+        currentForm = null;
+        currentFormWeek = null;
         const r = await OTD.getMyOvertimeState();
         if (!r.ok) { mineFailed = true; renderError(host); return; }
 
@@ -299,10 +360,21 @@ export function init() {
      * through an index before reaching anything they could fill in. That is a step that exists
      * because of how the weeks are made, which is not a fact the member should have to care about.
      *
-     * So the form that closes SOONEST is rendered directly — it is the one with a deadline
-     * approaching, and therefore the answer to "what do I need to do?". The other open weeks are
-     * listed beneath it for anyone who wants to answer further ahead, and closed weeks below that
-     * as history. Nothing is hidden; the ordering just matches the urgency.
+     * So a form is rendered directly, the other open weeks are listed beneath it for anyone who
+     * wants to answer further ahead, and closed weeks below that as history. Nothing is hidden; the
+     * ordering just matches the urgency.
+     *
+     * ── SOONEST-CLOSING, BUT ONLY AMONG THE ONES STILL TO DO (v20.86) ───────────────────────────
+     *
+     * It was the soonest-closing OPEN week full stop, which lands on a form that is already
+     * submitted whenever the nearest deadline belongs to a week the member has dealt with. The
+     * question the page is answering is "what do I need to do?", and a completed form is not an
+     * answer to it — so the member arrives at a green screen with the outstanding week one tap away
+     * in a list, which costs response rate for no reason.
+     *
+     * The fallback order still matters: an all-submitted member lands on the soonest-closing form
+     * (their most recent work, and the one they might still amend), and a member with nothing open
+     * lands on the newest closed week, read-only. Neither is a dead end.
      *
      * @param {HTMLElement} host @param {any[]} windows
      */
@@ -311,16 +383,50 @@ export function init() {
             .sort((/** @type {any} */ a, /** @type {any} */ b) => a.finalDeadlineAt - b.finalDeadlineAt);
         const closed = windows.filter((/** @type {any} */ w) => w.phase === 'CLOSED');
         // With nothing open, the newest CLOSED week is still what they came to look at (read-only).
-        const lead = open[0] || closed[closed.length - 1];
+        const lead = open.find((/** @type {any} */ w) => !w.submission)
+            || open[0] || closed[closed.length - 1];
         if (!lead) return;
 
         const holder = document.createElement('div');
         host.innerHTML = '';
         host.appendChild(holder);
-        await renderWeekForm(holder, lead, String(currentUser), { onSaved: () => { /* head refreshes on next load */ } });
+        // Re-render the LISTS after a save, not the form: the row for a week just submitted has to
+        // stop saying "Not submitted yet", and the outstanding-count nudge below has to recount.
+        // Re-rendering the form as well would throw away the confirmation the member is reading.
+        currentForm = await renderWeekForm(holder, lead, String(currentUser),
+            { onSaved: () => paintLists() });
+        currentFormWeek = lead.weekEnding;
+        paintLists();
 
-        appendWeekList(host, open.slice(1), 'Other open weeks', windows);
-        appendWeekList(host, closed.filter((/** @type {any} */ w) => w !== lead), 'Previous forms', windows);
+        function paintLists() {
+            while (holder.nextSibling) host.removeChild(holder.nextSibling);
+            appendWeekList(host, open.filter((/** @type {any} */ w) => w !== lead),
+                'Other open weeks', windows);
+            appendWeekList(host, closed.filter((/** @type {any} */ w) => w !== lead),
+                'Previous forms', windows);
+            appendOutstandingNudge(host, open, lead);
+        }
+    }
+
+    /**
+     * "1 other form still needs a response" — the one nudge this page makes.
+     *
+     * Placed under the lists rather than in the form's own feedback line, because it is about the
+     * OTHER weeks and it has to survive the member reading their confirmation. It states a count and
+     * stops: no exclamation, no countdown, and nothing at all when every open form is answered,
+     * which is the state most members are in most weeks and does not need congratulating.
+     * @param {HTMLElement} host @param {any[]} open @param {any} lead
+     */
+    function appendOutstandingNudge(host, open, lead) {
+        const waiting = open.filter((/** @type {any} */ w) => w !== lead && !w.submission);
+        if (!waiting.length || !lead.submission) return;
+        const note = document.createElement('div');
+        note.className = 'ot-outstanding';
+        note.setAttribute('role', 'status');
+        note.textContent = waiting.length === 1
+            ? '1 other form still needs a response.'
+            : `${waiting.length} other forms still need a response.`;
+        host.appendChild(note);
     }
 
     /**
@@ -361,10 +467,13 @@ export function init() {
                 const week = String(btn.getAttribute('data-openweek'));
                 const w = windows.find((/** @type {any} */ x) => x.weekEnding === week);
                 if (!w) return;
+                // Opening another week DESTROYS the form on screen. Ask first if it holds work.
+                if (!await confirmDiscard()) return;
                 const holder = document.createElement('div');
                 cardHost.innerHTML = '';
                 cardHost.appendChild(holder);
-                await renderWeekForm(holder, w, String(currentUser), { onSaved: () => {} });
+                currentForm = await renderWeekForm(holder, w, String(currentUser), { onSaved: () => {} });
+                currentFormWeek = w.weekEnding;
                 // A way BACK to the list. Opening a week replaces the whole card, so without this
                 // the member is stranded on one form with no route to the others.
                 if (windows.length > 1) appendBackToList(cardHost, windows);
@@ -377,10 +486,12 @@ export function init() {
         back.type = 'button';
         back.className = 'ot-row-btn ot-back-to-list';
         back.textContent = '← Back to my current form';
-        // Back to the layout they LANDED on — the soonest-closing form with the other
+        // Back to the layout they LANDED on — the soonest-closing unanswered form with the other
         // weeks beneath it. Returning to a bare index would reintroduce the very step
         // this arrangement removes, one tap further in.
-        back.addEventListener('click', () => { renderMine(host, windows); });
+        back.addEventListener('click', async () => {
+            if (await confirmDiscard()) renderMine(host, windows);
+        });
         host.appendChild(back);
     }
 
@@ -766,13 +877,18 @@ export function init() {
         const host = el('otWeekContent');
         const win = horizonByWeek.get(weekEnding);
         if (!host || !win) return;
-        const data = await OTD.loadWeekDetail(weekEnding, { initialDeadlineAt: win.initialDeadlineAt });
+        const dates = weekDatesFrom(win.weekStart);
+        const data = await OTD.loadWeekDetail(weekEnding,
+            { initialDeadlineAt: win.initialDeadlineAt }, dates);
         // A stale-render guard: the reviewer may have picked another week while this read was in
         // flight, and painting the older answer over the newer selection is the classic late-read
         // bug. Cheap to prevent; invisible when it happens.
         if (selectedWeek !== weekEnding) return;
         if (!data.ok) { renderError(host, () => renderWeekDetail(weekEnding)); return; }
-        paintWeekDetail(host, win, data, { dates: weekDatesFrom(win.weekStart), now: OTD.correctedNow() });
+        paintWeekDetail(host, win, data, {
+            dates, now: OTD.correctedNow(),
+            grade: reviewGrade, onGrade: (g) => { reviewGrade = g; },
+        });
         const chip = el('otWeekChip');
         if (chip) {
             const received = data.participants.filter((/** @type {any} */ p) => data.submissions.has(p.memberName)).length;

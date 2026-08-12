@@ -22,6 +22,7 @@
 import { fetchWithTimeout, isFetchTimeout, isFetchAborted } from './fetch-timeout.js';
 import { auth, db, collection, doc, getDocs } from './firebase-client.js';
 import { clockOffset, deriveHistory } from './overtime-format.js';
+import { loadRosterForMembers } from './overtime-roster.js';
 
 const BASE = 'https://europe-west2-myb-roster.cloudfunctions.net';
 
@@ -181,11 +182,25 @@ const WINDOWS = 'overtimeWindows';
  * wanted INLINE in the by-day view — a marker that only appears after a drill-down is a marker
  * nobody sees. At a full roster that is one small subcollection read per responder, in parallel.
  *
+ * ── AND THE ROSTER, WHICH IS THE POINT OF READING ANY OF IT ─────────────────────────────────────
+ *
+ * v20.87, external audit. The workspace showed "Available after 15:00" and not what that person is
+ * actually rostered to work — so the app knew an operational fact and dropped it at the exact
+ * moment somebody had to act on one. It matters most in the case the feature was built for: a
+ * member who answered "Rest day · available all day" and has since BEEN given overtime is no use
+ * for sickness cover, and nothing on the reviewer's screen said so.
+ *
+ * The roster is read for the FROZEN PARTICIPANTS, not for everyone: that is who the workspace
+ * lists, and asking for anybody else would widen the query for rows nobody draws. It is a separate
+ * await from the pair above because it needs their names first.
+ *
  * @param {string} weekEnding
  * @param {{ initialDeadlineAt: number }} milestones
- * @returns {Promise<{ ok: boolean, participants: any[], submissions: Map<string, any> }>}
+ * @param {string[]} [dates] the window's seven dates; omit to skip the roster read entirely
+ * @returns {Promise<{ ok: boolean, participants: any[], submissions: Map<string, any>,
+ *   roster: Record<string, Record<string, any>>, rosterKnown: boolean }>}
  */
-export async function loadWeekDetail(weekEnding, milestones) {
+export async function loadWeekDetail(weekEnding, milestones, dates) {
     try {
         const windowRef = doc(db, WINDOWS, weekEnding);
         const [pSnap, sSnap] = await Promise.all([
@@ -220,9 +235,23 @@ export async function loadWeekDetail(weekEnding, milestones) {
             return { ...h, history: deriveHistory(revisions, h.days, milestones.initialDeadlineAt) };
         }));
 
-        return { ok: true, participants, submissions: new Map(withHistory.map(h => [h.memberName, h])) };
+        // A FAILED roster read is not a failed week. The availability is the record; the roster is
+        // context on top of it, and blanking the workspace because the overrides query fell over
+        // would take away the thing the reviewer came for in order to withhold the thing they did
+        // not have yesterday. `rosterKnown` false makes every row say so instead.
+        const rosterRead = dates?.length
+            ? await loadRosterForMembers(participants.map(p => p.memberName), dates)
+            : { knowledge: 'error', byMember: {} };
+
+        return {
+            ok: true,
+            participants,
+            submissions: new Map(withHistory.map(h => [h.memberName, h])),
+            roster: rosterRead.byMember,
+            rosterKnown: rosterRead.knowledge === 'authoritative',
+        };
     } catch (_) {
-        return { ok: false, participants: [], submissions: new Map() };
+        return { ok: false, participants: [], submissions: new Map(), roster: {}, rosterKnown: false };
     }
 }
 

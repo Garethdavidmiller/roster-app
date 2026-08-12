@@ -244,6 +244,29 @@ member can say about that day, they say in their own typed times. The server sch
 Do not "fix" this by accepting inverted pairs server-side: an inverted pair from a same-day duty
 really is a transposed mistake, and the schema cannot tell the two apart after the fact.
 
+### A day's answer is about a duty STARTING that day (owner, Aug 2026)
+
+Settled in response to an external audit, which found the rule undocumented rather than wrong. The
+app has always worked this way — answers are keyed by date, `nextDay` is derived from the two times
+rather than asked, and the roster itself anchors every night turn to the day it starts on — but
+nothing on either surface said so, and the ambiguity is not academic:
+
+> Friday · available 22:00–02:00 next day
+> Saturday · not available
+
+Under the duty-start rule that pair is coherent and complete. Under a pure clock-availability
+reading it is a flat contradiction, and a member holding that reading would enter the small hours
+twice, on both days, producing a record neither they nor the clerk could act on. The reviewer is
+exposed to the same misreading from the other side: seeing the pair as a contradiction and ringing
+somebody to resolve one that does not exist.
+
+So it is stated on both surfaces (v20.88) — the member's custom-times hint says the range still
+belongs to the day it starts on, and both `?` panels carry the rule in their own voice. **No logic
+changed**, and none should: the alternative reading would require a period crossing midnight to
+feed into two dates, which is a materially more complicated model for a station where the roster
+already anchors overnight turns by start date. If the interpretation is ever revisited, that is the
+cost to weigh.
+
 ---
 
 ## "Up to 12 hours" — the one mode that is a ceiling, not a clock time (v20.83, owner)
