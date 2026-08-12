@@ -29,6 +29,8 @@ import {
 } from './links-design.js';
 import { DEFAULT_WINDOW, windowMinutes } from './links-window.js';
 import { DEC_2026_DEMAND } from './links-demand.js';
+import { buildRosterTargets } from './links-seed.js';
+import { sameTargetTable, isSupersededMemory } from './links-default-targets.js';
 
 const { slots, spareLines } = buildDefaultTargets();
 const WORKING = ROTATING_LINES - DEFAULT_COVER_WEEKS;
@@ -244,6 +246,39 @@ describe('the shape of the day', () => {
         // next person will re-derive the table from.
         const mins = (cls) => dutiesOn(cls).reduce((a, t) => a + endMinutesAbs(t) - startMinutes(t), 0);
         assert.equal(mins('weekday'), mins('sat'));
+    });
+});
+
+describe('superseding a stale memory — the v21.05 report', () => {
+    // The generator remembers each device's table and prefers the memory forever. Right for a
+    // table somebody tuned; wrong for the one the app stored on its own — from v19.38 to v21.00
+    // the default WAS the roster seed, so every older device kept showing July's 29h 53m table
+    // while a fresh one showed the designed default at 35h 00m. The owner read that stale memory
+    // as "the new set doesn't average 35". These cases pin the discard rule's one hard boundary:
+    // it may only ever discard a table the app itself wrote.
+
+    test('the roster seed and the current default are superseded — nobody wrote either by hand', () => {
+        assert.equal(isSupersededMemory(buildRosterTargets(), buildRosterTargets()), true);
+        assert.equal(isSupersededMemory(buildDefaultTargets(), buildRosterTargets()), true);
+    });
+
+    test('ONE touched count keeps the memory — an edited table is somebody\'s work', () => {
+        const edited = buildRosterTargets();
+        edited.slots[0].weekday += 1;
+        assert.equal(isSupersededMemory(edited, buildRosterTargets()), false);
+        const fewerSpare = { ...buildDefaultTargets(), spareLines: 5 };
+        assert.equal(isSupersededMemory(fewerSpare, buildRosterTargets()), false);
+    });
+
+    test('sameTargetTable ignores row ORDER and nothing else', () => {
+        const a = buildDefaultTargets();
+        const b = buildDefaultTargets();
+        b.slots.reverse();
+        assert.equal(sameTargetTable(a, b), true, 'a table is a set of claims, not a sequence');
+        const c = buildDefaultTargets();
+        c.slots.pop();
+        assert.equal(sameTargetTable(a, c), false);
+        assert.equal(sameTargetTable(a, null), false);
     });
 });
 

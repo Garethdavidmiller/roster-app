@@ -1835,6 +1835,69 @@ test('links: generator targets are remembered per design', async ({ page }) => {
     await expect(page.locator('#genSpareLines')).toHaveValue('7');
 });
 
+// ── The stale remembered table (v21.05) ─────────────────────────────────────────────────────────
+// The generator remembers each device's table and used to prefer that memory over the default
+// forever. From v19.38 to v21.00 the default WAS the roster seed, so every older device kept
+// showing July's table at 29h 53m while a fresh device showed the designed default at 35h 00m —
+// which the owner read, reasonably, as "the new set doesn't average 35". A memory the app stored
+// on its own is now superseded by content; a memory anybody EDITED is kept, with a note saying
+// what it is.
+const STALE_SEED_KEY = 'myb_links_gen_unsaved';
+/** Exactly what buildRosterTargets() produced (and auto-stored) before v21.00 — July's table. */
+const STALE_SEED = {
+    slots: [
+        { time: '06:20-13:35', weekday: 1, sat: 0, sun: 0 }, { time: '06:20-13:45', weekday: 1, sat: 0, sun: 0 },
+        { time: '06:20-14:00', weekday: 0, sat: 1, sun: 0 }, { time: '06:20-14:20', weekday: 2, sat: 0, sun: 0 },
+        { time: '06:20-14:50', weekday: 0, sat: 3, sun: 0 }, { time: '07:15-15:45', weekday: 0, sat: 0, sun: 3 },
+        { time: '08:00-16:30', weekday: 2, sat: 0, sun: 0 }, { time: '08:30-16:30', weekday: 0, sat: 0, sun: 1 },
+        { time: '11:00-19:30', weekday: 1, sat: 0, sun: 0 }, { time: '12:00-20:00', weekday: 0, sat: 1, sun: 0 },
+        { time: '13:00-21:00', weekday: 0, sat: 0, sun: 1 }, { time: '13:30-21:00', weekday: 0, sat: 1, sun: 0 },
+        { time: '13:30-22:00', weekday: 1, sat: 0, sun: 0 }, { time: '14:00-22:30', weekday: 2, sat: 0, sun: 0 },
+        { time: '14:30-22:00', weekday: 0, sat: 2, sun: 0 }, { time: '14:30-23:25', weekday: 0, sat: 0, sun: 3 },
+        { time: '14:45-23:55', weekday: 0, sat: 2, sun: 0 }, { time: '15:15-23:55', weekday: 2, sat: 0, sun: 0 },
+    ],
+    spareLines: 4,
+};
+
+async function openLinksWithMemory(page, remembered) {
+    await page.setViewportSize({ width: 1280, height: 1200 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(([key, table]) => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
+        localStorage.setItem(key, JSON.stringify(table));
+    }, [STALE_SEED_KEY, remembered]);
+    await page.goto('/links.html');
+    await page.waitForTimeout(700);
+    await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+}
+
+test('links memory: a device still holding the OLD auto-seeded table gets the new default', async ({ page }) => {
+    // The owner's exact state. Nobody wrote that table — the app stored it on its own — so it is
+    // superseded by content, the memory is cleared, and the card reads 35h 00m like a fresh device.
+    await openLinksWithMemory(page, STALE_SEED);
+    await expect(page.locator('#genHoursValue')).toHaveText('35h 00m each');
+    await expect(page.locator('#genHoursNote')).toContainText('on target');
+    await expect(page.locator('#genMemoryNote')).toBeHidden();
+});
+
+test('links memory: a table somebody EDITED is kept, and the note says what it is', async ({ page }) => {
+    // One touched count is the boundary: this is somebody's work, and the supersede rule must
+    // never discard it — but a kept memory that differs from the default looks exactly like "the
+    // new default is wrong", so the provenance note is what separates the two states.
+    const edited = JSON.parse(JSON.stringify(STALE_SEED));
+    edited.slots[0].weekday = 3;                                // one deliberate change
+    await openLinksWithMemory(page, edited);
+    await expect(page.locator('#genHoursNote')).toContainText('under the 35h contract');
+    await expect(page.locator('#genMemoryNote')).toBeVisible();
+    await expect(page.locator('#genMemoryNote')).toContainText('your device remembers');
+    // Touching anything makes it the designer's table — the note stands down.
+    const first = page.locator('.gen-slot-count').first();
+    await first.fill('4');
+    await first.dispatchEvent('input');
+    await expect(page.locator('#genMemoryNote')).toBeHidden();
+});
+
 // ── Saved target sets (v21.04) ──────────────────────────────────────────────────────────────────
 // The promise under test: others can load and change anyone's set, but overwriting belongs to its
 // creator. The RULES enforce that server-side (firestore.rules.test.mjs covers it case for case);

@@ -41,7 +41,7 @@ import { initLinksAnalysis } from './links-analysis.js';
 import { LEGACY_DOC_ID, deepCopyPatterns, designFromDoc, binEntryFromDoc, docPayload, workingCopy, binEntryFrom, restoredEntryFrom } from './links-design-doc.js';
 import { parseDesignImport, summariseImport } from './links-import.js';
 import { buildRosterTargets } from './links-seed.js';
-import { buildDefaultTargets, DEFAULT_SHIFT_TIMES } from './links-default-targets.js';
+import { buildDefaultTargets, DEFAULT_SHIFT_TIMES, sameTargetTable, isSupersededMemory } from './links-default-targets.js';
 import { targetSetFromDoc, targetSetPayload, canOverwriteTargetSet, sortTargetSets, MAX_SET_NAME } from './links-target-sets.js';
 import { reorderLines, applyOrder, cost, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
 import { normaliseWindow, formatWindow, isDefaultWindow, isValidWindowRow, canonicaliseWindowTime } from './links-window.js';
@@ -1609,6 +1609,7 @@ export function init() {
             el.classList.toggle('gen-total-over', tot[cls] > TOTAL_POS);
         }
         _updateGenHours();
+        _updateMemoryNote();
         return tot;
     }
 
@@ -1688,9 +1689,30 @@ export function init() {
     const GEN_KEY_PREFIX = 'myb_links_gen_';
     const _genTargetsKey = () => GEN_KEY_PREFIX + (activeDesignId || 'unsaved');
 
+    // Whether the table ON SCREEN came from this device's memory rather than the default — and has
+    // not been touched this visit. Drives the one-line provenance note: a remembered table that
+    // differs from the current default looks exactly like "the new default is wrong" (the v21.05
+    // report), and the note is what tells those two states apart. Any edit or reset clears it —
+    // once touched, it is the designer's table and they know what it is.
+    let genFromMemory = false;
+
+    function _updateMemoryNote() {
+        const el = document.getElementById('genMemoryNote');
+        if (!el) return;
+        const differs = genFromMemory && !sameTargetTable(
+            { slots: genSlots, spareLines: genSpareLines }, buildDefaultTargets());
+        el.hidden = !differs;
+        if (differs) {
+            el.textContent = 'This is the table your device remembers from earlier — not the December 2026 default. '
+                + '↺ loads the default; anything you change here is kept.';
+        }
+    }
+
     /** Persist the current target table for the active design. Silent — losing it is a nuisance,
      *  never a failure worth interrupting a designer for. */
     function saveGenTargets() {
+        genFromMemory = false;
+        _updateMemoryNote();
         try { lsSet(_genTargetsKey(), JSON.stringify({ slots: genSlots, spareLines: genSpareLines })); }
         catch { /* quota / private mode — the roster seed remains the fallback */ }
     }
@@ -1716,6 +1738,16 @@ export function init() {
             const legacy = okCounts(v.spare);
             if (!int(v.spareLines) && !legacy) return null;
             if (!v.slots.every((/** @type {any} */ sl) => sl && typeof sl.time === 'string' && okCounts(sl))) return null;
+            // A remembered table the app stored ON ITS OWN must not outlive a changed default
+            // (v21.05). From v19.38 to v21.00 the default WAS the roster seed, so every device that
+            // opened the workspace remembered the seed untouched — and when the designed default
+            // replaced it, those devices kept showing July's table at 29h 53m while a fresh device
+            // showed 35h 00m. Decided by CONTENT (equal to the seed, or to the current default), so
+            // a table anybody actually edited can never be discarded by this.
+            if (int(v.spareLines) && isSupersededMemory({ slots: v.slots, spareLines: v.spareLines }, buildRosterTargets())) {
+                try { lsSet(_genTargetsKey(), ''); } catch { /* best-effort */ }
+                return null;
+            }
             return {
                 slots: v.slots.map((/** @type {any} */ sl) => ({ time: sl.time, weekday: sl.weekday, sat: sl.sat, sun: sl.sun })),
                 spareLines: int(v.spareLines) ? v.spareLines : null,
@@ -1754,7 +1786,9 @@ export function init() {
      */
     function refreshGenTargetsForDesign() {
         if (!document.getElementById('genSlotRows')) return;
-        applyGenTargets(loadGenTargets() ?? buildDefaultTargets());
+        const remembered = loadGenTargets();
+        genFromMemory = !!remembered;
+        applyGenTargets(remembered ?? buildDefaultTargets());
     }
 
     (function initGenerator() {
@@ -1763,7 +1797,11 @@ export function init() {
 
         // Remembered targets for whatever design ends up active, else the default table. loadDesigns
         // calls refreshGenTargetsForDesign() again once it knows which design that is.
-        applyGenTargets(loadGenTargets() ?? buildDefaultTargets());
+        {
+            const remembered = loadGenTargets();
+            genFromMemory = !!remembered;
+            applyGenTargets(remembered ?? buildDefaultTargets());
+        }
 
         tbody.addEventListener('input', e => {
             const input = /** @type {HTMLInputElement|null} */ (/** @type {Element} */ (e.target).closest('.gen-slot-count'));
