@@ -285,6 +285,13 @@ export function seedViewerAccess(page) {
  * rotation has 19 — which is the whole point of the rule, and it is asserted directly in
  * `links-contract.test.mjs`. So every spec that presses Generate has to bring work with it.
  *
+ * ⚠️ IT SEEDS ONE KEY PER DESIGN ID, not just the unsaved one. The coordinator reads
+ * `myb_links_gen_<activeDesignId>` and falls back to `myb_links_gen_unsaved` only while no design
+ * is active — so a spec whose fixture seeds designs (`d1`, `d2`, which most links specs do) was
+ * reading a key this helper had never written, and pressed Generate against the roster seed exactly
+ * as before. It failed in the FULL suite and passed in every targeted run I checked it with, which
+ * is the shape of a fixture that is silently doing nothing.
+ *
  * The arithmetic, so a future edit can keep it true: 19 working lines x 35h = 39,900 minutes.
  *   06:20-14:20 (480m) x (5x6 + 4) = 16,320
  *   11:00-19:30 (510m) x (5x3 + 3) =  9,180
@@ -295,15 +302,16 @@ export function seedViewerAccess(page) {
  * analysis panels — both of which are uninteresting on a design where every line works the same
  * duty. `myb_links_gen_unsaved` is the key the coordinator reads before a design is active.
  */
-export function seedContractTargets(page, { spareLines = 5 } = {}) {
-    return page.addInitScript((spare) => {
-        localStorage.setItem('myb_links_gen_unsaved', JSON.stringify({
+export function seedContractTargets(page, { spareLines = 5, designIds = ['unsaved', 'd1', 'd2'] } = {}) {
+    return page.addInitScript(([spare, ids]) => {
+        const targets = JSON.stringify({
             slots: [
                 { time: '06:20-14:20', weekday: 6, sat: 4, sun: 0 },
                 { time: '11:00-19:30', weekday: 3, sat: 3, sun: 0 },
                 { time: '15:25-23:25', weekday: 6, sat: 0, sun: 0 },
             ],
             spareLines: spare,
-        }));
-    }, spareLines);
+        });
+        for (const id of ids) localStorage.setItem('myb_links_gen_' + id, targets);
+    }, [spareLines, designIds]);
 }
