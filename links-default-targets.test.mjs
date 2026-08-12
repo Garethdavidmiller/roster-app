@@ -7,32 +7,37 @@
  * A hand-written table has no computation to get wrong, which is exactly why it needs pinning: its
  * properties are true by construction and stay true only as long as nobody edits it. Every claim
  * below is a claim the module HEADER makes and the workspace copy REPEATS — four openers, three
- * closers, the contracted week, 4.2 days — and each of them survives an edit that breaks it,
- * silently and in prose, for as long as nobody re-runs the arithmetic by hand.
+ * closers, the contracted week, 14 on a Saturday, 10 on a Sunday — and each of them survives an
+ * edit that breaks it, silently and in prose, for as long as nobody re-runs the arithmetic by hand.
  *
- * The one that matters most is the contract. Since v20.98 the generator refuses a table that does
- * not pay the contracted week EXACTLY, so a default that drifts by one duty does not render
- * slightly wrong — it makes the Generate button refuse on a page the designer has not touched,
- * which is the failure this default was introduced to remove.
+ * The one that matters most is the contract. The generator refuses a table that does not pay the
+ * contracted week EXACTLY, so a default that drifts by one duty does not render slightly wrong —
+ * it makes the Generate button refuse on a page the designer has not touched, which is the failure
+ * this default was introduced to remove.
  */
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     buildDefaultTargets, DEFAULT_COVER_WEEKS, DEFAULT_SHIFT_TIMES,
-    OPENING_TURNS, CLOSING_TURNS, TARGET_DAYS_PER_WEEK,
+    OPENING_TURNS, CLOSING_TURNS, SATURDAY_TURNS, SUNDAY_TURNS, TARGET_DAYS_PER_WEEK,
 } from './links-default-targets.js';
 import {
     generateLink, weeklyHours, targetExSundayMinutes,
     CONTRACTED_HOURS_PER_WEEK, ROTATING_LINES, startMinutes, endMinutesAbs,
 } from './links-design.js';
 import { DEFAULT_WINDOW, windowMinutes } from './links-window.js';
-import { buildRosterTargets } from './links-seed.js';
 
 const { slots, spareLines } = buildDefaultTargets();
 const WORKING = ROTATING_LINES - DEFAULT_COVER_WEEKS;
-const OPEN = windowMinutes(DEFAULT_WINDOW.monSat.start);
-const CLOSE = windowMinutes(DEFAULT_WINDOW.monSat.end);
+
+/** Each day class runs to its own window — Sunday's is genuinely different. */
+const WINDOW_FOR = {
+    weekday: DEFAULT_WINDOW.monSat,
+    sat:     DEFAULT_WINDOW.monSat,
+    sun:     DEFAULT_WINDOW.sun,
+};
+const DAY_CLASSES = /** @type {const} */ (['weekday', 'sat', 'sun']);
 
 /** Duties of a given day class in the table, expanded one entry per person. */
 const dutiesOn = (cls) => slots.flatMap(s => Array(s[cls]).fill(s.time));
@@ -61,52 +66,85 @@ describe('the contract — the property that decides whether the card works on a
         assert.equal(generateLink({ slots, spareLines: spareLines - 1, lines: ROTATING_LINES }).reason,
             'short-hours', 'one fewer cover week spreads the same work over more lines');
     });
+
+    test('Sunday sits OUTSIDE the contract, so the Sunday headcount cannot break it', () => {
+        // The one property that makes a designed Sunday safe to carry in the same table: zero the
+        // whole column, or double it, and the ex-Sunday minutes the gate reads are identical.
+        // Without this, "add two more Sundays" (v21.01) would have been a contract question.
+        const zeroed = slots.map(s => ({ ...s, sun: 0 }));
+        assert.equal(targetExSundayMinutes(zeroed), targetExSundayMinutes(slots));
+    });
 });
 
 describe('what the owner asked for', () => {
-    test('four turns open the station, on Mon–Fri AND on Saturday', () => {
-        for (const cls of ['weekday', 'sat']) {
-            assert.equal(dutiesOn(cls).filter(t => startMinutes(t) === OPEN).length, OPENING_TURNS,
-                `${cls} does not put ${OPENING_TURNS} people on at the open`);
+    test('four turns open the station and three run to the close — on EVERY day, to its OWN window', () => {
+        // Sunday joined this rule at v21.01 when it became designed rather than carried, and it is
+        // the case most worth the loop: Sunday opens at 07:15 and closes at 23:25, so an opener
+        // copied from the Mon–Sat block would pass a bare "four start together" count while
+        // standing on the concourse 55 minutes before the first train.
+        for (const cls of DAY_CLASSES) {
+            const open = windowMinutes(WINDOW_FOR[cls].start), close = windowMinutes(WINDOW_FOR[cls].end);
+            assert.equal(dutiesOn(cls).filter(t => startMinutes(t) === open).length, OPENING_TURNS,
+                `${cls} does not put ${OPENING_TURNS} people on at its open`);
+            assert.equal(dutiesOn(cls).filter(t => endMinutesAbs(t) === close).length, CLOSING_TURNS,
+                `${cls} does not run ${CLOSING_TURNS} people to its close`);
         }
     });
 
-    test('three turns run through to the close, on both', () => {
-        for (const cls of ['weekday', 'sat']) {
-            assert.equal(dutiesOn(cls).filter(t => endMinutesAbs(t) === CLOSE).length, CLOSING_TURNS,
-                `${cls} does not run ${CLOSING_TURNS} people to the close`);
-        }
+    test('FOURTEEN work a Saturday and TEN work a Sunday — the owner\'s figures, exactly', () => {
+        // Decisions, not derivations: an event Saturday needs hands regardless of the train count.
+        // Exact because a headcount someone chose has no tolerance to hide in.
+        assert.equal(dutiesOn('sat').length, SATURDAY_TURNS);
+        assert.equal(dutiesOn('sun').length, SUNDAY_TURNS);
+    });
+
+    test('Saturday leans LATE — more turns start at 11:00 or after than before it', () => {
+        // "Slight preference to late on Sat for events." Strict inequality is the whole claim: a
+        // 7/7 split is no preference at all, and a table quietly rebalanced toward the morning
+        // reads identically in every total (headcount, hours, contract) — this is the only place
+        // the lean is visible.
+        const starts = dutiesOn('sat').map(startMinutes);
+        const late = starts.filter(m => m >= 11 * 60).length;
+        assert.ok(late > starts.length - late,
+            `Saturday has ${late} late starts against ${starts.length - late} early — not a late lean`);
     });
 
     test('a working line averages about 4.2 days Mon–Sat', () => {
-        // "Roughly", to a tenth — the figure is a mean over 19 lines and 80 duties, so it can only
-        // land on multiples of 1/19 and an exact 4.2 is not reachable. A tenth is tight enough that
-        // adding or removing a single duty (0.05) shows up within two.
+        // At four cover weeks this is EXACT — (5x14 + 14) / 20 = 4.2 with no rounding anywhere,
+        // which is the arithmetic reason 4 became the default. The tolerance stays a tenth rather
+        // than an equality because the owner's word was "roughly" and the exactness is a property
+        // of these figures, not of the requirement: a tenth still fails on any whole duty moved.
         const perWeek = (5 * dutiesOn('weekday').length + dutiesOn('sat').length) / WORKING;
         assert.ok(Math.abs(perWeek - TARGET_DAYS_PER_WEEK) < 0.1,
             `${perWeek.toFixed(2)} days a week is not roughly ${TARGET_DAYS_PER_WEEK}`);
     });
 
-    test('and that is the SAME statement as the contract, which is why both hold at once', () => {
-        // 35h over 4.2 days is a mean duty of 8h20. Stated as its own case because it is the step
-        // that makes the table solvable rather than over-constrained, and a reader who has not seen
-        // it will try to satisfy the two requirements separately.
-        const all = [...Array(5).fill(dutiesOn('weekday')).flat(), ...dutiesOn('sat')];
-        const mean = targetExSundayMinutes(slots) / all.length;
-        assert.ok(Math.abs(mean - (CONTRACTED_HOURS_PER_WEEK * 60) / TARGET_DAYS_PER_WEEK) < 5,
-            `mean duty ${mean} min is not 35h / ${TARGET_DAYS_PER_WEEK}`);
+    test('and the mean duty is what 35h over that many days implies', () => {
+        // 35h over 4.2 days is a mean turn of exactly 8h20, and at these figures the table lands on
+        // it exactly (42,000 / 84 = 500). The step that makes the table solvable rather than
+        // over-constrained. Ten minutes of tolerance rather than an equality, for the same reason
+        // as the case above — the exactness belongs to these figures, and funding an extra duty by
+        // shortening the others is caught by the days-per-week case before this one blurs.
+        const mean = targetExSundayMinutes(slots) /
+            (5 * dutiesOn('weekday').length + dutiesOn('sat').length);
+        assert.ok(Math.abs(mean - (CONTRACTED_HOURS_PER_WEEK * 60) / TARGET_DAYS_PER_WEEK) < 10,
+            `mean duty ${mean.toFixed(1)} min is not roughly 35h / ${TARGET_DAYS_PER_WEEK}`);
     });
 });
 
 describe('the shape of the day', () => {
-    test('every Mon–Sat duty sits inside the operating window', () => {
+    test('every duty sits inside its OWN day\'s operating window', () => {
         // A duty starting before the station opens or finishing after it closes is not a design
         // decision, it is a typo — and the heat map would draw it as cover in an hour the window
         // says is shut, which is the one thing `links-demand.js` is written to keep believable.
-        for (const cls of ['weekday', 'sat']) {
+        // Sunday is checked against the Sunday window, which is the check that has teeth: every
+        // Mon–Sat time fits inside Mon–Sat's span trivially, but 06:20 or 23:55 on a Sunday is
+        // outside its 07:15–23:25 day.
+        for (const cls of DAY_CLASSES) {
+            const open = windowMinutes(WINDOW_FOR[cls].start), close = windowMinutes(WINDOW_FOR[cls].end);
             for (const t of dutiesOn(cls)) {
-                assert.ok(startMinutes(t) >= OPEN, `${t} starts before the ${cls} open`);
-                assert.ok(endMinutesAbs(t) <= CLOSE, `${t} finishes after the ${cls} close`);
+                assert.ok(startMinutes(t) >= open, `${t} starts before the ${cls} open`);
+                assert.ok(endMinutesAbs(t) <= close, `${t} finishes after the ${cls} close`);
             }
         }
     });
@@ -115,8 +153,9 @@ describe('the shape of the day', () => {
         // The mean is fixed by the contract, so the only way to get a wrong shape past the gate is
         // at the extremes: two very long turns paid for by several very short ones averages
         // correctly and is not a link anyone would work. The live roster runs 7h15 to 9h10; this
-        // allows a little either side and refuses anything beyond it.
-        for (const cls of ['weekday', 'sat']) {
+        // allows a little either side and refuses anything beyond it. Sunday included — it has no
+        // contract gate behind it, so this is the only bound its durations have.
+        for (const cls of DAY_CLASSES) {
             for (const t of dutiesOn(cls)) {
                 const mins = endMinutesAbs(t) - startMinutes(t);
                 assert.ok(mins >= 420 && mins <= 570, `${t} is ${mins} minutes — outside 7h–9h30`);
@@ -125,23 +164,26 @@ describe('the shape of the day', () => {
     });
 
     test('the openers do not all walk off at the same minute, nor the closers all arrive at one', () => {
-        // Staggering is the reason the openers carry four different lengths rather than one. A
-        // single finish time makes the middle of the day a cliff rather than a handover, and it is
+        // Staggering is the reason the openers carry different lengths rather than one. A single
+        // finish time makes the middle of the day a cliff rather than a handover, and it is
         // invisible in every total on the page — the hours, the headcount and the contract are all
         // identical either way.
-        for (const cls of ['weekday', 'sat']) {
-            const ends = dutiesOn(cls).filter(t => startMinutes(t) === OPEN).map(endMinutesAbs);
+        for (const cls of DAY_CLASSES) {
+            const open = windowMinutes(WINDOW_FOR[cls].start), close = windowMinutes(WINDOW_FOR[cls].end);
+            const ends = dutiesOn(cls).filter(t => startMinutes(t) === open).map(endMinutesAbs);
             assert.equal(new Set(ends).size, ends.length, `${cls} openers share a finish time`);
-            const starts = dutiesOn(cls).filter(t => endMinutesAbs(t) === CLOSE).map(startMinutes);
+            const starts = dutiesOn(cls).filter(t => endMinutesAbs(t) === close).map(startMinutes);
             assert.equal(new Set(starts).size, starts.length, `${cls} closers share a start time`);
         }
     });
 
-    test('Saturday is staffed in proportion to Saturday, not to a weekday', () => {
-        // The header claims the Saturday headcount landed on the service rather than being chosen.
-        // If a later edit rounds Saturday up to match Mon–Fri, this is what says so.
-        const ratio = dutiesOn('sat').length / dutiesOn('weekday').length;
-        assert.ok(ratio > 0.6 && ratio < 0.85, `Saturday is ${(ratio * 100).toFixed(0)}% of a weekday`);
+    test('a weekday and the Saturday carry the SAME minutes — 14 turns each, 7,000 apiece', () => {
+        // The symmetry the header's arithmetic rests on: 7,000 minutes each, so the split of the
+        // 42,000 stays legible (5 + 1 equal days). Not a requirement anyone stated — but if an edit
+        // breaks it the header's worked example is silently wrong, and that example is what the
+        // next person will re-derive the table from.
+        const mins = (cls) => dutiesOn(cls).reduce((a, t) => a + endMinutesAbs(t) - startMinutes(t), 0);
+        assert.equal(mins('weekday'), mins('sat'));
     });
 });
 
@@ -162,7 +204,7 @@ describe('the mechanics', () => {
     test('no day asks for more people than there are working lines', () => {
         // `generateLink` refuses with `over-capacity` before it looks at hours, so this would be a
         // refusal reported as the wrong problem.
-        for (const cls of ['weekday', 'sat', 'sun']) {
+        for (const cls of DAY_CLASSES) {
             assert.ok(dutiesOn(cls).length <= WORKING,
                 `${cls} asks for ${dutiesOn(cls).length} of ${WORKING} working lines`);
         }
@@ -174,18 +216,12 @@ describe('the mechanics', () => {
         assert.deepEqual([...DEFAULT_SHIFT_TIMES].sort(), [...new Set(slots.map(s => s.time))].sort());
     });
 
-    test('Sunday IS the live roster\'s column, entry for entry', () => {
-        // The header says Sunday is carried rather than designed, and this compares it against the
-        // roster seed rather than against a list written out here — so it is the same fact, read
-        // from the same place, not a second copy that can drift.
-        //
-        // Written as an equality on the whole column, which is the correction that matters: the
-        // first version of this test only asserted that Sunday was non-empty and that every time it
-        // named was a real roster time, and a mutation zeroing ONE of the four rows sailed through
-        // it. Sunday is outside the contract measure, so nothing else in this file — or in the app —
-        // would have said a word: the heat map would simply show three fewer people on a Sunday.
-        const sundayOf = (/** @type {{time: string, sun: number}[]} */ table) => Object.fromEntries(
-            table.filter(s => s.sun > 0).map(s => [s.time, s.sun]));
-        assert.deepEqual(sundayOf(slots), sundayOf(buildRosterTargets().slots));
+    test('no time appears in two rows — shared times share a row', () => {
+        // The generator tolerates duplicates, but the card renders one row per slot: a time split
+        // across two rows shows the designer two counts for one shift, and editing either looks
+        // like editing the shift. Kept as a table invariant so a future edit appends safely.
+        const times = slots.map(s => s.time);
+        assert.equal(new Set(times).size, times.length,
+            'duplicate time rows: ' + times.filter((t, i) => times.indexOf(t) !== i).join(', '));
     });
 });

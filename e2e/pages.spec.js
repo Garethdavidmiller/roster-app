@@ -1850,19 +1850,26 @@ test('links: the roster seed samples the whole MAIN cycle and nothing else', asy
     // Driven through the real "Load today's roster instead" button, because what only a browser can
     // prove is that the BUTTON reaches the seed and repaints the table.
     //
-    // v21.00: the card no longer OPENS on the seed — it opens on the designed default, which is
-    // five cover weeks. So this now walks all three states, and the middle one is the assertion
-    // that used to stand alone. Checking the seed's 4 by itself would pass just as happily if the
-    // default button were wired to the seed as well, which is the mistake two buttons invite.
+    // v21.00: the card no longer OPENS on the seed — it opens on the designed default. This walks
+    // all three states so the two buttons are provably wired to two different tables; checking the
+    // seed alone would pass just as happily if the default button were wired to the seed as well,
+    // which is the mistake two buttons invite. The distinguishing signal is the ROW COUNT, not the
+    // spare-week box: since v21.01 the default runs four cover weeks — the same figure the roster
+    // measures — so the one number that used to tell the tables apart no longer can, while the row
+    // counts cannot converge (the designed table carries Saturday and Sunday shapes of its own).
     await page.setViewportSize({ width: 390, height: 1000 });
     await seedSession(page, 'G. Miller');
     await openLinks(page);
     await page.locator('#generatorToggleHeader').click();
-    await expect(page.locator('#genSpareLines')).toHaveValue('5');   // the default, unprompted
+    await expect(page.locator('#genSpareLines')).toHaveValue('4');
+    const defaultRows = await page.locator('#genSlotRows tr').count();   // the designed default
     await page.locator('#genSeedBtn').click();
-    await expect(page.locator('#genSpareLines')).toHaveValue('4');   // today's roster, measured
+    await expect(page.locator('#genSpareLines')).toHaveValue('4');       // today's roster measures 4 too
+    const seedRows = await page.locator('#genSlotRows tr').count();
+    expect(seedRows).toBeGreaterThan(0);
+    expect(seedRows).not.toBe(defaultRows);                              // two buttons, two tables
     await page.locator('#genDefaultBtn').click();
-    await expect(page.locator('#genSpareLines')).toHaveValue('5');   // and back
+    await expect(page.locator('#genSlotRows tr')).toHaveCount(defaultRows);   // and back
 });
 
 test('links: Generate works on a card nobody has touched', async ({ page }) => {
