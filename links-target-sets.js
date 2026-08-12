@@ -121,6 +121,63 @@ export function canOverwriteTargetSet(set, userName, isAdmin = false) {
 }
 
 /**
+ * What the sets row should SAY and OFFER about the currently-picked set (v21.08).
+ *
+ * Extracted rather than written inline because every defect this feature has had was a wrong
+ * SENTENCE, not wrong data: v21.06 printed "yours to change. Others can load it but not overwrite
+ * it" to the admin, over a set somebody else owned — false on both halves, and the second half
+ * inverted. A string built inside a 2,800-line coordinator has no seam to test through; this one is
+ * pinned case-by-case in `links-target-sets.test.mjs`.
+ *
+ * It answers TWO independent questions and joins them, which is why the old two-branch version kept
+ * going wrong — it had been collapsing them into one:
+ *
+ *   · WHOSE is it — ownership, which decides what the buttons may offer. Being ALLOWED to overwrite
+ *     (the admin) is not the same as OWNING, and the sentence must not claim the second from the
+ *     first.
+ *   · WHERE IS THE TABLE relative to it — not loaded, loaded and matching, or loaded and since
+ *     changed. Nothing said this before, so "Save changes" was a leap of faith: you could not tell
+ *     whether the table on screen was the set, or your own work about to overwrite it.
+ *
+ * @param {{ name: string, createdBy: string }|null} set   the picked set, or null for none
+ * @param {{ userName?: string|null, isAdmin?: boolean, isLoaded?: boolean, changed?: boolean }} ctx
+ * @returns {{ owned: boolean, canWrite: boolean, canDelete: boolean, text: string }}
+ */
+export function describeSetState(set, ctx = {}) {
+    const { userName = null, isAdmin = false, isLoaded = false, changed = false } = ctx;
+    if (!set) {
+        return {
+            owned: false, canWrite: false, canDelete: false,
+            text: 'Save the table above as a named set to share it between designers.',
+        };
+    }
+    const owned    = !!userName && set.createdBy === userName;
+    const canWrite = canOverwriteTargetSet(set, userName, isAdmin);
+    // Deleting and overwriting are the same rule in `firestore.rules` — creator or admin — so they
+    // are deliberately the same answer here. Kept as its own field because they are different
+    // BUTTONS, and a future rule that separated them should not need the call sites to change.
+    const canDelete = canWrite;
+
+    // Short sentences, and no dash inside a clause: the name is already joined to the rest with one,
+    // and a second inside the ownership clause made the line read as a list of fragments.
+    const whose = owned
+        ? 'yours to change.'
+        : canWrite
+            ? `saved by ${set.createdBy}. You can overwrite it as the admin.`
+            : `saved by ${set.createdBy}. Only they can overwrite it.`;
+
+    const where = !isLoaded
+        ? 'Press Load to use these shift times.'
+        : !changed
+            ? 'Loaded — the table above still matches it.'
+            : canWrite
+                ? 'You have changed the table since loading it — Save changes updates the set, Save as new keeps both.'
+                : 'You have changed the table since loading it — Save as new keeps your version, theirs untouched.';
+
+    return { owned, canWrite, canDelete, text: `${set.name} — ${whose} ${where}` };
+}
+
+/**
  * Picker order: name, case-insensitively, ties by id so the order is total and stable.
  * @param {Array<{name: string, id: string}>} sets
  */

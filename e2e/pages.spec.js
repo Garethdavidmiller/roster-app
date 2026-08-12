@@ -1978,7 +1978,9 @@ test('links sets: the picker lists every designer\'s sets, and Save follows whos
     await page.locator('#genSetSelect').selectOption('ts-silva');
     await expect(page.locator('#genSetSaveBtn')).toBeDisabled();
     await expect(page.locator('#genSetHint')).toContainText('saved by S. Silva');
-    await expect(page.locator('#genSetHint')).toContainText('Save as new set');
+    // …and says whose call it is. The advice about branching arrives when it is relevant — once the
+    // set is loaded AND changed — rather than up front, over a table that is not hers yet (v21.08).
+    await expect(page.locator('#genSetHint')).toContainText('Only they can overwrite it');
 
     // My own: Save offered.
     await page.locator('#genSetSelect').selectOption('ts-robson');
@@ -2100,6 +2102,77 @@ test('links generator: a zero target recedes, and each day\'s block is separated
     // The default table is three single-day blocks, so it carries exactly two boundaries: where
     // Mon–Fri gives way to Saturday, and Saturday to Sunday.
     await expect(page.locator('#genSlotRows tr.gen-slot-newblock')).toHaveCount(2);
+});
+
+test('links sets: a set can be deleted, and only by someone allowed to', async ({ page }) => {
+    // The verb the feature shipped without (v21.08): `firestore.rules` has allowed the creator or
+    // the admin to delete since v21.04, but nothing on the page could ask, so sets could only ever
+    // accumulate. Driven as M. ROBSON — a designer with no override — because a delete button
+    // tested from the admin's seat is enabled for everything and proves nothing about the rule.
+    await openLinksWithTargetSets(page);
+    const del = page.locator('#genSetDeleteBtn');
+
+    await page.locator('#genSetSelect').selectOption('ts-silva');
+    await expect(del).toBeDisabled();                      // Silva's — not mine to remove
+
+    await page.locator('#genSetSelect').selectOption('ts-robson');
+    await expect(del).toBeEnabled();
+    await del.click();
+    await page.locator('.dialog-btn-confirm').click();
+
+    // It left the collection, and it left the picker — the second is the part a designer sees.
+    await expect.poll(() => page.evaluate(() =>
+        (/** @type {any} */ (window).__E2E.deletedPaths || [])
+            .filter((/** @type {string} */ p) => p.includes('linkTargetSets')).length)).toBe(1);
+    await expect(page.locator('#genSetSelect option')).toHaveCount(1);
+    await expect(page.locator('#genSetSelect option').nth(0)).toHaveText('Set A — S. Silva');
+});
+
+test('links sets: the row says whether the table still matches the set', async ({ page }) => {
+    // "Save changes" was a leap of faith before this: nothing said whether the table on screen WAS
+    // the set, or your own work about to overwrite it. The state has to survive a single keystroke,
+    // which is why it is asserted after an edit rather than only after a load.
+    await openLinksWithTargetSets(page);
+    await page.locator('#genSetSelect').selectOption('ts-robson');
+    await expect(page.locator('#genSetHint')).toContainText('Press Load');
+
+    await page.locator('#genSetLoadBtn').click();
+    await expect(page.locator('#genSetHint')).toContainText('still matches it');
+
+    await page.locator('#genSlotRows tr').first().locator('[data-class="weekday"]').fill('7');
+    await expect(page.locator('#genSetHint')).toContainText('You have changed the table');
+    await expect(page.locator('#genSetHint')).not.toContainText('still matches');
+});
+
+test('links sets: Load asks before it throws away a table you have changed', async ({ page }) => {
+    // Designs have warned on every equivalent act since v16 — switching design, starting a new one,
+    // signing out, closing the tab. The target table had no such guard and no undo, so a mis-tap on
+    // Load (which sits right beside the dropdown) discarded an afternoon of tuning in silence.
+    await openLinksWithTargetSets(page);
+    const firstCount = page.locator('#genSlotRows tr').first().locator('[data-class="weekday"]');
+
+    // Untouched table: no question asked — the common case stays one press.
+    await page.locator('#genSetSelect').selectOption('ts-silva');
+    await page.locator('#genSetLoadBtn').click();
+    await expect(page.locator('#genSlotRows tr')).toHaveCount(2);
+
+    // Now change it, and try to load the other set.
+    await firstCount.fill('9');
+    await page.locator('#genSetSelect').selectOption('ts-robson');
+    await page.locator('#genSetLoadBtn').click();
+    // Scoped by TEXT, not by class: the import lightbox carries a `.dialog-message` of its own, so a
+    // bare class selector matches two elements and fails strict mode rather than the assertion.
+    await expect(page.getByText('You have changed the table since loading it')).toBeVisible();
+    await page.locator('.dialog-btn-cancel').click();
+    await expect(firstCount).toHaveValue('9');                    // kept — cancel means cancel
+    await expect(page.locator('#genSlotRows tr')).toHaveCount(2);
+
+    // And confirming does replace it. Scoped to the OPEN overlay: a dismissed dialog's node is
+    // removed 500ms after close, deliberately, so that it can fade — which means two `Replace`
+    // buttons exist for half a second and a bare class selector picks neither.
+    await page.locator('#genSetLoadBtn').click();
+    await page.locator('.lb-overlay.open .dialog-btn-confirm').click();
+    await expect(page.locator('#genSlotRows tr')).toHaveCount(1); // Robson's single-row set
 });
 
 test('links: the roster seed samples the whole MAIN cycle and nothing else', async ({ page }) => {

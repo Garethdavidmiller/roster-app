@@ -396,12 +396,29 @@
                          their version as a NEW set — while overwriting a set belongs to its creator
                          (or the admin), which the server enforces (firestore.rules linkTargetSets;
                          the disabled button here is a courtesy, not the protection). -->
+                    <!-- SAVED SETS — the same idiom as the design toolbar above, deliberately
+                         (v21.08). These four are object management — load, overwrite, branch,
+                         remove — exactly what the design chips row offers for designs, and they had
+                         been rendered as four underlined text links sitting directly beneath two
+                         more (the table's own reset links). Six links in two rows, all the same
+                         weight, none of them looking like a control: the row read as a footnote
+                         rather than as the place your shift times are kept. -->
                     <div class="gen-sets-row">
                         <label class="gen-sets-label" for="genSetSelect">Saved sets</label>
                         <select id="genSetSelect" class="gen-select" aria-label="Choose a saved set of shift times"></select>
-                        <button class="btn-text-link" id="genSetLoadBtn" type="button">Load</button>
-                        <button class="btn-text-link" id="genSetSaveBtn" type="button">Save changes</button>
-                        <button class="btn-text-link" id="genSetSaveAsBtn" type="button">Save as new set…</button>
+                        <button class="btn-set btn-set--primary" id="genSetLoadBtn" type="button"
+                                title="Bring this set's shift times into the table above">↓ Load</button>
+                        <button class="btn-set" id="genSetSaveBtn" type="button"
+                                title="Overwrite this set with the table above">Save changes</button>
+                        <button class="btn-set" id="genSetSaveAsBtn" type="button"
+                                title="Keep the table above as a new set of its own">+ Save as new…</button>
+                        <!-- SPELT OUT, not a bare ✕ (v21.08). The design chips can wear a glyph
+                             because they are compact chips with the name right beside them; here it
+                             is the fourth control in a row of three worded buttons, and at 390px it
+                             wrapped onto a line of its own — a lone ✕ under a dropdown, meaning
+                             nothing in particular. -->
+                        <button class="btn-set btn-set--danger" id="genSetDeleteBtn" type="button"
+                                title="Delete this set">Delete</button>
                     </div>
                     <p class="gen-sets-hint" id="genSetHint" aria-live="polite"></p>
                     <fieldset class="gen-objectives">

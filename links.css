@@ -1092,11 +1092,34 @@ body.auth-ready .container { display: grid; }
     letter-spacing: 0.5px;
 }
 .gen-sets-row .gen-select { max-width: 240px; }
-.gen-sets-row .btn-text-link[disabled] {
-    opacity: 0.45;
-    cursor: not-allowed;
-    text-decoration: none;
+/* SET BUTTONS — the design toolbar's pill, reused (v21.08). Same shape, same radius, same
+   disabled treatment, so managing a saved set looks like managing a saved design, because it is
+   the same kind of act. Load leads: it is the one you press most, and the only one that changes
+   what is on screen. */
+.btn-set {
+    background: none;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-xl);
+    padding: 4px 12px;
+    font-size: var(--type-small);
+    font-family: inherit;
+    color: var(--text-mid);
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background var(--dur-fast) var(--ease-standard);
 }
+.btn-set--primary { border-color: var(--primary-blue); color: var(--primary-blue); font-weight: 600; }
+.btn-set--danger  { color: var(--text-light); }
+@media (hover: hover) and (pointer: fine) {
+    .btn-set:hover:not(:disabled)          { background: var(--surface-sunken); color: var(--text-dark); }
+    .btn-set--danger:hover:not(:disabled)  { color: var(--error-red); border-color: var(--error-red); }
+}
+.btn-set:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+.btn-set:disabled { opacity: 0.4; cursor: default; }
+/* The row is the last thing before the objectives fieldset, so it needs air above it as well as
+   the hint's own space below — it is a section, not a trailing line. */
+.gen-sets-row { padding-top: 4px; }
 /* Provenance note — sits under the hours row it explains, and reads as a caution rather than a
    hint, because the figure above it is the thing being questioned. */
 .gen-memory-note {

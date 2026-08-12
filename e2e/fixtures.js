@@ -221,6 +221,12 @@ export const deleteDoc = (ref) => {
   if (ref && ref.path) e2e.deletedPaths.push(String(ref.path));
   const id = ref && ref.path ? String(ref.path).split('/').pop() : null;
   if (id && Array.isArray(e2e.docs)) e2e.docs = e2e.docs.filter(r => r.id !== id);
+  // Path-keyed collections too (v21.08), so a deleted SET actually leaves the picker on the
+  // re-read. Without this a delete that wrote nothing and one that worked look the same.
+  const col = ref && ref.path ? String(ref.path).split('/').slice(0, -1).join('/') : null;
+  if (id && col && e2e.docsByPath && Array.isArray(e2e.docsByPath[col])) {
+    e2e.docsByPath[col] = e2e.docsByPath[col].filter(r => r.id !== id);
+  }
   return Promise.resolve();
 };
 export const increment = () => marker('increment');   // FieldValue sentinel (usage counters)

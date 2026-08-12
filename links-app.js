@@ -10,7 +10,7 @@
  */
 
 import { APP_VERSION, CONFIG, weeklyRoster, escapeHtml } from './roster-data.js';
-import { db, doc, getDoc, setDoc, addDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
+import { db, doc, getDoc, setDoc, addDoc, deleteDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
 import { initNavPanel, resetNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
@@ -39,11 +39,11 @@ import {
     targetExSundayMinutes,
 } from './links-design.js';
 import { initLinksAnalysis } from './links-analysis.js';
-import { LEGACY_DOC_ID, deepCopyPatterns, designFromDoc, binEntryFromDoc, docPayload, workingCopy, binEntryFrom, restoredEntryFrom } from './links-design-doc.js';
+import { LEGACY_DOC_ID, deepCopyPatterns, designFromDoc, binEntryFromDoc, docPayload, workingCopy, binEntryFrom, restoredEntryFrom, lastSavedLabel } from './links-design-doc.js';
 import { parseDesignImport, summariseImport } from './links-import.js';
 import { buildRosterTargets } from './links-seed.js';
 import { buildDefaultTargets, DEFAULT_SHIFT_TIMES, sameTargetTable, isSupersededMemory } from './links-default-targets.js';
-import { targetSetFromDoc, targetSetPayload, canOverwriteTargetSet, sortTargetSets, MAX_SET_NAME } from './links-target-sets.js';
+import { targetSetFromDoc, targetSetPayload, describeSetState, sortTargetSets, MAX_SET_NAME } from './links-target-sets.js';
 import { reorderLines, applyOrder, cost, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
 import { normaliseWindow, formatWindow, isDefaultWindow, isValidWindowRow, canonicaliseWindowTime } from './links-window.js';
 import { assessFatigue } from './links-fatigue.js';
@@ -1626,6 +1626,10 @@ export function init() {
         }
         _updateGenHours();
         _updateMemoryNote();
+        // The sets row states whether the table still matches the set it came from, so it has to be
+        // refreshed by the same funnel every edit already passes through. Via a hook because
+        // `refreshSetControls` lives inside initGenerator and this function does not.
+        _onTargetTableChanged();
         return tot;
     }
 
@@ -1726,6 +1730,28 @@ export function init() {
     let genFromMemory = false;
     /** The saved set this table was last loaded from, if any — the note NAMES it (v21.07). */
     let genFromSetName = '';
+    /** The set id the table came from, so the sets row can say whether it still matches (v21.08). */
+    let genFromSetId = '';
+    /**
+     * The table AS IT ARRIVED — a deep copy taken every time one is loaded (a set, the default, the
+     * seed, or this device's memory). Everything destructive compares against it, so a mis-tap on
+     * Load can no longer throw away an afternoon's tuning without asking, and the sets row can tell
+     * "this IS Set A" apart from "this started as Set A and is now mine". Nothing else can answer
+     * that: the target table is written to localStorage on every keystroke, so it is always
+     * "saved" and has no dirty flag of its own the way a design does.
+     * @type {{slots: Array<any>, spareLines: number}|null}
+     */
+    let genOriginTable = null;
+    /** Set by initGenerator so the module-scope table edits can refresh the sets row (v21.08). */
+    let _onTargetTableChanged = () => {};
+
+    /** A frozen-enough copy for comparison — the table is edited in place, so this must not alias. */
+    const _copyTable = () => ({
+        slots: genSlots.map((/** @type {any} */ sl) => ({ ...sl })), spareLines: genSpareLines,
+    });
+    /** Has the table been changed since it was loaded? */
+    const _tableChanged = () =>
+        !!genOriginTable && !sameTargetTable({ slots: genSlots, spareLines: genSpareLines }, genOriginTable);
 
     function _updateMemoryNote() {
         const el = document.getElementById('genMemoryNote');
@@ -1747,12 +1773,13 @@ export function init() {
 
     /** Persist the current target table for the active design. Silent — losing it is a nuisance,
      *  never a failure worth interrupting a designer for. */
-    function saveGenTargets(source = 'edited', setName = '') {
+    function saveGenTargets(source = 'edited', setName = '', setId = '') {
         genFromMemory = false;
         // Default '' is load-bearing: every ordinary edit reaches this function without a name, so
         // typing in the table drops the set attribution rather than leaving the note claiming the
         // numbers on screen are still that designer's saved set.
         genFromSetName = setName;
+        genFromSetId   = setId;
         _updateMemoryNote();
         // STAMPED with who wrote it and under which app version (v21.06). Content comparison alone
         // could only ever recognise two tables — the roster seed and the CURRENT default — so a
@@ -1763,7 +1790,7 @@ export function init() {
         // function without declaring itself is treated as somebody's work and kept forever.
         try {
             lsSet(_genTargetsKey(), JSON.stringify({
-                slots: genSlots, spareLines: genSpareLines, source, ver: APP_VERSION, setName,
+                slots: genSlots, spareLines: genSpareLines, source, ver: APP_VERSION, setName, setId,
             }));
         } catch { /* quota / private mode — the default remains the fallback */ }
     }
@@ -1812,6 +1839,7 @@ export function init() {
             return {
                 slots: v.slots.map((/** @type {any} */ sl) => ({ time: sl.time, weekday: sl.weekday, sat: sl.sat, sun: sl.sun })),
                 setName: typeof v.setName === 'string' ? v.setName : '',
+                setId:   typeof v.setId === 'string' ? v.setId : '',
                 spareLines: int(v.spareLines) ? v.spareLines : null,
                 spare: legacy ? { weekday: v.spare.weekday, sat: v.spare.sat, sun: v.spare.sun } : null,
             };
@@ -1822,6 +1850,7 @@ export function init() {
     function applyGenTargets(/** @type {any} */ t) {
         genSlots = t.slots;
         genFromSetName = typeof t.setName === 'string' ? t.setName : '';
+        genFromSetId   = typeof t.setId === 'string' ? t.setId : '';
         // Remembered targets predating v19.58 hold a per-day `spare` object. Read the largest of the
         // three as the line count: it is the day that needed the most cover, so it never LOSES
         // capacity in the migration. Reading only `weekday` would silently shrink a design whose
@@ -1834,6 +1863,10 @@ export function init() {
             if (el) el.value = String(n);
         };
         set('genSpareLines', genSpareLines);
+        // AFTER the spare-line migration above, not before: a legacy table's line count is derived
+        // there, and an origin snapshot taken first would differ from the table on screen — every
+        // load would then look like an unsaved change and warn on the next press.
+        genOriginTable = _copyTable();
         renderGenTable();
     }
 
@@ -1925,16 +1958,42 @@ export function init() {
         // The two resets answer different questions and both are worth having: the default is a
         // table DESIGNED against the December 2026 service, the seed is a MEASUREMENT of what is
         // worked today. Either is an explicit "forget my tuning", so both persist over it.
-        const _resetTargets = (/** @type {{slots: any[], spareLines: number}} */ t, source = 'edited', setName = '') => {
+        const _resetTargets = (/** @type {{slots: any[], spareLines: number}} */ t, source = 'edited', setName = '', setId = '') => {
             ({ slots: genSlots, spareLines: genSpareLines } = t);
-            saveGenTargets(source, setName);
+            saveGenTargets(source, setName, setId);
             /** @type {HTMLInputElement} */ (document.getElementById('genSpareLines')).value = String(genSpareLines);
+            genOriginTable = _copyTable();
             renderGenTable();
             const errEl = document.getElementById('genError');
             if (errEl) errEl.textContent = '';
         };
-        document.getElementById('genDefaultBtn')?.addEventListener('click', () => _resetTargets(buildDefaultTargets(), 'default'));
-        document.getElementById('genSeedBtn')?.addEventListener('click', () => _resetTargets(buildRosterTargets(), 'seed'));
+        /**
+         * Ask before replacing a table somebody has CHANGED (v21.08).
+         *
+         * All three of these buttons overwrite the working table outright, and until now did it
+         * silently: a mis-tap on Load next to the dropdown discarded an afternoon of tuning with no
+         * confirm, no undo, and nothing on screen afterwards to say what had happened. Designs have
+         * warned on every equivalent act since v16 — switching design, starting a new one, signing
+         * out, closing the tab. This is the same guard for the other thing on this page you can lose.
+         *
+         * It asks ONLY when the table differs from what was loaded, so the common case — open the
+         * card, press Load — is still one press. A guard that fires when nothing is at stake is one
+         * people learn to dismiss without reading.
+         */
+        const _confirmDiscard = async (/** @type {string} */ what) => {
+            if (!_tableChanged()) return true;
+            return confirmDialog({
+                title: 'Replace these shift times?',
+                message: `You have changed the table since loading it. ${what} will replace it, and the changes are not kept anywhere.`,
+                confirmLabel: 'Replace',
+            });
+        };
+        document.getElementById('genDefaultBtn')?.addEventListener('click', async () => {
+            if (await _confirmDiscard('The demand-based default')) _resetTargets(buildDefaultTargets(), 'default');
+        });
+        document.getElementById('genSeedBtn')?.addEventListener('click', async () => {
+            if (await _confirmDiscard("Today's roster")) _resetTargets(buildRosterTargets(), 'seed');
+        });
 
         // ── Saved sets (v21.04) ──────────────────────────────────────────────────────────────────
         //
@@ -1966,25 +2025,27 @@ export function init() {
             const set = _selectedSet();
             const loadBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('genSetLoadBtn'));
             const saveBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('genSetSaveBtn'));
+            const delBtn  = /** @type {HTMLButtonElement|null} */ (document.getElementById('genSetDeleteBtn'));
+            // WHOSE it is and WHERE THE TABLE IS relative to it are two questions, answered together
+            // by the pure `describeSetState` (v21.08) — see its header for why this is not written
+            // inline any more.
+            const isLoaded = !!set && set.id === genFromSetId;
+            const state = describeSetState(set, {
+                userName: currentUser, isAdmin, isLoaded, changed: isLoaded && _tableChanged(),
+            });
             if (loadBtn) loadBtn.disabled = !set;
-            // THREE states, not two (v21.07). Being ALLOWED to overwrite and OWNING it are different
-            // facts, and collapsing them told the admin "yours to change. Others can load it but not
-            // overwrite it" about a set S. Silva had saved — false on both halves, and the second
-            // half inverted: the one person who CAN overwrite anybody's set was being told nobody
-            // could overwrite theirs.
-            const owned = !!set && set.createdBy === currentUser;
-            const canWrite = !!set && canOverwriteTargetSet(set, currentUser, isAdmin);
-            if (saveBtn) saveBtn.disabled = !canWrite;
-            if (_setHint) {
-                _setHint.textContent = !set
-                    ? 'Save the table above as a named set to share it between designers.'
-                    : owned
-                        ? `${set.name} — yours to change. Others can load it but not overwrite it.`
-                        : canWrite
-                            ? `${set.name} — saved by ${set.createdBy}. You can overwrite it as the admin; Save as new set keeps theirs untouched.`
-                            : `${set.name} — saved by ${set.createdBy}. Load it and change anything; keep your version with Save as new set.`;
+            if (saveBtn) saveBtn.disabled = !state.canWrite;
+            if (delBtn) {
+                delBtn.disabled = !state.canDelete;
+                const label = set ? `Delete “${set.name}”` : 'Delete this set';
+                delBtn.title = label;
+                delBtn.setAttribute('aria-label', label);   // the word alone does not say WHICH set
             }
+            if (_setHint) _setHint.textContent = state.text;
         }
+        // Every table edit re-asks the question, so "still matches Set A" becomes "you have changed
+        // it" on the keystroke that changes it rather than on the next reload.
+        _onTargetTableChanged = refreshSetControls;
 
         // `select` re-selects a set by id once the list is back — used after Save as new set, whose
         // document does not exist until the write lands.
@@ -2013,17 +2074,45 @@ export function init() {
 
         _setSelect?.addEventListener('change', refreshSetControls);
 
-        document.getElementById('genSetLoadBtn')?.addEventListener('click', () => {
+        document.getElementById('genSetLoadBtn')?.addEventListener('click', async () => {
             const set = _selectedSet();
             if (!set) return;
+            if (!await _confirmDiscard(`“${set.name}”`)) return;
             // Fresh copies — targetSets keeps its own snapshot, and the table edits in place.
             _resetTargets({ slots: set.slots.map((/** @type {any} */ sl) => ({ ...sl })), spareLines: set.spareLines },
-                'edited', set.name);
+                'edited', set.name, set.id);
+            refreshSetControls();
+        });
+
+        // DELETE — the verb the feature shipped without (v21.08). `firestore.rules` has allowed the
+        // creator or the admin to delete a set since v21.04; there was simply no way to ask, so sets
+        // could only ever accumulate. The confirm names the set and is marked destructive, because
+        // unlike a design there is no bin behind this one: a deleted set is gone.
+        document.getElementById('genSetDeleteBtn')?.addEventListener('click', async () => {
+            const set = _selectedSet();
+            if (!set || !describeSetState(set, { userName: currentUser, isAdmin }).canDelete) return;
+            const sure = await confirmDialog({
+                title: 'Delete this set?',
+                message: `“${set.name}” will be removed for every designer. The table above is not affected.`,
+                confirmLabel: 'Delete',
+                danger: true,
+            });
+            if (!sure) return;
+            try {
+                await writeWithClaimRetry(() => deleteDoc(doc(db, COLLECTIONS.linkTargetSets, set.id)));
+                // The table itself stays exactly as it is — deleting the SET does not take the shift
+                // times off the screen. It is no longer FROM a set, though, so the row must stop
+                // claiming it is, or the hint would name a set that no longer exists.
+                if (genFromSetId === set.id) { genFromSetId = ''; genFromSetName = ''; }
+                await loadTargetSets();
+            } catch {
+                if (_setHint) _setHint.textContent = `Couldn't delete “${set.name}” — check you're signed in and try again.`;
+            }
         });
 
         document.getElementById('genSetSaveBtn')?.addEventListener('click', async () => {
             const set = _selectedSet();
-            if (!set || !canOverwriteTargetSet(set, currentUser, isAdmin)) return;
+            if (!set || !describeSetState(set, { userName: currentUser, isAdmin }).canWrite) return;
             const sure = await confirmDialog({
                 title: 'Overwrite this set?',
                 message: `Replace “${set.name}” with the table above? Everyone who loads it will get this version.`,
@@ -2036,6 +2125,10 @@ export function init() {
                 await writeWithClaimRetry(() => setDoc(doc(db, COLLECTIONS.linkTargetSets, set.id),
                     targetSetPayload({ name: set.name, slots: genSlots, spareLines: genSpareLines },
                         set.createdBy, currentUser ?? '', serverTimestamp())));
+                // The table IS this set again — an overwrite is the other way of making them match,
+                // so the row must stop saying "you have changed it since".
+                genFromSetId = set.id; genFromSetName = set.name;
+                genOriginTable = _copyTable();
                 await loadTargetSets();
             } catch {
                 if (_setHint) _setHint.textContent = `Couldn't save “${set.name}” — check you're signed in and try again.`;
@@ -2059,6 +2152,8 @@ export function init() {
                 const ref = await writeWithClaimRetry(() => addDoc(SETS_COL,
                     targetSetPayload({ name, slots: genSlots, spareLines: genSpareLines },
                         currentUser, currentUser, serverTimestamp())));
+                genFromSetId = ref?.id ?? ''; genFromSetName = name.trim();
+                genOriginTable = _copyTable();
                 await loadTargetSets(ref?.id ?? '');
             } catch {
                 if (_setHint) _setHint.textContent = 'Couldn\'t save the new set — check you\'re signed in and try again.';
@@ -2412,10 +2507,7 @@ export function init() {
     function updateLastSaved(updatedBy, updatedAt) {
         const el = document.getElementById('linksLastSaved');
         if (!el) return;
-        if (!updatedBy) { el.textContent = ''; return; }
-        const d       = updatedAt?.toDate?.();
-        const timeStr = d ? d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
-        el.textContent = `Last saved by ${updatedBy}` + (timeStr ? ` at ${timeStr}` : '');
+        el.textContent = lastSavedLabel(updatedBy, updatedAt?.toDate?.() ?? null);
     }
 
     async function saveChanges() {
