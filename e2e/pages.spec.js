@@ -2656,8 +2656,10 @@ test('links generator: pressing Generate leaves the button under your finger and
 
 test('links window: generating the FIRST design reveals the window editor', async ({ page }) => {
     // v20.98: the generator refuses targets that cannot pay the contracted week, and the
-    // roster seed cannot at this rotation — so a spec that generates brings work with it.
-    await seedContractTargets(page);
+    // roster seed cannot at this rotation — so a spec that generates brings work with it. FOUR
+    // spare weeks, not the helper's default five, because the assertion at the bottom is about the
+    // seeded figure surviving to the grid — and it can only assert that if the spec chose it.
+    await seedContractTargets(page, { spareLines: 4 });
     // The generator is the only way to create a design. It refreshes the heat map through
     // renderGrid, but the editor was a separate call it did not make — so a designer's very first
     // link had no visible window control until they reloaded. Both now go through one function.
@@ -2691,12 +2693,11 @@ test('links window: generating the FIRST design reveals the window editor', asyn
         .map(r => [...r.querySelectorAll('.shift-cell-btn')].filter(b => b.textContent.trim() === 'SP').length));
     expect(spareDays.every(n => n === 0 || n === 7),
         `every line is spare all week or not at all — got ${spareDays.join(',')}`).toBe(true);
-    // FOUR — main lines 1/7/12/17, with the seed adding nothing. That figure has meant different
-    // things at different times (see the seed test), which is why line IDENTITY and the exclusion of
-    // bilingual-only shift times are pinned in links-seed.test.mjs rather than here. What THIS
-    // assertion is for is the DISTRIBUTION above — that the count survives the whole seed → generate
-    // → render path with every spare line still WHOLE, which is the v19.58 per-day model's failure
-    // and is invisible to a unit test of the seed.
+    // FOUR — the figure this spec's own targets asked for, above. Line IDENTITY and the exclusion
+    // of bilingual-only shift times belong to the roster seed and are pinned in links-seed.test.mjs
+    // rather than here. What THIS assertion is for is the DISTRIBUTION above — that the count
+    // survives the whole targets → generate → render path with every spare line still WHOLE, which
+    // is the v19.58 per-day model's failure and is invisible to a unit test of the seed.
     expect(spareDays.filter(n => n === 7).length,
         'the seeded spare weeks must survive to the rendered grid').toBe(4);
 });

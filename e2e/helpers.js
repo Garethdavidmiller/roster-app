@@ -301,17 +301,24 @@ export function seedViewerAccess(page) {
  * Three shift times rather than one, because the specs that use this are about line ORDER and the
  * analysis panels — both of which are uninteresting on a design where every line works the same
  * duty. `myb_links_gen_unsaved` is the key the coordinator reads before a design is active.
+ *
+ * FEWER SPARE WEEKS MEANS MORE WORK, and the table has to grow with it: the gate is per WORKING
+ * line, so the three slots above stop paying the moment a caller asks for `spareLines` below the
+ * default. A fourth slot tops it up at exactly one contracted week per extra working line — one
+ * weekday count of a 7-hour turn is 5 x 420 = 2,100 minutes = 35h — so the caller gets a table that
+ * still pays the contract exactly, whatever shape they asked for. More spare weeks than the default
+ * needs no adjustment: over the contract is allowed (see `links-contract.test.mjs`).
  */
 export function seedContractTargets(page, { spareLines = 5, designIds = ['unsaved', 'd1', 'd2'] } = {}) {
     return page.addInitScript(([spare, ids]) => {
-        const targets = JSON.stringify({
-            slots: [
-                { time: '06:20-14:20', weekday: 6, sat: 4, sun: 0 },
-                { time: '11:00-19:30', weekday: 3, sat: 3, sun: 0 },
-                { time: '15:25-23:25', weekday: 6, sat: 0, sun: 0 },
-            ],
-            spareLines: spare,
-        });
+        const slots = [
+            { time: '06:20-14:20', weekday: 6, sat: 4, sun: 0 },
+            { time: '11:00-19:30', weekday: 3, sat: 3, sun: 0 },
+            { time: '15:25-23:25', weekday: 6, sat: 0, sun: 0 },
+        ];
+        const extraLines = (24 - spare) - 19;
+        if (extraLines > 0) slots.push({ time: '07:00-14:00', weekday: extraLines, sat: 0, sun: 0 });
+        const targets = JSON.stringify({ slots, spareLines: spare });
         for (const id of ids) localStorage.setItem('myb_links_gen_' + id, targets);
     }, [spareLines, designIds]);
 }
