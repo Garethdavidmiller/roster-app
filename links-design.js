@@ -58,9 +58,12 @@
  * A line with worked duties but no readable time is reported through `unreadableLines` /
  * `complete`, never silently dropped — see the note at that function.
  *
- * **`generateLink` REFUSES targets that cannot pay that mean** (`short-hours`, v20.98). The check is
- * on the TARGETS, because the arithmetic is settled before a cell is laid out and no arrangement can
- * rescue a short table. Over-contract still builds — those hours are paid or absorbed.
+ * **`generateLink` REFUSES targets that do not pay that mean EXACTLY** — `short-hours` (v20.98) and
+ * `over-hours` (v20.99). The check is on the TARGETS, because the arithmetic is settled before a
+ * cell is laid out and no arrangement can rescue a table that asks for the wrong amount of work.
+ * A permanent surplus is not a lesser fault than a shortfall: it commits the rotation to overtime
+ * it never declared. Read the note at the check before adding a tolerance — an equality over whole
+ * duties is sometimes unsatisfiable, and that is the rule working, not a bug.
  *
  * `endMinutesAbs` is the ONE reading of a duty that runs past midnight. Both former inline copies
  * erred towards *safer than the truth*: the heat map dropped the post-midnight hours entirely, and
@@ -980,12 +983,12 @@ function slotAt(/** @type {Array<any>} */ group, /** @type {string} */ cls, /** 
  * @param {number} [opts.spareLines=0]
  * @param {number} [opts.lines=ROTATING_LINES]
  * @param {boolean} [opts.settled=true]
- * @param {boolean} [opts.requireContract=true] refuse targets that cannot pay the contracted week - false forces the rotating fallback (for comparison)
+ * @param {boolean} [opts.requireContract=true] refuse targets that do not pay the contracted week EXACTLY - false forces the rotating fallback (for comparison)
  * @returns {{patterns: Object|null, mode: 'settled'|'rotating'|null, waves: number,
  *            reason: string|null, askedMinutes?: number, needMinutes?: number, working?: number}}
- *   The three extra fields accompany `short-hours` ONLY. They are the whole actionable content of
- *   that refusal — a caller told merely that the targets are short cannot say by how much, and the
- *   gap is the only number a designer can do anything with.
+ *   The three extra fields accompany `short-hours` and `over-hours` ONLY. They are the whole
+ *   actionable content of those refusals — a caller told merely that the targets are wrong cannot
+ *   say by how much, and the gap is the only number a designer can do anything with.
  */
 export function generateLink({ slots, spareLines = 0, lines = ROTATING_LINES, settled = true,
                                requireContract = true }) {
@@ -1023,10 +1026,21 @@ export function generateLink({ slots, spareLines = 0, lines = ROTATING_LINES, se
     // table, and a check on the output would be re-measuring an answer already determined by the
     // input — reporting a build failure for what is really a decision about how much work there is.
     //
-    // Refusing on SHORT only. Over-contract is a different thing entirely: those hours get paid as
-    // overtime or absorbed by adding lines, so the design is workable and the Design-checks row
-    // already says so. Refusing it here would block the ordinary case of a link built to carry a
-    // known surplus.
+    // BOTH DIRECTIONS (v20.99, owner). v20.98 refused only a short table, on the reasoning that a
+    // surplus is workable — it gets paid as overtime or absorbed by adding lines. That was the wrong
+    // reading of the instruction. The rule is not a floor, it is an equality: a link IS the
+    // contracted week, and a design carrying a permanent surplus is a design that has quietly
+    // committed the rotation to overtime it never declared. Both refusals therefore say the same
+    // thing in opposite directions, which is why they share their arithmetic and their fields and
+    // differ only in the verb the caller uses.
+    //
+    // ⚠️ AN EQUALITY OVER WHOLE DUTIES IS NOT ALWAYS SATISFIABLE, and that is not a defect to
+    // tolerance away. `working x 35h` is a fixed number of minutes; a target table can only move in
+    // steps of one duty, so a set of shift times whose lengths do not combine to that total has NO
+    // valid table — the generator will refuse everything until a duty is lengthened, shortened or a
+    // cover week is added or removed. The refusal names the gap in both directions precisely so the
+    // designer can see which of those to reach for. A tolerance would hide the same problem behind a
+    // design that is silently a few hours out, which is what v20.98 replaced.
     //
     // MINUTES, and an exact comparison. `working x 35h` is a whole number of minutes and every duty
     // is a whole number of minutes, so "exactly" can be meant literally; rounding to hours first is
@@ -1046,8 +1060,9 @@ export function generateLink({ slots, spareLines = 0, lines = ROTATING_LINES, se
         const askedMin = targetExSundayMinutes(/** @type {any} */ (slots));
         if (askedMin === null) return fail('bad-time');
         const needMin = working * CONTRACTED_HOURS_PER_WEEK * 60;
-        if (askedMin < needMin) {
-            return { ...fail('short-hours'), askedMinutes: askedMin, needMinutes: needMin, working };
+        if (askedMin !== needMin) {
+            const reason = askedMin < needMin ? 'short-hours' : 'over-hours';
+            return { ...fail(reason), askedMinutes: askedMin, needMinutes: needMin, working };
         }
     }
 

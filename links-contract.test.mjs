@@ -1,14 +1,21 @@
 /**
- * links-contract.test.mjs — the generator will not produce a link that underpays.
+ * links-contract.test.mjs — the generator will not produce a link that pays the wrong hours.
  * Run: node --test links-contract.test.mjs   (no mocks; part of `npm run test:hygiene`)
  *
  * ── THE RULE ────────────────────────────────────────────────────────────────────────────────────
  *
- * Owner, Aug 2026: a generated link must average the contracted week ex-Sunday, and one that falls
- * short must not be generated at all. Before v20.98 the shortfall was REPORTED — the Design-checks
- * row, the generator's totals line and the summary chip all said "6h 09m under the 35h contract" —
- * and the design was produced anyway. Reporting is not refusing, and a design that exists gets
- * saved, compared, printed and taken into a room.
+ * Owner, Aug 2026: a generated link must average EXACTLY the contracted week ex-Sunday, and one
+ * that does not must not be generated at all. Before v20.98 a shortfall was REPORTED — the
+ * Design-checks row, the generator's totals line and the summary chip all said "6h 09m under the
+ * 35h contract" — and the design was produced anyway. Reporting is not refusing, and a design that
+ * exists gets saved, compared, printed and taken into a room.
+ *
+ * v20.98 refused a shortfall and allowed a surplus. **v20.99 refuses both** (owner), and the
+ * correction is worth keeping in view: a surplus looked like the benign direction because the hours
+ * are payable, but a design carrying one has committed the rotation to permanent overtime that was
+ * never declared or agreed. So the rule is an EQUALITY, and the consequence — that an equality over
+ * whole duties is sometimes unsatisfiable — is asserted below rather than softened with a
+ * tolerance, which would put the app straight back to producing a design that is quietly wrong.
  *
  * ── WHY THIS SUITE IS SEPARATE FROM links-design.test.mjs ───────────────────────────────────────
  *
@@ -89,15 +96,44 @@ describe('the generator refuses to underpay', () => {
         assert.equal(r.needMinutes - r.askedMinutes, 1, 'short by one minute and refused for it');
     });
 
-    test('OVER the contract is allowed, and that asymmetry is deliberate', () => {
-        // Surplus hours get paid as overtime or absorbed by adding lines — the design is workable,
-        // and the Design-checks row already says it is over. Refusing it would block the ordinary
-        // case of a link built to carry a known surplus. The instruction was "do not generate links
-        // that fall SHORT", and that is the whole of it.
+    test('OVER the contract is refused too — the rule is an equality, not a floor (v20.99)', () => {
+        // v20.98 allowed a surplus, reasoning that those hours get paid as overtime or absorbed by
+        // adding lines. Owner, Aug 2026: no. A link IS the contracted week, and a design carrying a
+        // permanent surplus has quietly committed the rotation to overtime nobody agreed to — which
+        // is the same class of fault as a shortfall, arriving from the other side.
         const r = generateLink({ slots: contractExact(WORKING, 4), spareLines: SPARE, lines: LINES });
-        assert.ok(r.patterns, `refused: ${r.reason}`);
-        const h = weeklyHours(r.patterns, LINES);
-        assert.ok(h.exSunday > CONTRACTED_HOURS_PER_WEEK, `expected over contract, got ${h.exSunday}`);
+        assert.equal(r.patterns, null);
+        assert.equal(r.reason, 'over-hours');
+        assert.equal(r.askedMinutes - r.needMinutes, 4 * DUTY_MIN, 'over by exactly the four extra duties');
+        assert.equal(r.working, WORKING);
+    });
+
+    test('one minute OVER is refused, exactly as one minute short is', () => {
+        // The mirror of the case above it. Written out rather than folded into a loop because the
+        // asymmetry that used to exist here was a deliberate decision, and a single case reading
+        // "both directions" would not show that BOTH boundaries are now tight.
+        const exact = contractExact(WORKING)[0];
+        const slots = [
+            { ...exact, sat: exact.sat - 1 },
+            { time: '06:00-14:46', weekday: 0, sat: 1, sun: 0 },   // one minute LONGER
+        ];
+        const r = generateLink({ slots, spareLines: SPARE, lines: LINES });
+        assert.equal(r.reason, 'over-hours');
+        assert.equal(r.askedMinutes - r.needMinutes, 1);
+    });
+
+    test('AN EXACT FIT IS NOT ALWAYS REACHABLE, and the refusal is the rule working', () => {
+        // The cost of an equality over whole duties, pinned so nobody discovers it as a mystery.
+        // Nineteen working lines need 39,900 minutes; an 8-hour duty is 480, and 39,900/480 is not a
+        // whole number — so with ONLY that shift time in the table, every possible target set is
+        // refused, one side or the other. Both neighbours are asserted, because the interesting
+        // claim is not "this one fails" but "there is nothing between them".
+        const eight = (n) => [{ time: '06:00-14:00', weekday: Math.floor(n / 5), sat: n % 5, sun: 0 }];
+        const need = WORKING * CONTRACTED_HOURS_PER_WEEK * 60;
+        const n = Math.floor(need / 480);                       // 83 duties = 39,840
+        assert.ok(n * 480 < need && (n + 1) * 480 > need, 'fixture premise: no whole number of duties fits');
+        assert.equal(generateLink({ slots: eight(n), spareLines: SPARE, lines: LINES }).reason, 'short-hours');
+        assert.equal(generateLink({ slots: eight(n + 1), spareLines: SPARE, lines: LINES }).reason, 'over-hours');
     });
 
     test('the refusal carries the SIZE of the gap, which is its only actionable content', () => {
@@ -110,14 +146,16 @@ describe('the generator refuses to underpay', () => {
         assert.equal(r.working, WORKING);
     });
 
-    test('MORE SPARE WEEKS can rescue the same targets, and fewer cannot', () => {
+    test('THE COVER-WEEK COUNT MOVES THE TARGET IN BOTH DIRECTIONS', () => {
         // The gate is per working line, so the shape is a real lever: the same duty spread over
-        // fewer working lines pays each of them more. This is the third option a designer has, and
-        // it is the one the refusal message names alongside adding and lengthening duties.
+        // fewer working lines pays each of them more. It is the third option each refusal message
+        // names — and since v20.99 it can overshoot as easily as it can fall short, so the same
+        // table now fails on BOTH sides of the count it was built for. That is the honest picture:
+        // cover weeks are not a way to rescue a table, they are part of what the table has to match.
         const slots = contractExact(WORKING);
         assert.equal(generateLink({ slots, spareLines: SPARE - 1, lines: LINES }).reason, 'short-hours',
             'one fewer cover week means one more mouth to feed from the same work');
-        assert.ok(generateLink({ slots, spareLines: SPARE + 1, lines: LINES }).patterns,
+        assert.equal(generateLink({ slots, spareLines: SPARE + 1, lines: LINES }).reason, 'over-hours',
             'one more cover week leaves the rest above contract');
     });
 

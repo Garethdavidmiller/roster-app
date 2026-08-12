@@ -12,7 +12,14 @@ import { buildRosterTargets } from './links-seed.js';
 function design() {
     const waves = ['06:20-14:20', '07:00-15:00', '08:00-16:00', '11:00-19:00', '14:00-22:00', '15:55-23:55']
         .map(time => ({ time, weekday: 3, sat: 2, sun: 1 }));
-    return generatePatterns({ slots: waves, spareLines: 4, lines: ROTATING_LINES });
+    // `requireContract: false` for the same reason every construction fixture opts out (v20.99):
+    // this table describes a rotation SHAPE — six waves, an even spread, enough worked days for the
+    // break and turnaround maths to have something to measure — not a week's worth of work. It runs
+    // well OVER the contracted week, which the generator has refused since v20.99, and trimming it
+    // to fit would change which waves merge and how the lines block, i.e. the very things these
+    // tests assert. The rule's own coverage lives in links-contract.test.mjs, including the static
+    // guard that `links-app.js` never passes this flag.
+    return generatePatterns({ slots: waves, spareLines: 4, lines: ROTATING_LINES, requireContract: false });
 }
 // A WORKED base, so a fixture that overrides only Sat/Sun tests exactly Sat + Sun — with an
 // all-rest base, Friday and Monday would silently be rest too and every break would read as four days.
