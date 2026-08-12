@@ -1894,7 +1894,7 @@ test('links memory: a stamped EDIT survives every version, which is the rule\'s 
     edited.ver = '19.38';
     await openLinksWithMemory(page, edited);
     await expect(page.locator('#genMemoryNote')).toBeVisible();
-    await expect(page.locator('#genHoursNote')).toContainText('under the 35h contract');
+    await expect(page.locator('#genHoursNote')).toContainText('short in total');
 });
 
 test('links memory: a device still holding the OLD auto-seeded table gets the new default', async ({ page }) => {
@@ -1913,7 +1913,7 @@ test('links memory: a table somebody EDITED is kept, and the note says what it i
     const edited = JSON.parse(JSON.stringify(STALE_SEED));
     edited.slots[0].weekday = 3;                                // one deliberate change
     await openLinksWithMemory(page, edited);
-    await expect(page.locator('#genHoursNote')).toContainText('under the 35h contract');
+    await expect(page.locator('#genHoursNote')).toContainText('short in total');
     await expect(page.locator('#genMemoryNote')).toBeVisible();
     await expect(page.locator('#genMemoryNote')).toContainText('your device remembers');
     // Touching anything makes it the designer's table — the note stands down.
@@ -2018,6 +2018,88 @@ test('links sets: Save as new writes a set owned as the signed-in designer', asy
     expect(written.updatedBy).toBe('M. Robson');
     expect(Array.isArray(written.slots)).toBe(true);
     expect(written.spareLines).toBe(4);             // the untouched default table is what was saved
+});
+
+test('links sets: the admin is told the set is somebody else\'s, not that it is theirs', async ({ page }) => {
+    // The v21.06 defect, and it needed the ADMIN'S seat to see: `canOverwriteTargetSet` answers
+    // "may I write this?", the hint asked it and printed "yours to change. Others can load it but
+    // not overwrite it" over a set S. Silva owns. Both halves wrong, and the second inverted — the
+    // one person who CAN overwrite anyone's was being told nobody could overwrite theirs.
+    await page.setViewportSize({ width: 1024, height: 1000 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript((rows) => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window);
+        w.__E2E = w.__E2E || {};
+        w.__E2E.docsByPath = { linkTargetSets: rows };
+    }, TARGET_SET_ROWS);
+    await page.goto('/links.html');
+    await page.waitForTimeout(700);
+    await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+
+    await page.locator('#genSetSelect').selectOption('ts-silva');
+    // Still writable — the admin override is real and the button must reflect it.
+    await expect(page.locator('#genSetSaveBtn')).toBeEnabled();
+    await expect(page.locator('#genSetHint')).toContainText('saved by S. Silva');
+    await expect(page.locator('#genSetHint')).toContainText('as the admin');
+    await expect(page.locator('#genSetHint')).not.toContainText('yours to change');
+});
+
+test('links generator: the hours row is the generator\'s OWN test, and follows a changed time', async ({ page }) => {
+    // TWO defects in one row, both of which left the page stating something untrue about the one
+    // question the card exists to answer.
+    //
+    //   1. The tick passed anything within half an hour, inherited from the Design-checks row where
+    //      a tolerance is right. Here it is wrong: `generateLink` refuses on an EQUALITY, so a table
+    //      a few minutes out wore a green "on target (35h)" and then met a red refusal.
+    //   2. Changing a shift TIME did not recompute the row at all — only a changed COUNT did — so
+    //      the figure sat at whatever it said before the edit. Stale, and green.
+    await page.setViewportSize({ width: 1024, height: 1200 });
+    await seedSession(page, 'G. Miller');
+    await openLinks(page);
+    await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+
+    // The shipped default pays the contract exactly, so it starts on target.
+    await expect(page.locator('#genHoursValue')).toHaveClass(/gen-hours-ok/);
+    await expect(page.locator('#genHoursNote')).toContainText('on target');
+
+    // Lengthen ONE duty and change nothing else. Under the old code this row did not move.
+    const before = await page.locator('#genHoursValue').textContent();
+    // 06:20-13:25 (7h05) becomes 15:55-23:55 (8h00) — a real length change on a Mon–Fri row, so
+    // the week gains 55 minutes five times over. Selected BY VALUE: a positional pick could land on
+    // a duty of the same length and pass while proving nothing.
+    await page.locator('#genSlotRows tr').first().locator('.gen-slot-time')
+        .selectOption('15:55-23:55');
+    await expect.poll(() => page.locator('#genHoursValue').textContent()).not.toBe(before);
+    await expect(page.locator('#genHoursValue')).toHaveClass(/gen-hours-off/);
+    // And it says what has to reach zero, in the unit that has to reach it.
+    await expect(page.locator('#genHoursNote')).toContainText('in total');
+    await expect(page.locator('#genHoursNote')).toContainText('Generate needs it exact');
+});
+
+test('links generator: a zero target recedes, and each day\'s block is separated', async ({ page }) => {
+    // Two thirds of the cells in the default table are zeros. At full contrast in identical boxes
+    // they compete with the numbers that mean something; dimmed, the shape of the table is legible.
+    // Both are presentational, so only a browser can see them — and `is-zero` is toggled live on
+    // typing, which is the part a static read of the render would miss.
+    await page.setViewportSize({ width: 1024, height: 1200 });
+    await seedSession(page, 'G. Miller');
+    await openLinks(page);
+    await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+
+    const firstRow = page.locator('#genSlotRows tr').first();
+    await expect(firstRow.locator('[data-class="weekday"]')).not.toHaveClass(/is-zero/);
+    await expect(firstRow.locator('[data-class="sun"]')).toHaveClass(/is-zero/);
+
+    // Typing a real target restores it immediately — no re-render, so no lost focus.
+    await firstRow.locator('[data-class="sun"]').fill('2');
+    await expect(firstRow.locator('[data-class="sun"]')).not.toHaveClass(/is-zero/);
+    await firstRow.locator('[data-class="sun"]').fill('0');
+    await expect(firstRow.locator('[data-class="sun"]')).toHaveClass(/is-zero/);
+
+    // The default table is three single-day blocks, so it carries exactly two boundaries: where
+    // Mon–Fri gives way to Saturday, and Saturday to Sunday.
+    await expect(page.locator('#genSlotRows tr.gen-slot-newblock')).toHaveCount(2);
 });
 
 test('links: the roster seed samples the whole MAIN cycle and nothing else', async ({ page }) => {

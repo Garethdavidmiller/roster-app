@@ -36,6 +36,7 @@ import {
     dutyMinutes,
     CONTRACTED_HOURS_PER_WEEK,
     hmFromHours,
+    targetExSundayMinutes,
 } from './links-design.js';
 import { initLinksAnalysis } from './links-analysis.js';
 import { LEGACY_DOC_ID, deepCopyPatterns, designFromDoc, binEntryFromDoc, docPayload, workingCopy, binEntryFrom, restoredEntryFrom } from './links-design-doc.js';
@@ -1580,19 +1581,34 @@ export function init() {
     function renderGenTable() {
         const tbody = document.getElementById('genSlotRows');
         if (!tbody) return;
-        tbody.innerHTML = genSlots.map((slot, i) =>
-            `<tr data-slot="${i}">` +
+        // DAY SIGNATURE — which of the three columns this row actually staffs. It drives the block
+        // rules below and nothing else; the counts themselves are untouched.
+        const _sig = (/** @type {any} */ sl) =>
+            ['weekday', 'sat', 'sun'].map(c => ((sl[c] ?? 0) > 0 ? '1' : '0')).join('');
+        // A rule is drawn only where a SINGLE-DAY run gives way to a different single-day run. The
+        // default table is three such blocks (Mon–Fri, Saturday, Sunday) and reads as one
+        // undifferentiated wall of rows without them. Restricting it to single-day rows is what stops
+        // a genuinely mixed table — rows staffing several days — acquiring a rule on every row, which
+        // is the same as no rules but heavier.
+        const _single = (/** @type {string} */ g) => g === '100' || g === '010' || g === '001';
+        let prevSig = '';
+        tbody.innerHTML = genSlots.map((slot, i) => {
+            const sig = _sig(slot);
+            const newBlock = i > 0 && sig !== prevSig && _single(sig) && _single(prevSig);
+            prevSig = sig;
+            return `<tr data-slot="${i}"${newBlock ? ' class="gen-slot-newblock"' : ''}>` +
             `<td class="gen-td-time"><select class="gen-select gen-slot-time" data-slot="${i}" ` +
             `aria-label="Shift time for row ${i + 1}">${buildShiftOptions(slot.time)}</select></td>` +
             ['weekday', 'sat', 'sun'].map(cls =>
-                `<td><input type="number" class="gen-input gen-slot-count" min="0" max="${TOTAL_POS}" ` +
+                `<td><input type="number" class="gen-input gen-slot-count${
+                    (/** @type {Record<string, any>} */ (slot))[cls] > 0 ? '' : ' is-zero'}" min="0" max="${TOTAL_POS}" ` +
                 `value="${(/** @type {Record<string, any>} */ (slot))[cls]}" data-slot="${i}" data-class="${cls}" ` +
                 `aria-label="${cls === 'weekday' ? 'Mon–Fri' : cls === 'sat' ? 'Saturday' : 'Sunday'} target for ${escapeHtml(slot.time)}"></td>`
             ).join('') +
             `<td class="gen-td-remove"><button class="gen-remove-btn" data-slot="${i}" type="button" ` +
             `aria-label="Remove ${escapeHtml(slot.time)} row" title="Remove this shift">✕</button></td>` +
-            `</tr>`
-        ).join('');
+            `</tr>`;
+        }).join('');
         updateGenTotals();
     }
 
@@ -1666,15 +1682,28 @@ export function init() {
         const hours = (minutes + genSpareLines * CONTRACTED_HOURS_PER_WEEK * 60) / 60 / TOTAL_POS;
         const off = hours - CONTRACTED_HOURS_PER_WEEK;
         const hm = hmFromHours;
-        // Same gate as the Design-checks row and the summary chip (v20.08's rule, applied here at
-        // v20.54): a figure computed over fewer shifts than the table holds must not wear the tick.
-        const onTarget = Math.abs(off) <= 0.5 && unreadable === 0;
+        // THE TICK IS THE GENERATOR'S OWN TEST, not an approximation of it (v21.07). It used to
+        // pass anything within half an hour — a tolerance inherited from the Design-checks row,
+        // where it is right because a design can be painted by hand. Here it is wrong: since v20.98
+        // `generateLink` refuses on an EQUALITY, so a table twenty minutes out wore a green "on
+        // target (35h)" and then met a red refusal on the next press. Computed with the gate's own
+        // `targetExSundayMinutes` (null if any time is unreadable) so the two cannot drift.
+        const askedMin = targetExSundayMinutes(genSlots);
+        const needMin = working * CONTRACTED_HOURS_PER_WEEK * 60;
+        const onTarget = unreadable === 0 && askedMin !== null && askedMin === needMin;
 
         valEl.textContent = `${hm(hours)} each`;
         valEl.className = onTarget ? 'gen-hours-ok' : 'gen-hours-off';
+        // When it is off, the gap is stated as a TOTAL rather than per line. The per-line average
+        // divides by the whole rotation, so a full hour of missing duty reads "0h 02m" — a figure
+        // that makes a refusal look like a rounding error. The total is the number that has to
+        // reach zero, and naming the equality is what stops the next press being a surprise.
+        const diffMin = askedMin === null ? null : askedMin - needMin;
         noteEl.textContent = (onTarget
             ? `on target (${CONTRACTED_HOURS_PER_WEEK}h)`
-            : `${hm(Math.abs(off))} ${off < 0 ? 'under' : 'over'} the ${CONTRACTED_HOURS_PER_WEEK}h contract`)
+            : diffMin !== null
+                ? `${hm(Math.abs(diffMin) / 60)} ${diffMin < 0 ? 'short' : 'over'} in total — Generate needs it exact`
+                : `${hm(Math.abs(off))} ${off < 0 ? 'under' : 'over'} the ${CONTRACTED_HOURS_PER_WEEK}h contract`)
             + ` · over ${working} working line${working === 1 ? '' : 's'}`
             + (unreadable ? ` · ${unreadable} shift${unreadable === 1 ? '' : 's'} not counted (unreadable time)` : '');
     }
@@ -1695,6 +1724,8 @@ export function init() {
     // report), and the note is what tells those two states apart. Any edit or reset clears it —
     // once touched, it is the designer's table and they know what it is.
     let genFromMemory = false;
+    /** The saved set this table was last loaded from, if any — the note NAMES it (v21.07). */
+    let genFromSetName = '';
 
     function _updateMemoryNote() {
         const el = document.getElementById('genMemoryNote');
@@ -1703,16 +1734,25 @@ export function init() {
             { slots: genSlots, spareLines: genSpareLines }, buildDefaultTargets());
         el.hidden = !differs;
         if (differs) {
-            el.textContent = 'These hours are from the table your device remembers, not the '
-                + 'demand-based default. Press “Back to the demand-based default” to load it; '
+            // Naming the SET when there is one, because "the table your device remembers" is true of
+            // a loaded set and tells the designer nothing: they knew they loaded something, and what
+            // they cannot see is which. Cleared by any edit — an edited copy is no longer that set.
+            el.textContent = (genFromSetName
+                ? `These hours came from the saved set “${genFromSetName}”, not the demand-based default. `
+                : 'These hours are from the table your device remembers, not the demand-based default. ')
+                + 'Press “Back to the demand-based default” to load it; '
                 + 'anything you change here is kept.';
         }
     }
 
     /** Persist the current target table for the active design. Silent — losing it is a nuisance,
      *  never a failure worth interrupting a designer for. */
-    function saveGenTargets(source = 'edited') {
+    function saveGenTargets(source = 'edited', setName = '') {
         genFromMemory = false;
+        // Default '' is load-bearing: every ordinary edit reaches this function without a name, so
+        // typing in the table drops the set attribution rather than leaving the note claiming the
+        // numbers on screen are still that designer's saved set.
+        genFromSetName = setName;
         _updateMemoryNote();
         // STAMPED with who wrote it and under which app version (v21.06). Content comparison alone
         // could only ever recognise two tables — the roster seed and the CURRENT default — so a
@@ -1723,7 +1763,7 @@ export function init() {
         // function without declaring itself is treated as somebody's work and kept forever.
         try {
             lsSet(_genTargetsKey(), JSON.stringify({
-                slots: genSlots, spareLines: genSpareLines, source, ver: APP_VERSION,
+                slots: genSlots, spareLines: genSpareLines, source, ver: APP_VERSION, setName,
             }));
         } catch { /* quota / private mode — the default remains the fallback */ }
     }
@@ -1771,6 +1811,7 @@ export function init() {
             }
             return {
                 slots: v.slots.map((/** @type {any} */ sl) => ({ time: sl.time, weekday: sl.weekday, sat: sl.sat, sun: sl.sun })),
+                setName: typeof v.setName === 'string' ? v.setName : '',
                 spareLines: int(v.spareLines) ? v.spareLines : null,
                 spare: legacy ? { weekday: v.spare.weekday, sat: v.spare.sat, sun: v.spare.sun } : null,
             };
@@ -1780,6 +1821,7 @@ export function init() {
     /** Put a target table on screen (state + the three spare inputs + the rows). */
     function applyGenTargets(/** @type {any} */ t) {
         genSlots = t.slots;
+        genFromSetName = typeof t.setName === 'string' ? t.setName : '';
         // Remembered targets predating v19.58 hold a per-day `spare` object. Read the largest of the
         // three as the line count: it is the day that needed the most cover, so it never LOSES
         // capacity in the migration. Reading only `weekday` would silently shrink a design whose
@@ -1829,7 +1871,12 @@ export function init() {
             if (!input) return;
             const slot = genSlots[+(input.dataset.slot ?? '')];
             if (!slot) return;
-            (/** @type {Record<string, any>} */ (slot))[input.dataset.class ?? ''] = Math.max(0, parseInt(input.value, 10) || 0);
+            const n = Math.max(0, parseInt(input.value, 10) || 0);
+            (/** @type {Record<string, any>} */ (slot))[input.dataset.class ?? ''] = n;
+            // Live, so a cell typed to 0 recedes as you type. The BLOCK rules are deliberately NOT
+            // recomputed here: re-rendering the table under a keystroke would take the focus out of
+            // the cell being typed into.
+            input.classList.toggle('is-zero', n === 0);
             updateGenTotals();
             saveGenTargets();
         });
@@ -1847,6 +1894,11 @@ export function init() {
                 return;
             }
             slot.time = select.value;
+            // The hours row is derived from the TIMES, so it has to be recomputed here — not just
+            // when a count changes (v21.07). Without this, changing a duty from 8h to 9h left the
+            // contracted-hours figure reading whatever it said before the change: the one number
+            // this card exists to show, silently stale, and green while the generator would refuse.
+            updateGenTotals();
             saveGenTargets();
         });
 
@@ -1873,9 +1925,9 @@ export function init() {
         // The two resets answer different questions and both are worth having: the default is a
         // table DESIGNED against the December 2026 service, the seed is a MEASUREMENT of what is
         // worked today. Either is an explicit "forget my tuning", so both persist over it.
-        const _resetTargets = (/** @type {{slots: any[], spareLines: number}} */ t, source = 'edited') => {
+        const _resetTargets = (/** @type {{slots: any[], spareLines: number}} */ t, source = 'edited', setName = '') => {
             ({ slots: genSlots, spareLines: genSpareLines } = t);
-            saveGenTargets(source);
+            saveGenTargets(source, setName);
             /** @type {HTMLInputElement} */ (document.getElementById('genSpareLines')).value = String(genSpareLines);
             renderGenTable();
             const errEl = document.getElementById('genError');
@@ -1899,9 +1951,9 @@ export function init() {
         const _setHint = document.getElementById('genSetHint');
         const _selectedSet = () => targetSets.find(t => t.id === _setSelect?.value) ?? null;
 
-        function renderSetPicker() {
+        function renderSetPicker(select = '') {
             if (!_setSelect) return;
-            const keep = _setSelect.value;
+            const keep = select || _setSelect.value;
             _setSelect.innerHTML = targetSets.length
                 ? targetSets.map(t =>
                     `<option value="${escapeHtml(t.id)}">${escapeHtml(t.name)} — ${escapeHtml(t.createdBy)}</option>`).join('')
@@ -1915,19 +1967,36 @@ export function init() {
             const loadBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('genSetLoadBtn'));
             const saveBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('genSetSaveBtn'));
             if (loadBtn) loadBtn.disabled = !set;
-            const mine = !!set && canOverwriteTargetSet(set, currentUser, isAdmin);
-            if (saveBtn) saveBtn.disabled = !mine;
+            // THREE states, not two (v21.07). Being ALLOWED to overwrite and OWNING it are different
+            // facts, and collapsing them told the admin "yours to change. Others can load it but not
+            // overwrite it" about a set S. Silva had saved — false on both halves, and the second
+            // half inverted: the one person who CAN overwrite anybody's set was being told nobody
+            // could overwrite theirs.
+            const owned = !!set && set.createdBy === currentUser;
+            const canWrite = !!set && canOverwriteTargetSet(set, currentUser, isAdmin);
+            if (saveBtn) saveBtn.disabled = !canWrite;
             if (_setHint) {
                 _setHint.textContent = !set
                     ? 'Save the table above as a named set to share it between designers.'
-                    : mine
+                    : owned
                         ? `${set.name} — yours to change. Others can load it but not overwrite it.`
-                        : `${set.name} — saved by ${set.createdBy}. Load it and change anything; keep your version with Save as new set.`;
+                        : canWrite
+                            ? `${set.name} — saved by ${set.createdBy}. You can overwrite it as the admin; Save as new set keeps theirs untouched.`
+                            : `${set.name} — saved by ${set.createdBy}. Load it and change anything; keep your version with Save as new set.`;
             }
         }
 
-        async function loadTargetSets() {
+        // `select` re-selects a set by id once the list is back — used after Save as new set, whose
+        // document does not exist until the write lands.
+        async function loadTargetSets(select = '') {
             try {
+                // AWAIT THE SESSION FIRST (v21.07). `initGenerator` runs synchronously during page
+                // init, well before Firebase auth has restored, so this read used to fire
+                // unauthenticated: the rules refused it, the catch below swallowed the refusal, and
+                // the picker sat on "No saved sets yet" until the designer reloaded — with their
+                // sets apparently gone. `loadDesigns` has awaited `sessionReady` for exactly this
+                // reason; this read is under the same rule and needs the same wait.
+                await sessionReady;
                 const snap = await getDocs(SETS_COL);
                 /** @type {any[]} */
                 const rows = [];
@@ -1939,7 +2008,7 @@ export function init() {
             } catch {
                 targetSets = [];                   // offline/denied → the picker just shows its empty state
             }
-            renderSetPicker();
+            renderSetPicker(select);
         }
 
         _setSelect?.addEventListener('change', refreshSetControls);
@@ -1948,7 +2017,8 @@ export function init() {
             const set = _selectedSet();
             if (!set) return;
             // Fresh copies — targetSets keeps its own snapshot, and the table edits in place.
-            _resetTargets({ slots: set.slots.map((/** @type {any} */ sl) => ({ ...sl })), spareLines: set.spareLines });
+            _resetTargets({ slots: set.slots.map((/** @type {any} */ sl) => ({ ...sl })), spareLines: set.spareLines },
+                'edited', set.name);
         });
 
         document.getElementById('genSetSaveBtn')?.addEventListener('click', async () => {
@@ -1982,10 +2052,14 @@ export function init() {
             });
             if (!name || !name.trim()) return;
             try {
-                await writeWithClaimRetry(() => addDoc(SETS_COL,
+                // Select the set that was just created (v21.07). The picker is sorted by name, so
+                // without this the new set is saved and the selection lands on whatever sorts first
+                // — reading as though the save had gone somewhere else, and leaving Save changes
+                // pointed at a different designer's set.
+                const ref = await writeWithClaimRetry(() => addDoc(SETS_COL,
                     targetSetPayload({ name, slots: genSlots, spareLines: genSpareLines },
                         currentUser, currentUser, serverTimestamp())));
-                await loadTargetSets();
+                await loadTargetSets(ref?.id ?? '');
             } catch {
                 if (_setHint) _setHint.textContent = 'Couldn\'t save the new set — check you\'re signed in and try again.';
             }

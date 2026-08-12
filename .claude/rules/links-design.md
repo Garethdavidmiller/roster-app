@@ -844,6 +844,16 @@ Design-checks ROW keeps its half-hour of slack and its never-red rule — a desi
 work in progress, and the row describes a design rather than gating one. The GENERATOR is exact,
 because it is deciding whether to create something.
 
+**The generator card's own "Hours a week" row belongs on the exact side of that line, and did not
+until v21.07.** It had inherited the Design-checks tolerance, which is the right rule for the wrong
+row: this one is not describing a design, it is PREDICTING the gate, sitting directly above the
+button the gate refuses. A table twenty minutes out therefore wore a green *on target (35h)* and
+then met a red refusal on the next press — the app disagreeing with itself in two places four
+seconds apart. It now computes the tick with `targetExSundayMinutes`, the gate's own function, so
+the two cannot drift, and states the gap as a TOTAL rather than per line (the per-line average
+divides by the whole rotation, so an hour of missing duty reads *0h 02m* — a figure that makes a
+refusal look like a rounding error).
+
 ### The generator intro must not restate a guarantee (v20.04)
 
 The card's opening paragraph promised *"start times only move later through each person's week —

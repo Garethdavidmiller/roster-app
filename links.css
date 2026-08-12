@@ -1048,6 +1048,20 @@ body.auth-ready .container { display: grid; }
     box-sizing: border-box;
 }
 .gen-input  { width: 58px; text-align: center; }
+/* A ZERO IS THE ABSENCE OF A TARGET, and should read like one. Two thirds of the cells in the
+   default table are zeros, and at full contrast in identical white boxes they compete with the
+   numbers that mean something — the eye has to read all 114 cells to find the ~38 that matter.
+   Dimmed, the shape of the table is visible at a glance. The value is unchanged and the field is
+   still editable; typing into it restores full contrast immediately (`is-zero` is toggled live). */
+.gen-input.is-zero {
+    color: var(--text-light);
+    background-color: color-mix(in srgb, var(--surface-sunken) 60%, transparent);
+    border-color: color-mix(in srgb, var(--border-light) 60%, transparent);
+}
+.gen-input.is-zero:focus-visible { color: var(--text-dark); }
+/* Where one day's block of shifts gives way to the next. A single stronger rule, not a heading row:
+   the columns already say which day it is, so what was missing was only the boundary. */
+.gen-slot-newblock > td { border-top: 2px solid var(--border-mid); }
 .gen-select { width: 100%; min-width: 122px; }
 .gen-input:focus-visible, .gen-select:focus-visible {
     outline: var(--focus-outline);
