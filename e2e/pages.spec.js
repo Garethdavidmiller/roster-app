@@ -839,6 +839,71 @@ test('links: deleting a design writes a SOFT delete and leaves the document in p
     await expect(page.locator('#designBinBtn')).toHaveText(/Recently deleted \(1\)/);
 });
 
+test('links: a pasted design is checked before it can be saved, and saved as a NEW design', async ({ page }) => {
+    // The RULES are unit-tested in links-import.test.mjs. What only a browser answers is the WIRING
+    // of the two-step: that Save is unreachable until a check has passed, that a later edit takes it
+    // away again, and — the one that matters — that what reaches Firestore is the parsed grid rather
+    // than a summary line claiming it was.
+    await openLinksWithDesigns(page);
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.setWrites = []; });
+    await page.locator('#importDesignBtn').click();
+
+    // Save is not offered on an unchecked paste, however good the paste is.
+    await expect(page.locator('#linksImportSave')).toBeHidden();
+    await page.locator('#linksImportText').fill(
+        '1\t14:00-22:00\t11:00-19:30\t11:00-19:30\t11:00-19:30\t11:00-19:30\tRD\t11:00-19:00\t42');
+    await expect(page.locator('#linksImportSave')).toBeHidden();
+
+    // A good paste reports what WOULD be written, including the assumption it had to make.
+    await page.locator('#linksImportText').fill(
+        '1\tNA\t06:20-13:50\tRD\tRD\t06:20-13:50\t06:20-13:50\t06:20-14:20');
+    await page.locator('#linksImportCheck').click();
+    // The DUTY counts, not the "only 1 of 24 lines" warning — which contains the same phrase, so
+    // asserting on the line count alone passed against a build whose summary said only "Ready."
+    await expect(page.locator('#linksImportStatus')).toContainText('4 duties');
+    await expect(page.locator('#linksImportStatus')).toContainText('NA');
+    await expect(page.locator('#linksImportSave')).toBeVisible();
+
+    // A REFUSAL AFTER A PASS TAKES SAVE BACK. Checked in this order deliberately: with a refusal
+    // first the button had never been shown, so "it is hidden" passed against a build that never
+    // hid it at all.
+    await page.locator('#linksImportText').fill('1\tRD\tRD\tRD\tRD\tRD\tRD\tTBC');
+    await page.locator('#linksImportCheck').click();
+    await expect(page.locator('#linksImportStatus')).toContainText('Row 1, SAT');
+    await expect(page.locator('#linksImportSave')).toBeHidden();
+
+    // And reaching the hidden button anyway writes NOTHING. A control that is merely invisible is
+    // still in the document, and the last-checked design is the one a stale parse would save.
+    await page.locator('#linksImportSave').dispatchEvent('click');
+    expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || []).length))
+        .toBe(0);
+
+    // EDITING AFTER A CHECK TAKES SAVE AWAY. Without this the reader is shown one design and saves
+    // the previous parse — the single outcome the two-step exists to prevent.
+    await page.locator('#linksImportText').press('End');
+    await page.locator('#linksImportText').type('\t');
+    await expect(page.locator('#linksImportSave')).toBeHidden();
+
+    await page.locator('#linksImportText').fill(
+        '1\tNA\t06:20-13:50\tRD\tRD\t06:20-13:50\t06:20-13:50\t06:20-14:20');
+    await page.locator('#linksImportName').fill('Martine — 2A / 2B');
+    await page.locator('#linksImportCheck').click();
+    await page.locator('#linksImportSave').click();
+
+    // A THIRD design — the import never touches the one that was open.
+    await expect(page.locator('.design-chip')).toHaveCount(3);
+    await expect(page.locator('.design-chip--active')).toContainText('Martine');
+
+    const writes = await page.evaluate(() => /** @type {any} */ (window).__E2E.setWrites || []);
+    const added = writes.find(w => w.data && w.data.name === 'Martine — 2A / 2B');
+    expect(added, 'the import must WRITE a design, not merely report one').toBeTruthy();
+    // The parsed grid, not the paste: NA became a rest day and the times were canonicalised.
+    expect(added.data.patterns['1']).toEqual({
+        sun: 'RD', mon: '06:20-13:50', tue: 'RD', wed: 'RD',
+        thu: '06:20-13:50', fri: '06:20-13:50', sat: '06:20-14:20',
+    });
+});
+
 test('links: a deleted design can be restored from the bin', async ({ page }) => {
     await openLinksWithDesigns(page);
     await page.locator('.design-chip--active .design-chip-delete').click();

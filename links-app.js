@@ -39,6 +39,7 @@ import {
 } from './links-design.js';
 import { initLinksAnalysis } from './links-analysis.js';
 import { LEGACY_DOC_ID, deepCopyPatterns, designFromDoc, binEntryFromDoc, docPayload, workingCopy, binEntryFrom, restoredEntryFrom } from './links-design-doc.js';
+import { parseDesignImport, summariseImport } from './links-import.js';
 import { buildRosterTargets } from './links-seed.js';
 import { reorderLines, applyOrder, cost, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
 import { normaliseWindow, formatWindow, isDefaultWindow, isValidWindowRow, canonicaliseWindowTime } from './links-window.js';
@@ -486,6 +487,7 @@ export function init() {
             if (nameBtn) compare.selectCompareDesign(nameBtn.dataset.id);
         });
         document.getElementById('newDesignBtn')?.addEventListener('click',     createDesign);
+        document.getElementById('importDesignBtn')?.addEventListener('click',  openImport);
         // The empty state's two actions (v19.66). They do not duplicate any behaviour — the blank
         // one calls the SAME `createDesign` the picker's "+ New" does, and the primary one only
         // scrolls, because generating needs targets the designer has to look at first. Offering
@@ -628,6 +630,124 @@ export function init() {
         } catch (err) {
             console.error('[Links] Create design failed:', err);
             _designActionStatus('Couldn’t create the design — check your connection and try again.');
+        }
+    }
+
+    // ── Import a pasted design ──────────────────────────────────────────────────────────────────
+    //
+    // The RULES are all in `links-import.js`; everything here is the panel. Two things about the
+    // shape of this flow are deliberate:
+    //
+    //  1. CHECK BEFORE SAVE, always, even when the paste is perfect. A design is 168 cells the
+    //     reader has never seen as a grid, and it came from somebody else — so "it parsed" is not
+    //     the same as "this is what I meant to import". The check states what would be written and
+    //     any assumption made on the way, and only then does Save appear.
+    //  2. It saves as a NEW design and never touches the open one. An import that could overwrite
+    //     the design in front of you is one mis-tap from destroying work, and the workspace already
+    //     has a bin full of reasons to be careful about that.
+
+    /** The parse result the check produced, or null. Cleared whenever the text changes. */
+    /** @type {any} */
+    let _importParsed = null;
+    /** The import lightbox handle, assigned by `initDesignImport` below. @type {any} */
+    let _importLb = null;
+
+    /** @param {string} id */
+    function _importEl(id) { return /** @type {any} */ (document.getElementById(id)); }
+
+    /** Write the status line in one of its three voices. */
+    /** @param {string} msg @param {string|null} tone */
+    function _importStatus(msg, tone) {
+        const el = _importEl('linksImportStatus');
+        if (!el) return;
+        el.textContent = msg;
+        el.className = 'li-status' + (tone ? ` li-status--${tone}` : '');
+    }
+
+    /** Back to "nothing checked yet" — called on open and on every edit of either field. */
+    function _importReset() {
+        _importParsed = null;
+        const save = _importEl('linksImportSave');
+        const check = _importEl('linksImportCheck');
+        if (save) save.hidden = true;
+        if (check) check.hidden = false;
+        _importStatus('', null);
+    }
+
+    function openImport() {
+        const text = _importEl('linksImportText');
+        const name = _importEl('linksImportName');
+        if (!text) return;
+        text.value = '';
+        if (name) name.value = '';
+        _importReset();
+        _importLb?.open();
+    }
+
+    /** Parse what is in the box and report it. Never writes anything. */
+    function checkImport() {
+        const text = _importEl('linksImportText');
+        const r = parseDesignImport(text?.value ?? '', { lines: ROTATING_LINES });
+        if (!r.ok) {
+            _importParsed = null;
+            // Belt and braces: any edit to either field already ran `_importReset`, so the button
+            // is normally hidden before this line runs. Kept so the refusal branch does not depend
+            // on a listener wired two hundred lines away — and noted here because a mutation
+            // removing it survives the e2e for exactly that reason.
+            const save = _importEl('linksImportSave');
+            if (save) save.hidden = true;
+            _importStatus(r.error, 'bad');
+            return;
+        }
+        _importParsed = r;
+        // A pasted name only fills the field when the reader has not typed one — their own name for
+        // a colleague's proposal is the more considered of the two.
+        const nameEl = _importEl('linksImportName');
+        if (nameEl && !nameEl.value.trim() && r.name) nameEl.value = r.name;
+
+        const s = summariseImport(r.patterns, ROTATING_LINES);
+        const lines = [`${s.filled} of ${s.lines} lines · ${s.worked} duties · ${s.spare} spare days · ${s.rest} rest days.`];
+        // Warnings BEFORE the save, never after it — a decision reported once the write has
+        // happened is a notification rather than a choice.
+        for (const w of r.warnings) lines.push(`• ${w}`);
+        _importStatus(lines.join('\n'), r.warnings.length ? 'warn' : 'ok');
+
+        const save = _importEl('linksImportSave');
+        const check = _importEl('linksImportCheck');
+        if (save) save.hidden = false;
+        if (check) check.hidden = true;
+    }
+
+    /** Write the checked design as a new one. */
+    async function saveImport() {
+        if (!_importParsed) return;
+        const name = (_importEl('linksImportName')?.value ?? '').trim();
+        if (!name) { _importStatus('Give the design a name first.', 'bad'); return; }
+        if (_designNameTooLong(name)) { _importStatus(`That name is too long (max ${MAX_DESIGN_NAME} characters).`, 'bad'); return; }
+        const btn = _importEl('linksImportSave');
+        if (btn) btn.disabled = true;
+        _importStatus('Saving…', null);
+        try {
+            const patterns = _importParsed.patterns;
+            const ref = await writeWithClaimRetry(() => addDoc(DESIGNS_COL,
+                // An imported design starts on the app default window, like a new one — the paste
+                // describes duties, and a window it never mentioned must not be inferred from them.
+                docPayload({ name, patterns, window: null },
+                           { updatedBy: currentUser, updatedAt: serverTimestamp() })));
+            // Arm the concurrency baseline exactly as createDesign does — see there.
+            let ts = null;
+            try { ts = (await getDoc(ref)).data()?.updatedAt ?? null; } catch { /* offline */ }
+            const d = restoredEntryFrom({ id: ref.id, name, patterns, window: null }, { updatedAt: ts, updatedBy: currentUser });
+            designs.push(d);
+            _sortDesigns();
+            _importLb?.close();
+            _activateDesign(d);
+            _designActionStatus(`Imported “${name}”. Check it against the sheet it came from.`);
+        } catch (err) {
+            console.error('[Links] Import failed:', err);
+            _importStatus('Couldn’t save the design — check your connection and try again.', 'bad');
+        } finally {
+            if (btn) btn.disabled = false;
         }
     }
 
@@ -925,6 +1045,30 @@ export function init() {
         });
     }
     initDesignBin();
+
+    /** Wire the import panel — called once on page load, like the bin. */
+    function initDesignImport() {
+        const overlay = document.getElementById('linksImportLb');
+        const content = document.getElementById('linksImportContent');
+        const closeBtn = document.getElementById('linksImportClose');
+        if (!overlay || !content || !closeBtn) return;
+        _importLb = createLightbox({
+            overlay,
+            content:  /** @type {HTMLElement} */ (content),
+            closeBtn: /** @type {HTMLElement} */ (closeBtn),
+            initialFocus: () => document.getElementById('linksImportText'),
+        });
+        document.getElementById('linksImportCheck')?.addEventListener('click', checkImport);
+        document.getElementById('linksImportSave')?.addEventListener('click', saveImport);
+        document.getElementById('linksImportCancel')?.addEventListener('click', () => _importLb?.close());
+        // ANY edit to either field invalidates the check. Without this, editing the paste after a
+        // successful check would leave Save armed against the PREVIOUS parse — the reader would be
+        // shown one design and save another, which is the one outcome this two-step exists to stop.
+        for (const id of ['linksImportText', 'linksImportName']) {
+            document.getElementById(id)?.addEventListener('input', _importReset);
+        }
+    }
+    initDesignImport();
 
     /**
      * Remove deleted designs that have aged out of the recovery window.
@@ -2366,6 +2510,11 @@ export function init() {
                     ]},
                     { heading: 'Multiple designs', items: [
                         { icon: '➕', html: '<strong>+ New</strong> starts a fresh blank design. <strong>⎘ Duplicate</strong> copies the current one so you can try a variation.' },
+                        // Added with the feature (v20.97). Without it the button is discoverable
+                        // only by pressing it, and the two-step it opens then reads as a hurdle
+                        // rather than as the check it is.
+                        { icon: '⤓', html: '<strong>Import</strong> takes a design somebody has written down elsewhere — paste it from a spreadsheet, or type times, <strong>RD</strong> and <strong>SP</strong> a row per line. Press <strong>Check it</strong> first: it tells you what would be saved, and anything it had to assume, before there is a Save button at all.' },
+                        { icon: '🛡️', html: 'An import saves as a <strong>new</strong> design and never changes the one you have open. A cell it cannot read stops the whole import rather than quietly becoming a rest day — a design that arrives four duties light looks like a lighter week, not like a mistake.' },
                         { icon: '⇔', html: '<strong>Compare</strong> shows two designs side-by-side — cells that differ are highlighted in gold. Only available when you have at least two designs.' },
                         { icon: '🗑', html: 'Deleting a design does not destroy it — it moves to <strong>Recently deleted</strong>, where it stays until someone restores it or removes it for good. Nothing is removed automatically. The button only appears when something is in there.' },
                     ]},

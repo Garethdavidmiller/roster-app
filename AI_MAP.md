@@ -287,6 +287,19 @@ The member's side of the Overtime page. `overtime-form.js` renders one week's se
 
 **The chosen option must LOOK chosen, and that is tested by measuring pixels.** These six became a radio group at v20.61 (`aria-checked`) while the CSS went on styling `[aria-pressed="true"]`, so for several releases pressing an option changed nothing visible — and every behavioural test still passed, because the attribute, the stored answer and the answered-day marker were all correct. `e2e/overtime.spec.js` now reads the computed `background-color` of a chosen pill against an unchosen one, which is the only form of the assertion that survives the NEXT reason it might break (a renamed attribute, a deleted rule, a lost specificity fight). Same reasoning as the 16px focusable-field sweep.
 
+### `links-import.js`
+Turning somebody ELSE's roster proposal into a design the workspace can hold — the pure half; the panel is in `links-app.js`. Tested by `links-import.test.mjs`.
+
+**It exists because proposals do not arrive as designs.** They arrive as a photograph of a handwritten sheet, a Word table, or a column out of a Dec 2026 simplifier spreadsheet, and the only route in was 168 taps — enough friction that a colleague's idea never gets compared against anything. That is what this removes: not typing effort, but proposals nobody assesses.
+
+**It is a TRUST BOUNDARY and that is the whole job**, modelled on `paycalc-transfer.js`'s `validateBackup`. Pasted text is a claim about data, and it becomes either a design or a refusal — **never a half-design**. An unreadable cell is refused by week and day rather than defaulted to a rest day: an import that "succeeds" four duties light reads as a lighter week, and the hours panel then reports a comfortable average for a week nobody proposed. A row of the wrong width is refused rather than realigned (guessing which column is missing is guessing at somebody's rest days), and a duplicate or out-of-range week number is refused rather than resolved.
+
+**Warnings are not errors.** A refusal means the text does not describe a design; a warning means it does, and here is what had to be decided — a short rotation, or `NA` read as a rest day because the app has one non-worked state and a Marylebone sheet uses `NA` for a non-contracted Sunday. The caller shows them BEFORE the save: a decision reported after the write is a notification, not a choice.
+
+**It computes no hours, no coverage and no verdict.** The design goes into the workspace and the workspace's own panels assess it exactly as they assess a generated one — an importer that scored its own input would compete with `runDesignChecks`, and the first time they disagreed nobody would know which to believe.
+
+- `parseCell` / `parseGrid` / `parseDesignImport` / `summariseImport` / `MAX_IMPORT_NAME`
+
 ### `overtime-manager.js`
 The reviewer's workspace for one selected week: the Firestore reads and the By day / Awaiting views. Reads Firestore DIRECTLY where the member does not — the rules give `admin`/`manager` read across the tree, and this is the surface that benefits.
 

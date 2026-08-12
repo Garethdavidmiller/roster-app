@@ -1199,6 +1199,7 @@ body.auth-ready .container { display: grid; }
 .design-chip-delete:disabled { opacity: 0.35; cursor: default; }
 
 .btn-design-new,
+.btn-design-import,
 .btn-design-dup {
     background: none;
     border: 1px solid var(--border-light);
@@ -1214,10 +1215,13 @@ body.auth-ready .container { display: grid; }
 }
 @media (hover: hover) and (pointer: fine) {
     .btn-design-new:hover,
+    .btn-design-import:hover,
     .btn-design-dup:hover { background: var(--surface-sunken); color: var(--text-dark); }
 }
 .btn-design-new:focus-visible,
+.btn-design-import:focus-visible,
 .btn-design-dup:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+.btn-design-import:disabled,
 .btn-design-dup:disabled { opacity: 0.4; cursor: default; }
 
 .btn-design-compare {
@@ -1891,3 +1895,67 @@ body.auth-ready .container { display: grid; }
 /* The legend matches the app's shared `.field-eyebrow` (shared.css) rather than restating a
    near-copy of it — same size, weight, transform and tracking. */
 .gen-objectives legend { letter-spacing: 0.5px; color: var(--text-light); }
+
+/* ---- Import a design (v20.97) ----
+   The paste box and its two-step confirm. It borrows the dialog family from shared.css for the
+   panel, title, message and buttons — a page-local dialog recipe is what `.notice-lb-content`
+   and `.dialog-content` exist to prevent — and adds only the three things that family has no
+   opinion about: a monospace paste area, a name field, and the status line the check writes into. */
+.li-paste-label {
+    display: block;
+    margin: var(--space-3) 0 4px;
+    font-size: var(--type-badge);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-mid);
+}
+
+/* MONOSPACE, and it is not decoration: a pasted rotation is columns, and in a proportional face a
+   misaligned row looks identical to a correctly aligned one — which is precisely the fault the
+   reader is being asked to spot before pressing Save. `nowrap` + horizontal scroll for the same
+   reason; a wrapped row reads as two rows. */
+.li-paste {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    background-color: var(--field-bg);
+    color: var(--text-dark);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    /* 16px floor — this is a focusable field and iOS zooms anything smaller (css-tokens.md). */
+    font-size: var(--type-body);
+    line-height: 1.4;
+    white-space: pre;
+    overflow-x: auto;
+    resize: vertical;
+}
+.li-paste:focus { background-color: white; outline: var(--focus-outline); outline-offset: 1px; }
+
+.li-name {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    background-color: var(--field-bg);
+    color: var(--text-dark);
+    font-family: inherit;
+    font-size: var(--type-body);
+}
+.li-name:focus { background-color: white; outline: var(--focus-outline); outline-offset: 1px; }
+
+/* The status line carries three states and they must not look alike — a refusal and a summary of
+   what is about to be written are opposite messages, and this is the one screen where the reader
+   is deciding whether to trust the paste. */
+.li-status {
+    margin: var(--space-3) 0 0;
+    font-size: var(--type-small);
+    line-height: 1.45;
+    color: var(--text-mid);
+    white-space: pre-line;
+}
+.li-status--bad  { color: var(--error-text); font-weight: 600; }
+.li-status--warn { color: var(--warning-amber); }
+.li-status--ok   { color: var(--success-text); font-weight: 600; }
