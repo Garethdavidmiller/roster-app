@@ -344,16 +344,21 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     });
 
     test('one-time notice open (calendar) — the state the other scans used to sample by accident', async ({ page }) => {
-        // Registered AFTER the suppression in the file-level beforeEach, so this init script runs
-        // second and wins. A notice is the app's only overlay that opens on a timer rather than on
-        // a tap, which is what made it a race for everything else and why it needs its own scan:
-        // dark glass over a translucent card, every text colour an rgba white, so contrast here is
-        // decided by what is composited BEHIND it — the one arrangement in the app where a scan of
-        // some other page proves nothing at all.
+        // The re-enable must be registered AFTER every suppression — the file-level beforeEach AND
+        // `seedMember`, which sets the same key itself (the calendar specs had this race too, so
+        // the suppression moved into the helper). Init scripts run in registration order and last
+        // write wins, which is the whole mechanism here; putting the remove before seedMember is
+        // how this test silently reverted to scanning a notice that never opens.
+        //
+        // A notice is the app's only overlay that opens on a timer rather than on a tap, which is
+        // what made it a race for everything else and why it needs its own scan: dark glass over a
+        // translucent card, every text colour an rgba white, so contrast here is decided by what is
+        // composited BEHIND it — the one arrangement in the app where a scan of some other page
+        // proves nothing at all.
+        await seedMember(page);
         await page.addInitScript(() => {
             try { localStorage.removeItem('myb_notice_pw_own_2026_done'); } catch (_) { /* noop */ }
         });
-        await seedMember(page);
         await page.goto('/');
         await expect(page.locator('.calendar-day').first()).toBeVisible();
         await expect(page.locator('#pwNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });

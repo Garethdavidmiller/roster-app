@@ -42,8 +42,18 @@ export function seedSession(page, name = 'G. Miller') {
 
 // Seed a chosen calendar member so index.html renders the grid instead of the first-run
 // "choose your name" prompt (shown only when NO member is saved AND not signed in).
+//
+// ALSO SUPPRESSES THE `pw-own-2026` NOTICE, because a seeded member is exactly its audience: it
+// opens 1,500ms after load on a fade and its dialog intercepts pointer events, so any calendar
+// spec that clicks something after ~1.5s was racing it — two flaked under full-suite load, and the
+// axe suite hit the same race from the other side (see axe.spec.js's file-level beforeEach). A
+// spec that is ABOUT the notice re-enables it with a later addInitScript removing the key — later
+// init scripts run after this one, so the remove wins.
 export function seedMember(page, name = 'G. Miller') {
-    return page.addInitScript((n) => localStorage.setItem('myb_roster_selected_member', n), name);
+    return page.addInitScript((n) => {
+        localStorage.setItem('myb_roster_selected_member', n);
+        localStorage.setItem('myb_notice_pw_own_2026_done', '1');
+    }, name);
 }
 
 // Select the first real grade, then its first member, and return that member's expected
@@ -226,6 +236,8 @@ export function seedMemberSession(page, name = 'G. Miller') {
             expiry: Date.now() + 90 * 24 * 60 * 60 * 1000,   // arbitrary future — NOT SESSION_MS
         }));
         localStorage.setItem('myb_roster_selected_member', n);
+        // Same pw-notice suppression as seedMember, same reason — see the note there.
+        localStorage.setItem('myb_notice_pw_own_2026_done', '1');
         window.__E2E = Object.assign(window.__E2E || {}, { authUser: true });
     }, name);
 }
