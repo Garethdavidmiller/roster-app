@@ -6,79 +6,81 @@
  *
  * `links-seed.js` MEASURES: it reads the roster people actually work and reports it. That is the
  * right answer to "what do we do today", and it was the wrong thing to start a December 2026
- * proposal from — those duties pay 16 working lines, the new rotation has 19, and since v20.98 the
- * generator refuses the resulting table outright. A designer opening the workspace met a refusal
- * before they had typed anything.
+ * proposal from — those duties pay 16 working lines, the new rotation has 19, and the generator
+ * refuses the resulting table outright. A designer opening the workspace met a refusal before they
+ * had typed anything.
  *
  * This module DESIGNS. It is a proposed shift table built against the December 2026 service in
  * `links-demand.js` and the operating window in `links-window.js`, and it is a starting point to
  * argue with — not a recommendation, not a measurement of anything, and emphatically not a link.
  * Both are reachable from the card, which is the point: measure today, design tomorrow.
  *
- * ── THE FOUR THINGS THE OWNER ASKED FOR, AND WHERE EACH ONE LANDED ─────────────────────────────
+ * ── THE OWNER'S FIGURES (Aug 2026), AND WHERE EACH ONE LANDED ──────────────────────────────────
  *
- * Owner, Aug 2026: cover the demand, exactly the contracted week Mon–Sat, four turns opening and
- * three closing, and roughly 4.2 days a week worked.
+ * Cover the demand · four turns opening and three closing, every day · **four cover weeks** ·
+ * roughly 4.2 days a week worked Mon–Sat, averaging exactly the contracted week · **14 working on
+ * a Saturday**, with a slight preference to LATE turns for events · **10 working on a Sunday**.
  *
- * The last two are the same statement seen twice, which is what makes the table solvable at all:
- * 35h over 4.2 days is a mean duty of 8h20. So the shape is fixed before a single time is chosen,
- * and the only freedom left is WHERE in the day those duties sit.
+ * The Saturday and Sunday headcounts are decisions, not derivations — an event Saturday needs
+ * hands regardless of what the train count says — and everything else then follows from three
+ * constraints meeting: the contract is exact, Saturday is fixed at 14, and four cover weeks leave
+ * 20 working lines. So the weekday count is the derived one, and at these figures NOTHING rounds:
  *
- * The arithmetic, written out so an edit can keep it true:
+ *     (5 x weekday + 14) / 20  =  4.2   →   weekday = 14, exactly
  *
- *     Mon–Fri   14 duties   7,040 min/day  x5 = 35,200
- *     Saturday  10 duties   4,700 min           4,700
+ *     Mon–Fri   14 duties   7,000 min/day  x5 = 35,000
+ *     Saturday  14 duties   7,000 min           7,000
  *                                             -------
- *                                              39,900 min = 19 working lines x 35h EXACTLY
- *     80 duties over 19 working lines = 4.21 days a week
+ *                                              42,000 min = 20 working lines x 35h EXACTLY
+ *     84 duties over 20 working lines = 4.2 days a week EXACTLY, mean turn 8h20 EXACTLY
  *
- * `19 working lines` is 24 minus five cover weeks, and the cover-week count is therefore not a
- * preference — it is the third term in the equation. Change it and the table no longer pays the
- * contract; `generateLink` will say so, in minutes, in both directions.
+ * A weekday and the Saturday carry the SAME total minutes — 7,000 each — which is what keeps the
+ * split of the 42,000 legible (five-and-one equal days). The cover-week count is therefore not a
+ * preference — it is the third term in the equation. Change it alone and the table no longer pays
+ * the contract; `generateLink` will say so, in minutes, in both directions.
  *
- * **The Saturday-to-weekday ratio was not chosen either.** Ten Saturday duties against fourteen
- * weekday ones is 0.71, and Saturday carries 1,266 cars against a weekday's 1,756 — a ratio of
- * 0.72. That the headcount lands on the service almost exactly is the one part of this table that
- * arrived rather than being decided, and it is worth not undoing by rounding Saturday up.
+ * ── HOW THE WEEKDAY MEETS ITS TWO PEAKS ────────────────────────────────────────────────────────
  *
- * ── WHY THE COVER IS BROADLY FLAT, WHICH LOOKS LIKE A FAILURE AND IS NOT ───────────────────────
+ * Weekday demand is twin-peaked — 08:00–09:00 (127 cars) and 17:00–18:00 (140) — and the peaks
+ * are about nine hours apart, one duty length, so no turn can be at both. The fourteen turns split
+ * 3 morning / 4 afternoon middles around the openers and closers (the evening peak is the heavier
+ * one), and both peaks land at ~19–20 cars per person against ~10 in the midday trough. A flatter
+ * answer does not exist at this headcount; the lever for the peaks is more duties in the day, not
+ * a different arrangement of these ones.
  *
- * Weekday demand is twin-peaked — 08:00–09:00 (127 cars) and 17:00–18:00 (140) — and the obvious
- * expectation is a design that peaks with it. It cannot, and the reason is arithmetic rather than
- * effort: **the two peaks are about nine hours apart, which is one duty length.** No single turn
- * can be at both. Staffing each peak to its own level would need roughly nine people twice over,
- * and there are fourteen duties in the day, so the two demands are not merely hard to satisfy
- * together, they are more than the day contains.
+ * ── SATURDAY LEANS LATE, ON PURPOSE ────────────────────────────────────────────────────────────
  *
- * What the table does instead is hold cover flat at seven through the working day and let the load
- * per person rise at the peaks: measured, 20.0 cars per person at 17:00 against 10.7 at the midday
- * trough. That was not settled by taste. A search over start times, minimising the worst hour,
- * returns the same flat profile — it simply reaches it by stacking three starts on 07:00 and three
- * on 15:00, which is not a link anybody would work. The starts here are staggered at twenty- and
- * thirty-minute intervals and come within 0.3 of the optimiser's worst hour.
+ * Eight of the fourteen Saturday turns start at 11:00 or later against six earlies — the owner's
+ * "slight preference to late for events". Measured against the timetable that puts the richest
+ * cover at 13:00–19:00 (~8–9 cars per person, against ~15–17 in the morning), which is where an
+ * event afternoon actually bites. The morning is not starved to do it: four turns still open the
+ * station and the 08:00–10:00 hours hold ~16.
  *
- * ── SUNDAY IS CARRIED, NOT DESIGNED ────────────────────────────────────────────────────────────
+ * ── SUNDAY IS DESIGNED NOW, NOT CARRIED ────────────────────────────────────────────────────────
  *
- * The Sunday rows are the live roster's, unchanged. Sunday is not contracted for any grade here, so
- * it is outside the 35h measure entirely and outside what was asked for — and zeroing it would have
- * been a change nobody requested with a loud consequence, since every Sunday hour would then render
- * as uncovered demand on the heat map. Carrying it forward keeps Sunday exactly as it is today,
- * which is the honest default for a column this table has nothing to say about.
+ * Until v21.01 the Sunday column was the live roster's, copied unchanged, because nothing had been
+ * asked of it. The owner has now asked: **ten on a Sunday** (the roster works eight). Sunday gets
+ * the same shape as the other days — four on at the 07:15 open, three through to the 23:25 close,
+ * three middles spread across a demand curve that is nearly flat from 09:00 to 23:00. Sunday is
+ * not contracted for any grade here, so none of this touches the 35h measure; the ex-Sunday
+ * arithmetic above is unchanged by it. The five December 2026 movements after the 23:25 close
+ * remain OUTSIDE the window — that is the standing Sunday boundary question `links-demand.js`
+ * keeps visible, and adding people inside the window does not answer it.
  *
  * ── WHAT THIS IS NOT ───────────────────────────────────────────────────────────────────────────
  *
  * It is not a proposal. Nothing here has been through a roster office, a rep, or anyone who has
- * worked a gateline at 17:00 on a Friday. It covers the service and pays the contract, which is the
- * floor for being worth discussing, not evidence of being right. The panels below the grid — hard
- * limits, fatigue factors, the heat map — assess what the generator makes of it, and they are the
- * things to read before anyone takes a printout into a room.
+ * worked a gateline at 17:00 on a Friday. It covers the service and pays the contract, which is
+ * the floor for being worth discussing, not evidence of being right. The panels below the grid —
+ * hard limits, fatigue factors, the heat map — assess what the generator makes of it, and they are
+ * the things to read before anyone takes a printout into a room.
  */
 
 /**
  * How many whole lines are cover weeks. The third term in the contract equation above — not a
  * preference, and not independently adjustable without retuning the duty table with it.
  */
-export const DEFAULT_COVER_WEEKS = 5;
+export const DEFAULT_COVER_WEEKS = 4;
 
 /** Turns on at the open, every day the station opens. Owner's figure. */
 export const OPENING_TURNS = 4;
@@ -86,56 +88,70 @@ export const OPENING_TURNS = 4;
 /** Turns through to the close, every day. Owner's figure. */
 export const CLOSING_TURNS = 3;
 
+/** People working a Saturday. Owner's figure — an events decision, not a derivation. */
+export const SATURDAY_TURNS = 14;
+
+/** People working a Sunday. Owner's figure. Outside the contracted measure entirely. */
+export const SUNDAY_TURNS = 10;
+
 /**
- * The mean days a week a working line is on duty Mon–Sat. Owner's figure, and the one that fixes
- * the mean duty length at 35h / this.
+ * The mean days a week a working line is on duty Mon–Sat. Owner's figure ("roughly"), and with
+ * Saturday fixed at 14 it is what derives the weekday count of 13 — the true mean is 79/19 ≈ 4.16.
  */
 export const TARGET_DAYS_PER_WEEK = 4.2;
 
 /**
  * The table itself.
  *
- * Read it in four blocks. **Openers** all start at 06:20 and are staggered by their FINISH, because
- * a link where four people walk off at the same minute hands the afternoon a cliff rather than a
- * handover. **Morning and afternoon middles** roll through at twenty- to thirty-minute intervals.
- * **Closers** all finish at 23:55 and stagger by their start, for the same reason in reverse.
- * **Sunday** is the live roster's own column, carried whole (see the header).
+ * Read each day class in three blocks. **Openers** all start at the window open and are staggered
+ * by their FINISH, because a link where four people walk off at the same minute hands the
+ * afternoon a cliff rather than a handover. **Middles** roll through the day. **Closers** all
+ * finish at the window close and stagger by their start, for the same reason in reverse.
  *
- * A row with a zero in a column is a duty that day does not have — Saturday's turns are genuinely
- * shorter than a weekday's, which is why most rows serve one day class and not both. Where the two
- * days do share a time they share the row, which is what keeps this to a readable length.
+ * A row with a zero in a column is a duty that day does not have — a Saturday turn is genuinely
+ * shorter than a weekday's and a Sunday runs to a different window, which is why most rows serve
+ * one day class. Where two days do share a time they share the row, which is what keeps this to a
+ * readable length.
  *
  * @type {ReadonlyArray<Readonly<{time: string, weekday: number, sat: number, sun: number}>>}
  */
 const TABLE = Object.freeze([
-    // ── Openers — four on at 06:20, staggered finishes
-    Object.freeze({ time: '06:20-13:40', weekday: 0, sat: 1, sun: 0 }),
-    Object.freeze({ time: '06:20-14:00', weekday: 0, sat: 1, sun: 0 }),
+    // ── Mon–Sat openers — the same four turns both days, staggered finishes
     Object.freeze({ time: '06:20-14:20', weekday: 1, sat: 1, sun: 0 }),
     Object.freeze({ time: '06:20-14:40', weekday: 1, sat: 1, sun: 0 }),
-    Object.freeze({ time: '06:20-15:00', weekday: 1, sat: 0, sun: 0 }),
-    Object.freeze({ time: '06:20-15:20', weekday: 1, sat: 0, sun: 0 }),
-    // ── Morning middles — into the 08:00–09:00 peak and through the midday trough
+    Object.freeze({ time: '06:20-15:00', weekday: 1, sat: 1, sun: 0 }),
+    Object.freeze({ time: '06:20-15:20', weekday: 1, sat: 1, sun: 0 }),
+    // ── Weekday middles — three into the morning peak, four across the heavier evening one
     Object.freeze({ time: '07:00-15:20', weekday: 1, sat: 0, sun: 0 }),
-    Object.freeze({ time: '07:30-15:50', weekday: 1, sat: 0, sun: 0 }),
-    Object.freeze({ time: '08:00-15:20', weekday: 0, sat: 1, sun: 0 }),
-    Object.freeze({ time: '08:00-16:20', weekday: 1, sat: 0, sun: 0 }),
-    Object.freeze({ time: '08:50-16:10', weekday: 0, sat: 1, sun: 0 }),
-    // ── Afternoon middles — on before the 17:00 peak, off across the evening
-    Object.freeze({ time: '13:20-21:40', weekday: 1, sat: 0, sun: 0 }),
-    Object.freeze({ time: '13:50-22:10', weekday: 1, sat: 0, sun: 0 }),
+    Object.freeze({ time: '07:45-16:05', weekday: 1, sat: 0, sun: 0 }),
+    Object.freeze({ time: '08:30-16:50', weekday: 1, sat: 0, sun: 0 }),
+    Object.freeze({ time: '12:50-21:10', weekday: 1, sat: 0, sun: 0 }),
+    Object.freeze({ time: '13:40-21:40', weekday: 1, sat: 0, sun: 0 }),
     Object.freeze({ time: '14:20-22:40', weekday: 1, sat: 0, sun: 0 }),
-    Object.freeze({ time: '14:30-21:50', weekday: 0, sat: 1, sun: 0 }),
-    Object.freeze({ time: '14:50-23:10', weekday: 1, sat: 0, sun: 0 }),
-    // ── Closers — three through to 23:55, staggered starts
+    Object.freeze({ time: '15:00-23:00', weekday: 1, sat: 0, sun: 0 }),
+    // ── Saturday middles — seven, leaning late for events (five of them start 12:00 or after)
+    Object.freeze({ time: '08:40-16:40', weekday: 0, sat: 1, sun: 0 }),
+    Object.freeze({ time: '10:00-18:20', weekday: 0, sat: 1, sun: 0 }),
+    Object.freeze({ time: '12:00-20:20', weekday: 0, sat: 1, sun: 0 }),
+    Object.freeze({ time: '13:00-21:20', weekday: 0, sat: 1, sun: 0 }),
+    Object.freeze({ time: '14:00-22:20', weekday: 0, sat: 1, sun: 0 }),
+    Object.freeze({ time: '14:40-22:40', weekday: 0, sat: 1, sun: 0 }),
+    Object.freeze({ time: '15:00-23:20', weekday: 0, sat: 1, sun: 0 }),
+    // ── Mon–Sat closers — the same three turns both days, staggered starts, through to 23:55
     Object.freeze({ time: '15:15-23:55', weekday: 1, sat: 1, sun: 0 }),
     Object.freeze({ time: '15:35-23:55', weekday: 1, sat: 1, sun: 0 }),
     Object.freeze({ time: '15:55-23:55', weekday: 1, sat: 1, sun: 0 }),
-    // ── Sunday — the live roster's column, carried unchanged
-    Object.freeze({ time: '07:15-15:45', weekday: 0, sat: 0, sun: 3 }),
-    Object.freeze({ time: '08:30-16:30', weekday: 0, sat: 0, sun: 1 }),
-    Object.freeze({ time: '13:00-21:00', weekday: 0, sat: 0, sun: 1 }),
-    Object.freeze({ time: '14:30-23:25', weekday: 0, sat: 0, sun: 3 }),
+    // ── Sunday — its own window (07:15–23:25): four openers, three middles, three closers
+    Object.freeze({ time: '07:15-14:45', weekday: 0, sat: 0, sun: 1 }),
+    Object.freeze({ time: '07:15-15:00', weekday: 0, sat: 0, sun: 1 }),
+    Object.freeze({ time: '07:15-15:15', weekday: 0, sat: 0, sun: 1 }),
+    Object.freeze({ time: '07:15-15:35', weekday: 0, sat: 0, sun: 1 }),
+    Object.freeze({ time: '10:00-18:00', weekday: 0, sat: 0, sun: 1 }),
+    Object.freeze({ time: '12:45-20:45', weekday: 0, sat: 0, sun: 1 }),
+    Object.freeze({ time: '14:30-22:30', weekday: 0, sat: 0, sun: 1 }),
+    Object.freeze({ time: '15:25-23:25', weekday: 0, sat: 0, sun: 1 }),
+    Object.freeze({ time: '15:45-23:25', weekday: 0, sat: 0, sun: 1 }),
+    Object.freeze({ time: '16:05-23:25', weekday: 0, sat: 0, sun: 1 }),
 ]);
 
 /** Every distinct shift time this table proposes, in the order it lists them. */

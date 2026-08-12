@@ -589,7 +589,7 @@ Two consequences worth knowing. The targets are validated against the **working*
 
 Neither label says "reset targets" without saying to WHAT. With two of them, that word alone is the one thing a designer cannot act on.
 
-**The default is not a proposal.** It covers the service and pays the contract, which is the floor for being worth discussing rather than evidence of being right. Its own reasoning — why the cover is flat rather than twin-peaked, why the cover-week count is not independently adjustable, why Sunday is carried rather than designed — is in the module header, and every claim it makes is pinned by `links-default-targets.test.mjs`.
+**The default is not a proposal.** It covers the service and pays the contract, which is the floor for being worth discussing rather than evidence of being right. Its own reasoning — why the cover is flat rather than twin-peaked, why the cover-week count is not independently adjustable, why Saturday is fixed at 14 leaning late and Sunday designed at 10 to its own window (both owner figures, v21.01) — is in the module header, and every claim it makes is pinned by `links-default-targets.test.mjs`.
 
 The roster seed, below, is what the second button loads. **One rule governs what it samples: the seed must sample exactly what the design represents.** That rule has now been applied twice, in opposite directions, and both failures were silent.
 
