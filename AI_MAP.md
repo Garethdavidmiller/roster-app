@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: August 2026 — v20.90 · Updated every 0.10 version*
+*Last updated: August 2026 — v21.00 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -709,7 +709,7 @@ The **Rangers & Rovers guide** (v20.05) — the ranger/rover area passes staff a
 
 ### `links-seed.js`
 
-The generator's **target seed** (v19.92) — read the roster people actually work, produce the shift-slot targets the auto-generator starts from. Extracted from `links-app.js`.
+The generator's **roster seed** (v19.92) — read the roster people actually work and turn it into shift-slot targets. Extracted from `links-app.js`. It **measures**; since v21.00 a new design starts from `links-default-targets.js`, which **designs**, and this is one button away as the comparison against what is worked today.
 
 - `rosterSeedLines()` → the lines sampled: the WHOLE main cycle, and only that. Length read from `CONFIG.MAIN_ROSTER_WEEKS`.
 - `buildRosterTargets(sources = rosterSeedLines())` → `{ slots: [{time, weekday, sat, sun}], spareLines }`. **The seed adds nothing to what it measures.** v20.01 briefly returned an uplifted figure (`EXTRA_SPARE_WEEKS`, seeding 5 where the roster has 4) to relieve an FF11 finding; v20.02 found that finding was the line-order optimiser clustering the cover weeks, and the uplift went with its reason (owner). The constant and its option were REMOVED rather than left at zero — a knob that drives nothing is the `SOFT_DELETE_RETENTION_DAYS` mistake — and a designer who wants five spare weeks types 5 into the box. Weekday is the **busiest** Mon–Fri day for that time (some shifts run Tue/Thu/Fri only, and under-staffing is the worse error — hence the table's `busiest day` header); spare is counted in whole **lines**, never per day.
@@ -722,6 +722,21 @@ The generator's **target seed** (v19.92) — read the roster people actually wor
 - **The latent repeat, now closed.** The coordinator hardcoded `w <= 20` (and, while it sampled it, `w <= 8`) while CONFIG held the same numbers, so a roster changing length would have left the seed reading a prefix of it — the same shape, again, silently. A static assertion in the test bans a bare numeric loop bound.
 - **Sources are a parameter defaulting to the real roster.** That keeps both halves testable — which lines get sampled (the v19.59 bug) and what is counted from them — while a whole-thing test still exercises what the page runs. Injecting from the call site instead would push source selection back out of reach.
 - Tested by `links-seed.test.mjs`. Its spare case needed a fixture nobody writes first: whole-spare-week inputs cannot distinguish the correct per-line count from the v19.58 per-day model (the first draft's mutation passed), so it uses seven lines carrying one spare day each — one spare line under the per-day model, none under the correct one.
+
+### `links-default-targets.js`
+
+The table the generator **starts from** when a design has none (v21.00). Pure data plus one builder; no DOM, no Firebase.
+
+- `buildDefaultTargets()` → `{ slots: [{time, weekday, sat, sun}], spareLines }` — a **fresh, mutable** copy every call. That is load-bearing, not tidy: the generator card edits these objects in place (a typed count assigns `slot.weekday`, the ✕ button splices the array), so handing out the frozen module-level table would make the first keystroke a silent no-op in production and a `TypeError` under strict mode. `buildRosterTargets` returns fresh objects for the same reason, which is what makes the two interchangeable at the call site.
+- `DEFAULT_COVER_WEEKS`, `OPENING_TURNS`, `CLOSING_TURNS`, `TARGET_DAYS_PER_WEEK` — the owner's figures, exported so the tests and the module header read them rather than restating them.
+- `DEFAULT_SHIFT_TIMES` — every time the table proposes, in order. `links-app.js` folds it into the shift **dropdowns** so a designer can re-select the times their own generated design is made of; the **brush bar** deliberately keeps the roster's times alone (a wrapping chip row costs permanent vertical space, and `Custom…` already covers painting).
+- **Why it is not `links-seed.js`.** That module MEASURES — it reads the roster people actually work. This one DESIGNS, against the December 2026 service in `links-demand.js` and the window in `links-window.js`. The split matters because the seed stopped being usable as a default: today's duties pay 16 working lines and the rotation now has 19, so the contract gate refuses them and a designer opening the card met a refusal before typing anything. Both are one button away from each other — measure today, design tomorrow.
+- **The contract, the cover weeks and the mean duty are ONE equation.** 35h over 4.2 days fixes the mean duty at 8h20 before a single time is chosen; 14 weekday duties (7,040 min) x 5 plus 10 Saturday duties (4,700 min) is 39,900 minutes, which is exactly 19 working lines x 35h, and 19 is 24 minus five cover weeks. So the cover-week count is the third term, not a preference — change it alone and `generateLink` refuses, in minutes, in whichever direction you moved it. Pinned both ways in `links-default-targets.test.mjs`.
+- **The Saturday ratio arrived rather than being decided.** Ten Saturday duties against fourteen weekday ones is 0.71; Saturday carries 1,266 cars against a weekday's 1,756, a ratio of 0.72. Worth not undoing by rounding Saturday up — the test refuses a ratio outside 0.6–0.85.
+- **Why the cover is broadly flat, which looks like a failure and is not.** Weekday demand is twin-peaked at 08:00–09:00 and 17:00–18:00, and **the peaks are about nine hours apart — one duty length** — so no turn can be at both, and staffing each to its own level needs roughly nine people twice over against fourteen duties in the day. The table holds cover at seven through the working day and lets load per person rise at the peaks (measured: 20.0 cars per person at 17:00 against 10.7 at the midday trough). A search over start times minimising the worst hour returns the same flat profile, reaching it by stacking three starts on 07:00 and three on 15:00 — not a link anyone would work. These starts are staggered and come within 0.3 of that optimum.
+- **Sunday is carried, not designed.** The Sunday rows are the live roster's, unchanged: Sunday is not contracted here so it sits outside the 35h measure entirely, and zeroing it would render every Sunday hour as uncovered demand on the heat map. The test asserts the whole column equals the roster seed's, entry for entry — a non-empty check let a partial deletion through.
+- **It is not a proposal.** It covers the service and pays the contract, which is the floor for being worth discussing. The panels below the grid assess what the generator makes of it.
+- Tested by `links-default-targets.test.mjs`.
 
 ### `links-limits.js`
 The HARD limits — the ones a design either meets or cannot be run (v19.80, owner). Pure; tested by `links-limits.test.mjs`.

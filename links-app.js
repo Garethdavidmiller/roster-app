@@ -41,6 +41,7 @@ import { initLinksAnalysis } from './links-analysis.js';
 import { LEGACY_DOC_ID, deepCopyPatterns, designFromDoc, binEntryFromDoc, docPayload, workingCopy, binEntryFrom, restoredEntryFrom } from './links-design-doc.js';
 import { parseDesignImport, summariseImport } from './links-import.js';
 import { buildRosterTargets } from './links-seed.js';
+import { buildDefaultTargets, DEFAULT_SHIFT_TIMES } from './links-default-targets.js';
 import { reorderLines, applyOrder, cost, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
 import { normaliseWindow, formatWindow, isDefaultWindow, isValidWindowRow, canonicaliseWindowTime } from './links-window.js';
 import { assessFatigue } from './links-fatigue.js';
@@ -211,6 +212,27 @@ export function init() {
             // 'night' never appears here — CEAs do not work nights.
         }
         return { EARLY_SHIFTS: early, LATE_SHIFTS: late };
+    })();
+
+    // The DROPDOWNS offer the roster's times AND the ones the default target table proposes
+    // (v21.00); the BRUSH BAR keeps the roster's alone. Both halves of that are deliberate.
+    //
+    // A design generated from the default is built out of times the roster has never worked, so a
+    // dropdown listing only the roster leaves a designer unable to change one row to another row's
+    // time — the values are right there on screen and unselectable, with `Custom time…` and a
+    // re-typed clock as the only route. That is a hole, and a `<select>` costs nothing to lengthen.
+    //
+    // The brush bar is the opposite trade: it is a wrapping row of chips above the grid, so every
+    // added time is permanent vertical space on a page whose grid is already the tall thing on it.
+    // Seventeen more chips for a paint action `Custom…` already covers is not worth the height.
+    const { EARLY_OPTIONS, LATE_OPTIONS } = (() => {
+        const early = new Set(EARLY_SHIFTS), late = new Set(LATE_SHIFTS);
+        for (const t of DEFAULT_SHIFT_TIMES) {
+            const cls = classifyShift(t);
+            if (cls === 'early') early.add(t);
+            else if (cls === 'late') late.add(t);
+        }
+        return { EARLY_OPTIONS: [...early].sort(), LATE_OPTIONS: [...late].sort() };
     })();
 
     // ============================================
@@ -437,20 +459,20 @@ export function init() {
             const sel = val === currentVal ? ' selected' : '';
             return `<option value="${escapeHtml(val)}"${sel}>${escapeHtml(label)}</option>`;
         };
-        const known = new Set([...EARLY_SHIFTS, ...LATE_SHIFTS]);
+        const known = new Set([...EARLY_OPTIONS, ...LATE_OPTIONS]);
         const isUnknown = currentVal && currentVal !== 'RD' && currentVal !== 'SPARE' && !known.has(currentVal);
         return [
             ...(includeRdSpare ? [opt('RD', 'RD — Rest Day'), opt('SPARE', 'SPARE — Standby')] : []),
             ...(isUnknown ? (includeRdSpare
                 ? ['<optgroup label="Current">', opt(currentVal, `${currentVal} (current)`), '</optgroup>']
                 : [opt(currentVal, currentVal)]) : []),
-            ...(EARLY_SHIFTS.length ? [
+            ...(EARLY_OPTIONS.length ? [
                 `<optgroup label="Early${includeRdSpare ? ' (starting before 11:00)' : ''}">`,
-                ...EARLY_SHIFTS.map(s => opt(s, s)), '</optgroup>',
+                ...EARLY_OPTIONS.map(s => opt(s, s)), '</optgroup>',
             ] : []),
-            ...(LATE_SHIFTS.length ? [
+            ...(LATE_OPTIONS.length ? [
                 `<optgroup label="Late${includeRdSpare ? ' (starting 11:00 or after)' : ''}">`,
-                ...LATE_SHIFTS.map(s => opt(s, s)), '</optgroup>',
+                ...LATE_OPTIONS.map(s => opt(s, s)), '</optgroup>',
             ] : []),
             opt('__custom__', 'Custom time…'),
         ].join('');
@@ -1719,19 +1741,28 @@ export function init() {
         renderGenTable();
     }
 
-    /** Show the active design's remembered targets, or the roster seed when it has none. */
+    /**
+     * Show the active design's remembered targets, or the DEFAULT table when it has none.
+     *
+     * The default stopped being the roster seed at v21.00. Those duties pay 16 working lines and
+     * this rotation has 19, so since v20.98 the generator refuses them — a designer opening the
+     * card met a refusal before typing anything, which is a poor way to be told that widening a
+     * link needs more work in it. `links-default-targets.js` pays the contract exactly, so Generate
+     * works on arrival; the roster seed is one button away and is still the answer to a different
+     * question.
+     */
     function refreshGenTargetsForDesign() {
         if (!document.getElementById('genSlotRows')) return;
-        applyGenTargets(loadGenTargets() ?? buildRosterTargets());
+        applyGenTargets(loadGenTargets() ?? buildDefaultTargets());
     }
 
     (function initGenerator() {
         const tbody = document.getElementById('genSlotRows');
         if (!tbody) return;
 
-        // Remembered targets for whatever design ends up active, else the roster seed. loadDesigns
+        // Remembered targets for whatever design ends up active, else the default table. loadDesigns
         // calls refreshGenTargetsForDesign() again once it knows which design that is.
-        applyGenTargets(loadGenTargets() ?? buildRosterTargets());
+        applyGenTargets(loadGenTargets() ?? buildDefaultTargets());
 
         tbody.addEventListener('input', e => {
             const input = /** @type {HTMLInputElement|null} */ (/** @type {Element} */ (e.target).closest('.gen-slot-count'));
@@ -1779,15 +1810,19 @@ export function init() {
             saveGenTargets();
         });
 
-        document.getElementById('genSeedBtn')?.addEventListener('click', () => {
-            // Re-seeding is an explicit "forget my tuning" — persist the roster values over it.
-            ({ slots: genSlots, spareLines: genSpareLines } = buildRosterTargets());
+        // The two resets answer different questions and both are worth having: the default is a
+        // table DESIGNED against the December 2026 service, the seed is a MEASUREMENT of what is
+        // worked today. Either is an explicit "forget my tuning", so both persist over it.
+        const _resetTargets = (/** @type {{slots: any[], spareLines: number}} */ t) => {
+            ({ slots: genSlots, spareLines: genSpareLines } = t);
             saveGenTargets();
             /** @type {HTMLInputElement} */ (document.getElementById('genSpareLines')).value = String(genSpareLines);
             renderGenTable();
             const errEl = document.getElementById('genError');
             if (errEl) errEl.textContent = '';
-        });
+        };
+        document.getElementById('genDefaultBtn')?.addEventListener('click', () => _resetTargets(buildDefaultTargets()));
+        document.getElementById('genSeedBtn')?.addEventListener('click', () => _resetTargets(buildRosterTargets()));
 
         // Attempt state for the explore loop (v20.07). Session-scoped on purpose: reloading and
         // pressing Generate k times replays the same k designs, so a variant is recoverable, and
