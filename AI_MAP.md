@@ -738,6 +738,17 @@ The table the generator **starts from** when a design has none (v21.00). Pure da
 - **It is not a proposal.** It covers the service and pays the contract, which is the floor for being worth discussing. The panels below the grid assess what the generator makes of it.
 - Tested by `links-default-targets.test.mjs`.
 
+### `links-target-sets.js`
+
+Saved SETS of generator targets (v21.04) — named snapshots of the target table, shared between the designers in Firestore (`linkTargetSets`), because the ask they exist for — owner: *"I want others to be able to mess about but not lose my shift times set"* — cannot be satisfied per-device: a localStorage set is invisible to the colleagues it is meant to survive. Pure; the caller injects `serverTimestamp()`.
+
+- `targetSetFromDoc(id, data)` → a set or **null, never a half-set** — the `parseDesignImport` trust boundary arriving from Firestore instead of a paste: a corrupt row refuses the whole document, because a set that loads three rows light is a lighter week every panel then reports confidently about. A set without `createdBy` is refused too — that field is the key the whole feature turns on.
+- `targetSetPayload(table, createdBy, updatedBy, now)` — fresh copies throughout (the generator edits its table in place). On create the caller passes their own name as `createdBy`; on overwrite the EXISTING owner, unchanged.
+- `canOverwriteTargetSet(set, userName, isAdmin)` — creator or admin, nobody else. **The client copy of the server rule, and it exists for the button, not the security**: it decides whether "Save changes" is offered, because a Save that permission-denies after the tap is worse than one that says up front whose set this is. The rule the app relies on is the same statement in `firestore.rules` — creator-or-admin on update/delete, `createdBy` pinned to the writer's own `name` claim on create and immutable on update, so ownership can be neither forged nor transferred. If the two drift, the server wins and the button merely mis-labels what will happen; `firestore.rules.test.mjs` asserts the server side of every case the module test asserts client-side.
+- `sortTargetSets` — picker order: name, case-insensitive, ties by id.
+- The UI (links-app.js, the generator card's "Saved sets" row): Load copies a set into the working table (a copy — nothing is written); Save changes overwrites your own set after a confirm; "Save as new set…" is how a colleague keeps their version of yours.
+- Tested by `links-target-sets.test.mjs`; rules by `firestore.rules.test.mjs`; wiring by the three `links sets:` e2e cases — which sign in as **M. Robson, a designer who is not the admin**, because the first draft used G. Miller and found Save correctly ENABLED on a colleague's set: the admin override is real, and an ownership feature has to be tested from a seat with no override.
+
 ### `links-limits.js`
 The HARD limits — the ones a design either meets or cannot be run (v19.80, owner). Pure; tested by `links-limits.test.mjs`.
 - `MAX_CONSECUTIVE_WORKED_DAYS` (13 — **Chiltern's roster limit**, carried in company policy; its origin is the working-hours standard the industry adopted after the **Hidden report** into the Clapham Junction crash, 1988, which was itself withdrawn in 2007: see the tense note below) / `assessHardLimits(patterns, lines)` → `{ checks, breaches, assessable }`

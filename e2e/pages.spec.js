@@ -1835,6 +1835,103 @@ test('links: generator targets are remembered per design', async ({ page }) => {
     await expect(page.locator('#genSpareLines')).toHaveValue('7');
 });
 
+// ── Saved target sets (v21.04) ──────────────────────────────────────────────────────────────────
+// The promise under test: others can load and change anyone's set, but overwriting belongs to its
+// creator. The RULES enforce that server-side (firestore.rules.test.mjs covers it case for case);
+// what only a browser can prove is the wiring — that the picker renders both owners' sets, that
+// the Save button reflects whose set is selected, that Load actually reaches the table, and that
+// Save-as-new writes a document owned as the signed-in designer.
+const TARGET_SET_ROWS = [
+    {
+        id: 'ts-silva', name: 'Set A', createdBy: 'S. Silva', updatedBy: 'S. Silva',
+        spareLines: 9,        // deliberately unlike the default's, so a successful Load is visible
+        slots: [
+            { time: '06:20-14:20', weekday: 2, sat: 1, sun: 0 },
+            { time: '15:15-23:55', weekday: 1, sat: 1, sun: 0 },
+        ],
+        updatedAt: 1_750_000_000_000,
+    },
+    {
+        id: 'ts-robson', name: 'Set B', createdBy: 'M. Robson', updatedBy: 'M. Robson',
+        spareLines: 6,
+        slots: [{ time: '07:00-15:20', weekday: 1, sat: 0, sun: 0 }],
+        updatedAt: 1_750_000_000_000,
+    },
+];
+
+// Signed in as M. ROBSON — a designer who is NOT the admin, deliberately. The first draft signed
+// in as G. Miller and asserted Save was disabled on Silva's set… and it was enabled, correctly:
+// G. Miller is the admin, and the admin can overwrite anyone's set (the same break-glass the
+// design bin grants). An ownership feature has to be tested from a seat with no override.
+async function openLinksWithTargetSets(page) {
+    await page.setViewportSize({ width: 1024, height: 1000 });
+    await seedSession(page, 'M. Robson');
+    await page.addInitScript((rows) => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window);
+        w.__E2E = w.__E2E || {};
+        w.__E2E.docsByPath = { linkTargetSets: rows };   // designs read falls back to (unset) docs
+    }, TARGET_SET_ROWS);
+    await page.goto('/links.html');
+    await page.waitForTimeout(700);
+    await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+}
+
+test('links sets: the picker lists every designer\'s sets, and Save follows whose is selected', async ({ page }) => {
+    await openLinksWithTargetSets(page);
+    // Sorted by name: Set A (Silva) first, Set B (mine) second — attribution rendered with each.
+    await expect(page.locator('#genSetSelect option')).toHaveCount(2);
+    await expect(page.locator('#genSetSelect option').nth(0)).toHaveText('Set A — S. Silva');
+    await expect(page.locator('#genSetSelect option').nth(1)).toHaveText('Set B — M. Robson');
+
+    // Silva's set: Save disabled, and the hint says whose it is and what to do instead. The
+    // disabled button is a courtesy (the rules are the protection) — but a button that LOOKS
+    // enabled and then permission-denies would teach designers the feature is broken.
+    await page.locator('#genSetSelect').selectOption('ts-silva');
+    await expect(page.locator('#genSetSaveBtn')).toBeDisabled();
+    await expect(page.locator('#genSetHint')).toContainText('saved by S. Silva');
+    await expect(page.locator('#genSetHint')).toContainText('Save as new set');
+
+    // My own: Save offered.
+    await page.locator('#genSetSelect').selectOption('ts-robson');
+    await expect(page.locator('#genSetSaveBtn')).toBeEnabled();
+    await expect(page.locator('#genSetHint')).toContainText('yours to change');
+});
+
+test('links sets: Load copies a colleague\'s set into the working table', async ({ page }) => {
+    await openLinksWithTargetSets(page);
+    await expect(page.locator('#genSpareLines')).toHaveValue('4');        // the shipped default
+    await page.locator('#genSetSelect').selectOption('ts-silva');
+    await page.locator('#genSetLoadBtn').click();
+    await expect(page.locator('#genSpareLines')).toHaveValue('9');        // Silva's figure arrived
+    await expect(page.locator('#genSlotRows tr')).toHaveCount(2);         // and her two rows
+    // Loading is a COPY — the set itself is untouched, so nothing was written TO THE COLLECTION.
+    // Filtered by path: the page's background analytics writes land in setWrites too, and counting
+    // them made this assertion flake by timing (7 on one platform, 0 on the other).
+    const writes = await page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || [])
+        .filter((/** @type {any} */ w) => String(w.path).includes('linkTargetSets')).length);
+    expect(writes).toBe(0);
+});
+
+test('links sets: Save as new writes a set owned as the signed-in designer', async ({ page }) => {
+    await openLinksWithTargetSets(page);
+    await page.locator('#genSetSaveAsBtn').click();
+    await page.locator('.dialog-input').fill('Weekend trial');
+    await page.locator('.dialog-btn-confirm').click();
+    await expect.poll(() => page.evaluate(() =>
+        (/** @type {any} */ (window).__E2E.setWrites || [])
+            .filter((/** @type {any} */ w) => w.added && String(w.path).includes('linkTargetSets')).length
+    )).toBe(1);
+    const written = await page.evaluate(() =>
+        (/** @type {any} */ (window).__E2E.setWrites || [])
+            .find((/** @type {any} */ w) => w.added && String(w.path).includes('linkTargetSets')).data);
+    expect(written.name).toBe('Weekend trial');
+    expect(written.createdBy).toBe('M. Robson');    // ownership pinned to the writer — rules enforce it too
+    expect(written.updatedBy).toBe('M. Robson');
+    expect(Array.isArray(written.slots)).toBe(true);
+    expect(written.spareLines).toBe(4);             // the untouched default table is what was saved
+});
+
 test('links: the roster seed samples the whole MAIN cycle and nothing else', async ({ page }) => {
     // The seed has been wrong in both directions and the symptom was the same number either time.
     // v19.59: main's 20 weeks plus only the TWO bilingual weeks two bilingual members happen to sit

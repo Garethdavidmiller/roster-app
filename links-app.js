@@ -42,6 +42,7 @@ import { LEGACY_DOC_ID, deepCopyPatterns, designFromDoc, binEntryFromDoc, docPay
 import { parseDesignImport, summariseImport } from './links-import.js';
 import { buildRosterTargets } from './links-seed.js';
 import { buildDefaultTargets, DEFAULT_SHIFT_TIMES } from './links-default-targets.js';
+import { targetSetFromDoc, targetSetPayload, canOverwriteTargetSet, sortTargetSets, MAX_SET_NAME } from './links-target-sets.js';
 import { reorderLines, applyOrder, cost, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
 import { normaliseWindow, formatWindow, isDefaultWindow, isValidWindowRow, canonicaliseWindowTime } from './links-window.js';
 import { assessFatigue } from './links-fatigue.js';
@@ -1823,6 +1824,115 @@ export function init() {
         };
         document.getElementById('genDefaultBtn')?.addEventListener('click', () => _resetTargets(buildDefaultTargets()));
         document.getElementById('genSeedBtn')?.addEventListener('click', () => _resetTargets(buildRosterTargets()));
+
+        // ── Saved sets (v21.04) ──────────────────────────────────────────────────────────────────
+        //
+        // Named snapshots of the target table, SHARED between the designers (Firestore, like the
+        // designs), so "mess about without losing my set" actually holds across devices: loading a
+        // set copies it into this design's working table; keeping a changed version means saving a
+        // NEW set. Overwriting belongs to the set's creator or the admin — `canOverwriteTargetSet`
+        // here only decides what the Save button OFFERS; `firestore.rules` is what refuses, so a
+        // drift between them mis-labels a button without ever exposing anyone's set.
+        const SETS_COL = collection(db, COLLECTIONS.linkTargetSets);
+        /** @type {Array<any>} */
+        let targetSets = [];
+        const _setSelect = /** @type {HTMLSelectElement|null} */ (document.getElementById('genSetSelect'));
+        const _setHint = document.getElementById('genSetHint');
+        const _selectedSet = () => targetSets.find(t => t.id === _setSelect?.value) ?? null;
+
+        function renderSetPicker() {
+            if (!_setSelect) return;
+            const keep = _setSelect.value;
+            _setSelect.innerHTML = targetSets.length
+                ? targetSets.map(t =>
+                    `<option value="${escapeHtml(t.id)}">${escapeHtml(t.name)} — ${escapeHtml(t.createdBy)}</option>`).join('')
+                : '<option value="">No saved sets yet</option>';
+            if (keep && targetSets.some(t => t.id === keep)) _setSelect.value = keep;
+            refreshSetControls();
+        }
+
+        function refreshSetControls() {
+            const set = _selectedSet();
+            const loadBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('genSetLoadBtn'));
+            const saveBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('genSetSaveBtn'));
+            if (loadBtn) loadBtn.disabled = !set;
+            const mine = !!set && canOverwriteTargetSet(set, currentUser, isAdmin);
+            if (saveBtn) saveBtn.disabled = !mine;
+            if (_setHint) {
+                _setHint.textContent = !set
+                    ? 'Save the table above as a named set to share it between designers.'
+                    : mine
+                        ? `${set.name} — yours to change. Others can load it but not overwrite it.`
+                        : `${set.name} — saved by ${set.createdBy}. Load it and change anything; keep your version with Save as new set.`;
+            }
+        }
+
+        async function loadTargetSets() {
+            try {
+                const snap = await getDocs(SETS_COL);
+                /** @type {any[]} */
+                const rows = [];
+                snap.forEach((/** @type {any} */ d) => {
+                    const set = targetSetFromDoc(d.id, d.data());
+                    if (set) rows.push(set);       // a corrupt document is skipped whole, never half-loaded
+                });
+                targetSets = sortTargetSets(rows);
+            } catch {
+                targetSets = [];                   // offline/denied → the picker just shows its empty state
+            }
+            renderSetPicker();
+        }
+
+        _setSelect?.addEventListener('change', refreshSetControls);
+
+        document.getElementById('genSetLoadBtn')?.addEventListener('click', () => {
+            const set = _selectedSet();
+            if (!set) return;
+            // Fresh copies — targetSets keeps its own snapshot, and the table edits in place.
+            _resetTargets({ slots: set.slots.map((/** @type {any} */ sl) => ({ ...sl })), spareLines: set.spareLines });
+        });
+
+        document.getElementById('genSetSaveBtn')?.addEventListener('click', async () => {
+            const set = _selectedSet();
+            if (!set || !canOverwriteTargetSet(set, currentUser, isAdmin)) return;
+            const sure = await confirmDialog({
+                title: 'Overwrite this set?',
+                message: `Replace “${set.name}” with the table above? Everyone who loads it will get this version.`,
+                confirmLabel: 'Overwrite',
+            });
+            if (!sure) return;
+            try {
+                // `createdBy` is passed through UNCHANGED — the rules refuse an update that moves
+                // it, so ownership survives every overwrite including the admin's.
+                await writeWithClaimRetry(() => setDoc(doc(db, COLLECTIONS.linkTargetSets, set.id),
+                    targetSetPayload({ name: set.name, slots: genSlots, spareLines: genSpareLines },
+                        set.createdBy, currentUser ?? '', serverTimestamp())));
+                await loadTargetSets();
+            } catch {
+                if (_setHint) _setHint.textContent = `Couldn't save “${set.name}” — check you're signed in and try again.`;
+            }
+        });
+
+        document.getElementById('genSetSaveAsBtn')?.addEventListener('click', async () => {
+            if (!currentUser) return;
+            const name = await promptDialog({
+                title: 'Save as a new set',
+                message: 'Name this set of shift times — e.g. Set A. It will be visible to every designer; only you can overwrite it.',
+                placeholder: 'Set name',
+                maxLength: MAX_SET_NAME,
+            });
+            if (!name || !name.trim()) return;
+            try {
+                await writeWithClaimRetry(() => addDoc(SETS_COL,
+                    targetSetPayload({ name, slots: genSlots, spareLines: genSpareLines },
+                        currentUser, currentUser, serverTimestamp())));
+                await loadTargetSets();
+            } catch {
+                if (_setHint) _setHint.textContent = 'Couldn\'t save the new set — check you\'re signed in and try again.';
+            }
+        });
+
+        loadTargetSets();
 
         // Attempt state for the explore loop (v20.07). Session-scoped on purpose: reloading and
         // pressing Generate k times replays the same k designs, so a variant is recoverable, and
