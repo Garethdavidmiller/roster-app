@@ -58,7 +58,7 @@ below is owned by somebody other than the developer.
 | Line-order objectives | ✅ Shipped v19.58–v19.60 | — | — |
 | **Hard company limits — a controlled source** | ⚠️ **Cited to the policy, but the policy is not identified** | **Before management review** | **Gareth** — get the title, clause, staff group and effective date. Evidence class B required (ROADMAP.md → Evidence class) |
 | **Sunday operating window** | ⚠️ **Decision needed** — five Dec-26 movements fall after the 23:25 finish, three of them arrivals | **Before proposals are frozen** | **Nathan** |
-| **Contracted hours — the design is 6h a week short** | ⚠️ **Decision needed** (v20.04). Seeded from today's duties, 24 lines gives **28h 51m** a week against a 35h contract; the live 20-line roster gives exactly 35h. Either the Dec-26 service fills the gap — in which case the targets should be seeded from the new timetable, not today's roster — or the widened link does not fill a contracted week | **Before proposals are drawn** | **Management / Nathan** |
+| **Contracted hours — today's duties cannot fill a 24-line link** | ⚠️ **Decision needed** (v20.04; measure corrected and the generator GATED at v20.98). Seeded from today's duties, 24 lines averages **29h 53m** a week (4 cover weeks) or **31h 20m** (5) against a 35h contract; the live 20-line roster gives exactly 35h. **The generator now refuses to build a short design at all**, so this is no longer a warning that can be scrolled past — it is a blocked action with the gap named: **123h** more duty a week of rotation at 4 cover weeks, **88h** at 5. Either the Dec-26 service supplies it — in which case the targets should be seeded from the new timetable, not today's roster — or the widened link does not fill a contracted week | **Before proposals are drawn** | **Management / Nathan** |
 | **Business staffing requirement** | ⚠️ **Never formally stated.** "Coverage vs service" is an inference from the data, not something anyone said | **Before the final design** | **Management** |
 | **FF18 reading — cadence or step?** | ⚠️ Unsettled; changes whether any proposal can clear it | **Before proposals are drawn** | **Nathan** (see Open question 2) |
 | **Proposals A / B** | ❌ Not started | T−8 weeks | The four decisions above |
@@ -392,7 +392,7 @@ over the lines that carry a timed duty:
 | | working lines | hours a week each |
 |---|---|---|
 | live main roster (20 lines / 4 cover) | 16 | **35h 00m** — exactly the contract |
-| generated 24 lines / 4 cover | 20 | **28h 51m** |
+| generated 24 lines / 4 cover | 20 | **29h 53m** (refused since v20.98) |
 
 The live roster landing on 35.00 to the minute is the check on the measure: the roster is built to the
 contract, so anything else would mean the yardstick was wrong before any design was judged by it.

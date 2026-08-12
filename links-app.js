@@ -1594,9 +1594,10 @@ export function init() {
      *
      * The table above totals PEOPLE. It has never totalled TIME, so the question the targets exist
      * to answer — is this a contracted week? — had no answer anywhere on the page, before or after
-     * generating. Measured: the live main roster's working lines come to exactly 35h 00m, and the
-     * seeded 24-line design to 28h 51m, because the same duties spread over 20 working lines
-     * instead of 16. That is a six-hour hole and nothing showed it.
+     * generating. Measured: the live main roster comes to exactly 35h 00m, and the seeded 24-line
+     * design falls hours short, because the same duties are spread over more working lines than the
+     * roster they were sampled from. That is the hole nothing showed — and since v20.98 the
+     * generator refuses to build it rather than reporting it.
      *
      * SUNDAYS ARE EXCLUDED — Sunday is not contracted for any grade here, so counting it towards 35
      * would report a target as contracted using time that is not. The Sunday column is untouched;
@@ -1633,7 +1634,12 @@ export function init() {
             return;
         }
 
-        const hours = minutes / 60 / working;
+        // The SAME average the Design-checks row reports (v20.98): each spare week counts as a full
+        // contracted week and the divisor is the whole rotation. Computed here from the targets
+        // rather than from patterns that do not exist yet, but it must be the same number — a
+        // generator card predicting one figure and the design reporting another is two answers to
+        // one question, arriving four seconds apart.
+        const hours = (minutes + genSpareLines * CONTRACTED_HOURS_PER_WEEK * 60) / 60 / TOTAL_POS;
         const off = hours - CONTRACTED_HOURS_PER_WEEK;
         const hm = hmFromHours;
         // Same gate as the Design-checks row and the summary chip (v20.08's rule, applied here at
@@ -1823,7 +1829,25 @@ export function init() {
                 // a real answer about the targets, not a typo in them, and the generic message would
                 // send the designer hunting for a bad row that does not exist.
                 if (errEl) {
-                    errEl.textContent = built.reason === 'no-rest'
+                    // `short-hours` names the SIZE of the gap, because that is the only actionable
+                    // fact about it. The shortfall is arithmetic — the duty in the table against the
+                    // working lines it has to fill — so "add more rows" is not advice, it is the
+                    // whole answer, and the designer needs the number to know how much.
+                    const asked = built.askedMinutes ?? 0;
+                    const need = built.needMinutes ?? 0;
+                    const working = built.working || 1;
+                    // The SAME reading as every other hours figure on the page: each spare week
+                    // counted as a full contracted week, divided by the whole rotation. A refusal
+                    // quoting a different average from the row it is refusing on behalf of would be
+                    // two numbers for one fact, arriving in the same second.
+                    const avg = (asked + (TOTAL_POS - working) * CONTRACTED_HOURS_PER_WEEK * 60) / 60 / TOTAL_POS;
+                    errEl.textContent = built.reason === 'short-hours'
+                        ? `Can't generate — these targets average ${hmFromHours(avg)} a week across `
+                          + `all ${TOTAL_POS} lines, and the contract is ${CONTRACTED_HOURS_PER_WEEK}h. `
+                          + `That is ${hmFromHours((need - asked) / 60)} a week of duty missing across the `
+                          + `rotation. Add duties, lengthen them, or use more spare weeks — spreading the `
+                          + `same work over more lines cannot reach it.`
+                        : built.reason === 'no-rest'
                         ? `Can't generate — these targets leave no room for rest days, so every line would `
                           + `finish late and start early the next morning. Reduce a day's headcount or add spare weeks.`
                         // Reachable by TYPING a spare count the input's max doesn't stop (max only
@@ -2514,6 +2538,10 @@ export function init() {
                         // only by pressing it, and the two-step it opens then reads as a hurdle
                         // rather than as the check it is.
                         { icon: '⤓', html: '<strong>Import</strong> takes a design somebody has written down elsewhere — paste it from a spreadsheet, or type times, <strong>RD</strong> and <strong>SP</strong> a row per line. Press <strong>Check it</strong> first: it tells you what would be saved, and anything it had to assume, before there is a Save button at all.' },
+                        // Added with the gate (v20.98). Without it the refusal reads as the tool
+                        // being broken rather than as the arithmetic saying no.
+                        { icon: '⏱️', html: '<strong>Generate refuses a design that would underpay.</strong> The rotation has to average the contracted week with Sundays left out, and a <strong>spare week counts as a full week</strong>. Individual weeks vary — the average is what counts.' },
+                        { icon: '➕', html: 'If it refuses, it says how many hours of duty are missing. Only three things close that gap: more duties, longer ones, or more spare weeks. Spreading the same work over more lines never can — that is what makes a link shorter per person, not longer.' },
                         { icon: '🛡️', html: 'An import saves as a <strong>new</strong> design and never changes the one you have open. A cell it cannot read stops the whole import rather than quietly becoming a rest day — a design that arrives four duties light looks like a lighter week, not like a mistake.' },
                         { icon: '⇔', html: '<strong>Compare</strong> shows two designs side-by-side — cells that differ are highlighted in gold. Only available when you have at least two designs.' },
                         { icon: '🗑', html: 'Deleting a design does not destroy it — it moves to <strong>Recently deleted</strong>, where it stays until someone restores it or removes it for good. Nothing is removed automatically. The button only appears when something is in there.' },

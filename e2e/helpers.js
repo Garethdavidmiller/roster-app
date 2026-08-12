@@ -276,3 +276,34 @@ export function seedViewerAccess(page) {
         try { sessionStorage.setItem('__e2e_viewer', '1'); } catch (_) { /* private mode */ }
     });
 }
+
+/**
+ * Seed the generator's target table with one that pays the CONTRACTED WEEK exactly.
+ *
+ * Needed since v20.98, when the generator began refusing targets that cannot pay 35h a week
+ * ex-Sunday. The roster seed cannot: today's duties pay 16 working lines, and the December 2026
+ * rotation has 19 — which is the whole point of the rule, and it is asserted directly in
+ * `links-contract.test.mjs`. So every spec that presses Generate has to bring work with it.
+ *
+ * The arithmetic, so a future edit can keep it true: 19 working lines x 35h = 39,900 minutes.
+ *   06:20-14:20 (480m) x (5x6 + 4) = 16,320
+ *   11:00-19:30 (510m) x (5x3 + 3) =  9,180
+ *   15:25-23:25 (480m) x (5x6 + 0) = 14,400
+ *                                   -------
+ *                                    39,900
+ * Three shift times rather than one, because the specs that use this are about line ORDER and the
+ * analysis panels — both of which are uninteresting on a design where every line works the same
+ * duty. `myb_links_gen_unsaved` is the key the coordinator reads before a design is active.
+ */
+export function seedContractTargets(page, { spareLines = 5 } = {}) {
+    return page.addInitScript((spare) => {
+        localStorage.setItem('myb_links_gen_unsaved', JSON.stringify({
+            slots: [
+                { time: '06:20-14:20', weekday: 6, sat: 4, sun: 0 },
+                { time: '11:00-19:30', weekday: 3, sat: 3, sun: 0 },
+                { time: '15:25-23:25', weekday: 6, sat: 0, sun: 0 },
+            ],
+            spareLines: spare,
+        }));
+    }, spareLines);
+}

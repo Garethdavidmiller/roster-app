@@ -119,8 +119,19 @@ const SLOTS = [
 ];
 const SPARE_LINES = 4;   // whole spare WEEKS (v19.58) — a count of lines, not a per-day headcount
 
+// ⚠️ EVERY CALL BELOW PASSES `requireContract: false`, and it is not boilerplate to copy blindly.
+// Since v20.98 the generator REFUSES targets that cannot pay the contracted week ex-Sunday, which is
+// a rule about how much WORK a table asks for. These fixtures describe a rotation SHAPE — wave
+// containment, spare spread, turnarounds, fairness — and carry nowhere near a week's work, by
+// design: a fixture sized to 35 hours exists, and adopting it changes which waves merge and how the
+// load spreads, i.e. the very things these tests assert.
+//
+// The rule itself is tested in `links-contract.test.mjs`, and a static guard there fails if
+// `links-app.js` ever passes this flag. A new test about CONSTRUCTION may pass it; a new test about
+// what the generator will accept must not.
+
 test('generatePatterns meets every day-class target exactly', () => {
-    const patterns = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 });
+    const patterns = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28, requireContract: false });
     assert.ok(patterns);
     for (const d of DAYS) {
         const cls = dayClass(d);
@@ -147,7 +158,7 @@ test('a spare line is spare on ALL SEVEN DAYS — never a scattered spare day', 
     // SP headcount came out right, which is why it went unnoticed — the total was correct and the
     // distribution was wrong. The real roster has whole spare weeks only: main lines 1, 7, 12 and 17
     // are SPARE on every day and there is not one scattered spare day in it.
-    const patterns = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 });
+    const patterns = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28, requireContract: false });
     let full = 0;
     for (let w = 1; w <= 28; w++) {
         const days = DAYS.map(d => patterns[String(w)][d]);
@@ -161,7 +172,7 @@ test('a spare line is spare on ALL SEVEN DAYS — never a scattered spare day', 
 test('spare weeks are spread around the wheel, not bunched', () => {
     // The real roster puts them at 1, 7, 12, 17 of 20 — roughly every fifth line. Bunched spare
     // weeks would give one person two cover weeks back to back and everyone else none for months.
-    const patterns = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 });
+    const patterns = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28, requireContract: false });
     const rows = [];
     for (let w = 1; w <= 28; w++) if (patterns[String(w)].mon === 'SPARE') rows.push(w);
     assert.equal(rows.length, SPARE_LINES);
@@ -171,7 +182,7 @@ test('spare weeks are spread around the wheel, not bunched', () => {
 });
 
 test('generatePatterns produces all 28 lines with all 7 days', () => {
-    const patterns = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 });
+    const patterns = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28, requireContract: false });
     for (let w = 1; w <= 28; w++) {
         const p = patterns[String(w)];
         assert.ok(p, `line ${w}`);
@@ -180,7 +191,7 @@ test('generatePatterns produces all 28 lines with all 7 days', () => {
 });
 
 test('generatePatterns never produces a short turnaround (forward body-clock rotation)', () => {
-    const patterns = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 });
+    const patterns = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28, requireContract: false });
     const checks = runDesignChecks(patterns, 28);
     assert.equal(checks.turnarounds.length, 0,
         `expected no turnarounds, got: ${JSON.stringify(checks.turnarounds)}`);
@@ -210,7 +221,7 @@ describe('waves', () => {
             { time: '15:15-23:55', weekday: 6, sat: 4, sun: 3 },
         ];
         assert.equal(groupIntoWaves(slots).length, 3, 'the raw span rule strands 08:30');
-        const built = generateLink({ slots, spareLines: 4, lines: 28 });
+        const built = generateLink({ slots, spareLines: 4, lines: 28, requireContract: false });
         assert.equal(built.mode, 'settled');
         assert.equal(built.waves, 2, 'the stranded wave is merged, not left to hold a line of its own');
     });
@@ -242,14 +253,14 @@ describe('settled weeks', () => {
         // within-week spread of 7h58 with EVERY line above 4h; the real main roster averages 3h44.
         // Nobody at Marylebone works a week that starts 15:25 on the Sunday and 06:20 on the
         // Wednesday, and the generator was producing 28 of them.
-        const p = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 });
+        const p = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28, requireContract: false });
         for (const s of spreads(p)) {
             assert.ok(s <= WAVE_SPAN_MINUTES, `within-week start spread ${s} exceeds one wave`);
         }
     });
 
     test('settled weeks still meet every day-class target exactly', () => {
-        const p = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 });
+        const p = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28, requireContract: false });
         for (const d of DAYS) {
             const cls = dayClass(d);
             const counts = {};
@@ -270,8 +281,8 @@ describe('settled weeks', () => {
         // The claim is comparative, deliberately. An absolute floor ("nobody under 3 days") is a fact
         // about the TARGETS — these ones average 3.3 days a line — not about the construction, and it
         // would pass or fail on the fixture rather than on the code.
-        const s = workedDays(generateLink({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 }).patterns);
-        const r = workedDays(generateLink({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28, settled: false }).patterns);
+        const s = workedDays(generateLink({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28, requireContract: false }).patterns);
+        const r = workedDays(generateLink({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28, requireContract: false, settled: false }).patterns);
         const sum = (/** @type {number[]} */ a) => a.reduce((x, y) => x + y, 0);
         const span = (/** @type {number[]} */ a) => Math.max(...a) - Math.min(...a);
         assert.equal(sum(s), sum(r), 'both constructions place exactly the same total duty');
@@ -282,20 +293,20 @@ describe('settled weeks', () => {
         // n = 3 under the old rule gave strides [1,1,1,0,0,0,0]: the window laps by Tuesday and then
         // sits still to Saturday, so the same lines work all four of those days.
         const slots = [{ time: '06:20-14:20', weekday: 2, sat: 1, sun: 1 }];
-        const p = generatePatterns({ slots, spareLines: 0, lines: 3 });
+        const p = generatePatterns({ slots, spareLines: 0, lines: 3, requireContract: false });
         const days = [];
         for (let w = 1; w <= 3; w++) days.push(DAYS.filter(d => p[String(w)][d] !== 'RD').length);
         assert.deepEqual(days, [4, 4, 4], 'all three lines carry the same load');
     });
 
     test('it reports WHICH construction ran — the two give different designs', () => {
-        const settled = generateLink({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 });
-        const rotating = generateLink({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28, settled: false });
+        const settled = generateLink({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28, requireContract: false });
+        const rotating = generateLink({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28, requireContract: false, settled: false });
         assert.equal(settled.mode, 'settled');
         assert.equal(rotating.mode, 'rotating');
         assert.notDeepEqual(settled.patterns, rotating.patterns);
         // generatePatterns keeps its old contract — patterns or null, nothing else.
-        assert.deepEqual(generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 }), settled.patterns);
+        assert.deepEqual(generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28, requireContract: false }), settled.patterns);
     });
 });
 
@@ -312,7 +323,7 @@ describe('the rotating fallback no longer promises rest it cannot give', () => {
     ];
 
     test('at full staffing the old construction produced 27 short turnarounds — it now REFUSES', () => {
-        const r = generateLink({ slots: DENSE, spareLines: 0, lines: 28, settled: false });
+        const r = generateLink({ slots: DENSE, spareLines: 0, lines: 28, requireContract: false, settled: false });
         assert.equal(r.patterns, null);
         assert.equal(r.reason, 'no-rest', 'refused for the real reason, not as a generic bad-input');
     });
@@ -320,7 +331,7 @@ describe('the rotating fallback no longer promises rest it cannot give', () => {
     test('where it CAN run, no line finishes late and starts early the next morning', () => {
         // Teeth: with near-equal strides this fixture is fine, so the assertion that matters is the
         // one above. Here we only pin that the capped strides did not break the ordinary case.
-        const r = generateLink({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28, settled: false });
+        const r = generateLink({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28, requireContract: false, settled: false });
         assert.equal(r.mode, 'rotating');
         assert.equal(runDesignChecks(r.patterns, 28).turnarounds.length, 0);
     });
@@ -328,7 +339,7 @@ describe('the rotating fallback no longer promises rest it cannot give', () => {
     test('a settled design survives the same dense targets the fallback refuses', () => {
         // Each line sits in one wave, so "everybody works seven days" costs nothing in body-clock
         // movement — which is exactly why settled is tried first.
-        const s = generateLink({ slots: DENSE, spareLines: 0, lines: 28 });
+        const s = generateLink({ slots: DENSE, spareLines: 0, lines: 28, requireContract: false });
         assert.equal(s.mode, 'settled');
         for (let w = 1; w <= 28; w++) {
             const st = DAYS.map(d => startMinutes(s.patterns[String(w)][d])).filter(v => v !== null);
@@ -339,7 +350,7 @@ describe('the rotating fallback no longer promises rest it cannot give', () => {
 
 test('generatePatterns rejects totals over the line count', () => {
     const big = [{ time: '06:20-14:20', weekday: 29, sat: 0, sun: 0 }];
-    assert.equal(generatePatterns({ slots: big, lines: 28 }), null);
+    assert.equal(generatePatterns({ slots: big, lines: 28, requireContract: false }), null);
     // Spare LINES reduce what is left to carry the targets, so a total that would fit in 28 can
     // still be refused — 26 duties cannot fit in the 25 working lines left by 3 spare weeks.
     assert.equal(generatePatterns({
@@ -356,13 +367,13 @@ test('generatePatterns rejects totals over the line count', () => {
 });
 
 test('generatePatterns rejects an impossible spare-line count', () => {
-    assert.equal(generatePatterns({ slots: SLOTS, spareLines: 28, lines: 28 }), null);   // nothing left to work
-    assert.equal(generatePatterns({ slots: SLOTS, spareLines: -1, lines: 28 }), null);
-    assert.equal(generatePatterns({ slots: SLOTS, spareLines: 1.5, lines: 28 }), null);
+    assert.equal(generatePatterns({ slots: SLOTS, spareLines: 28, lines: 28, requireContract: false }), null);   // nothing left to work
+    assert.equal(generatePatterns({ slots: SLOTS, spareLines: -1, lines: 28, requireContract: false }), null);
+    assert.equal(generatePatterns({ slots: SLOTS, spareLines: 1.5, lines: 28, requireContract: false }), null);
 });
 
 test('generatePatterns rejects invalid input', () => {
-    assert.equal(generatePatterns({ slots: [], lines: 28 }), null);
+    assert.equal(generatePatterns({ slots: [], lines: 28, requireContract: false }), null);
     assert.equal(generatePatterns({ slots: [{ time: 'nonsense', weekday: 1, sat: 0, sun: 0 }], lines: 28 }), null);
     assert.equal(generatePatterns({ slots: [{ time: '06:20-14:20', weekday: -1, sat: 0, sun: 0 }], lines: 28 }), null);
     assert.equal(generatePatterns({ slots: [{ time: '06:20-14:20', weekday: 1.5, sat: 0, sun: 0 }], lines: 28 }), null);
@@ -376,7 +387,7 @@ test('generatePatterns accepts a many-slot wave profile (real roster shape)', ()
         '13:30-22:00', '14:00-22:30', '15:00-23:30', '15:15-23:55',
     ].map(time => ({ time, weekday: 1, sat: 1, sun: 1 }));
     waves[2].weekday = 2; // 06:20-14:20 ×2
-    const patterns = generatePatterns({ slots: waves, spareLines: 4, lines: 28 });
+    const patterns = generatePatterns({ slots: waves, spareLines: 4, lines: 28, requireContract: false });
     assert.ok(patterns);
     const checks = runDesignChecks(patterns, 28);
     assert.equal(checks.turnarounds.length, 0);
@@ -718,16 +729,39 @@ describe('weeklyHours', () => {
         assert.equal(wh.sundayDuties, 1);
     });
 
-    test('COVER WEEKS LEAVE THE DENOMINATOR — they carry no times, so they cannot be averaged', () => {
-        // Two identical 35h lines and two cover weeks. The answer is 35 — what a normal week on this
-        // link looks like. Dividing by all four lines gives 17.5, a week nobody works.
-        const line = rowOf({ mon: '09:00-16:00', tue: '09:00-16:00', wed: '09:00-16:00',
-            thu: '09:00-16:00', fri: '09:00-16:00' });
-        const wh = weeklyHours({ 1: line, 2: line, 3: SPARE, 4: SPARE }, 4);
-        assert.equal(wh.exSunday, 35);
+    test('A COVER WEEK COUNTS AS A FULL CONTRACTED WEEK, and the divisor is the whole rotation', () => {
+        // Owner, Aug 2026. Until v20.98 cover weeks left BOTH halves, on the reasoning that they
+        // carry no times and dividing by all the lines would charge the average with weeks of zero.
+        // The premise was right, the conclusion was not: a cover week is somebody's paid contracted
+        // week, so it is counted AS one rather than left out.
+        //
+        // The fixture is deliberately LOPSIDED — one 35h line, one 21h line, two cover weeks — so
+        // the two definitions give different answers and this test can tell them apart. Two equal
+        // 35h lines cannot: both readings return 35, which is why the old test passed unchanged
+        // through this very change.
+        const full = rowOf({ mon: '09:00-16:00', tue: '09:00-16:00', wed: '09:00-16:00',
+            thu: '09:00-16:00', fri: '09:00-16:00' });               // 35h
+        const light = rowOf({ mon: '09:00-16:00', tue: '09:00-16:00', wed: '09:00-16:00' });  // 21h
+        const wh = weeklyHours({ 1: full, 2: light, 3: SPARE, 4: SPARE }, 4);
+        // (35 + 21 + 35 + 35) / 4 = 31.5. The old reading was (35 + 21) / 2 = 28.
+        assert.equal(wh.exSunday, 31.5);
         assert.equal(wh.workingLines, 2);
         assert.equal(wh.coverLines, 2);
-        assert.equal(wh.lines, 4, 'the full length is still reported, so the exclusion is visible');
+        assert.equal(wh.lines, 4);
+    });
+
+    test('the average is over the WEEKS, so uneven weeks are fine if they average out', () => {
+        // The requirement in one case: individual weeks vary widely and only the mean is the
+        // contract. 42 and 28 average to 35 exactly, and neither week on its own does.
+        const heavy = rowOf({ mon: '09:00-17:00', tue: '09:00-17:00', wed: '09:00-17:00',
+            thu: '09:00-17:00', fri: '09:00-16:00', sat: '09:00-15:00' });   // 8+8+8+8+7+6 = 45
+        const lightish = rowOf({ mon: '09:00-15:00', tue: '09:00-15:00', wed: '09:00-15:00',
+            thu: '09:00-14:00', fri: '09:00-14:00' });                        // 6+6+6+5+5 = 28
+        const wh = weeklyHours({ 1: heavy, 2: lightish, 3: rowOf({ mon: '09:00-14:00',
+            tue: '09:00-14:00', wed: '09:00-14:00', thu: '09:00-14:00', fri: '09:00-15:00' }) }, 3);
+        // 45 + 28 + 26 = 99 over 3 lines = 33. Not the contract — and the point is that the FIGURE
+        // is the mean of the weeks, not a judgement about any one of them.
+        assert.equal(wh.exSunday, 33);
     });
 
     test('an empty design is null, never zero', () => {
@@ -762,8 +796,10 @@ describe('weeklyHours', () => {
         const opaque = rowOf({ mon: 'gibberish', tue: 'gibberish' });
         const wh = weeklyHours({ 1: good, 2: good, 3: opaque }, 3);
 
-        // The trap, stated as an assertion: the average is untouched and would read as a clean pass.
-        assert.equal(wh.exSunday, 35, 'premise: the readable lines really do come to the contract');
+        // The trap, stated as an assertion: the unreadable line contributes NOTHING to the numerator
+        // while still sitting in the denominator, so the average sags rather than staying clean —
+        // and sagging is not the same as saying why. 70h over 3 lines is 23.33.
+        assert.equal(wh.exSunday, 23.33, 'premise: the readable lines really do come to the contract');
         assert.equal(wh.workingLines, 2, 'the opaque line is not one of the lines that was measured');
 
         assert.equal(wh.unreadableLines, 1, 'the unmeasured LINE must be counted, not just its cells');

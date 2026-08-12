@@ -1,5 +1,5 @@
 import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink} from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the literal 22 — and `links: the rotation
 // length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
@@ -464,6 +464,9 @@ test('promptDialog: resolves the typed value on confirm, null on cancel (not nat
 // links unsaved-changes guard exactly like a page pill: the leave-confirm appears; cancelling
 // keeps the page and the unsaved design intact.
 test('links: a guide link (same-tab) routes through the unsaved-changes guard', async ({ page }) => {
+    // v20.98: the generator refuses targets that cannot pay the contracted week, and the
+    // roster seed cannot at this rotation — so a spec that generates brings work with it.
+    await seedContractTargets(page);
     await page.setViewportSize({ width: 1024, height: 800 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => localStorage.setItem('myb_links_welcome_seen', '1'));
@@ -521,6 +524,9 @@ test('links: opening the auto-generator causes no horizontal page overflow (narr
 // links-analysis.js. Apply a generated design and confirm both populate in a real browser — proving
 // the extracted renderers + the getDesign() seam work end-to-end with an actual design.
 test('links: the analysis panels render for a generated design', async ({ page }) => {
+    // Since v20.98 the generator refuses targets that cannot pay the contracted week, and the
+    // roster seed cannot at this rotation — see seedContractTargets.
+    await seedContractTargets(page);
     await page.setViewportSize({ width: 1024, height: 900 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => localStorage.setItem('myb_links_welcome_seen', '1'));
@@ -761,6 +767,9 @@ test('links: printing opens every collapsed disclosure, and closes it again afte
 });
 
 test('links: the line-order switches change the design, and say what each one cost', async ({ page }) => {
+    // v20.98: the generator refuses targets that cannot pay the contracted week, and the
+    // roster seed cannot at this rotation — so a spec that generates brings work with it.
+    await seedContractTargets(page);
     // Reordering lines is FREE with respect to coverage — permuting rows leaves each day's multiset
     // identical — so these four objectives compete only with each other. That is exactly why they are
     // switches with a stated price rather than one blended score, and why the status line has to name
@@ -791,6 +800,9 @@ test('links: the line-order switches change the design, and say what each one co
 
 test('links: every line-order switch OFF leaves the generated order untouched', async ({ page }) => {
     // Re-sorting by an empty objective set would hand back a different design for no stated reason.
+    // Since v20.98 the generator refuses targets that cannot pay the contracted week, and the
+    // roster seed cannot at this rotation — see seedContractTargets.
+    await seedContractTargets(page);
     await page.setViewportSize({ width: 1280, height: 1400 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => {
@@ -1749,6 +1761,9 @@ test('links: saving writes the patterns and clears the dirty state', async ({ pa
 });
 
 test('links: the generator fills every line and names what it replaces', async ({ page }) => {
+    // v20.98: the generator refuses targets that cannot pay the contracted week, and the
+    // roster seed cannot at this rotation — so a spec that generates brings work with it.
+    await seedContractTargets(page);
     await page.setViewportSize({ width: 390, height: 1000 });
     await seedSession(page, 'G. Miller');
     await openLinks(page);
@@ -1891,6 +1906,9 @@ test('links: a design at the current length shows no such notice', async ({ page
 });
 
 test('links: generating names the construction that produced the design', async ({ page }) => {
+    // v20.98: the generator refuses targets that cannot pay the contracted week, and the
+    // roster seed cannot at this rotation — so a spec that generates brings work with it.
+    await seedContractTargets(page);
     // Two constructions live behind one button and they give visibly different designs — settled
     // weeks keep a line inside one wave, the fallback walks it across the whole day. A designer who
     // is not told which they got cannot account for the difference.
@@ -1912,6 +1930,9 @@ test('links: generating names the construction that produced the design', async 
 // broken fingerprint silently pins every press to attempt 0 — which is exactly the bug being fixed,
 // wearing the new code.
 test('links: pressing Generate again produces a different, named design', async ({ page }) => {
+    // Since v20.98 the generator refuses targets that cannot pay the contracted week, and the
+    // roster seed cannot at this rotation — see seedContractTargets.
+    await seedContractTargets(page);
     await seedSession(page, 'G. Miller');
     await openLinks(page);
     await page.locator('#generatorToggleHeader').click();
@@ -2165,6 +2186,9 @@ test('links: the empty-state button opens the generator with its chevron and ARI
 // re-baseline records whatever the alignment happens to be. Measuring the left edges does.
 test('links: the generator card lines up on one left edge at desktop width', async ({ page }, info) => {
     test.skip(info.project.name === 'mobile-chrome', 'the shared column only applies at >=1024px');
+    // v20.98: the generator refuses targets that cannot pay the contracted week, and the
+    // roster seed cannot at this rotation — so a spec that generates brings work with it.
+    await seedContractTargets(page);
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
     await page.setViewportSize({ width: 1280, height: 900 });
@@ -2292,6 +2316,9 @@ test('links: the print button prints, and a work-in-progress sheet says so', asy
 });
 
 test('links: the variety switch is what keeps you off one shift type for months', async ({ page }) => {
+    // v20.98: the generator refuses targets that cannot pay the contracted week, and the
+    // roster seed cannot at this rotation — so a spec that generates brings work with it.
+    await seedContractTargets(page);
     // v19.59 settled each week and then laid the shift waves out in contiguous blocks, so moving one
     // line a week gave 11 straight weeks of mornings and 11 of afternoons — "a bit excessive and
     // would be unpopular" (owner). `gentle` made it worse rather than better, because the smallest
@@ -2579,6 +2606,9 @@ test('links window: a RESTORED design keeps the window it was designed to', asyn
 // and feedback both off-screen. This drives the real flow at a realistic viewport height and
 // asserts both: the mirror is on screen, and the button has not moved out from under the finger.
 test('links generator: pressing Generate leaves the button under your finger and the result beside it', async ({ page }) => {
+    // Since v20.98 the generator refuses targets that cannot pay the contracted week, and the
+    // roster seed cannot at this rotation — see seedContractTargets.
+    await seedContractTargets(page);
     await page.setViewportSize({ width: 1280, height: 900 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => {
@@ -2625,6 +2655,9 @@ test('links generator: pressing Generate leaves the button under your finger and
 });
 
 test('links window: generating the FIRST design reveals the window editor', async ({ page }) => {
+    // v20.98: the generator refuses targets that cannot pay the contracted week, and the
+    // roster seed cannot at this rotation — so a spec that generates brings work with it.
+    await seedContractTargets(page);
     // The generator is the only way to create a design. It refreshes the heat map through
     // renderGrid, but the editor was a separate call it did not make — so a designer's very first
     // link had no visible window control until they reloaded. Both now go through one function.
