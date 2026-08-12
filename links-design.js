@@ -589,8 +589,8 @@ export function calcHourlyCoverage(patterns, totalPos = ROTATING_LINES) {
  * (v19.59). Positions are read mod `working`, so every line wraps from the front of
  * the order to the back exactly once a week; that wrap IS a late-finish-to-early-start
  * step, and it lands on a rest day only when the day's target leaves enough lines
- * resting. At high staffing it does not: with all three slots filling all 28 lines
- * every day the construction produced **27** short turnarounds, `15:15-23:55` into
+ * resting. At high staffing it does not: with all three slots filling every line of
+ * the then-28-line rotation the construction produced **27** short turnarounds, `15:15-23:55` into
  * `06:20-14:20` — 6h25 rest — and the test that "asserted" the promise used a fixture
  * staffing 13 of 24 lines, where the wrap always landed on RD.
  *

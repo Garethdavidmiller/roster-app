@@ -580,7 +580,7 @@ body.auth-ready .container { display: grid; }
    only way to give it a sticky header would be a `max-height` — a nested scrollbox around the
    primary editing surface on touch. That trade was measured and declined; see KNOWN_LIMITATIONS.
    Do not add `max-height` here without also resetting it at this breakpoint AND in `@media print`,
-   where a clipped 28-line sheet is silent on screen and only shows up on paper.
+   where a clipped sheet is silent on screen and only shows up on paper.
 
    (.card uses overflow:clip — not hidden — for the same sticky reason, and is unscoped.) */
 @media (min-width: 768px) {
@@ -1434,7 +1434,7 @@ body.auth-ready .container { display: grid; }
 /* First-visit notice lightbox — card styling comes entirely from .notice-lb-content in shared.css.
    No page-local overrides here, deliberately: that is the rule for every notice in the app. */
 
-/* A 28-line link design is a paper artefact — consultations, noticeboards,
+/* A link design is a paper artefact — consultations, noticeboards,
    meeting handouts — so unlike settings/operations this page PRINTS its
    content: the design grid and the coverage analysis, landscape A4. */
 @media print {
@@ -1479,7 +1479,7 @@ body.auth-ready .container { display: grid; }
     .print-design-meta  { font-size: var(--type-badge); color: var(--text-mid); }
 
     /* The grid card's own header is redundant on paper — the masthead above names the sheet, and
-       those ~64px are what push a 28-line rotation onto a second sheet. Coverage and Design checks
+       those ~64px are what push the rotation onto a second sheet. Coverage and Design checks
        KEEP their headers: they are separate sections a reader needs named. */
     #linksGridCard > .card-header-toggle { display: none !important; }
     #linksGridCard { border: none; }
@@ -1488,13 +1488,19 @@ body.auth-ready .container { display: grid; }
     .links-grid-wrapper { overflow: visible; margin: 0; padding: 0; }
     .links-grid { min-width: 0; }
     .links-grid tr { break-inside: avoid; }
-    /* Row height is what decides whether the whole 28-line rotation lands on ONE sheet, which is
-       the point of printing it — you cannot judge a rotation split across two pages. MEASURED
+    /* Row height is what decides whether the whole rotation lands on ONE sheet, which is the
+       point of printing it — you cannot judge a rotation split across two pages. MEASURED
        (v19.45): A4 landscape at 1cm margins is 718px of printable height; at 26px rows the grid
        card came to 903px, so it always broke, and the comment here claimed it fitted "or close
-       to". 22px is the smallest height that still clears two 8px lines at 1.2 (19.2px + padding)
+       to". 21px is the smallest height that still clears two 8px lines at 1.2 (19.2px + padding)
        and, with the card chrome above dropped, brings the sheet inside 718. Re-measure if the
-       cell font changes. */
+       cell font changes.
+
+       ⚠️ THAT MEASUREMENT WAS TAKEN AT 28 ROWS, and the rotation has been shorter since v19.98.
+       So the fit is now looser than it was, not tighter — this height is safe, it is simply no
+       longer proven to be the SMALLEST one needed. Do not read the 718 as a live constraint on
+       today's rotation without re-measuring; and note the prose said 22px while the rule below
+       said 21, which is the same class of drift and is why the number is restated here at all. */
     .links-grid .shift-cell { height: 21px; }
     .shift-cell-btn { font-size: 8px; line-height: 1.15; padding: 0 2px; }
     /* Sticky positioning confuses print pagination — flatten it */
