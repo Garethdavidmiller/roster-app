@@ -49,14 +49,18 @@
  * length but puts a late wave's 23:55 Saturday beside a morning wave's 06:20 Sunday. The generator
  * owns the SHAPE; `links-adjacency.js` owns the ORDER. A test fails if the interleave returns.
  *
- * `weeklyHours` has TWO exclusions, each load-bearing and each easy to "simplify" into a plausible
- * wrong answer. **Sundays come out**, because Sunday is not contracted for any grade here, so
- * counting it towards 35 reports a design as delivering contracted hours using time that is not
- * contracted — it FLATTERS. The denominator is the **working lines**, because a cover week carries
- * no times, so dividing by all of them charges the average with weeks of zero — it DEFLATES.
- * Validated against the roster itself: the live main cycle's 16 working lines come to exactly
- * 35.00. A line with worked duties but no readable time is reported through `unreadableLines` /
+ * `weeklyHours` reports **the mean week across the whole rotation**, and two rules govern it.
+ * **Sundays come out**, because Sunday is not contracted for any grade here, so counting it towards
+ * 35 reports a design as delivering contracted hours using time that is not — it FLATTERS. And
+ * **a cover week counts as a full contracted week** (v20.98, owner): it carries no stored times,
+ * which is a fact about how the design is written down rather than about whether the week is
+ * worked and paid. Validated against the roster itself: the live main cycle comes to exactly 35.00.
+ * A line with worked duties but no readable time is reported through `unreadableLines` /
  * `complete`, never silently dropped — see the note at that function.
+ *
+ * **`generateLink` REFUSES targets that cannot pay that mean** (`short-hours`, v20.98). The check is
+ * on the TARGETS, because the arithmetic is settled before a cell is laid out and no arrangement can
+ * rescue a short table. Over-contract still builds — those hours are paid or absorbed.
  *
  * `endMinutesAbs` is the ONE reading of a duty that runs past midnight. Both former inline copies
  * erred towards *safer than the truth*: the heat map dropped the post-midnight hours entirely, and
@@ -401,18 +405,28 @@ export function hmFromHours(hours) {
  * report a link as delivering the contracted hours when a chunk of what it counted is not
  * contracted time at all. Both figures are returned; only `exSunday` is comparable to 35.
  *
- * ── THE DENOMINATOR IS THE WORKING LINES, AND THAT IS ALSO NOT A DETAIL ───────────────────────
+ * ── A COVER WEEK IS A PAID WEEK, AND THE AVERAGE IS OVER THE WHOLE ROTATION ───────────────────
  *
- * A cover week carries no times, so its hours are unknowable from the design. Dividing by ALL the
- * lines would therefore charge the average with four weeks of zero and report a number nobody
- * works. Dividing by the WORKING lines answers "what does a normal week on this link look like",
- * which is the question, and matches how the live roster is built: measured, the main cycle's 16
- * working lines come to **35.00** hours a week each, exactly the contract. `coverLines` is returned
- * beside it so the exclusion is visible rather than assumed.
+ * Owner, Aug 2026: 35 hours a week averaged across all the lines, individual weeks free to vary,
+ * and a spare week counted as a full contracted week.
  *
- * That measurement is also why this is worth having at all. The seeded 24-line design comes back at
- * **28.85** — the same duties spread over 20 working lines instead of 16 — so widening the link
- * without adding work under-fills everybody by about six hours a week. Nothing on the page said so.
+ * Until v20.98 this divided by the WORKING lines and left cover weeks out of both halves. The
+ * reasoning recorded against that was half right — dividing by all the lines DOES charge the average
+ * with weeks of zero and report a number nobody works — and the conclusion did not follow: the
+ * answer is to stop treating a cover week as zero, not to leave it out. It carries no stored times,
+ * which is a fact about the notation, not about the week.
+ *
+ * The two readings agree on the REQUIREMENT and disagree on the FIGURE, which is why the difference
+ * hid for so long: `(D + 35s)/L = 35` is exactly `D = 35 x working`, so a design that satisfies one
+ * satisfies the other. They diverge on everything that MISSES — and a short design read the old way
+ * looked worse than it is, because the cover weeks being paid for were not in the sum at all.
+ *
+ * An UNFILLED line (no duties, not marked spare) is 0 hours over 1 line and drags the mean down
+ * rather than being skipped. That is right: it is a week somebody works with nothing in it, and
+ * "Lines not yet designed" is the row that explains it.
+ *
+ * Measured, the live main cycle comes to **35.00** exactly — the check on the check, and it holds
+ * under both readings, which is what makes it a fair test of the new one.
  *
  * Every total is a FLOOR for the same reason `assessFatigue` reports one: a duty the parser cannot
  * read contributes nothing.
@@ -458,13 +472,37 @@ export function weeklyHours(patterns, rotatingLines = ROTATING_LINES) {
         else if (lineHasWork) unreadableLines++;
     }
 
+    // ── THE AVERAGE IS OVER THE WHOLE ROTATION, AND A COVER WEEK IS A PAID WEEK (v20.98) ────────
+    //
+    // Owner, Aug 2026: 35 hours a week averaged across all the lines, and a spare week counts as a
+    // full contracted week. Individual weeks vary — 22h here, 42h there — and only the average is
+    // the contract.
+    //
+    // Until v20.98 this divided ex-Sunday duty by the WORKING lines and left cover weeks out of
+    // both halves. The reasoning recorded against that was sound as far as it went — dividing by all
+    // the lines charges the average with weeks of zero and reports a week nobody works — but the
+    // conclusion was wrong: the answer is not to exclude a cover week, it is to stop treating it as
+    // zero. A spare week is a person's paid, contracted week; they carry no stored TIMES, which is a
+    // fact about how the design is written down, not about whether the week is worked.
+    //
+    // The two definitions agree on the REQUIREMENT and disagree on the READING, which is why this
+    // was invisible: (D + 35s)/L = 35 is exactly D = 35 x working, so a design that satisfies one
+    // satisfies the other. They diverge on everything that does NOT hit the target — a short design
+    // read the old way looked worse than it is, because the cover weeks that are being paid for were
+    // simply not in the sum.
+    //
+    // An UNFILLED line — no duties, not marked spare — is 0 hours over 1 line, and now drags the
+    // average down instead of being skipped. That is correct: it is a week somebody works with
+    // nothing in it, the design is not finished, and "Lines not yet designed" says so directly.
+    const coverMin = coverLines * CONTRACTED_HOURS_PER_WEEK * 60;
     const exSundayMin = totalMin - sundayMin;
     const hrs = (/** @type {number} */ m) => Math.round((m / 60) * 100) / 100;
+    const measured = workingLines + coverLines ? rotatingLines : 0;
     return {
         // null, never 0, when there is nothing to average — "0 hours a week" about an empty design
         // is a sentence that reads as a finding, and it is not one.
-        exSunday: workingLines ? hrs(exSundayMin / workingLines) : null,
-        all:      workingLines ? hrs(totalMin / workingLines) : null,
+        exSunday: measured ? hrs((exSundayMin + coverMin) / measured) : null,
+        all:      measured ? hrs((totalMin + coverMin) / measured) : null,
         totalHours: hrs(totalMin), exSundayHours: hrs(exSundayMin), sundayHours: hrs(sundayMin),
         workingLines, coverLines, lines: rotatingLines,
         duties, sundayDuties, unreadable, unreadableLines,
@@ -589,8 +627,8 @@ export function calcHourlyCoverage(patterns, totalPos = ROTATING_LINES) {
  * (v19.59). Positions are read mod `working`, so every line wraps from the front of
  * the order to the back exactly once a week; that wrap IS a late-finish-to-early-start
  * step, and it lands on a rest day only when the day's target leaves enough lines
- * resting. At high staffing it does not: with all three slots filling all 28 lines
- * every day the construction produced **27** short turnarounds, `15:15-23:55` into
+ * resting. At high staffing it does not: with all three slots filling every line of
+ * the then-28-line rotation the construction produced **27** short turnarounds, `15:15-23:55` into
  * `06:20-14:20` — 6h25 rest — and the test that "asserted" the promise used a fixture
  * staffing 13 of 24 lines, where the wrap always landed on RD.
  *
@@ -644,8 +682,10 @@ export function calcHourlyCoverage(patterns, totalPos = ROTATING_LINES) {
  *   - one entry per distinct shift time, with target headcounts per day class
  * @param {number} [opts.spareLines=0] - how many WHOLE lines are spare weeks
  * @param {number} [opts.lines=ROTATING_LINES]
- * @returns {Object|null} patterns for "1".."lines", or null if invalid /
- *   any day-class total exceeds the working lines
+ * @param {boolean} [opts.requireContract=true] - see `generateLink`; leave it alone outside the
+ *   construction tests
+ * @returns {Object|null} patterns for "1".."lines", or null if invalid / any day-class total
+ *   exceeds the working lines / the targets cannot pay the contracted week
  */
 export function generatePatterns(opts) {
     return generateLink(opts).patterns;
@@ -658,6 +698,31 @@ export const WAVE_SPAN_MINUTES = 2 * 60;
 const TARGET_CLASSES = ['weekday', 'sat', 'sun'];
 /** How many days of the week carry each day class — the weight a class has in a week's duty total. */
 const CLASS_DAYS = /** @type {Record<string, number>} */ ({ weekday: 5, sat: 1, sun: 1 });
+
+/**
+ * The ex-Sunday duty a TARGET TABLE asks for, in minutes per week of rotation.
+ *
+ * Sunday counts are read and deliberately discarded: Sunday is not contracted, so a Sunday duty
+ * sits on TOP of the contracted week and can never help a design reach it. Folding it in would let
+ * a link that pays people short look compliant by rostering more Sundays — which is the same
+ * flattering error `weeklyHours` excludes Sundays to avoid, arriving from the targets instead of
+ * from the patterns.
+ *
+ * Minutes, not hours, because the comparison it feeds is an equality: `working x 35h` is a whole
+ * number of minutes, every duty is a whole number of minutes, and rounding to hours first is how
+ * "exactly 35" becomes "about 35".
+ * @param {Array<Record<string, any>>} slots
+ * @returns {number|null} null when a slot carries a time that cannot be read
+ */
+export function targetExSundayMinutes(slots) {
+    let total = 0;
+    for (const s of slots || []) {
+        const a = startMinutes(s.time), b = endMinutesAbs(s.time);
+        if (a === null || b === null) return null;
+        total += (b - a) * (CLASS_DAYS.weekday * (s.weekday ?? 0) + CLASS_DAYS.sat * (s.sat ?? 0));
+    }
+    return total;
+}
 
 /**
  * Group slots into waves: each wave holds every slot starting within `span` of its earliest.
@@ -914,10 +979,16 @@ function slotAt(/** @type {Array<any>} */ group, /** @type {string} */ cls, /** 
  * @param {Array<{time:string, weekday:number, sat:number, sun:number}>} opts.slots
  * @param {number} [opts.spareLines=0]
  * @param {number} [opts.lines=ROTATING_LINES]
- * @param {boolean} [opts.settled=true] - false forces the rotating fallback (for comparison)
- * @returns {{patterns: Object|null, mode: 'settled'|'rotating'|null, waves: number, reason: string|null}}
+ * @param {boolean} [opts.settled=true]
+ * @param {boolean} [opts.requireContract=true] refuse targets that cannot pay the contracted week - false forces the rotating fallback (for comparison)
+ * @returns {{patterns: Object|null, mode: 'settled'|'rotating'|null, waves: number,
+ *            reason: string|null, askedMinutes?: number, needMinutes?: number, working?: number}}
+ *   The three extra fields accompany `short-hours` ONLY. They are the whole actionable content of
+ *   that refusal — a caller told merely that the targets are short cannot say by how much, and the
+ *   gap is the only number a designer can do anything with.
  */
-export function generateLink({ slots, spareLines = 0, lines = ROTATING_LINES, settled = true }) {
+export function generateLink({ slots, spareLines = 0, lines = ROTATING_LINES, settled = true,
+                               requireContract = true }) {
     const fail = (/** @type {string} */ reason) => ({ patterns: null, mode: null, waves: 0, reason });
 
     if (!Array.isArray(slots) || slots.length === 0) return fail('no-slots');
@@ -938,6 +1009,46 @@ export function generateLink({ slots, spareLines = 0, lines = ROTATING_LINES, se
         // in what is left. Checked against `working`, not `lines`.
         if (total > working) return fail('over-capacity');
         totalFor[cls] = total;
+    }
+
+    // ── THE CONTRACT IS A CONSTRAINT ON THE TARGETS, NOT A REPORT ON THE RESULT (v20.98) ────────
+    //
+    // Owner, Aug 2026: a generated link must average exactly the contracted week ex-Sunday, and one
+    // that falls short must not be produced at all.
+    //
+    // It is checked HERE, against the targets, rather than against the finished patterns — and the
+    // difference is not tidiness. The arithmetic is settled before a single cell is laid out: the
+    // duty a target table asks for is fixed, the working lines are fixed, and every construction
+    // places exactly those duties on exactly those lines. So no arrangement can rescue a short
+    // table, and a check on the output would be re-measuring an answer already determined by the
+    // input — reporting a build failure for what is really a decision about how much work there is.
+    //
+    // Refusing on SHORT only. Over-contract is a different thing entirely: those hours get paid as
+    // overtime or absorbed by adding lines, so the design is workable and the Design-checks row
+    // already says so. Refusing it here would block the ordinary case of a link built to carry a
+    // known surplus.
+    //
+    // MINUTES, and an exact comparison. `working x 35h` is a whole number of minutes and every duty
+    // is a whole number of minutes, so "exactly" can be meant literally; rounding to hours first is
+    // how exactly-35 quietly becomes about-35.
+    // ── THE OPT-OUT, AND WHY IT IS NOT A BACK DOOR ──────────────────────────────────────────────
+    //
+    // `requireContract` defaults ON, so every real call is gated: `links-app.js` never passes it,
+    // and `links-contract-parity.test.mjs` fails if it ever does. What passes `false` is the
+    // CONSTRUCTION tests — wave containment, spare spread, turnarounds, fairness — whose fixtures
+    // describe a rotation shape rather than a week's worth of work.
+    //
+    // Making those fixtures carry 35 hours was tried first and rejected: an exact-fit target set
+    // exists, but adopting it would change which waves merge and how the load spreads, which are
+    // the very things those tests assert. Altering a scenario to satisfy an unrelated rule leaves
+    // the test green and no longer about what it says it is about.
+    if (requireContract) {
+        const askedMin = targetExSundayMinutes(/** @type {any} */ (slots));
+        if (askedMin === null) return fail('bad-time');
+        const needMin = working * CONTRACTED_HOURS_PER_WEEK * 60;
+        if (askedMin < needMin) {
+            return { ...fail('short-hours'), askedMinutes: askedMin, needMinutes: needMin, working };
+        }
     }
 
     const spareRows = spareRowSet(spareLines, lines);

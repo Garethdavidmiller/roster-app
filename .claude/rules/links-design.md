@@ -781,17 +781,38 @@ which is where you want to know), and the sticky summary chip.
   places across the app. A Sunday duty is therefore work sitting on top of the contract, and folding
   it into the weekly figure reports a design as delivering contracted hours using time that is not
   contracted. It **flatters**. Both figures are returned; only `exSunday` is comparable to 35.
-- **The denominator is the WORKING lines.** A cover week carries no times, so dividing by all the
-  lines charges the average with weeks of zero and reports a week nobody works. It **deflates**.
+- **A COVER WEEK COUNTS AS A FULL CONTRACTED WEEK, and the divisor is the whole rotation**
+  (v20.98, owner). Until then cover weeks left BOTH halves, on the reasoning that they carry no
+  times and dividing by all the lines charges the average with weeks of zero. The premise was
+  right and the conclusion was not: the answer is to stop treating a cover week as zero, not to
+  leave it out. It is somebody's paid, contracted week.
+  The two readings agree on the REQUIREMENT and disagree on the FIGURE, which is why the difference
+  went unnoticed: `(D + 35s)/L = 35` is exactly `D = 35 x working`. They diverge on every design
+  that misses — a short one read the old way looked worse than it is, because the cover weeks being
+  paid for were not in the sum.
+  **The average is over the WEEKS.** Individual lines vary widely (22h on one, 42h on another) and
+  only the mean is the contract; an UNFILLED line is 0 hours over 1 line and now drags it down,
+  which is correct — the design is not finished, and "Lines not yet designed" says so.
 
 **The measure is validated against the roster itself**: the live main cycle's 16 working lines come
 to **exactly 35.00** hours a week. That is the check on the check, and it is a test — a design judged
 by a broken yardstick is worse than one judged by none, because it looks like an answer.
 
-**What it found immediately.** The seeded 24-line design comes to **28h 51m** — six hours a week
-short — because the same duties are spread over 20 working lines instead of 16. That is the
-arithmetic consequence of widening a link without adding work, it is the central fact about the
-December 2026 proposal, and nothing on the page had ever shown it. Whether the new timetable's extra
+**What it found immediately.** The seeded 24-line design is hours a week short of contract, because
+the same duties are spread over more working lines than the roster they were sampled from. That is
+the arithmetic consequence of widening a link without adding work, it is the central fact about the
+December 2026 proposal, and nothing on the page had ever shown it.
+
+**And since v20.98 the generator REFUSES to build it** (owner: designs must hit the contracted week
+on average, and one that falls short must not be generated). The check is on the TARGETS, not the
+finished patterns: the duty a table asks for is fixed, the working lines are fixed, and every
+construction places exactly those duties on exactly those lines — so no arrangement can rescue a
+short table, and checking the output would be re-measuring an answer the input already determined.
+`short-hours` carries the SIZE of the gap, because that is the only actionable thing about it.
+Over-contract is still built: those hours are paid as overtime or absorbed by adding lines, so the
+design is workable and the checks row already says it is over.
+**`requireContract` defaults ON**; only the construction tests pass `false`, and
+`links-contract.test.mjs` fails if `links-app.js` ever does. Whether the new timetable's extra
 service fills the gap is the question to take into the room.
 
 A threshold IS defensible here, unlike the ORR factors: 35 is the contract, not guidance, so short is

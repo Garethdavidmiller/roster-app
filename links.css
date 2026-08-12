@@ -580,7 +580,7 @@ body.auth-ready .container { display: grid; }
    only way to give it a sticky header would be a `max-height` — a nested scrollbox around the
    primary editing surface on touch. That trade was measured and declined; see KNOWN_LIMITATIONS.
    Do not add `max-height` here without also resetting it at this breakpoint AND in `@media print`,
-   where a clipped 28-line sheet is silent on screen and only shows up on paper.
+   where a clipped sheet is silent on screen and only shows up on paper.
 
    (.card uses overflow:clip — not hidden — for the same sticky reason, and is unscoped.) */
 @media (min-width: 768px) {
@@ -1199,6 +1199,7 @@ body.auth-ready .container { display: grid; }
 .design-chip-delete:disabled { opacity: 0.35; cursor: default; }
 
 .btn-design-new,
+.btn-design-import,
 .btn-design-dup {
     background: none;
     border: 1px solid var(--border-light);
@@ -1214,10 +1215,13 @@ body.auth-ready .container { display: grid; }
 }
 @media (hover: hover) and (pointer: fine) {
     .btn-design-new:hover,
+    .btn-design-import:hover,
     .btn-design-dup:hover { background: var(--surface-sunken); color: var(--text-dark); }
 }
 .btn-design-new:focus-visible,
+.btn-design-import:focus-visible,
 .btn-design-dup:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+.btn-design-import:disabled,
 .btn-design-dup:disabled { opacity: 0.4; cursor: default; }
 
 .btn-design-compare {
@@ -1434,7 +1438,7 @@ body.auth-ready .container { display: grid; }
 /* First-visit notice lightbox — card styling comes entirely from .notice-lb-content in shared.css.
    No page-local overrides here, deliberately: that is the rule for every notice in the app. */
 
-/* A 28-line link design is a paper artefact — consultations, noticeboards,
+/* A link design is a paper artefact — consultations, noticeboards,
    meeting handouts — so unlike settings/operations this page PRINTS its
    content: the design grid and the coverage analysis, landscape A4. */
 @media print {
@@ -1479,7 +1483,7 @@ body.auth-ready .container { display: grid; }
     .print-design-meta  { font-size: var(--type-badge); color: var(--text-mid); }
 
     /* The grid card's own header is redundant on paper — the masthead above names the sheet, and
-       those ~64px are what push a 28-line rotation onto a second sheet. Coverage and Design checks
+       those ~64px are what push the rotation onto a second sheet. Coverage and Design checks
        KEEP their headers: they are separate sections a reader needs named. */
     #linksGridCard > .card-header-toggle { display: none !important; }
     #linksGridCard { border: none; }
@@ -1488,13 +1492,19 @@ body.auth-ready .container { display: grid; }
     .links-grid-wrapper { overflow: visible; margin: 0; padding: 0; }
     .links-grid { min-width: 0; }
     .links-grid tr { break-inside: avoid; }
-    /* Row height is what decides whether the whole 28-line rotation lands on ONE sheet, which is
-       the point of printing it — you cannot judge a rotation split across two pages. MEASURED
+    /* Row height is what decides whether the whole rotation lands on ONE sheet, which is the
+       point of printing it — you cannot judge a rotation split across two pages. MEASURED
        (v19.45): A4 landscape at 1cm margins is 718px of printable height; at 26px rows the grid
        card came to 903px, so it always broke, and the comment here claimed it fitted "or close
-       to". 22px is the smallest height that still clears two 8px lines at 1.2 (19.2px + padding)
+       to". 21px is the smallest height that still clears two 8px lines at 1.2 (19.2px + padding)
        and, with the card chrome above dropped, brings the sheet inside 718. Re-measure if the
-       cell font changes. */
+       cell font changes.
+
+       ⚠️ THAT MEASUREMENT WAS TAKEN AT 28 ROWS, and the rotation has been shorter since v19.98.
+       So the fit is now looser than it was, not tighter — this height is safe, it is simply no
+       longer proven to be the SMALLEST one needed. Do not read the 718 as a live constraint on
+       today's rotation without re-measuring; and note the prose said 22px while the rule below
+       said 21, which is the same class of drift and is why the number is restated here at all. */
     .links-grid .shift-cell { height: 21px; }
     .shift-cell-btn { font-size: 8px; line-height: 1.15; padding: 0 2px; }
     /* Sticky positioning confuses print pagination — flatten it */
@@ -1885,3 +1895,67 @@ body.auth-ready .container { display: grid; }
 /* The legend matches the app's shared `.field-eyebrow` (shared.css) rather than restating a
    near-copy of it — same size, weight, transform and tracking. */
 .gen-objectives legend { letter-spacing: 0.5px; color: var(--text-light); }
+
+/* ---- Import a design (v20.97) ----
+   The paste box and its two-step confirm. It borrows the dialog family from shared.css for the
+   panel, title, message and buttons — a page-local dialog recipe is what `.notice-lb-content`
+   and `.dialog-content` exist to prevent — and adds only the three things that family has no
+   opinion about: a monospace paste area, a name field, and the status line the check writes into. */
+.li-paste-label {
+    display: block;
+    margin: var(--space-3) 0 4px;
+    font-size: var(--type-badge);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-mid);
+}
+
+/* MONOSPACE, and it is not decoration: a pasted rotation is columns, and in a proportional face a
+   misaligned row looks identical to a correctly aligned one — which is precisely the fault the
+   reader is being asked to spot before pressing Save. `nowrap` + horizontal scroll for the same
+   reason; a wrapped row reads as two rows. */
+.li-paste {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    background-color: var(--field-bg);
+    color: var(--text-dark);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    /* 16px floor — this is a focusable field and iOS zooms anything smaller (css-tokens.md). */
+    font-size: var(--type-body);
+    line-height: 1.4;
+    white-space: pre;
+    overflow-x: auto;
+    resize: vertical;
+}
+.li-paste:focus { background-color: white; outline: var(--focus-outline); outline-offset: 1px; }
+
+.li-name {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    background-color: var(--field-bg);
+    color: var(--text-dark);
+    font-family: inherit;
+    font-size: var(--type-body);
+}
+.li-name:focus { background-color: white; outline: var(--focus-outline); outline-offset: 1px; }
+
+/* The status line carries three states and they must not look alike — a refusal and a summary of
+   what is about to be written are opposite messages, and this is the one screen where the reader
+   is deciding whether to trust the paste. */
+.li-status {
+    margin: var(--space-3) 0 0;
+    font-size: var(--type-small);
+    line-height: 1.45;
+    color: var(--text-mid);
+    white-space: pre-line;
+}
+.li-status--bad  { color: var(--error-text); font-weight: 600; }
+.li-status--warn { color: var(--warning-amber); }
+.li-status--ok   { color: var(--success-text); font-weight: 600; }

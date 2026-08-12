@@ -30,6 +30,23 @@ import { seedSession, seedMember, seedViewerAccess, stubPinExchange, enterPin } 
 // running against the old open model and the gate goes untested.
 test.beforeEach(async ({ page }) => { await enableCalendarPin(page); await seedViewerAccess(page); });
 
+// ── The one-time notice is suppressed by default, and scanned deliberately instead ───────────────
+// `pw-own-2026` opens on the Calendar 1,500ms after load, on a fade transition, for exactly the
+// audience these scans seed (a member with no session). Every scan of `/` therefore raced it, and
+// under full-suite load the race was sometimes lost: axe caught the overlay PART-WAY THROUGH its
+// fade and reported four SERIOUS colour-contrast failures against a background that only exists for
+// a few hundred milliseconds. The card is clean once settled — verified, and now asserted below.
+//
+// So the notice is turned off for the scans that are about something else, and gets one scan of its
+// own that waits for it. That is strictly more coverage than before: an intermittent failure nobody
+// could reproduce becomes a deterministic assertion of the state it was accidentally sampling.
+// If a later notice appears on another page, suppress it here the same way.
+test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+        try { localStorage.setItem('myb_notice_pw_own_2026_done', '1'); } catch (_) { /* noop */ }
+    });
+});
+
 
 // WCAG 2.0 + 2.1, levels A and AA — the standard staff-facing target.
 const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
@@ -322,6 +339,25 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         await expect(page.locator('.calendar-day').first()).toBeVisible();
         await page.locator('.title-icon').first().click();   // calendar header logo → About
         await expect(page.locator('#iconLightbox')).toBeVisible();
+        const v = await scan(page, { exclude: ['.other-month'] });
+        expect(v.length, report(v)).toBe(0);
+    });
+
+    test('one-time notice open (calendar) — the state the other scans used to sample by accident', async ({ page }) => {
+        // Registered AFTER the suppression in the file-level beforeEach, so this init script runs
+        // second and wins. A notice is the app's only overlay that opens on a timer rather than on
+        // a tap, which is what made it a race for everything else and why it needs its own scan:
+        // dark glass over a translucent card, every text colour an rgba white, so contrast here is
+        // decided by what is composited BEHIND it — the one arrangement in the app where a scan of
+        // some other page proves nothing at all.
+        await page.addInitScript(() => {
+            try { localStorage.removeItem('myb_notice_pw_own_2026_done'); } catch (_) { /* noop */ }
+        });
+        await seedMember(page);
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        await expect(page.locator('#pwNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+        await page.waitForTimeout(600);      // let the fade finish — mid-transition is the bug
         const v = await scan(page, { exclude: ['.other-month'] });
         expect(v.length, report(v)).toBe(0);
     });

@@ -443,7 +443,10 @@ describe('spare spread', () => {
         const every = Object.fromEntries(OBJECTIVES.map(o => [o.key, true]));
 
         for (const [lines, spareLines] of [[24, 4], [20, 4], [24, 6]]) {
-            const gen = generateLink({ slots, lines, spareLines });
+            // `requireContract: false`: since v20.98 the generator refuses targets that cannot pay the
+            // contracted week, and the roster seed cannot at this rotation. These tests are about the
+            // ORDER of the lines, which is free with respect to hours — see links-contract.test.mjs.
+            const gen = generateLink({ slots, lines, spareLines , requireContract: false });
             assert.ok(gen?.patterns, `premise: ${lines}/${spareLines} produces a design at all`);
 
             for (const [label, on] of [['every switch on', every], ['variety alone', { variety: true }]]) {
@@ -529,7 +532,7 @@ describe('maxRun', () => {
 // never the clock or Math.random, so "design 3" is the same design on every device.
 describe('reorderLines attempts', () => {
     const { slots } = buildRosterTargets();
-    const real = generateLink({ slots, lines: ROTATING_LINES, spareLines: 4 }).patterns;
+    const real = generateLink({ slots, lines: ROTATING_LINES, spareLines: 4 , requireContract: false }).patterns;
     const every = Object.fromEntries(OBJECTIVES.map(o => [o.key, true]));
     const run = (attempt) => reorderLines(real, { on: every, maxRunTarget: DEFAULT_MAX_RUN, attempt });
 

@@ -173,7 +173,18 @@ export const getDoc = () => {
     ? { exists: () => true, data: () => seeded }
     : { exists: () => false, data: () => ({}) });
 };
-export const addDoc = () => Promise.resolve(marker('docRef'));
+// addDoc RECORDS its payload too (v20.97), and for the same reason setDoc does — but it had been
+// NOTE: this comment lives INSIDE the FIREBASE_STUB template literal — no backticks, ever.
+// the blind spot: addDoc is how EVERY design is created (new, duplicate, generated, imported), so
+// the one write path nothing could inspect was the one that brings a design into existence. A spec
+// could see a chip appear and nothing about what the chip stands for, which is exactly the gap the
+// import's two-step confirm is there to close for the user.
+export const addDoc = (/** @type {any} */ ref, /** @type {any} */ data) => {
+  const e2e = globalThis.__E2E || (globalThis.__E2E = {});
+  e2e.setWrites = e2e.setWrites || [];
+  e2e.setWrites.push({ path: (ref && ref.path) || '', data, merge: false, added: true });
+  return Promise.resolve(marker('docRef'));
+};
 // setDoc RECORDS its payload (v19.41), for the same reason writeBatch does: a test that can only
 // see the UI is checking the SUMMARY of a write, not the write. The Links soft delete is exactly
 // that trap — a hard delete and a soft delete BOTH make the design vanish from the picker, so

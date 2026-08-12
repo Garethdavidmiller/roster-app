@@ -276,3 +276,49 @@ export function seedViewerAccess(page) {
         try { sessionStorage.setItem('__e2e_viewer', '1'); } catch (_) { /* private mode */ }
     });
 }
+
+/**
+ * Seed the generator's target table with one that pays the CONTRACTED WEEK exactly.
+ *
+ * Needed since v20.98, when the generator began refusing targets that cannot pay 35h a week
+ * ex-Sunday. The roster seed cannot: today's duties pay 16 working lines, and the December 2026
+ * rotation has 19 — which is the whole point of the rule, and it is asserted directly in
+ * `links-contract.test.mjs`. So every spec that presses Generate has to bring work with it.
+ *
+ * ⚠️ IT SEEDS ONE KEY PER DESIGN ID, not just the unsaved one. The coordinator reads
+ * `myb_links_gen_<activeDesignId>` and falls back to `myb_links_gen_unsaved` only while no design
+ * is active — so a spec whose fixture seeds designs (`d1`, `d2`, which most links specs do) was
+ * reading a key this helper had never written, and pressed Generate against the roster seed exactly
+ * as before. It failed in the FULL suite and passed in every targeted run I checked it with, which
+ * is the shape of a fixture that is silently doing nothing.
+ *
+ * The arithmetic, so a future edit can keep it true: 19 working lines x 35h = 39,900 minutes.
+ *   06:20-14:20 (480m) x (5x6 + 4) = 16,320
+ *   11:00-19:30 (510m) x (5x3 + 3) =  9,180
+ *   15:25-23:25 (480m) x (5x6 + 0) = 14,400
+ *                                   -------
+ *                                    39,900
+ * Three shift times rather than one, because the specs that use this are about line ORDER and the
+ * analysis panels — both of which are uninteresting on a design where every line works the same
+ * duty. `myb_links_gen_unsaved` is the key the coordinator reads before a design is active.
+ *
+ * FEWER SPARE WEEKS MEANS MORE WORK, and the table has to grow with it: the gate is per WORKING
+ * line, so the three slots above stop paying the moment a caller asks for `spareLines` below the
+ * default. A fourth slot tops it up at exactly one contracted week per extra working line — one
+ * weekday count of a 7-hour turn is 5 x 420 = 2,100 minutes = 35h — so the caller gets a table that
+ * still pays the contract exactly, whatever shape they asked for. More spare weeks than the default
+ * needs no adjustment: over the contract is allowed (see `links-contract.test.mjs`).
+ */
+export function seedContractTargets(page, { spareLines = 5, designIds = ['unsaved', 'd1', 'd2'] } = {}) {
+    return page.addInitScript(([spare, ids]) => {
+        const slots = [
+            { time: '06:20-14:20', weekday: 6, sat: 4, sun: 0 },
+            { time: '11:00-19:30', weekday: 3, sat: 3, sun: 0 },
+            { time: '15:25-23:25', weekday: 6, sat: 0, sun: 0 },
+        ];
+        const extraLines = (24 - spare) - 19;
+        if (extraLines > 0) slots.push({ time: '07:00-14:00', weekday: extraLines, sat: 0, sun: 0 });
+        const targets = JSON.stringify({ slots, spareLines: spare });
+        for (const id of ids) localStorage.setItem('myb_links_gen_' + id, targets);
+    }, [spareLines, designIds]);
+}

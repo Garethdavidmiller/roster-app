@@ -563,9 +563,15 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // contracted hours using time that is not contracted. It is shown separately instead — it
         // is real work and real pay, it is just not part of this comparison.
         //
-        // The cover weeks come out of the DENOMINATOR for a different reason: they carry no times,
-        // so dividing by all 24 lines charges the average with four weeks of zero and reports a
-        // number nobody works. Both exclusions are stated in the row rather than assumed.
+        // COVER WEEKS ARE COUNTED AT A FULL CONTRACTED WEEK, and the average is over the WHOLE
+        // rotation (v20.98, owner). They were excluded from both halves until then, on the reasoning
+        // that they carry no times and dividing by all the lines would charge the average with weeks
+        // of zero. The premise was right and the conclusion was not: the answer is to stop treating
+        // a cover week as zero, not to leave it out. It is somebody's paid, contracted week.
+        //
+        // Individual weeks vary widely — 22h on one line, 42h on another — and only the AVERAGE is
+        // the contract. That is what this row states, and it is why it is stated as an average
+        // across all the lines rather than as a figure "on each" of them.
         const wh = weeklyHours(design.patterns, TOTAL_POS);
         if (wh.exSunday !== null) {
             // A THRESHOLD IS DEFENSIBLE HERE, unlike the ORR factors — 35 is the contract, not
@@ -580,16 +586,23 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             rows.push(
                 `<div class="check-row ${onTarget ? 'check-good' : 'check-warn-row'}">` +
                 `${onTarget ? tick : warn}<div class="check-body">` +
-                `<strong>Hours a week</strong> — ${hm(wh.exSunday)} on each of the ${wh.workingLines} working lines` +
+                `<strong>Hours a week</strong> — ${hm(wh.exSunday)} averaged across all ${wh.lines} lines` +
                 (wh.complete ? '' : ` <strong>(partial)</strong>`) +
                 `<span class="check-note"> (contracted: ${CONTRACTED_HOURS_PER_WEEK}h, Sundays excluded)</span>` +
                 (onTarget ? '' :
                     `<div class="check-sub">${off < 0
                         ? `<strong>${hm(Math.abs(off))} a week short of contract.</strong> The same work spread over more lines gives each person less of it — adding lines without adding duties does this.`
                         : `<strong>${hm(off)} a week over contract.</strong> The surplus has to be paid as overtime or absorbed by adding lines.`}</div>`) +
-                `<div class="check-sub">Sundays are not contracted, so they are left out of that figure` +
+                `<div class="check-sub">Individual weeks vary — the average is what the contract asks for. ` +
+                `Sundays are not contracted, so they are left out of it` +
                 (wh.sundayDuties ? ` — ${wh.sundayDuties} Sunday duties, ${hm(wh.sundayHours)} across the rotation, on top` : '') +
-                `. The ${wh.coverLines} cover week${wh.coverLines === 1 ? '' : 's'} carry no times, so they are not in the average either.</div>` +
+                `.` +
+                (wh.coverLines
+                    ? ` The ${wh.coverLines} cover week${wh.coverLines === 1 ? ' counts' : 's count'} as a full `
+                      + `${CONTRACTED_HOURS_PER_WEEK}h week — no times are stored against ${wh.coverLines === 1 ? 'it' : 'them'}, `
+                      + `but ${wh.coverLines === 1 ? 'it is' : 'they are'} paid weeks.`
+                    : '') +
+                `</div>` +
                 (wh.unreadable
                     ? `<div class="check-sub">${wh.unreadable} worked cell${wh.unreadable === 1 ? '' : 's'} could not be read as a time and added no hours — the real figure is higher.` +
                       (wh.unreadableLines

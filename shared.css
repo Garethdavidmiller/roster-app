@@ -665,19 +665,32 @@ body.lb-open #stickyTotal { display: none !important; }
     transition: transform var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
 }
 .dialog-btn:active { transform: scale(var(--press-scale)); }
-.dialog-btn-cancel {           /* = .btn-secondary */
+/* ── THE `-confirm`/`-cancel` MODIFIERS ARE ALSO AN IDENTITY, NOT ONLY A COLOUR ─────────────────
+   `confirmDialog`/`promptDialog` BUILD their dialog and remove it on close, so at any moment at
+   most one `.dialog-btn-confirm` exists — which is what lets a caller (and every e2e spec) mean
+   "the affirmative of the dialog that is open" by it. Static markup wearing the same class breaks
+   that permanently: the links Import panel did, at v20.98, and `.dialog-btn-confirm` then resolved
+   to a button inside a CLOSED lightbox, timing out sixteen tests that had nothing to do with it.
+   A static panel that wants this treatment takes `.panel-btn-*` below instead — same recipe, one
+   declaration, no claim to be an open dialog. */
+.dialog-btn-cancel,
+.panel-btn-cancel {            /* = .btn-secondary */
     background: white;
     border-color: var(--border-mid);
     color: var(--primary-blue);
 }
-.dialog-btn-confirm {          /* = .btn-primary */
+.dialog-btn-confirm,
+.panel-btn-confirm {           /* = .btn-primary */
     background: var(--primary-blue);
     color: white;
 }
-.dialog-btn-confirm.danger { background: var(--error-red); }
+.dialog-btn-confirm.danger,
+.panel-btn-confirm.danger { background: var(--error-red); }
 @media (hover: hover) and (pointer: fine) {
-    .dialog-btn-cancel:hover  { background: var(--bg-light); }
-    .dialog-btn-confirm:hover { background: var(--primary-blue-dark); }
+    .dialog-btn-cancel:hover,
+    .panel-btn-cancel:hover  { background: var(--bg-light); }
+    .dialog-btn-confirm:hover,
+    .panel-btn-confirm:hover { background: var(--primary-blue-dark); }
     .dialog-btn-confirm.danger:hover { background: var(--error-banner); }
 }
 
