@@ -669,6 +669,7 @@ Row states, and what each means:
 | **Form open** | Staff can answer. The page opens on the earliest of these — the week being planned. |
 | **Form closed** | Created, and past its final deadline. Still readable; that is the record the roster was planned from. |
 | **Opens automatically overnight** | No form yet, and none needed by hand — tonight's run will make it. |
+| **Did not open overnight · create it here** | The last nightly run was due to open this week and did not. Press **Open now** on the row; that fixes the week whether or not the run itself is ever diagnosed. Investigate only if it repeats — the Functions log for `autoCreateOvertimeWindows` says what happened. |
 | **No form yet · first deadline has passed** | Still opens automatically, but late enough to be worth a look: anyone answering now misses the draft roster. |
 | **Missed · no form was opened, so nobody was asked** | The final deadline went by with no window. It cannot be recovered, and the row stays until its Saturday passes. |
 

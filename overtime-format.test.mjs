@@ -15,6 +15,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
     clockOffset, submitDisposition, shouldResyncClock, SUBMIT_GRACE_MS, DEADLINE_SYNC_WINDOW_MS,
     shortDate, longDate, weekLabel, weekSpan, deadlineLabel, phaseCopy, rowStateCopy,
@@ -299,6 +300,21 @@ describe('dates and deadlines', () => {
     });
 });
 
+/**
+ * The row states the SERVER can send, read out of `windowRowState`'s own return type.
+ *
+ * Hand-listing them here is what let `created-closed` sit unchecked: the loops below named four of
+ * the five states that existed, and their silence about the fifth was indistinguishable from
+ * success. A state added to the core without copy added here falls through `rowStateCopy`'s default
+ * and renders as "Missed · nobody was asked" — the loudest possible wrong answer.
+ */
+const ROW_STATES = (() => {
+    const src = readFileSync(new URL('./functions/overtime-core.js', import.meta.url), 'utf8');
+    const m = src.match(/@returns \{('(?:[a-z-]+)'(?:\|'(?:[a-z-]+)')*)\}\s*\*\/\s*function windowRowState/);
+    assert.ok(m, 'could not read windowRowState\'s return type — has it been renamed?');
+    return m[1].split('|').map(x => x.replace(/'/g, ''));
+})();
+
 describe('states in words', () => {
     test('each phase has calm, factual copy and no countdown', () => {
         // Both open phases must SAY they are open — that is the one fact a member needs from this
@@ -355,16 +371,44 @@ describe('states in words', () => {
         assert.match(missed.label, /no form was opened/);
         // WINDOW is our word for the stored record, never the reviewer's. The page calls it a
         // form everywhere a person can see, and this label was the one place it leaked.
-        for (const st of ['created', 'not-created', 'not-created-initial-passed', 'missed']) {
+        for (const st of ROW_STATES) {
             assert.doesNotMatch(rowStateCopy(st).label, /window/i, st);
         }
         assert.equal(missed.tone, 'bad');
     });
 
-    test('the four states have distinct labels and escalating tone', () => {
-        const labels = ['created', 'not-created', 'not-created-initial-passed', 'missed'].map(rowStateCopy);
-        assert.equal(new Set(labels.map(l => l.label)).size, 4);
-        assert.deepEqual(labels.map(l => l.tone), ['ok', 'warn', 'bad', 'bad']);
+    test('every state the server can send has its own label and a deliberate tone', () => {
+        // ROW_STATES is read from the server's own return type, so a state added there without copy
+        // here fails HERE rather than in production — where it would fall through to the `missed`
+        // default and tell a reviewer nobody was asked about a week that is perfectly healthy.
+        const TONES = {
+            'created':                    'ok',
+            'created-closed':             'done',
+            'not-created':                'warn',
+            'not-created-overdue':        'bad',
+            'not-created-initial-passed': 'bad',
+            'missed':                     'bad',
+        };
+        assert.deepEqual([...ROW_STATES].sort(), Object.keys(TONES).sort(),
+            'a row state exists that this suite has never been told about');
+        const labels = ROW_STATES.map(rowStateCopy);
+        assert.equal(new Set(labels.map(l => l.label)).size, ROW_STATES.length,
+            'two states sharing a label means one of them is invisible to a reviewer');
+        for (const st of ROW_STATES) assert.equal(rowStateCopy(st).tone, TONES[st], st);
+    });
+
+    test('a week the schedule failed to open stops promising that it will', () => {
+        // The B6 defect. `not-created` reassures — correctly, right up until an overnight run has
+        // been and gone without creating the week, after which the row repeats that reassurance
+        // every day for as long as the fault lasts. Two properties, and they are separable: the
+        // promise has to GO, and something has to replace it that a reviewer can act on.
+        const due  = rowStateCopy('not-created');
+        const stuck = rowStateCopy('not-created-overdue');
+        assert.match(due.label, /automatically/i, 'fixture no longer exercises this');
+        assert.doesNotMatch(stuck.label, /automatically|overnight will|will open/i,
+            'a stuck week must not keep promising the schedule will handle it');
+        assert.match(stuck.label, /create/i, 'and must point at the thing the reviewer CAN do');
+        assert.equal(stuck.tone, 'bad', 'warn is the tone of "no action needed" — this needs one');
     });
 
     test('an unknown state falls back to the LOUDEST reading, not the quietest', () => {

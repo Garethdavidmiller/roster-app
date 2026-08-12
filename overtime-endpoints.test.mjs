@@ -455,14 +455,58 @@ describe('getOvertimeManagerOverview — the missing window is the point', () =>
         assert.equal(r.code, 200);
         assert.equal(r.body.planningWeeks.length, OT.PLANNING_WEEKS);
         assert.ok(r.body.planningWeeks.every(w => w.exists === false));
+        //
+        // The tail reads `not-created-overdue` rather than `not-created` BECAUSE the database is
+        // empty: this fixture describes a station where the schedule has never once run, so the
+        // weeks it was due to create this morning and did not are exactly that. The healthy
+        // steady state is asserted separately below.
         assert.deepEqual(r.body.planningWeeks.slice(0, 4).map(w => [w.weekEnding, w.state]), [
             ['2026-08-22', 'missed'],
             ['2026-08-29', 'missed'],
             ['2026-09-05', 'not-created-initial-passed'],
-            ['2026-09-12', 'not-created'],
+            ['2026-09-12', 'not-created-overdue'],
         ]);
-        assert.ok(r.body.planningWeeks.slice(4).every(w => w.state === 'not-created'),
-            'every week beyond the escalating prefix is simply not created yet');
+        assert.ok(r.body.planningWeeks.slice(4).every(w => w.state === 'not-created-overdue'),
+            'every week beyond the escalating prefix was due this morning and is not there');
+    });
+
+    test('a healthy schedule is silent — the weeks it made say nothing about overnight', async () => {
+        // The other half of the pair, and the half that decides whether the warning is worth
+        // anything: a marker that fires on a working system is a marker a reviewer learns to
+        // ignore, and then it is not there when it matters. Everything the last 05:00 run was due
+        // to create exists, so nothing may be flagged.
+        const NOW = Date.parse('2026-08-19T09:00:00Z');
+        freeze(NOW);
+        const due = OT.weeksNeedingWindows(OT.lastSchedulerRun(NOW), [], { maxRosterYear: 2030 });
+        assert.ok(due.length >= 2, 'fixture no longer exercises this');
+        const { eps } = build(Object.fromEntries(due.map(w => [
+            `overtimeWindows/${w}`, { ...OT.deriveMilestones(w), audience: 'restricted' },
+        ])));
+        const rows = (await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager'))).body.planningWeeks;
+        unfreeze();
+        assert.ok(rows.every(w => w.state !== 'not-created-overdue'),
+            rows.filter(w => w.state === 'not-created-overdue').map(w => w.weekEnding).join(', '));
+        // And the weeks it could never have created are untouched by any of this.
+        assert.equal(rows.find(w => w.weekEnding === '2026-08-22').state, 'missed');
+    });
+
+    test('a week that only entered the horizon AFTER the last run is not called overdue', async () => {
+        // The one false positive worth designing against. The horizon rolls over at midnight on a
+        // Sunday and the job runs at 05:00, so for five hours a week exists on the page that no run
+        // has ever been asked to create. Accusing the schedule there would fire every single week,
+        // and a weekly false alarm is how a real one gets ignored.
+        const NOW = Date.parse('2026-08-23T02:00:00Z');   // Sunday, 03:00 London — before 05:00
+        freeze(NOW);
+        const newest = OT.planningWeekEndings(NOW).at(-1);
+        const dueAtLastRun = OT.weeksNeedingWindows(OT.lastSchedulerRun(NOW), [], { maxRosterYear: 2030 });
+        assert.ok(!dueAtLastRun.includes(newest), 'fixture no longer exercises this');
+        const { eps } = build(Object.fromEntries(dueAtLastRun.map(w => [
+            `overtimeWindows/${w}`, { ...OT.deriveMilestones(w), audience: 'restricted' },
+        ])));
+        const rows = (await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager'))).body.planningWeeks;
+        unfreeze();
+        assert.equal(rows.find(w => w.weekEnding === newest).state, 'not-created',
+            'the newest row is simply waiting for tonight, and must say so');
     });
 
     test('a missed week offers no Create, and a recoverable one does', async () => {

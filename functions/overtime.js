@@ -519,6 +519,16 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
             const byWeek = new Map();
             for (const d of snap.docs) byWeek.set(d.id, d.data());
 
+            // Which weeks the LAST scheduled run was due to create. Anything still missing from that
+            // list is a run that did not do its job — the one fault this horizon exists to catch and
+            // the one it was, until now, actively concealing: a missing week says "opens
+            // automatically overnight", and it keeps saying it every day after the overnight that
+            // never came. Re-running the scheduler's own decision function at its own last boundary
+            // is what makes this an observation rather than a guess, and it needs nothing stored.
+            const overdue = new Set(OT.weeksNeedingWindows(
+                OT.lastSchedulerRun(nowMs), byWeek.keys(),
+                { maxRosterYear: rosterMembers.maxRosterYear }));
+
             // Counts for every existing week are fetched in PARALLEL. Awaited inside the loop they
             // were six sequential pairs of round trips, which is the difference between a page that
             // opens and a page that hesitates — for data that has no ordering between weeks at all.
@@ -559,7 +569,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
                 planningWeeks.push({
                     ...milestones,
                     exists: !!doc,
-                    state: OT.windowRowState(milestones, nowMs, !!doc),
+                    state: OT.windowRowState(milestones, nowMs, !!doc, overdue.has(weekEnding)),
                     audience: doc ? doc.audience : null,
                     audienceCount,
                     canCreate: !doc && OT.validateWeekEnding(weekEnding, {

@@ -59,6 +59,19 @@ const MILESTONE_OFFSETS = Object.freeze({
 const DEADLINE_HOUR_LONDON = 12;
 
 /**
+ * The local hour the daily create-the-missing-weeks job runs at.
+ *
+ * ⚠️ This must equal the hour in `autoCreateOvertimeWindows`'s cron (`'0 5 * * *'`, Europe/London).
+ * It is declared here because the horizon needs to know when the job LAST ran in order to say
+ * whether a week it should already have created is overdue — and a horizon that guesses that hour
+ * would either accuse a healthy schedule or excuse a broken one.
+ *
+ * 05:00 is safe from both pathologies `londonTimestamp` warns about: the UK moves its clocks at
+ * 01:00–02:00 local, so 05:00 exists exactly once on every date of the year.
+ */
+const SCHEDULER_HOUR_LONDON = 5;
+
+/**
  * How far ahead staff are asked to declare availability, counted in weeks they can ANSWER for.
  *
  * ── THIS IS THE PRODUCT DECISION; `PLANNING_WEEKS` BELOW IS ARITHMETIC ──────────────────────────
@@ -168,6 +181,28 @@ function londonTimestamp(isoDate, hour) {
 /** The instant of 12:00 Europe/London on `isoDate` — the availability deadline clock. */
 function londonNoonTimestamp(isoDate) {
     return londonTimestamp(isoDate, DEADLINE_HOUR_LONDON);
+}
+
+/**
+ * The most recent daily-scheduler boundary at or before `nowMs`.
+ *
+ * The whole of B6 rests on this one instant. The horizon tells a reviewer a missing week "opens
+ * automatically overnight", which is true right up until the overnight run fails — after which the
+ * row keeps saying it, indefinitely, and the reassurance becomes the fault. Comparing what the run
+ * at THIS instant was due to create against what actually exists turns a silent scheduler failure
+ * into a visible one, with no new stored state and nothing for the job itself to remember to write.
+ *
+ * The previous day is reached with `addDays` on the CALENDAR date, never by subtracting 24 hours:
+ * on a transition day the two differ by an hour, and 04:00 or 06:00 on the wrong side of the
+ * boundary would move the answer by a whole run.
+ * @param {number} nowMs
+ * @returns {number} epoch ms
+ */
+function lastSchedulerRun(nowMs) {
+    const today = londonIsoDate(nowMs);
+    const todayRun = londonTimestamp(today, SCHEDULER_HOUR_LONDON);
+    if (todayRun <= nowMs) return todayRun;
+    return londonTimestamp(addDays(today, -1), SCHEDULER_HOUR_LONDON);
 }
 
 /** The instant of 00:00 Europe/London on `isoDate` — used as the retention expiry boundary. */
@@ -352,11 +387,25 @@ function weeksNeedingWindows(nowMs, existingWeekEndings, { maxRosterYear }) {
  * "this is a record". Deciding it HERE, from the stored milestones and the server's clock, keeps it
  * out of the browser — a horizon that read a phone's clock would put a week either side of its
  * deadline depending on whose phone was reading it.
- * @returns {'created'|'created-closed'|'not-created'|'not-created-initial-passed'|'missed'}
+ * ── AND A WEEK THAT WILL OPEN IS NOT ONE THAT ALREADY SHOULD HAVE ───────────────────────────────
+ *
+ * `not-created` promises the reviewer that the schedule will handle it. That promise is only worth
+ * making while it is still true. Once a run has come and gone without creating a week it was due to
+ * create, the same row keeps offering the same reassurance — every day, for as long as the fault
+ * lasts — and the horizon stops being the monitor over the scheduler and starts being its alibi.
+ * `autoOverdue` is that distinction and nothing more; the caller decides it (see
+ * `lastSchedulerRun`), because only the caller knows which weeks exist.
+ *
+ * @param {number} nowMs
+ * @param {boolean} exists
+ * @param {boolean} [autoOverdue] true when the last scheduled run was due to create this week and
+ *   did not. Ignored unless the week is missing and still inside its initial deadline — past that
+ *   the row is already reporting something worse.
+ * @returns {'created'|'created-closed'|'not-created'|'not-created-overdue'|'not-created-initial-passed'|'missed'}
  */
-function windowRowState(milestones, nowMs, exists) {
+function windowRowState(milestones, nowMs, exists, autoOverdue = false) {
     if (exists) return nowMs >= milestones.finalDeadlineAt ? 'created-closed' : 'created';
-    if (nowMs < milestones.initialDeadlineAt) return 'not-created';
+    if (nowMs < milestones.initialDeadlineAt) return autoOverdue ? 'not-created-overdue' : 'not-created';
     if (nowMs < milestones.finalDeadlineAt)   return 'not-created-initial-passed';
     return 'missed';
 }
@@ -643,6 +692,8 @@ module.exports = {
     POLICY_VERSION,
     MILESTONE_OFFSETS,
     DEADLINE_HOUR_LONDON,
+    SCHEDULER_HOUR_LONDON,
+    lastSchedulerRun,
     ANSWERABLE_WEEKS,
     PLANNING_WEEKS,
     MAX_PARTICIPANTS_PER_WINDOW,

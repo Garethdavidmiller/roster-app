@@ -88,6 +88,10 @@ export const CARD_TIPS = {
                 heading: 'When something is missing',
                 items: [
                     { icon: '#️⃣', html: 'The count beside the card title is what is <strong>missing</strong> — “2 without a form” — not how many weeks are listed. “All created” means there is nothing to do here.' },
+                    // Added with the state itself (v20.94). Without it, "Weeks open by themselves"
+                    // above is the only thing this panel says about the schedule, and a reviewer
+                    // who has been told that will read a stuck week as normal.
+                    { icon: '🌑', html: '<strong>Did not open overnight</strong> means the automatic run was due to open that week and did not. Use <strong>Open now</strong> on the row — it works whether or not anyone has worked out why the run stopped.' },
                     { icon: '⚠️', html: '<strong>Missed</strong> means no form was ever opened, so nobody was asked and nobody is outstanding. It never means nobody was needed.' },
                     { icon: '🚫', html: 'Once a week\'s final deadline has passed it can no longer be opened, and the row stays as <strong>Missed</strong> until that Saturday goes by.' },
                 ],

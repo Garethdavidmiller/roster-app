@@ -381,6 +381,12 @@ export function rowStateCopy(state) {
         // "Not created" beside a prominent Create button, which asks a manager to do a job the
         // system now does — they would either do it redundantly or assume something was broken.
         case 'not-created':                return { label: 'Opens automatically overnight', tone: 'warn' };
+        // The same week, after the overnight that did not come. A reassurance is only worth giving
+        // while it is true, and this one repeats itself daily for as long as the schedule is broken —
+        // so the row would keep promising the fix right up to the deadline it then missed. Naming
+        // the Create button is deliberate: the reviewer cannot restart a scheduled job, and the
+        // button beside this label works whether or not anyone ever diagnoses why the job stopped.
+        case 'not-created-overdue':        return { label: 'Did not open overnight · create it here', tone: 'bad' };
         // Still opens automatically, but late enough to be worth a look: the first deadline has
         // gone, so anyone answering now misses the draft roster.
         case 'not-created-initial-passed': return { label: 'No form yet · first deadline has passed', tone: 'bad' };

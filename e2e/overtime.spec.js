@@ -475,6 +475,27 @@ test.describe('manager surface', () => {
         await expect(page.locator('#otWeekHint')).toContainText('22 August 2026');
     });
 
+    test('a week the schedule failed to open says so, and promotes its button', async ({ page }) => {
+        // Two things only a browser can answer. The row must stop carrying the reassurance — the
+        // unit suites pin the LABEL, but not that this row renders it — and the Open now button
+        // must be the prominent control here, which is the exact inversion of every other
+        // uncreated row. A recessive button under a red label reads as "nothing you can do".
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { weeks: [
+            { ...W, weekEnding: '2026-09-12', exists: false, state: 'not-created-overdue', canCreate: true },
+            { ...W, weekEnding: '2026-09-19', exists: false, state: 'not-created', canCreate: true },
+        ] });
+        await page.goto('/overtime.html');
+        const stuck = page.locator('.ot-week-row', { hasText: '12 September' });
+        await expect(stuck).toContainText('Did not open overnight');
+        await expect(stuck).not.toContainText('Opens automatically');
+        await expect(stuck.locator('.ot-row-btn--primary')).toHaveText('Open now');
+        // And the healthy row beside it keeps the quiet treatment, so the contrast is the signal.
+        const fine = page.locator('.ot-week-row', { hasText: '19 September' });
+        await expect(fine).toContainText('Opens automatically overnight');
+        await expect(fine.locator('.ot-row-btn--primary')).toHaveCount(0);
+    });
+
     test('with no week created at all, nothing is force-opened', async ({ page }) => {
         // Guard the guard: auto-opening must not invent a selection when there is none to make,
         // which would leave an empty card asserting a week that does not exist.

@@ -626,7 +626,11 @@ export function init() {
                 // button is the "I want it now" shortcut rather than the thing a reviewer must
                 // remember to press. Making it the loudest control on the row would teach a habit
                 // the system exists to remove.
-                ? `<button type="button" class="ot-row-btn" data-create="${esc(w.weekEnding)}">Open now</button>`
+                //
+                // Unless the schedule has already failed this week (v20.94), where that reasoning
+                // inverts exactly: the system is not going to do it, the label says so, and a
+                // recessive button under a red label reads as "nothing you can do".
+                ? `<button type="button" class="ot-row-btn${w.state === 'not-created-overdue' ? ' ot-row-btn--primary' : ''}" data-create="${esc(w.weekEnding)}">Open now</button>`
                 : '');
         return `
             <div class="ot-week-row ot-week-row--${tone}">
