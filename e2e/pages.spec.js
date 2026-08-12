@@ -1847,14 +1847,49 @@ test('links: the roster seed samples the whole MAIN cycle and nothing else', asy
     // relieve an FF11 finding that turned out at v20.02 to be the line-order optimiser clustering the
     // cover weeks; cause fixed, uplift reverted (owner).
     //
-    // Driven through the real "Reset targets from current roster" button, because what only a browser
-    // can prove is that the BUTTON reaches the seed and repaints the table.
+    // Driven through the real "Load today's roster instead" button, because what only a browser can
+    // prove is that the BUTTON reaches the seed and repaints the table.
+    //
+    // v21.00: the card no longer OPENS on the seed — it opens on the designed default, which is
+    // five cover weeks. So this now walks all three states, and the middle one is the assertion
+    // that used to stand alone. Checking the seed's 4 by itself would pass just as happily if the
+    // default button were wired to the seed as well, which is the mistake two buttons invite.
     await page.setViewportSize({ width: 390, height: 1000 });
     await seedSession(page, 'G. Miller');
     await openLinks(page);
     await page.locator('#generatorToggleHeader').click();
+    await expect(page.locator('#genSpareLines')).toHaveValue('5');   // the default, unprompted
     await page.locator('#genSeedBtn').click();
-    await expect(page.locator('#genSpareLines')).toHaveValue('4');
+    await expect(page.locator('#genSpareLines')).toHaveValue('4');   // today's roster, measured
+    await page.locator('#genDefaultBtn').click();
+    await expect(page.locator('#genSpareLines')).toHaveValue('5');   // and back
+});
+
+test('links: Generate works on a card nobody has touched', async ({ page }) => {
+    // The whole reason the default changed (v21.00). The roster seed cannot pay a 24-line rotation,
+    // and since v20.98 the generator refuses a table that misses the contracted week — so a designer
+    // opening the workspace and pressing Generate met a refusal before typing anything.
+    //
+    // Asserted end to end rather than on the arithmetic, which links-default-targets.test.mjs
+    // already pins: what only a browser answers is whether the table that reaches `generateLink` is
+    // the one the module exports. Nothing else in the suite would notice — every other links spec
+    // seeds its own targets first, precisely so it does not depend on what the default happens to be.
+    await page.setViewportSize({ width: 1280, height: 1200 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
+    });
+    await page.goto('/links.html');
+    await page.waitForTimeout(700);
+    await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+    await page.locator('#genApplyBtn').click({ force: true });
+    const ok = page.locator('.dialog-btn-confirm');
+    if (await ok.count()) await ok.first().click();
+    await expect(page.locator('#genError')).toHaveText('');
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
+    // And the design it built pays the contract — the summary chip is where a designer reads that.
+    await expect(page.locator('#linksSummary')).toContainText('35h');
 });
 
 test('links: the rotation length the in-page fixtures assume', () => {

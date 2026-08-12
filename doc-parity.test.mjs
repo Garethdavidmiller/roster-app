@@ -22,8 +22,10 @@
  * judgement, the `SECURITY_RELEASE_PLAN.md` status table says "update it HERE and nowhere else".
  * This file applies that discipline to the docs themselves.
  *
- * TWO CONTRACTS, deliberately narrow. A general "the docs describe the code correctly" test cannot
- * be written; these are the two mechanical properties that actually failed.
+ * NARROW CONTRACTS, deliberately. A general "the docs describe the code correctly" test cannot be
+ * written; these are the mechanical properties that actually failed. Contract 1 grew a wiring half
+ * at v21.00: a test file may be listed in CLAUDE.md and still be run by nothing, which is the worst
+ * of both — the listing is what a reader checks, and the suite passes by never executing.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -84,6 +86,43 @@ test('every root TEST file is listed in CLAUDE.md', () => {
     const missing = tests.filter(f => !CLAUDE.includes(f));
     assert.deepEqual(missing, [],
         'these test files exist but CLAUDE.md does not list them:\n  ' + missing.join('\n  '));
+});
+
+// A test file that is LISTED and never RUN is worse than one that is neither, because the listing
+// is what a reader checks. `links-contract.test.mjs` shipped at v20.98 as the gate on a money-
+// affecting rule, was teeth-verified by mutation, was written up in CLAUDE.md as "Part of
+// test:hygiene" — and was never added to the runner. It sat green for two releases by not existing
+// as far as `npm test` was concerned, and the only reason it was found is that a later edit to the
+// same script put the list in front of someone. Contract 1 above cannot see this: listing a file in
+// a doc and wiring it into a runner are different acts, and it only checks the first.
+//
+// Checked against package.json rather than against the doc, because the runner is what actually
+// runs. The exemptions are the suites with a home of their own, each named individually so a new
+// unrun file cannot arrive by matching a pattern.
+const RUNNER_EXEMPT = new Set([
+    'firestore.rules.test.mjs',       // npm run test:rules — needs the Firebase emulator binary
+    'storage.rules.test.mjs',         // npm run test:rules — same
+    'roster-parse-helpers.test.mjs',  // npm run test:functions — needs functions/node_modules
+    'functions-surface.test.mjs',     // npm run test:functions — requires functions/index.js
+    'overtime-endpoints.test.mjs',    // npm run test:functions — same
+]);
+
+test('every root TEST file is actually RUN by one of the npm scripts', () => {
+    const pkg = read('./package.json');
+    const scripts = JSON.parse(pkg).scripts;
+    const wired = Object.entries(scripts)
+        .filter(([name]) => name.startsWith('test'))
+        .map(([, cmd]) => cmd).join(' ');
+    const unrun = tests.filter(f => !RUNNER_EXEMPT.has(f) && !wired.includes(f));
+    assert.deepEqual(unrun, [],
+        'these test files exist but no npm script runs them — they pass by never executing:\n  ' +
+        unrun.join('\n  '));
+});
+
+test('and every runner exemption still exists — guard the guard', () => {
+    // An exemption for a deleted file is a hole the next same-named file falls into silently.
+    const gone = [...RUNNER_EXEMPT].filter(f => !tests.includes(f));
+    assert.deepEqual(gone, [], 'exempted files that no longer exist: ' + gone.join(', '));
 });
 
 test('the file list itself is non-empty — guard the guard', () => {
