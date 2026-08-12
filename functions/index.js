@@ -697,8 +697,8 @@ Object.assign(exports, buildAuthEndpoints({
 
 // ── Overtime Availability ────────────────────────────────────────────────────
 // The OVERTIME domain — createOvertimeWindow, autoCreateOvertimeWindows,
-// getOvertimeManagerOverview, getMyOvertimeState, submitOvertimeAvailability and
-// withdrawOvertimeParticipant —
+// getOvertimeManagerOverview, getMyOvertimeState, submitOvertimeAvailability,
+// withdrawOvertimeParticipant and purgeExpiredOvertimeWindows —
 // lives in ./overtime.js, with
 // every RULE next door in ./overtime-core.js (pure, no emulator needed). It is handed
 // the GENERATED roster rather than reading it itself: `overtimeRoster` (who exists,
@@ -708,6 +708,14 @@ Object.assign(exports, buildAuthEndpoints({
 // overtime-core's `selectParticipants` — see its header for why it does not live here.
 Object.assign(exports, buildOvertimeEndpoints({
     ADMIN_FUNCTION_ORIGINS, rosterMembers,
+    // The retention purge ships DISARMED: it walks the whole tree daily and logs exactly what it
+    // would remove, deleting nothing. It is the only irreversible thing the feature does and it
+    // runs unattended, so the walk gets proved against real documents while its mistakes are still
+    // only log lines. Read a run of `[purgeExpiredOvertimeWindows]` in the Functions log, check the
+    // weeks and the counts, then set this true. Nothing anyone SEES changes either way — both read
+    // endpoints already omit expired windows, which is why arming it is safe to defer and why
+    // deferring it is not free (the data is still there).
+    purgeArmed: false,
 }));
 
 

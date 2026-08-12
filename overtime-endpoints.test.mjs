@@ -131,9 +131,12 @@ function makeDb(seed = {}, onRead = null) {
             const ops = [];
             return {
                 set: (ref, data) => ops.push([ref.path, data]),
+                delete: (ref) => ops.push([ref.path, null]),
                 // Commit is all-or-nothing here too, so a test that expects atomicity is testing
                 // the same property production relies on rather than a looser fake.
-                commit: async () => { for (const [p, d] of ops) store.set(p, d); },
+                commit: async () => {
+                    for (const [p, d] of ops) { if (d === null) store.delete(p); else store.set(p, d); }
+                },
             };
         },
         runTransaction: async (fn) => fn({
@@ -233,13 +236,15 @@ const allDay = () => Object.fromEntries(DATES.map(d => [d, { mode: 'all_day' }])
 const noDays = () => Object.fromEntries(DATES.map(d => [d, { mode: 'unavailable' }]));
 
 /** Build the endpoints against a fresh fake world. Returns handlers + the store for assertions. */
-function build(seed = {}) {
+function build(seed = {}, opts = {}) {
     const db = makeDb(seed);
     installFakeAdmin(db, TOKENS);
     // Require AFTER the cache injection, and fresh each time, so the module binds the fake.
     delete require.cache[require.resolve('./functions/overtime.js')];
     const { buildOvertimeEndpoints } = require('./functions/overtime.js');
-    const eps = buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS: ['https://myb-roster.web.app'], rosterMembers: ROSTER });
+    const eps = buildOvertimeEndpoints({
+        ADMIN_FUNCTION_ORIGINS: ['https://myb-roster.web.app'], rosterMembers: ROSTER, ...opts,
+    });
     return { db, eps };
 }
 
@@ -287,6 +292,7 @@ const NOT_HTTP = new Set([
     // Scheduled: invoked by Cloud Scheduler, never by a browser, so there is no bearer token to
     // check and no request method to refuse. Its own protection is that it takes no input at all.
     'autoCreateOvertimeWindows',
+    'purgeExpiredOvertimeWindows',
 ]);
 const httpEndpoints = (eps) => Object.entries(eps).filter(([k]) => !NOT_HTTP.has(k));
 
@@ -1021,6 +1027,130 @@ describe('submitOvertimeAvailability — the only mutation', () => {
         await call(eps.submitOvertimeAvailability, req(good()));
         unfreeze();
         assert.equal(db._store.get(`overtimeWindows/${WEEK}/participants/G. Miller`).uid, 'uid_g');
+    });
+});
+
+describe('purgeExpiredOvertimeWindows — the only irreversible thing here', () => {
+    const OLD = '2026-01-03';           // long past its 91-day retention at the clock below
+    const NOW = Date.parse('2026-08-19T09:00:00Z');
+    const OM = OT.deriveMilestones(OLD);
+
+    /** An expired window with a full tree beneath it: participant, submission, two revisions. */
+    const expiredTree = () => ({
+        [`overtimeWindows/${OLD}`]: {
+            weekEnding: OLD, weekStart: OM.weekStart,
+            initialDeadlineAt: { toMillis: () => OM.initialDeadlineAt },
+            finalDeadlineAt: { toMillis: () => OM.finalDeadlineAt },
+            retentionUntil: { toMillis: () => OM.retentionUntil },
+            policyVersion: 1, audience: 'restricted',
+        },
+        [`overtimeWindows/${OLD}/participants/G. Miller`]: { memberName: 'G. Miller', grade: 'CEA' },
+        [`overtimeWindows/${OLD}/submissions/G. Miller`]: { currentRevision: 2, days: {} },
+        [`overtimeWindows/${OLD}/submissions/G. Miller/revisions/0001`]: { revision: 1 },
+        [`overtimeWindows/${OLD}/submissions/G. Miller/revisions/0002`]: { revision: 2 },
+    });
+
+    const run = (eps) => eps.purgeExpiredOvertimeWindows.run({});
+
+    test('disarmed, it touches NOTHING — which is how it ships', async () => {
+        // The dry run is not a formality. This is the only code in the feature that destroys data,
+        // it runs unattended, and its first real work happens months after anyone last looked at
+        // it. Shipping it inert is what lets the walk be proved against real documents while its
+        // mistakes are still only log lines.
+        freeze(NOW);
+        const { eps, db } = build(expiredTree());
+        const before = [...db._store.keys()].sort();
+        await run(eps);
+        unfreeze();
+        assert.deepEqual([...db._store.keys()].sort(), before);
+    });
+
+    test('armed, it removes the window AND everything beneath it', async () => {
+        // Firestore does not cascade. A parent deleted on its own leaves every participant,
+        // submission and revision present, billable, and unreachable from any listing the app
+        // performs — which is worse than not purging, because the data survives while the system
+        // reports it as gone.
+        freeze(NOW);
+        const { eps, db } = build(expiredTree(), { purgeArmed: true });
+        await run(eps);
+        unfreeze();
+        assert.deepEqual([...db._store.keys()], [], 'something survived the purge');
+    });
+
+    test('a window still inside its retention is never selected, armed or not', async () => {
+        freeze(NOW);
+        const { eps, db } = build({ ...expiredTree(), ...seededWindow() }, { purgeArmed: true });
+        await run(eps);
+        unfreeze();
+        const left = [...db._store.keys()];
+        assert.ok(left.every(k => k.startsWith(`overtimeWindows/${WEEK}`)),
+            `a live window was purged: ${left.join(', ')}`);
+        assert.ok(left.includes(`overtimeWindows/${WEEK}/participants/G. Miller`),
+            'and its participants went with it');
+    });
+
+    test('the parent is deleted LAST, so an interrupted run cannot orphan the tree', async () => {
+        // The one ordering that matters. If the parent went first and the run died, the children
+        // would remain with nothing pointing at them and no later run would find them — the window
+        // is gone, so it can never be selected as expired again.
+        freeze(NOW);
+        const order = [];
+        const { eps, db } = build(expiredTree(), { purgeArmed: true });
+        const realBatch = db.batch;
+        db.batch = () => {
+            const b = realBatch();
+            const realDelete = b.delete;
+            b.delete = (ref) => { order.push(ref.path); return realDelete(ref); };
+            return b;
+        };
+        await run(eps);
+        unfreeze();
+        assert.equal(order.at(-1), `overtimeWindows/${OLD}`, 'the window parent must go last');
+        assert.ok(order.indexOf(`overtimeWindows/${OLD}/submissions/G. Miller/revisions/0001`)
+            < order.indexOf(`overtimeWindows/${OLD}/submissions/G. Miller`),
+            'a revision must go before the submission head above it');
+    });
+
+    test('it says what it did NOT reach, rather than reading as a complete run', async () => {
+        // A silently truncated list tells the same lie a run that reports only its successes does.
+        // Six expired weeks against a bound of five is the case, and the arrears line is the only
+        // thing that distinguishes "finished" from "still behind".
+        freeze(NOW);
+        const many = {};
+        for (let i = 0; i < 6; i++) {
+            const wk = OT.addDays(OLD, i * 7);
+            const m = OT.deriveMilestones(wk);
+            many[`overtimeWindows/${wk}`] = {
+                weekEnding: wk, weekStart: m.weekStart,
+                initialDeadlineAt: { toMillis: () => m.initialDeadlineAt },
+                finalDeadlineAt: { toMillis: () => m.finalDeadlineAt },
+                retentionUntil: { toMillis: () => m.retentionUntil },
+                policyVersion: 1, audience: 'restricted',
+            };
+        }
+        const logs = [];
+        const realLog = console.log;
+        console.log = (...a) => logs.push(a.join(' '));
+        const { eps, db } = build(many, { purgeArmed: true });
+        await run(eps);
+        console.log = realLog;
+        unfreeze();
+        assert.equal([...db._store.keys()].length, 1, 'exactly one week should be left over');
+        assert.ok(logs.some(l => /1 more expired window left for the next run/.test(l)),
+            `the arrears were not reported: ${logs.join(' | ')}`);
+    });
+
+    test('a failed listing stands the run down rather than assuming nothing is expired', async () => {
+        // The opposite failure to the creator's, and the same principle: acting on a wrong premise
+        // is how a bad day becomes a bad week. Here the wrong premise is harmless by luck — an
+        // empty list deletes nothing — so the assertion is that it does not THROW out of a
+        // scheduled invocation, which is what would turn a transient read error into an alert.
+        freeze(NOW);
+        const { eps, db } = build(expiredTree(), { purgeArmed: true });
+        db.collection = () => ({ get: async () => { throw new Error('unavailable'); } });
+        await run(eps);
+        unfreeze();
+        assert.equal([...db._store.keys()].length, 5, 'nothing should have been deleted');
     });
 });
 

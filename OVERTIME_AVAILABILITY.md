@@ -332,12 +332,25 @@ It is deliberately *not* a Firestore rule. Rules are not filters: a `resource.da
 collection read fails the **whole query** rather than dropping a row, so one expired document would
 blank a reviewer's entire workspace.
 
-**There is no scheduled purge yet, and that is a dated obligation rather than a choice.** Expired
-windows are invisible and inert, so nothing breaks — but the retention design says the data is
-removed, and until the purge exists that is not true. It is booked in `MAINTENANCE_CALENDAR.md`:
-warning at 10 weeks after the first real window, hard requirement before that window turns 13 weeks
-old. Firestore does not cascade, so the purge must delete revisions, submission heads, participants
-and the window parent explicitly — deleting the parent alone orphans the rest permanently.
+**The purge exists and ships DISARMED** (v20.96). `purgeExpiredOvertimeWindows` runs daily at 04:00
+Europe/London — an hour before the creator, so the two never contend — selects every window past its
+`retentionUntil`, walks it bottom-up and reports exactly what it would remove. `purgeArmed` in
+`functions/index.js` is the one statement that turns the report into a deletion.
+
+Disarmed is not indecision. It is the only irreversible thing this feature does, it runs unattended,
+and its first real work happens months after it was written — so the walk gets proved against real
+documents while its mistakes are still only log lines. **Read a run of `[purgeExpiredOvertimeWindows]`
+in the Functions log, check the weeks and the counts, then arm it.** Nothing anybody SEES changes
+either way, since both read endpoints already omit expired windows; that is why arming can wait and
+also why waiting is not free — the data is still there.
+
+Two properties the walk depends on. **Firestore does not cascade**: a parent deleted on its own
+leaves every participant, submission and revision present, billable and unreachable from any listing
+the app performs, which is worse than not purging because the data survives while the system reports
+it gone. And the **parent goes last** — an interrupted run then leaves a window that is still
+expired, still invisible and still selected tomorrow, where the reverse order would strand the
+children with nothing able to find them again. A run clears at most five windows and states in its
+log how many it left, because a run that reports only what it did reads as a complete one.
 
 ---
 
@@ -419,7 +432,7 @@ because none existed before.
 - **No reminder notifications.** The horizon is the guard against a missing window; nudging
   non-responders is a later decision with its own design (see `.claude/rules/notifications.md` —
   anything naming one person must use `sendTargetedPush`, never `fanOutPush`).
-- **No scheduled purge.** See Retention.
+- **The scheduled purge ships disarmed** — it reports, it does not delete. See Retention.
 - **No override write-back.** Availability is a declaration, not a roster change; nothing here
   writes to `overrides`.
 - **No collection-group query, and so no composite index.** Participation is resolved by point reads
