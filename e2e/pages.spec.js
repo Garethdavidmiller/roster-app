@@ -1894,7 +1894,7 @@ test('links memory: a stamped EDIT survives every version, which is the rule\'s 
     edited.ver = '19.38';
     await openLinksWithMemory(page, edited);
     await expect(page.locator('#genMemoryNote')).toBeVisible();
-    await expect(page.locator('#genHoursNote')).toContainText('under the 35h contract');
+    await expect(page.locator('#genHoursNote')).toContainText('short in total');
 });
 
 test('links memory: a device still holding the OLD auto-seeded table gets the new default', async ({ page }) => {
@@ -1913,7 +1913,7 @@ test('links memory: a table somebody EDITED is kept, and the note says what it i
     const edited = JSON.parse(JSON.stringify(STALE_SEED));
     edited.slots[0].weekday = 3;                                // one deliberate change
     await openLinksWithMemory(page, edited);
-    await expect(page.locator('#genHoursNote')).toContainText('under the 35h contract');
+    await expect(page.locator('#genHoursNote')).toContainText('short in total');
     await expect(page.locator('#genMemoryNote')).toBeVisible();
     await expect(page.locator('#genMemoryNote')).toContainText('your device remembers');
     // Touching anything makes it the designer's table — the note stands down.
