@@ -109,15 +109,56 @@ describe('what the owner asked for', () => {
         assert.equal(dutiesOn('sun').length, SUNDAY_TURNS);
     });
 
-    test('Saturday leans LATE — more turns start at 11:00 or after than before it', () => {
-        // "Slight preference to late on Sat for events." Strict inequality is the whole claim: a
-        // 7/7 split is no preference at all, and a table quietly rebalanced toward the morning
-        // reads identically in every total (headcount, hours, contract) — this is the only place
-        // the lean is visible.
-        const starts = dutiesOn('sat').map(startMinutes);
-        const late = starts.filter(m => m >= 11 * 60).length;
-        assert.ok(late > starts.length - late,
-            `Saturday has ${late} late starts against ${starts.length - late} early — not a late lean`);
+    test('Saturday leans LATE where it counts — the EVENING carries more cover than demand', () => {
+        // "Slight preference to late on Sat for events."
+        //
+        // This was asserted as *more turns starting after 11:00* from v21.01 to v21.05, and that
+        // proxy was wrong in a way only the timetable could show: Saturday's measured peak is
+        // 10:00–11:00, so satisfying the start count dropped the busiest hour of the day to six
+        // people. Event crowds are not in the timetable — the same trains run fuller — so the lean
+        // has to be a claim about where the COVER goes, not about clock-times on a rota.
+        //
+        // The claim, and it is a comparison rather than a threshold: Saturday's 17:00–22:00 takes
+        // a BIGGER share of its day's cover than of its day's demand, and a weekday's does not.
+        // A table rebalanced toward the morning reads identically in every total on the page —
+        // headcount, hours, contract — so this is the only place the lean is visible at all.
+        const share = (/** @type {'weekday'|'sat'} */ cls) => {
+            const open = windowMinutes(WINDOW_FOR[cls].start), close = windowMinutes(WINDOW_FOR[cls].end);
+            const hours = [];
+            for (let h = Math.floor(open / 60); h < Math.ceil(close / 60); h++) hours.push(h);
+            const coverAt = (/** @type {number} */ h) => dutiesOn(cls).reduce((a, t) => {
+                const lo = Math.max(startMinutes(t), h * 60), hi = Math.min(endMinutesAbs(t), h * 60 + 60);
+                return a + Math.max(0, hi - lo) / 60;
+            }, 0);
+            const cars = DEC_2026_DEMAND[cls].cars;
+            const band = hours.filter(h => h >= 17 && h <= 22);
+            const frac = (/** @type {any} */ f) =>
+                band.reduce((a, h) => a + f(h), 0) / hours.reduce((a, h) => a + f(h), 0);
+            return { cover: frac(coverAt), demand: frac((/** @type {number} */ h) => cars[h]) };
+        };
+        const sat = share('sat'), wd = share('weekday');
+        assert.ok(sat.cover > sat.demand,
+            `Saturday evening takes ${(sat.cover * 100).toFixed(1)}% of cover against `
+            + `${(sat.demand * 100).toFixed(1)}% of demand — that is not a lean`);
+        assert.ok(wd.cover < wd.demand,
+            `a WEEKDAY evening also leans (${(wd.cover * 100).toFixed(1)}% cover vs `
+            + `${(wd.demand * 100).toFixed(1)}% demand) — then the Saturday lean says nothing`);
+    });
+
+    test('THREE finish at the close on a weekday, FOUR on a Saturday — and nothing else finishes near it', () => {
+        // The owner's rule, and the half that was missing until v21.06: counting only the turns
+        // ending exactly at 23:55 said "three" while four more came off at 23:20, 23:30, 23:45 and
+        // 23:50. Those are closers in everything but the arithmetic. So the assertion is two-part —
+        // the exact count AT the close, and a clear gap before it.
+        const CLOSERS_FOR = { weekday: CLOSING_TURNS, sat: SATURDAY_CLOSING_TURNS, sun: CLOSING_TURNS };
+        for (const cls of DAY_CLASSES) {
+            const close = windowMinutes(WINDOW_FOR[cls].end);
+            const ends = dutiesOn(cls).map(endMinutesAbs);
+            assert.equal(ends.filter(e => e === close).length, CLOSERS_FOR[cls]);
+            const nearMisses = ends.filter(e => e !== close && e > close - 60);
+            assert.deepEqual(nearMisses, [],
+                `${cls} has de-facto closers finishing within the hour before ${close}: ${nearMisses}`);
+        }
     });
 
     test('a working line averages about 4.2 days Mon–Sat', () => {
