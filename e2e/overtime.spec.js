@@ -835,7 +835,18 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await expect(page.locator(`[data-day="${D[0]}"] [data-mode="twelve_hours"]`)).toHaveCount(1);
         await expect(page.locator(`[data-day="${D[6]}"] [data-mode="twelve_hours"]`)).toHaveCount(1);
 
-        // ── AND THE SAME OPTION IS WORDED FOR THE DAY IT SITS ON (owner, Aug 2026) ──────────────
+        // ── "ALL DAY" IS WORDED FOR THE DAY TOO (owner, Aug 2026) ───────────────────────────────
+        //
+        // The settled meaning is availability AROUND a rostered duty — never an offer to move or
+        // give it up. On a rest day "All day" already says that; beside a duty it had three
+        // readings and the app committed to none, and the dangerous one costs a member the shift
+        // they planned their week around.
+        await expect(page.locator(`[data-day="${D[0]}"] [data-mode="all_day"]`))
+            .toHaveText('All day');
+        await expect(page.locator(`[data-day="${D[6]}"] [data-mode="all_day"]`))
+            .toHaveText('Any time around my shift');
+
+        // ── AND THE SAME FOR THE 12-HOUR OPTION ─────────────────────────────────────────────────
         //
         // The rule is that twelve hours is a TOTAL including whatever is rostered. On a rest day
         // there is nothing to include, so "a 12-hour turn" says it exactly; beside a duty the same

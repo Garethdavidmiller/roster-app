@@ -61,6 +61,7 @@ export const CARD_TIPS = {
                 heading: 'What it does and does not do',
                 items: [
                     { icon: '📋', html: 'This tells the roster team when you are <strong>available</strong>. It does not book overtime and does not guarantee any.' },
+                    { icon: '➕', html: 'What you offer is time <strong>around whatever you are already rostered</strong>. Saying you are available never puts your rostered shift at risk, and never means you would rather work a different one.' },
                     { icon: '⏱️', html: '<strong>Up to 12 hours</strong> means your whole day may run to twelve hours, including anything you are already rostered — not twelve hours on top. It is not offered where the day already reaches that.' },
                     { icon: '🧾', html: 'A submitted form says so at the top, with when you last changed it. That line is still there when you come back to it.' },
                     { icon: '✅', html: 'The <strong>released roster</strong> is the only place that shows overtime you have actually been given.' },
@@ -115,6 +116,7 @@ export const CARD_TIPS = {
                     { icon: '📅', html: 'The roster shown beside each person is their <strong>current</strong> one, which may have changed since they submitted.' },
                     // Stated on BOTH sides, because it is the reviewer who would otherwise
                     // misread a pair of answers as a contradiction and ring somebody to resolve it.
+                    { icon: '➕', html: 'Every answer is availability <strong>around</strong> what that person is already rostered. It is never an offer to move, shorten or give up a rostered duty — so “Available all day” beside an 07:00–15:00 shift means the hours either side of it, not instead of it.' },
                     { icon: '🌙', html: 'An answer covers a duty <strong>starting that day</strong>. Someone available 22:00–02:00 on the Friday is offering Friday night — a Saturday “not available” beside it is not a contradiction.' },
                 ],
             },

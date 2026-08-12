@@ -217,6 +217,18 @@ describe('the header', () => {
         assert.equal(/Beta audience/.test(render({ win: { audience: 'all' } })), false);
     });
 
+    test('the page states that availability is offered AROUND a rostered duty', () => {
+        // The owner's ruling, Aug 2026. "All day" beside an 07:00-15:00 shift had three readings and
+        // the app committed to none; the dangerous one is that the clerk may take the duty away,
+        // which costs a member the shift they planned their week around.
+        //
+        // Asserted on the STANDING note rather than the help panel: a tip is opt-in, and this is a
+        // limit on what a reviewer may infer from every row on the page.
+        const html = render();
+        assert.match(html, /around whatever they are already rostered/);
+        assert.match(html, /never an offer to change or give up a rostered duty/);
+    });
+
     test('the short-notice warning is always present', () => {
         // Submitted availability is a record of what somebody said before a cut-off, not a standing
         // promise. Wherever the data is read, the note is read with it.

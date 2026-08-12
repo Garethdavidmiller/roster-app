@@ -153,9 +153,19 @@ function build(win, data, { dates, now, grade, day = 'ALL' }) {
                   + `${participants.length === 1 ? 'participant' : 'participants'}</div>`
                 : ''}
         </div>
+        <!-- TWO sentences, and the second one is a boundary rather than a caution (owner, Aug 2026).
+             Availability is offered AROUND what somebody is already rostered; it is never an offer
+             to move or give up a rostered duty. "All day" beside an 07:00–15:00 shift had three
+             readings and the app committed to none, and the dangerous one — that the clerk may take
+             the duty away — costs a member the shift they planned their week around. It lives here
+             rather than only in the help panel because a tip is opt-in and this is a rule.
+             (No backticks in this comment: it sits inside a template literal, and one would end it
+             — the same trap that broke the calendar lock panel earlier.) -->
         <div class="ot-current-note">
             Availability reflects what staff submitted before the final cut-off. Confirm directly
             with the employee before arranging short-notice cover.
+            <strong>What people offer here is time around whatever they are already rostered</strong>
+            — it is never an offer to change or give up a rostered duty.
         </div>
         ${gradeStrip(grades, grade)}
         ${glanceStrip(dates, participants, submissions, day)}
