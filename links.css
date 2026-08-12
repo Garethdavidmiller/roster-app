@@ -1060,6 +1060,35 @@ body.auth-ready .container { display: grid; }
     flex-wrap: wrap;
     margin-bottom: 12px;
 }
+/* Saved sets row (v21.04) — a picker plus three text-link actions, wrapping on a phone. The hint
+   line beneath carries whose set is selected and why Save may be off; it is the only place that
+   information exists, so it stays visible rather than living in a title attribute. */
+.gen-sets-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+}
+.gen-sets-label {
+    font-size: var(--type-micro);
+    font-weight: 700;
+    color: var(--text-mid);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.gen-sets-row .gen-select { max-width: 240px; }
+.gen-sets-row .btn-text-link[disabled] {
+    opacity: 0.45;
+    cursor: not-allowed;
+    text-decoration: none;
+}
+.gen-sets-hint {
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    margin: 0 0 12px;
+}
+
 .gen-error {
     font-size: var(--type-small);
     color: var(--error-red);

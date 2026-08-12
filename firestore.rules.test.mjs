@@ -1047,6 +1047,97 @@ describe('circulars', () => {
 // newsletters  (mirror of circulars rules — tests kept separate for regression safety)
 // ─────────────────────────────────────────────────────────────────────────────
 
+describe('linkTargetSets — saved generator target sets, per-creator write (v21.04)', () => {
+    // The one promise: anyone may save a NEW set; only the creator (or admin) may overwrite or
+    // delete one. Every case here has a client-side twin in links-target-sets.test.mjs — that copy
+    // drives the Save button, THIS is the protection, and the two must answer alike.
+    const SET = (createdBy = 'G. Miller', updatedBy = createdBy) => ({
+        name: 'Set A',
+        slots: [{ time: '06:20-14:20', weekday: 1, sat: 1, sun: 0 }],
+        spareLines: 4,
+        createdBy, updatedBy,
+        updatedAt: serverTimestamp(),
+    });
+    /** A set already on the server, owned by G. Miller, written past the rules. */
+    async function seedSet(id, createdBy = 'G. Miller') {
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            await setDoc(doc(ctx.firestore(), 'linkTargetSets', id),
+                { ...SET(createdBy), updatedAt: new Date() });
+        });
+    }
+    const designerAs = (name, uidSuffix) =>
+        testEnv.authenticatedContext('uid_' + uidSuffix, { name, linksDesigner: true }).firestore();
+
+    test('read matches linkDesigns: named yes, admin yes, anonymous and claim-less no', async () => {
+        await assertSucceeds(getDocs(collection(namedDb('S. Silva'), 'linkTargetSets')));
+        await assertSucceeds(getDocs(collection(adminDb(), 'linkTargetSets')));
+        await assertFails(getDocs(collection(anonDb(), 'linkTargetSets')));
+        await assertFails(getDocs(collection(staffDb(), 'linkTargetSets')));
+    });
+
+    test('a designer can CREATE a set owned as THEMSELVES', async () => {
+        await assertSucceeds(setDoc(doc(designerAs('S. Silva', 'silva'), 'linkTargetSets', uid()),
+            SET('S. Silva')));
+    });
+
+    test('a designer CANNOT create a set owned as somebody else — ownership is not forgeable', async () => {
+        await assertFails(setDoc(doc(designerAs('S. Silva', 'silva'), 'linkTargetSets', uid()),
+            SET('G. Miller', 'S. Silva')));
+    });
+
+    test('THE PROMISE: a colleague cannot overwrite the creator\'s set', async () => {
+        const id = uid();
+        await seedSet(id, 'G. Miller');
+        await assertFails(setDoc(doc(designerAs('S. Silva', 'silva'), 'linkTargetSets', id),
+            { ...SET('G. Miller', 'S. Silva') }));
+    });
+
+    test('…and cannot delete it either — losing the set is the whole thing being prevented', async () => {
+        const id = uid();
+        await seedSet(id, 'G. Miller');
+        await assertFails(deleteDoc(doc(designerAs('S. Silva', 'silva'), 'linkTargetSets', id)));
+    });
+
+    test('the creator CAN overwrite and delete their own set', async () => {
+        const id = uid();
+        await seedSet(id, 'G. Miller');
+        const mine = designerAs('G. Miller', 'miller');
+        await assertSucceeds(setDoc(doc(mine, 'linkTargetSets', id), SET('G. Miller')));
+        await assertSucceeds(deleteDoc(doc(mine, 'linkTargetSets', id)));
+    });
+
+    test('the ADMIN can overwrite and delete anyone\'s set (break-glass, as the design bin has)', async () => {
+        const id = uid();
+        await seedSet(id, 'S. Silva');
+        const adminNamed = testEnv.authenticatedContext('uid_admin', { admin: true, name: 'G. Miller' }).firestore();
+        await assertSucceeds(setDoc(doc(adminNamed, 'linkTargetSets', id), SET('S. Silva', 'G. Miller')));
+        await assertSucceeds(deleteDoc(doc(adminNamed, 'linkTargetSets', id)));
+    });
+
+    test('an overwrite may not MOVE createdBy — ownership is not transferable by editing', async () => {
+        const id = uid();
+        await seedSet(id, 'G. Miller');
+        // Even the creator cannot hand the set to somebody else (nor, more to the point, can a
+        // future client bug silently re-own every set it touches).
+        await assertFails(setDoc(doc(designerAs('G. Miller', 'miller'), 'linkTargetSets', id),
+            SET('S. Silva', 'G. Miller')));
+    });
+
+    test('a plain named member (no designer claim) cannot create', async () => {
+        await assertFails(setDoc(doc(namedDb('J. Davies'), 'linkTargetSets', uid()), SET('J. Davies')));
+    });
+
+    test('shape is validated: extra keys, bad types and empty tables are refused', async () => {
+        const db = designerAs('S. Silva', 'silva');
+        await assertFails(setDoc(doc(db, 'linkTargetSets', uid()), { ...SET('S. Silva'), extra: 1 }));
+        await assertFails(setDoc(doc(db, 'linkTargetSets', uid()), { ...SET('S. Silva'), slots: [] }));
+        await assertFails(setDoc(doc(db, 'linkTargetSets', uid()), { ...SET('S. Silva'), slots: 'x' }));
+        await assertFails(setDoc(doc(db, 'linkTargetSets', uid()), { ...SET('S. Silva'), spareLines: 2.5 }));
+        await assertFails(setDoc(doc(db, 'linkTargetSets', uid()), { ...SET('S. Silva'), name: '' }));
+        await assertFails(setDoc(doc(db, 'linkTargetSets', uid()), { ...SET('S. Silva'), updatedAt: 'now' }));
+    });
+});
+
 describe('newsletters', () => {
     test('anon can read', async () => {
         await assertSucceeds(getDocs(collection(anonDb(), 'newsletters')));

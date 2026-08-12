@@ -379,6 +379,19 @@
                         <button class="btn-text-link" id="genDefaultBtn" type="button">↺ Back to the December 2026 default</button>
                         <button class="btn-text-link" id="genSeedBtn" type="button">↺ Load today's roster instead</button>
                     </div>
+                    <!-- SAVED SETS (v21.04). Named snapshots of the target table, shared between the
+                         designers, so a colleague can load somebody's set, change anything, and keep
+                         their version as a NEW set — while overwriting a set belongs to its creator
+                         (or the admin), which the server enforces (firestore.rules linkTargetSets;
+                         the disabled button here is a courtesy, not the protection). -->
+                    <div class="gen-sets-row">
+                        <label class="gen-sets-label" for="genSetSelect">Saved sets</label>
+                        <select id="genSetSelect" class="gen-select" aria-label="Choose a saved set of shift times"></select>
+                        <button class="btn-text-link" id="genSetLoadBtn" type="button">Load</button>
+                        <button class="btn-text-link" id="genSetSaveBtn" type="button">Save changes</button>
+                        <button class="btn-text-link" id="genSetSaveAsBtn" type="button">Save as new set…</button>
+                    </div>
+                    <p class="gen-sets-hint" id="genSetHint" aria-live="polite"></p>
                     <fieldset class="gen-objectives">
                         <legend>Line order — what to tune for</legend>
 <!-- THE SPARE SPREAD HAS NO SWITCH, SO IT HAS TO BE SAID HERE (v20.02). It is charged

@@ -97,6 +97,7 @@ export const COLLECTIONS = {
     clientErrors:      'clientErrors',
     overrides:         'overrides',
     linkDesigns:       'linkDesigns',
+    linkTargetSets:    'linkTargetSets',
     analytics:         'analytics',
     resetRequests:     'resetRequests',
 };

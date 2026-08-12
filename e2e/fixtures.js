@@ -40,7 +40,10 @@ export const initializeApp = () => marker('app');
 export const initializeFirestore = () => marker('db');
 export const getFirestore = () => marker('db');
 export const persistentLocalCache = () => marker('cache');
-export const collection = () => marker('collection');
+// collection() carries its PATH (v21.04) so getDocs can serve different collections different
+// rows. Every other stub keeps the plain marker shape; nothing reads collection refs beyond
+// getDocs, which falls back to the shared docs array when no per-path seed exists.
+export const collection = (/** @type {any} */ _db, /** @type {any} */ path) => ({ __stub: 'collection', path });
 export const query = () => marker('query');
 export const where = () => marker('where');
 export const orderBy = () => marker('orderBy');
@@ -116,7 +119,7 @@ export const runTransaction = (_db, fn) => {
 // window.__E2E.failGetDocs makes every collection read REJECT (v20.40). The pair with docsDelayMs is
 // the point: delay proves the calendar withholds its grid while a read is still running, reject proves
 // it withholds it when the read has lost. Those are two different panels and only one carries a retry.
-export const getDocs = () => {
+export const getDocs = (/** @type {any} */ ref) => {
   const e2e = globalThis.__E2E || {};
   // COUNTED, like writeBatch records its writes (v20.69). A spec can assert how many collection
   // reads an interaction actually caused, which is the only observable for a duplicated handler:
@@ -133,7 +136,16 @@ export const getDocs = () => {
   if (e2e.failGetDocs) {
     return Promise.reject(new Error(typeof e2e.failGetDocs === 'string' ? e2e.failGetDocs : 'e2e: collection read failed'));
   }
-  const rows = e2e.docs;
+  // Per-collection seeding (v21.04): window.__E2E.docsByPath = { linkTargetSets: [rows] } serves
+  // those rows ONLY to reads of that collection, so a page reading two collections (designs AND
+  // target sets) does not hand both the same array. A path present with an empty array is an
+  // EMPTY collection, not a fall-through; paths not named fall back to the shared e2e.docs, which
+  // keeps every existing spec exactly as it was. Query-wrapped reads have no path and fall back
+  // too. (No backticks in this comment — it lives INSIDE the FIREBASE_STUB template literal.)
+  const byPath = e2e.docsByPath;
+  const rows = (byPath && ref && ref.path && Object.prototype.hasOwnProperty.call(byPath, ref.path))
+    ? byPath[ref.path]
+    : e2e.docs;
   const wrap = (v) => (e2e.docsDelayMs ? new Promise(r => setTimeout(() => r(v), e2e.docsDelayMs)) : Promise.resolve(v));
   if (!rows) return wrap({ empty: true, size: 0, docs: [], forEach: noop });
   // Only EPOCH-SCALE numbers become Timestamps (>= 1e12 ms, i.e. after Sep 2001) — the same heuristic
