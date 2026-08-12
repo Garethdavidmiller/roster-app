@@ -366,17 +366,29 @@
                             </tfoot>
                         </table>
                     </div>
+                    <!-- PROVENANCE NOTE — DIRECTLY UNDER THE HOURS ROW, DELIBERATELY (v21.06).
+                         It shipped at v21.05 below both reset buttons, three elements away from the
+                         red hours figure it explains, and the owner read the figure without ever
+                         connecting the two. The note answers exactly one question — "is this number
+                         about the default or about my device?" — so it belongs where the number is.
+                         Shown ONLY while the table came from this device's memory AND differs from
+                         the current default; hidden the moment anything is edited or reset. -->
+                    <p class="gen-memory-note" id="genMemoryNote" hidden></p>
                     <div class="gen-actions">
                         <button class="btn-text-link" id="genAddSlotBtn" type="button">+ Add another shift</button>
                         <!-- TWO RESETS, AND THEY ANSWER DIFFERENT QUESTIONS (v21.00). The default is
                              a table DESIGNED against the December 2026 service — it pays the
                              contracted week exactly, so Generate works the moment the card opens.
+                             LABELLED "demand-based" since v21.06: it read "December 2026 default",
+                             which names the TIMETABLE it was built against, and the owner could not
+                             tell from it whether the button loaded the demand-designed table or
+                             something else. A label on a reset has to say what arrives.
                              The roster seed MEASURES what is worked today, which is the right
                              comparison to reach for and cannot pay a 24-line rotation, so it will
                              be refused with the gap named. Neither label says "reset targets"
                              without saying to WHAT: with two of them, that word alone is the one
                              thing a designer cannot act on. -->
-                        <button class="btn-text-link" id="genDefaultBtn" type="button">↺ Back to the December 2026 default</button>
+                        <button class="btn-text-link" id="genDefaultBtn" type="button">↺ Back to the demand-based default</button>
                         <button class="btn-text-link" id="genSeedBtn" type="button">↺ Load today's roster instead</button>
                     </div>
                     <!-- SAVED SETS (v21.04). Named snapshots of the target table, shared between the
@@ -384,11 +396,6 @@
                          their version as a NEW set — while overwriting a set belongs to its creator
                          (or the admin), which the server enforces (firestore.rules linkTargetSets;
                          the disabled button here is a courtesy, not the protection). -->
-                    <!-- Provenance note (v21.05): shown ONLY when the table on screen is this
-                         device's memory AND differs from the current default — the state the owner
-                         mistook for "the new default is wrong" (it was July's remembered table).
-                         Hidden the moment anything is edited or reset. -->
-                    <p class="gen-sets-hint" id="genMemoryNote" hidden></p>
                     <div class="gen-sets-row">
                         <label class="gen-sets-label" for="genSetSelect">Saved sets</label>
                         <select id="genSetSelect" class="gen-select" aria-label="Choose a saved set of shift times"></select>

@@ -1083,6 +1083,18 @@ body.auth-ready .container { display: grid; }
     cursor: not-allowed;
     text-decoration: none;
 }
+/* Provenance note — sits under the hours row it explains, and reads as a caution rather than a
+   hint, because the figure above it is the thing being questioned. */
+.gen-memory-note {
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    background: var(--surface-sunken);
+    border-left: 3px solid var(--accent-gold);
+    border-radius: var(--radius-xs);
+    padding: 8px 10px;
+    margin: 0 0 12px;
+}
+
 .gen-sets-hint {
     font-size: var(--type-small);
     color: var(--text-mid);

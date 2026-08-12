@@ -9,7 +9,7 @@
  *   live in links-design.js — no DOM, no Firebase there.
  */
 
-import { CONFIG, weeklyRoster, escapeHtml } from './roster-data.js';
+import { APP_VERSION, CONFIG, weeklyRoster, escapeHtml } from './roster-data.js';
 import { db, doc, getDoc, setDoc, addDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
 import { initNavPanel, resetNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
@@ -1703,18 +1703,29 @@ export function init() {
             { slots: genSlots, spareLines: genSpareLines }, buildDefaultTargets());
         el.hidden = !differs;
         if (differs) {
-            el.textContent = 'This is the table your device remembers from earlier — not the December 2026 default. '
-                + '↺ loads the default; anything you change here is kept.';
+            el.textContent = 'These hours are from the table your device remembers, not the '
+                + 'demand-based default. Press “Back to the demand-based default” to load it; '
+                + 'anything you change here is kept.';
         }
     }
 
     /** Persist the current target table for the active design. Silent — losing it is a nuisance,
      *  never a failure worth interrupting a designer for. */
-    function saveGenTargets() {
+    function saveGenTargets(source = 'edited') {
         genFromMemory = false;
         _updateMemoryNote();
-        try { lsSet(_genTargetsKey(), JSON.stringify({ slots: genSlots, spareLines: genSpareLines })); }
-        catch { /* quota / private mode — the roster seed remains the fallback */ }
+        // STAMPED with who wrote it and under which app version (v21.06). Content comparison alone
+        // could only ever recognise two tables — the roster seed and the CURRENT default — so a
+        // device holding an INTERMEDIATE default (v21.00 through v21.05, four of them in as many
+        // days) kept it and showed a note instead. The stamp answers the question directly: a table
+        // this app wrote as a default, under a version that is no longer current, has nothing to
+        // say and is retired. `source: 'edited'` is the safe default — anything that reaches this
+        // function without declaring itself is treated as somebody's work and kept forever.
+        try {
+            lsSet(_genTargetsKey(), JSON.stringify({
+                slots: genSlots, spareLines: genSpareLines, source, ver: APP_VERSION,
+            }));
+        } catch { /* quota / private mode — the default remains the fallback */ }
     }
 
     /** Read back a stored target table, VALIDATED. This is localStorage: it can hold anything, and a
@@ -1739,12 +1750,22 @@ export function init() {
             if (!int(v.spareLines) && !legacy) return null;
             if (!v.slots.every((/** @type {any} */ sl) => sl && typeof sl.time === 'string' && okCounts(sl))) return null;
             // A remembered table the app stored ON ITS OWN must not outlive a changed default
-            // (v21.05). From v19.38 to v21.00 the default WAS the roster seed, so every device that
-            // opened the workspace remembered the seed untouched — and when the designed default
-            // replaced it, those devices kept showing July's table at 29h 53m while a fresh device
-            // showed 35h 00m. Decided by CONTENT (equal to the seed, or to the current default), so
-            // a table anybody actually edited can never be discarded by this.
-            if (int(v.spareLines) && isSupersededMemory({ slots: v.slots, spareLines: v.spareLines }, buildRosterTargets())) {
+            // (v21.05, widened v21.06). TWO routes, because they catch different devices:
+            //
+            //   · STAMPED — the table declares it was written by a reset button under a named app
+            //     version. If that version is not the current one, it is an old default with
+            //     nothing to say, whoever's device it is on. This is what reaches the other
+            //     designers, whose devices hold v21.00–v21.05 defaults that no content check could
+            //     recognise (there were four of them in as many days).
+            //   · CONTENT — for tables written before stamping existed: equal to the roster seed
+            //     (the auto-stored default from v19.38 to v21.00) or to the current default.
+            //
+            // Neither route can touch a table somebody edited: an edit stamps `source: 'edited'`,
+            // and an unstamped edited table matches neither comparison.
+            const stamped = typeof v.source === 'string' && typeof v.ver === 'string';
+            const staleDefault = stamped && v.source !== 'edited' && v.ver !== APP_VERSION;
+            if (int(v.spareLines) && (staleDefault
+                || (!stamped && isSupersededMemory({ slots: v.slots, spareLines: v.spareLines }, buildRosterTargets())))) {
                 try { lsSet(_genTargetsKey(), ''); } catch { /* best-effort */ }
                 return null;
             }
@@ -1852,16 +1873,16 @@ export function init() {
         // The two resets answer different questions and both are worth having: the default is a
         // table DESIGNED against the December 2026 service, the seed is a MEASUREMENT of what is
         // worked today. Either is an explicit "forget my tuning", so both persist over it.
-        const _resetTargets = (/** @type {{slots: any[], spareLines: number}} */ t) => {
+        const _resetTargets = (/** @type {{slots: any[], spareLines: number}} */ t, source = 'edited') => {
             ({ slots: genSlots, spareLines: genSpareLines } = t);
-            saveGenTargets();
+            saveGenTargets(source);
             /** @type {HTMLInputElement} */ (document.getElementById('genSpareLines')).value = String(genSpareLines);
             renderGenTable();
             const errEl = document.getElementById('genError');
             if (errEl) errEl.textContent = '';
         };
-        document.getElementById('genDefaultBtn')?.addEventListener('click', () => _resetTargets(buildDefaultTargets()));
-        document.getElementById('genSeedBtn')?.addEventListener('click', () => _resetTargets(buildRosterTargets()));
+        document.getElementById('genDefaultBtn')?.addEventListener('click', () => _resetTargets(buildDefaultTargets(), 'default'));
+        document.getElementById('genSeedBtn')?.addEventListener('click', () => _resetTargets(buildRosterTargets(), 'seed'));
 
         // ── Saved sets (v21.04) ──────────────────────────────────────────────────────────────────
         //

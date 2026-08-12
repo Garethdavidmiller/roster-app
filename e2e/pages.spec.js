@@ -1872,6 +1872,31 @@ async function openLinksWithMemory(page, remembered) {
     await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
 }
 
+test('links memory: a device holding an INTERMEDIATE default is retired by its version stamp', async ({ page }) => {
+    // The route content comparison cannot cover, and the one the other two designers are on. Their
+    // devices hold a default from v21.00–v21.05 — four defaults in as many days, none of them the
+    // roster seed and none of them current — so a content check keeps every one of them. The stamp
+    // says who wrote it and under which version, which settles it without a list of old tables.
+    const stamped = JSON.parse(JSON.stringify(STALE_SEED));
+    stamped.source = 'default';
+    stamped.ver = '21.02';                       // any version that is not the running one
+    await openLinksWithMemory(page, stamped);
+    await expect(page.locator('#genHoursValue')).toHaveText('35h 00m each');
+    await expect(page.locator('#genMemoryNote')).toBeHidden();
+});
+
+test('links memory: a stamped EDIT survives every version, which is the rule\'s one hard limit', async ({ page }) => {
+    // The stamp must never become a licence to bin work. A table written under an ancient version
+    // is kept for ever if it declares itself edited — that is the whole difference between the two
+    // stamps, and it is the assertion that stops the widened rule eating somebody's tuning.
+    const edited = JSON.parse(JSON.stringify(STALE_SEED));
+    edited.source = 'edited';
+    edited.ver = '19.38';
+    await openLinksWithMemory(page, edited);
+    await expect(page.locator('#genMemoryNote')).toBeVisible();
+    await expect(page.locator('#genHoursNote')).toContainText('under the 35h contract');
+});
+
 test('links memory: a device still holding the OLD auto-seeded table gets the new default', async ({ page }) => {
     // The owner's exact state. Nobody wrote that table — the app stored it on its own — so it is
     // superseded by content, the memory is cleared, and the card reads 35h 00m like a fresh device.

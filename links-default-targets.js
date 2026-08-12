@@ -40,39 +40,49 @@
  * preference — it is the third term in the equation. Change it alone and the table no longer pays
  * the contract; `generateLink` will say so, in minutes, in both directions.
  *
- * ── THE HANDOVER LANDS ON THE TROUGH — AS THE DAY'S THINNEST HOURS, NOT ITS PEAK (v21.02) ─────
+ * ── THE TIMES ARE OPTIMISED AGAINST THE DEMAND CURVE, UNDER HARD RULES (v21.06) ───────────────
  *
- * The v21.01 table had the day's BIGGEST headcount at 14:00 (8.7 on duty for 79 cars) while 22:00
- * ran 4.7 people for 75 — the owner spotted it the day it shipped. The cause was the handover: the
- * afternoon turns started 12:50–15:00, overlapping the openers (who leave 14:20–15:20) for two
- * hours, and the overlap bulge parked itself on the quietest stretch of the day.
+ * Two owner reports drove this. First, the day's biggest headcount sat on one of its quietest
+ * hours. Second — and this is what the earlier fix caused — SEVEN weekday turns finished between
+ * 23:20 and 23:55, which is three real closers plus four in all but name, against an instruction
+ * of three.
  *
- * The person-minutes in a day are fixed by the contract, so the only question is WHERE the
- * above-average hours sit — and the answer has to respect that every duty is one contiguous
- * 7–9h30 block. Weekday demand is twin-peaked (08:00–09:00 at 127 cars, 17:00–18:00 at 140),
- * the peaks are one duty length apart, so no turn spans both and the day genuinely is two shifts
- * with a changeover between them. What CAN be chosen is how wide the changeover is. So the
- * morning middles are now 7h30 turns that leave at 14:30–15:45, the entire afternoon shift
- * arrives in the 14:35–15:55 band, and the afternoon turns run long — to 23:20–23:50 — so the
- * evening is full to the close. Measured: 14:00–15:00 are the day's LEAST staffed working hours
- * (6.3 on, ~13 cars per person — matching the trough), both peaks hold 7 (~20 cars per person),
- * and 22:00 carries 7 where it carried 4.7. The lever for the peaks themselves is still more
- * duties in the day, not a different arrangement of these ones.
+ * So the times are no longer hand-placed. They are searched, on a five-minute grid, minimising the
+ * squared distance between each hour's COVER and its share of the day's DEMAND, subject to rules
+ * that are not negotiable:
  *
- * Saturday gets the same correction with its lean kept: the late middles start 13:50–14:50, so
- * the rich zone is 14:00–22:00 — the events window — rather than pooling at lunchtime, and the
- * 13:00 hour drops back to ~6 on. Its FOURTH closer (v21.03, owner) is the same lean carried to
- * the end of the day: the extra turn runs 16:15–23:55, taking the close-down hour from ~3.7 on
- * to ~4.8 on the one day the evening is the point. Sunday's openers shorten to 7h–8h so its own
- * handover no longer bulges at 14:00 either.
+ *   · exactly 4 on at the open, every day, and no shadow-opener starting minutes after them
+ *   · exactly 3 through to the close (4 on a Saturday), and NOTHING ELSE finishing after 22:45
+ *     (22:15 on a Sunday) — the rule that keeps "three close" from meaning seven
+ *   · every duty 7h to 9h30, on the grid, inside its own day's window
+ *   · two people either start together or a quarter of an hour apart — likewise for finishes
+ *   · the day's totals unchanged: 7,000 minutes Mon–Fri and Saturday alike, so the contract,
+ *     the 4.2 days and the cover-week count all stay exactly where they were
  *
- * ── SATURDAY LEANS LATE, ON PURPOSE ────────────────────────────────────────────────────────────
+ * Demand is counted INSIDE the window, which matters at the edges: hour 06 is forty minutes long
+ * on a Mon–Sat, and charging it a full hour of movements made the open look permanently starved.
  *
- * Eight of the fourteen Saturday turns start at 11:00 or later against six earlies — the owner's
- * "slight preference to late for events". Measured against the timetable that puts the richest
- * cover at 13:00–19:00 (~8–9 cars per person, against ~15–17 in the morning), which is where an
- * event afternoon actually bites. The morning is not starved to do it: four turns still open the
- * station and the 08:00–10:00 hours hold ~16.
+ * ── WHY THE RESULT IS STILL FAIRLY FLAT, AND WHY THAT IS NOT THE SEARCH GIVING UP ──────────────
+ *
+ * Weekday demand is twin-peaked — 08:00–09:00 and 17:00–18:00 — about NINE HOURS apart, which is
+ * one duty length. A genuinely two-humped cover curve would need the morning turns to end before
+ * the afternoon ones begin, and 14 duties averaging 8h20 cannot do that inside a 17h35 window
+ * without leaving a hole in the middle of the afternoon: two blocks of 500 minutes span 1,000 of
+ * the 1,055 minutes the station is open. So the achievable range is roughly 6 to 8 people, and the
+ * search spends it where it buys most — the 16:00–18:00 shoulder and the peaks — while thinning
+ * the 11:00–14:00 slack it used to over-staff. The lever for the peaks themselves is more duties
+ * in the day, not a different arrangement of these ones.
+ *
+ * ── THE SATURDAY LEAN IS A WEIGHT ON THE EVENING, NOT A RULE ABOUT START TIMES ─────────────────
+ *
+ * v21.01–v21.05 expressed "slight preference to late for events" as *more turns starting after
+ * 11:00*. That proxy fought the timetable: Saturday's measured peak is 10:00–11:00, and satisfying
+ * the start count dropped the busiest hour of the day to six people. Event crowds are not in the
+ * timetable at all — the same trains run fuller — so the honest expression is a WEIGHT: the
+ * search values Saturday's 17:00–22:00 at 1.25x its demand share. Measured on the result, that
+ * band carries 36.9% of Saturday's cover against 34.7% of its demand, while the weekday's carries
+ * 35.9% against 36.7%. Saturday leans to the evening; a weekday does not. That is the assertion
+ * the test makes, because it is the claim that is actually true.
  *
  * ── SUNDAY IS DESIGNED NOW, NOT CARRIED ────────────────────────────────────────────────────────
  *
@@ -140,44 +150,53 @@ export const TARGET_DAYS_PER_WEEK = 4.2;
  * @type {ReadonlyArray<Readonly<{time: string, weekday: number, sat: number, sun: number}>>}
  */
 const TABLE = Object.freeze([
-    // ── Mon–Sat openers — the same four turns both days, staggered finishes
-    Object.freeze({ time: '06:20-14:20', weekday: 1, sat: 1, sun: 0 }),
-    Object.freeze({ time: '06:20-14:40', weekday: 1, sat: 1, sun: 0 }),
-    Object.freeze({ time: '06:20-15:00', weekday: 1, sat: 1, sun: 0 }),
-    Object.freeze({ time: '06:20-15:20', weekday: 1, sat: 1, sun: 0 }),
-    // ── Weekday morning middles — 7h30 turns, off at 14:30–15:45 so the trough is not double-staffed
-    Object.freeze({ time: '07:00-14:30', weekday: 1, sat: 0, sun: 0 }),
-    Object.freeze({ time: '07:30-15:00', weekday: 1, sat: 0, sun: 0 }),
-    Object.freeze({ time: '08:15-15:45', weekday: 1, sat: 0, sun: 0 }),
-    // ── Weekday afternoon middles — on 14:35–15:00, long turns holding the evening to 23:50
-    Object.freeze({ time: '14:35-23:20', weekday: 1, sat: 0, sun: 0 }),
-    Object.freeze({ time: '14:45-23:30', weekday: 1, sat: 0, sun: 0 }),
-    Object.freeze({ time: '14:55-23:45', weekday: 1, sat: 0, sun: 0 }),
-    Object.freeze({ time: '15:00-23:50', weekday: 1, sat: 0, sun: 0 }),
-    // ── Saturday middles — two mornings, four lates starting 13:50–14:50 into the events evening
-    Object.freeze({ time: '08:40-16:10', weekday: 0, sat: 1, sun: 0 }),
-    Object.freeze({ time: '10:00-17:30', weekday: 0, sat: 1, sun: 0 }),
-    Object.freeze({ time: '13:50-22:20', weekday: 0, sat: 1, sun: 0 }),
-    Object.freeze({ time: '14:10-22:50', weekday: 0, sat: 1, sun: 0 }),
-    Object.freeze({ time: '14:30-23:20', weekday: 0, sat: 1, sun: 0 }),
-    Object.freeze({ time: '14:50-23:50', weekday: 0, sat: 1, sun: 0 }),
-    // ── Closers — three turns Mon–Sat through to 23:55, plus Saturday's fourth (the events lean
-    //    carried to the close-down; weekdays and Sundays need only three)
-    Object.freeze({ time: '15:15-23:55', weekday: 1, sat: 1, sun: 0 }),
-    Object.freeze({ time: '15:35-23:55', weekday: 1, sat: 1, sun: 0 }),
-    Object.freeze({ time: '15:55-23:55', weekday: 1, sat: 1, sun: 0 }),
-    Object.freeze({ time: '16:15-23:55', weekday: 0, sat: 1, sun: 0 }),
-    // ── Sunday — its own window (07:15–23:25): four short openers, three middles, three closers
-    Object.freeze({ time: '07:15-14:15', weekday: 0, sat: 0, sun: 1 }),
-    Object.freeze({ time: '07:15-14:35', weekday: 0, sat: 0, sun: 1 }),
-    Object.freeze({ time: '07:15-14:55', weekday: 0, sat: 0, sun: 1 }),
-    Object.freeze({ time: '07:15-15:15', weekday: 0, sat: 0, sun: 1 }),
-    Object.freeze({ time: '10:15-18:15', weekday: 0, sat: 0, sun: 1 }),
-    Object.freeze({ time: '13:45-21:45', weekday: 0, sat: 0, sun: 1 }),
-    Object.freeze({ time: '15:05-23:05', weekday: 0, sat: 0, sun: 1 }),
-    Object.freeze({ time: '15:25-23:25', weekday: 0, sat: 0, sun: 1 }),
-    Object.freeze({ time: '15:45-23:25', weekday: 0, sat: 0, sun: 1 }),
-    Object.freeze({ time: '16:05-23:25', weekday: 0, sat: 0, sun: 1 }),
+    // ── Mon–Fri: four on at the open, staggered finishes
+    Object.freeze({ time: '06:20-13:25', weekday: 1, sat: 0, sun: 0 }),
+    Object.freeze({ time: '06:20-14:20', weekday: 1, sat: 0, sun: 0 }),
+    Object.freeze({ time: '06:20-14:35', weekday: 1, sat: 0, sun: 0 }),
+    Object.freeze({ time: '06:20-14:50', weekday: 1, sat: 0, sun: 0 }),
+    // ── Mon–Fri morning middles — into the 08:00–09:00 peak
+    Object.freeze({ time: '07:00-15:05', weekday: 1, sat: 0, sun: 0 }),
+    Object.freeze({ time: '07:00-16:25', weekday: 1, sat: 0, sun: 0 }),
+    Object.freeze({ time: '08:20-17:50', weekday: 1, sat: 0, sun: 0 }),
+    // ── Mon–Fri afternoon middles — across the heavier evening peak, all off by 22:45
+    Object.freeze({ time: '13:35-22:45', weekday: 1, sat: 0, sun: 0 }),
+    Object.freeze({ time: '14:30-22:45', weekday: 1, sat: 0, sun: 0 }),
+    Object.freeze({ time: '14:50-22:45', weekday: 1, sat: 0, sun: 0 }),
+    Object.freeze({ time: '15:05-22:45', weekday: 1, sat: 0, sun: 0 }),
+    // ── Mon–Fri closers — THREE, and nothing else finishes near them
+    Object.freeze({ time: '14:50-23:55', weekday: 1, sat: 0, sun: 0 }),
+    Object.freeze({ time: '15:55-23:55', weekday: 1, sat: 0, sun: 0 }),
+    Object.freeze({ time: '16:10-23:55', weekday: 1, sat: 0, sun: 0 }),
+    // ── Saturday: four on at the open
+    Object.freeze({ time: '06:20-13:20', weekday: 0, sat: 1, sun: 0 }),
+    Object.freeze({ time: '06:20-13:35', weekday: 0, sat: 1, sun: 0 }),
+    Object.freeze({ time: '06:20-15:00', weekday: 0, sat: 1, sun: 0 }),
+    Object.freeze({ time: '06:20-15:40', weekday: 0, sat: 1, sun: 0 }),
+    // ── Saturday morning middles — the 10:00–11:00 peak is the day's busiest
+    Object.freeze({ time: '07:00-14:00', weekday: 0, sat: 1, sun: 0 }),
+    Object.freeze({ time: '08:15-17:45', weekday: 0, sat: 1, sun: 0 }),
+    Object.freeze({ time: '08:30-18:00', weekday: 0, sat: 1, sun: 0 }),
+    // ── Saturday afternoon middles, all off by 22:45
+    Object.freeze({ time: '13:40-22:45', weekday: 0, sat: 1, sun: 0 }),
+    Object.freeze({ time: '14:00-22:45', weekday: 0, sat: 1, sun: 0 }),
+    Object.freeze({ time: '14:55-22:45', weekday: 0, sat: 1, sun: 0 }),
+    // ── Saturday closers — FOUR, the events lean carried to the close-down
+    Object.freeze({ time: '14:25-23:55', weekday: 0, sat: 1, sun: 0 }),
+    Object.freeze({ time: '15:40-23:55', weekday: 0, sat: 1, sun: 0 }),
+    Object.freeze({ time: '16:05-23:55', weekday: 0, sat: 1, sun: 0 }),
+    Object.freeze({ time: '16:45-23:55', weekday: 0, sat: 1, sun: 0 }),
+    // ── Sunday — its own window (07:15–23:25): four open, three middles, three close
+    Object.freeze({ time: '07:15-14:20', weekday: 0, sat: 0, sun: 1 }),
+    Object.freeze({ time: '07:15-14:40', weekday: 0, sat: 0, sun: 1 }),
+    Object.freeze({ time: '07:15-15:30', weekday: 0, sat: 0, sun: 1 }),
+    Object.freeze({ time: '07:15-15:50', weekday: 0, sat: 0, sun: 1 }),
+    Object.freeze({ time: '09:20-18:20', weekday: 0, sat: 0, sun: 1 }),
+    Object.freeze({ time: '14:55-22:15', weekday: 0, sat: 0, sun: 1 }),
+    Object.freeze({ time: '15:10-22:15', weekday: 0, sat: 0, sun: 1 }),
+    Object.freeze({ time: '14:30-23:25', weekday: 0, sat: 0, sun: 1 }),
+    Object.freeze({ time: '15:50-23:25', weekday: 0, sat: 0, sun: 1 }),
+    Object.freeze({ time: '16:20-23:25', weekday: 0, sat: 0, sun: 1 }),
 ]);
 
 /** Every distinct shift time this table proposes, in the order it lists them. */
