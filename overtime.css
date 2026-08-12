@@ -956,6 +956,18 @@ body {
 
 .ot-person .ot-answer { margin-left: auto; }
 
+/* HOW OLD the declaration is (v20.93). Quiet, and deliberately AFTER the answer rather than in the
+   name column: it qualifies what was said, so it should be read second. `--type-badge`/600 is the
+   quiet-status tier (css-tokens.md) — a receipt about an answer, not a label to scan. */
+.ot-person-age {
+    flex-basis: 100%;
+    text-align: right;
+    margin-top: -2px;
+    font-size: var(--type-badge);
+    font-weight: 600;
+    color: var(--text-light);
+}
+
 /* Flags take their OWN line, so a flag can never sit between a name and its answer chip: the
    answers are read as a column down the right edge, and a flag on two of five rows would push
    those two out of that column and break the scan. The full-width part is the WRAPPER — putting

@@ -46,6 +46,7 @@
 import {
     shortDate, deadlineLabel, weekSpan, weekLabel, countsCopy, answerCopy, answerTone,
     isUnavailable, isAvailableAnswer, asAtLine, rosterBadge, sameAnswer, answerAnchorStale,
+    declaredAgo,
 } from './overtime-format.js';
 
 /**
@@ -114,6 +115,37 @@ function ofGrade(participants, grade) {
 }
 
 /**
+ * When this window's population was FROZEN — the earliest participant's creation instant.
+ *
+ * ── A DENOMINATOR THAT MOVES OVERNIGHT MUST SAY SO ──────────────────────────────────────────────
+ *
+ * The nightly job tops up every still-open window with anybody newly eligible, so "1 of 1 received"
+ * on Monday can be "1 of 2 received · 1 no response" on Tuesday with nothing on screen accounting
+ * for it. A reviewer cannot tell that apart from somebody who stopped answering — and one of those
+ * is worth a phone call while the other is not.
+ *
+ * Everybody frozen at creation is written in ONE batch and shares a commit timestamp, so the
+ * earliest is the freeze instant and anybody materially later was added afterwards. Derived rather
+ * than stored: the window's own `createdAt` would be a second copy of the same fact, free to drift.
+ *
+ * Returns 0 when it cannot be established, which reads as "nobody was added late" — the quiet
+ * direction, because a wrongly-marked row accuses the system of something it may not have done.
+ * @param {any[]} participants
+ * @returns {number}
+ */
+function frozenAt(participants) {
+    const times = (participants || []).map(p => p.createdAt).filter(t => typeof t === 'number' && t > 0);
+    return times.length ? Math.min(...times) : 0;
+}
+
+/**
+ * Tolerance on that comparison. One batch's writes share a commit time, but not to the millisecond
+ * across a retry, and a marker that fires on batch jitter would appear on the whole population at
+ * once — which is worse than never appearing, because it would train a reviewer to ignore it.
+ */
+const ADDED_LATER_TOLERANCE_MS = 60_000;
+
+/**
  * The whole surface as one string. Pure — same inputs, same output, no DOM reads.
  * @param {any} win
  * @param {{ participants: any[], submissions: Map<string, any>,
@@ -169,8 +201,9 @@ function build(win, data, { dates, now, grade, day = 'ALL' }) {
         </div>
         ${gradeStrip(grades, grade)}
         ${glanceStrip(dates, participants, submissions, day)}
-        ${dates.map(date => dayPanel(date, participants, submissions, day, data.roster || {})).join('')}
-        ${awaitingPanel(participants, submissions)}`;
+        ${dates.map(date => dayPanel(date, participants, submissions, day, data.roster || {},
+            { now, frozenAt: frozenAt(data.participants) })).join('')}
+        ${awaitingPanel(participants, submissions, { now, frozenAt: frozenAt(data.participants) })}`;
 }
 
 /**
@@ -284,7 +317,7 @@ function wireGlance(host, onPick) {
 /** One date: available, not available, no response — three sections, never merged. */
 /** @param {string} date @param {any[]} participants @param {Map<string, any>} submissions
  *  @param {string} activeDay @param {Record<string, Record<string, any>>} roster */
-function dayPanel(date, participants, submissions, activeDay = 'ALL', roster = {}) {
+function dayPanel(date, participants, submissions, activeDay = 'ALL', roster = {}, meta = {}) {
     /** @type {string[]} */ const available = [];
     /** @type {string[]} */ const unavailable = [];
     /** @type {string[]} */ const noResponse = [];
@@ -292,9 +325,10 @@ function dayPanel(date, participants, submissions, activeDay = 'ALL', roster = {
     for (const p of participants) {
         const ctx = roster[p.memberName]?.[date] || null;
         const sub = submissions.get(p.memberName);
-        if (!sub) { noResponse.push(personRow(p, null, null, ctx, null)); continue; }
+        if (!sub) { noResponse.push(personRow(p, null, null, ctx, null, meta)); continue; }
         const day = sub.days?.[date];
-        const row = personRow(p, day, sub.history, ctx, sub.history?.initialRevision?.days?.[date]);
+        const row = personRow(p, day, sub.history, ctx,
+            sub.history?.initialRevision?.days?.[date], meta, sub.updatedAt);
         // THREE-VALUED, asked positively (v20.87). It used to be `isUnavailable(day) ? unavailable
         // : available`, whose negation is TRUE for a missing day — so a submission that somehow
         // lacked this date filed that person under Available, with no answer chip beside their
@@ -358,12 +392,29 @@ function section(title, rows, tone) {
  * happened, which is what a clerk revisiting a decision needs. Days that did not change say
  * nothing, so the marker means something wherever it appears.
  *
+ * ── AND HOW OLD THE STATEMENT IS ────────────────────────────────────────────────────────────────
+ *
+ * The row said who, what they are rostered and what they said — and nothing about WHEN they said
+ * it. Mid-week sickness is the case that breaks on: an "available all day" written nineteen days
+ * ago, before a roster the member has since seen and planned around, looked exactly as fresh as one
+ * written this morning. The roster chip fixed half of that (what they are working now); this is the
+ * other half (how old the statement is).
+ *
  * @param {any} p @param {any} day @param {any} history
  * @param {any} ctx that member's roster for THIS date, or null when it could not be read
  * @param {any} initialDay what they had said for this date at the initial deadline, if anything
+ * @param {{ now?: number, frozenAt?: number }} meta the corrected clock, and when this window's
+ *   population was frozen — see `frozenAt`
+ * @param {number} [updatedAt] when this person last changed their form
  */
-function personRow(p, day, history, ctx = null, initialDay = null) {
+function personRow(p, day, history, ctx = null, initialDay = null, meta = {}, updatedAt = 0) {
     const flags = [];
+    // ADDED AFTER THIS WEEK OPENED. Not a judgement on the person — the opposite: it accounts for a
+    // denominator that grew overnight, so a reviewer does not read a fresh name in "No response" as
+    // somebody who has gone quiet.
+    if (meta.frozenAt && p.createdAt && p.createdAt > meta.frozenAt + ADDED_LATER_TOLERANCE_MS) {
+        flags.push('Added after this week opened');
+    }
     // Whole-submission facts first — these are about the FORM, not about this date.
     if (history?.lateInitial) flags.push('Submitted after initial deadline');
     // Per-DAY, and only where this day genuinely moved. `sameAnswer` is structural for the same
@@ -376,20 +427,23 @@ function personRow(p, day, history, ctx = null, initialDay = null) {
     // there the MEMBER changed their mind, here the roster changed under a declaration they stand
     // by — and a clerk acting on it needs to know which of the two happened.
     if (answerAnchorStale(day, ctx)) flags.push('Roster changed since this answer');
+    // Only where there IS an answer to date. A row in "No response" has nothing to be old.
+    const age = day ? declaredAgo(updatedAt, meta.now || 0) : null;
     return `
         <div class="ot-person">
             <span class="ot-person-name">${esc(p.memberName)}</span>
             ${p.grade ? `<span class="ot-person-grade">${esc(p.grade)}</span>` : ''}
             <span class="ot-person-roster"><span class="visually-hidden">Rostered: </span>${rosterBadge(ctx)}</span>
             ${day ? `<span class="ot-answer ot-answer--${answerTone(day)}">${esc(answerCopy(day))}</span>` : ''}
+            ${age ? `<span class="ot-person-age"><span class="visually-hidden">Said </span>${esc(age)}</span>` : ''}
             ${flags.length ? `<div class="ot-person-flags">${
                 flags.map(f => `<span class="ot-person-flag">${esc(f)}</span>`).join('')}</div>` : ''}
         </div>`;
 }
 
 /** The people who have not answered at all — the list a reminder or a phone call works from. */
-/** @param {any[]} participants @param {Map<string, any>} submissions */
-function awaitingPanel(participants, submissions) {
+/** @param {any[]} participants @param {Map<string, any>} submissions @param {any} meta */
+function awaitingPanel(participants, submissions, meta = {}) {
     const waiting = participants.filter(p => !submissions.has(p.memberName));
     return `
         <div class="ot-day-panel">
@@ -400,7 +454,7 @@ function awaitingPanel(participants, submissions) {
                 // would have to pick a day, and whichever it picked would be read as "what they are
                 // working" rather than "what they are working on the Tuesday". The by-day panels
                 // above already show these people, with the right roster on each.
-                ? waiting.map(p => personRow(p, null, null)).join('')
+                ? waiting.map(p => personRow(p, null, null, null, null, meta)).join('')
                 : '<div class="ot-section-empty">Everyone has responded</div>'}
         </div>`;
 }

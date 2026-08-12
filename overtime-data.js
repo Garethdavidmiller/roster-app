@@ -210,13 +210,23 @@ export async function loadWeekDetail(weekEnding, milestones, dates) {
 
         /** @type {any[]} */
         const participants = [];
-        pSnap.forEach((/** @type {any} */ d) => participants.push({ memberName: d.id, ...d.data() }));
+        // `createdAt` is carried through as epoch ms because the WORKSPACE reads it: everyone frozen
+        // at creation shares one commit timestamp, so a later one identifies somebody the nightly
+        // top-up added afterwards — which is the only way a reviewer can tell a growing denominator
+        // from somebody who stopped answering.
+        pSnap.forEach((/** @type {any} */ d) => participants.push({
+            memberName: d.id, ...d.data(), createdAt: toMillis(d.data().createdAt),
+        }));
         participants.sort((a, b) => (a.rosterOrder ?? 0) - (b.rosterOrder ?? 0)
             || String(a.memberName).localeCompare(String(b.memberName)));
 
         /** @type {any[]} */
         const heads = [];
-        sSnap.forEach((/** @type {any} */ d) => heads.push({ memberName: d.id, ...d.data() }));
+        // `updatedAt` likewise: the row states how old a declaration is, and a Firestore Timestamp
+        // cannot be compared against the corrected clock without this.
+        sSnap.forEach((/** @type {any} */ d) => heads.push({
+            memberName: d.id, ...d.data(), updatedAt: toMillis(d.data().updatedAt),
+        }));
 
         const withHistory = await Promise.all(heads.map(async (h) => {
             /** @type {any[]} */

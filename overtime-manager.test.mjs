@@ -60,7 +60,7 @@ function render(over = {}) {
     renderWeekDetail(/** @type {any} */ (host), { ...WIN, ...over.win },
         { participants: over.participants || PARTICIPANTS, submissions: over.submissions || submissions(),
           roster: over.roster || {}, rosterKnown: over.rosterKnown !== false },
-        { dates: DATES, now: Date.parse('2026-08-19T09:00:00Z'), grade: over.grade });
+        { dates: DATES, now: over.now || Date.parse('2026-08-19T09:00:00Z'), grade: over.grade });
     return host.innerHTML;
 }
 
@@ -233,6 +233,81 @@ describe('the header', () => {
         // Submitted availability is a record of what somebody said before a cut-off, not a standing
         // promise. Wherever the data is read, the note is read with it.
         assert.match(render(), /Confirm directly[\s\S]*with the employee before arranging short-notice cover/);
+    });
+});
+
+describe('a denominator that moved, and an answer that has aged', () => {
+    const FROZE = Date.parse('2026-08-10T05:00:00Z');
+    const NOW   = Date.parse('2026-08-19T09:00:00Z');
+    const P = (name, createdAt) => ({ memberName: name, grade: 'CEA', rosterOrder: 1, createdAt });
+
+    test('somebody the nightly top-up added is marked as such', () => {
+        // Without this a reviewer cannot tell a denominator that GREW overnight from somebody who
+        // has gone quiet — and only one of those is worth a phone call. The scheduler tops up every
+        // still-open window, so "1 of 1 received" becoming "1 of 2 · 1 no response" is a normal
+        // Tuesday with nothing on screen accounting for it.
+        const html = render({
+            participants: [P('A. One', FROZE), P('B. Two', FROZE + 5 * 86_400_000)],
+            submissions: new Map(),
+        });
+        // Asserted on WHO rather than how many. The marker appears once per day panel AND once in
+        // Awaiting a form, so a count is a statement about panel structure rather than about the
+        // rule — and it would need rewriting every time a panel is added.
+        const rows = panelFor(html, 'Sun 30 Aug').split('class="ot-person"');
+        const newcomer = rows.find(r => /B\. Two/.test(r)) || '';
+        const original = rows.find(r => /A\. One/.test(r)) || '';
+        assert.match(newcomer, /Added after this week opened/);
+        assert.equal(/Added after this week opened/.test(original), false,
+            'the frozen population is not marked — only what arrived after it');
+    });
+
+    test('the whole population frozen together is marked NOWHERE', () => {
+        // The teeth. A marker that fires on batch jitter would appear on everybody at once, which
+        // is worse than never appearing: it would train a reviewer to ignore it.
+        const html = render({
+            participants: [P('A. One', FROZE), P('B. Two', FROZE + 300)],
+            submissions: new Map(),
+        });
+        assert.equal(/Added after this week opened/.test(html), false);
+    });
+
+    test('a participant list with no timestamps marks nobody', () => {
+        // Quiet direction on purpose: a wrongly-marked row accuses the system of doing something it
+        // may not have done.
+        const html = render({ participants: [P('A. One', undefined), P('B. Two', undefined)],
+            submissions: new Map() });
+        assert.equal(/Added after this week opened/.test(html), false);
+    });
+
+    test('an answer says how old it is', () => {
+        // Mid-week sickness is the case: "available all day" written nineteen days ago, before a
+        // roster the member has since planned around, looked exactly as fresh as one from today.
+        const html = render({
+            participants: [P('A. One', FROZE)],
+            submissions: new Map([['A. One', { memberName: 'A. One', history: null,
+                updatedAt: NOW - 19 * 86_400_000,
+                days: Object.fromEntries(DATES.map(d => [d, { mode: 'all_day' }])) }]]),
+            now: NOW,
+        });
+        assert.match(html, /19 days ago/);
+    });
+
+    test('a row with no answer for THIS date carries no age, even though the form has a timestamp', () => {
+        // The discriminating case, and the first version of this test missed it. A participant with
+        // no submission at all has no timestamp either, so the guard is invisible there — it only
+        // bites for somebody who DID submit but whose form says nothing about this date, where
+        // `updatedAt` is real and there is still no answer to date. An age beside "No response"
+        // would date the silence, which is not a thing the record knows.
+        const html = render({
+            participants: [P('A. One', FROZE)],
+            submissions: new Map([['A. One', { memberName: 'A. One', history: null,
+                updatedAt: NOW - 19 * 86_400_000,
+                days: { [DATES[0]]: { mode: 'all_day' } } }]]),   // nothing for DATES[1]
+            now: NOW,
+        });
+        assert.match(panelFor(html, 'Sun 30 Aug'), /19 days ago/, 'the answered day is dated');
+        assert.equal(/19 days ago/.test(panelFor(html, 'Mon 31 Aug')), false,
+            'the day with no answer is not');
     });
 });
 

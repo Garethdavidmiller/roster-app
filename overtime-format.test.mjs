@@ -20,6 +20,7 @@ import {
     shortDate, longDate, weekLabel, weekSpan, deadlineLabel, phaseCopy, rowStateCopy,
     countsCopy, answerCopy, answerTone, answerAnchorStale, isUnavailable, weekSummary, asAtLine,
     modesFor, submitFailureCopy, shiftSpanMinutes, sameAnswer, deadlineLines, receiptLine,
+    declaredAgo,
 } from './overtime-format.js';
 
 describe('the corrected clock', () => {
@@ -523,6 +524,34 @@ describe('the two deadlines a member has', () => {
                 assert.doesNotMatch(l.text, /draft/i, `"${l.text}" names the draft roster`);
             }
         }
+    });
+});
+
+describe('how old a declaration is', () => {
+    const NOW = Date.parse('2026-08-20T09:00:00Z');
+    const daysBefore = (n) => NOW - n * 86_400_000;
+
+    test('today, yesterday, then a count', () => {
+        // Relative and coarse on purpose. A clerk needs "recent" or "a while ago"; an exact
+        // timestamp reads as precision about something approximate and forces them to subtract.
+        assert.equal(declaredAgo(daysBefore(0), NOW), 'today');
+        assert.equal(declaredAgo(daysBefore(1), NOW), 'yesterday');
+        assert.equal(declaredAgo(daysBefore(19), NOW), '19 days ago');
+    });
+
+    test('nothing to date renders nothing, not "unknown"', () => {
+        // The caller omits the element entirely. An "unknown" would be a statement about the
+        // declaration where there is none to make.
+        assert.equal(declaredAgo(0, NOW), null);
+        assert.equal(declaredAgo(null, NOW), null);
+        assert.equal(declaredAgo(daysBefore(3), 0), null);
+    });
+
+    test('a timestamp in the FUTURE is refused rather than rendered as "today"', () => {
+        // Reachable: the row uses the corrected server clock and the stamp comes from the server,
+        // but a clock correction landing between the two can invert them by a few seconds. "In 0
+        // days" is meaningless and "today" would be a guess dressed as a fact.
+        assert.equal(declaredAgo(NOW + 60_000, NOW), null);
     });
 });
 
