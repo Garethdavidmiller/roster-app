@@ -24,7 +24,11 @@
  *                               nothing, deliberately, so this endpoint is where participation is
  *                               resolved — and it is also where `serverNow` comes from, because a
  *                               device clock must never decide what a member is shown.
- *   submitOvertimeAvailability  the only mutation. Transactional, revision-aware, idempotent.
+ *   submitOvertimeAvailability  the only mutation A MEMBER makes. Transactional, revision-aware,
+ *                               idempotent.
+ *   withdrawOvertimeParticipant reviewer. Stops a week EXPECTING one person — a leaver otherwise
+ *                               stays a permanent non-responder in every open week. A flag, never
+ *                               a delete: it changes what is expected, not what happened.
  *
  * ── IDENTITY IS THE TOKEN, NEVER THE BODY ──────────────────────────────────────────────────────
  * Every endpoint verifies with `checkRevoked: true` and takes the member from `decoded.name` — the
@@ -375,6 +379,72 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
         return missing.map(p => p.memberName);
     }
 
+    // ── withdrawOvertimeParticipant ─────────────────────────────────────────────────────────────
+
+    /**
+     * Stop expecting an answer from one person for one week — or put them back. Reviewer only.
+     *
+     * Body: `{ weekEnding: 'YYYY-MM-DD', memberName: string, withdrawn: boolean }`
+     *
+     * ── IT IS A FLAG, NEVER A DELETE ────────────────────────────────────────────────────────────
+     *
+     * The participant document stays, and so does any submission and every revision beneath it.
+     * That is not caution about data loss; it is the same rule the rest of this feature runs on.
+     * A submission is somebody's declaration about their own life, and removing the record of it
+     * because they later left is a quieter version of the silent overwrite `decideSubmission`
+     * exists to prevent. Withdrawal changes what the week EXPECTS; it does not edit what happened.
+     *
+     * Restoring is the same call with `withdrawn: false`, and it removes the three fields rather
+     * than writing `withdrawn: false` — see `OT.isWithdrawn` for why a written false would be
+     * worse than useless here.
+     *
+     * The window's phase is checked from the STORED milestones, like everything else: a week that
+     * has closed is a record, and this endpoint refuses to edit one.
+     */
+    const withdrawOvertimeParticipant = onRequest(
+        { region: 'europe-west2', timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS },
+        async (req, res) => {
+            const who = await authenticate(req, res);
+            if (!who) return;
+            if (!requireReviewer(who, res)) return;
+
+            const body = req.body || {};
+            const weekEnding = typeof body.weekEnding === 'string' ? body.weekEnding : '';
+            const memberName = typeof body.memberName === 'string' ? body.memberName.trim() : '';
+            const withdrawn = body.withdrawn === true;
+            // The id shape is checked before it is used as a path segment, not after: `weekEnding`
+            // and `memberName` are both document ids here, and an unvalidated one reaches Firestore
+            // as a path rather than as data.
+            if (!OT.isSaturday(weekEnding) || !memberName || !OT.isSafeDocId(memberName)) {
+                return res.status(400).json({ error: 'invalid-request' });
+            }
+
+            const ref = db().collection(WINDOWS).doc(weekEnding);
+            const snap = await ref.get();
+            if (!snap.exists) return res.status(404).json({ error: 'no-window' });
+
+            const nowMs = Date.now();
+            const allowed = OT.canChangeParticipation(storedMilestones(snap.data()), nowMs);
+            if (!allowed.ok) return res.status(409).json({ error: allowed.error });
+
+            const pRef = ref.collection('participants').doc(memberName);
+            const pSnap = await pRef.get();
+            if (!pSnap.exists) return res.status(404).json({ error: 'not-a-participant' });
+
+            const del = admin.firestore.FieldValue.delete();
+            await pRef.update(withdrawn
+                ? {
+                    withdrawn:   true,
+                    withdrawnAt: admin.firestore.FieldValue.serverTimestamp(),
+                    withdrawnBy: who.name,
+                }
+                : { withdrawn: del, withdrawnAt: del, withdrawnBy: del });
+
+            console.log(`[withdrawOvertimeParticipant] ${weekEnding} · ${memberName} · `
+                + `${withdrawn ? 'withdrawn' : 'restored'} by ${who.name}`);
+            return res.json({ ok: true, weekEnding, memberName, withdrawn, serverNow: nowMs });
+        });
+
     // ── autoCreateOvertimeWindows (scheduled) ───────────────────────────────────────────────────
 
     /** How a window created by the schedule signs itself, wherever a creator name is shown. */
@@ -599,12 +669,31 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
         // one aggregation read each. Same derivation, same source of truth — the participant
         // collection IS the expected population; no stored expectedCount exists anywhere, because
         // a cached copy of a size is a second answer that can disagree with it.
-        const [participants, submissions] = await Promise.all([
+        //
+        // The WITHDRAWN are counted separately and subtracted rather than filtered out of the first
+        // aggregation, because a `where` clause skips documents that are missing the field
+        // entirely — so every participant written before withdrawal existed would vanish from the
+        // count and `expected` would read 0 for every current week. Subtracting is right for old
+        // and new documents alike, and in the normal case the third aggregation returns 0.
+        const [participants, submissions, withdrawn] = await Promise.all([
             ref.collection('participants').count().get(),
             ref.collection('submissions').count().get(),
+            ref.collection('participants').where('withdrawn', '==', true).count().get(),
         ]);
-        const expected = participants.data().count;
-        const received = submissions.data().count;
+        const gone = withdrawn.data().count;
+        const expected = participants.data().count - gone;
+        // A withdrawn member may already have submitted, and their answer must not keep inflating
+        // `received` after they stop being expected — `received > expected` would render as a
+        // negative no-response count, which is the shape of a number nobody trusts again. Their ids
+        // are read only when there ARE any, so the ordinary week pays nothing for this.
+        let received = submissions.data().count;
+        if (gone > 0) {
+            const goneNames = (await ref.collection('participants')
+                .where('withdrawn', '==', true).select().get()).docs.map(d => d.id);
+            const subs = await Promise.all(goneNames.map(n =>
+                ref.collection('submissions').doc(n).get()));
+            received -= subs.filter(d => d.exists).length;
+        }
         return { expected, received, noResponse: expected - received };
     }
 
@@ -832,6 +921,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
         getOvertimeManagerOverview,
         getMyOvertimeState,
         submitOvertimeAvailability,
+        withdrawOvertimeParticipant,
     };
 }
 

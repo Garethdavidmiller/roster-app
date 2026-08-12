@@ -697,7 +697,8 @@ Object.assign(exports, buildAuthEndpoints({
 
 // ── Overtime Availability ────────────────────────────────────────────────────
 // The OVERTIME domain — createOvertimeWindow, autoCreateOvertimeWindows,
-// getOvertimeManagerOverview, getMyOvertimeState and submitOvertimeAvailability —
+// getOvertimeManagerOverview, getMyOvertimeState, submitOvertimeAvailability and
+// withdrawOvertimeParticipant —
 // lives in ./overtime.js, with
 // every RULE next door in ./overtime-core.js (pure, no emulator needed). It is handed
 // the GENERATED roster rather than reading it itself: `overtimeRoster` (who exists,

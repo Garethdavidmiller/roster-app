@@ -308,6 +308,57 @@ function isOpenPhase(phase) {
 }
 
 /**
+ * May a participant be withdrawn from — or restored to — this week, right now?
+ *
+ * ── WHY WITHDRAWAL EXISTS AT ALL ────────────────────────────────────────────────────────────────
+ *
+ * The population is frozen at creation, and that freeze is right: it is the only reason a response
+ * rate means anything. But it has one consequence nobody chose — a member who LEAVES stays in every
+ * open week as a permanent non-responder, and the reviewer chasing outstanding forms is chasing
+ * somebody who no longer works here, every week, until the horizon rolls past them.
+ *
+ * Withdrawal is the narrow answer: the person stops being EXPECTED. Nothing is deleted — the
+ * participant record and any submission they made stay exactly where they are, and the page states
+ * who was withdrawn and by whom, because an exclusion nobody can see is worse than the problem.
+ *
+ * ── AND WHY A CLOSED WEEK REFUSES IT ────────────────────────────────────────────────────────────
+ *
+ * A closed week is a RECORD of what was known when the roster was planned from it. Somebody who was
+ * employed, was asked, and did not answer is accurately recorded as exactly that, and editing it
+ * afterwards changes a historical response rate to make a past week look tidier. The problem
+ * withdrawal solves is a live one — a person being chased now — so the fix is bounded to weeks that
+ * are still live. Expired weeks are refused for the same reason plus a stronger one: they are on
+ * their way out of the system entirely.
+ *
+ * @param {{initialDeadlineAt:number, finalDeadlineAt:number, retentionUntil:number}} milestones
+ * @param {number} nowMs
+ * @returns {{ ok:boolean, error?:string }} `error` is a stable machine code, not display copy
+ */
+function canChangeParticipation(milestones, nowMs) {
+    if (!milestones) return { ok: false, error: 'no-window' };
+    if (milestones.retentionUntil <= nowMs) return { ok: false, error: 'expired' };
+    if (!isOpenPhase(phaseFor(milestones, nowMs))) return { ok: false, error: 'closed' };
+    return { ok: true };
+}
+
+/**
+ * Is this frozen participant record withdrawn?
+ *
+ * A BOOLEAN field set only on withdrawal, never written `false` at creation — which is not a style
+ * choice. Firestore's `where('x','==',null)` and `!=` both skip documents missing the field, so a
+ * tri-state or a default-false would make every participant written before this feature invisible
+ * to the count query, and `expected` would read 0 for every existing week. Counting the withdrawn
+ * (usually none) and subtracting is correct for old and new documents alike.
+ *
+ * ⚠️ The reviewer's browser reads participants DIRECTLY from Firestore, so this rule also exists in
+ * `overtime-format.js`. Keep them the same shape.
+ * @param {any} participant
+ */
+function isWithdrawn(participant) {
+    return !!participant && participant.withdrawn === true;
+}
+
+/**
  * May a window be created for this week-ending, right now?
  *
  * @param {string} weekEnding
@@ -716,6 +767,8 @@ module.exports = {
     deriveMilestones,
     phaseFor,
     isOpenPhase,
+    canChangeParticipation,
+    isWithdrawn,
     validateWeekEnding,
     planningWeekEndings,
     weeksNeedingWindows,

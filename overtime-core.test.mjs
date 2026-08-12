@@ -340,6 +340,51 @@ describe('the missing window — the failure nothing else catches', () => {
     });
 });
 
+describe('withdrawal — the one exception to the freeze, and its bounds', () => {
+    // The freeze is what makes a response rate mean anything. Its unchosen consequence is that a
+    // LEAVER stays in every open week as a permanent non-responder, so the reviewer chasing
+    // outstanding forms chases somebody who no longer works here, every week, until the horizon
+    // rolls past them. Withdrawal is the narrow answer, and its bounds are the whole design.
+
+    test('it is allowed while the form is open, in EITHER phase', () => {
+        const m = C.deriveMilestones(WEEK_SEP);
+        assert.equal(C.canChangeParticipation(m, m.initialDeadlineAt - 1).ok, true, 'INITIAL_OPEN');
+        assert.equal(C.canChangeParticipation(m, m.initialDeadlineAt).ok, true, 'FINAL_OPEN');
+        // Deliberately NOT the `INITIAL_OPEN`-only rule that governs ADDING somebody. Adding late
+        // manufactures a non-responder for a deadline that pre-dates the invitation; removing
+        // somebody creates no record at all, so the reason to be strict is simply absent.
+    });
+
+    test('a CLOSED week refuses it — that week is a record, not a work list', () => {
+        // Somebody who was employed, was asked, and did not answer is accurately recorded as
+        // exactly that. Editing it afterwards changes a historical response rate to make a past
+        // week look tidier, and this feature's whole value is that its history cannot be tidied.
+        const m = C.deriveMilestones(WEEK_SEP);
+        assert.deepEqual(C.canChangeParticipation(m, m.finalDeadlineAt), { ok: false, error: 'closed' });
+        assert.deepEqual(C.canChangeParticipation(m, m.retentionUntil), { ok: false, error: 'expired' });
+        // `expired` outranks `closed` — every expired week is also closed, and the caller wants the
+        // more specific reason.
+        assert.equal(C.canChangeParticipation(m, m.retentionUntil + 9e8).error, 'expired');
+    });
+
+    test('a missing window is refused rather than throwing mid-request', () => {
+        assert.deepEqual(C.canChangeParticipation(null, 0), { ok: false, error: 'no-window' });
+    });
+
+    test('withdrawn is a STRICT true, and an absent field is not withdrawn', () => {
+        // Both halves matter and they fail in opposite directions. A truthiness check would read a
+        // string or a timestamp as withdrawal and remove somebody the reviewer must chase; and
+        // every participant document written before this feature existed has no field at all, so
+        // treating "missing" as anything but present would empty every current week.
+        assert.equal(C.isWithdrawn({ withdrawn: true }), true);
+        for (const v of [undefined, null, false, 0, '', 'true', 1, {}]) {
+            assert.equal(C.isWithdrawn({ withdrawn: v }), false, `withdrawn: ${JSON.stringify(v)}`);
+        }
+        assert.equal(C.isWithdrawn({ memberName: 'A. One' }), false, 'a legacy record is not withdrawn');
+        assert.equal(C.isWithdrawn(null), false);
+    });
+});
+
 describe('who was asked — the frozen population', () => {
     const ELIGIBLE = [
         { name: 'A. One',   grade: 'CEA', startDate: null,         rosterOrder: 3 },

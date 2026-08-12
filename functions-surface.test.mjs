@@ -21,7 +21,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 
-// The sixteen deployed functions. Order-insensitive; names are what `firebase deploy` sees.
+// The seventeen deployed functions. Order-insensitive; names are what `firebase deploy` sees.
 const DEPLOY_SURFACE = [
     'ingestHuddle',
     'onHuddleCreated',
@@ -46,6 +46,7 @@ const DEPLOY_SURFACE = [
     'getOvertimeManagerOverview',
     'getMyOvertimeState',
     'submitOvertimeAvailability',
+    'withdrawOvertimeParticipant',
 ];
 
 test('functions/index.js exports exactly the deployed function surface', () => {

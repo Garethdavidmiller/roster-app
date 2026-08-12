@@ -21,10 +21,10 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { deriveHistory as clientDerive } from './overtime-format.js';
+import { deriveHistory as clientDerive, isWithdrawn as clientWithdrawn } from './overtime-format.js';
 
 const require = createRequire(import.meta.url);
-const { deriveHistory: serverDerive } = require('./functions/overtime-core.js');
+const { deriveHistory: serverDerive, isWithdrawn: serverWithdrawn } = require('./functions/overtime-core.js');
 
 const A = { '2026-08-30': { mode: 'all_day' }, '2026-08-31': { mode: 'unavailable' } };
 const B = { '2026-08-30': { mode: 'unavailable' }, '2026-08-31': { mode: 'unavailable' } };
@@ -73,5 +73,43 @@ describe('client and server derive the same history', () => {
         const reordered = { '2026-08-31': { mode: 'unavailable' }, '2026-08-30': { mode: 'all_day' } };
         assert.equal(clientDerive([rev(1, A, 100)], reordered, DEADLINE).changedSinceInitial, false);
         assert.equal(serverDerive([rev(1, A, 100)], reordered, DEADLINE).changedSinceInitial, false);
+    });
+});
+
+describe('client and server agree who is still being asked', () => {
+    // `isWithdrawn` is the second rule on this boundary, and it fails in both directions:
+    //
+    //   client looser than server → a person the endpoints still count as expected disappears from
+    //     the reviewer's lists, so nobody chases somebody the counts say is outstanding; and
+    //   client stricter → a withdrawn leaver stays in every list while the count beneath them says
+    //     one fewer, which is the page disagreeing with itself in the one number a clerk acts on.
+    //
+    // Neither raises anything. Both are one field test, which is exactly the kind of rule that gets
+    // "tidied" into a truthiness check on the side that is being edited that day.
+    const SHAPES = [
+        ['withdrawn',                   { withdrawn: true }],
+        ['a legacy record, no field',   { memberName: 'A. One' }],
+        ['an explicit false',           { withdrawn: false }],
+        ['a truthy non-boolean',        { withdrawn: 'true' }],
+        ['a timestamp in the flag',     { withdrawn: 1_755_000_000_000 }],
+        ['an empty string',             { withdrawn: '' }],
+        ['restored — fields removed',   { memberName: 'A. One', grade: 'CEA' }],
+        ['null',                        null],
+        ['undefined',                   undefined],
+    ];
+
+    for (const [label, participant] of SHAPES) {
+        test(label, () => {
+            assert.equal(clientWithdrawn(participant), serverWithdrawn(participant),
+                'the two copies disagree about whether this person is still being asked');
+        });
+    }
+
+    test('and they agree that a truthy non-boolean is NOT withdrawal', () => {
+        // Pinned as an outcome rather than only as parity: two copies that drift the same way agree
+        // perfectly and are both wrong, and this is the direction that removes a real person from a
+        // list somebody rings round from.
+        assert.equal(clientWithdrawn({ withdrawn: 'true' }), false);
+        assert.equal(serverWithdrawn({ withdrawn: 'true' }), false);
     });
 });

@@ -721,6 +721,26 @@ grade is in the week.
 Your grade choice **follows you between weeks** (v20.89). The day filter does not, because its
 dates belong to the week you were looking at.
 
+### Somebody who has left, and is being chased every week
+
+The population of a week is frozen when it opens — that is what makes "3 of 5 received" mean
+anything. It also means a **leaver stays in every open week as somebody outstanding**, week after
+week, until the horizon rolls past them.
+
+**Stop asking** on their row in *Awaiting a form* ends that for that week. They come out of the
+expected count, out of every day panel and out of the chip beside the card title, and a **Not being
+asked** footnote appears at the bottom of the week naming them, who stopped asking, and when. Their
+form and anything they already said are kept — this changes what the week expects, not what
+happened. **Ask again** on that footnote puts them back.
+
+Do it per week, on each open week they appear in. A **closed** week refuses it, and that is the
+design rather than a limitation: a closed week is the record the roster was planned from, and
+somebody who was employed, was asked and did not answer is accurately recorded as exactly that.
+
+Withdrawing is not a substitute for the roster itself — set `hidden: true` on a leaver in the usual
+way (see **Removing a staff member**), which is what stops them appearing in weeks created after
+that point.
+
 **On the member's side**, the page opens on the soonest form they have **not yet answered** rather
 than simply the soonest (v20.86) — a completed form is not an answer to "what do I need to do?".
 The form names both deadlines, emphasising whichever is still ahead, and a submitted one carries a
@@ -734,7 +754,9 @@ the employee before arranging short-notice cover.
 
 **Only *Who is available* prints.** Print from the **Everyone** tab and you get a call sheet: the
 week, when the availability was read, how many forms are in, then every day with its three sections
-and the *Awaiting a form* list. It prints the whole week even if you have a day chip selected, and
+and the *Awaiting a form* list. Anyone the week has stopped asking prints too, in the same footnote —
+a sheet whose counts quietly excluded somebody would be the one thing that footnote exists to
+prevent. It prints the whole week even if you have a day chip selected, and
 the answer chips print outlined rather than filled so they survive a mono printer.
 
 A **grade** filter, unlike the day filter, IS carried onto the paper — printing one grade's

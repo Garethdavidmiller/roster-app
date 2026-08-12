@@ -39,7 +39,7 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import * as OTD from './overtime-data.js';
 import {
-    weekLabel, weekSpan, deadlineLabel, rowStateCopy, countsCopy, shouldResyncClock,
+    weekLabel, weekSpan, deadlineLabel, rowStateCopy, countsCopy, shouldResyncClock, isWithdrawn,
 } from './overtime-format.js';
 import { CARD_TIPS } from './overtime-tips.js';
 import { renderWeekForm } from './overtime-form.js';
@@ -892,12 +892,65 @@ export function init() {
         paintWeekDetail(host, win, data, {
             dates, now: OTD.correctedNow(),
             grade: reviewGrade, onGrade: (g) => { reviewGrade = g; },
+            onAsk: (memberName, ask) => setAsking(weekEnding, memberName, ask),
         });
         const chip = el('otWeekChip');
         if (chip) {
-            const received = data.participants.filter((/** @type {any} */ p) => data.submissions.has(p.memberName)).length;
-            chip.textContent = `${received}/${data.participants.length}`;
+            // Withdrawn participants come out of BOTH halves of the chip, exactly as they come out
+            // of the counts inside the card. A chip reading 4/6 above a card reading "4 of 5" is
+            // two answers to one question, and the reader has no way to tell which is the mistake.
+            const expected = data.participants.filter((/** @type {any} */ p) => !isWithdrawn(p));
+            const received = expected.filter((/** @type {any} */ p) => data.submissions.has(p.memberName)).length;
+            chip.textContent = `${received}/${expected.length}`;
         }
+    }
+
+    /**
+     * Stop expecting an answer from somebody for one week — or start again.
+     *
+     * ── IT ASKS FIRST, AND IT RE-READS AFTERWARDS ───────────────────────────────────────────────
+     *
+     * Confirming is not ceremony: this is the one control on the page that changes what another
+     * person's record is measured against, and "Stop asking" sits inches from "Open" on a list a
+     * reviewer scrolls with a thumb. Re-reading rather than patching the local copy is the same
+     * rule the rest of this coordinator follows — the server owns the population, and a page that
+     * drew the outcome it hoped for would disagree with the next reload if the write had failed.
+     * @param {string} weekEnding @param {string} memberName @param {boolean} ask
+     */
+    async function setAsking(weekEnding, memberName, ask) {
+        const week = weekLabel(weekEnding);
+        const ok = await confirmDialog(ask
+            ? {
+                title: `Ask ${memberName} again?`,
+                message: `${memberName} goes back into the counts for ${week} and can fill the `
+                    + 'form in for the rest of the time it is open.',
+                confirmLabel: 'Ask again',
+                cancelLabel: 'Cancel',
+            }
+            : {
+                title: `Stop asking ${memberName}?`,
+                message: `${memberName} comes out of the counts for ${week} and stops appearing `
+                    + 'as outstanding. Anything they have already said is kept, and you can put '
+                    + 'them back while the form is open.',
+                confirmLabel: 'Stop asking',
+                cancelLabel: 'Cancel',
+            });
+        if (!ok) return;
+        const r = await OTD.withdrawOvertimeParticipant(weekEnding, memberName, !ask);
+        if (!r.ok) {
+            // `closed` is the one refusal worth naming rather than reporting as a fault: it is a
+            // rule, and a reviewer told only "that didn't work" would try it again.
+            flashConfirm(r.code === 'closed'
+                ? `${esc(week)} has closed, so who was asked can no longer be changed — a closed `
+                  + 'week is the record the roster was planned from.'
+                : `That couldn't be saved (${esc(r.code)}).`, false);
+            return;
+        }
+        flashConfirm(ask
+            ? `<strong>${esc(memberName)}</strong> is being asked for ${esc(week)} again.`
+            : `<strong>${esc(memberName)}</strong> is no longer being asked for ${esc(week)}.`, true);
+        await loadHorizon();
+        if (selectedWeek === weekEnding) renderWeekDetail(weekEnding);
     }
 
     /**

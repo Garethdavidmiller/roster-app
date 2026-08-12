@@ -1246,6 +1246,53 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await expect(rosters.first()).toContainText('Rostered:');
     });
 
+    test('somebody the week has stopped asking is out of the counts, and can be put back', async ({ page }) => {
+        // The rules are unit-tested; what only a browser answers is whether the CONTROL is wired.
+        // `wireAsk` runs inside the manager module's repaint, the handler lives in the coordinator,
+        // and the request goes out through a confirm dialog — three hops, each of which fails by
+        // rendering a button that does nothing at all.
+        //
+        // The seeded participant is withdrawn, so this drives "Ask again". It is the same wiring as
+        // "Stop asking" (one handler, one endpoint) and it is the half this fixture can express:
+        // `docs` seeds ONE array for every collection read, so a participant is always also a
+        // submission head and can therefore never appear in Awaiting.
+        await seedSession(page, 'H. Croft');
+        await page.addInitScript((rows) => {
+            window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: rows };
+        }, [{ id: 'G. Miller', memberName: 'G. Miller', grade: 'CEA', rosterOrder: 1,
+              withdrawn: true, withdrawnBy: 'H. Croft' }]);
+        /** @type {any[]} */
+        const sent = [];
+        await page.route('**/withdrawOvertimeParticipant', (r) => {
+            sent.push(JSON.parse(r.request().postData() || '{}'));
+            return r.fulfill({ status: 200, contentType: 'application/json',
+                body: JSON.stringify({ ok: true, serverNow: NOW }) });
+        });
+        await page.route('**/getMyOvertimeState', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, windows: [] }) }));
+        await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW,
+                planningWeeks: [{ ...W, exists: true, state: 'created', canCreate: false,
+                    expected: 0, received: 0, noResponse: 0 }], retained: [] }) }));
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+
+        // Out of the counts and out of the day panels — but SAID, with who did it.
+        await expect(page.locator('.ot-detail-counts')).toContainText('0 of 0');
+        await expect(page.locator('#otWeekChip')).toHaveText('0/0');
+        await expect(page.locator('.ot-day-panel--muted')).toContainText('Not being asked');
+        await expect(page.locator('.ot-day-panel--muted')).toContainText('H. Croft');
+
+        // Confirming is not decoration on this control, so the click must reach a dialog first.
+        await page.locator('[data-ask-again="G. Miller"]').click();
+        await expect(page.locator('.dialog-btn-confirm')).toBeVisible();
+        await page.locator('.dialog-btn-confirm').click();
+        await expect.poll(() => sent.length).toBe(1);
+        expect(sent[0]).toEqual({ weekEnding: W.weekEnding, memberName: 'G. Miller', withdrawn: false });
+    });
+
     test('the reviewer\'s grade survives a WEEK switch', async ({ page }) => {
         // The mirror of the test below, one level up and the same defect: the day lens was fixed at
         // v20.75, the grade lens was not. Every week switch re-renders the workspace from scratch,

@@ -511,6 +511,41 @@ export function answerCopy(day) {
 }
 
 /**
+ * True when a frozen participant record has been withdrawn from its week.
+ *
+ * ⚠️ THE SAME RULE EXISTS SERVER-SIDE, in `functions/overtime-core.js` (`isWithdrawn`). It has to:
+ * the endpoints count the withdrawn to keep `expected` honest, and the reviewer's browser reads the
+ * participant documents DIRECTLY from Firestore — the same CommonJS/ESM boundary `normaliseSurname`
+ * sits on. Both are one field test against `true` and neither may loosen to a truthiness check,
+ * because the failure is silent and points the wrong way: a record that is not withdrawn read AS
+ * withdrawn removes a person the reviewer is supposed to be chasing.
+ * @param {any} participant
+ */
+export function isWithdrawn(participant) {
+    return !!participant && participant.withdrawn === true;
+}
+
+/**
+ * "Stopped by H. Croft, Wed 12 Aug" — the caption that makes an exclusion visible.
+ *
+ * The by-WHOM half is not decoration. This is the one action on the page that removes a person from
+ * a count, so a line reading only "not being asked" would be an unattributable change to somebody
+ * else's record. Either half may be missing without the line becoming wrong — it simply says less.
+ *
+ * The words avoid "withdrawn" on purpose: that is the field name, and the reviewer's question is
+ * whether this person is still being ASKED. `withdrawn` stays in the data and out of the copy.
+ * @param {any} participant
+ */
+export function withdrawnLine(participant) {
+    if (!isWithdrawn(participant)) return '';
+    const by = typeof participant.withdrawnBy === 'string' && participant.withdrawnBy
+        ? ` by ${participant.withdrawnBy}` : '';
+    const when = participant.withdrawnAt
+        ? `, ${shortDate(new Date(participant.withdrawnAt).toISOString().slice(0, 10))}` : '';
+    return `Stopped${by}${when}`;
+}
+
+/**
  * True when a stored answer means the member offered nothing at all that day.
  * @param {any} day
  */
