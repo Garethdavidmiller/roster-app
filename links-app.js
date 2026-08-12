@@ -1829,10 +1829,10 @@ export function init() {
                 // a real answer about the targets, not a typo in them, and the generic message would
                 // send the designer hunting for a bad row that does not exist.
                 if (errEl) {
-                    // `short-hours` names the SIZE of the gap, because that is the only actionable
-                    // fact about it. The shortfall is arithmetic — the duty in the table against the
-                    // working lines it has to fill — so "add more rows" is not advice, it is the
-                    // whole answer, and the designer needs the number to know how much.
+                    // `short-hours` / `over-hours` name the SIZE of the gap, because that is the only
+                    // actionable fact about either. The gap is arithmetic — the duty in the table
+                    // against the working lines it has to fill — so "add rows" or "take some out" is
+                    // not advice, it is the whole answer, and the designer needs the number.
                     const asked = built.askedMinutes ?? 0;
                     const need = built.needMinutes ?? 0;
                     const working = built.working || 1;
@@ -1841,12 +1841,21 @@ export function init() {
                     // quoting a different average from the row it is refusing on behalf of would be
                     // two numbers for one fact, arriving in the same second.
                     const avg = (asked + (TOTAL_POS - working) * CONTRACTED_HOURS_PER_WEEK * 60) / 60 / TOTAL_POS;
+                    // One sentence of arithmetic, then the remedies — and the remedies are opposites,
+                    // which is the whole reason the two refusals are not one message with a sign in
+                    // it. A designer reading "add duties" under a surplus would make it worse.
+                    const gap = `These targets average ${hmFromHours(avg)} a week across all `
+                        + `${TOTAL_POS} lines, and the contract is ${CONTRACTED_HOURS_PER_WEEK}h.`;
                     errEl.textContent = built.reason === 'short-hours'
-                        ? `Can't generate — these targets average ${hmFromHours(avg)} a week across `
-                          + `all ${TOTAL_POS} lines, and the contract is ${CONTRACTED_HOURS_PER_WEEK}h. `
-                          + `That is ${hmFromHours((need - asked) / 60)} a week of duty missing across the `
+                        ? `Can't generate — ${gap} That is `
+                          + `${hmFromHours((need - asked) / 60)} a week of duty missing across the `
                           + `rotation. Add duties, lengthen them, or use more spare weeks — spreading the `
                           + `same work over more lines cannot reach it.`
+                        : built.reason === 'over-hours'
+                        ? `Can't generate — ${gap} That is `
+                          + `${hmFromHours((asked - need) / 60)} a week of duty more than the rotation is `
+                          + `paid for. Remove duties, shorten them, or use fewer spare weeks — the surplus `
+                          + `would be permanent overtime nobody has agreed to.`
                         : built.reason === 'no-rest'
                         ? `Can't generate — these targets leave no room for rest days, so every line would `
                           + `finish late and start early the next morning. Reduce a day's headcount or add spare weeks.`

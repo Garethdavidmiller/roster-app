@@ -804,20 +804,33 @@ the arithmetic consequence of widening a link without adding work, it is the cen
 December 2026 proposal, and nothing on the page had ever shown it.
 
 **And since v20.98 the generator REFUSES to build it** (owner: designs must hit the contracted week
-on average, and one that falls short must not be generated). The check is on the TARGETS, not the
+on average, and one that misses must not be generated). The check is on the TARGETS, not the
 finished patterns: the duty a table asks for is fixed, the working lines are fixed, and every
 construction places exactly those duties on exactly those lines — so no arrangement can rescue a
-short table, and checking the output would be re-measuring an answer the input already determined.
-`short-hours` carries the SIZE of the gap, because that is the only actionable thing about it.
-Over-contract is still built: those hours are paid as overtime or absorbed by adding lines, so the
-design is workable and the checks row already says it is over.
+wrong table, and checking the output would be re-measuring an answer the input already determined.
+`short-hours` and `over-hours` each carry the SIZE of the gap, because that is the only actionable
+thing about either, and each names its own remedies — which are opposites, so the two messages can
+never be merged into one with a sign in it.
+
+**BOTH directions, since v20.99** (owner). v20.98 allowed a surplus, on the reasoning that those
+hours get paid as overtime or absorbed by adding lines. That reads the rule as a floor, and it is an
+equality: a link IS the contracted week, so a design carrying a permanent surplus has committed the
+rotation to overtime nobody declared or agreed. The cost is real and is deliberately not softened —
+**an equality over whole duties is sometimes unsatisfiable.** `working x 35h` is a fixed number of
+minutes and a table moves in steps of one duty, so a set of shift times whose lengths do not combine
+to that total has NO valid table, and the generator refuses everything until a duty changes length or
+the cover-week count moves. `links-contract.test.mjs` asserts that case with both its neighbours, so
+it is a documented consequence rather than a mystery. A tolerance would put the app back to producing
+a design that is quietly a few hours out, which is exactly what v20.98 was for.
+
 **`requireContract` defaults ON**; only the construction tests pass `false`, and
 `links-contract.test.mjs` fails if `links-app.js` ever does. Whether the new timetable's extra
 service fills the gap is the question to take into the room.
 
-A threshold IS defensible here, unlike the ORR factors: 35 is the contract, not guidance, so short is
-short. Half an hour of slack absorbs minute-level rounding. Never render it red — a target that does
-not yet total 35h is a work in progress.
+A threshold IS defensible here, unlike the ORR factors: 35 is the contract, not guidance. The
+Design-checks ROW keeps its half-hour of slack and its never-red rule — a design being edited is a
+work in progress, and the row describes a design rather than gating one. The GENERATOR is exact,
+because it is deciding whether to create something.
 
 ### The generator intro must not restate a guarantee (v20.04)
 

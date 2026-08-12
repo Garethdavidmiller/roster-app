@@ -358,11 +358,15 @@ test('generatePatterns rejects totals over the line count', () => {
         spareLines: 3,
         lines: 28,
     }), null);
-    // …and it fits with one fewer spare week.
+    // …and it fits with one fewer spare week. `requireContract: false` because this case is about
+    // CAPACITY — whether 26 duties fit in the working lines left — and 26 eight-hour duties across
+    // 26 working lines is well over a contracted week, which v20.99 refuses. Without the opt-out
+    // the assertion would pass or fail on the hours rule and say nothing about capacity at all.
     assert.ok(generatePatterns({
         slots: [{ time: '06:20-14:20', weekday: 26, sat: 0, sun: 0 }],
         spareLines: 2,
         lines: 28,
+        requireContract: false,
     }));
 });
 
