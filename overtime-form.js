@@ -345,12 +345,27 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             </div>`;
     }
 
-    /** The one thing a custom range needs to say out loud: that it crosses midnight. */
-    /** @param {any} a */
+    /**
+     * The one thing a custom range must say out loud: it crosses midnight, and it still belongs to
+     * THIS day.
+     *
+     * ── A DAY'S ANSWER IS ABOUT A DUTY THAT STARTS THAT DAY (owner, Aug 2026) ───────────────────
+     *
+     * The app has always worked this way — answers are keyed by date, `nextDay` is derived from the
+     * times, and the roster itself anchors every night turn to the day it starts on — but nothing
+     * anywhere said so, which left an ordinary entry looking self-contradictory. Friday
+     * 22:00–02:00 alongside Saturday "Not available" is a perfectly coherent pair under this rule
+     * and an obvious mistake under the other one, and a member with no way to tell which they were
+     * being asked for would reasonably enter the small hours twice.
+     *
+     * So the hint names the ownership rather than merely the fact. "Ends the next day" was true and
+     * answered a question nobody was asking.
+     * @param {any} a
+     */
     function customHint(a) {
         if (!a.start || !a.end) return 'Enter both times';
         if (a.start === a.end)  return 'Start and end cannot match';
-        return a.nextDay ? 'Ends the next day' : '';
+        return a.nextDay ? 'Runs into the next day — still this day\'s answer' : '';
     }
 
     /** @param {string} date */

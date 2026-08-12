@@ -23,6 +23,10 @@ export const CARD_TIPS = {
                     // could not see, in a word that means something else to them.
                     { icon: '⏰', html: 'There are two deadlines. Answer by the <strong>first</strong> one to be counted from the start of planning; the <strong>final</strong> one is when the form closes for good.' },
                     { icon: '✏️', html: 'You can change your answers as often as you like until the final deadline. Only your latest version counts.' },
+                    // The rule was always how the app behaved and was stated nowhere, so an
+                    // ordinary overnight entry looked self-contradictory (Friday 22:00–02:00 beside
+                    // Saturday "not available"). Owner, Aug 2026.
+                    { icon: '🌙', html: 'Each day\'s answer is about a duty <strong>starting that day</strong>. So availability that runs past midnight belongs to the day it starts on — you do not answer for it again the next morning.' },
                 ],
             },
             {
@@ -65,6 +69,9 @@ export const CARD_TIPS = {
                     { icon: '📊', html: '<strong>No response</strong> and <strong>not available</strong> are different answers. Someone with no form has told us nothing; someone who submitted an unavailable day has told us something.' },
                     { icon: '🕑', html: 'Availability reflects what staff submitted before the final cut-off. Confirm directly with the person before arranging short-notice cover.' },
                     { icon: '📅', html: 'The roster shown beside each person is their <strong>current</strong> one — which may have changed since they submitted.' },
+                    // Stated on BOTH sides, because it is the reviewer who would otherwise
+                    // misread a pair of answers as a contradiction and ring somebody to resolve it.
+                    { icon: '🌙', html: 'An answer covers a duty <strong>starting that day</strong>. Someone available 22:00–02:00 on the Friday is offering Friday night — a Saturday "not available" beside it is not a contradiction.' },
                 ],
             },
         ],

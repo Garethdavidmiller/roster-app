@@ -952,6 +952,34 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await expect(row).not.toContainText('Not submitted yet');
     });
 
+    test('an overnight range says which day it belongs to', async ({ page }) => {
+        // Settled by the owner, Aug 2026: a day's answer is about a duty STARTING that day. The app
+        // always behaved that way — answers are keyed by date, `nextDay` is derived, and the roster
+        // anchors night turns to their start day — and said so nowhere, which left an ordinary
+        // entry looking self-contradictory: Friday 22:00–02:00 beside Saturday "Not available" is
+        // coherent under this rule and an obvious mistake under the other. A member with no way to
+        // tell which they were being asked for would reasonably enter the small hours twice.
+        //
+        // The hint used to read "Ends the next day" — true, and an answer to a question nobody was
+        // asking.
+        await seedSession(page, 'G. Miller');
+        await stubWithRoster(page, [winOver()], []);
+        await page.goto('/overtime.html');
+        const day = page.locator(`[data-day="${D[0]}"]`);
+        await day.waitFor();
+        await day.getByRole('radio', { name: 'Custom times' }).click();
+        await day.locator('[data-which="start"]').fill('22:00');
+        await day.locator('[data-which="end"]').fill('02:00');
+        await day.locator('[data-which="end"]').blur();
+        const hint = day.locator('.ot-custom-hint');
+        await expect(hint).toContainText('still this day\'s answer');
+        // A same-day range says nothing — the rule only needs stating where it could be doubted,
+        // and a hint on every custom entry would be noise that trains people past it.
+        await day.locator('[data-which="end"]').fill('23:00');
+        await day.locator('[data-which="end"]').blur();
+        await expect(hint).toHaveText('');
+    });
+
     test('desktop custom times sit beside the day, not under its name', async ({ page }) => {
         // The v20.74 day-row grid gave every child except .ot-custom an explicit column, so the
         // From/To inputs auto-placed bottom-left into a 190px label column. Geometry, not CSS text:
