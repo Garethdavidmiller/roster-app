@@ -319,25 +319,31 @@ export function init() {
                 title: 'Work Email',
                 sections: [
                     { items: [
-                        { icon: '🔑', html: 'Groundwork for self-service password reset — for now it just saves the email we\'ll use for that later. <strong>To reset a password today, contact the admin.</strong>' },
-                        { icon: '🔒', html: 'Only you and the admin can see this email' },
-                        { icon: '✉️', html: 'Use your Chiltern work email — the one the company already sends things to' },
+                        { icon: '✉️', html: 'Use your <strong>Chiltern work email</strong> — the one the company already sends things to.' },
+                        { icon: '🔑', html: 'It is saved so that one day you can reset your own password by email. That is not built yet: <strong>to reset a password today, ask the admin</strong>.' },
+                        { icon: '🔒', html: 'Only you and the admin can see it. It is not shown to your manager or to anyone else.' },
                     ]},
                 ],
             },
             'notifications': {
                 title: 'Notifications',
                 sections: [
+                    // FOUR, not two. Circular and Newsletter have been pushed to everybody since
+                    // v13.58/59 and this list never mentioned them — so a member turning
+                    // notifications on was agreeing to two things and receiving four.
                     { heading: 'What you\'ll get', items: [
-                        { icon: '📋', html: '<strong>Daily Huddle</strong> — an alert when today\'s Huddle briefing has been uploaded' },
-                        { icon: '💷', html: '<strong>Pay reminder</strong> — an alert on the cutoff Saturday, reminding you that payday is 6 days away' },
+                        { icon: '📋', html: '<strong>Daily Huddle</strong> — when the day\'s Huddle has been uploaded.' },
+                        { icon: '📰', html: '<strong>Weekly Retail Circular</strong> — when a new one is posted.' },
+                        { icon: '🗞️', html: '<strong>Marylebone Newsletter</strong> — when a new one is posted.' },
+                        { icon: '💷', html: '<strong>Pay reminder</strong> — on the cut-off Saturday, six days before payday, to enter your hours.' },
                     ]},
                     { heading: 'How it works', items: [
-                        { icon: '📲', html: 'Tap <strong>Enable notifications</strong> and allow when your phone asks — that\'s it' },
-                        { icon: '🔕', html: 'Tap <strong>Disable notifications</strong> to stop them at any time' },
+                        { icon: '📲', html: 'Tap <strong>Enable notifications</strong> and allow it when your phone asks. That is all.' },
+                        { icon: '🔕', html: 'Tap <strong>Disable notifications</strong> to stop them at any time. You can turn them back on later.' },
+                        { icon: '🚫', html: 'If you tapped <strong>Don\'t allow</strong> when your phone asked, the button cannot ask again — your phone will not let it. Turn notifications back on for this app in your phone\'s own settings.' },
                     ]},
                     { heading: 'iPhone users', items: [
-                        { icon: '🍎', html: 'Notifications only work on iPhone if the app has been <strong>added to your Home Screen</strong> (tap Share → Add to Home Screen in Safari)' },
+                        { icon: '🍎', html: 'Notifications only work on iPhone if the app has been <strong>added to your Home Screen</strong> — tap Share, then Add to Home Screen, in Safari.' },
                     ]},
                 ],
             },

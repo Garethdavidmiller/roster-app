@@ -60,7 +60,7 @@ function render(over = {}) {
     renderWeekDetail(/** @type {any} */ (host), { ...WIN, ...over.win },
         { participants: over.participants || PARTICIPANTS, submissions: over.submissions || submissions(),
           roster: over.roster || {}, rosterKnown: over.rosterKnown !== false },
-        { dates: DATES, now: Date.parse('2026-08-19T09:00:00Z'), grade: over.grade });
+        { dates: DATES, now: over.now || Date.parse('2026-08-19T09:00:00Z'), grade: over.grade });
     return host.innerHTML;
 }
 
@@ -70,6 +70,15 @@ function panelFor(html, dateLabel) {
     const at = html.indexOf(`ot-day-panel-head">${dateLabel}`);
     assert.ok(at > -1, `no day panel for ${dateLabel}`);
     return html.slice(at);
+}
+
+/** The same, but STOPPING at the next panel — for asserting somebody is ABSENT from one day.
+    The unbounded slice above runs to the end of the document, so "not in Sunday's panel" would
+    silently mean "not anywhere below Sunday", which every later panel can satisfy for it. */
+function onlyPanelFor(html, dateLabel) {
+    const one = panelFor(html, dateLabel);
+    const next = one.slice(1).indexOf('class="ot-day-panel');
+    return next > -1 ? one.slice(0, next + 1) : one;
 }
 
 /** The markup between a section heading and the next section heading. */
@@ -217,10 +226,97 @@ describe('the header', () => {
         assert.equal(/Beta audience/.test(render({ win: { audience: 'all' } })), false);
     });
 
+    test('the page states that availability is offered AROUND a rostered duty', () => {
+        // The owner's ruling, Aug 2026. "All day" beside an 07:00-15:00 shift had three readings and
+        // the app committed to none; the dangerous one is that the clerk may take the duty away,
+        // which costs a member the shift they planned their week around.
+        //
+        // Asserted on the STANDING note rather than the help panel: a tip is opt-in, and this is a
+        // limit on what a reviewer may infer from every row on the page.
+        const html = render();
+        assert.match(html, /around whatever they are already rostered/);
+        assert.match(html, /never an offer to change or give up a rostered duty/);
+    });
+
     test('the short-notice warning is always present', () => {
         // Submitted availability is a record of what somebody said before a cut-off, not a standing
         // promise. Wherever the data is read, the note is read with it.
         assert.match(render(), /Confirm directly[\s\S]*with the employee before arranging short-notice cover/);
+    });
+});
+
+describe('a denominator that moved, and an answer that has aged', () => {
+    const FROZE = Date.parse('2026-08-10T05:00:00Z');
+    const NOW   = Date.parse('2026-08-19T09:00:00Z');
+    const P = (name, createdAt) => ({ memberName: name, grade: 'CEA', rosterOrder: 1, createdAt });
+
+    test('somebody the nightly top-up added is marked as such', () => {
+        // Without this a reviewer cannot tell a denominator that GREW overnight from somebody who
+        // has gone quiet — and only one of those is worth a phone call. The scheduler tops up every
+        // still-open window, so "1 of 1 received" becoming "1 of 2 · 1 no response" is a normal
+        // Tuesday with nothing on screen accounting for it.
+        const html = render({
+            participants: [P('A. One', FROZE), P('B. Two', FROZE + 5 * 86_400_000)],
+            submissions: new Map(),
+        });
+        // Asserted on WHO rather than how many. The marker appears once per day panel AND once in
+        // Awaiting a form, so a count is a statement about panel structure rather than about the
+        // rule — and it would need rewriting every time a panel is added.
+        const rows = panelFor(html, 'Sun 30 Aug').split('class="ot-person"');
+        const newcomer = rows.find(r => /B\. Two/.test(r)) || '';
+        const original = rows.find(r => /A\. One/.test(r)) || '';
+        assert.match(newcomer, /Added after this week opened/);
+        assert.equal(/Added after this week opened/.test(original), false,
+            'the frozen population is not marked — only what arrived after it');
+    });
+
+    test('the whole population frozen together is marked NOWHERE', () => {
+        // The teeth. A marker that fires on batch jitter would appear on everybody at once, which
+        // is worse than never appearing: it would train a reviewer to ignore it.
+        const html = render({
+            participants: [P('A. One', FROZE), P('B. Two', FROZE + 300)],
+            submissions: new Map(),
+        });
+        assert.equal(/Added after this week opened/.test(html), false);
+    });
+
+    test('a participant list with no timestamps marks nobody', () => {
+        // Quiet direction on purpose: a wrongly-marked row accuses the system of doing something it
+        // may not have done.
+        const html = render({ participants: [P('A. One', undefined), P('B. Two', undefined)],
+            submissions: new Map() });
+        assert.equal(/Added after this week opened/.test(html), false);
+    });
+
+    test('an answer says how old it is', () => {
+        // Mid-week sickness is the case: "available all day" written nineteen days ago, before a
+        // roster the member has since planned around, looked exactly as fresh as one from today.
+        const html = render({
+            participants: [P('A. One', FROZE)],
+            submissions: new Map([['A. One', { memberName: 'A. One', history: null,
+                updatedAt: NOW - 19 * 86_400_000,
+                days: Object.fromEntries(DATES.map(d => [d, { mode: 'all_day' }])) }]]),
+            now: NOW,
+        });
+        assert.match(html, /19 days ago/);
+    });
+
+    test('a row with no answer for THIS date carries no age, even though the form has a timestamp', () => {
+        // The discriminating case, and the first version of this test missed it. A participant with
+        // no submission at all has no timestamp either, so the guard is invisible there — it only
+        // bites for somebody who DID submit but whose form says nothing about this date, where
+        // `updatedAt` is real and there is still no answer to date. An age beside "No response"
+        // would date the silence, which is not a thing the record knows.
+        const html = render({
+            participants: [P('A. One', FROZE)],
+            submissions: new Map([['A. One', { memberName: 'A. One', history: null,
+                updatedAt: NOW - 19 * 86_400_000,
+                days: { [DATES[0]]: { mode: 'all_day' } } }]]),   // nothing for DATES[1]
+            now: NOW,
+        });
+        assert.match(panelFor(html, 'Sun 30 Aug'), /19 days ago/, 'the answered day is dated');
+        assert.equal(/19 days ago/.test(panelFor(html, 'Mon 31 Aug')), false,
+            'the day with no answer is not');
     });
 });
 
@@ -429,6 +525,99 @@ describe('Awaiting', () => {
     test('says so when everyone has answered, rather than showing an empty box', () => {
         const html = render({ participants: [PARTICIPANTS[0]] });
         assert.match(html.split('Awaiting a form')[1], /Everyone has responded/);
+    });
+});
+
+describe('somebody the week has stopped asking', () => {
+    // The freeze means a LEAVER is a permanent non-responder in every open week — chased weekly by
+    // a reviewer working the Awaiting list, until the horizon rolls past them. Withdrawal removes
+    // them from what the week expects. Everything below is about that removal being COMPLETE (a
+    // half-removed person is worse than none, because the counts and the lists then disagree) and
+    // VISIBLE (an exclusion nobody can see is worse than the problem it fixes).
+    const WITHDRAWN = {
+        memberName: 'D. Four', grade: 'CEA', rosterOrder: 4,
+        withdrawn: true, withdrawnAt: Date.parse('2026-08-12T09:00:00Z'), withdrawnBy: 'H. Croft',
+    };
+    const withThem = { participants: [...PARTICIPANTS, WITHDRAWN] };
+
+    test('they are out of the expected count, not merely hidden from a list', () => {
+        // The count is the number a clerk acts on. Hiding the row while leaving the denominator
+        // alone would produce "2 of 4 received" over three visible people — a page that has to be
+        // wrong about one of the two.
+        assert.match(render(), /2 of 3 forms received/);
+        assert.match(render(withThem), /2 of 3 forms received/);
+        // And the person really is in the data being rendered, or this asserts nothing.
+        assert.match(render(withThem), /D\. Four/);
+    });
+
+    test('they are out of every by-day section AND out of Awaiting', () => {
+        const html = render(withThem);
+        for (const d of ['Sun 30 Aug', 'Mon 31 Aug']) {
+            assert.equal(/D\. Four/.test(onlyPanelFor(html, d)), false, `${d} still lists them`);
+        }
+        assert.equal(/D\. Four/.test(html.split('Awaiting a form')[1].split('Not being asked')[0]), false,
+            'still being chased for a form');
+    });
+
+    test('and out of the week glance, which is counted separately from the panels', () => {
+        // The strip has its own arithmetic over the same people. It is the one number on the page a
+        // clerk reads without opening anything, so it must not be the last thing to learn.
+        const before = render();
+        const after = render(withThem);
+        const glance = (/** @type {string} */ h) => h.slice(0, h.indexOf('ot-day-panel'));
+        assert.equal(glance(after).replace(/D\. Four/g, ''), glance(before),
+            'the glance strip changed when a withdrawn person was added');
+    });
+
+    test('the exclusion is STATED, with who did it and when', () => {
+        // Withdrawal is the only action on this page that changes what somebody else's record is
+        // measured against. A silent one is an unattributable edit.
+        const panel = render(withThem).split('Not being asked')[1];
+        assert.match(panel, /D\. Four/);
+        assert.match(panel, /Stopped by H\. Croft, Wed 12 Aug/);
+        assert.match(panel, /data-ask-again="D\. Four"/, 'and it can be undone from where it is stated');
+    });
+
+    test('the panel is absent when nobody has been withdrawn', () => {
+        // Unlike the three day sections, whose empty state MUST render — a hidden "No response"
+        // makes "nobody outstanding" look like a section that failed to draw. Here the absence is
+        // unambiguous, and a permanent empty panel on every screen is furniture.
+        assert.equal(/Not being asked/.test(render()), false);
+    });
+
+    test('the grade filter hides them along with everyone else of that grade', () => {
+        // Otherwise a CES-only view would carry a CEA name in its footnote, which is the one place
+        // the filter is easy to forget.
+        assert.equal(/D\. Four/.test(render({ ...withThem, grade: 'CES' })), false);
+        assert.match(render({ ...withThem, grade: 'CEA' }), /Not being asked/);
+    });
+
+    test('a grade with nobody left in it loses its chip', () => {
+        // The chips are derived from the population, and withdrawing the last person of a grade
+        // would otherwise leave a control that filters to an empty page.
+        const only = { participants: [PARTICIPANTS[0], { ...WITHDRAWN, grade: 'Dispatcher' }] };
+        assert.equal(/data-grade="Dispatcher"/.test(render(only)), false);
+    });
+});
+
+describe('Awaiting rows offer the control, and say nothing untrue about the roster', () => {
+    test('each awaiting row can stop being asked', () => {
+        const awaiting = render().split('Awaiting a form')[1];
+        assert.match(awaiting, /data-stop-asking="C\. Three"/);
+    });
+
+    test('and NO by-day row does — the same control seven times is not seven controls', () => {
+        const html = render();
+        assert.equal(/data-stop-asking/.test(onlyPanelFor(html, 'Sun 30 Aug')), false);
+    });
+
+    test('an awaiting row does not claim the roster could not be read', () => {
+        // The panel has said "no roster badge on this panel" in its own comment since v20.87 while
+        // every row carried one — and the one it carried was the FAILURE placeholder, because the
+        // row passes no date. So it announced an outage in data that had been read perfectly well
+        // two panels up. Not showing a duty and failing to read one are different statements.
+        const html = render({ roster: {}, rosterKnown: true });
+        assert.equal(/Roster unavailable/.test(html.split('Awaiting a form')[1]), false);
     });
 });
 

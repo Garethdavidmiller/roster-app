@@ -46,6 +46,7 @@
 import {
     shortDate, deadlineLabel, weekSpan, weekLabel, countsCopy, answerCopy, answerTone,
     isUnavailable, isAvailableAnswer, asAtLine, rosterBadge, sameAnswer, answerAnchorStale,
+    declaredAgo, isWithdrawn, withdrawnLine,
 } from './overtime-format.js';
 
 /**
@@ -55,11 +56,14 @@ import {
  * @param {any} win the window row from the planning horizon (carries the stored milestones)
  * @param {{ participants: any[], submissions: Map<string, any>,
  *   roster?: Record<string, Record<string, any>>, rosterKnown?: boolean }} data
- * @param {{ dates: string[], now: number, grade?: string, onGrade?: (g: string) => void }} opts
+ * @param {{ dates: string[], now: number, grade?: string, onGrade?: (g: string) => void,
+ *   onAsk?: (memberName: string, ask: boolean) => void }} opts
  *   `grade` is the reviewer's standing choice, handed back in by the coordinator; `onGrade` is how
- *   it gets there. See below.
+ *   it gets there. See below. `onAsk` is the only MUTATION this module can start: it hands the
+ *   decision straight back out, because writing is the coordinator's job and this module is a pure
+ *   render everywhere else — which is what makes it testable with a two-line fake DOM.
  */
-export function renderWeekDetail(host, win, data, { dates, now, grade: initialGrade = 'ALL', onGrade }) {
+export function renderWeekDetail(host, win, data, { dates, now, grade: initialGrade = 'ALL', onGrade, onAsk }) {
     /**
      * The grade currently in view. `ALL` is not a grade — no participant can carry it as one.
      *
@@ -87,6 +91,7 @@ export function renderWeekDetail(host, win, data, { dates, now, grade: initialGr
         host.innerHTML = build(win, data, { dates, now, grade, day });
         wireGlance(host, next => { day = next; paint(); });
         wireGrades(host, next => { grade = next; onGrade?.(next); paint(); });
+        wireAsk(host, onAsk);
     }
 }
 
@@ -114,6 +119,37 @@ function ofGrade(participants, grade) {
 }
 
 /**
+ * When this window's population was FROZEN — the earliest participant's creation instant.
+ *
+ * ── A DENOMINATOR THAT MOVES OVERNIGHT MUST SAY SO ──────────────────────────────────────────────
+ *
+ * The nightly job tops up every still-open window with anybody newly eligible, so "1 of 1 received"
+ * on Monday can be "1 of 2 received · 1 no response" on Tuesday with nothing on screen accounting
+ * for it. A reviewer cannot tell that apart from somebody who stopped answering — and one of those
+ * is worth a phone call while the other is not.
+ *
+ * Everybody frozen at creation is written in ONE batch and shares a commit timestamp, so the
+ * earliest is the freeze instant and anybody materially later was added afterwards. Derived rather
+ * than stored: the window's own `createdAt` would be a second copy of the same fact, free to drift.
+ *
+ * Returns 0 when it cannot be established, which reads as "nobody was added late" — the quiet
+ * direction, because a wrongly-marked row accuses the system of something it may not have done.
+ * @param {any[]} participants
+ * @returns {number}
+ */
+function frozenAt(participants) {
+    const times = (participants || []).map(p => p.createdAt).filter(t => typeof t === 'number' && t > 0);
+    return times.length ? Math.min(...times) : 0;
+}
+
+/**
+ * Tolerance on that comparison. One batch's writes share a commit time, but not to the millisecond
+ * across a retry, and a marker that fires on batch jitter would appear on the whole population at
+ * once — which is worse than never appearing, because it would train a reviewer to ignore it.
+ */
+const ADDED_LATER_TOLERANCE_MS = 60_000;
+
+/**
  * The whole surface as one string. Pure — same inputs, same output, no DOM reads.
  * @param {any} win
  * @param {{ participants: any[], submissions: Map<string, any>,
@@ -122,8 +158,15 @@ function ofGrade(participants, grade) {
  */
 function build(win, data, { dates, now, grade, day = 'ALL' }) {
     const { submissions } = data;
-    const grades = gradesPresent(data.participants);
-    const participants = ofGrade(data.participants, grade);
+    // WITHDRAWN COMES OFF FIRST, before the grade filter and before anything is counted. A person
+    // who has left is not somebody the week is short of an answer from, and leaving them in the
+    // panels is how a reviewer ends up ringing them — which is the whole reason withdrawal exists.
+    // The grade chips are computed from the remaining population too, or a grade could survive in
+    // the strip with nobody under it.
+    const active = (data.participants || []).filter(p => !isWithdrawn(p));
+    const withdrawn = (data.participants || []).filter(isWithdrawn);
+    const grades = gradesPresent(active);
+    const participants = ofGrade(active, grade);
     const received = participants.filter(p => submissions.has(p.memberName)).length;
     const scope = grade === 'ALL' ? 'All grades' : `${grade} only`;
 
@@ -153,14 +196,26 @@ function build(win, data, { dates, now, grade, day = 'ALL' }) {
                   + `${participants.length === 1 ? 'participant' : 'participants'}</div>`
                 : ''}
         </div>
+        <!-- TWO sentences, and the second one is a boundary rather than a caution (owner, Aug 2026).
+             Availability is offered AROUND what somebody is already rostered; it is never an offer
+             to move or give up a rostered duty. "All day" beside an 07:00–15:00 shift had three
+             readings and the app committed to none, and the dangerous one — that the clerk may take
+             the duty away — costs a member the shift they planned their week around. It lives here
+             rather than only in the help panel because a tip is opt-in and this is a rule.
+             (No backticks in this comment: it sits inside a template literal, and one would end it
+             — the same trap that broke the calendar lock panel earlier.) -->
         <div class="ot-current-note">
             Availability reflects what staff submitted before the final cut-off. Confirm directly
             with the employee before arranging short-notice cover.
+            <strong>What people offer here is time around whatever they are already rostered</strong>
+            — it is never an offer to change or give up a rostered duty.
         </div>
         ${gradeStrip(grades, grade)}
         ${glanceStrip(dates, participants, submissions, day)}
-        ${dates.map(date => dayPanel(date, participants, submissions, day, data.roster || {})).join('')}
-        ${awaitingPanel(participants, submissions)}`;
+        ${dates.map(date => dayPanel(date, participants, submissions, day, data.roster || {},
+            { now, frozenAt: frozenAt(active) })).join('')}
+        ${awaitingPanel(participants, submissions, { now, frozenAt: frozenAt(active) })}
+        ${withdrawnPanel(ofGrade(withdrawn, grade))}`;
 }
 
 /**
@@ -194,6 +249,24 @@ function wireGrades(host, onPick) {
     if (typeof host?.querySelectorAll !== 'function') return;
     host.querySelectorAll('[data-grade]').forEach(chip =>
         chip.addEventListener('click', () => onPick(String(chip.getAttribute('data-grade')))));
+}
+
+/**
+ * Wire the two participation controls. Same enhancement-over-complete-markup contract as the rest:
+ * without a handler the buttons are simply inert, and the week still reads correctly.
+ *
+ * Nothing here re-renders. The write is asynchronous and can fail, so the page must not show the
+ * person moving between panels before the server has agreed — that is the shape of an optimistic
+ * update, and on this control it would tell a reviewer somebody had been taken out of the counts
+ * when they had not.
+ * @param {HTMLElement} host @param {((memberName: string, ask: boolean) => void) | undefined} onAsk
+ */
+function wireAsk(host, onAsk) {
+    if (typeof host?.querySelectorAll !== 'function' || !onAsk) return;
+    host.querySelectorAll('[data-stop-asking]').forEach(btn =>
+        btn.addEventListener('click', () => onAsk(String(btn.getAttribute('data-stop-asking')), false)));
+    host.querySelectorAll('[data-ask-again]').forEach(btn =>
+        btn.addEventListener('click', () => onAsk(String(btn.getAttribute('data-ask-again')), true)));
 }
 
 /**
@@ -274,7 +347,7 @@ function wireGlance(host, onPick) {
 /** One date: available, not available, no response — three sections, never merged. */
 /** @param {string} date @param {any[]} participants @param {Map<string, any>} submissions
  *  @param {string} activeDay @param {Record<string, Record<string, any>>} roster */
-function dayPanel(date, participants, submissions, activeDay = 'ALL', roster = {}) {
+function dayPanel(date, participants, submissions, activeDay = 'ALL', roster = {}, meta = {}) {
     /** @type {string[]} */ const available = [];
     /** @type {string[]} */ const unavailable = [];
     /** @type {string[]} */ const noResponse = [];
@@ -282,9 +355,10 @@ function dayPanel(date, participants, submissions, activeDay = 'ALL', roster = {
     for (const p of participants) {
         const ctx = roster[p.memberName]?.[date] || null;
         const sub = submissions.get(p.memberName);
-        if (!sub) { noResponse.push(personRow(p, null, null, ctx, null)); continue; }
+        if (!sub) { noResponse.push(personRow(p, null, null, ctx, null, meta)); continue; }
         const day = sub.days?.[date];
-        const row = personRow(p, day, sub.history, ctx, sub.history?.initialRevision?.days?.[date]);
+        const row = personRow(p, day, sub.history, ctx,
+            sub.history?.initialRevision?.days?.[date], meta, sub.updatedAt);
         // THREE-VALUED, asked positively (v20.87). It used to be `isUnavailable(day) ? unavailable
         // : available`, whose negation is TRUE for a missing day — so a submission that somehow
         // lacked this date filed that person under Available, with no answer chip beside their
@@ -348,12 +422,31 @@ function section(title, rows, tone) {
  * happened, which is what a clerk revisiting a decision needs. Days that did not change say
  * nothing, so the marker means something wherever it appears.
  *
+ * ── AND HOW OLD THE STATEMENT IS ────────────────────────────────────────────────────────────────
+ *
+ * The row said who, what they are rostered and what they said — and nothing about WHEN they said
+ * it. Mid-week sickness is the case that breaks on: an "available all day" written nineteen days
+ * ago, before a roster the member has since seen and planned around, looked exactly as fresh as one
+ * written this morning. The roster chip fixed half of that (what they are working now); this is the
+ * other half (how old the statement is).
+ *
  * @param {any} p @param {any} day @param {any} history
  * @param {any} ctx that member's roster for THIS date, or null when it could not be read
  * @param {any} initialDay what they had said for this date at the initial deadline, if anything
+ * @param {{ now?: number, frozenAt?: number, stopAsking?: boolean, showRoster?: boolean }} meta the
+ *   corrected clock, when this window's population was frozen (see `frozenAt`), whether this row may
+ *   offer to stop expecting an answer (true only on the Awaiting panel, see there), and whether a
+ *   roster chip belongs on it at all — which is a different question from whether one could be read
+ * @param {number} [updatedAt] when this person last changed their form
  */
-function personRow(p, day, history, ctx = null, initialDay = null) {
+function personRow(p, day, history, ctx = null, initialDay = null, meta = {}, updatedAt = 0) {
     const flags = [];
+    // ADDED AFTER THIS WEEK OPENED. Not a judgement on the person — the opposite: it accounts for a
+    // denominator that grew overnight, so a reviewer does not read a fresh name in "No response" as
+    // somebody who has gone quiet.
+    if (meta.frozenAt && p.createdAt && p.createdAt > meta.frozenAt + ADDED_LATER_TOLERANCE_MS) {
+        flags.push('Added after this week opened');
+    }
     // Whole-submission facts first — these are about the FORM, not about this date.
     if (history?.lateInitial) flags.push('Submitted after initial deadline');
     // Per-DAY, and only where this day genuinely moved. `sameAnswer` is structural for the same
@@ -366,20 +459,33 @@ function personRow(p, day, history, ctx = null, initialDay = null) {
     // there the MEMBER changed their mind, here the roster changed under a declaration they stand
     // by — and a clerk acting on it needs to know which of the two happened.
     if (answerAnchorStale(day, ctx)) flags.push('Roster changed since this answer');
+    // Only where there IS an answer to date. A row in "No response" has nothing to be old.
+    const age = day ? declaredAgo(updatedAt, meta.now || 0) : null;
     return `
         <div class="ot-person">
             <span class="ot-person-name">${esc(p.memberName)}</span>
             ${p.grade ? `<span class="ot-person-grade">${esc(p.grade)}</span>` : ''}
-            <span class="ot-person-roster"><span class="visually-hidden">Rostered: </span>${rosterBadge(ctx)}</span>
+            ${meta.showRoster === false ? ''
+                // NOT the same as `ctx === null`, which means the roster read FAILED and prints
+                // "Roster unavailable". The Awaiting panel is not showing a duty at all — its rows
+                // span the whole week — and printing an unavailability notice there stated
+                // something untrue about data that was read perfectly well two panels up. Its own
+                // comment had said "no roster badge on this panel" since v20.87 while every row
+                // carried one.
+                : `<span class="ot-person-roster"><span class="visually-hidden">Rostered: </span>${rosterBadge(ctx)}</span>`}
             ${day ? `<span class="ot-answer ot-answer--${answerTone(day)}">${esc(answerCopy(day))}</span>` : ''}
+            ${age ? `<span class="ot-person-age"><span class="visually-hidden">Said </span>${esc(age)}</span>` : ''}
+            ${meta.stopAsking
+                ? `<button type="button" class="ot-person-btn" data-stop-asking="${esc(p.memberName)}">Stop asking</button>`
+                : ''}
             ${flags.length ? `<div class="ot-person-flags">${
                 flags.map(f => `<span class="ot-person-flag">${esc(f)}</span>`).join('')}</div>` : ''}
         </div>`;
 }
 
 /** The people who have not answered at all — the list a reminder or a phone call works from. */
-/** @param {any[]} participants @param {Map<string, any>} submissions */
-function awaitingPanel(participants, submissions) {
+/** @param {any[]} participants @param {Map<string, any>} submissions @param {any} meta */
+function awaitingPanel(participants, submissions, meta = {}) {
     const waiting = participants.filter(p => !submissions.has(p.memberName));
     return `
         <div class="ot-day-panel">
@@ -390,8 +496,45 @@ function awaitingPanel(participants, submissions) {
                 // would have to pick a day, and whichever it picked would be read as "what they are
                 // working" rather than "what they are working on the Tuesday". The by-day panels
                 // above already show these people, with the right roster on each.
-                ? waiting.map(p => personRow(p, null, null)).join('')
+                //
+                // This IS the panel that carries "Stop asking", and it is the only one. A leaver
+                // shows up here, every week, for as long as the horizon reaches them — that is the
+                // problem withdrawal was added for. Putting the same control on the by-day rows
+                // would repeat it seven times per person for a case those rows already speak to:
+                // an answer from somebody who has since gone carries its own age and roster chip.
+                ? waiting.map(p => personRow(p, null, null, null, null,
+                    { ...meta, stopAsking: true, showRoster: false })).join('')
                 : '<div class="ot-section-empty">Everyone has responded</div>'}
+        </div>`;
+}
+
+/**
+ * The people this week has stopped expecting an answer from.
+ *
+ * ── IT RENDERS ONLY WHEN THERE IS SOMEBODY IN IT, UNLIKE THE THREE DAY SECTIONS ─────────────────
+ *
+ * That difference is deliberate and the reasoning is the opposite way round. An empty "No response"
+ * must still draw its heading, because a hidden one makes "nobody outstanding" look exactly like a
+ * section that failed to render. Here the absence carries no such ambiguity: nobody has been
+ * withdrawn from almost every week, and a permanent empty panel on every screen would be furniture
+ * — and furniture is what a reviewer stops reading. When it IS there, it is a statement that the
+ * expected count on this page is smaller than the frozen population, which is a thing to notice.
+ * @param {any[]} withdrawn
+ */
+function withdrawnPanel(withdrawn) {
+    if (!withdrawn.length) return '';
+    return `
+        <div class="ot-day-panel ot-day-panel--muted">
+            <div class="ot-day-panel-head">Not being asked</div>
+            <div class="ot-section-note">Left out of the counts above. Their forms and anything they
+                already said are kept.</div>
+            ${withdrawn.map(p => `
+                <div class="ot-person ot-person--withdrawn">
+                    <span class="ot-person-name">${esc(p.memberName)}</span>
+                    ${p.grade ? `<span class="ot-person-grade">${esc(p.grade)}</span>` : ''}
+                    <span class="ot-person-note">${esc(withdrawnLine(p))}</span>
+                    <button type="button" class="ot-person-btn" data-ask-again="${esc(p.memberName)}">Ask again</button>
+                </div>`).join('')}
         </div>`;
 }
 

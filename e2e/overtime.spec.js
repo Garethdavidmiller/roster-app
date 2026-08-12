@@ -475,6 +475,27 @@ test.describe('manager surface', () => {
         await expect(page.locator('#otWeekHint')).toContainText('22 August 2026');
     });
 
+    test('a week the schedule failed to open says so, and promotes its button', async ({ page }) => {
+        // Two things only a browser can answer. The row must stop carrying the reassurance — the
+        // unit suites pin the LABEL, but not that this row renders it — and the Open now button
+        // must be the prominent control here, which is the exact inversion of every other
+        // uncreated row. A recessive button under a red label reads as "nothing you can do".
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { weeks: [
+            { ...W, weekEnding: '2026-09-12', exists: false, state: 'not-created-overdue', canCreate: true },
+            { ...W, weekEnding: '2026-09-19', exists: false, state: 'not-created', canCreate: true },
+        ] });
+        await page.goto('/overtime.html');
+        const stuck = page.locator('.ot-week-row', { hasText: '12 September' });
+        await expect(stuck).toContainText('Did not open overnight');
+        await expect(stuck).not.toContainText('Opens automatically');
+        await expect(stuck.locator('.ot-row-btn--primary')).toHaveText('Open now');
+        // And the healthy row beside it keeps the quiet treatment, so the contrast is the signal.
+        const fine = page.locator('.ot-week-row', { hasText: '19 September' });
+        await expect(fine).toContainText('Opens automatically overnight');
+        await expect(fine.locator('.ot-row-btn--primary')).toHaveCount(0);
+    });
+
     test('with no week created at all, nothing is force-opened', async ({ page }) => {
         // Guard the guard: auto-opening must not invent a selection when there is none to make,
         // which would leave an empty card asserting a week that does not exist.
@@ -835,7 +856,18 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await expect(page.locator(`[data-day="${D[0]}"] [data-mode="twelve_hours"]`)).toHaveCount(1);
         await expect(page.locator(`[data-day="${D[6]}"] [data-mode="twelve_hours"]`)).toHaveCount(1);
 
-        // ── AND THE SAME OPTION IS WORDED FOR THE DAY IT SITS ON (owner, Aug 2026) ──────────────
+        // ── "ALL DAY" IS WORDED FOR THE DAY TOO (owner, Aug 2026) ───────────────────────────────
+        //
+        // The settled meaning is availability AROUND a rostered duty — never an offer to move or
+        // give it up. On a rest day "All day" already says that; beside a duty it had three
+        // readings and the app committed to none, and the dangerous one costs a member the shift
+        // they planned their week around.
+        await expect(page.locator(`[data-day="${D[0]}"] [data-mode="all_day"]`))
+            .toHaveText('All day');
+        await expect(page.locator(`[data-day="${D[6]}"] [data-mode="all_day"]`))
+            .toHaveText('Any time around my shift');
+
+        // ── AND THE SAME FOR THE 12-HOUR OPTION ─────────────────────────────────────────────────
         //
         // The rule is that twelve hours is a TOTAL including whatever is rostered. On a rest day
         // there is nothing to include, so "a 12-hour turn" says it exactly; beside a duty the same
@@ -1212,6 +1244,53 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
             .toHaveCount(0);
         // And the screen reader gets the word that says what the chip IS.
         await expect(rosters.first()).toContainText('Rostered:');
+    });
+
+    test('somebody the week has stopped asking is out of the counts, and can be put back', async ({ page }) => {
+        // The rules are unit-tested; what only a browser answers is whether the CONTROL is wired.
+        // `wireAsk` runs inside the manager module's repaint, the handler lives in the coordinator,
+        // and the request goes out through a confirm dialog — three hops, each of which fails by
+        // rendering a button that does nothing at all.
+        //
+        // The seeded participant is withdrawn, so this drives "Ask again". It is the same wiring as
+        // "Stop asking" (one handler, one endpoint) and it is the half this fixture can express:
+        // `docs` seeds ONE array for every collection read, so a participant is always also a
+        // submission head and can therefore never appear in Awaiting.
+        await seedSession(page, 'H. Croft');
+        await page.addInitScript((rows) => {
+            window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: rows };
+        }, [{ id: 'G. Miller', memberName: 'G. Miller', grade: 'CEA', rosterOrder: 1,
+              withdrawn: true, withdrawnBy: 'H. Croft' }]);
+        /** @type {any[]} */
+        const sent = [];
+        await page.route('**/withdrawOvertimeParticipant', (r) => {
+            sent.push(JSON.parse(r.request().postData() || '{}'));
+            return r.fulfill({ status: 200, contentType: 'application/json',
+                body: JSON.stringify({ ok: true, serverNow: NOW }) });
+        });
+        await page.route('**/getMyOvertimeState', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, windows: [] }) }));
+        await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW,
+                planningWeeks: [{ ...W, exists: true, state: 'created', canCreate: false,
+                    expected: 0, received: 0, noResponse: 0 }], retained: [] }) }));
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+
+        // Out of the counts and out of the day panels — but SAID, with who did it.
+        await expect(page.locator('.ot-detail-counts')).toContainText('0 of 0');
+        await expect(page.locator('#otWeekChip')).toHaveText('0/0');
+        await expect(page.locator('.ot-day-panel--muted')).toContainText('Not being asked');
+        await expect(page.locator('.ot-day-panel--muted')).toContainText('H. Croft');
+
+        // Confirming is not decoration on this control, so the click must reach a dialog first.
+        await page.locator('[data-ask-again="G. Miller"]').click();
+        await expect(page.locator('.dialog-btn-confirm')).toBeVisible();
+        await page.locator('.dialog-btn-confirm').click();
+        await expect.poll(() => sent.length).toBe(1);
+        expect(sent[0]).toEqual({ weekEnding: W.weekEnding, memberName: 'G. Miller', withdrawn: false });
     });
 
     test('the reviewer\'s grade survives a WEEK switch', async ({ page }) => {

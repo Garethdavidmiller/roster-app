@@ -24,7 +24,13 @@
  *                               nothing, deliberately, so this endpoint is where participation is
  *                               resolved — and it is also where `serverNow` comes from, because a
  *                               device clock must never decide what a member is shown.
- *   submitOvertimeAvailability  the only mutation. Transactional, revision-aware, idempotent.
+ *   submitOvertimeAvailability  the only mutation A MEMBER makes. Transactional, revision-aware,
+ *                               idempotent.
+ *   purgeExpiredOvertimeWindows scheduled. The only irreversible thing here, so it ships DISARMED
+ *                               and reports what it would remove until somebody reads a run.
+ *   withdrawOvertimeParticipant reviewer. Stops a week EXPECTING one person — a leaver otherwise
+ *                               stays a permanent non-responder in every open week. A flag, never
+ *                               a delete: it changes what is expected, not what happened.
  *
  * ── IDENTITY IS THE TOKEN, NEVER THE BODY ──────────────────────────────────────────────────────
  * Every endpoint verifies with `checkRevoked: true` and takes the member from `decoded.name` — the
@@ -55,7 +61,28 @@ const WINDOWS = 'overtimeWindows';
  * @param {{ overtimeRoster: Array<object>, maxRosterYear: number, overtimeBeta?: string[], roles: { admin: string[], manager: string[] } }} deps.rosterMembers
  *   the GENERATED server roster — never a client payload
  */
-function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
+function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeArmed = false }) {
+
+    /**
+     * Is the retention purge allowed to DELETE, or only to report what it would delete?
+     *
+     * ── WHY IT SHIPS DISARMED ───────────────────────────────────────────────────────────────────
+     *
+     * `purgeExpiredOvertimeWindows` is the only irreversible thing this feature does, it runs
+     * unattended, and the first time it has anything to do will be months after it was written — by
+     * which point nobody is watching for it. A dry run is how the walk gets exercised against real
+     * documents while its mistakes are still only log lines. Read one run's log, confirm the weeks
+     * and the counts are the ones you expect, then arm it in `index.js`.
+     *
+     * It gates ONE statement, exactly as `dryRun` does in `createOvertimeWindow`: the selection, the
+     * ordering and the counting are the same code either way, so what the log described is what the
+     * armed run does rather than a prediction of it.
+     *
+     * A dependency rather than a constant here for the same reason as everything else in this
+     * argument list — the literal belongs in the composition root, and a test can drive both sides
+     * of the branch without editing source.
+     */
+    const PURGE_ARMED = purgeArmed === true;
 
     const db = () => admin.firestore();
 
@@ -375,6 +402,72 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
         return missing.map(p => p.memberName);
     }
 
+    // ── withdrawOvertimeParticipant ─────────────────────────────────────────────────────────────
+
+    /**
+     * Stop expecting an answer from one person for one week — or put them back. Reviewer only.
+     *
+     * Body: `{ weekEnding: 'YYYY-MM-DD', memberName: string, withdrawn: boolean }`
+     *
+     * ── IT IS A FLAG, NEVER A DELETE ────────────────────────────────────────────────────────────
+     *
+     * The participant document stays, and so does any submission and every revision beneath it.
+     * That is not caution about data loss; it is the same rule the rest of this feature runs on.
+     * A submission is somebody's declaration about their own life, and removing the record of it
+     * because they later left is a quieter version of the silent overwrite `decideSubmission`
+     * exists to prevent. Withdrawal changes what the week EXPECTS; it does not edit what happened.
+     *
+     * Restoring is the same call with `withdrawn: false`, and it removes the three fields rather
+     * than writing `withdrawn: false` — see `OT.isWithdrawn` for why a written false would be
+     * worse than useless here.
+     *
+     * The window's phase is checked from the STORED milestones, like everything else: a week that
+     * has closed is a record, and this endpoint refuses to edit one.
+     */
+    const withdrawOvertimeParticipant = onRequest(
+        { region: 'europe-west2', timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS },
+        async (req, res) => {
+            const who = await authenticate(req, res);
+            if (!who) return;
+            if (!requireReviewer(who, res)) return;
+
+            const body = req.body || {};
+            const weekEnding = typeof body.weekEnding === 'string' ? body.weekEnding : '';
+            const memberName = typeof body.memberName === 'string' ? body.memberName.trim() : '';
+            const withdrawn = body.withdrawn === true;
+            // The id shape is checked before it is used as a path segment, not after: `weekEnding`
+            // and `memberName` are both document ids here, and an unvalidated one reaches Firestore
+            // as a path rather than as data.
+            if (!OT.isSaturday(weekEnding) || !memberName || !OT.isSafeDocId(memberName)) {
+                return res.status(400).json({ error: 'invalid-request' });
+            }
+
+            const ref = db().collection(WINDOWS).doc(weekEnding);
+            const snap = await ref.get();
+            if (!snap.exists) return res.status(404).json({ error: 'no-window' });
+
+            const nowMs = Date.now();
+            const allowed = OT.canChangeParticipation(storedMilestones(snap.data()), nowMs);
+            if (!allowed.ok) return res.status(409).json({ error: allowed.error });
+
+            const pRef = ref.collection('participants').doc(memberName);
+            const pSnap = await pRef.get();
+            if (!pSnap.exists) return res.status(404).json({ error: 'not-a-participant' });
+
+            const del = admin.firestore.FieldValue.delete();
+            await pRef.update(withdrawn
+                ? {
+                    withdrawn:   true,
+                    withdrawnAt: admin.firestore.FieldValue.serverTimestamp(),
+                    withdrawnBy: who.name,
+                }
+                : { withdrawn: del, withdrawnAt: del, withdrawnBy: del });
+
+            console.log(`[withdrawOvertimeParticipant] ${weekEnding} · ${memberName} · `
+                + `${withdrawn ? 'withdrawn' : 'restored'} by ${who.name}`);
+            return res.json({ ok: true, weekEnding, memberName, withdrawn, serverNow: nowMs });
+        });
+
     // ── autoCreateOvertimeWindows (scheduled) ───────────────────────────────────────────────────
 
     /** How a window created by the schedule signs itself, wherever a creator name is shown. */
@@ -495,6 +588,122 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
         return 'restricted';
     }
 
+    // ── purgeExpiredOvertimeWindows (scheduled) ─────────────────────────────────────────────────
+
+    /**
+     * How many expired windows one run will clear. Not a safety valve — a bound.
+     *
+     * The backlog is at most one window per week, so a handful per run keeps up with any realistic
+     * arrears while keeping a single invocation small enough to finish. Whatever it does not reach
+     * is LOGGED rather than silently left: a run that reports only what it did reads as a complete
+     * run, which is the same lie a silently truncated list tells.
+     */
+    const MAX_PURGE_WINDOWS_PER_RUN = 5;
+
+    /**
+     * Delete windows past their retention. Daily, 04:00 Europe/London — an hour before the creator,
+     * so the two never contend and the day's log reads in the order things happened.
+     *
+     * ── FIRESTORE DOES NOT CASCADE, WHICH IS THE WHOLE REASON THIS IS NOT ONE LINE ──────────────
+     *
+     * Deleting a document does NOT delete its subcollections. A window parent removed on its own
+     * leaves every participant, submission and revision beneath it — present, billable, and no
+     * longer reachable from any collection listing the app performs. That is worse than not purging
+     * at all: the data survives while the system reports it as gone.
+     *
+     * So it descends: revisions → submission heads → participants → the parent, and the parent goes
+     * LAST. An interrupted run therefore leaves a window that is still expired, still invisible to
+     * both read endpoints, and still selected by tomorrow's run. The only cost of failing halfway
+     * is doing it again.
+     *
+     * Retention itself is enforced in the read endpoints, not here — so nothing anyone sees has
+     * ever depended on when this last ran, and arming it changes no behaviour at all.
+     */
+    const purgeExpiredOvertimeWindows = onSchedule(
+        { schedule: '0 4 * * *', timeZone: 'Europe/London', region: 'europe-west2' },
+        async () => {
+            const nowMs = Date.now();
+            let snap;
+            try {
+                snap = await db().collection(WINDOWS).get();
+            } catch (err) {
+                console.error('[purgeExpiredOvertimeWindows] could not list windows — standing down:', err);
+                return;
+            }
+
+            const expired = snap.docs
+                .filter(d => toMillis(d.data().retentionUntil) > 0
+                    && toMillis(d.data().retentionUntil) <= nowMs)
+                .sort((a, b) => (a.id < b.id ? -1 : 1));   // oldest first
+            if (!expired.length) {
+                console.log(`[purgeExpiredOvertimeWindows] nothing expired${PURGE_ARMED ? '' : ' (dry run)'}`);
+                return;
+            }
+            const take = expired.slice(0, MAX_PURGE_WINDOWS_PER_RUN);
+            const left = expired.length - take.length;
+
+            for (const doc of take) {
+                try {
+                    const counts = await purgeWindow(doc.ref);
+                    console.log(`[purgeExpiredOvertimeWindows] ${doc.id}: `
+                        + `${counts.revisions} revisions, ${counts.submissions} submissions, `
+                        + `${counts.participants} participants, 1 window`
+                        + `${PURGE_ARMED ? ' — DELETED' : ' — would delete (dry run)'}`);
+                } catch (err) {
+                    // One bad week must not abandon the rest, and it must not be reported as done.
+                    console.error(`[purgeExpiredOvertimeWindows] ${doc.id} failed:`, err);
+                }
+            }
+            if (left) {
+                console.log(`[purgeExpiredOvertimeWindows] ${left} more expired `
+                    + `${left === 1 ? 'window' : 'windows'} left for the next run`);
+            }
+        });
+
+    /**
+     * Walk one window bottom-up, counting everything and deleting it only when armed.
+     *
+     * The counts are returned rather than logged here so the dry run and the armed run report the
+     * identical figures from the identical traversal — a separate "estimate" pass would be a second
+     * piece of code claiming to describe this one.
+     * @param {any} ref the window document
+     * @returns {Promise<{revisions:number, submissions:number, participants:number}>}
+     */
+    async function purgeWindow(ref) {
+        const counts = { revisions: 0, submissions: 0, participants: 0 };
+        /** @type {any[]} */
+        const doomed = [];
+
+        const subs = await ref.collection('submissions').get();
+        for (const sub of subs.docs) {
+            const revs = await sub.ref.collection('revisions').select().get();
+            counts.revisions += revs.size;
+            for (const r of revs.docs) doomed.push(r.ref);
+        }
+        counts.submissions = subs.size;
+        for (const sub of subs.docs) doomed.push(sub.ref);
+
+        const parts = await ref.collection('participants').select().get();
+        counts.participants = parts.size;
+        for (const p of parts.docs) doomed.push(p.ref);
+
+        // The parent goes LAST, and only after every child is queued in front of it. Order is the
+        // one property that matters here: reverse it and an interruption orphans the tree.
+        doomed.push(ref);
+
+        if (PURGE_ARMED) {
+            // Batched, because a per-document delete of a full window is ~100 sequential round
+            // trips. Chunked well under the 500-operation cap; a partial commit is harmless, since
+            // whatever survives is still expired and still selected tomorrow.
+            for (let i = 0; i < doomed.length; i += 400) {
+                const batch = db().batch();
+                for (const d of doomed.slice(i, i + 400)) batch.delete(d);
+                await batch.commit();
+            }
+        }
+        return counts;
+    }
+
     // ── getOvertimeManagerOverview ──────────────────────────────────────────────────────────────
 
     /**
@@ -518,6 +727,16 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
             /** @type {Map<string, any>} */
             const byWeek = new Map();
             for (const d of snap.docs) byWeek.set(d.id, d.data());
+
+            // Which weeks the LAST scheduled run was due to create. Anything still missing from that
+            // list is a run that did not do its job — the one fault this horizon exists to catch and
+            // the one it was, until now, actively concealing: a missing week says "opens
+            // automatically overnight", and it keeps saying it every day after the overnight that
+            // never came. Re-running the scheduler's own decision function at its own last boundary
+            // is what makes this an observation rather than a guess, and it needs nothing stored.
+            const overdue = new Set(OT.weeksNeedingWindows(
+                OT.lastSchedulerRun(nowMs), byWeek.keys(),
+                { maxRosterYear: rosterMembers.maxRosterYear }));
 
             // Counts for every existing week are fetched in PARALLEL. Awaited inside the loop they
             // were six sequential pairs of round trips, which is the difference between a page that
@@ -559,7 +778,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
                 planningWeeks.push({
                     ...milestones,
                     exists: !!doc,
-                    state: OT.windowRowState(milestones, nowMs, !!doc),
+                    state: OT.windowRowState(milestones, nowMs, !!doc, overdue.has(weekEnding)),
                     audience: doc ? doc.audience : null,
                     audienceCount,
                     canCreate: !doc && OT.validateWeekEnding(weekEnding, {
@@ -589,12 +808,31 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
         // one aggregation read each. Same derivation, same source of truth — the participant
         // collection IS the expected population; no stored expectedCount exists anywhere, because
         // a cached copy of a size is a second answer that can disagree with it.
-        const [participants, submissions] = await Promise.all([
+        //
+        // The WITHDRAWN are counted separately and subtracted rather than filtered out of the first
+        // aggregation, because a `where` clause skips documents that are missing the field
+        // entirely — so every participant written before withdrawal existed would vanish from the
+        // count and `expected` would read 0 for every current week. Subtracting is right for old
+        // and new documents alike, and in the normal case the third aggregation returns 0.
+        const [participants, submissions, withdrawn] = await Promise.all([
             ref.collection('participants').count().get(),
             ref.collection('submissions').count().get(),
+            ref.collection('participants').where('withdrawn', '==', true).count().get(),
         ]);
-        const expected = participants.data().count;
-        const received = submissions.data().count;
+        const gone = withdrawn.data().count;
+        const expected = participants.data().count - gone;
+        // A withdrawn member may already have submitted, and their answer must not keep inflating
+        // `received` after they stop being expected — `received > expected` would render as a
+        // negative no-response count, which is the shape of a number nobody trusts again. Their ids
+        // are read only when there ARE any, so the ordinary week pays nothing for this.
+        let received = submissions.data().count;
+        if (gone > 0) {
+            const goneNames = (await ref.collection('participants')
+                .where('withdrawn', '==', true).select().get()).docs.map(d => d.id);
+            const subs = await Promise.all(goneNames.map(n =>
+                ref.collection('submissions').doc(n).get()));
+            received -= subs.filter(d => d.exists).length;
+        }
         return { expected, received, noResponse: expected - received };
     }
 
@@ -822,6 +1060,8 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
         getOvertimeManagerOverview,
         getMyOvertimeState,
         submitOvertimeAvailability,
+        withdrawOvertimeParticipant,
+        purgeExpiredOvertimeWindows,
     };
 }
 

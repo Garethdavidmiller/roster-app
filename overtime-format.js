@@ -311,6 +311,33 @@ export function deadlineLines(phase, initialDeadlineAt, finalDeadlineAt) {
 }
 
 /**
+ * How long ago a declaration was made, in the words a person would use.
+ *
+ * ── AN ANSWER'S AGE IS PART OF WHAT IT MEANS ────────────────────────────────────────────────────
+ *
+ * The reviewer's row showed WHO, WHAT they are rostered and WHAT they said, and nothing about WHEN
+ * they said it. Mid-week sickness is the case that breaks on: "G. Miller · Available all day" could
+ * have been written nineteen days ago, before a roster the member has since seen and planned
+ * around, and the row looked exactly as fresh as one written this morning.
+ *
+ * Deliberately RELATIVE and coarse. An exact timestamp reads as precision about a thing whose value
+ * is approximate — what a clerk needs is "recent" or "a while ago", and a date forces them to do
+ * the subtraction. Days, because this feature's whole clock is days: nothing here turns on hours.
+ *
+ * Returns null when there is nothing to date, so a caller renders nothing rather than "unknown".
+ * @param {number|null|undefined} ms when the declaration was last changed
+ * @param {number} nowMs corrected server time
+ * @returns {string|null}
+ */
+export function declaredAgo(ms, nowMs) {
+    if (!ms || !nowMs || ms > nowMs) return null;
+    const days = Math.floor((nowMs - ms) / 86_400_000);
+    if (days === 0) return 'today';
+    if (days === 1) return 'yesterday';
+    return `${days} days ago`;
+}
+
+/**
  * The standing receipt for a submitted form: "Submitted · updated Tue 18 Aug · 09:42".
  *
  * A member who reloads used to have only the green day rows to go on. Those are a correct signal
@@ -354,6 +381,12 @@ export function rowStateCopy(state) {
         // "Not created" beside a prominent Create button, which asks a manager to do a job the
         // system now does — they would either do it redundantly or assume something was broken.
         case 'not-created':                return { label: 'Opens automatically overnight', tone: 'warn' };
+        // The same week, after the overnight that did not come. A reassurance is only worth giving
+        // while it is true, and this one repeats itself daily for as long as the schedule is broken —
+        // so the row would keep promising the fix right up to the deadline it then missed. Naming
+        // the Create button is deliberate: the reviewer cannot restart a scheduled job, and the
+        // button beside this label works whether or not anyone ever diagnoses why the job stopped.
+        case 'not-created-overdue':        return { label: 'Did not open overnight · create it here', tone: 'bad' };
         // Still opens automatically, but late enough to be worth a look: the first deadline has
         // gone, so anyone answering now misses the draft roster.
         case 'not-created-initial-passed': return { label: 'No form yet · first deadline has passed', tone: 'bad' };
@@ -475,6 +508,41 @@ export function answerCopy(day) {
             : `Available ${day.start}–${day.end}`;
         default:             return 'Not answered';
     }
+}
+
+/**
+ * True when a frozen participant record has been withdrawn from its week.
+ *
+ * ⚠️ THE SAME RULE EXISTS SERVER-SIDE, in `functions/overtime-core.js` (`isWithdrawn`). It has to:
+ * the endpoints count the withdrawn to keep `expected` honest, and the reviewer's browser reads the
+ * participant documents DIRECTLY from Firestore — the same CommonJS/ESM boundary `normaliseSurname`
+ * sits on. Both are one field test against `true` and neither may loosen to a truthiness check,
+ * because the failure is silent and points the wrong way: a record that is not withdrawn read AS
+ * withdrawn removes a person the reviewer is supposed to be chasing.
+ * @param {any} participant
+ */
+export function isWithdrawn(participant) {
+    return !!participant && participant.withdrawn === true;
+}
+
+/**
+ * "Stopped by H. Croft, Wed 12 Aug" — the caption that makes an exclusion visible.
+ *
+ * The by-WHOM half is not decoration. This is the one action on the page that removes a person from
+ * a count, so a line reading only "not being asked" would be an unattributable change to somebody
+ * else's record. Either half may be missing without the line becoming wrong — it simply says less.
+ *
+ * The words avoid "withdrawn" on purpose: that is the field name, and the reviewer's question is
+ * whether this person is still being ASKED. `withdrawn` stays in the data and out of the copy.
+ * @param {any} participant
+ */
+export function withdrawnLine(participant) {
+    if (!isWithdrawn(participant)) return '';
+    const by = typeof participant.withdrawnBy === 'string' && participant.withdrawnBy
+        ? ` by ${participant.withdrawnBy}` : '';
+    const when = participant.withdrawnAt
+        ? `, ${shortDate(new Date(participant.withdrawnAt).toISOString().slice(0, 10))}` : '';
+    return `Stopped${by}${when}`;
 }
 
 /**

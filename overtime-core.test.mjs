@@ -308,6 +308,28 @@ describe('the missing window — the failure nothing else catches', () => {
         assert.equal(C.windowRowState(m, m.finalDeadlineAt + 9e8, true), 'created-closed');
     });
 
+    test('a week the schedule has already failed to create no longer reads as due tonight', () => {
+        // The horizon is the MONITOR over the scheduler, and `not-created` is the one row that
+        // tells the reviewer to do nothing. That is right until a run has come and gone without
+        // creating the week — after which the same row repeats the same reassurance every day for
+        // as long as the fault lasts, and the monitor has become the fault's alibi.
+        const m = C.deriveMilestones(WEEK_SEP);
+        const t = m.initialDeadlineAt - 1;
+        assert.equal(C.windowRowState(m, t, false, false), 'not-created');
+        assert.equal(C.windowRowState(m, t, false, true),  'not-created-overdue');
+    });
+
+    test('overdue never softens a row that is already reporting something worse', () => {
+        // Past the initial deadline the row has a stronger thing to say, and past the final one it
+        // is a missed week. An "overdue" flag arriving late must not overwrite either — the flag
+        // answers "will the schedule still fix this?", which stops being the question.
+        const m = C.deriveMilestones(WEEK_SEP);
+        assert.equal(C.windowRowState(m, m.initialDeadlineAt, false, true), 'not-created-initial-passed');
+        assert.equal(C.windowRowState(m, m.finalDeadlineAt,   false, true), 'missed');
+        // And it can never touch a week that exists — the whole flag is about absence.
+        assert.equal(C.windowRowState(m, m.initialDeadlineAt - 1, true, true), 'created');
+    });
+
     test('a closed window is still distinguishable from one that was never created', () => {
         // The two land at the same instant and mean opposite things: one has a week of answers in
         // it, the other means nobody was ever asked. Collapsing them would hide the omission this
@@ -315,6 +337,51 @@ describe('the missing window — the failure nothing else catches', () => {
         const m = C.deriveMilestones(WEEK_SEP);
         assert.notEqual(C.windowRowState(m, m.finalDeadlineAt, true),
                         C.windowRowState(m, m.finalDeadlineAt, false));
+    });
+});
+
+describe('withdrawal — the one exception to the freeze, and its bounds', () => {
+    // The freeze is what makes a response rate mean anything. Its unchosen consequence is that a
+    // LEAVER stays in every open week as a permanent non-responder, so the reviewer chasing
+    // outstanding forms chases somebody who no longer works here, every week, until the horizon
+    // rolls past them. Withdrawal is the narrow answer, and its bounds are the whole design.
+
+    test('it is allowed while the form is open, in EITHER phase', () => {
+        const m = C.deriveMilestones(WEEK_SEP);
+        assert.equal(C.canChangeParticipation(m, m.initialDeadlineAt - 1).ok, true, 'INITIAL_OPEN');
+        assert.equal(C.canChangeParticipation(m, m.initialDeadlineAt).ok, true, 'FINAL_OPEN');
+        // Deliberately NOT the `INITIAL_OPEN`-only rule that governs ADDING somebody. Adding late
+        // manufactures a non-responder for a deadline that pre-dates the invitation; removing
+        // somebody creates no record at all, so the reason to be strict is simply absent.
+    });
+
+    test('a CLOSED week refuses it — that week is a record, not a work list', () => {
+        // Somebody who was employed, was asked, and did not answer is accurately recorded as
+        // exactly that. Editing it afterwards changes a historical response rate to make a past
+        // week look tidier, and this feature's whole value is that its history cannot be tidied.
+        const m = C.deriveMilestones(WEEK_SEP);
+        assert.deepEqual(C.canChangeParticipation(m, m.finalDeadlineAt), { ok: false, error: 'closed' });
+        assert.deepEqual(C.canChangeParticipation(m, m.retentionUntil), { ok: false, error: 'expired' });
+        // `expired` outranks `closed` — every expired week is also closed, and the caller wants the
+        // more specific reason.
+        assert.equal(C.canChangeParticipation(m, m.retentionUntil + 9e8).error, 'expired');
+    });
+
+    test('a missing window is refused rather than throwing mid-request', () => {
+        assert.deepEqual(C.canChangeParticipation(null, 0), { ok: false, error: 'no-window' });
+    });
+
+    test('withdrawn is a STRICT true, and an absent field is not withdrawn', () => {
+        // Both halves matter and they fail in opposite directions. A truthiness check would read a
+        // string or a timestamp as withdrawal and remove somebody the reviewer must chase; and
+        // every participant document written before this feature existed has no field at all, so
+        // treating "missing" as anything but present would empty every current week.
+        assert.equal(C.isWithdrawn({ withdrawn: true }), true);
+        for (const v of [undefined, null, false, 0, '', 'true', 1, {}]) {
+            assert.equal(C.isWithdrawn({ withdrawn: v }), false, `withdrawn: ${JSON.stringify(v)}`);
+        }
+        assert.equal(C.isWithdrawn({ memberName: 'A. One' }), false, 'a legacy record is not withdrawn');
+        assert.equal(C.isWithdrawn(null), false);
     });
 });
 
@@ -735,6 +802,56 @@ describe('derived history — the flags nobody stores', () => {
         // silently make the tenth revision look like the earliest.
         const ids = [1, 2, 9, 10, 11, 100].map(C.revisionId);
         assert.deepEqual([...ids].sort(), ids);
+    });
+});
+
+describe('when the schedule last ran — the boundary a stuck week is measured against', () => {
+    // 05:00 Europe/London, matching autoCreateOvertimeWindows' cron. Nothing is stored about the
+    // job's runs, so this instant is the only thing the horizon can hold a missing week against.
+
+    test('it is 05:00 as a person in London reads it, in both halves of the year', () => {
+        for (const ms of [Date.parse('2026-09-05T09:00:00Z'), Date.parse('2027-01-09T09:00:00Z')]) {
+            assert.match(londonWallClock(C.lastSchedulerRun(ms)), /, 05:00$/);
+        }
+    });
+
+    test("before 05:00 it is YESTERDAY's run, not today's", () => {
+        const beforeFive = Date.parse('2026-09-05T02:00:00Z');   // 03:00 London
+        assert.equal(new Date(C.lastSchedulerRun(beforeFive)).toISOString(),
+            '2026-09-04T04:00:00.000Z');                          // 05:00 BST on the 4th
+    });
+
+    test('at exactly 05:00 the run has happened — the boundary belongs to the later state', () => {
+        const fiveExactly = Date.parse('2026-09-05T04:00:00Z');
+        assert.equal(C.lastSchedulerRun(fiveExactly), fiveExactly);
+        assert.equal(C.lastSchedulerRun(fiveExactly - 1),
+            Date.parse('2026-09-04T04:00:00Z'), 'one millisecond earlier is still yesterday');
+    });
+
+    test('the previous run is found by CALENDAR day, so a clock change cannot move it an hour', () => {
+        // Both UK transitions are Sundays: 29 Mar and 25 Oct 2026. On each of those mornings the
+        // previous day's 05:00 is NOT 24 hours before today's, and subtracting a day in
+        // milliseconds — the obvious way to write this — is wrong in opposite directions on the two
+        // dates. Every other hour of the year agrees, which is exactly why it would ship.
+        const springMorning = Date.parse('2026-03-29T03:30:00Z');  // 04:30 BST, before 05:00
+        assert.equal(new Date(C.lastSchedulerRun(springMorning)).toISOString(),
+            '2026-03-28T05:00:00.000Z', 'spring: naive minus-24h lands an hour early');
+
+        const autumnMorning = Date.parse('2026-10-25T04:30:00Z');  // 04:30 GMT, before 05:00
+        assert.equal(new Date(C.lastSchedulerRun(autumnMorning)).toISOString(),
+            '2026-10-24T04:00:00.000Z', 'autumn: naive minus-24h lands an hour late');
+    });
+
+    test('a week still missing at the last boundary is exactly what the job was due to create', () => {
+        // The horizon does not re-implement the decision; it re-runs the scheduler's own function at
+        // the scheduler's own last boundary. This is that equivalence, asserted rather than assumed —
+        // if they could differ, a healthy schedule would be accused or a broken one excused.
+        const now = Date.parse('2026-08-11T09:00:00Z');
+        const last = C.lastSchedulerRun(now);
+        const due = C.weeksNeedingWindows(last, [], { maxRosterYear: 2030 });
+        assert.ok(due.length, 'fixture no longer exercises this');
+        // With everything that run was due to create now present, nothing is overdue.
+        assert.deepEqual(C.weeksNeedingWindows(last, due, { maxRosterYear: 2030 }), []);
     });
 });
 

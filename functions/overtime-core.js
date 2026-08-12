@@ -59,6 +59,19 @@ const MILESTONE_OFFSETS = Object.freeze({
 const DEADLINE_HOUR_LONDON = 12;
 
 /**
+ * The local hour the daily create-the-missing-weeks job runs at.
+ *
+ * ⚠️ This must equal the hour in `autoCreateOvertimeWindows`'s cron (`'0 5 * * *'`, Europe/London).
+ * It is declared here because the horizon needs to know when the job LAST ran in order to say
+ * whether a week it should already have created is overdue — and a horizon that guesses that hour
+ * would either accuse a healthy schedule or excuse a broken one.
+ *
+ * 05:00 is safe from both pathologies `londonTimestamp` warns about: the UK moves its clocks at
+ * 01:00–02:00 local, so 05:00 exists exactly once on every date of the year.
+ */
+const SCHEDULER_HOUR_LONDON = 5;
+
+/**
  * How far ahead staff are asked to declare availability, counted in weeks they can ANSWER for.
  *
  * ── THIS IS THE PRODUCT DECISION; `PLANNING_WEEKS` BELOW IS ARITHMETIC ──────────────────────────
@@ -170,6 +183,28 @@ function londonNoonTimestamp(isoDate) {
     return londonTimestamp(isoDate, DEADLINE_HOUR_LONDON);
 }
 
+/**
+ * The most recent daily-scheduler boundary at or before `nowMs`.
+ *
+ * The whole of B6 rests on this one instant. The horizon tells a reviewer a missing week "opens
+ * automatically overnight", which is true right up until the overnight run fails — after which the
+ * row keeps saying it, indefinitely, and the reassurance becomes the fault. Comparing what the run
+ * at THIS instant was due to create against what actually exists turns a silent scheduler failure
+ * into a visible one, with no new stored state and nothing for the job itself to remember to write.
+ *
+ * The previous day is reached with `addDays` on the CALENDAR date, never by subtracting 24 hours:
+ * on a transition day the two differ by an hour, and 04:00 or 06:00 on the wrong side of the
+ * boundary would move the answer by a whole run.
+ * @param {number} nowMs
+ * @returns {number} epoch ms
+ */
+function lastSchedulerRun(nowMs) {
+    const today = londonIsoDate(nowMs);
+    const todayRun = londonTimestamp(today, SCHEDULER_HOUR_LONDON);
+    if (todayRun <= nowMs) return todayRun;
+    return londonTimestamp(addDays(today, -1), SCHEDULER_HOUR_LONDON);
+}
+
 /** The instant of 00:00 Europe/London on `isoDate` — used as the retention expiry boundary. */
 function londonMidnightTimestamp(isoDate) {
     return londonTimestamp(isoDate, 0);
@@ -273,6 +308,57 @@ function isOpenPhase(phase) {
 }
 
 /**
+ * May a participant be withdrawn from — or restored to — this week, right now?
+ *
+ * ── WHY WITHDRAWAL EXISTS AT ALL ────────────────────────────────────────────────────────────────
+ *
+ * The population is frozen at creation, and that freeze is right: it is the only reason a response
+ * rate means anything. But it has one consequence nobody chose — a member who LEAVES stays in every
+ * open week as a permanent non-responder, and the reviewer chasing outstanding forms is chasing
+ * somebody who no longer works here, every week, until the horizon rolls past them.
+ *
+ * Withdrawal is the narrow answer: the person stops being EXPECTED. Nothing is deleted — the
+ * participant record and any submission they made stay exactly where they are, and the page states
+ * who was withdrawn and by whom, because an exclusion nobody can see is worse than the problem.
+ *
+ * ── AND WHY A CLOSED WEEK REFUSES IT ────────────────────────────────────────────────────────────
+ *
+ * A closed week is a RECORD of what was known when the roster was planned from it. Somebody who was
+ * employed, was asked, and did not answer is accurately recorded as exactly that, and editing it
+ * afterwards changes a historical response rate to make a past week look tidier. The problem
+ * withdrawal solves is a live one — a person being chased now — so the fix is bounded to weeks that
+ * are still live. Expired weeks are refused for the same reason plus a stronger one: they are on
+ * their way out of the system entirely.
+ *
+ * @param {{initialDeadlineAt:number, finalDeadlineAt:number, retentionUntil:number}} milestones
+ * @param {number} nowMs
+ * @returns {{ ok:boolean, error?:string }} `error` is a stable machine code, not display copy
+ */
+function canChangeParticipation(milestones, nowMs) {
+    if (!milestones) return { ok: false, error: 'no-window' };
+    if (milestones.retentionUntil <= nowMs) return { ok: false, error: 'expired' };
+    if (!isOpenPhase(phaseFor(milestones, nowMs))) return { ok: false, error: 'closed' };
+    return { ok: true };
+}
+
+/**
+ * Is this frozen participant record withdrawn?
+ *
+ * A BOOLEAN field set only on withdrawal, never written `false` at creation — which is not a style
+ * choice. Firestore's `where('x','==',null)` and `!=` both skip documents missing the field, so a
+ * tri-state or a default-false would make every participant written before this feature invisible
+ * to the count query, and `expected` would read 0 for every existing week. Counting the withdrawn
+ * (usually none) and subtracting is correct for old and new documents alike.
+ *
+ * ⚠️ The reviewer's browser reads participants DIRECTLY from Firestore, so this rule also exists in
+ * `overtime-format.js`. Keep them the same shape.
+ * @param {any} participant
+ */
+function isWithdrawn(participant) {
+    return !!participant && participant.withdrawn === true;
+}
+
+/**
  * May a window be created for this week-ending, right now?
  *
  * @param {string} weekEnding
@@ -352,11 +438,25 @@ function weeksNeedingWindows(nowMs, existingWeekEndings, { maxRosterYear }) {
  * "this is a record". Deciding it HERE, from the stored milestones and the server's clock, keeps it
  * out of the browser — a horizon that read a phone's clock would put a week either side of its
  * deadline depending on whose phone was reading it.
- * @returns {'created'|'created-closed'|'not-created'|'not-created-initial-passed'|'missed'}
+ * ── AND A WEEK THAT WILL OPEN IS NOT ONE THAT ALREADY SHOULD HAVE ───────────────────────────────
+ *
+ * `not-created` promises the reviewer that the schedule will handle it. That promise is only worth
+ * making while it is still true. Once a run has come and gone without creating a week it was due to
+ * create, the same row keeps offering the same reassurance — every day, for as long as the fault
+ * lasts — and the horizon stops being the monitor over the scheduler and starts being its alibi.
+ * `autoOverdue` is that distinction and nothing more; the caller decides it (see
+ * `lastSchedulerRun`), because only the caller knows which weeks exist.
+ *
+ * @param {number} nowMs
+ * @param {boolean} exists
+ * @param {boolean} [autoOverdue] true when the last scheduled run was due to create this week and
+ *   did not. Ignored unless the week is missing and still inside its initial deadline — past that
+ *   the row is already reporting something worse.
+ * @returns {'created'|'created-closed'|'not-created'|'not-created-overdue'|'not-created-initial-passed'|'missed'}
  */
-function windowRowState(milestones, nowMs, exists) {
+function windowRowState(milestones, nowMs, exists, autoOverdue = false) {
     if (exists) return nowMs >= milestones.finalDeadlineAt ? 'created-closed' : 'created';
-    if (nowMs < milestones.initialDeadlineAt) return 'not-created';
+    if (nowMs < milestones.initialDeadlineAt) return autoOverdue ? 'not-created-overdue' : 'not-created';
     if (nowMs < milestones.finalDeadlineAt)   return 'not-created-initial-passed';
     return 'missed';
 }
@@ -643,6 +743,8 @@ module.exports = {
     POLICY_VERSION,
     MILESTONE_OFFSETS,
     DEADLINE_HOUR_LONDON,
+    SCHEDULER_HOUR_LONDON,
+    lastSchedulerRun,
     ANSWERABLE_WEEKS,
     PLANNING_WEEKS,
     MAX_PARTICIPANTS_PER_WINDOW,
@@ -665,6 +767,8 @@ module.exports = {
     deriveMilestones,
     phaseFor,
     isOpenPhase,
+    canChangeParticipation,
+    isWithdrawn,
     validateWeekEnding,
     planningWeekEndings,
     weeksNeedingWindows,

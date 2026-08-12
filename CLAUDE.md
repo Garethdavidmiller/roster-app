@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: August 2026 — v20.80 · Updated every 0.10 version*
+*Last updated: August 2026 — v20.90 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `20.80` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `20.90` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; **primary install + notification target** since v14.29). A GitHub Pages mirror is still served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path**, NOT the bare origin (which is a separate empty repo that 404s) — kept alive only for staff who already installed from it. `STAFF_SITE_URL` in `functions/index.js` is now the bare `https://myb-roster.web.app` (no sub-path). It only sets the notification payload's path/hash — each device's service worker discards the origin and re-bases the page onto its own scope, so existing github.io installs keep working. See API key note below. |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -318,7 +318,7 @@ roster-app/
 ├── paycalc.test.mjs        ← tests for paycalc-calc.js
 ├── paycalc-roster-suggestions.test.mjs ← (--experimental-test-module-mocks)
 ├── roster-parse-helpers.test.mjs / links-design.test.mjs / admin-rangepicker.test.mjs / client-errors.test.mjs / usage-stats.test.mjs / perf-stats.test.mjs
-├── functions-surface.test.mjs ← pins functions/index.js's fifteen exports (the DEPLOY surface — a re-export dropped in a refactor is a function DELETED on the next deploy, and nothing else fails first). Runs in test:functions, not npm test: it requires firebase-admin/functions from functions/node_modules
+├── functions-surface.test.mjs ← pins functions/index.js's exports (the DEPLOY surface — a re-export dropped in a refactor is a function DELETED on the next deploy, and nothing else fails first). Runs in test:functions, not npm test: it requires firebase-admin/functions from functions/node_modules
 ├── fetch-timeout.test.mjs ← tests the Cloud Function call bound. Organised around the one thing a bound gets wrong in practice — mistaking somebody ELSE's abort (a navigation, a caller's own controller) for its own, which would tell an admin a write "may still have gone through" after a request that never left. Part of test:hygiene. Teeth-verified
 ├── error-reporter.test.mjs ← tests the Error Log noise filters (`shouldReport` in client-errors.js). Written when a FIFTH filter was needed and the existing four had no tests at all — the asymmetry is the point: a filter that is too narrow leaves noise you can see, a filter that is too broad silently swallows real errors and nothing ever tells you. So each rule is pinned from BOTH sides — the thing it must suppress, and the neighbouring real error it must not. Teeth-verified four ways, one of which initially PASSED (loosening the IndexedDB phrase list to a bare 'Database' slipped through until a case was added that shares the API call and differs only in its tail). Part of test:hygiene
 ├── storage-utils.test.mjs ← tests for isSafeStorageUrl (bucket allowlist) + isDocxUpload + officeViewerUrl (Office viewer wrap/encoding) + sixMonthCutoffISO (month-underflow clamp); part of test:hygiene
@@ -425,12 +425,12 @@ roster-app/
 ├── storage.rules / firestore.indexes.json ← Firebase Storage rules + Firestore composite indexes
 ├── generate-sri.mjs        ← dev utility: patches Mammoth CDN SRI hash in huddle.js
 └── functions/
-    ├── index.js                  ← the COMPOSITION ROOT of the Cloud Functions (domain split, v20.55): defines the shared infrastructure (secrets, `VAPID_PUBLIC_KEY`, `STAFF_SITE_URL`, `ADMIN_FUNCTION_ORIGINS`, `readRawBody`), keeps `parseRosterPDF` (the AI prompt is pinned here by roster-prompt-parity) and `unlockCalendarViewer` (its handler source is pinned here by calendar-viewer-parity), and RE-EXPORTS the other thirteen endpoints from the three domain modules below. **The exports ARE the deploy surface** — a name dropped here is a function deleted in production; `functions-surface.test.mjs` pins all fifteen
+    ├── index.js                  ← the COMPOSITION ROOT of the Cloud Functions (domain split, v20.55): defines the shared infrastructure (secrets, `VAPID_PUBLIC_KEY`, `STAFF_SITE_URL`, `ADMIN_FUNCTION_ORIGINS`, `readRawBody`), keeps `parseRosterPDF` (the AI prompt is pinned here by roster-prompt-parity) and `unlockCalendarViewer` (its handler source is pinned here by calendar-viewer-parity), and RE-EXPORTS the remaining endpoints from the three domain modules below. **The exports ARE the deploy surface** — a name dropped here is a function deleted in production; `functions-surface.test.mjs` pins the whole list
     ├── documents.js               ← the DOCUMENT-AND-NOTIFICATION domain: `buildDocumentEndpoints(deps)` → ingestHuddle, the three onDocumentCreated notification triggers, the scheduled pay reminder, plus their private helpers (pruneOldHuddles, the fan-out wrappers, `HUDDLE_PUSH_PAUSED`). A factory taking the shared infra as arguments so index.js stays the one guarded home of the literals — the reasoning is in the module header
     ├── auth-endpoints.js          ← the ACCOUNT-AND-CREDENTIAL domain: `buildAuthEndpoints(deps)` → setupRosterAuth, resetMemberPassword, requestPasswordReset, getSignInStats. The pure DECISIONS these orchestrate (claimsForTier, resolveRosterAuthConfig, the throttles, summariseSignIns) already live unit-tested in roster-parse-helpers.js. unlockCalendarViewer deliberately stays in index.js — see the module header
     ├── push.js                    ← the web-push TRANSPORT (v20.52, extracted from index.js): lazy `web-push` require, one-per-instance VAPID setup, `fanOutPush` (everyone) and `sendTargetedPush` (named uids, **fails closed at every step, no fall-back-to-everyone branch**). Owns how a payload reaches a phone; never what it says or when. First cut of the index.js domain split
     ├── roster-parse-helpers.js   ← pure helpers: normaliseShift, buildWeekDates, extractAIJson, etc.
-    ├── overtime.js                ← the OVERTIME domain: five endpoints and the Firestore orchestration behind them — `buildOvertimeEndpoints(deps)` → createOvertimeWindow (with `dryRun`, so preview and commit are ONE code path and cannot drift), **autoCreateOvertimeWindows** (the daily scheduler that creates the weeks; the horizon becomes its MONITOR), getOvertimeManagerOverview (the planning horizon — the only thing that shows a week nobody created), getMyOvertimeState (the member's sole read path, and where `serverNow` comes from) and submitOvertimeAvailability. Identity is always `decoded.name`, never the body; retention is filtered HERE rather than in the rules
+    ├── overtime.js                ← the OVERTIME domain: five endpoints and the Firestore orchestration behind them — `buildOvertimeEndpoints(deps)` → createOvertimeWindow (with `dryRun`, so preview and commit are ONE code path and cannot drift), **autoCreateOvertimeWindows** (the daily scheduler that creates the weeks; the horizon becomes its MONITOR), getOvertimeManagerOverview (the planning horizon — the only thing that shows a week nobody created), getMyOvertimeState (the member's sole read path, and where `serverNow` comes from), submitOvertimeAvailability, withdrawOvertimeParticipant (the freeze's one exception — a leaver stops being EXPECTED; a flag, never a delete, and refused on a closed week) and **purgeExpiredOvertimeWindows**, which ships DISARMED and logs what it would remove. Identity is always `decoded.name`, never the body; retention is filtered HERE rather than in the rules
     ├── overtime-core.js           ← every RULE Overtime Availability has, and no I/O at all: the London deadline clock, the frozen milestone timetable, the three phases, participant selection, the availability schema, and the concurrency decision. **The clock is the highest-risk function in the feature** — one hour out either refuses somebody in time or accepts somebody late, and this repo has no date library. Requires nothing, so it is tested in `test:hygiene` (every branch) rather than only in the Functions workflow. Design: OVERTIME_AVAILABILITY.md
     ├── calendar-viewer-auth.js    ← the PURE server-side staff-PIN rules: PIN shape, timing-safe compare, the privacy-conscious source key, and the throttle decision — per-source AND the v20.35 all-sources ceiling (`GLOBAL_SOURCE_KEY`/`GLOBAL_THROTTLE`), which holds even when request attribution is wrong. It never learns, stores, logs or returns a PIN. **The throttle numbers are sized against a station behind ONE corporate NAT address** — the reasoning is in the module header, and both directions matter
     ├── roster-members.json       ← generated from roster-data.js — do NOT hand-edit; run `npm run generate:roster-members`. Holds the AI-parsing name lists (cea/ces/dispatcher), the B4 server-owned auth lists (`activeMembers` + `roles.admin`/`manager`/`designer`) that setupRosterAuth trusts instead of the client payload, `overtimeRoster` — who EXISTS, with each member's `hidden`/`managerOnly` flags, because who is ASKED is an audience decision and belongs beside the other audiences in `overtime-core.js` — and `overtimeBeta`, the ordinary members invited into the restricted Overtime beta. `overtimeBeta` sits OUTSIDE `roles` deliberately: those three are claim tiers `setupRosterAuth` stamps onto an account, and this grants no claim at all. CI-locked by sw-asset-check.test.mjs
@@ -448,7 +448,7 @@ npm run typecheck     # tsc --noEmit on all root JS modules
 npm run test:hygiene  # sw-asset-check, doc-parity, app-name-parity, calendar-access-core, calendar-viewer-auth, calendar-viewer-parity, import-graph, links-design, links-seed, links-design-doc, links-demand, links-rotation-parity, admin-rangepicker, client-errors, claim-retry, overlay(+history), usage-stats, perf-stats, surname-parity, payday-cutoff-parity, storage-rules-static, storage-utils, auth-identity, auth-state-core, auth-state, auth-policy, sw-register, sw-internals, csp-hygiene, csp-meta-parity, date-picker, guide-sources, guide-colour-parity, links-analysis, links-compare, paycalc-format, paycalc-breakdown, paycalc-inputs, paycalc-hpp-schedule, paycalc-transfer, paycalc-backpay-state, paycalc-key-parity, card-header-parity, page-css-parity, firestore-contract-parity, focus-ring-parity, type-scale-parity, chip-radius-parity, auth-plan-parity, workflow-hygiene, tips-content, password-force, error-reporter, roster-prompt-parity (authoritative list: package.json `test:hygiene`)
 npm run test:parse    # module-parse (--experimental-vm-modules)
 npm run test:unit     # all --experimental-test-module-mocks tests
-npm run test:functions # Cloud Functions tests (roster-parse-helpers.test.mjs + functions-surface.test.mjs, which requires functions/index.js and pins the fifteen-function deploy surface, + overtime-endpoints.test.mjs) — not part of npm test (needs functions/node_modules)
+npm run test:functions # Cloud Functions tests (roster-parse-helpers.test.mjs + functions-surface.test.mjs, which requires functions/index.js and pins the deploy surface, + overtime-endpoints.test.mjs) — not part of npm test (needs functions/node_modules)
 
 # Firestore + Storage security rules tests (requires Firebase emulator binary — starts automatically):
 npm run test:rules
@@ -903,6 +903,16 @@ overtimeWindows/{weekEnding}                       the window. Doc id = the week
     memberName · grade · rosterOrder · createdAt
     uid                       null until that member's first submission, then stamped. Nothing
                               reads it — it is the recovery route if a member is ever renamed
+    withdrawn / withdrawnAt / withdrawnBy   present ONLY on a withdrawal (v20.95). The freeze's one
+                              exception: a LEAVER otherwise stays a permanent non-responder in every
+                              open week. They come out of `expected`, out of every panel and out of
+                              the chip — nothing is deleted, and the page names who withdrew them.
+                              Written by `withdrawOvertimeParticipant`, refused on a CLOSED week
+                              (that week is the record). Restoring REMOVES the three fields rather
+                              than writing `withdrawn: false`, because `where('withdrawn','==',true)`
+                              never matches a missing field — which is why the counts subtract the
+                              withdrawn instead of filtering for the rest, or every participant
+                              written before this feature would vanish from the count
 
   /submissions/{memberName}   the HEAD — current answer only
     currentRevision · days · firstAcceptedAt · updatedAt · lastMutationId · lastMutationSeenAt
@@ -920,7 +930,12 @@ Write: **`if false` for every client**, including admin. The only writer is the 
 the one transactional endpoint — so a head can never point at a revision that does not exist.
 Retention: enforced in BOTH read endpoints rather than in the rules. Rules are not filters — a
 `resource.data` condition fails the whole query rather than dropping a row, so one expired document
-would blank a reviewer's workspace. No scheduled purge yet; expired windows are invisible and inert.
+would blank a reviewer's workspace. `purgeExpiredOvertimeWindows` (daily, 04:00 London) then removes
+expired windows bottom-up — revisions → heads → participants → parent, **parent last**, because
+Firestore does not cascade and a parent deleted alone orphans the tree permanently. It **ships
+DISARMED** (`purgeArmed` in `functions/index.js`): it walks and logs what it would remove and deletes
+nothing until somebody has read a run. Arming changes nothing anyone sees — expired windows are
+already invisible and inert — which is why it can wait and why waiting is not free.
 Written by: `functions/overtime.js`. Read by: `getMyOvertimeState` (members) and `loadWeekDetail` in
 `overtime-data.js` (the reviewer's one direct read). Full design: `OVERTIME_AVAILABILITY.md`.
 

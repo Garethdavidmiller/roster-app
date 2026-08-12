@@ -39,6 +39,23 @@ const SERVER_NOW = Date.parse('2026-08-17T09:00:00Z');
  * external wrapper sees only the one top-level read and reports a concurrency of 1 for code that
  * is fully parallel. That false negative is exactly what this hook exists to prevent.
  */
+/**
+ * The sentinel `FieldValue.delete()` returns. A plain object identity, compared by reference — the
+ * real one is opaque too, and modelling it as a magic string would let a stored string that happened
+ * to match remove a field.
+ */
+const DELETE_SENTINEL = { __delete: true };
+
+/** Apply a patch the way Firestore does, honouring delete sentinels. */
+function applyPatch(current, patch) {
+    const next = { ...(current || {}) };
+    for (const [k, v] of Object.entries(patch)) {
+        if (v === DELETE_SENTINEL) delete next[k];
+        else next[k] = v;
+    }
+    return next;
+}
+
 function makeDb(seed = {}, onRead = null) {
     const store = new Map(Object.entries(seed));
     const snap = (path) => ({
@@ -47,14 +64,30 @@ function makeDb(seed = {}, onRead = null) {
         ref: docRef(path),
         data: () => store.get(path),
     });
-    function collRef(path) {
+    /** The documents directly under a collection path — the fake's one membership rule. */
+    function childKeys(path) {
+        const prefix = `${path}/`;
+        return [...store.keys()]
+            .filter(k => k.startsWith(prefix) && !k.slice(prefix.length).includes('/'))
+            .sort();
+    }
+    function collRef(path, filter = null) {
+        const keys = () => (filter ? childKeys(path).filter(filter) : childKeys(path));
         return {
             path,
             doc: (id) => docRef(`${path}/${id}`),
+            // Equality filtering, which is all the production code uses — and the ONE property
+            // worth modelling faithfully is that a document MISSING the field never matches. That
+            // is why `windowCounts` counts the withdrawn and subtracts instead of filtering for the
+            // rest: a fake that matched absent fields would make the wrong design pass here.
+            where: (field, op, value) => {
+                assert.equal(op, '==', 'the fake models equality filters only');
+                return collRef(path, k => store.get(k)?.[field] === value);
+            },
             // Field projection is a wire optimisation, not a behaviour: the one caller that uses
             // `.select()` reads document IDS only, which a projection never changes. Modelling it
             // as an identity keeps the fake honest about what the code actually depends on.
-            select: () => collRef(path),
+            select: () => collRef(path, filter),
             // The COUNT aggregation (v20.75): the same membership rule as get(), returning only
             // the integer — which is the whole point of the production change it models. It goes
             // through `onRead` like any other read, so the parallelism instrumentation still sees
@@ -63,10 +96,7 @@ function makeDb(seed = {}, onRead = null) {
                 get: async () => {
                     const done = onRead ? onRead(path) : null;
                     await new Promise(r => setImmediate(r));
-                    const prefix = `${path}/`;
-                    const n = [...store.keys()]
-                        .filter(k => k.startsWith(prefix) && !k.slice(prefix.length).includes('/'))
-                        .length;
+                    const n = keys().length;
                     if (done) done();
                     return { data: () => ({ count: n }) };
                 },
@@ -76,11 +106,7 @@ function makeDb(seed = {}, onRead = null) {
                 // A real read is never synchronous. Yielding is what lets the harness observe
                 // overlap at all — without it every "parallel" read resolves before the next starts.
                 await new Promise(r => setImmediate(r));
-                const prefix = `${path}/`;
-                const docs = [...store.keys()]
-                    .filter(k => k.startsWith(prefix) && !k.slice(prefix.length).includes('/'))
-                    .sort()
-                    .map(snap);
+                const docs = keys().map(snap);
                 if (done) done();
                 return { docs, size: docs.length };
             },
@@ -92,9 +118,9 @@ function makeDb(seed = {}, onRead = null) {
             id: path.split('/').pop(),
             collection: (name) => collRef(`${path}/${name}`),
             get: async () => snap(path),
-            update: async (patch) => { store.set(path, { ...store.get(path), ...patch }); },
+            update: async (patch) => { store.set(path, applyPatch(store.get(path), patch)); },
             set: async (data, opts) => {
-                store.set(path, opts?.merge ? { ...(store.get(path) || {}), ...data } : data);
+                store.set(path, opts?.merge ? applyPatch(store.get(path), data) : data);
             },
         };
     }
@@ -105,16 +131,19 @@ function makeDb(seed = {}, onRead = null) {
             const ops = [];
             return {
                 set: (ref, data) => ops.push([ref.path, data]),
+                delete: (ref) => ops.push([ref.path, null]),
                 // Commit is all-or-nothing here too, so a test that expects atomicity is testing
                 // the same property production relies on rather than a looser fake.
-                commit: async () => { for (const [p, d] of ops) store.set(p, d); },
+                commit: async () => {
+                    for (const [p, d] of ops) { if (d === null) store.delete(p); else store.set(p, d); }
+                },
             };
         },
         runTransaction: async (fn) => fn({
             get: async (ref) => snap(ref.path),
             set: (ref, data, opts) => store.set(ref.path,
                 opts?.merge ? { ...(store.get(ref.path) || {}), ...data } : data),
-            update: (ref, patch) => store.set(ref.path, { ...store.get(ref.path), ...patch }),
+            update: (ref, patch) => store.set(ref.path, applyPatch(store.get(ref.path), patch)),
         }),
     };
 }
@@ -124,7 +153,7 @@ function installFakeAdmin(db, tokens) {
     const adminPath = require.resolve('firebase-admin', { paths: [new URL('./functions/', import.meta.url).pathname] });
     const stamp = () => ({ toMillis: () => SERVER_NOW });
     const firestore = () => db;
-    firestore.FieldValue = { serverTimestamp: stamp };
+    firestore.FieldValue = { serverTimestamp: stamp, delete: () => DELETE_SENTINEL };
     firestore.Timestamp  = { fromMillis: (ms) => ({ toMillis: () => ms }) };
     const fake = {
         auth: () => ({
@@ -207,13 +236,15 @@ const allDay = () => Object.fromEntries(DATES.map(d => [d, { mode: 'all_day' }])
 const noDays = () => Object.fromEntries(DATES.map(d => [d, { mode: 'unavailable' }]));
 
 /** Build the endpoints against a fresh fake world. Returns handlers + the store for assertions. */
-function build(seed = {}) {
+function build(seed = {}, opts = {}) {
     const db = makeDb(seed);
     installFakeAdmin(db, TOKENS);
     // Require AFTER the cache injection, and fresh each time, so the module binds the fake.
     delete require.cache[require.resolve('./functions/overtime.js')];
     const { buildOvertimeEndpoints } = require('./functions/overtime.js');
-    const eps = buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS: ['https://myb-roster.web.app'], rosterMembers: ROSTER });
+    const eps = buildOvertimeEndpoints({
+        ADMIN_FUNCTION_ORIGINS: ['https://myb-roster.web.app'], rosterMembers: ROSTER, ...opts,
+    });
     return { db, eps };
 }
 
@@ -261,6 +292,7 @@ const NOT_HTTP = new Set([
     // Scheduled: invoked by Cloud Scheduler, never by a browser, so there is no bearer token to
     // check and no request method to refuse. Its own protection is that it takes no input at all.
     'autoCreateOvertimeWindows',
+    'purgeExpiredOvertimeWindows',
 ]);
 const httpEndpoints = (eps) => Object.entries(eps).filter(([k]) => !NOT_HTTP.has(k));
 
@@ -455,14 +487,58 @@ describe('getOvertimeManagerOverview — the missing window is the point', () =>
         assert.equal(r.code, 200);
         assert.equal(r.body.planningWeeks.length, OT.PLANNING_WEEKS);
         assert.ok(r.body.planningWeeks.every(w => w.exists === false));
+        //
+        // The tail reads `not-created-overdue` rather than `not-created` BECAUSE the database is
+        // empty: this fixture describes a station where the schedule has never once run, so the
+        // weeks it was due to create this morning and did not are exactly that. The healthy
+        // steady state is asserted separately below.
         assert.deepEqual(r.body.planningWeeks.slice(0, 4).map(w => [w.weekEnding, w.state]), [
             ['2026-08-22', 'missed'],
             ['2026-08-29', 'missed'],
             ['2026-09-05', 'not-created-initial-passed'],
-            ['2026-09-12', 'not-created'],
+            ['2026-09-12', 'not-created-overdue'],
         ]);
-        assert.ok(r.body.planningWeeks.slice(4).every(w => w.state === 'not-created'),
-            'every week beyond the escalating prefix is simply not created yet');
+        assert.ok(r.body.planningWeeks.slice(4).every(w => w.state === 'not-created-overdue'),
+            'every week beyond the escalating prefix was due this morning and is not there');
+    });
+
+    test('a healthy schedule is silent — the weeks it made say nothing about overnight', async () => {
+        // The other half of the pair, and the half that decides whether the warning is worth
+        // anything: a marker that fires on a working system is a marker a reviewer learns to
+        // ignore, and then it is not there when it matters. Everything the last 05:00 run was due
+        // to create exists, so nothing may be flagged.
+        const NOW = Date.parse('2026-08-19T09:00:00Z');
+        freeze(NOW);
+        const due = OT.weeksNeedingWindows(OT.lastSchedulerRun(NOW), [], { maxRosterYear: 2030 });
+        assert.ok(due.length >= 2, 'fixture no longer exercises this');
+        const { eps } = build(Object.fromEntries(due.map(w => [
+            `overtimeWindows/${w}`, { ...OT.deriveMilestones(w), audience: 'restricted' },
+        ])));
+        const rows = (await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager'))).body.planningWeeks;
+        unfreeze();
+        assert.ok(rows.every(w => w.state !== 'not-created-overdue'),
+            rows.filter(w => w.state === 'not-created-overdue').map(w => w.weekEnding).join(', '));
+        // And the weeks it could never have created are untouched by any of this.
+        assert.equal(rows.find(w => w.weekEnding === '2026-08-22').state, 'missed');
+    });
+
+    test('a week that only entered the horizon AFTER the last run is not called overdue', async () => {
+        // The one false positive worth designing against. The horizon rolls over at midnight on a
+        // Sunday and the job runs at 05:00, so for five hours a week exists on the page that no run
+        // has ever been asked to create. Accusing the schedule there would fire every single week,
+        // and a weekly false alarm is how a real one gets ignored.
+        const NOW = Date.parse('2026-08-23T02:00:00Z');   // Sunday, 03:00 London — before 05:00
+        freeze(NOW);
+        const newest = OT.planningWeekEndings(NOW).at(-1);
+        const dueAtLastRun = OT.weeksNeedingWindows(OT.lastSchedulerRun(NOW), [], { maxRosterYear: 2030 });
+        assert.ok(!dueAtLastRun.includes(newest), 'fixture no longer exercises this');
+        const { eps } = build(Object.fromEntries(dueAtLastRun.map(w => [
+            `overtimeWindows/${w}`, { ...OT.deriveMilestones(w), audience: 'restricted' },
+        ])));
+        const rows = (await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager'))).body.planningWeeks;
+        unfreeze();
+        assert.equal(rows.find(w => w.weekEnding === newest).state, 'not-created',
+            'the newest row is simply waiting for tonight, and must say so');
     });
 
     test('a missed week offers no Create, and a recoverable one does', async () => {
@@ -569,6 +645,160 @@ describe('getOvertimeManagerOverview — the missing window is the point', () =>
         const r = await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager'));
         unfreeze();
         assert.equal(r.body.serverNow, 1234567890);
+    });
+});
+
+describe('withdrawOvertimeParticipant — the leaver who is chased every week', () => {
+    const PATH = `overtimeWindows/${WEEK}/participants/G. Miller`;
+    const withSecond = () => seededWindow({
+        [`overtimeWindows/${WEEK}/participants/S. Silva`]: {
+            memberName: 'S. Silva', grade: 'CEA', rosterOrder: 5, uid: null,
+        },
+    });
+
+    test('an ordinary member cannot change who is asked', async () => {
+        // The population is a reviewer's decision. A member who could withdraw themselves would
+        // have found a way to stop being counted as outstanding without ever saying they are not
+        // available — which is the one distinction this whole feature protects.
+        freeze(M.initialDeadlineAt - 1000);
+        const { eps } = build(seededWindow());
+        const r = await call(eps.withdrawOvertimeParticipant,
+            req({ weekEnding: WEEK, memberName: 'G. Miller', withdrawn: true }, 'tok_plain'));
+        unfreeze();
+        assert.equal(r.code, 403);
+    });
+
+    test('a reviewer withdraws somebody, and the record is FLAGGED rather than removed', async () => {
+        freeze(M.initialDeadlineAt - 1000);
+        const { eps, db } = build(seededWindow());
+        const r = await call(eps.withdrawOvertimeParticipant,
+            req({ weekEnding: WEEK, memberName: 'G. Miller', withdrawn: true }, 'tok_manager'));
+        unfreeze();
+        assert.equal(r.code, 200);
+        const p = db._store.get(PATH);
+        // Still there, still carrying everything it carried — the freeze is not being edited.
+        assert.equal(p.memberName, 'G. Miller');
+        assert.equal(p.grade, 'CEA');
+        assert.equal(p.withdrawn, true);
+        assert.equal(p.withdrawnBy, 'H. Croft', 'an unattributable exclusion is the thing to avoid');
+        assert.ok(p.withdrawnAt, 'and it is stamped');
+    });
+
+    test('restoring REMOVES the fields rather than writing false', async () => {
+        // `where('withdrawn','==',true)` never matches a missing field, and never matches an
+        // explicit false either — so both work for the count. But every participant written before
+        // this feature has no field at all, and leaving a written `false` behind would make two
+        // shapes mean "still being asked" where one will do.
+        freeze(M.initialDeadlineAt - 1000);
+        const { eps, db } = build(seededWindow({
+            [PATH]: { memberName: 'G. Miller', grade: 'CEA', rosterOrder: 2, uid: null,
+                withdrawn: true, withdrawnAt: { toMillis: () => 1 }, withdrawnBy: 'H. Croft' },
+        }));
+        const r = await call(eps.withdrawOvertimeParticipant,
+            req({ weekEnding: WEEK, memberName: 'G. Miller', withdrawn: false }, 'tok_manager'));
+        unfreeze();
+        assert.equal(r.code, 200);
+        const p = db._store.get(PATH);
+        assert.deepEqual(Object.keys(p).sort(), ['grade', 'memberName', 'rosterOrder', 'uid']);
+    });
+
+    test('a CLOSED week refuses, with a code the page can name', async () => {
+        // Not a fault to retry — a rule. A closed week is the record the roster was planned from,
+        // and a reviewer told only "that failed" would press it again.
+        freeze(M.finalDeadlineAt + 1000);
+        const { eps, db } = build(seededWindow());
+        const r = await call(eps.withdrawOvertimeParticipant,
+            req({ weekEnding: WEEK, memberName: 'G. Miller', withdrawn: true }, 'tok_manager'));
+        unfreeze();
+        assert.equal(r.code, 409);
+        assert.equal(r.body.error, 'closed');
+        assert.equal(db._store.get(PATH).withdrawn, undefined, 'and nothing was written');
+    });
+
+    test('a name that is not in the frozen population is refused, not created', async () => {
+        // The population is frozen. An `update` on a missing document would throw in production and
+        // a `set` would ADD somebody to a week nobody asked them about — so the existence check is
+        // the thing being asserted, not the error code.
+        freeze(M.initialDeadlineAt - 1000);
+        const { eps, db } = build(seededWindow());
+        const r = await call(eps.withdrawOvertimeParticipant,
+            req({ weekEnding: WEEK, memberName: 'S. Silva', withdrawn: true }, 'tok_manager'));
+        unfreeze();
+        assert.equal(r.code, 404);
+        assert.equal(db._store.has(`overtimeWindows/${WEEK}/participants/S. Silva`), false);
+    });
+
+    test('an id that is not a legal path segment never reaches Firestore', async () => {
+        // Both fields are document IDS here, so an unvalidated one arrives as a PATH rather than as
+        // data — the reason `isSafeDocId` exists at all.
+        freeze(M.initialDeadlineAt - 1000);
+        const { eps } = build(seededWindow());
+        for (const body of [
+            { weekEnding: '2026-09-06', memberName: 'G. Miller', withdrawn: true },   // not a Saturday
+            { weekEnding: WEEK, memberName: 'a/b', withdrawn: true },
+            { weekEnding: WEEK, memberName: '', withdrawn: true },
+            { weekEnding: WEEK, withdrawn: true },
+        ]) {
+            const r = await call(eps.withdrawOvertimeParticipant, req(body, 'tok_manager'));
+            assert.equal(r.code, 400, JSON.stringify(body));
+        }
+        unfreeze();
+    });
+
+    test('the overview stops expecting them — and legacy participants still count', async () => {
+        // The count is where withdrawal has to land or it has done nothing. The second half is the
+        // subtle one: `G. Miller` here carries no `withdrawn` field at all, which is every
+        // participant document written before this feature. A filtered count would drop them too
+        // and report an expectation of zero for a perfectly healthy week.
+        freeze(M.initialDeadlineAt - 1000);
+        const { eps } = build(withSecond());
+        const before = (await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager')))
+            .body.planningWeeks.find(w => w.weekEnding === WEEK);
+        assert.deepEqual([before.expected, before.received, before.noResponse], [2, 0, 2]);
+
+        await call(eps.withdrawOvertimeParticipant,
+            req({ weekEnding: WEEK, memberName: 'S. Silva', withdrawn: true }, 'tok_manager'));
+        const after = (await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager')))
+            .body.planningWeeks.find(w => w.weekEnding === WEEK);
+        unfreeze();
+        assert.deepEqual([after.expected, after.received, after.noResponse], [1, 0, 1]);
+    });
+
+    test("a withdrawn person's own submission leaves the received count with them", async () => {
+        // Otherwise `received` outlives `expected` and the card renders a NEGATIVE no-response
+        // count — which is the shape of a number nobody trusts again, on the one figure a clerk
+        // acts on. Their submission itself is untouched; it simply stops being counted here.
+        freeze(M.initialDeadlineAt - 1000);
+        const { eps, db } = build({
+            ...withSecond(),
+            [`overtimeWindows/${WEEK}/submissions/S. Silva`]: { currentRevision: 1, days: {} },
+        });
+        const before = (await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager')))
+            .body.planningWeeks.find(w => w.weekEnding === WEEK);
+        assert.deepEqual([before.expected, before.received, before.noResponse], [2, 1, 1]);
+
+        await call(eps.withdrawOvertimeParticipant,
+            req({ weekEnding: WEEK, memberName: 'S. Silva', withdrawn: true }, 'tok_manager'));
+        const after = (await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager')))
+            .body.planningWeeks.find(w => w.weekEnding === WEEK);
+        unfreeze();
+        assert.deepEqual([after.expected, after.received, after.noResponse], [1, 0, 1]);
+        assert.ok(db._store.has(`overtimeWindows/${WEEK}/submissions/S. Silva`),
+            'the declaration itself is kept — withdrawal changes what is expected, not what happened');
+    });
+
+    test('the nightly top-up does not quietly put them back', async () => {
+        // `addMissingParticipants` adds anybody in the audience with no participant document. The
+        // withdrawn person still HAS one, so they are already excluded — but only by accident of
+        // that implementation, and a reviewer's decision being undone overnight is the kind of
+        // thing that gets noticed weeks later, if at all.
+        freeze(M.initialDeadlineAt - 1000);
+        const { eps, db } = build(withSecond());
+        await call(eps.withdrawOvertimeParticipant,
+            req({ weekEnding: WEEK, memberName: 'S. Silva', withdrawn: true }, 'tok_manager'));
+        await call(eps.createOvertimeWindow, req({ weekEnding: WEEK }, 'tok_member'));
+        unfreeze();
+        assert.equal(db._store.get(`overtimeWindows/${WEEK}/participants/S. Silva`).withdrawn, true);
     });
 });
 
@@ -797,6 +1027,130 @@ describe('submitOvertimeAvailability — the only mutation', () => {
         await call(eps.submitOvertimeAvailability, req(good()));
         unfreeze();
         assert.equal(db._store.get(`overtimeWindows/${WEEK}/participants/G. Miller`).uid, 'uid_g');
+    });
+});
+
+describe('purgeExpiredOvertimeWindows — the only irreversible thing here', () => {
+    const OLD = '2026-01-03';           // long past its 91-day retention at the clock below
+    const NOW = Date.parse('2026-08-19T09:00:00Z');
+    const OM = OT.deriveMilestones(OLD);
+
+    /** An expired window with a full tree beneath it: participant, submission, two revisions. */
+    const expiredTree = () => ({
+        [`overtimeWindows/${OLD}`]: {
+            weekEnding: OLD, weekStart: OM.weekStart,
+            initialDeadlineAt: { toMillis: () => OM.initialDeadlineAt },
+            finalDeadlineAt: { toMillis: () => OM.finalDeadlineAt },
+            retentionUntil: { toMillis: () => OM.retentionUntil },
+            policyVersion: 1, audience: 'restricted',
+        },
+        [`overtimeWindows/${OLD}/participants/G. Miller`]: { memberName: 'G. Miller', grade: 'CEA' },
+        [`overtimeWindows/${OLD}/submissions/G. Miller`]: { currentRevision: 2, days: {} },
+        [`overtimeWindows/${OLD}/submissions/G. Miller/revisions/0001`]: { revision: 1 },
+        [`overtimeWindows/${OLD}/submissions/G. Miller/revisions/0002`]: { revision: 2 },
+    });
+
+    const run = (eps) => eps.purgeExpiredOvertimeWindows.run({});
+
+    test('disarmed, it touches NOTHING — which is how it ships', async () => {
+        // The dry run is not a formality. This is the only code in the feature that destroys data,
+        // it runs unattended, and its first real work happens months after anyone last looked at
+        // it. Shipping it inert is what lets the walk be proved against real documents while its
+        // mistakes are still only log lines.
+        freeze(NOW);
+        const { eps, db } = build(expiredTree());
+        const before = [...db._store.keys()].sort();
+        await run(eps);
+        unfreeze();
+        assert.deepEqual([...db._store.keys()].sort(), before);
+    });
+
+    test('armed, it removes the window AND everything beneath it', async () => {
+        // Firestore does not cascade. A parent deleted on its own leaves every participant,
+        // submission and revision present, billable, and unreachable from any listing the app
+        // performs — which is worse than not purging, because the data survives while the system
+        // reports it as gone.
+        freeze(NOW);
+        const { eps, db } = build(expiredTree(), { purgeArmed: true });
+        await run(eps);
+        unfreeze();
+        assert.deepEqual([...db._store.keys()], [], 'something survived the purge');
+    });
+
+    test('a window still inside its retention is never selected, armed or not', async () => {
+        freeze(NOW);
+        const { eps, db } = build({ ...expiredTree(), ...seededWindow() }, { purgeArmed: true });
+        await run(eps);
+        unfreeze();
+        const left = [...db._store.keys()];
+        assert.ok(left.every(k => k.startsWith(`overtimeWindows/${WEEK}`)),
+            `a live window was purged: ${left.join(', ')}`);
+        assert.ok(left.includes(`overtimeWindows/${WEEK}/participants/G. Miller`),
+            'and its participants went with it');
+    });
+
+    test('the parent is deleted LAST, so an interrupted run cannot orphan the tree', async () => {
+        // The one ordering that matters. If the parent went first and the run died, the children
+        // would remain with nothing pointing at them and no later run would find them — the window
+        // is gone, so it can never be selected as expired again.
+        freeze(NOW);
+        const order = [];
+        const { eps, db } = build(expiredTree(), { purgeArmed: true });
+        const realBatch = db.batch;
+        db.batch = () => {
+            const b = realBatch();
+            const realDelete = b.delete;
+            b.delete = (ref) => { order.push(ref.path); return realDelete(ref); };
+            return b;
+        };
+        await run(eps);
+        unfreeze();
+        assert.equal(order.at(-1), `overtimeWindows/${OLD}`, 'the window parent must go last');
+        assert.ok(order.indexOf(`overtimeWindows/${OLD}/submissions/G. Miller/revisions/0001`)
+            < order.indexOf(`overtimeWindows/${OLD}/submissions/G. Miller`),
+            'a revision must go before the submission head above it');
+    });
+
+    test('it says what it did NOT reach, rather than reading as a complete run', async () => {
+        // A silently truncated list tells the same lie a run that reports only its successes does.
+        // Six expired weeks against a bound of five is the case, and the arrears line is the only
+        // thing that distinguishes "finished" from "still behind".
+        freeze(NOW);
+        const many = {};
+        for (let i = 0; i < 6; i++) {
+            const wk = OT.addDays(OLD, i * 7);
+            const m = OT.deriveMilestones(wk);
+            many[`overtimeWindows/${wk}`] = {
+                weekEnding: wk, weekStart: m.weekStart,
+                initialDeadlineAt: { toMillis: () => m.initialDeadlineAt },
+                finalDeadlineAt: { toMillis: () => m.finalDeadlineAt },
+                retentionUntil: { toMillis: () => m.retentionUntil },
+                policyVersion: 1, audience: 'restricted',
+            };
+        }
+        const logs = [];
+        const realLog = console.log;
+        console.log = (...a) => logs.push(a.join(' '));
+        const { eps, db } = build(many, { purgeArmed: true });
+        await run(eps);
+        console.log = realLog;
+        unfreeze();
+        assert.equal([...db._store.keys()].length, 1, 'exactly one week should be left over');
+        assert.ok(logs.some(l => /1 more expired window left for the next run/.test(l)),
+            `the arrears were not reported: ${logs.join(' | ')}`);
+    });
+
+    test('a failed listing stands the run down rather than assuming nothing is expired', async () => {
+        // The opposite failure to the creator's, and the same principle: acting on a wrong premise
+        // is how a bad day becomes a bad week. Here the wrong premise is harmless by luck — an
+        // empty list deletes nothing — so the assertion is that it does not THROW out of a
+        // scheduled invocation, which is what would turn a transient read error into an alert.
+        freeze(NOW);
+        const { eps, db } = build(expiredTree(), { purgeArmed: true });
+        db.collection = () => ({ get: async () => { throw new Error('unavailable'); } });
+        await run(eps);
+        unfreeze();
+        assert.equal([...db._store.keys()].length, 5, 'nothing should have been deleted');
     });
 });
 

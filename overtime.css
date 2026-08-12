@@ -956,6 +956,18 @@ body {
 
 .ot-person .ot-answer { margin-left: auto; }
 
+/* HOW OLD the declaration is (v20.93). Quiet, and deliberately AFTER the answer rather than in the
+   name column: it qualifies what was said, so it should be read second. `--type-badge`/600 is the
+   quiet-status tier (css-tokens.md) — a receipt about an answer, not a label to scan. */
+.ot-person-age {
+    flex-basis: 100%;
+    text-align: right;
+    margin-top: -2px;
+    font-size: var(--type-badge);
+    font-weight: 600;
+    color: var(--text-light);
+}
+
 /* Flags take their OWN line, so a flag can never sit between a name and its answer chip: the
    answers are read as a column down the right edge, and a flag on two of five rows would push
    those two out of that column and break the scan. The full-width part is the WRAPPER — putting
@@ -982,6 +994,48 @@ body {
        is reading. It still has to be noticeable; it does not have to compete. */
     font-weight: 600;
 }
+
+/* "Not being asked" — the people this week has stopped expecting an answer from (v20.95). Muted on
+   purpose: it is a footnote to the counts above, not a fourth thing to read. It is also the only
+   panel that renders CONDITIONALLY, so its presence is itself the signal. */
+.ot-day-panel--muted { opacity: 0.9; }
+.ot-day-panel--muted .ot-day-panel-head { color: var(--text-light); }
+
+.ot-section-note {
+    padding: 6px var(--space-3) 0;
+    font-size: var(--type-badge);
+    color: var(--text-light);
+}
+
+/* The withdrawal caption. Inline — unlike `.ot-person-age`, which takes its own full-width line
+   because it qualifies an ANSWER chip sitting on the right edge. There is no answer on this row. */
+.ot-person-note {
+    font-size: var(--type-badge);
+    font-weight: 600;
+    color: var(--text-light);
+}
+
+/* The two participation controls: "Stop asking" on an awaiting row, "Ask again" on a withdrawn one.
+   Right-edge, quiet, and the SAME shape in both places — they are one decision seen from either
+   side, and giving the destructive-sounding half a louder treatment would make it the thing a thumb
+   finds first on a list that is scrolled, not read. The confirm bar carries the weight instead. */
+.ot-person-btn {
+    margin-left: auto;
+    padding: 3px 10px;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-pill);
+    background: var(--surface-card);
+    color: var(--text-mid);
+    font: inherit;
+    font-size: var(--type-badge);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-standard),
+                color var(--dur-fast) var(--ease-standard);
+}
+.ot-person-btn:hover { background: var(--border-light); color: var(--text-dark); }
+.ot-person-btn:active { transform: scale(var(--press-scale)); }
+.ot-person-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 
 /* Back to the list of a member's own weeks, after opening one of them. */
 .ot-back-to-list { margin-top: var(--space-4); }
@@ -1201,4 +1255,9 @@ body {
         border: 1px solid #999 !important;
     }
     .ot-person-flag { background: white !important; border: 1px solid #999; }
+    /* The buttons are chrome and mean nothing on paper; the WITHDRAWAL does not go with them —
+       a printed sheet whose counts silently exclude somebody is the same unattributable
+       exclusion the panel exists to prevent. */
+    .ot-person-btn { display: none !important; }
+    .ot-day-panel--muted { opacity: 1; }
 }

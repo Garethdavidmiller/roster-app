@@ -158,22 +158,30 @@ export function init() {
                 title: 'Change a Shift',
                 sections: [
                     { heading: 'One shift', items: [
-                        { icon: '1️⃣', html: 'Select a <strong>staff member</strong> and <strong>week</strong> at the top', adminOnly: true },
-                        { icon: '1️⃣', html: 'Select the <strong>week</strong> at the top using the arrows or date picker', staffOnly: true },
-                        { icon: '2️⃣', html: 'Tap a type on any day — it turns amber. Tap <strong>Save changes</strong> when done' },
-                        { icon: '👆', html: 'Swipe left or right to move between weeks' },
+                        { icon: '1️⃣', html: 'Select a <strong>staff member</strong> and <strong>week</strong> at the top.', adminOnly: true },
+                        { icon: '1️⃣', html: 'Select the <strong>week</strong> at the top, using the arrows or the date picker.', staffOnly: true },
+                        // "amber" until v20.91 — the row turns GOLD, which is the word the rest of
+                        // the app uses for the same colour, and the one thing a reader compares
+                        // against what is in front of them.
+                        { icon: '2️⃣', html: 'Tap a type on any day. The row turns <strong>gold</strong> to show it is ready to save; tap <strong>Save changes</strong> when you have finished.' },
+                        { icon: '🎨', html: 'A row already carrying a change is <strong>cream</strong>. Saving over one replaces what was there, so check the cream rows before you save.' },
+                        { icon: '👆', html: 'Swipe left or right to move between weeks.' },
                     ]},
-                    { heading: 'Multiple shifts', items: [
-                        { icon: '1️⃣', html: 'Tap <strong>Mon–Fri</strong>, <strong>Working days</strong> or <strong>All 7</strong> — or tick individual days' },
-                        { icon: '2️⃣', html: 'Pick a type — add a start and end time if needed' },
-                        { icon: '3️⃣', html: 'Tap <strong>3. Apply to ticked days</strong>' },
-                        { icon: '🏖️', html: 'Booking several days of annual leave at once? The <strong>Record Annual Leave</strong> card below does the whole date range in one go' },
+                    { heading: 'Several days at once', items: [
+                        { icon: '1️⃣', html: 'Tap <strong>Mon–Fri</strong>, <strong>Working days</strong> or <strong>All 7</strong> — or tick the days you want individually.' },
+                        { icon: '2️⃣', html: 'Pick a type, and add a start and end time if it needs one.' },
+                        { icon: '3️⃣', html: 'Tap <strong>Apply to ticked days</strong>, then <strong>Save changes</strong>.' },
+                        { icon: '🏖️', html: 'For a run of annual leave or absence, the two cards below do a whole date range in one go — you do not have to tick days here.' },
                     ]},
-                    { heading: 'Type meanings', items: [
-                        { icon: '📅', html: '<strong>Shift</strong> — a confirmed working shift; use for spare-week confirmations, changed shift times, and swaps with colleagues' },
-                        { icon: '💼', html: '<strong>RDW</strong> — rest day worked; use when someone works a full shift on their rest day' },
-                        { icon: '✏️', html: '<strong>Rest Day</strong> — corrects a working day back to a rest day' },
-                        { icon: '🏷️', html: '<strong>Other</strong> — a training, induction, assessment or team day, or <strong>Spare</strong> (on standby, shift not yet known). Open the <strong>Other</strong> pill to choose. Pick the type, tick "Rest day (RDW)" if it\'s on a rest day, and add times if you know them — blank times pay the default (the base shift, or 8 hours RDW)' },
+                    { heading: 'What each type means', items: [
+                        { icon: '🏖️', html: '<strong>AL</strong> — annual leave. <strong>Absent</strong> — away for any reason; only the dates are saved, never the reason.' },
+                        { icon: '📅', html: '<strong>Shift</strong> — a confirmed working shift. Use it to confirm a spare week, change shift times, or record a swap with a colleague.' },
+                        { icon: '💼', html: '<strong>RDW</strong> — rest day worked. Use it when somebody works a full shift on their rest day.' },
+                        { icon: '✏️', html: '<strong>Rest Day</strong> — puts a working day back to a rest day.' },
+                        // SIX flavours since v18.61 (Union, Meeting). The tip named four for two
+                        // years' worth of releases, so nobody reading it knew the other two existed.
+                        { icon: '🏷️', html: '<strong>Other</strong> — open the pill to choose: training, induction, assessment, team day, union course, meeting, or <strong>Spare</strong> (on standby, shift not yet known).' },
+                        { icon: '⏱️', html: 'On an <strong>Other</strong> day, tick <strong>Rest day (RDW)</strong> if it falls on a rest day, and add times if you know them. Leave the times blank and it pays as the day underneath — or eight hours if it is a rest day.' },
                     ]},
                 ],
             },
@@ -181,9 +189,10 @@ export function init() {
                 title: 'Record Annual Leave',
                 sections: [
                     { items: [
-                        { icon: '🏖️', html: 'Select a <strong>staff member</strong> and date range — rest days and Sundays are skipped automatically', adminOnly: true },
-                        { icon: '🏖️', html: 'Select a date range — rest days and Sundays are skipped automatically', staffOnly: true },
-                        { icon: '⚠️', html: 'A warning appears if leave would exceed the annual limit — you can still save' },
+                        { icon: '🏖️', html: 'Select a <strong>staff member</strong> and a date range. Rest days and Sundays inside it are skipped automatically.', adminOnly: true },
+                        { icon: '🏖️', html: 'Select a date range. Rest days and Sundays inside it are skipped automatically.', staffOnly: true },
+                        { icon: '👀', html: 'The days that will be booked are listed before you save, so you can check the range caught what you meant.' },
+                        { icon: '⚠️', html: 'If the booking would take somebody past their entitlement for the year you are told, and asked to confirm. It does not stop you — sometimes that is the right answer.' },
                     ]},
                 ],
             },
@@ -191,13 +200,13 @@ export function init() {
                 title: 'Record Absence',
                 sections: [
                     { heading: 'What to use it for', items: [
-                        { icon: '🗓️', html: '<strong>Any kind of absence</strong> — any number of days' },
-                        { icon: '👨‍👩‍👧', html: '<strong>Family or domestic emergency</strong> — e.g. child ill, caring for a relative' },
-                        { icon: '🪑', html: 'You don\'t need to say why — only the dates are saved, not the reason' },
+                        { icon: '🗓️', html: '<strong>Any kind of absence</strong>, for any number of days.' },
+                        { icon: '👨‍👩‍👧', html: 'Sickness, a family or domestic emergency, caring for a relative — it is all the same entry here.' },
+                        { icon: '🪑', html: 'You never say why. Only the dates are saved; the reason is not recorded anywhere in the app.' },
                     ]},
                     { heading: 'Good to know', items: [
-                        { icon: '📅', html: 'Rest days and Sundays in the range are ignored automatically — you only need to pick the start and end date' },
-                        { icon: '👁️', html: 'Absence days are visible to all staff in the calendar' },
+                        { icon: '📅', html: 'Pick a start and end date. Rest days and Sundays inside the range are skipped automatically.' },
+                        { icon: '👁️', html: 'An absence shows on the calendar as 🪑 <strong>Absent</strong> and everybody can see it, the same as annual leave. What they cannot see is why.' },
                     ]},
                 ],
             },
@@ -208,17 +217,17 @@ export function init() {
                 title: 'Saved Changes',
                 sections: [
                     { heading: 'Viewing', items: [
-                        { icon: '🔍', html: 'Use the <strong>member dropdown</strong> to see one person\'s changes, or leave it on All to see everyone\'s', adminOnly: true },
-                        { icon: '🔍', html: 'This list shows your own saved changes only', staffOnly: true },
-                        { icon: '📅', html: 'Use the <strong>month filter</strong> to narrow down to a specific month — defaults to the current month' },
+                        { icon: '🔍', html: 'Use the <strong>member dropdown</strong> for one person\'s changes, or leave it on <strong>All</strong> for everyone\'s.', adminOnly: true },
+                        { icon: '🔍', html: 'This list shows your own saved changes only.', staffOnly: true },
+                        { icon: '📅', html: 'The <strong>month filter</strong> narrows it to one month. It starts on the current month.' },
                     ]},
                     { heading: 'Editing and deleting', items: [
-                        { icon: '✏️', html: 'Tap <strong>Edit</strong> on any change to adjust the shift type or time, then tap <strong>Save changes</strong>' },
-                        { icon: '🗑️', html: 'Tap <strong>Delete</strong> on any change to remove it — the day goes back to the original scheduled shift' },
+                        { icon: '✏️', html: 'Tap <strong>Edit</strong> on a change to adjust its type or time, then tap <strong>Save changes</strong>.' },
+                        { icon: '🗑️', html: 'Tap <strong>Delete</strong> to remove it. That day goes back to whatever the roster originally said.' },
                     ]},
-                    { heading: 'Sources', adminOnly: true, items: [
-                        { icon: '📋', html: '<strong>Roster upload</strong> entries came from a PDF upload — a new upload will replace them automatically without a warning' },
-                        { icon: '✍️', html: 'All other entries were added manually — a new PDF upload will flag them if it disagrees, so you can choose which to keep' },
+                    { heading: 'Where a change came from', adminOnly: true, items: [
+                        { icon: '📋', html: 'Entries marked <strong>Roster upload</strong> came in from a roster PDF. The next upload overwrites them without asking, because the PDF is the source for those days.' },
+                        { icon: '✍️', html: 'Everything else was entered by hand. If a later upload disagrees with one of those, it is flagged for you to decide rather than replaced.' },
                     ]},
                 ],
             },

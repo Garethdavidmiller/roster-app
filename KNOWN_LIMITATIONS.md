@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: August 2026 — v20.80 · Updated every 0.10 version*
+*Last updated: August 2026 — v20.90 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -1319,13 +1319,19 @@ logic (extracted to `functions/roster-parse-helpers.js` and unit-tested: `parseS
 `resolveRosterAuthConfig`, `claimsForTier`, `computeOrphanLabels`), and the `isSafeStorageUrl`
 download-URL allowlist (extracted to `storage-utils.js` + `storage-utils.test.mjs`).
 
+**Closed for ONE domain, v20.56:** the Cloud Function HTTP *handlers* end-to-end. `overtime-endpoints.test.mjs`
+executes the five Overtime handlers against a fake Firestore and a fake token verifier, which is what
+the entry below said needed firebase-admin mocking — it turned out to need a fake, not a mock. The
+lesson that produced it is worth keeping: a surface test proves the handlers were DEFINED, not that
+any of them works, and the Calendar PIN outage was a mint path that had never once run in production.
+The same technique is available to the other domains and has not been applied to them yet.
+
 Still not tested: the coordinator wiring in `calendar-app.js` / `admin-app.js` (the extracted
 `calendar-renderer.js` / `calendar-*` state modules have unit tests; the coordinators themselves do
 not — e2e covers their page-load), the Firestore read/write layer in the page modules (behind the
-gstatic-CDN import), and the Cloud Function HTTP *handlers* end-to-end (the Admin-SDK orchestration —
-their pure decision logic IS now tested; a full handler test needs firebase-admin mocking). Before
-adding new untested behaviour in these modules, consider whether a unit or integration test can be
-added first.
+gstatic-CDN import), and the Admin-SDK orchestration in every Cloud Function domain EXCEPT Overtime
+(their pure decision logic is tested). Before adding new untested behaviour in these modules,
+consider whether a unit or integration test can be added first.
 
 ### E2E smoke tests — REMOVED v12.75, RESTORED v13.95 (no longer a limitation)
 

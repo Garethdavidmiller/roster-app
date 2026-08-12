@@ -21,7 +21,7 @@
 
 import { fetchWithTimeout, isFetchTimeout, isFetchAborted } from './fetch-timeout.js';
 import { auth, db, collection, doc, getDocs } from './firebase-client.js';
-import { clockOffset, deriveHistory } from './overtime-format.js';
+import { clockOffset, deriveHistory, isWithdrawn } from './overtime-format.js';
 import { loadRosterForMembers } from './overtime-roster.js';
 
 const BASE = 'https://europe-west2-myb-roster.cloudfunctions.net';
@@ -128,6 +128,22 @@ export function createOvertimeWindow(weekEnding, { dryRun = false, signal } = {}
 }
 
 /**
+ * Stop expecting an answer from one person for one week — or put them back. Reviewer only.
+ *
+ * The week's population is frozen at creation, which is what makes a response rate mean anything —
+ * and it is also why somebody who LEAVES stays in every open week as a permanent non-responder.
+ * This is the narrow exception: they stop being expected. Nothing is deleted, and the page says
+ * who was withdrawn and by whom, because an exclusion nobody can see is worse than the problem.
+ * @param {string} weekEnding
+ * @param {string} memberName
+ * @param {boolean} withdrawn
+ * @param {{ signal?: AbortSignal }} [opts]
+ */
+export function withdrawOvertimeParticipant(weekEnding, memberName, withdrawn, { signal } = {}) {
+    return post('withdrawOvertimeParticipant', { weekEnding, memberName, withdrawn }, { signal });
+}
+
+/**
  * Submit or amend availability.
  *
  * `clientMutationId` is generated HERE rather than by the caller, so no call site can forget it —
@@ -210,13 +226,27 @@ export async function loadWeekDetail(weekEnding, milestones, dates) {
 
         /** @type {any[]} */
         const participants = [];
-        pSnap.forEach((/** @type {any} */ d) => participants.push({ memberName: d.id, ...d.data() }));
+        // `createdAt` is carried through as epoch ms because the WORKSPACE reads it: everyone frozen
+        // at creation shares one commit timestamp, so a later one identifies somebody the nightly
+        // top-up added afterwards — which is the only way a reviewer can tell a growing denominator
+        // from somebody who stopped answering.
+        pSnap.forEach((/** @type {any} */ d) => participants.push({
+            memberName: d.id, ...d.data(), createdAt: toMillis(d.data().createdAt),
+            // Likewise for the withdrawal stamp: the workspace prints when somebody stopped being
+            // expected, and an absent field simply reads as 0 — which `isWithdrawn` never consults,
+            // because the boolean is the fact and the timestamp is only the caption.
+            withdrawnAt: toMillis(d.data().withdrawnAt),
+        }));
         participants.sort((a, b) => (a.rosterOrder ?? 0) - (b.rosterOrder ?? 0)
             || String(a.memberName).localeCompare(String(b.memberName)));
 
         /** @type {any[]} */
         const heads = [];
-        sSnap.forEach((/** @type {any} */ d) => heads.push({ memberName: d.id, ...d.data() }));
+        // `updatedAt` likewise: the row states how old a declaration is, and a Firestore Timestamp
+        // cannot be compared against the corrected clock without this.
+        sSnap.forEach((/** @type {any} */ d) => heads.push({
+            memberName: d.id, ...d.data(), updatedAt: toMillis(d.data().updatedAt),
+        }));
 
         const withHistory = await Promise.all(heads.map(async (h) => {
             /** @type {any[]} */
@@ -240,7 +270,11 @@ export async function loadWeekDetail(weekEnding, milestones, dates) {
         // would take away the thing the reviewer came for in order to withhold the thing they did
         // not have yesterday. `rosterKnown` false makes every row say so instead.
         const rosterRead = dates?.length
-            ? await loadRosterForMembers(participants.map(p => p.memberName), dates)
+            // Withdrawn participants are excluded from the roster read as well as from the views:
+            // nothing draws their duty, and asking for it would widen a bounded query for rows that
+            // are never rendered.
+            ? await loadRosterForMembers(
+                participants.filter(p => !isWithdrawn(p)).map(p => p.memberName), dates)
             : { knowledge: 'error', byMember: {} };
 
         return {

@@ -73,6 +73,27 @@ const MODE_LABELS = {
 const TWELVE_ON_DUTY = 'Up to 12 hours in total';
 
 /**
+ * The "all day" label for a day that ALREADY has a duty on it.
+ *
+ * ── AVAILABILITY IS ADDED TO A DUTY, NEVER SUBSTITUTED FOR ONE (owner, Aug 2026) ────────────────
+ *
+ * "All day" beside an 07:00–15:00 duty had three readings and the app committed to none: available
+ * AROUND that duty, willing to work a LONGER one, or willing to give the duty up for a different
+ * one. Those are three different rosters, and the third is an operational power no label should
+ * hand over by accident — a member answering "all day" to be helpful could lose the shift they had
+ * planned their week around.
+ *
+ * The settled meaning is the first, and it matches the "Up to 12 hours" ruling: what a member
+ * declares here is time they can work IN ADDITION to what they are already rostered. So on a
+ * worked day the button names the duty it wraps around, and on a rest day — where there is nothing
+ * to wrap around — "All day" already says it exactly.
+ *
+ * Completes the page's one grammar ("Available any time around my shift"), like every other green
+ * pill.
+ */
+const ALL_DAY_ON_DUTY = 'Any time around my shift';
+
+/**
  * Build one week's form into `host`.
  *
  * @param {HTMLElement} host
@@ -318,6 +339,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         // anchored boundary nothing about this answer is stored from the roster — there is no
         // earlier meaning to preserve, only the current day to describe.
         if (mode === 'twelve_hours' && c?.hasTime) label = TWELVE_ON_DUTY;
+        if (mode === 'all_day'      && c?.hasTime) label = ALL_DAY_ON_DUTY;
         // Exactly one control in the group is tabbable: the selected one, or the first when nothing
         // is selected yet — which is every day on a fresh form.
         const tabbable = on || (!a?.mode && i === 0);

@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: August 2026 — v20.80 · Updated every 0.10 version*
+*Last updated: August 2026 — v20.90 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -669,6 +669,7 @@ Row states, and what each means:
 | **Form open** | Staff can answer. The page opens on the earliest of these — the week being planned. |
 | **Form closed** | Created, and past its final deadline. Still readable; that is the record the roster was planned from. |
 | **Opens automatically overnight** | No form yet, and none needed by hand — tonight's run will make it. |
+| **Did not open overnight · create it here** | The last nightly run was due to open this week and did not. Press **Open now** on the row; that fixes the week whether or not the run itself is ever diagnosed. Investigate only if it repeats — the Functions log for `autoCreateOvertimeWindows` says what happened. |
 | **No form yet · first deadline has passed** | Still opens automatically, but late enough to be worth a look: anyone answering now misses the draft roster. |
 | **Missed · no form was opened, so nobody was asked** | The final deadline went by with no window. It cannot be recovered, and the row stays until its Saturday passes. |
 
@@ -691,15 +692,59 @@ reaches every week still inside the 13-week retention.
 
 It shows that week by day, in three sections that never merge: Available, Not available, and **No
 response**. The third is not a soft "no" — nobody has answered — and it is the list a phone call
-works from, alongside *Awaiting a form*. Above the days, a strip of seven chips gives the count
-available on each; a day with **nobody** is outlined red, one to two amber. Tap a chip to show only
-that day, *All week* to bring them back.
+works from, alongside *Awaiting a form*. Above the days, a strip of seven chips gives the count who
+offered **some** availability on each. Only **zero** is marked, in red: a count above zero is left
+plain on purpose (v20.87), because the app does not know which shift you are short of — four people
+free before 07:00 do not fill a late turn, and a "1–2 is low" amber band was the app putting a
+verdict on a number it cannot judge. Tap a chip to show only that day, *All week* to bring them back.
+
+**Each person's row states their current roster** (v20.87). Beside the name and grade sits the same
+shift chip the calendar draws — 🏠 Rest, ☀️ Early 07:15–15:45 — for that date. An answer is only
+actionable next to the duty it was built from, and the case this exists for is somebody who declared
+"rest day, available all day" and has since BEEN given overtime: no use for cover, and nothing said
+so before. Where an answer was anchored to a shift that has since moved, the row adds **Roster
+changed since this answer** — their declaration stands, the ground under it moved.
+
+Two other markers, and they mean different things. **Submitted after initial deadline** — nothing
+was received from that person until planning had started. **Changed after initial deadline · was …**
+names what that day previously said, and appears only on the days that actually moved (v20.87), so
+wherever you see it something changed there.
 
 **Viewing by grade.** Above the day chips, one chip per grade in the week — *All grades · CEA · CES ·
 Dispatcher*, whichever are actually in it. Picking one narrows **everything**: the day counts, the
 forms-received line and the name rows all recompute for that grade alone. That is the point rather
 than a nicety — a CEA gap is not filled by an available CES, so "Tuesday has four" is only an answer
-once you know what those four are. A week with only one grade in it shows no chips.
+once you know what those four are. A week with only one grade in it shows no chips — which is why
+the restricted beta, currently one CEA, shows none at all; they appear by themselves once a second
+grade is in the week.
+
+Your grade choice **follows you between weeks** (v20.89). The day filter does not, because its
+dates belong to the week you were looking at.
+
+### Somebody who has left, and is being chased every week
+
+The population of a week is frozen when it opens — that is what makes "3 of 5 received" mean
+anything. It also means a **leaver stays in every open week as somebody outstanding**, week after
+week, until the horizon rolls past them.
+
+**Stop asking** on their row in *Awaiting a form* ends that for that week. They come out of the
+expected count, out of every day panel and out of the chip beside the card title, and a **Not being
+asked** footnote appears at the bottom of the week naming them, who stopped asking, and when. Their
+form and anything they already said are kept — this changes what the week expects, not what
+happened. **Ask again** on that footnote puts them back.
+
+Do it per week, on each open week they appear in. A **closed** week refuses it, and that is the
+design rather than a limitation: a closed week is the record the roster was planned from, and
+somebody who was employed, was asked and did not answer is accurately recorded as exactly that.
+
+Withdrawing is not a substitute for the roster itself — set `hidden: true` on a leaver in the usual
+way (see **Removing a staff member**), which is what stops them appearing in weeks created after
+that point.
+
+**On the member's side**, the page opens on the soonest form they have **not yet answered** rather
+than simply the soonest (v20.86) — a completed form is not an answer to "what do I need to do?".
+The form names both deadlines, emphasising whichever is still ahead, and a submitted one carries a
+standing "Submitted · updated …" line so a member returning to it can see it landed.
 
 After the final deadline the member's form goes read-only and states the deadline it closed at.
 Availability recorded before the cut-off is what the roster is planned from; confirm directly with
@@ -709,7 +754,9 @@ the employee before arranging short-notice cover.
 
 **Only *Who is available* prints.** Print from the **Everyone** tab and you get a call sheet: the
 week, when the availability was read, how many forms are in, then every day with its three sections
-and the *Awaiting a form* list. It prints the whole week even if you have a day chip selected, and
+and the *Awaiting a form* list. Anyone the week has stopped asking prints too, in the same footnote —
+a sheet whose counts quietly excluded somebody would be the one thing that footnote exists to
+prevent. It prints the whole week even if you have a day chip selected, and
 the answer chips print outlined rather than filled so they survive a mono printer.
 
 A **grade** filter, unlike the day filter, IS carried onto the paper — printing one grade's
