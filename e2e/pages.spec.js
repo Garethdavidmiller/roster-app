@@ -593,6 +593,41 @@ async function openLinksWithDesign(page) {
     await expect(page.locator('.design-chip')).toHaveCount(1);
 }
 
+test('links: every paint chip is a shift the design actually contains', async ({ page }) => {
+    // THE BAR OFFERED EIGHTEEN TIMES AND THE DESIGN CONTAINED NONE OF THEM (v21.14).
+    //
+    // From v12.09 the chips were built from the ROSTER's shift times, which was right while a new
+    // design started from the roster seed. From v21.00 a new design starts from the DESIGNED
+    // default instead, and four retunes since then walked the two lists apart one release at a
+    // time. Measured at v21.13: 18 chips, 19 times in the design, overlap ZERO — on a bar the card
+    // header calls the way to "fill cells quickly", above a grid where not one of its own times
+    // could be painted.
+    //
+    // Nothing failed, because a bar full of plausible-looking chips is indistinguishable from a bar
+    // that works — which is why the invariant is asserted as a RELATION between the two rather than
+    // as a chip count or a list of times. A future default retune cannot re-open the gap without
+    // failing here.
+    await openLinksWithDesign(page);
+    const r = await page.evaluate(() => {
+        const chips = [...document.querySelectorAll('#brushBar .brush-chip')]
+            .map(c => /** @type {HTMLElement} */ (c).dataset.shift)
+            .filter(s => s && !['__custom__', 'RD', 'SPARE'].includes(s));
+        const inDesign = new Set();
+        for (const td of document.querySelectorAll('#linksGridBodyRows td')) {
+            const t = (td.textContent || '').trim().replace(/\s+/g, '');
+            if (/^\d{2}:\d{2}\d{2}:\d{2}$/.test(t)) inDesign.add(t.slice(0, 5) + '-' + t.slice(5));
+        }
+        return { chips, inDesign: [...inDesign] };
+    });
+    // Both directions. Chips that paint nothing in the design are the v21.13 defect; times in the
+    // design with no chip are the same defect seen from the designer's side — they are the cells
+    // you cannot fill from the bar.
+    const design = new Set(r.inDesign);
+    expect(r.chips.filter(c => !design.has(c)), 'chips painting a shift this design does not use').toEqual([]);
+    expect(r.inDesign.filter(t => !r.chips.includes(t)), 'times in the design with no chip to paint them').toEqual([]);
+    expect(r.chips.length).toBeGreaterThan(0);
+});
+
 test('links: the coverage card carries a demand row per day class, in the same table', async ({ page }) => {
     await openLinksWithDesign(page);
 
@@ -1698,7 +1733,12 @@ async function openLinks(page) {
         /** @type {any} */ (window).__E2E = /** @type {any} */ (window).__E2E || {};
         /** @type {any} */ (window).__E2E.docs = [{
             id: 'd1', name: 'Option A', updatedBy: 'S. Silva',
-            patterns: { '1': { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' } },
+            // TWO distinct times, one early and one late (v21.14). It was a single Monday early,
+            // and that was enough only while the paint bar was built from the ROSTER — since it is
+            // built from the DESIGN, a one-time design correctly gets a one-chip bar, and the
+            // rapid-tapping test needs two chips to alternate between (repainting the same value
+            // short-circuits, so a single chip would measure nothing).
+            patterns: { '1': { sun: 'RD', mon: '06:20-14:20', tue: '14:00-22:00', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' } },
         }];
     });
     await page.goto('/links.html');

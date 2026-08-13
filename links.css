@@ -144,6 +144,16 @@ body.auth-ready .container { display: grid; }
     line-height: 1.5;
 }
 .links-desc:last-of-type { margin-bottom: 0; }
+/* The generator intro's figures, as a list (v21.14) — see the note in links.html. Tight leading
+   between the marker and the text so five short lines read as one block rather than five
+   paragraphs, and the same reading measure as the prose either side of it. */
+.gen-intro-list {
+    margin: 0 0 10px;
+    padding-left: 1.15em;
+    list-style: disc;
+}
+.gen-intro-list li { margin: 0 0 3px; }
+.gen-intro-list li:last-child { margin-bottom: 0; }
 
 /* ---- Empty state ---- */
 /* The GRID card's empty state — the only one that can offer a way out, so it carries the action.
@@ -556,6 +566,26 @@ body.auth-ready .container { display: grid; }
     margin: 0 -16px;
     padding: 0 16px;
 }
+/* THE RIGHT-EDGE CUE, on the two tables that most need it (v21.14).
+ *
+ * The generator's target table has had one since v19.77; the DESIGN GRID and the HEAT MAP — the two
+ * biggest scrollers on the page, and the two a designer actually reads — had none. Measured on an
+ * iPhone at 390px the grid shows Sunday to Thursday and the heat map shows 06:00 to 18:00, with
+ * nothing on screen to say Friday, Saturday, the evening hours or the spare column exist at all.
+ * The smallest scroller announced itself and the two large ones did not.
+ *
+ * Same CSS-only recipe as the generator's, and the same reason for it: `local` masks the fade out
+ * as you reach the end, `scroll` pins the shadow to the wrapper, and neither needs a JS scroll
+ * listener that could go stale. The padding is inside the wrapper here, so the gradient is anchored
+ * with `right 0` — at the padding edge, which is where the content actually stops. */
+@media (max-width: 767px) {
+    .links-grid-wrapper,
+    .cov-heat-wrap {
+        background:
+            linear-gradient(to left, var(--surface), rgba(255, 255, 255, 0)) right 0 top 0 / 28px 100% no-repeat local,
+            radial-gradient(farthest-side at 100% 50%, rgba(0, 30, 60, 0.18), rgba(0, 30, 60, 0)) right 0 top 0 / 12px 100% no-repeat scroll;
+    }
+}
 /* 768px, NOT 1024 (corrected v19.77 — measured, and the old value was costing the sticky header
    across the whole tablet range for nothing).
 
@@ -913,7 +943,12 @@ body.auth-ready .container { display: grid; }
 .check-section-head .check-note { text-transform: none; letter-spacing: 0; font-weight: 600; }
 /* The section's headline counts, sitting at the far end of its own heading — so the reader gets
    the summary BEFORE the 24 rows, not by tallying icons afterwards. */
-.check-section-meta { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--text-light); }
+/* `margin-left: auto` rather than relying on `justify-content` alone (v21.14). Below ~420px the
+   heading wraps, and a lone flex item on its own line ignores `space-between` — so "within limits"
+   and "3 present · 2 standing · …" landed hard against the left margin directly under the title
+   they summarise, reading as the next clause of it. Pushed right in BOTH states, the count stays
+   recognisable as a count. */
+.check-section-meta { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--text-light); margin-left: auto; }
 /* The hard-limits heading count, when a limit is BREACHED (v19.80). The two sections of this panel
    are structural peers — both are groups of checks — so the heading rank is deliberately the same;
    what separates them is that a hard-limit row can go RED and an ORR row never may. This is the
@@ -1155,7 +1190,24 @@ body.auth-ready .container { display: grid; }
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
-.gen-sets-row .gen-select { max-width: 240px; }
+.gen-sets-row .gen-select { max-width: 240px; flex: 1 1 180px; min-width: 0; }
+/* The four set buttons wrap as ONE block, not four independently (v21.14) — see the note in
+   links.html. `flex: 1 1 100%` makes them take their own line the moment the label + dropdown fill
+   the row, which is what a phone does, rather than trailing off the end of it. */
+.gen-sets-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    flex: 1 1 100%;
+}
+/* Delete goes to the far end of whatever line it lands on — BUT ONLY WHERE THE ROW WRAPS. At 360px
+   the four buttons cannot share one line however they are grouped, so the question is not whether
+   Delete wraps but whether it reads as SET APART or as left over; pushed right it is the former.
+   On desktop the row fits easily and the same rule stranded Delete ~700px from the three buttons it
+   belongs with, at the far edge of the card — which is the opposite mistake. */
+@media (max-width: 767px) {
+    .gen-sets-actions .btn-set--danger { margin-left: auto; }
+}
 /* SET BUTTONS — the design toolbar's pill, reused (v21.08). Same shape, same radius, same
    disabled treatment, so managing a saved set looks like managing a saved design, because it is
    the same kind of act. Load leads: it is the one you press most, and the only one that changes

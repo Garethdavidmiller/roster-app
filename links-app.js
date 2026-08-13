@@ -220,16 +220,15 @@ export function init() {
     })();
 
     // The DROPDOWNS offer the roster's times AND the ones the default target table proposes
-    // (v21.00); the BRUSH BAR keeps the roster's alone. Both halves of that are deliberate.
+    // (v21.00), so a cell can always be changed to any time the workspace knows about.
     //
     // A design generated from the default is built out of times the roster has never worked, so a
     // dropdown listing only the roster leaves a designer unable to change one row to another row's
     // time — the values are right there on screen and unselectable, with `Custom time…` and a
     // re-typed clock as the only route. That is a hole, and a `<select>` costs nothing to lengthen.
     //
-    // The brush bar is the opposite trade: it is a wrapping row of chips above the grid, so every
-    // added time is permanent vertical space on a page whose grid is already the tall thing on it.
-    // Seventeen more chips for a paint action `Custom…` already covers is not worth the height.
+    // The BRUSH BAR is a different question and is answered in `renderBrushBar` — it offers the
+    // times THIS DESIGN is made of, which is neither of these lists.
     const { EARLY_OPTIONS, LATE_OPTIONS } = (() => {
         const early = new Set(EARLY_SHIFTS), late = new Set(LATE_SHIFTS);
         for (const t of DEFAULT_SHIFT_TIMES) {
@@ -1209,11 +1208,59 @@ export function init() {
         });
     }
 
+    /**
+     * The times the brush bar offers: THE ONES THIS DESIGN IS ACTUALLY MADE OF (v21.14).
+     *
+     * It offered the ROSTER's times from v12.09 to v21.13, and that stopped being useful the moment
+     * a new design started from the designed default rather than the roster seed (v21.00). Measured
+     * on the shipped default at v21.13: the bar carried 18 chips, the design on screen was built
+     * from 19 times, and the OVERLAP WAS ZERO. Every chip painted a shift the design does not
+     * contain, and not one of the design's own times could be painted at all — on a bar whose card
+     * header says "use the Paint bar to fill cells quickly". Four default retunes widened that gap
+     * one release at a time, and nothing failed, because a bar full of plausible chips looks
+     * exactly like a bar that works.
+     *
+     * Deriving it from the design fixes it by construction and keeps fixing it: an imported
+     * proposal paints in its own times, a roster-seeded design paints in the roster's, and a design
+     * nobody has touched paints in the default's. It also answers the vertical-space objection the
+     * old comment raised — 19 chips against 18 is not a taller page, and every one of them is now a
+     * shift somewhere in the grid.
+     *
+     * The armed brush is unioned in so a chip can never vanish from under a designer mid-paint:
+     * painting away the last cell of a time would otherwise leave the brush armed with nothing
+     * highlighted. An empty design falls back to the default table, so the bar is never bare.
+     */
+    function brushTimes() {
+        const out = new Set();
+        for (const row of Object.values(design?.patterns || {})) {
+            for (const s of Object.values(/** @type {any} */ (row) || {})) {
+                if (s && s !== 'RD' && s !== 'OFF' && s !== 'SPARE') out.add(s);
+            }
+        }
+        if (!out.size) for (const t of DEFAULT_SHIFT_TIMES) out.add(t);
+        if (brush && brush !== 'RD' && brush !== 'SPARE') out.add(brush);
+        const early = [], late = [];
+        for (const s of [...out].sort()) {
+            const cls = classifyShift(s);
+            if (cls === 'late') late.push(s); else early.push(s);
+        }
+        return { early, late };
+    }
+
+    /** What the bar WOULD show, as one comparable string — see the guard in `applyShift`. */
+    let _lastBrushSig = '';
+    function _brushSig() {
+        const { early, late } = brushTimes();
+        return early.join(',') + '|' + late.join(',');
+    }
+
     function renderBrushBar() {
         const bar = document.getElementById('brushBar');
         if (!bar) return;
         if (!design || compare.isCompareMode()) { bar.style.display = 'none'; return; }
         bar.style.display = '';
+        const { early: barEarly, late: barLate } = brushTimes();
+        _lastBrushSig = barEarly.join(',') + '|' + barLate.join(',');
 
         // The chip shows BOTH times, on two lines, exactly as the grid cell it paints does
         // (v19.43). It used to show the start only — and the roster has five distinct shifts
@@ -1235,10 +1282,13 @@ export function init() {
             '<span class="brush-bar-label">Paint:</span>',
             chip('RD',    'RD',     'rd',    '', 'Rest day'),
             chip('SPARE', 'SP',     'spare', '', 'Spare'),
-            ...EARLY_SHIFTS.map(s => chip(s, shiftLabel(s), 'early', '', spoken(s))),
-            ...LATE_SHIFTS.map(s  => chip(s, shiftLabel(s), 'late',  '', spoken(s))),
+            ...barEarly.map(s => chip(s, shiftLabel(s), 'early', '', spoken(s))),
+            ...barLate.map(s  => chip(s, shiftLabel(s), 'late',  '', spoken(s))),
             `<button class="brush-chip brush-chip--custom" data-shift="__custom__" aria-pressed="false" title="Custom time…">Custom…</button>`,
         ].join('');
+        // Re-apply the armed state: the chips above are brand-new elements, so a rebuild during a
+        // paint session would otherwise leave the brush armed with nothing highlighted.
+        if (brush) armBrush(brush);
 
         bar.querySelectorAll('.brush-chip').forEach(c => {
             c.addEventListener('click', async () => {
@@ -1468,6 +1518,12 @@ export function init() {
             tr.insertAdjacentHTML('beforeend', _totalCells(totals.rows[Number(pos) - 1]));
         }
         renderFooter(cov, totals);
+        // The bar is derived from the design (v21.14), so a paint that introduces a time — or
+        // removes the last cell of one — changes what it should offer. Guarded on the SIGNATURE
+        // rather than run unconditionally: `applyShift` fires once per cell during a drag-paint,
+        // and rebuilding the chips on every one of those is work for nothing.
+        const sig = _brushSig();
+        if (sig !== _lastBrushSig) renderBrushBar();
         renderCoverageCard();
         renderDesignChecks();
     }
