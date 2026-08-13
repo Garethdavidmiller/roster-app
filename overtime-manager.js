@@ -215,6 +215,7 @@ function build(win, data, { dates, now, grade, day = 'ALL' }) {
         ${dates.map(date => dayPanel(date, participants, submissions, day, data.roster || {},
             { now, frozenAt: frozenAt(active) })).join('')}
         ${awaitingPanel(participants, submissions, { now, frozenAt: frozenAt(active) })}
+        ${askedPanel(participants, submissions)}
         ${withdrawnPanel(ofGrade(withdrawn, grade))}`;
 }
 
@@ -497,14 +498,65 @@ function awaitingPanel(participants, submissions, meta = {}) {
                 // working" rather than "what they are working on the Tuesday". The by-day panels
                 // above already show these people, with the right roster on each.
                 //
-                // This IS the panel that carries "Stop asking", and it is the only one. A leaver
-                // shows up here, every week, for as long as the horizon reaches them — that is the
-                // problem withdrawal was added for. Putting the same control on the by-day rows
-                // would repeat it seven times per person for a case those rows already speak to:
-                // an answer from somebody who has since gone carries its own age and roster chip.
+                // It no longer carries "Stop asking" (v21.20, external review). It was the ONLY
+                // place that did, and this panel by definition holds people who have NOT submitted
+                // — so somebody who answered and then left had no route to withdrawal at all, on a
+                // page whose endpoint has supported it since v20.95. That is the commoner case, not
+                // the rarer one: a leaver two weeks out has usually already filled the form in.
+                // The control moved to `askedPanel` below, which lists everyone.
                 ? waiting.map(p => personRow(p, null, null, null, null,
-                    { ...meta, stopAsking: true, showRoster: false })).join('')
+                    { ...meta, showRoster: false })).join('')
                 : '<div class="ot-section-empty">Everyone has responded</div>'}
+        </div>`;
+}
+
+/**
+ * WHO IS BEING ASKED — the one home for participant management (v21.20, external review).
+ *
+ * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────────
+ *
+ * "Stop asking" used to live only on the Awaiting panel, which holds exactly the people who have
+ * NOT submitted. So the case it was built for — somebody leaves, or moves into Management, two
+ * weeks before a week they have already answered — had no route through the UI at all, while the
+ * endpoint had supported it since v20.95. A capability the server has and the page cannot reach is
+ * the same as not having it.
+ *
+ * ── ONE PLACE, NOT SEVEN ────────────────────────────────────────────────────────────────────────
+ *
+ * The obvious alternative is a button on every person row. That is seven buttons per person on a
+ * page that already repeats each name once per day, for an action taken a handful of times a year —
+ * and it would put a destructive control inside the panels a reviewer scrolls fastest. So this is a
+ * single list, at the bottom, next to the panel showing who has ALREADY been stood down. The two
+ * belong together: one is the population, the other is what has been taken out of it.
+ *
+ * It states each person's position (answered / no form yet) so the reviewer is not made to
+ * cross-reference the panels above to know what withdrawing somebody would discard.
+ *
+ * ── AT FULL LAUNCH IT IS THE WHOLE ROSTER ───────────────────────────────────────────────────────
+ *
+ * Today the beta makes this a handful of rows. Open to everyone it becomes ~50, which sounds like a
+ * lot until you notice the seven day panels above already carry each name once — this adds a
+ * fourteenth of what is on the page, at the bottom, muted. If it ever does need collapsing, collapse
+ * it; do not solve it by moving the control back onto rows, which is the bug this panel exists for.
+ * @param {any[]} participants the ACTIVE population, already grade-filtered
+ * @param {Map<string, any>} submissions
+ */
+function askedPanel(participants, submissions) {
+    if (!participants.length) return '';
+    return `
+        <div class="ot-day-panel ot-day-panel--muted">
+            <div class="ot-day-panel-head">Who is being asked</div>
+            <div class="ot-section-note">Everyone counted on this page. Use <strong>Stop asking</strong>
+                when somebody has left or moved role — their answers are kept, they come out of the
+                counts, and you can put them back while the week is open.</div>
+            ${participants.map(p => `
+                <div class="ot-person">
+                    <span class="ot-person-name">${esc(p.memberName)}</span>
+                    ${p.grade ? `<span class="ot-person-grade">${esc(p.grade)}</span>` : ''}
+                    <span class="ot-person-note">${submissions.has(p.memberName)
+                        ? 'Answered' : 'No form yet'}</span>
+                    <button type="button" class="ot-person-btn" data-stop-asking="${esc(p.memberName)}">Stop asking</button>
+                </div>`).join('')}
         </div>`;
 }
 

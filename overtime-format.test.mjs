@@ -657,4 +657,33 @@ describe('what a failed submit says', () => {
         // But it still shows the code — a member reporting "it says something-new" is diagnosable.
         assert.match(submitFailureCopy('something-new', null), /something-new/);
     });
+
+    // ── THE TWO PERMANENT REFUSALS (v21.20) ─────────────────────────────────────────────────────
+    //
+    // Every other code in this function describes something that might work next time, so the
+    // default branch ends "Try again in a moment" — correct for all of them and wrong for these
+    // two. A withdrawn member pressing Submit is refused by the server every single time, so
+    // "try again" is not merely unhelpful, it is a loop with no exit, and the member has no way to
+    // learn that from the app. Falling THROUGH to the default is the whole failure mode, which is
+    // why each case is pinned by what it must not say as well as what it must.
+    test('being stood down does not read as a retryable fault', () => {
+        const copy = submitFailureCopy('withdrawn', null);
+        assert.doesNotMatch(copy, /try again/i);
+        assert.doesNotMatch(copy, /connection/i);
+        // It has to say what to DO, and the wording rule is that a work matter goes to the
+        // manager — this is not a broken app, it is a decision somebody took.
+        assert.match(copy, /Manager/);
+        // And it must never leak the raw code, which is what the default branch would print.
+        assert.doesNotMatch(copy, /withdrawn/);
+    });
+
+    test('never having been asked is a DIFFERENT sentence from having been stood down', () => {
+        const notAsked = submitFailureCopy('not-a-participant', null);
+        assert.doesNotMatch(notAsked, /try again/i);
+        assert.match(notAsked, /Manager/);
+        assert.doesNotMatch(notAsked, /not-a-participant/);
+        // Two codes exist so the member can be told which situation they are in. If these ever
+        // collapse to one string, the second code has stopped earning its place on the wire.
+        assert.notEqual(notAsked, submitFailureCopy('withdrawn', null));
+    });
 });

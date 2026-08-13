@@ -447,3 +447,56 @@ because none existed before.
 - **No collection-group query, and so no composite index.** Participation is resolved by point reads
   across the retained windows — a couple of dozen at most — which keeps the first release free of the
   index deploy-ordering dance.
+
+## Withdrawal means the same thing to everyone (v21.20, external review)
+
+`Stop asking` shipped at v20.95 with the reviewer's side complete and the member's side untouched.
+Both member endpoints asked only whether the participant document EXISTED — and withdrawal is a flag
+on that document, never a delete, precisely so the record survives. So a withdrawn member kept the
+form, could fill it in, and received `✓ Availability submitted`, while the reviewer's screen said
+they were not part of the week. Two contradictory truths about one week.
+
+`getMyOvertimeState` now omits the window and `submitOvertimeAvailability` refuses with its own code
+(`withdrawn`, distinct from `not-a-participant` — one was never asked, the other was and has been
+stood down). Hiding the window is the courtesy; refusing the write is the half that matters, because
+a page opened before the withdrawal still has the form and the button.
+
+**The window disappears rather than going read-only.** Both are defensible. Withdrawal means a leaver
+or a move to Management, so the honest state is that the week is not theirs; `Ask again` restores the
+document and the window returns with the submission intact, because nothing was deleted.
+
+**And the control is reachable for somebody who has already answered.** It lived only on the Awaiting
+panel, which by definition holds people who have NOT submitted — so the commoner case (a leaver two
+weeks out, who has usually already filled the form in) had no route through the UI at all, on a page
+whose endpoint had supported it all along. It now lives in one place, `Who is being asked`, listing
+every active participant with their position. Not a button per person per day: that is seven controls
+each on a page that already repeats every name once per day, for an action taken a handful of times a
+year.
+
+**Still open, and it is an owner's decision:** `Ask again` is currently allowed at any point while the
+week is open, including during `FINAL_OPEN`. Somebody restored after the initial deadline could not
+reasonably have met it, so their status is ambiguous. The simplest policy would be to allow restoring
+only during `INITIAL_OPEN`. Not changed unilaterally — it removes an ability a reviewer has today.
+
+## Open: a day's answer wears the whole form's age (external review P2, verified v21.20)
+
+`personRow` renders `declaredAgo(sub.updatedAt, now)` on every day, and `updatedAt` is the SUBMISSION
+head's — one timestamp for all seven. So a member who changes Tuesday alone makes Monday through
+Sunday read as freshly declared, and the age chip — which exists so a reviewer can tell a stale
+answer from a current one — is the one thing on the row that cannot be trusted after any edit.
+
+It bends the safe way (an answer looks NEWER than it is, so nobody is chased about something they
+have just confirmed) which is why it is a P2 rather than a P1. **No schema change is needed to fix
+it:** the revisions are already read eagerly for the late/changed markers, so the last revision in
+which each day's value actually changed is computable from what the page already holds. Deliberately
+not folded into v21.20 — that release carries three P1s, and this is a behaviour change to a surface
+that has just been reviewed, so it wants its own tests and its own look.
+
+## The daily top-up is daily again (v21.20, external review)
+
+`autoCreateOvertimeWindows` returned early when no window needed creating, before reaching
+`topUpOpenWindows`. "Nothing due" is the NORMAL state, because the whole horizon is pre-created — so
+the top-up ran only on the one day a week a new week entered the horizon, and a beta tester invited on
+any other day had no form on any already-open week until then. That is the exact gap the job exists to
+close. Creation is conditional; the top-up is not.
+

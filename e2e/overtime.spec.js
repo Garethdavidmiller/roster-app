@@ -1282,8 +1282,15 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         // Out of the counts and out of the day panels — but SAID, with who did it.
         await expect(page.locator('.ot-detail-counts')).toContainText('0 of 0');
         await expect(page.locator('#otWeekChip')).toHaveText('0/0');
-        await expect(page.locator('.ot-day-panel--muted')).toContainText('Not being asked');
-        await expect(page.locator('.ot-day-panel--muted')).toContainText('H. Croft');
+        // Scoped to the panel by NAME rather than by `.ot-day-panel--muted` (v21.20). There are two
+        // muted panels now — "Who is being asked" joined it — and this fixture passes a bare
+        // class locator only by accident: its one participant is withdrawn, so the other panel
+        // renders empty. Adding an active participant here later would turn a real assertion into
+        // a strict-mode error about something unrelated to what this test is checking.
+        const notAsked = page.locator('.ot-day-panel--muted')
+            .filter({ hasText: 'Not being asked' });
+        await expect(notAsked).toContainText('Not being asked');
+        await expect(notAsked).toContainText('H. Croft');
 
         // Confirming is not decoration on this control, so the click must reach a dialog first.
         await page.locator('[data-ask-again="G. Miller"]').click();
