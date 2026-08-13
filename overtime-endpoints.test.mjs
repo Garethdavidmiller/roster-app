@@ -648,6 +648,71 @@ describe('getOvertimeManagerOverview — the missing window is the point', () =>
     });
 });
 
+describe('withdrawal means the same thing to the member as to the reviewer (v21.20)', () => {
+    // ── THE DEFECT ──────────────────────────────────────────────────────────────────────────────
+    //
+    // The reviewer's workspace has excluded withdrawn participants from its counts and panels since
+    // v20.95. Both member endpoints checked only whether the participant document EXISTED — and a
+    // withdrawal is a flag on that document, never a delete, precisely so the record survives. So a
+    // withdrawn member kept the form, could fill it in, and got "✓ Availability submitted" back,
+    // while H. Croft's screen said they were not part of the week. Two contradictory truths about
+    // one week, which is the failure this whole feature is arranged to avoid.
+    //
+    // Found by external review of v21.18.
+    const withdrawnWindow = () => seededWindow({
+        [`overtimeWindows/${WEEK}/participants/G. Miller`]: {
+            memberName: 'G. Miller', grade: 'CEA', rosterOrder: 2, uid: null,
+            withdrawn: true, withdrawnBy: 'H. Croft',
+        },
+    });
+
+    test('a withdrawn member is not offered the week at all', async () => {
+        freeze(M.initialDeadlineAt - 86400000);
+        const { eps } = build(withdrawnWindow());
+        const r = await call(eps.getMyOvertimeState, req({}, 'tok_member'));
+        unfreeze();
+        assert.equal(r.code, 200);
+        assert.deepEqual(r.body.windows, [],
+            'the week is theirs only while they are being asked for it');
+    });
+
+    test('and cannot submit to it, even holding a page opened before the withdrawal', async () => {
+        // The half that MATTERS. Hiding the window is a courtesy; a client restored from the
+        // back/forward cache, or simply left open, still has the form and the button.
+        freeze(M.initialDeadlineAt - 86400000);
+        const { db, eps } = build(withdrawnWindow());
+        const r = await call(eps.submitOvertimeAvailability,
+            req({ weekEnding: WEEK, days: noDays(), ifRevision: 0,
+                clientMutationId: 'mid-withdrawn-1' }, 'tok_member'));
+        unfreeze();
+        assert.equal(r.code, 403);
+        assert.equal(r.body.error, 'withdrawn',
+            'a distinct code from not-a-participant — the member was asked, and has been stood down');
+        assert.equal(db._store.has(`overtimeWindows/${WEEK}/submissions/G. Miller`), false,
+            'and nothing was written');
+    });
+
+    test('"Ask again" gives the week straight back', async () => {
+        // Withdrawal is a flag, so restoring is the whole remedy — nothing to undelete.
+        freeze(M.initialDeadlineAt - 86400000);
+        const { eps } = build(withdrawnWindow());
+        const back = await call(eps.withdrawOvertimeParticipant,
+            req({ weekEnding: WEEK, memberName: 'G. Miller', withdrawn: false }, 'tok_member'));
+        assert.equal(back.code, 200);
+        const r = await call(eps.getMyOvertimeState, req({}, 'tok_member'));
+        unfreeze();
+        assert.equal(r.body.windows.length, 1, 'asked again, so the week is theirs again');
+    });
+
+    test('somebody who is NOT withdrawn is unaffected — guard the guard', async () => {
+        freeze(M.initialDeadlineAt - 86400000);
+        const { eps } = build(seededWindow());
+        const r = await call(eps.getMyOvertimeState, req({}, 'tok_member'));
+        unfreeze();
+        assert.equal(r.body.windows.length, 1, 'the ordinary participant still gets their week');
+    });
+});
+
 describe('withdrawOvertimeParticipant — the leaver who is chased every week', () => {
     const PATH = `overtimeWindows/${WEEK}/participants/G. Miller`;
     const withSecond = () => seededWindow({
@@ -1397,6 +1462,43 @@ describe('a member invited into the beta AFTER a window was created', () => {
         // would have passed against a build that gave her nothing at all.
         assert.ok(mine.body.windows.length > 0,
             'she must still join the weeks whose first deadline is ahead of her');
+    });
+
+    test('and it tops up on a day when NO window is due — the steady state (v21.20)', async () => {
+        // ── THE DEFECT ──────────────────────────────────────────────────────────────────────────
+        //
+        // The scheduler returned early when nothing needed creating:
+        //
+        //     if (!due.length) { console.log('nothing due'); return; }
+        //     ...create...
+        //     await topUpOpenWindows(nowMs);      // ← never reached
+        //
+        // and "nothing due" is the NORMAL state, because the whole six-week horizon is pre-created.
+        // So the top-up ran only on the one day a week a new week entered the horizon. Invite a beta
+        // tester on any other day and they had no form on any already-open week until then — the
+        // exact gap the job's own comment says it closes.
+        //
+        // The test above proves the top-up works; this one proves it RUNS. They fail for different
+        // reasons and neither substitutes for the other: that one seeds a window that is also due,
+        // so it passed throughout the bug.
+        //
+        // Found by external review of v21.18.
+        freeze(M.initialDeadlineAt - 86400000);
+        // Seed EVERY horizon week, so `weeksNeedingWindows` has nothing to return and the create
+        // loop does no work at all — which is the condition the early return fired on.
+        const seed = seededWindow();
+        const base = seed[`overtimeWindows/${WEEK}`];
+        for (const w of OT.weeksNeedingWindows(Date.now(), [], { maxRosterYear: WIDER.maxRosterYear })) {
+            seed[`overtimeWindows/${w}`] = { ...base, weekEnding: w };
+        }
+        const { db, eps } = buildWider(seed);
+        assert.equal(OT.weeksNeedingWindows(Date.now(), Object.keys(seed)
+            .filter(k => /^overtimeWindows\/[0-9-]+$/.test(k)).map(k => k.split('/')[1]),
+        { maxRosterYear: WIDER.maxRosterYear }).length, 0, 'nothing is due — the premise of this test');
+        await eps.autoCreateOvertimeWindows.run({});
+        unfreeze();
+        assert.ok(db._store.has(`overtimeWindows/${WEEK}/participants/S. Silva`),
+            'a newly-invited member joins the open week on a day with nothing to create');
     });
 
     test('the scheduler DOES top up an open week, unattended', async () => {

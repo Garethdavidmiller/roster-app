@@ -517,11 +517,19 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             const due = OT.weeksNeedingWindows(nowMs, existing, {
                 maxRosterYear: rosterMembers.maxRosterYear,
             });
-            if (!due.length) {
-                console.log('[autoCreateOvertimeWindows] nothing due');
-                return;
-            }
 
+            // ── THE TOP-UP IS NOT PART OF THE CREATE LOOP, AND MUST NOT RETURN WITH IT ──────────
+            //
+            // This used to `return` here when nothing was due (v21.20, external review), which is
+            // the NORMAL state: the whole six-week horizon is pre-created, so on almost every day
+            // there is no window to make. The top-up therefore ran only on the one day a week a new
+            // week entered the horizon — and adding a beta tester on any other day left them
+            // without a form on every already-open week until then, which is the exact gap this
+            // job's own comment says it exists to close.
+            //
+            // The two halves answer different questions ("does this week exist?" versus "is
+            // everybody in it?"), both are idempotent, and both are cheap. So creation is now
+            // conditional and the top-up is unconditional.
             const made = [];
             const failed = [];
             for (const weekEnding of due) {
@@ -907,7 +915,20 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                     ref.collection('participants').doc(who.name).get(),
                     ref.collection('submissions').doc(who.name).get(),
                 ]);
-                if (!participant.exists) return null;       // not asked → not their window
+                // NOT ASKED, OR NO LONGER ASKED — the same answer to the member, and it has to be,
+                // or "Stop asking" means one thing to the reviewer and another to the person
+                // (v21.20, external review). The reviewer's workspace has excluded the withdrawn
+                // from its counts and panels since v20.95 while this line let them keep the form,
+                // fill it in and receive "✓ Availability submitted" — two contradictory truths
+                // about the same week, which is the failure the rest of this feature is built to
+                // avoid.
+                //
+                // The window DISAPPEARS rather than going read-only. That is a deliberate choice
+                // between two defensible ones: a read-only week would preserve sight of what they
+                // had already said, but withdrawal means a leaver or a move to Management, so the
+                // honest state is that this week is not theirs. `Ask again` restores the document
+                // and the window returns with their submission intact — nothing is deleted.
+                if (!participant.exists || OT.isWithdrawn(participant.data())) return null;
                 const milestones = storedMilestones(d.data());
                 return {
                     ...milestones,
@@ -993,6 +1014,12 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             // Participation is the authorisation. A member who was not asked cannot submit, and
             // neither can an admin on somebody else's behalf: the only name in play is the token's.
             if (!participant.exists) return res.status(403).json({ error: 'not-a-participant' });
+            // A SEPARATE code from `not-a-participant`, because they are different situations and
+            // the member's form says different things about them: one was never asked, the other
+            // was and has been stood down. Refusing here is the half that matters — hiding the
+            // window above is a courtesy, and a client that still holds the page (opened before the
+            // withdrawal, or restored from the back/forward cache) must not be able to write.
+            if (OT.isWithdrawn(participant.data())) return res.status(403).json({ error: 'withdrawn' });
 
             const normalised = OT.normaliseDays(body.days, OT.weekDates(milestones.weekStart));
             if (!normalised.ok) {

@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: August 2026 — v21.10 · Updated every 0.10 version*
+*Last updated: August 2026 — v21.20 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -727,11 +727,18 @@ The population of a week is frozen when it opens — that is what makes "3 of 5 
 anything. It also means a **leaver stays in every open week as somebody outstanding**, week after
 week, until the horizon rolls past them.
 
-**Stop asking** on their row in *Awaiting a form* ends that for that week. They come out of the
+**Stop asking** on their row in **Who is being asked** ends that for that week. They come out of the
 expected count, out of every day panel and out of the chip beside the card title, and a **Not being
 asked** footnote appears at the bottom of the week naming them, who stopped asking, and when. Their
 form and anything they already said are kept — this changes what the week expects, not what
 happened. **Ask again** on that footnote puts them back.
+
+*Who is being asked* lists everybody the week still expects, each marked **Answered** or **No form
+yet**. Until v21.20 the control sat on the *Awaiting a form* rows instead, which covered only people
+who had never answered — so somebody who submitted one week and left the next could not be withdrawn
+at all, which is a common way to leave. From that release it also reaches the **member**: a withdrawn
+person's own Overtime page stops showing the week and their form stops accepting answers, so they are
+not still filing declarations into a week that has stopped counting them.
 
 Do it per week, on each open week they appear in. A **closed** week refuses it, and that is the
 design rather than a limitation: a closed week is the record the roster was planned from, and

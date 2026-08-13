@@ -93,8 +93,8 @@ function sectionOf(html, title) {
 describe('by day', () => {
     test('one panel per date, in week order', () => {
         const html = render();
-        assert.equal((html.match(/ot-day-panel-head/g) || []).length, DATES.length + 1,
-            'one head per date, plus the Awaiting panel');
+        assert.equal((html.match(/ot-day-panel-head/g) || []).length, DATES.length + 2,
+            'one head per date, plus Awaiting and the participant panel');
         assert.ok(html.indexOf('Sun 30 Aug') < html.indexOf('Mon 31 Aug'), 'dates in order');
     });
 
@@ -515,16 +515,37 @@ describe('change markers', () => {
     });
 });
 
+/**
+ * The markup of ONE panel, from its heading to the start of the next one.
+ *
+ * `html.split(heading)[1]` reads to the end of the document, so it silently absorbs every panel
+ * below — which is how the Awaiting assertions started failing when a participant panel was added
+ * beneath them at v21.20. A test that cannot say which panel a name came from is not testing the
+ * panel.
+ * @param {string} html @param {string} heading
+ */
+function panelNamed(html, heading) {
+    const start = html.indexOf(heading);
+    if (start < 0) return '';
+    const rest = html.slice(start + heading.length);
+    const next = rest.indexOf('ot-day-panel-head');
+    return next < 0 ? rest : rest.slice(0, next);
+}
+
 describe('Awaiting', () => {
     test('lists exactly the people with no submission', () => {
-        const awaiting = render().split('Awaiting a form')[1];
+        // Sliced to THIS panel, not to everything after its heading. The tail form passed only
+        // while Awaiting happened to be last, and broke the moment a panel was added below it
+        // (v21.20) — a fixture reading the whole rest of the page cannot say which panel a name
+        // came from, which is the thing this test is about.
+        const awaiting = panelNamed(render(), 'Awaiting a form');
         assert.match(awaiting, /C\. Three/);
         assert.equal(/A\. One/.test(awaiting), false);
     });
 
     test('says so when everyone has answered, rather than showing an empty box', () => {
         const html = render({ participants: [PARTICIPANTS[0]] });
-        assert.match(html.split('Awaiting a form')[1], /Everyone has responded/);
+        assert.match(panelNamed(html, 'Awaiting a form'), /Everyone has responded/);
     });
 });
 
@@ -601,9 +622,17 @@ describe('somebody the week has stopped asking', () => {
 });
 
 describe('Awaiting rows offer the control, and say nothing untrue about the roster', () => {
-    test('each awaiting row can stop being asked', () => {
-        const awaiting = render().split('Awaiting a form')[1];
-        assert.match(awaiting, /data-stop-asking="C\. Three"/);
+    test('it LISTS, and no longer carries the control itself (v21.20)', () => {
+        // The control moved to the participant panel, because this one holds only people who have
+        // NOT submitted — so somebody who answered and then left had no route to withdrawal at all.
+        //
+        // Sliced to this panel deliberately. Written as `split(...)[1]` this test kept passing after
+        // the buttons were removed, because it found them in the panel BELOW — a test asserting the
+        // opposite of the truth while staying green, which is the failure it is now written against.
+        const awaiting = panelNamed(render(), 'Awaiting a form');
+        assert.match(awaiting, /C\. Three/, 'the phone-call list is still the phone-call list');
+        assert.equal(/data-stop-asking/.test(awaiting), false,
+            'one home for the control — see the participant panel');
     });
 
     test('and NO by-day row does — the same control seven times is not seven controls', () => {
@@ -617,7 +646,7 @@ describe('Awaiting rows offer the control, and say nothing untrue about the rost
         // row passes no date. So it announced an outage in data that had been read perfectly well
         // two panels up. Not showing a duty and failing to read one are different statements.
         const html = render({ roster: {}, rosterKnown: true });
-        assert.equal(/Roster unavailable/.test(html.split('Awaiting a form')[1]), false);
+        assert.equal(/Roster unavailable/.test(panelNamed(html, 'Awaiting a form')), false);
     });
 });
 
@@ -702,5 +731,52 @@ describe('the day lens is STATE, and the markup carries it', () => {
         }
         assert.equal(/data-date="[^"]*" hidden/.test(html), false);
         assert.match(html, /data-glance="ALL" aria-pressed="true"/);
+    });
+});
+
+describe('withdrawal is reachable for somebody who has already ANSWERED (v21.20)', () => {
+    // ── THE DEFECT ──────────────────────────────────────────────────────────────────────────────
+    //
+    // "Stop asking" lived only on the Awaiting panel, which by definition holds people who have NOT
+    // submitted. The case the feature exists for — somebody leaves or moves role two weeks before a
+    // week they have already answered — therefore had no route through the UI, on a page whose
+    // endpoint has supported it since v20.95. A capability the server has and the page cannot reach
+    // is the same as not having it.
+    //
+    // Found by external review of v21.18.
+    const html = () => {
+        const host = fakeHost();
+        renderWeekDetail(/** @type {any} */ (host), WIN,
+            { participants: PARTICIPANTS, submissions: submissions() },
+            { dates: DATES, now: Date.parse('2026-08-17T09:00:00Z') });
+        return host.innerHTML;
+    };
+
+    test('every active participant can be withdrawn, answered or not', () => {
+        const out = html();
+        for (const p of PARTICIPANTS) {
+            assert.ok(out.includes(`data-stop-asking="${p.memberName}"`),
+                `${p.memberName} has no route to withdrawal`);
+        }
+    });
+
+    test('and each has exactly ONE control, not one per day', () => {
+        // The alternative design — a button on every person row — puts seven per person on a page
+        // that already repeats each name once per day, for an action taken a handful of times a
+        // year. The count is the assertion because that is the thing an edit would quietly break.
+        const out = html();
+        for (const p of PARTICIPANTS) {
+            const n = out.split(`data-stop-asking="${p.memberName}"`).length - 1;
+            assert.equal(n, 1, `${p.memberName} is offered withdrawal ${n} times`);
+        }
+    });
+
+    test('the panel says where each person stands, so withdrawing is not a blind act', () => {
+        // A reviewer about to stand somebody down should not have to scroll back through seven day
+        // panels to learn whether they are discarding an answer or an absence.
+        const out = html();
+        assert.match(out, /Who is being asked/);
+        assert.ok(/Answered/.test(out) && /No form yet/.test(out),
+            'both positions are named in the panel');
     });
 });

@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: August 2026 — v21.10 · Updated every 0.10 version*
+*Last updated: August 2026 — v21.20 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `21.10` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `21.20` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; **primary install + notification target** since v14.29). A GitHub Pages mirror is still served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path**, NOT the bare origin (which is a separate empty repo that 404s) — kept alive only for staff who already installed from it. `STAFF_SITE_URL` in `functions/index.js` is now the bare `https://myb-roster.web.app` (no sub-path). It only sets the notification payload's path/hash — each device's service worker discards the origin and re-bases the page onto its own scope, so existing github.io installs keep working. See API key note below. |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -256,7 +256,7 @@ roster-app/
 ├── overtime-data.js        ← every call the Overtime page makes to the server, and the corrected clock it keeps from their answers: the four endpoint wrappers, the auth header, the timeout budgets (ABOVE each endpoint's own ceiling), and `correctedNow()`. `clientMutationId` is generated HERE so no call site can forget the thing that makes a timed-out submission reconcilable
 ├── overtime-format.js      ← the PURE client side of Overtime — how a window, a phase and a day's answer are put into words, into one of three chip colours (`answerTone`), into the app's own shift chip (`rosterBadge`, moved here v20.87 so the Firebase-free manager can draw it) and into "your shift has changed since you answered" (`answerAnchorStale` — **unknown roster is not a changed roster**), plus both deadline lines (`deadlineLines`), the standing receipt (`receiptLine`), `isAvailableAnswer` (POSITIVE — `!isUnavailable` is true for a missing day), `clockOffset` (round-trip corrected) and `submitDisposition`. **The client never refuses a submission near a deadline**: inside the grace band it sends and lets the server decide, because a client that refuses has denied somebody who was in time. Tested by overtime-format.test.mjs
 ├── overtime-form.js        ← the member's seven-day form: render, collect, submit, reconcile. **Three things here are easy to "tidy" and must not be** — an unanswered day stays unanswered (no default, no copy-last-week); the client never refuses a submission near the deadline; and a timeout goes into RECONCILIATION rather than being reported as a failure, because aborting stops us waiting and not the server writing
-├── overtime-manager.js     ← the reviewer's workspace for ONE selected week: the Firestore reads (participants, submission heads, revisions) and the By day / Awaiting views. **Three sections per date that must never merge** — Available, Not available, and No response — and an EMPTY section still renders its heading, because a hidden "No response" makes "nobody outstanding" look exactly like a section that failed to draw
+├── overtime-manager.js     ← the reviewer's workspace for ONE selected week: the Firestore reads (participants, submission heads, revisions) and the By day / Awaiting / Who-is-being-asked views. **Three sections per date that must never merge** — Available, Not available, and No response — and an EMPTY section still renders its heading, because a hidden "No response" makes "nobody outstanding" look exactly like a section that failed to draw
 ├── overtime-roster.js      ← what people are actually rostered to do on each day of a window: ONE bounded Firestore read — for one member (`loadRosterContext`, filtered) or for every participant (`loadRosterForMembers`, unfiltered, reviewer-only), both through one `resolveWeek` so the member's form and the reviewer's workspace cannot disagree — resolved by the shared `resolveEffectiveShift` ladder. Deliberately NOT the calendar's fetcher — that module holds process-wide state and an authoritative reconciler, and a second one racing it is the Team View eviction bug all over again. Unknown context hides the roster-derived options rather than anchoring them to an unverified base roster
 ├── overtime-tips.js        ← CARD_TIPS for overtime.html's `?` panels. Pure data; the shape tips-content.test.mjs pins
 ├── links.html              ← link design workspace (rotation designer, `ROTATING_LINES` lines; visible to CONFIG.LINKS_DESIGNERS only)
@@ -935,6 +935,10 @@ overtimeWindows/{weekEnding}                       the window. Doc id = the week
                               exception: a LEAVER otherwise stays a permanent non-responder in every
                               open week. They come out of `expected`, out of every panel and out of
                               the chip — nothing is deleted, and the page names who withdrew them.
+                              Since v21.20 the flag also reaches the MEMBER: `getMyOvertimeState`
+                              drops the window and `submitOvertimeAvailability` refuses. Until then
+                              withdrawal lived only in the reviewer's arithmetic, so a leaver kept
+                              seeing the week and kept being able to file into it.
                               Written by `withdrawOvertimeParticipant`, refused on a CLOSED week
                               (that week is the record). Restoring REMOVES the three fields rather
                               than writing `withdrawn: false`, because `where('withdrawn','==',true)`
