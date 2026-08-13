@@ -9,7 +9,7 @@
  */
 import { sessionReady } from './session.js';
 import { withClaimRetry, getClientErrors, resolveClientError, getUsageStats, getPerfStats, getSignInStats } from './firebase-client.js';
-import { SPEED_GROUPS, perfVerdict, summarisePerfBy, PERF_DIMENSIONS, summariseBootPhases } from './perf-stats.js';
+import { SPEED_GROUPS, perfVerdict, summarisePerfBy, PERF_DIMENSIONS, summariseBootPhases, THIN_SAMPLE } from './perf-stats.js';
 import { escapeHtml } from './roster-data.js';
 
 /**
@@ -653,7 +653,9 @@ async function initPageSpeedCard() {
     const content = document.getElementById('pageSpeedContent');
     if (!content) return;
 
-    const TONE_CLASS = { good: 'good', ok: 'ok', bad: 'bad', none: 'none' };
+    // `thin` renders like `none` — neutral, no colour verdict. The percentage is still shown; it
+    // is the CLAIM that is withheld, not the number.
+    const TONE_CLASS = { good: 'good', ok: 'ok', bad: 'bad', none: 'none', thin: 'none' };
     /** width:% segments (good/ok/slow) from a {quick,ok,slow,total} band row.
      *  @param {{quick:number, ok:number, slow:number, total:number}} b */
     const segs = (b) => {
@@ -694,7 +696,7 @@ async function initPageSpeedCard() {
         return legend;
     };
     /** A toned verdict banner: big % "quick" + plain sentence + a sub line.
-     *  @param {{tone:'good'|'ok'|'bad'|'none', text:string}} verdict
+     *  @param {{tone:'good'|'ok'|'bad'|'none'|'thin', text:string}} verdict
      *  @param {{pctQuick:number}} overall @param {number} total @param {string} unit
      *  @param {string} [windowLabel] - "this month" / "last month", for the sub line */
     const verdictBanner = (verdict, overall, total, unit, windowLabel = 'this month') => {
@@ -702,6 +704,7 @@ async function initPageSpeedCard() {
         div.className = `speed-verdict speed-verdict--${TONE_CLASS[verdict.tone]}`;
         const sub = total
             ? `${overall.pctQuick}% within a second · ${total.toLocaleString('en-GB')} ${unit} ${windowLabel}`
+                + (total < THIN_SAMPLE ? ' <span class="speed-thin">(few)</span>' : '')
             : (windowLabel === 'this month'
                 ? 'Fills in as staff use the app over the coming days.'
                 : 'No data recorded last month.');
@@ -768,7 +771,11 @@ async function initPageSpeedCard() {
             const row = document.createElement('div');
             row.className = 'speed-row speed-row--dual';
             row.innerHTML =
-                `<span class="speed-row-label"><span aria-hidden="true">${emoji}</span> ${label}</span>` +
+                // A page with three opens can render a full-width RED bar and mean nothing at all.
+                // Same marker, same threshold and same reasoning as the breakdown rows below — it
+                // was simply never applied here, where the bar is at its most emphatic.
+                `<span class="speed-row-label"><span aria-hidden="true">${emoji}</span> ${label}`
+                    + `${count && count < THIN_SAMPLE ? ' <span class="speed-thin">(few)</span>' : ''}</span>` +
                 `<span class="speed-bar" role="img" aria-label="appears: ${f ? f.pctQuick : 0}% quick">${f ? segs(f) : ''}</span>` +
                 `<span class="speed-bar" role="img" aria-label="code loaded: ${r ? r.pctQuick : 0}% quick">${r ? segs(r) : ''}</span>` +
                 (u ? `<span class="speed-bar" role="img" aria-label="usable: ${u.pctQuick}% quick">${segs(u)}</span>`
@@ -783,11 +790,10 @@ async function initPageSpeedCard() {
         return frag;
     };
 
-    /** Below how many samples a row's percentages are not worth reading. Four samples can say
-     *  "100% slow" and mean nothing; showing that next to a 400-sample row with equal visual
-     *  confidence is how a breakdown misleads. Marked rather than hidden — a small group that is
-     *  ALWAYS slow is still a lead, it just is not yet a finding. */
-    const THIN_SAMPLE = 20;
+    // The thin-sample threshold now lives in perf-stats.js, so the headline verdict and the per-page
+    // table are governed by the same number as these rows (v21.16). It used to be declared here and
+    // therefore applied only here — which is exactly how a card ends up marking a 10-sample row
+    // "(few)" while making a confident claim from 19 samples two sections above it.
 
     /** One breakdown block: the busiest page's samples split by a single dimension.
      *  @param {Record<string, number>} samples @param {string} page

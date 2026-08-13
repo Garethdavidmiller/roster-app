@@ -43,6 +43,42 @@ export function clearLoginStart() {
 export const PAGE_READY_MARK = 'myb-page-ready';
 
 /**
+ * Resolves with the `ready` timestamp the moment `markPageReady` runs — the fix for a metric that
+ * was silently sampling a fifth of its own population (v21.16).
+ *
+ * ── WHY A PROMISE AND NOT JUST THE MARK ─────────────────────────────────────────────────────────
+ *
+ * `recordPageLatency` reads the mark table at the instant it is called, and records `ready` only if
+ * the mark is already there. On the Calendar those two things sit on COMPLETELY SEPARATE promise
+ * chains: `markPageReady()` fires after the first grid render (downstream of the access decision and
+ * the initial fetch), while `recordPageLatency` fires off `calendarAuthReady`. Nothing orders them.
+ *
+ * So whether a load contributed a `usable` sample was decided by which of two unrelated async chains
+ * happened to finish first. Measured against a real month: three pages mark themselves ready and
+ * took 1,044 opens between them; 218 `ready` samples were recorded. Four out of five loads were
+ * dropped — and because the dropped ones are those where the render lost the race, the survivors are
+ * not a random sample of anything. The figure could not be read in either direction.
+ *
+ * Overtime already got this right by hand, sequencing its `recordPageLatency` into a `.finally()`
+ * after the load; that works for a page with one linear load chain and does not generalise.
+ *
+ * ── IT DEFERS THE ONE SAMPLE, NOT THE WHOLE CALL ────────────────────────────────────────────────
+ *
+ * The obvious fix — make `recordPageLatency` await the mark — is worse: on a page that never becomes
+ * ready (a locked Calendar, a hard failure) it would hold back `ttfb`/`fcp`/`domReady` too, and lose
+ * them entirely if the member navigated away. Those are recorded exactly as before; only `ready`
+ * waits, and only when it is not already available.
+ *
+ * Deliberately unbounded. A page that never becomes ready never resolves this, which is the honest
+ * outcome — no sample, rather than a fabricated one at some arbitrary cut-off — and an unsettled
+ * promise costs nothing on a page that is about to be unloaded.
+ */
+/** @type {(t: number) => void} */
+let _resolveReady = () => {};
+/** @type {Promise<number>} */
+const _pageReady = new Promise((resolve) => { _resolveReady = resolve; });
+
+/**
  * Mark the instant this page's MAIN CONTENT is actually on screen.
  *
  * ── WHY THIS EXISTS (v20.80) ────────────────────────────────────────────────────────────────────
@@ -72,6 +108,11 @@ export function markPageReady() {
     try {
         if (performance.getEntriesByName?.(PAGE_READY_MARK)?.length) return;
         performance.mark(PAGE_READY_MARK);
+        // Announce it as well as record it. `performance.mark()` returns the entry in modern
+        // browsers and nothing in older ones, so the timestamp is read back the same way
+        // `recordPageLatency` reads it rather than trusted from the return value.
+        const t = performance.getEntriesByName?.(PAGE_READY_MARK)?.[0]?.startTime;
+        if (typeof t === 'number') _resolveReady(t);
     } catch { /* Performance API unavailable — the metric is skipped, nothing else changes */ }
 }
 
@@ -125,6 +166,32 @@ export function recordPageLatency(page, identity = null) {
         // ("fully ready") — so record it BEFORE the nav-timing guard below, never gated on it.
         recordFcp(page, mode, conn);
 
+        // ── `ready`, WHENEVER IT ARRIVES ────────────────────────────────────────────────────────
+        //
+        // Handled here, ABOVE the Navigation Timing guard, because it depends on neither: it comes
+        // from a `performance.mark` and nothing else. Sitting below that guard would have tied it to
+        // an unrelated capability.
+        //
+        // BOTH cases live here — already marked, and not yet — so the two cannot diverge. Splitting
+        // them across the guard was the first attempt and it reintroduced the same class of bias one
+        // level down: a browser with marks but no Navigation Timing would have kept `ready` on the
+        // loads that were still waiting and dropped it on the ones already finished, i.e. exactly
+        // the fast ones. Caught by a test that stubs marks without navigation entries.
+        const recordReady = (/** @type {number} */ startTime) => {
+            const bucket = bucketDuration(startTime);
+            // Deferring the WRITE is safe: this function is already gated on the page's auth being
+            // established, so the session that carries it exists by now and outlives the wait.
+            if (bucket) recordPerfSample({ page, metric: 'ready', bucket, mode, conn });
+        };
+        let readyNow;
+        try { readyNow = performance.getEntriesByName?.(PAGE_READY_MARK)?.[0]?.startTime; }
+        catch { /* no marks — fall through and wait, which on such a platform simply never fires */ }
+        if (typeof readyNow === 'number') recordReady(readyNow);
+        // See `_pageReady` for what reading the mark table at one arbitrary instant was costing:
+        // four loads in five, silently, and not at random.
+        else _pageReady.then(recordReady)
+            .catch(() => { /* never rejects; here so a future change cannot make it unhandled */ });
+
         // Navigation-timing metrics for THIS page (every load).
         const nav = /** @type {any} */ (performance.getEntriesByType?.('navigation')?.[0]);
         if (!nav) return;   // Navigation Timing L2 unsupported (old Safari) — skip silently
@@ -139,14 +206,11 @@ export function recordPageLatency(page, identity = null) {
         let sdkMark;
         try { sdkMark = performance.getEntriesByName?.('myb-sdk-ready')?.[0]?.startTime; } catch { /* no marks */ }
         Object.assign(metrics, bootPhases(nav, sdkMark));
-        // 'ready' — the page's own content on screen (see markPageReady). Read the same way as the
-        // SDK mark. ABSENT on a page that does not mark, and absent is the honest answer there: a
-        // fabricated fallback to domReady would put the exact number this metric exists to
-        // contradict under the label that says it is something else.
-        try {
-            const readyMark = performance.getEntriesByName?.(PAGE_READY_MARK)?.[0]?.startTime;
-            if (typeof readyMark === 'number') metrics.ready = readyMark;
-        } catch { /* no marks */ }
+        // 'ready' is NOT in this map — it is handled above, before the Navigation Timing guard,
+        // because it comes from a mark and depends on neither nav timing nor the order this
+        // function happens to run in. ABSENT on a page that does not mark, and absent is the honest
+        // answer there: a fabricated fallback to domReady would put the exact number this metric
+        // exists to contradict under the label that says it is something else.
         for (const metric of Object.keys(metrics)) {
             const bucket = bucketDuration(metrics[metric]);
             if (bucket) recordPerfSample({ page, metric, bucket, mode, conn });

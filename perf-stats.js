@@ -416,37 +416,61 @@ const VERDICT_TEXT = {
         ok:   'The app\u2019s code mostly loads quickly, with some slower loads.',
         bad:  'The app\u2019s code is taking too long to load for some staff.',
         none: 'Not enough data yet — this builds up as staff use the app.',
+        thin: 'Too few page opens yet to read as a trend.',
     },
     ready: {
         good: 'Pages become usable quickly for staff.',
         ok:   'Pages mostly become usable quickly, with some slower loads.',
         bad:  'Some staff are waiting too long before a page is usable.',
         none: 'Not enough data yet — only pages that report this milestone are counted.',
+        thin: 'Too few page opens yet to read as a trend.',
     },
     fcp: {
         good: 'Pages appear on screen almost instantly.',
         ok:   'Pages mostly appear quickly, with some slower first paints.',
         bad:  'Some staff wait too long before anything appears on screen.',
         none: 'Not enough data yet — this builds up as staff use the app.',
+        thin: 'Too few page opens yet to read as a trend.',
     },
     login: {
         good: 'Signing in is quick for staff.',
         ok:   'Signing in mostly feels quick, with some slower sign-ins.',
         bad:  'Signing in is taking too long for some staff.',
         none: 'No sign-ins recorded for this period.',   // month-neutral: this headline also renders in the Last-month view (v16.22)
+        thin: 'Too few sign-ins yet to read as a trend.',
     },
 };
 
 /**
+ * Below how many samples a set of percentages is not worth reading as a finding.
+ *
+ * DECLARED HERE, not in the card, because the card was applying it to only some of its own figures
+ * (v21.16). The breakdown rows have marked thin groups `(few)` since v20.19 on the reasoning that
+ * "four samples can say 100% slow and mean nothing" — while the headline verdict above them and the
+ * per-page table below them applied no such test at all. Measured on a real month, that produced a
+ * confident amber headline about signing in from **19 samples** — one below the card's own bar for
+ * meaninglessness — and a full-width RED bar against a page with **three** opens.
+ *
+ * Marked rather than hidden, for the same reason as the rows: a small group that is always slow is
+ * still a lead, it just is not yet a finding.
+ */
+export const THIN_SAMPLE = 20;
+
+/**
  * One-line plain-English verdict for the overall speed, with a status tone for colour. Thresholds:
  * ≥20% slow → bad; else ≥80% quick → good; else ok. Empty → a "still building up" message.
+ *
+ * A total below `THIN_SAMPLE` short-circuits to `thin` BEFORE any of those, because a verdict is a
+ * claim and there is not enough here to make one. The percentage is still shown beside it — the
+ * reader loses the assertion, not the number.
  * @param {ReturnType<typeof _withPct>} overall
  * @param {'pages'|'login'|'fcp'|'ready'} [kind]  which journey the copy describes
- * @returns {{ tone: 'good'|'ok'|'bad'|'none', text: string }}
+ * @returns {{ tone: 'good'|'ok'|'bad'|'none'|'thin', text: string }}
  */
 export function perfVerdict(overall, kind = 'pages') {
     const text = VERDICT_TEXT[kind] || VERDICT_TEXT.pages;
     if (!overall || !overall.total) return { tone: 'none', text: text.none };
+    if (overall.total < THIN_SAMPLE) return { tone: 'thin', text: text.thin };
     if (overall.pctSlow >= 20)  return { tone: 'bad',  text: text.bad };
     if (overall.pctQuick >= 80) return { tone: 'good', text: text.good };
     return { tone: 'ok', text: text.ok };
