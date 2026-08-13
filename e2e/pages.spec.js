@@ -2067,11 +2067,13 @@ test('links generator: the hours row is the generator\'s OWN test, and follows a
 
     // Lengthen ONE duty and change nothing else. Under the old code this row did not move.
     const before = await page.locator('#genHoursValue').textContent();
-    // 06:20-13:25 (7h05) becomes 15:55-23:55 (8h00) — a real length change on a Mon–Fri row, so
-    // the week gains 55 minutes five times over. Selected BY VALUE: a positional pick could land on
-    // a duty of the same length and pass while proving nothing.
+    // The first row (a short early) becomes a closer — a real length change on a Mon–Fri row, so
+    // the week moves by that difference five times over. Selected BY VALUE: a positional pick could
+    // land on a duty of the same length and pass while proving nothing. The value has to be one the
+    // CURRENT default proposes, or the option is absent and this fails as a timeout rather than as
+    // an assertion (v21.10, when the table was retuned under it).
     await page.locator('#genSlotRows tr').first().locator('.gen-slot-time')
-        .selectOption('15:55-23:55');
+        .selectOption('15:50-23:55');
     await expect.poll(() => page.locator('#genHoursValue').textContent()).not.toBe(before);
     await expect(page.locator('#genHoursValue')).toHaveClass(/gen-hours-off/);
     // And it says what has to reach zero, in the unit that has to reach it.

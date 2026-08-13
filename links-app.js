@@ -1652,20 +1652,29 @@ export function init() {
     function renderGenTable() {
         const tbody = document.getElementById('genSlotRows');
         if (!tbody) return;
-        // DAY SIGNATURE — which of the three columns this row actually staffs. It drives the block
-        // rules below and nothing else; the counts themselves are untouched.
-        const _sig = (/** @type {any} */ sl) =>
-            ['weekday', 'sat', 'sun'].map(c => ((sl[c] ?? 0) > 0 ? '1' : '0')).join('');
-        // A rule is drawn only where a SINGLE-DAY run gives way to a different single-day run. The
-        // default table is three such blocks (Mon–Fri, Saturday, Sunday) and reads as one
-        // undifferentiated wall of rows without them. Restricting it to single-day rows is what stops
-        // a genuinely mixed table — rows staffing several days — acquiring a rule on every row, which
-        // is the same as no rules but heavier.
-        const _single = (/** @type {string} */ g) => g === '100' || g === '010' || g === '001';
+        // WHICH DAY'S BLOCK a row belongs to — the FIRST day class it staffs, not the whole set
+        // (v21.10). The set was the wrong key the moment the default table began sharing rows
+        // between the weekday and the Saturday: a row serving both reads as neither, so the runs
+        // fragmented and the rules stopped being drawn where the reader needs them. A shared row
+        // belongs to the first block it appears in, which is also where it is listed.
+        const _primary = (/** @type {any} */ sl) =>
+            ['weekday', 'sat', 'sun'].find(c => (sl[c] ?? 0) > 0) ?? '';
+        // Runs of at least two, both sides. A table whose rows each staff a different day would
+        // otherwise take a rule on every row, which is the same as no rules but heavier — and the
+        // common designer's table, where every row staffs all three days, has ONE run and takes
+        // none, which is right.
+        const _runs = genSlots.map(_primary);
+        const _runLen = (/** @type {number} */ at) => {
+            let a = at, b = at;
+            while (a > 0 && _runs[a - 1] === _runs[at]) a--;
+            while (b < _runs.length - 1 && _runs[b + 1] === _runs[at]) b++;
+            return b - a + 1;
+        };
         let prevSig = '';
         tbody.innerHTML = genSlots.map((slot, i) => {
-            const sig = _sig(slot);
-            const newBlock = i > 0 && sig !== prevSig && _single(sig) && _single(prevSig);
+            const sig = _primary(slot);
+            const newBlock = i > 0 && sig !== prevSig && !!sig && !!prevSig
+                && _runLen(i) >= 2 && _runLen(i - 1) >= 2;
             prevSig = sig;
             return `<tr data-slot="${i}"${newBlock ? ' class="gen-slot-newblock"' : ''}>` +
             `<td class="gen-td-time"><select class="gen-select gen-slot-time" data-slot="${i}" ` +

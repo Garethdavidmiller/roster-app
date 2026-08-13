@@ -589,6 +589,23 @@ Two consequences worth knowing. The targets are validated against the **working*
 
 Neither label says "reset targets" without saying to WHAT. With two of them, that word alone is the one thing a designer cannot act on.
 
+**Late turns are deliberately shorter than early ones (v21.10).** The owner's report was about
+behaviour, not arithmetic: lates get booked around with annual leave, phoned sick, and refused as
+overtime. The lever asked for was length — *"make late shifts slightly shorter than most (not all)
+early starts"* — and it is expressed as a **strict ordering**, not an average, because an average is
+satisfied by one very short late among six long ones, which is the shape the instruction was aimed
+at. One early, and only one, is shorter than every late; every other early is longer than every
+late. The "not all" is load-bearing: the short early is the open turn that finishes in the early
+afternoon, and an unbroken block of long earlies is its own recruitment problem. Alongside it,
+**five are on duty at 22:00** (`EVENING_TURNS_FROM_22`), down from seven — a separate figure from
+the closer count, which is unchanged at three on a weekday and four on a Saturday, so five at 22:00
+means two non-closers on a weekday and one on a Saturday. Both are pinned in
+`links-default-targets.test.mjs`, including the *size* of the margin in both directions: a late that
+is two hours shorter is a different job, and one that is five minutes shorter across the whole set
+is not a lever. The cost is stated in the module header — the demand fit is about 9% worse on a
+weekday — because narrowing a search is not free and burying that would make the next retune look
+like an improvement.
+
 **The default is not a proposal.** It covers the service and pays the contract, which is the floor for being worth discussing rather than evidence of being right. Its own reasoning — why the cover is flat rather than twin-peaked, why the cover-week count is not independently adjustable, why Saturday is fixed at 14 leaning late and Sunday designed at 10 to its own window (both owner figures, v21.01) — is in the module header, and every claim it makes is pinned by `links-default-targets.test.mjs`.
 
 **Saved sets (v21.04).** The generator card carries a "Saved sets" row — named snapshots of the target table, shared between the designers in Firestore (`linkTargetSets`), because the promise they exist for ("others can mess about but not lose my set" — owner) cannot be kept per-device. Load copies a set into the working table; keeping a changed version means **Save as new set** — overwriting belongs to a set's creator or the admin, and that rule is enforced by `firestore.rules`, not by the disabled button (which only reports it). Ownership is pinned to the writer's own `name` claim on create and immutable on update. Module: `links-target-sets.js`; the e2e seat is M. Robson deliberately — the admin's override is real, so ownership must be tested from a seat without one.
