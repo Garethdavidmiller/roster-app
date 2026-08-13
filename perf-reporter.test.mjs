@@ -29,7 +29,16 @@ global.sessionStorage = /** @type {any} */ ({
 global.window = /** @type {any} */ ({ matchMedia: () => ({ matches: false }) });
 // global.navigator is a read-only getter in modern Node — define it instead of assigning.
 Object.defineProperty(global, 'navigator', { value: /** @type {any} */ ({}), configurable: true });
-global.performance = /** @type {any} */ ({ getEntriesByType: () => [] });
+// A working MARK table (v21.16): `markPageReady` writes here and the deferred `ready` recorder reads
+// it back. Still no navigation/paint entries, which is deliberate — it proves the `ready` path does
+// not depend on Navigation Timing, the guard it used to sit behind.
+/** @type {Map<string, any>} */
+const _marks = new Map();
+global.performance = /** @type {any} */ ({
+    getEntriesByType: () => [],
+    getEntriesByName: (/** @type {string} */ n) => (_marks.has(n) ? [_marks.get(n)] : []),
+    mark: (/** @type {string} */ n) => { _marks.set(n, { name: n, startTime: 640 }); },
+});
 // PerformanceObserver intentionally left undefined → recordFcp skips cleanly.
 
 const { recordPageLatency, markLoginStart, clearLoginStart, markPageReady, PAGE_READY_MARK } =
@@ -195,5 +204,76 @@ describe('the READY milestone (v20.80)', () => {
     test('markPageReady is silent where the Performance API is missing', () => {
         global.performance = /** @type {any} */ ({});
         assert.doesNotThrow(() => markPageReady());
+    });
+});
+
+describe('the `usable` milestone survives losing the race (v21.16)', async () => {
+    // A FRESH MODULE INSTANCE, deliberately. The "page is ready" signal is a one-shot promise scoped
+    // to the module — exactly right in a browser, where one instance serves one page load, and fatal
+    // to a test that shares a process with the idempotency test above, which marks the page and
+    // resolves it first. Importing under a distinct specifier gives this block its own unresolved
+    // signal, so these tests do not depend on where they sit in the file. The `mock.module` stubs
+    // are keyed on the DEPENDENCY specifier, which resolves identically from either instance.
+    const fresh = await import('./perf-reporter.js?fresh=usable');
+    const { recordPageLatency, markPageReady } = fresh;
+
+    // Earlier tests swap `global.performance` for their own stubs (one replaces it with `{}` to
+    // prove the reporter is silent without the API), so reinstall the mark table here rather than
+    // trusting whatever the previous test left behind.
+    beforeEach(() => {
+        _marks.clear();
+        global.performance = /** @type {any} */ ({
+            getEntriesByType: () => [],
+            getEntriesByName: (/** @type {string} */ n) => (_marks.has(n) ? [_marks.get(n)] : []),
+            mark: (/** @type {string} */ n) => { _marks.set(n, { name: n, startTime: 640 }); },
+        });
+    });
+
+    // ── WHAT THIS PINS ──────────────────────────────────────────────────────────────────────────
+    //
+    // `recordPageLatency` reads the mark table at the instant it is called. On the Calendar the mark
+    // is written by a DIFFERENT promise chain — the first grid render — and nothing orders the two,
+    // so whether a load contributed a `usable` sample was decided by which chain finished first.
+    //
+    // Measured on a real month: three pages mark themselves ready and took 1,044 opens between them;
+    // 218 `ready` samples were recorded. Four loads in five were dropped, and the survivors were
+    // whichever ones happened to win a race — so the figure could not be read in either direction.
+    //
+    // The order below is the one that used to lose. `markPageReady` is called AFTER
+    // `recordPageLatency` has already returned, which is the whole point.
+    test('a mark that arrives AFTER the reading still records', async () => {
+        _marks.clear();
+        recordPageLatency('calendar', 'S. Silva');
+        assert.equal(_samples.find(s => s.metric === 'ready'), undefined,
+            'nothing to record yet — the page is not ready');
+
+        markPageReady();
+        await Promise.resolve();   // let the deferred recorder run
+
+        const ready = _samples.find(s => s.metric === 'ready');
+        assert.ok(ready, 'the load contributes its `usable` sample once the page IS ready');
+        assert.equal(ready.page, 'calendar', 'attributed to the page that was loading');
+        assert.equal(ready.bucket, '500ms-1s', 'bucketed from the mark, not from when it was noticed');
+    });
+
+    test('and it is recorded ONCE, not once per waiting page', async () => {
+        // The mark is process-wide and resolves a single promise. A second `recordPageLatency` on
+        // the same load must not produce a second sample from the same mark — that would inflate the
+        // very metric this fix exists to make readable.
+        markPageReady();                       // the page is ALREADY ready before the reading
+        recordPageLatency('calendar', 'S. Silva');
+        await Promise.resolve();
+        assert.equal(_samples.filter(s => s.metric === 'ready').length, 1,
+            'the mark already existed, so it is read inline — not deferred a second time');
+    });
+
+    test('an ADMIN load records no `ready`, deferred or otherwise', async () => {
+        // The write-time developer exclusion has to survive the deferral. Recording it late would be
+        // a hole in an exclusion that every other metric on this card honours.
+        _samples.length = 0;
+        recordPageLatency('calendar', 'G. Miller');
+        markPageReady();
+        await Promise.resolve();
+        assert.deepEqual(_samples, [], 'the developer\'s own load is excluded at every point');
     });
 });

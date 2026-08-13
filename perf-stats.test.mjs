@@ -2,7 +2,7 @@
 // Run with: node --test perf-stats.test.mjs   (part of test:hygiene)
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, summarisePerfBy, PERF_DIMENSIONS, perfVerdict, loginDurationBucket, LOGIN_MAX_MS, BOOT_PHASES, bootPhases, summariseBootPhases } from './perf-stats.js';
+import { THIN_SAMPLE, PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, summarisePerfBy, PERF_DIMENSIONS, perfVerdict, loginDurationBucket, LOGIN_MAX_MS, BOOT_PHASES, bootPhases, summariseBootPhases } from './perf-stats.js';
 
 /** Build a samples map from [page, metric, bucket, count] rows (version/mode/conn fixed). */
 function samplesFrom(rows) {
@@ -265,20 +265,69 @@ describe('summarisePerfBy — WHY a page is slow, not just that it is', () => {
     });
 });
 
+describe('perfVerdict — a verdict is a CLAIM, and needs enough to make one (v21.16)', () => {
+    // The card marked breakdown rows "(few)" below 20 samples from v20.19 and applied no such test
+    // to its own HEADLINE. Measured on a real month, that produced a confident amber verdict about
+    // signing in from 19 samples — one below the card's own bar for meaninglessness — where two
+    // slow sign-ins move the figure ten points.
+    const from = (/** @type {number} */ quick, /** @type {number} */ slow) =>
+        summarisePerf(samplesFrom([['login', 'loginTotal', 'lt500ms', quick],
+            ['login', 'loginTotal', '3-8s', slow]]), { metric: 'loginTotal' }).overall;
+
+    test('below the threshold there is no verdict, whatever the percentages say', () => {
+        // 19 samples that are 100% SLOW — the most confident "bad" the maths can produce.
+        const v = perfVerdict(from(0, 19), 'login');
+        assert.equal(v.tone, 'thin', 'not bad, not ok — too few to say');
+        assert.match(v.text, /Too few sign-ins/);
+    });
+
+    test('and the same shape one sample later IS a verdict', () => {
+        // The boundary is the point: `< THIN_SAMPLE`, so 20 reads.
+        assert.equal(perfVerdict(from(0, THIN_SAMPLE), 'login').tone, 'bad');
+    });
+
+    test('a thin sample outranks good, ok and bad alike', () => {
+        // All three verdict branches must be unreachable below the threshold, not just the alarming
+        // one — a "good" claim from four samples is exactly as unfounded as a "bad" one.
+        assert.equal(perfVerdict(from(19, 0), 'login').tone, 'thin', '100% quick, still too few');
+        assert.equal(perfVerdict(from(10, 5), 'login').tone, 'thin', 'a middling split, still too few');
+    });
+
+    test('EMPTY still reads as empty, not as thin', () => {
+        // Two different states and two different sentences: nothing recorded at all is not the same
+        // as a handful recorded, and the card says so ("builds up" vs "too few to read").
+        assert.equal(perfVerdict(from(0, 0), 'login').tone, 'none');
+    });
+
+    test('every journey has thin copy, so none falls back to another journey\'s words', () => {
+        for (const kind of /** @type {const} */ (['pages', 'login', 'fcp', 'ready'])) {
+            const v = perfVerdict(from(1, 0), kind);
+            assert.equal(v.tone, 'thin', kind);
+            assert.ok(v.text && !/undefined/.test(v.text), `${kind} has its own thin sentence`);
+        }
+    });
+});
+
 describe('perfVerdict', () => {
+    // ── THE COUNTS BELOW ARE ×10 THEIR ORIGINALS, AND THE RATIOS ARE UNTOUCHED (v21.16) ──────────
+    //
+    // Every fixture here was ten samples, which is now below `THIN_SAMPLE` and short-circuits to a
+    // thin verdict before any tone threshold is reached. These tests are about the THRESHOLDS, so
+    // they need enough samples for a threshold to apply at all; scaling by ten preserves 30% slow,
+    // 90% quick and 50/50 exactly. The thin behaviour itself is pinned in its own block above.
     test('empty → "still building up" (tone none)', () => {
         assert.equal(perfVerdict(summarisePerf({}).overall).tone, 'none');
     });
     test('≥20% slow → bad', () => {
-        const r = summarisePerf(samplesFrom([['admin', 'domReady', 'lt500ms', 7], ['admin', 'domReady', 'over8s', 3]]));
+        const r = summarisePerf(samplesFrom([['admin', 'domReady', 'lt500ms', 70], ['admin', 'domReady', 'over8s', 30]]));
         assert.equal(perfVerdict(r.overall).tone, 'bad');   // 30% slow
     });
     test('≥80% quick (and little slow) → good', () => {
-        const r = summarisePerf(samplesFrom([['admin', 'domReady', 'lt500ms', 9], ['admin', 'domReady', '1-3s', 1]]));
+        const r = summarisePerf(samplesFrom([['admin', 'domReady', 'lt500ms', 90], ['admin', 'domReady', '1-3s', 10]]));
         assert.equal(perfVerdict(r.overall).tone, 'good');  // 90% quick, 0% slow
     });
     test('mixed but not slow-heavy → ok', () => {
-        const r = summarisePerf(samplesFrom([['admin', 'domReady', 'lt500ms', 5], ['admin', 'domReady', '1-3s', 5]]));
+        const r = summarisePerf(samplesFrom([['admin', 'domReady', 'lt500ms', 50], ['admin', 'domReady', '1-3s', 50]]));
         assert.equal(perfVerdict(r.overall).tone, 'ok');    // 50% quick, 0% slow, <80% quick
     });
 
@@ -286,13 +335,13 @@ describe('perfVerdict', () => {
         const empty = perfVerdict(summarisePerf({}).overall, 'login');
         assert.equal(empty.tone, 'none');
         assert.match(empty.text, /sign-ins/i);
-        const good = perfVerdict(summarisePerf(samplesFrom([['login', 'loginTotal', 'lt500ms', 9], ['login', 'loginTotal', '1-3s', 1]]), { metric: 'loginTotal' }).overall, 'login');
+        const good = perfVerdict(summarisePerf(samplesFrom([['login', 'loginTotal', 'lt500ms', 90], ['login', 'loginTotal', '1-3s', 10]]), { metric: 'loginTotal' }).overall, 'login');
         assert.equal(good.tone, 'good');
         assert.match(good.text, /Signing in/i);
     });
 
     test('fcp kind uses "appear on screen" copy; tone logic unchanged', () => {
-        const r = summarisePerf(samplesFrom([['paycalc', 'fcp', 'lt500ms', 9], ['paycalc', 'fcp', '1-3s', 1]]), { metric: 'fcp' });
+        const r = summarisePerf(samplesFrom([['paycalc', 'fcp', 'lt500ms', 90], ['paycalc', 'fcp', '1-3s', 10]]), { metric: 'fcp' });
         const good = perfVerdict(r.overall, 'fcp');
         assert.equal(good.tone, 'good');                 // 90% quick → good, same thresholds
         assert.match(good.text, /appear/i);              // FCP-specific wording
