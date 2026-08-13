@@ -25,11 +25,13 @@ import {
     ROTATING_LINES,
     weeklyHours,
     lineTotals,
+    repairShortRest, restBetween,
     dutyMinutes,
     CONTRACTED_HOURS_PER_WEEK,
     hmFromHours,
 } from './links-design.js';
 import { CONFIG, weeklyRoster } from './roster-data.js';
+import { buildDefaultTargets } from './links-default-targets.js';
 
 // classifyShift hardcodes the Early/Late/Night start-hour boundaries (4/11/21) because links-design.js
 // is DELIBERATELY standalone (imports nothing from roster-data — see .claude/rules/links-design.md). The
@@ -340,7 +342,10 @@ describe('the rotating fallback no longer promises rest it cannot give', () => {
     test('a settled design survives the same dense targets the fallback refuses', () => {
         // Each line sits in one wave, so "everybody works seven days" costs nothing in body-clock
         // movement — which is exactly why settled is tried first.
-        const s = generateLink({ slots: DENSE, spareLines: 0, lines: 28, requireContract: false });
+        // `requireRest: false` alongside: DENSE staffs every line every day by design — that is the
+        // premise of the case — so there is no rest day anywhere to swap a short turnaround onto.
+        // What is under test here is WAVE CONTAINMENT, not whether the week is legal.
+        const s = generateLink({ slots: DENSE, spareLines: 0, lines: 28, requireContract: false, requireRest: false });
         assert.equal(s.mode, 'settled');
         for (let w = 1; w <= 28; w++) {
             const st = DAYS.map(d => startMinutes(s.patterns[String(w)][d])).filter(v => v !== null);
@@ -946,3 +951,115 @@ describe('lineTotals', () => {
         assert.equal(t.rows[2].days, 1, 'line 3 is the one with the duty');
     });
 });
+
+
+// ── MINIMUM REST (v21.11) ───────────────────────────────────────────────────────────────────────
+//
+// Owner: "It keeps offering me a gap of 11 hours 45 minutes between a shift. That would never be
+// allowed by Chiltern." It was right, and the app only REPORTED it after building — a minimum rest
+// period is a condition of a design being legal, which is the same class of statement as the
+// contract, and the contract is refused rather than reported.
+//
+// The repair is a SWAP within one day column, and the reason that is safe is the thing worth
+// testing hardest: it cannot move a duty between days, so no daily headcount, no target and no
+// hours figure can change. A repair that quietly rewrote the week would be a much worse bug than
+// the turnaround it fixed.
+describe('minimum rest between turns', () => {
+    const DAY_KEYS3 = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const rowOf3 = (o) => Object.fromEntries(DAY_KEYS3.map(d => [d, o[d] ?? 'RD']));
+
+    test('restBetween measures across midnight, and a rest day is not a turnaround', () => {
+        assert.equal(restBetween('09:05-18:35', '06:20-15:20'), 11 * 60 + 45);   // the owner's case
+        assert.equal(restBetween('15:55-23:55', '06:20-14:20'), 6 * 60 + 25);
+        assert.equal(restBetween('06:20-14:20', 'RD'), null);
+        assert.equal(restBetween('SPARE', '06:20-14:20'), null);
+    });
+
+    test('THE OWNER\'S CASE: the shipped default generates no turnaround under 12 hours', () => {
+        // The regression, stated as the report was. Before v21.11 this produced exactly one — a
+        // Sunday 09:05–18:35 into a Monday 06:20 open, 11h45 apart.
+        const t = buildDefaultTargets();
+        const r = generateLink({ slots: t.slots, spareLines: t.spareLines, lines: ROTATING_LINES });
+        assert.ok(r.patterns, `refused: ${r.reason}`);
+        const short = runDesignChecks(r.patterns, ROTATING_LINES).turnarounds;
+        assert.deepEqual(short, [], `still short: ${short.map(x => `${x.fromShift}->${x.toShift}`).join(', ')}`);
+    });
+
+    test('the repair CANNOT change a day\'s headcount — that is why a swap is the edit', () => {
+        // The property the whole approach rests on. Exchanging two lines' duties in one day column
+        // leaves that day's count on every shift time exactly as it was, so the targets, the
+        // contract and the coverage curve are untouched by construction rather than by re-checking.
+        const before = {
+            1: rowOf3({ sun: '09:00-18:00', mon: '06:00-14:00' }),   // 12h00 — legal
+            2: rowOf3({ sun: '09:30-18:30', mon: '06:00-14:00' }),   // 11h30 — not
+            3: rowOf3({ sun: '07:00-15:00', mon: '06:00-14:00' }),
+        };
+        const patterns = JSON.parse(JSON.stringify(before));
+        const countByDay = (p) => Object.fromEntries(DAY_KEYS3.map(d => {
+            const c = {};
+            for (const w of Object.keys(p)) { const v = p[w][d]; c[v] = (c[v] || 0) + 1; }
+            return [d, c];
+        }));
+        const wanted = countByDay(before);
+        repairShortRest(patterns, 3);
+        assert.deepEqual(countByDay(patterns), wanted,
+            'a swap moved a duty between days — every target downstream is now wrong');
+    });
+
+    test('it will not FIX one line by breaking another', () => {
+        // The failure a swap invites, and the one that reads as success: line 1's turnaround is
+        // repaired by handing its Monday to somebody whose own Sunday finish cannot take it. The
+        // total count of breaches stays the same and the panel looks no better, so the repair has to
+        // check BOTH lines' adjacencies before it accepts a swap — line 2 here is the trap and line
+        // 3 is the answer, and they are in that order deliberately.
+        const patterns = {
+            1: rowOf3({ sun: '09:30-18:30', mon: '06:00-14:00' }),   // 11h30 — the breach
+            2: rowOf3({ sun: '13:00-22:30', mon: '20:00-23:55' }),   // taking an 06:00 would break it
+            3: rowOf3({ mon: '20:00-23:00' }),                       // Sunday off — safe partner
+        };
+        const { remaining } = repairShortRest(patterns, 3);
+        assert.deepEqual(remaining, [], 'the breach was moved rather than removed');
+        assert.ok(restBetween(patterns['2'].sun, patterns['2'].mon) >= MIN_REST_MINUTES,
+            'line 2 was handed a turnaround it cannot rest');
+    });
+
+    test('a whole SPARE week is never touched', () => {
+        // A spare week is a whole week. Swapping a duty into one turns a cover week into a working
+        // week with six spare days — a different thing wearing the same word.
+        const patterns = {
+            1: rowOf3({ sun: '09:30-18:30', mon: '06:00-14:00' }),
+            2: Object.fromEntries(DAY_KEYS3.map(d => [d, 'SPARE'])),
+            3: rowOf3({ sun: '07:00-15:00', mon: '06:00-14:00' }),
+        };
+        repairShortRest(patterns, 3);
+        assert.ok(DAY_KEYS3.every(d => patterns['2'][d] === 'SPARE'), 'the cover week was broken into');
+    });
+
+    test('it reports what it could NOT fix rather than walking the breach elsewhere', () => {
+        // Every line closes and opens, so no swap helps. The honest answer is a refusal with the
+        // gap named — "fix the rest" is not advice, and the remedy is always a shift time.
+        // Every line identical, alternating a 23:55 close with an 06:20 open — 6h25 apart, and
+        // every candidate partner holds the same duty, so there is no swap to make.
+        const patterns = {};
+        for (let w = 1; w <= 4; w++) {
+            patterns[w] = rowOf3(Object.fromEntries(
+                DAY_KEYS3.map((d, i) => [d, i % 2 ? '06:20-14:20' : '15:55-23:55'])));
+        }
+        const { remaining } = repairShortRest(patterns, 4);
+        assert.ok(remaining.length > 0);
+        assert.ok(remaining.every(r => r.rest < MIN_REST_MINUTES));
+    });
+
+    test('the generator REFUSES rather than shipping one it cannot repair', () => {
+        const slots = [
+            { time: '15:55-23:55', weekday: 12, sat: 12, sun: 12 },
+            { time: '06:20-14:20', weekday: 12, sat: 12, sun: 12 },
+        ];
+        const r = generateLink({ slots, spareLines: 0, lines: 24, requireContract: false });
+        assert.equal(r.patterns, null);
+        assert.equal(r.reason, 'short-rest');
+        assert.ok(typeof r.shortRest === 'number' && r.shortRest < MIN_REST_MINUTES,
+            'the refusal has to name the gap — it is the only actionable fact in it');
+    });
+});
+

@@ -589,6 +589,24 @@ Two consequences worth knowing. The targets are validated against the **working*
 
 Neither label says "reset targets" without saying to WHAT. With two of them, that word alone is the one thing a designer cannot act on.
 
+**Minimum rest is a GATE, not a finding (v21.11).** Owner: *"It keeps offering me a gap of 11 hours
+45 minutes between a shift. That would never be allowed by Chiltern."* It was right — the generated
+default put a Sunday 09:05–18:35 in front of a Monday 06:20 open — and the app only *reported* it,
+in Design checks, after building it. A minimum rest period is a condition of a design being legal,
+which is the same class of statement as the contract, and the contract is refused rather than
+reported. So the generator now **repairs** the breach and refuses only what it cannot repair.
+
+The repair is a **swap of two lines' duties within one day column**, and that shape is the whole
+argument for it: exchanging them leaves that day's headcount on every shift time exactly as it was,
+so the targets, the contract, the coverage heat map and the demand fit are untouched *by
+construction* rather than by re-checking. Timed↔timed swaps are tried first (both lines keep their
+days-worked); timed↔rest only if none fixes it. Whole spare weeks are never touched — swapping a
+duty into one turns a cover week into a working week with six spare days. A swap is accepted only
+when **all four** adjacencies it can affect come out legal, or the repair would walk the breach onto
+another line and read as success. `requireRest` is the opt-out, for construction fixtures that staff
+every line every day; `links-contract.test.mjs` fails if `links-app.js` ever passes it, exactly as
+it does for `requireContract`.
+
 **Late turns are deliberately shorter than early ones (v21.10).** The owner's report was about
 behaviour, not arithmetic: lates get booked around with annual leave, phoned sick, and refused as
 overtime. The lever asked for was length — *"make late shifts slightly shorter than most (not all)

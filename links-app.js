@@ -39,6 +39,7 @@ import {
     targetExSundayMinutes,
     lineTotals,
     weeklyHours,
+    MIN_REST_MINUTES,
 } from './links-design.js';
 import { initLinksAnalysis } from './links-analysis.js';
 import { LEGACY_DOC_ID, deepCopyPatterns, designFromDoc, binEntryFromDoc, docPayload, workingCopy, binEntryFrom, restoredEntryFrom, lastSavedLabel } from './links-design-doc.js';
@@ -2316,6 +2317,15 @@ export function init() {
                         : built.reason === 'no-rest'
                         ? `Can't generate — these targets leave no room for rest days, so every line would `
                           + `finish late and start early the next morning. Reduce a day's headcount or add spare weeks.`
+                        // The one refusal whose remedy is a SHIFT TIME rather than a headcount
+                        // (v21.11). It fires only when no rearrangement can give somebody the
+                        // minimum rest, so it names the gap and the two times that produce it —
+                        // "make the rest work" is not advice a designer can act on, and the pair is.
+                        : built.reason === 'short-rest'
+                        ? `Can't generate — one turn would follow another with only `
+                          + `${hmFromHours((built.shortRest ?? 0) / 60)} rest, and the minimum is `
+                          + `${hmFromHours(MIN_REST_MINUTES / 60)}. No arrangement of these lines fixes it. `
+                          + `Move a late finish earlier or a following start later.`
                         // Reachable by TYPING a spare count the input's max doesn't stop (max only
                         // gates the spinner) with day totals that still fit. The generic message
                         // below sends the designer hunting through rows that are all fine.
