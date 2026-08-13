@@ -21,7 +21,7 @@ import assert from 'node:assert/strict';
 import {
     buildDefaultTargets, DEFAULT_COVER_WEEKS, DEFAULT_SHIFT_TIMES,
     OPENING_TURNS, CLOSING_TURNS, SATURDAY_CLOSING_TURNS, SATURDAY_TURNS, SUNDAY_TURNS,
-    TARGET_DAYS_PER_WEEK,
+    TARGET_DAYS_PER_WEEK, EVENING_TURNS_FROM_22,
 } from './links-default-targets.js';
 import {
     generateLink, weeklyHours, targetExSundayMinutes,
@@ -360,4 +360,89 @@ describe('the mechanics', () => {
         assert.equal(new Set(times).size, times.length,
             'duplicate time rows: ' + times.filter((t, i) => times.indexOf(t) !== i).join(', '));
     });
+});
+
+
+// ── THE POPULARITY LEVERS (v21.10) ──────────────────────────────────────────────────────────────
+//
+// Two owner instructions, and neither is checkable by looking at the table: both are properties of
+// the whole day, and both are the kind of thing a later retune undoes without noticing. The lates
+// were unpopular — booked around with leave, phoned sick, refused as overtime — so a late is now
+// deliberately SHORTER than an early, and the evening band is thinner.
+describe('a late turn is shorter than an early one', () => {
+    const LATE_FROM = 11 * 60;
+    const dur = (t) => endMinutesAbs(t) - startMinutes(t);
+
+    for (const cls of DAY_CLASSES) {
+        test(`${cls}: one short early, then every late, then every other early`, () => {
+            // A STRICT ORDERING, not an average. An average is satisfied by one very short late
+            // among six long ones, which is exactly the shape the instruction was aimed at — the
+            // member's experience is of the turn they are on, not of the mean.
+            const duties = dutiesOn(cls);
+            const lates   = duties.filter(t => startMinutes(t) >= LATE_FROM).map(dur);
+            const earlies = duties.filter(t => startMinutes(t) <  LATE_FROM).map(dur);
+            assert.ok(lates.length >= 3 && earlies.length >= 3, `${cls}: premise — both kinds exist`);
+
+            const lmin = Math.min(...lates), lmax = Math.max(...lates);
+            const shorter = earlies.filter(d => d < lmin);
+            const longer  = earlies.filter(d => d > lmax);
+
+            assert.equal(shorter.length, 1,
+                `${cls}: exactly ONE early is shorter than every late — "most (not all) early starts". ` +
+                `Got ${shorter.length}: ${shorter.join(', ')} against a shortest late of ${lmin}`);
+            assert.equal(longer.length, earlies.length - 1,
+                `${cls}: every OTHER early must be longer than every late (longest ${lmax}); ` +
+                `${earlies.length - 1 - longer.length} are not`);
+        });
+
+        test(`${cls}: the margin is slight, and it is real`, () => {
+            // "Slightly shorter" cuts both ways: a late that is two hours shorter is a different
+            // job, and one that is five minutes shorter across the whole set is not a lever. The
+            // bound is on the GAP between the longest late and the shortest long early — the two
+            // turns a member is actually choosing between.
+            const duties = dutiesOn(cls);
+            const lates   = duties.filter(t => startMinutes(t) >= LATE_FROM).map(dur);
+            const earlies = duties.filter(t => startMinutes(t) <  LATE_FROM).map(dur);
+            const lmax = Math.max(...lates);
+            const shortestLong = Math.min(...earlies.filter(d => d > lmax));
+            assert.ok(shortestLong - lmax >= 5 && shortestLong - lmax <= 60,
+                `${cls}: gap of ${shortestLong - lmax} min between the longest late and the shortest ` +
+                `long early — wanted 5 to 60`);
+            // And the whole set moves, not just the boundary pair.
+            const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
+            assert.ok(mean(earlies) - mean(lates) >= 30,
+                `${cls}: mean early ${mean(earlies)} vs mean late ${mean(lates)} — the set has to move, ` +
+                `not just the two turns either side of the boundary`);
+        });
+    }
+});
+
+describe('five on duty at 22:00, and the closers are not four of them by accident', () => {
+    for (const cls of DAY_CLASSES) {
+        test(`${cls}: exactly ${EVENING_TURNS_FROM_22} are still on at 22:00`, () => {
+            // The owner counted seven and asked for five. It is a SEPARATE figure from the closer
+            // count, and a retune that satisfies one by moving the other is the failure this pins:
+            // three close on a weekday and four on a Saturday, so five at 22:00 is two non-closers
+            // on a weekday and one on a Saturday.
+            const at22 = dutiesOn(cls).filter(t => startMinutes(t) <= 22 * 60 && endMinutesAbs(t) > 22 * 60);
+            assert.equal(at22.length, EVENING_TURNS_FROM_22,
+                `${cls}: ${at22.length} on at 22:00 — ${at22.join(', ')}`);
+
+            const close = windowMinutes(WINDOW_FOR[cls].end);
+            const closers = at22.filter(t => endMinutesAbs(t) === close).length;
+            const expected = cls === 'sat' ? SATURDAY_CLOSING_TURNS : CLOSING_TURNS;
+            assert.equal(closers, expected,
+                `${cls}: the closers must BE part of the five, not on top of them`);
+        });
+    }
+});
+
+test('no two duties in a day share a time — one row per turn', () => {
+    // A duplicate renders as one row with a count of two, which is legal and hands two people the
+    // same handover. It is also how a search collapses a day when nothing forbids it.
+    for (const cls of DAY_CLASSES) {
+        const duties = dutiesOn(cls);
+        assert.equal(new Set(duties).size, duties.length,
+            `${cls} repeats a time: ${duties.filter((t, i) => duties.indexOf(t) !== i).join(', ')}`);
+    }
 });
