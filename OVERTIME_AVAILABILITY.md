@@ -160,10 +160,19 @@ the nightly `autoCreateOvertimeWindows` (unattended, so an invitation takes effe
 remembering) and the `existed` branch of `createOvertimeWindow` (which is what the reviewer's
 **Add N** row action calls, for when you have just invited somebody and want to see it work).
 
-The reviewer can SEE the gap because `getOvertimeManagerOverview` returns `audienceCount` — what the
-current audience would select for that week — beside the frozen `expected`. Without it the week looks
-complete, because everyone *in* it has answered. It is `null` for a closed week, so the row cannot
-offer an addition the server would refuse.
+The reviewer can SEE the gap because `getOvertimeManagerOverview` returns `canAdd` — **how many people
+pressing "Add N" would actually add**. Without it the week looks complete, because everyone *in* it has
+answered. It is `null` for a closed or final-phase week, so the row cannot offer an addition the server
+would refuse.
+
+**One number, computed server-side, deliberately (v21.15).** It used to send `audienceCount` (the size
+of the current audience) and let the client subtract `expected` — and those count different
+populations, because `expected` is net of withdrawals while `addMissingParticipants` compares the
+audience against *every* participant document, withdrawn included. So one use of **Stop asking** gave
+that week a permanent "Add 1": pressing it added nobody, reported "Nobody new to add", re-rendered and
+offered it again, on every load until the week left `INITIAL_OPEN`. The withdrawal feature changed what
+`expected` meant without changing what it was being compared against. Arithmetic that decides whether
+to OFFER an action belongs beside the code that PERFORMS it.
 
 The frozen snapshot is also the security model: participation *is* the authorisation. A member who
 was not asked cannot submit, and there is no audience field to read at request time that could

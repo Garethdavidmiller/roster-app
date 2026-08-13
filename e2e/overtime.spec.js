@@ -1417,6 +1417,146 @@ test.describe('the beta PARTICIPANT — a form of her own, and nothing of anybod
     });
 });
 
+test.describe('the v21.15 review fixes, each pinned in a browser', () => {
+    test('choosing an option with the KEYBOARD keeps the keyboard on it', async ({ page }) => {
+        // Selecting a mode repaints all seven days, so the button that was activated stops
+        // existing and focus falls to `<body>`. A mouse never notices; a keyboard user is thrown to
+        // the top of the document on every one of the seven days, and has to Tab all the way back
+        // in each time. Choosing "Custom times" was worse still — the time inputs it had just
+        // revealed were unreachable without traversing the page again.
+        //
+        // The arrow-key path always restored focus. This is the same repaint and needed the same
+        // line. Measured before the fix: `document.activeElement` was BODY after Enter.
+        await page.setViewportSize({ width: 390, height: 844 });
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day').first().waitFor();
+
+        await page.locator('.ot-day').first().locator('.ot-mode').first().focus();
+        await page.keyboard.press('Enter');
+        const after = await page.evaluate(() => ({
+            tag: document.activeElement?.tagName,
+            checked: document.activeElement?.getAttribute?.('aria-checked'),
+        }));
+        expect(after.tag, 'focus after activating an option with the keyboard').toBe('BUTTON');
+        expect(after.checked, 'and it is the option that was just chosen').toBe('true');
+    });
+
+    test('and a MOUSE press does not now paint a focus ring that was never there', async ({ page }) => {
+        // The other half of that fix. Restoring focus programmatically must not turn every pointer
+        // tap into a visibly focused control — `:focus-visible` is modality-aware, and this asserts
+        // the app is relying on that rather than assuming it.
+        await page.setViewportSize({ width: 390, height: 844 });
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day').first().waitFor();
+
+        await page.locator('.ot-day').first().locator('.ot-mode').nth(1).click();
+        const ring = await page.evaluate(() => document.activeElement?.matches(':focus-visible'));
+        expect(ring, 'a keyboard focus ring after a pointer press').toBe(false);
+    });
+
+    test('switching week takes the previous week\'s ratio down with it', async ({ page }) => {
+        // The header chip is written ONLY by a successful week render, so switching weeks left the
+        // old `5/8` beside the new week's name — through the whole load, and permanently when that
+        // load failed. Two answers to one question, with nothing to say which half is stale.
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { weeks: [
+            { ...W, exists: true, state: 'created', canCreate: false, expected: 8, received: 5, canAdd: 0 },
+            { ...W, weekEnding: '2026-09-12', exists: true, state: 'created', canCreate: false,
+              expected: 4, received: 1, canAdd: 0 },
+        ] });
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-week-row')).toHaveCount(2);
+        // Stand in for a populated first render, then switch to a week whose read fails.
+        await page.evaluate(() => {
+            const c = document.getElementById('otWeekChip');
+            if (c) c.textContent = '5/8';
+            window.__E2E.failGetDocs = true;
+        });
+        await page.locator('[data-open="2026-09-12"]').click();
+        await expect(page.locator('#otWeekHint')).toHaveText(/12 September/);
+        await expect(page.locator('#otWeekChip'), 'a ratio belonging to a week nobody is looking at')
+            .toHaveText('');
+    });
+
+    test('a success message cannot close the question that replaced it', async ({ page }) => {
+        // A success flash hides itself after 2.5s and that timer used to be untracked. Every success
+        // is followed by a horizon reload, so the reviewer is back in a live list with seconds still
+        // on a clock nothing is watching — and the next thing they do is often press "Open now".
+        // The preview landed, the bar was shown with the question on it, and the old timer took it
+        // straight back down, leaving an ARMED create with nothing on screen. The reviewer sees a
+        // button that took a press and did nothing, which is the failure v20.73 exists to prevent.
+        await page.setViewportSize({ width: 390, height: 844 });
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { weeks: [
+            { ...W, exists: true, state: 'created', canCreate: false, expected: 8, received: 5, canAdd: 1 },
+            { ...W, weekEnding: '2026-09-12', exists: false, state: 'not-created', canCreate: true },
+        ] });
+        await page.route('**/createOvertimeWindow', async r => {
+            const body = JSON.parse(r.request().postData() || '{}');
+            if (!body.dryRun) {
+                return r.fulfill({ status: 200, contentType: 'application/json',
+                    body: JSON.stringify({ ok: true, existed: true, added: ['T. Bibi'], window: W }) });
+            }
+            // A realistic mobile round trip, long enough that the success timer is still live.
+            await new Promise(res => setTimeout(res, 1800));
+            return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+                ok: true, window: { ...W, weekEnding: '2026-09-12', expectedCount: 3 } }) });
+        });
+        await page.goto('/overtime.html');
+        await page.getByRole('button', { name: 'Add 1' }).click();
+        await expect(page.locator('#otConfirmText')).toContainText('T. Bibi');
+        await page.locator('[data-create="2026-09-12"]').click();
+        await expect(page.locator('#otConfirmText')).toContainText('Open the availability form');
+        // Past the 2.5s the old timer would have fired at.
+        await page.waitForTimeout(1400);
+        await expect(page.locator('#otConfirmBar'), 'the question the reviewer is being asked')
+            .toBeVisible();
+    });
+
+    test('the reviewer\'s tabs and row buttons meet the app\'s compact touch tier', async ({ page }) => {
+        // Measured against the app rather than asserted from taste: every page-specific control on
+        // admin is 36px on a coarse pointer (`.type-pill-btn`, `.btn-bulk-select`,
+        // `.btn-bulk-apply`) and settings' fields are 42px — while these were 31px, the shortest
+        // page-specific controls in the app. Same argument v20.77 used to raise `.ot-mode`; it
+        // simply did not reach these two.
+        //
+        // Skipped where the pointer is FINE: the rule is deliberately a touch decision, so a
+        // desktop project would pass here by not applying it at all — which is the shape of a guard
+        // that has quietly stopped guarding.
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, {
+            // Two open weeks, so the member side carries an "Open" row button, and a horizon so the
+            // reviewer side carries "View" and "Open now". Both surfaces exist, so the tabs show.
+            windows: [openWindow(), openWindow({ weekEnding: '2026-09-12', weekStart: '2026-09-06' })],
+            weeks: [
+                { ...W, exists: true, state: 'created', canCreate: false, expected: 2, received: 1, canAdd: 0 },
+                { ...W, weekEnding: '2026-09-12', exists: false, state: 'not-created', canCreate: true },
+            ],
+        });
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day').first().waitFor();
+        test.skip(!await page.evaluate(() => matchMedia('(pointer: coarse)').matches),
+            'the 36px floor is scoped to touch');
+
+        const measure = () => page.locator('.ot-tab, .ot-row-btn').evaluateAll(els => els
+            .filter(el => el.getBoundingClientRect().height > 0)
+            .map(el => ({ t: el.textContent.trim().slice(0, 20),
+                h: Math.round(el.getBoundingClientRect().height) }))
+            .filter(x => x.h < 36));
+        expect(await measure(), 'the member surface').toEqual([]);
+        await page.locator('#otTabAll').click();
+        // Scoped to the reviewer panel: the member panel's own week list is still in the document,
+        // just hidden, and `.first()` would wait for one of those for ever.
+        await page.locator('#otAllPanel .ot-week-row').first().waitFor();
+        expect(await measure(), 'the reviewer surface').toEqual([]);
+    });
+});
+
 test('the availability options meet the app\'s touch target', async ({ page }) => {
     // These are the most-tapped controls in the app — seven days, up to six options each, and
     // answering one week means hitting them seven times on a phone. They are a deliberate copy of
@@ -1454,7 +1594,7 @@ test.describe('an invitation that lands after the week was made', () => {
             loads += 1;
             const row = { ...W, exists: true, state: 'created', canCreate: false,
                 expected: loads === 1 ? 1 : 2, received: 1, noResponse: 0,
-                audienceCount: 2 };
+                canAdd: loads === 1 ? 1 : 0 };
             r.fulfill({ status: 200, contentType: 'application/json',
                 body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [row], retained: [] }) });
         });
@@ -1482,19 +1622,19 @@ test.describe('an invitation that lands after the week was made', () => {
     test('a week whose population already matches offers nothing', async ({ page }) => {
         await seedSession(page, 'H. Croft');
         await stubOvertime(page, { weeks: [{ ...W, exists: true, state: 'created', canCreate: false,
-            expected: 2, received: 2, noResponse: 0, audienceCount: 2 }] });
+            expected: 2, received: 2, noResponse: 0, canAdd: 0 }] });
         await page.goto('/overtime.html');
         await expect(page.locator('.ot-week-row')).toHaveCount(1);
         await expect(page.locator('[data-topup]'), 'nothing to add, so no control').toHaveCount(0);
     });
 
     test('a CLOSED week never offers it, however far the audience has moved', async ({ page }) => {
-        // The server sends `audienceCount: null` for a closed week precisely so this cannot be
+        // The server sends `canAdd: null` for a closed week precisely so this cannot be
         // offered: adding somebody who could never have answered would create a permanent false
         // non-responder. The client must not invent the control from the counts alone.
         await seedSession(page, 'H. Croft');
         await stubOvertime(page, { weeks: [{ ...W, exists: true, state: 'created-closed', canCreate: false,
-            expected: 1, received: 1, noResponse: 0, audienceCount: null }] });
+            expected: 1, received: 1, noResponse: 0, canAdd: null }] });
         await page.goto('/overtime.html');
         await expect(page.locator('.ot-week-row')).toHaveCount(1);
         await expect(page.locator('[data-topup]')).toHaveCount(0);

@@ -212,6 +212,19 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             answers[date] = buildAnswer(mode, ctx.byDate[date], answers[date]);
             paintDays();
             updateSubmitState();
+            // PUT THE KEYBOARD BACK ON THE OPTION THAT WAS JUST CHOSEN.
+            //
+            // `paintDays` replaces the whole seven-day list, so the button that was activated no
+            // longer exists and focus falls to `<body>`. A mouse never notices. A keyboard user
+            // answering with Enter or Space is thrown to the top of the document on EVERY day —
+            // seven times to fill one week, Tab-ing back in each time — and choosing "Custom times"
+            // is worse still, because the inputs it just revealed are then unreachable without
+            // traversing the page again.
+            //
+            // The arrow-key handler below has always restored focus; this path is the same
+            // re-render and needed the same line. Measured before the fix: `document.activeElement`
+            // was BODY after Enter, and a `.ot-mode` button after ArrowRight.
+            focusMode(date, mode);
         }));
         daysHost.querySelectorAll('[data-mode]').forEach(btn => btn.addEventListener('keydown', (/** @type {any} */ e) => {
             // Left/right (and up/down) move within the group and SELECT as they go, which is how a
@@ -227,8 +240,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             answers[date] = buildAnswer(String(next.getAttribute('data-mode')), ctx.byDate[date], answers[date]);
             paintDays();
             updateSubmitState();
-            /** @type {any} */ (daysHost.querySelector(
-                `[data-day="${CSS.escape(date)}"] [data-mode="${next.getAttribute('data-mode')}"]`))?.focus();
+            focusMode(date, String(next.getAttribute('data-mode')));
         }));
         daysHost.querySelectorAll('.ot-custom-input').forEach(inp => inp.addEventListener('change', () => {
             const date = String(inp.getAttribute('data-date'));
@@ -388,6 +400,16 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         if (!a.start || !a.end) return 'Enter both times';
         if (a.start === a.end)  return 'Start and end cannot match';
         return a.nextDay ? 'Runs into the next day — still this day\'s answer' : '';
+    }
+
+    /**
+     * Focus one day's option after a repaint. Both selection paths — pointer/keyboard activation
+     * and the arrow keys — replace the whole day list, so both have to put the keyboard back.
+     * @param {string} date @param {string} mode
+     */
+    function focusMode(date, mode) {
+        /** @type {HTMLElement|null} */ (daysHost?.querySelector(
+            `[data-day="${CSS.escape(date)}"] [data-mode="${CSS.escape(mode)}"]`))?.focus();
     }
 
     /** @param {string} date */

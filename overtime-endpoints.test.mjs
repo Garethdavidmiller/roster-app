@@ -1413,26 +1413,26 @@ describe('a member invited into the beta AFTER a window was created', () => {
     test('the overview tells the reviewer the audience has outgrown the week', async () => {
         // What makes the gap visible at all. Without it a reviewer has no way to know an invitation
         // has not landed — the week looks complete ("1 of 1 received") because everyone IN it has
-        // answered. `audienceCount` against `expected` is the difference.
+        // answered. `canAdd` is the difference, and it is the SERVER that works it out.
         freeze(M.initialDeadlineAt - 86400000);
         const { eps } = buildWider(seededWindow());
         const r = await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager'));
         unfreeze();
         const row = r.body.planningWeeks.find((w) => w.weekEnding === WEEK);
         assert.equal(row.expected, 1, 'the frozen population');
-        assert.equal(row.audienceCount, 2, 'what the audience would select today');
+        assert.equal(row.canAdd, 1, 'the one person the top-up would actually add');
     });
 
-    test('a CLOSED week reports no audienceCount, because it can no longer grow', async () => {
+    test('a CLOSED week reports no canAdd, because it can no longer grow', async () => {
         freeze(M.finalDeadlineAt + 60000);
         const { eps } = buildWider(seededWindow());
         const r = await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager'));
         unfreeze();
         const row = r.body.planningWeeks.find((w) => w.weekEnding === WEEK);
-        assert.equal(row.audienceCount, null, 'offering "Add 1" on a closed week would be a lie');
+        assert.equal(row.canAdd, null, 'offering "Add 1" on a closed week would be a lie');
     });
 
-    test('a FINAL_OPEN week reports no audienceCount either — the top-up would refuse it', async () => {
+    test('a FINAL_OPEN week reports no canAdd either — the top-up would refuse it', async () => {
         // The v20.85 regression, and the reason this case is not merely "closed, but earlier".
         // v20.81 narrowed `addMissingParticipants` to INITIAL_OPEN; the overview kept asking
         // `isOpenPhase`, which is true here too. So the reviewer was offered "Add 1", the endpoint
@@ -1445,10 +1445,52 @@ describe('a member invited into the beta AFTER a window was created', () => {
         const { eps } = buildWider(seededWindow());
         const r = await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager'));
         const row = r.body.planningWeeks.find((w) => w.weekEnding === WEEK);
-        assert.equal(row.audienceCount, null,
+        assert.equal(row.canAdd, null,
             'the offer must be gated on the phase the top-up actually acts on');
         assert.equal(row.expected, 1, 'the frozen population is unchanged — only the OFFER is withheld');
         unfreeze();
+    });
+
+    test('a WITHDRAWN participant does not become somebody to "Add" (v21.15)', async () => {
+        // THE OFFER AND THE ACTION HAVE TO COUNT THE SAME POPULATION.
+        //
+        // The horizon row used to send `audienceCount` (the size of the current audience) and let
+        // the client subtract `expected`. Those count different things: `expected` is net of
+        // withdrawals, while `addMissingParticipants` compares the audience against EVERY
+        // participant document — a withdrawn member already has one, and re-adding them is the one
+        // thing withdrawal exists to prevent.
+        //
+        // So one press of "Stop asking" gave the row a permanent "Add 1". Pressing it added nobody,
+        // reported "Nobody new to add", re-rendered, and offered "Add 1" again — on every load, for
+        // as long as the week stayed in INITIAL_OPEN. Verified in a browser before the fix.
+        //
+        // Both members are in the audience here and both hold a participant document, so there is
+        // genuinely nobody to add; the only question is whether withdrawing one invents somebody.
+        freeze(M.initialDeadlineAt - 86400000);
+        const { eps } = buildWider(seededWindow({
+            [`overtimeWindows/${WEEK}/participants/S. Silva`]: {
+                memberName: 'S. Silva', grade: 'CEA', rosterOrder: 3, uid: null,
+                withdrawn: true, withdrawnBy: 'G. Miller',
+            },
+        }));
+        const r = await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager'));
+        unfreeze();
+        const row = r.body.planningWeeks.find((w) => w.weekEnding === WEEK);
+        assert.equal(row.expected, 1, 'the withdrawn member is out of the counts, as designed');
+        assert.equal(row.canAdd, 0, 'and is NOT reported as somebody the top-up would add');
+    });
+
+    test('the raw population never goes over the wire, so nobody can re-derive the bad sum', async () => {
+        // `participantCount` exists only so the server can compare like with like. Shipping it
+        // would put the raw figure back within reach of a client doing exactly the subtraction
+        // that produced the phantom button — which is how this defect happened the first time.
+        freeze(M.initialDeadlineAt - 86400000);
+        const { eps } = buildWider(seededWindow());
+        const r = await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager'));
+        unfreeze();
+        const row = r.body.planningWeeks.find((w) => w.weekEnding === WEEK);
+        assert.ok(!('participantCount' in row), 'the raw participant count is server-side only');
+        assert.ok(!('audienceCount' in row), 'and the number it replaced is gone, not merely unused');
     });
 
     test('and the top-up genuinely refuses that week, which is what the null stands for', async () => {

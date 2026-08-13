@@ -463,9 +463,17 @@ now scans every `input`/`select`/`textarea` on all seven pages on **mobile-chrom
 pointer), with every collapsible forced open, and asserts the COMPUTED size. Checkboxes, radios and
 file inputs are excluded — none opens a keyboard, so none can trigger the zoom.
 
-**When you scope a size to `pointer: coarse`, put the override AFTER the base rule** (or raise its
-specificity) and let the test confirm it, rather than trusting the cascade to have gone the way it
-reads.
+**When you scope a size to a pointer — `coarse` OR `fine` — put the override AFTER the base rule**
+(or raise its specificity) and let the test confirm it, rather than trusting the cascade to have gone
+the way it reads.
+
+**Either direction, and it happens to people who have read this** (v21.15). A desktop density rule was
+added to `.ot-mode` beside the `.ot-day` grid it belongs with by subject — ~220 lines above the base
+rule, so it declared `padding: 5px 8px` and changed nothing. Caught only by measuring the COMPUTED
+padding; the file reads correctly. The repair then made the second half of the same mistake: moving the
+block left its closing brace behind, so the whole rest of the stylesheet — the print rules included —
+was swallowed into a media query that does not match on a phone. **Both were found by tests, neither by
+reading**, which is the argument for measuring rather than the argument for being careful.
 
 ## A page may only use classes its own stylesheets define (v20.09)
 
