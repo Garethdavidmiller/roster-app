@@ -165,6 +165,132 @@ const OWNED_COUNTS = [
 const LIVE_DOCS = ['./CLAUDE.md', './AI_MAP.md', './ROADMAP.md', './KNOWN_LIMITATIONS.md',
     './OPERATIONS_REFERENCE.md', './.claude/rules/links-design.md', './.claude/rules/css-tokens.md'];
 
+// ── CONTRACT 1b: no live doc NAMES a symbol the code does not have ─────────────────────────────
+//
+// The v21.17 documentation review found six defects and every one was the same shape: a name or a
+// count, restated in prose, describing something that had since moved. Two were identifiers:
+//
+//   `hadController`   — named in BOTH AI_MAP.md and CLAUDE.md as the service worker's first-install
+//                       guard. The real variable is `suppressNextClaim`, and the code comment beside
+//                       it explains that keying on the controller alone (which is what the docs
+//                       described) was WRONG and fixed at v16.88. So two docs agreed with each other
+//                       and disagreed with the code, for thirty releases.
+//   `_csReturnFocus`  — AI_MAP described the coming-soon lightbox capturing `document.activeElement`
+//                       and restoring it on close. No such function has ever existed; focus actually
+//                       returns to the burger.
+//
+// Neither is catchable by reading, because both sentences are plausible and internally consistent.
+// Both are catchable in two seconds by asking whether the string appears in the source at all.
+//
+// ── IT JUDGES THE SENTENCE, NOT THE NAME ───────────────────────────────────────────────────────
+//
+// A doc must be able to say "`links-legal.js` until v19.91", "do not add back `initFromRosters`",
+// "no `refreshNavIdentity` needed". Those are the docs doing their job. So a name is only a problem
+// when the line makes no claim about it being gone — which is judged by the line, and needs no
+// exemption list. That distinction is what keeps this guard from acquiring one, and an exemption
+// list is how a guard stops guarding (see the note on OWNED_COUNTS below).
+
+/** A line that marks a name as historical, absent or unwanted may name it freely. */
+const HISTORICAL = new RegExp([
+    'never existed', 'no longer', 'used to', 'was named', 'renamed', 'until v', 'pre-v', 'before v',
+    'removed', 'retired', 'dropped', 'deleted', 'do not add back', "don't add back", 'not needed',
+    'is not', 'former', 'old ', 'replaced', 'superseded', 'instead of', 'rather than', 'gone',
+    'this described', 'has never', 'survived', 'stale', 'no such',
+    // "no `X` needed" / "no `X` required" — naming a thing precisely to say it is absent.
+    'no `[^`]+` (?:needed|required)',
+].join('|'), 'i');
+
+/**
+ * Words that look like identifiers and belong to somebody else's vocabulary — a Firebase SDK call,
+ * an npm term, a hosting-platform filename.
+ *
+ * NOT an exemption list, and the difference decides whether this guard survives. An exemption list
+ * holds OUR names that the guard would rightly flag, and it grows every time somebody would rather
+ * silence the test than fix the doc — which is how a guard stops guarding (see OWNED_COUNTS). This
+ * holds names that were never ours to have, so it grows only when the docs start discussing a new
+ * third party. If you find yourself adding one of our own symbols here, the doc is wrong.
+ */
+const EXTERNAL_VOCAB = new Set([
+    'getBlob',        // a Firebase Storage SDK call, discussed as an option we did not take
+    'devDependency',  // npm
+    '_headers',       // the Netlify/Cloudflare convention, named when comparing hosting platforms
+]);
+
+test('no live doc names a symbol the source does not contain', () => {
+    // Every file a doc could legitimately be naming something from.
+    const here = new URL('.', import.meta.url);
+    const dirs = [['.', /\.(?:js|mjs|css|html|json|rules)$/], ['functions', /\.js$/],
+        ['e2e', /\.js$/], ['scripts', /\.mjs$/]];
+    let corpus = '';
+    for (const [dir, re] of dirs) {
+        let names = [];
+        try { names = readdirSync(new URL(dir, here)); } catch { continue; }
+        for (const n of names.filter(f => re.test(f))) {
+            // THIS FILE IS NOT PART OF THE CORPUS, and leaving it in defeated the guard entirely on
+            // the first run. The comment above quotes `hadController` and `_csReturnFocus` as the
+            // defects that motivated the check — so the moment it was written, both strings existed
+            // in the source it searches, and neither could ever be flagged again. Verified by
+            // mutation: restoring both original sentences produced zero failures until this line.
+            // Any file whose job is to QUOTE names rather than use them belongs out here.
+            if (n === 'doc-parity.test.mjs') continue;
+            try { corpus += read(`./${dir === '.' ? '' : dir + '/'}${n}`) + '\n'; } catch { /* unreadable */ }
+        }
+    }
+
+    // camelCase or _private, 5+ chars — long enough to be a real identifier rather than a word.
+    const IDENT = /`(_?[a-z][A-Za-z0-9_]{4,})`/g;
+    const problems = [];
+    for (const doc of LIVE_DOCS) {
+        let text;
+        try { text = read(doc); } catch { continue; }
+        const lines = text.split('\n');
+        lines.forEach((line, i) => {
+            // The PREVIOUS line counts too. Markdown prose wraps, so "the names ... / survived" puts
+            // the marker one line above the identifier — which flagged a correct historical note in
+            // links-design.md on the first run.
+            const context = `${lines[i - 1] || ''} ${line}`;
+            if (HISTORICAL.test(context)) return;
+            for (const m of line.matchAll(IDENT)) {
+                if (EXTERNAL_VOCAB.has(m[1]) || corpus.includes(m[1])) continue;
+                problems.push(`${doc}: \`${m[1]}\` is named as current and appears nowhere in the source`);
+            }
+        });
+    }
+    assert.deepEqual(problems, [],
+        'a name restated in prose reads perfectly while describing something that moved:\n  '
+        + problems.join('\n  '));
+});
+
+test('the symbol guard would catch the two defects that motivated it — guard the guard', () => {
+    // Without this the test above passes forever if IDENT or HISTORICAL breaks. The fixtures are
+    // the real sentences, verbatim from the docs as they stood before v21.17.
+    const IDENT = /`(_?[a-z][A-Za-z0-9_]{4,})`/g;
+    const shouldFlag = [
+        '- **First-install guard (v16.09):** `hadController` is captured before registering; the controllerchange fired by the first install is swallowed.',
+        '- **Coming-soon lightbox (v10.69):** `_csReturnFocus` captures `document.activeElement` before opening.',
+    ];
+    const shouldPass = [
+        '| `links-limits.js` | the HARD limits (v19.80; named `links-legal.js` until v19.91) |',
+        '**Do not add back** `buildDefaultDesign` — that path was removed at v12.43.',
+        'deferred past sign-in so it renders once — no `refreshNavIdentity` needed.',
+        'This is also why `minInstances` (a standing cost) is not needed.',
+    ];
+    for (const line of shouldFlag) {
+        assert.ok(!HISTORICAL.test(line), `a live claim must not read as historical: ${line.slice(0, 60)}`);
+        assert.ok([...line.matchAll(IDENT)].length > 0, `the identifier pattern must match: ${line.slice(0, 60)}`);
+    }
+    for (const line of shouldPass) {
+        assert.ok(HISTORICAL.test(line), `a historical mention must be allowed: ${line.slice(0, 70)}`);
+    }
+    // And the vocabulary list stays what it says it is. A name that IS in our source has no business
+    // here — it would mean somebody silenced the guard rather than fixing the doc.
+    const ours = read('./firebase-client.js') + read('./roster-data.js') + read('./session.js');
+    for (const w of EXTERNAL_VOCAB) {
+        assert.ok(!new RegExp(`\\b${w}\\b`).test(ours),
+            `${w} is one of ours — EXTERNAL_VOCAB is for other people's vocabulary, not an exemption list`);
+    }
+});
+
 test('no live doc restates a count that a constant owns', () => {
     const problems = [];
     for (const [name, home, re] of OWNED_COUNTS) {
