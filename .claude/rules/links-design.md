@@ -844,6 +844,19 @@ Design-checks ROW keeps its half-hour of slack and its never-red rule — a desi
 work in progress, and the row describes a design rather than gating one. The GENERATOR is exact,
 because it is deciding whether to create something.
 
+**Per-line totals, and the two divisors (v21.09).** The grid carries three read-only columns to the
+right of Saturday — hours Mon–Sat, hours across all seven days, and days worked Mon–Sat — with the
+rotation averages in the footer beneath them. Two things about them are load-bearing. The HOURS
+averages are read from `weeklyHours`, the same call the Design-checks row and the summary strip
+already make, so the page cannot state a design's hours two ways four seconds apart. The DAYS
+average has a **different divisor** — the working lines, not the whole rotation — because a cover
+week does not record which days it works; counting it as zero would report a 4.2-day rotation as
+3.5, and it is also how the owner's 4.2 was derived in `links-default-targets.js`, so the measured
+figure is directly comparable with the target that produced it. Both divisors are printed on screen
+for exactly that reason. A cover week's HOURS show as the contracted week (the v20.98 position) but
+muted and italic, because that is a convention rather than a reading of the row; its days are a
+dash — unknown, not none. Rules in `lineTotals`; pinned by `links-design.test.mjs`.
+
 **The generator card's own "Hours a week" row belongs on the exact side of that line, and did not
 until v21.07.** It had inherited the Design-checks tolerance, which is the right rule for the wrong
 row: this one is not describing a design, it is PREDICTING the gate, sitting directly above the

@@ -517,6 +517,81 @@ export function weeklyHours(patterns, rotatingLines = ROTATING_LINES) {
 }
 
 /**
+ * PER-LINE totals for the grid's right-hand columns, and the average days worked (v21.09).
+ *
+ * The grid showed seven cells and a per-DAY cover footer; nothing anywhere said what a single line
+ * comes to. That is the first question anybody asks of a rotation they are about to be put on —
+ * "what does week 11 actually work?" — and answering it meant reading seven cells and doing the
+ * arithmetic by hand, for every line, every time a cell changed.
+ *
+ * ── THE TWO DIVISORS ARE DIFFERENT, AND THAT IS NOT A MISTAKE ───────────────────────────────────
+ *
+ * Hours average over the WHOLE rotation, cover weeks included at the contracted week (`weeklyHours`
+ * — this function deliberately does NOT recompute it; the grid footer reads the same figure the
+ * Design-checks row and the summary strip already show, so the page cannot state a design's hours
+ * two ways).
+ *
+ * Days worked average over the WORKING lines only, because a cover week does not record WHICH days
+ * it works. Counting it as zero days would report a rotation of 4.2 days a week as 3.5, and
+ * inventing days for it would be worse. This also matches how the owner's 4.2 was derived in the
+ * first place — `(5 x weekday + sat) / working` in `links-default-targets.js` — so the design's
+ * measured figure is directly comparable with the target that produced it. Both divisors are named
+ * on screen for exactly this reason.
+ *
+ * ── WHAT A LINE'S OWN CELLS CAN AND CANNOT SAY ──────────────────────────────────────────────────
+ *
+ * A COVER week is shown as the contracted week rather than zero — the app's settled position since
+ * v20.98 — but marked `assumed` so the renderer can say it is a convention rather than a reading.
+ * Its days are `null`: unknown, not none. An UNREADABLE duty contributes nothing and is counted, so
+ * a line reading low can say why instead of looking like a light week.
+ *
+ * @param {Record<string, any>} patterns
+ * @param {number} [rotatingLines]
+ * @returns {{rows: Array<{pos: number, exSundayMinutes: number, allMinutes: number,
+ *            days: number|null, assumed: boolean, unreadable: number, unfilled: boolean}>,
+ *            daysAverage: number|null, daysLines: number}}
+ */
+export function lineTotals(patterns, rotatingLines = ROTATING_LINES) {
+    const rows = [];
+    let daysTotal = 0, daysLines = 0;
+    const contractedMin = CONTRACTED_HOURS_PER_WEEK * 60;
+
+    for (let w = 1; w <= rotatingLines; w++) {
+        const row = /** @type {Record<string, any>} */ (patterns)?.[String(w)] || {};
+        let exSundayMinutes = 0, allMinutes = 0, days = 0, unreadable = 0;
+        let timed = false, hasWork = false;
+        for (const d of DAYS) {
+            const shift = row[d];
+            if (!shift || shift === 'RD' || shift === 'OFF' || shift === 'SPARE') continue;
+            hasWork = true;
+            const m = dutyMinutes(shift);
+            if (m === null) { unreadable++; continue; }
+            timed = true;
+            allMinutes += m;
+            // Sunday is not contracted, so it is outside the Mon–Sat figure AND outside the days
+            // count — the same exclusion the hours row has always made, applied to both columns.
+            if (d !== 'sun') { exSundayMinutes += m; days++; }
+        }
+        const assumed = DAYS.every(d => row[d] === 'SPARE');
+        if (assumed) {
+            rows.push({ pos: w, exSundayMinutes: contractedMin, allMinutes: contractedMin,
+                days: null, assumed: true, unreadable: 0, unfilled: false });
+            continue;
+        }
+        if (timed) { daysTotal += days; daysLines++; }
+        rows.push({ pos: w, exSundayMinutes, allMinutes, days,
+            assumed: false, unreadable, unfilled: !hasWork });
+    }
+
+    return {
+        rows,
+        // null, never 0 — "0 days a week" about a design nobody has filled in reads as a finding.
+        daysAverage: daysLines ? Math.round((daysTotal / daysLines) * 100) / 100 : null,
+        daysLines,
+    };
+}
+
+/**
  * Count early/late/spare/night/rd per day across all positions.
  * @param {Object} patterns - { "1".."N": { sun..sat } }
  * @param {number} totalPos

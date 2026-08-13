@@ -37,6 +37,8 @@ import {
     CONTRACTED_HOURS_PER_WEEK,
     hmFromHours,
     targetExSundayMinutes,
+    lineTotals,
+    weeklyHours,
 } from './links-design.js';
 import { initLinksAnalysis } from './links-analysis.js';
 import { LEGACY_DOC_ID, deepCopyPatterns, designFromDoc, binEntryFromDoc, docPayload, workingCopy, binEntryFrom, restoredEntryFrom, lastSavedLabel } from './links-design-doc.js';
@@ -1374,6 +1376,7 @@ export function init() {
         if (wrapper) wrapper.style.display = '';
         document.body.classList.toggle('links-compare-on', compare.isCompareMode());
 
+        const totals = lineTotals(design.patterns, TOTAL_POS);
         const rows = [];
         for (let pos = 1; pos <= TOTAL_POS; pos++) {
             const posStr  = String(pos);
@@ -1395,6 +1398,7 @@ export function init() {
                 `<tr class="${rowClass}" data-pos="${posStr}">` +
                 `<td class="pos-num">${posStr}</td>` +
                 dayCells +
+                _totalCells(totals.rows[pos - 1]) +
                 `</tr>`
             );
         }
@@ -1402,7 +1406,7 @@ export function init() {
         _renderOverLengthNotice();
 
         const cov = calcCoverage(design.patterns);
-        renderFooter(cov);
+        renderFooter(cov, totals);
         renderCoverageCard();
     }
 
@@ -1454,13 +1458,63 @@ export function init() {
         if (tr) tr.classList.toggle('row-unfilled', isUnfilledPattern(pats[pos]));
 
         const cov = calcCoverage(design.patterns);
-        renderFooter(cov);
+        // Only the EDITED row's totals are rewritten, never the whole tbody: a full re-render here
+        // would tear out the cell the designer is working in — this runs from the paint brush as
+        // well as from a committed dropdown, and the brush leaves the pointer over the cell.
+        const totals = lineTotals(design.patterns, TOTAL_POS);
+        if (tr) {
+            tr.querySelectorAll('.tot-cell').forEach(el => el.remove());
+            tr.insertAdjacentHTML('beforeend', _totalCells(totals.rows[Number(pos) - 1]));
+        }
+        renderFooter(cov, totals);
         renderCoverageCard();
         renderDesignChecks();
     }
 
     /** @param {any} cov */
-    function renderFooter(cov) {
+    /**
+     * The three right-hand cells for ONE line (v21.09).
+     *
+     * A COVER week shows the contracted week rather than a zero — the app's settled position since
+     * v20.98, that a spare week is somebody's paid week carrying no stored times — but muted and
+     * titled, because it is a convention rather than a reading of the row. Its DAYS are a dash:
+     * unknown, not none, since the design does not record which days a cover week works.
+     *
+     * An unfilled line is a dash in all three. Twenty-four rows of "0h 00m" is noise, and the row
+     * already carries `row-unfilled`; a dash says the same thing without competing with the figures
+     * on the lines that have been designed.
+     *
+     * @param {{exSundayMinutes: number, allMinutes: number, days: number|null, assumed: boolean,
+     *          unreadable: number, unfilled: boolean}|undefined} t
+     */
+    function _totalCells(t) {
+        const cell = (/** @type {string} */ text, /** @type {string} */ extra = '', /** @type {string} */ title = '') =>
+            `<td class="tot-cell${extra}"${title ? ` title="${escapeHtml(title)}"` : ''}>${escapeHtml(text)}</td>`;
+        if (!t || t.unfilled) return cell('—') + cell('—') + cell('—');
+        if (t.assumed) {
+            const h = hmFromHours(t.exSundayMinutes / 60);
+            const why = 'Cover week — counted as the contracted week; it carries no stored times';
+            return cell(h, ' tot-assumed', why) + cell(h, ' tot-assumed', why)
+                + cell('—', ' tot-assumed', 'A cover week does not record which days it works');
+        }
+        const flag = t.unreadable ? ' tot-uncertain' : '';
+        // A line with no Sunday duty has the same figure in both hour columns, and repeated over
+        // twenty rows that identical pair is what the eye has to read past to find the lines that
+        // DO work a Sunday. Muting the repeat leaves those standing out on their own.
+        const same = !t.unreadable && t.allMinutes === t.exSundayMinutes ? ' tot-same' : '';
+        const why  = t.unreadable
+            ? `${t.unreadable} duty${t.unreadable === 1 ? '' : ' times'} on this line could not be read, so these totals are a floor`
+            : '';
+        return cell(hmFromHours(t.exSundayMinutes / 60), flag, why)
+            + cell(hmFromHours(t.allMinutes / 60), flag + same, same ? 'No Sunday duty on this line' : why)
+            + cell(String(t.days ?? '—'), flag, why);
+    }
+
+    /**
+     * @param {any} cov
+     * @param {any} [totals]  from lineTotals — the per-line rows this footer averages
+     */
+    function renderFooter(cov, totals) {
         const tfoot = document.getElementById('linksCoverageFoot');
         if (!tfoot || !design || !cov) return;
         const cells = DAYS.map(d => {
@@ -1474,7 +1528,24 @@ export function init() {
                 (spare ? ` <span class="cov-label-s">SP:${spare}</span>` : '') +
                 `</td>`;
         }).join('');
-        tfoot.innerHTML = `<tr><td class="col-pos cov-foot-label">Cover</td>${cells}</tr>`;
+        // THE HOURS AVERAGES ARE NOT RECOMPUTED HERE. They come from `weeklyHours`, the same call
+        // the Design-checks row and the summary strip read, so the page cannot state a design's
+        // hours two ways four seconds apart. Only the DAYS average is this feature's own, and it
+        // uses a different divisor — working lines, not the whole rotation — because a cover week
+        // does not record which days it works. Both divisors are printed for that reason.
+        const wh  = weeklyHours(design.patterns, TOTAL_POS);
+        const avg = (/** @type {number|null} */ v, /** @type {string} */ text, /** @type {string} */ note) =>
+            `<td class="tot-cell tot-avg">` +
+            (v === null ? `<span class="tot-avg-num">—</span>`
+                : `<span class="tot-avg-num">${escapeHtml(text)}</span>`) +
+            `<span class="tot-avg-note">${escapeHtml(note)}</span></td>`;
+        const lineWord = (/** @type {number} */ n, /** @type {string} */ w) => `over ${n} ${w}${n === 1 ? '' : 's'}`;
+        const avgCells = totals
+            ? avg(wh.exSunday, wh.exSunday === null ? '' : hmFromHours(wh.exSunday), lineWord(TOTAL_POS, 'line'))
+            + avg(wh.all, wh.all === null ? '' : hmFromHours(wh.all), lineWord(TOTAL_POS, 'line'))
+            + avg(totals.daysAverage, String(totals.daysAverage ?? ''), lineWord(totals.daysLines, 'working line'))
+            : '';
+        tfoot.innerHTML = `<tr><td class="col-pos cov-foot-label">Cover</td>${cells}${avgCells}</tr>`;
     }
 
     // ============================================
@@ -2103,7 +2174,11 @@ export function init() {
                 // The table itself stays exactly as it is — deleting the SET does not take the shift
                 // times off the screen. It is no longer FROM a set, though, so the row must stop
                 // claiming it is, or the hint would name a set that no longer exists.
-                if (genFromSetId === set.id) { genFromSetId = ''; genFromSetName = ''; }
+                // Through saveGenTargets, not by clearing the two variables: the set name is also in
+                // this device's stored stamp, so clearing only the in-memory pair left the memory
+                // note naming a deleted set after the next reload. The table is unchanged; it has
+                // simply stopped being FROM a set, which is exactly what an ordinary edit records.
+                if (genFromSetId === set.id) saveGenTargets();
                 await loadTargetSets();
             } catch {
                 if (_setHint) _setHint.textContent = `Couldn't delete “${set.name}” — check you're signed in and try again.`;
@@ -2909,6 +2984,8 @@ export function init() {
                         { icon: '🔄', html: `All ${TOTAL_POS} lines rotate — everyone passes through every line over the cycle, so <strong>all ${TOTAL_POS} must be filled</strong> with a real pattern before the link can be authorised.` },
                         { icon: '🖌️', html: '<strong>Paint mode</strong> — arm a shift in the Paint bar above the grid, then click cells to fill them. Click the same chip again (or press Escape) to stop painting.' },
                         { icon: '✏️', html: '<strong>Single-cell edit</strong> — with no brush armed, tap any cell to pick a shift from the dropdown, or choose <strong>Custom time…</strong> to type a new one.' },
+                        { icon: '🧮', html: 'The three columns on the right are the <strong>totals for that line</strong> — hours Mon–Sat, hours across all seven days, and how many days are worked Mon–Sat. They update as you edit.' },
+                        { icon: '📐', html: 'The bottom row averages them. Hours are averaged over every line, with a <strong>spare week counted as a full contracted week</strong>. Days are averaged over the <strong>working lines only</strong>, because a spare week does not say which days it works — each figure names its own divisor.' },
                         { icon: '💾', html: 'Tap <strong>Save changes</strong> when done.' },
                     ]},
                     { heading: 'Multiple designs', items: [

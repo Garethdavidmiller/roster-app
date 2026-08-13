@@ -212,6 +212,18 @@
                                 <th>Thu</th>
                                 <th>Fri</th>
                                 <th>Sat</th>
+                                <!-- WHAT ONE LINE COMES TO (v21.09). The grid showed seven cells and
+                                     a per-DAY cover footer, and nothing anywhere said what a single
+                                     week works — the first question anybody asks of a rotation they
+                                     are about to be put on. The two hour columns keep the app's own
+                                     Sunday distinction (not contracted, so it sits outside the
+                                     Mon–Sat figure); the days column is the measured counterpart of
+                                     the 4.2-day target the generator is built against. Their footer
+                                     cells carry the rotation averages, under the columns they
+                                     average, and each states its divisor because the two differ. -->
+                                <th class="col-total">Mon–Sat<span class="col-total-sub">hours</span></th>
+                                <th class="col-total">All week<span class="col-total-sub">hours</span></th>
+                                <th class="col-total">Days worked<span class="col-total-sub">Mon–Sat</span></th>
                             </tr>
                         </thead>
                         <tbody id="linksGridBodyRows"></tbody>
