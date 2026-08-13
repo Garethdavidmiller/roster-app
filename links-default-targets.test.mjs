@@ -437,12 +437,85 @@ describe('five on duty at 22:00, and the closers are not four of them by acciden
     }
 });
 
-test('no two duties in a day share a time — one row per turn', () => {
-    // A duplicate renders as one row with a count of two, which is legal and hands two people the
-    // same handover. It is also how a search collapses a day when nothing forbids it.
-    for (const cls of DAY_CLASSES) {
-        const duties = dutiesOn(cls);
-        assert.equal(new Set(duties).size, duties.length,
-            `${cls} repeats a time: ${duties.filter((t, i) => duties.indexOf(t) !== i).join(', ')}`);
-    }
+describe('the table is short enough to hold in your head (v21.12)', () => {
+    // The owner's ask was readability: "reduce the number of shift start/finish times so that it is
+    // easier to understand, whilst keeping the rest of the principles" — then, asked whether the
+    // weekend had to match, "weekend shift times can be different to weekday. It is just about
+    // reducing the number of times in each type."
+    //
+    // Every other test in this file pins a rule the table must OBEY. These pin what it must not
+    // silently give back: a later retune optimising cover alone will drift straight back to a time
+    // per duty, because nothing about the demand curve prefers a shared one. The v21.10 table had
+    // 33 rows and 21 distinct weekday times, and read as a wall.
+
+    test('at most TWO people on any one turn in a day', () => {
+        // The replacement for v21.10's "no two duties share a time", which was too strong: a count
+        // of two is one row saying "two people do this", which is how the table got shorter. Four
+        // on one time is the thing that rule was really about — a block of people with the same
+        // handover, which is the opener/closer cliff again in the middle of the day.
+        for (const cls of DAY_CLASSES) {
+            const duties = dutiesOn(cls);
+            const counts = new Map();
+            for (const t of duties) counts.set(t, (counts.get(t) ?? 0) + 1);
+            const over = [...counts].filter(([, n]) => n > 2);
+            assert.deepEqual(over, [],
+                `${cls} puts more than two people on one turn: ${over.map(([t, n]) => `${t} x${n}`).join(', ')}`);
+        }
+    });
+
+    test('no day asks a reader to hold more clock times than it does today', () => {
+        // Ceilings, not equalities — a retune that finds a SHORTER table is an improvement and must
+        // not fail here. Set to what the table achieves, so the only way to trip this is to give
+        // readability back. Starts and finishes are counted separately because they are two
+        // different columns of the thing a reader scans.
+        const CEILING = {
+            weekday: { starts: 8, finishes: 9 },
+            sat:     { starts: 9, finishes: 9 },
+            sun:     { starts: 6, finishes: 7 },
+        };
+        for (const cls of DAY_CLASSES) {
+            const duties = dutiesOn(cls);
+            const starts = new Set(duties.map(startMinutes)).size;
+            const finishes = new Set(duties.map(endMinutesAbs)).size;
+            assert.ok(starts <= CEILING[cls].starts,
+                `${cls} now states ${starts} distinct start times, up from ${CEILING[cls].starts}`);
+            assert.ok(finishes <= CEILING[cls].finishes,
+                `${cls} now states ${finishes} distinct finish times, up from ${CEILING[cls].finishes}`);
+        }
+    });
+
+    test('Saturday IS the weekday, with one late turned into a fourth closer', () => {
+        // The single most useful sentence anyone can carry away from this table, and the one the
+        // row-sharing bought. It is also the events lean in structural form: Saturday spends a late
+        // turn on a body that stays to the close-down.
+        //
+        // Asserted as "exactly two rows differ, and the difference is one duty moved from a
+        // non-closer to a closer" rather than by naming the two times — naming them would pass on a
+        // table where five other rows had also diverged, as long as those two still read right.
+        const close = windowMinutes(WINDOW_FOR.sat.end);
+        const differing = slots.filter(s => s.weekday !== s.sat);
+        assert.equal(differing.length, 2,
+            `Mon–Fri and Saturday differ in ${differing.length} rows: `
+            + differing.map(s => `${s.time} (${s.weekday} vs ${s.sat})`).join(', '));
+
+        const lost = differing.filter(s => s.sat < s.weekday);
+        const gained = differing.filter(s => s.sat > s.weekday);
+        assert.equal(lost.length, 1, 'Saturday should give up exactly one weekday turn');
+        assert.equal(gained.length, 1, 'and take exactly one of its own');
+        assert.equal(lost[0].weekday - lost[0].sat, 1, 'one body, not several');
+        assert.equal(gained[0].sat - gained[0].weekday, 1);
+        assert.notEqual(endMinutesAbs(lost[0].time), close,
+            `Saturday gives up ${lost[0].time}, which is already a closer — then nothing was swapped`);
+        assert.equal(endMinutesAbs(gained[0].time), close,
+            `Saturday's extra turn (${gained[0].time}) does not run to the close, so it is not the fourth closer`);
+    });
+
+    test('every Saturday time is a weekday time, bar that one', () => {
+        // What makes the two blocks readable as one. If a retune re-diverges the two days the row
+        // count climbs straight back toward 33, and this says so before anyone counts the table.
+        const weekdayTimes = new Set(slots.filter(s => s.weekday > 0).map(s => s.time));
+        const satOnly = slots.filter(s => s.sat > 0 && !weekdayTimes.has(s.time)).map(s => s.time);
+        assert.equal(satOnly.length, 1,
+            `Saturday states ${satOnly.length} times of its own — ${satOnly.join(', ')}`);
+    });
 });

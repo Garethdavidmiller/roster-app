@@ -2073,7 +2073,7 @@ test('links generator: the hours row is the generator\'s OWN test, and follows a
     // CURRENT default proposes, or the option is absent and this fails as a timeout rather than as
     // an assertion (v21.10, when the table was retuned under it).
     await page.locator('#genSlotRows tr').first().locator('.gen-slot-time')
-        .selectOption('15:50-23:55');
+        .selectOption('15:45-23:55');
     await expect.poll(() => page.locator('#genHoursValue').textContent()).not.toBe(before);
     await expect(page.locator('#genHoursValue')).toHaveClass(/gen-hours-off/);
     // And it says what has to reach zero, in the unit that has to reach it.
@@ -2101,9 +2101,10 @@ test('links generator: a zero target recedes, and each day\'s block is separated
     await firstRow.locator('[data-class="sun"]').fill('0');
     await expect(firstRow.locator('[data-class="sun"]')).toHaveClass(/is-zero/);
 
-    // The default table is three single-day blocks, so it carries exactly two boundaries: where
-    // Mon–Fri gives way to Saturday, and Saturday to Sunday.
-    await expect(page.locator('#genSlotRows tr.gen-slot-newblock')).toHaveCount(2);
+    // The default table is TWO blocks since v21.12 — Mon–Sat, then Sunday — because Monday to
+    // Saturday now run the same turns. So it carries exactly one boundary, not the two it had when
+    // the weekday and the Saturday were separate lists.
+    await expect(page.locator('#genSlotRows tr.gen-slot-newblock')).toHaveCount(1);
 });
 
 test('links sets: a set can be deleted, and only by someone allowed to', async ({ page }) => {

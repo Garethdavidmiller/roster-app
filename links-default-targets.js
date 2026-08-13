@@ -59,10 +59,43 @@
  *   · **one short early, then every late, then every other early** — see below
  *   · every duty 7h to 9h30, on the grid, inside its own day's window
  *   · two people either start together or a quarter of an hour apart — likewise for finishes
- *   · no two duties in a day share a time — one row per turn, and a row with a count of four
- *     hands four people the same handover
+ *   · at most TWO people on any one turn in a day — a row with a count of four hands four people
+ *     the same handover, which is the cliff rule again away from the edges of the day
  *   · the day's totals unchanged: 7,000 minutes Mon–Fri and Saturday alike, so the contract,
  *     the 4.2 days and the cover-week count all stay exactly where they were
+ *
+ * ── FEWER TIMES, BECAUSE A TABLE NOBODY CAN HOLD IS NOT A PROPOSAL (v21.12) ────────────────────
+ *
+ * Owner: *"is there any way to reduce the number of shift start/finish times so that it is easier
+ * to understand, whilst keeping the rest of the principles we have established?"* — and then, on
+ * being asked whether the weekend had to match the weekday: *"weekend shift times can be different
+ * to weekday. It is just about reducing the number of times in each type."*
+ *
+ * So the reduction is per DAY CLASS, and it is a second objective rather than a relaxed first one.
+ * Every rule above is still a hard gate; what changed is that among the tables satisfying them,
+ * the search now prefers the one asking a reader to hold fewer clock times — allowing two people
+ * on a turn, and nudging Saturday's times onto the weekday's wherever that costs nothing.
+ *
+ * Measured, v21.10 → v21.12:
+ *
+ *                       rows   Mon–Fri times   Sat times   Sun times
+ *     before             33         21             20          14
+ *     after              21         17             18          13
+ *
+ * **The cost is close to nothing, which is the part worth checking rather than trusting.** Held to
+ * within 5% of the shipped demand fit as a hard bound, the search still reached 21 rows: a weekday
+ * goes 38.11 → 39.00, Saturday 10.77 → 10.89, Sunday 16.53 → 16.91 — and the WORST-STAFFED HOUR of
+ * each day, which is what anyone actually feels, is unchanged on all three (2.50, 1.62 and 2.09
+ * people away from an even spread). Pushed harder the search will trade further — 19 rows for a
+ * 12% worse weekday fit — and that trade was NOT taken. Twelve rows of clarity are worth about a
+ * fiftieth of the cover curve; they are not worth an eighth of it.
+ *
+ * One thing did move, and it is in the panels rather than the table: the generated design's longest
+ * run between 48-hour breaks reaches 14 in settled mode, so `FF11` now reports present there as
+ * well as in rotating mode (where the v21.10 table already tripped it). Every HARD limit still
+ * passes, including the 13 consecutive worked days. That is the fatigue panel doing its job — it
+ * reports factors present, it does not grade — and it is recorded here so the next retune is not
+ * surprised by it.
  *
  * ── A LATE IS SHORTER THAN AN EARLY. THAT IS THE POINT OF IT (v21.10) ──────────────────────────
  *
@@ -76,10 +109,10 @@
  *
  * "Most (not all) early starts", exactly: the short early is the one open turn that finishes in the
  * early afternoon, and it is deliberately kept — an unbroken block of long earlies is its own
- * recruitment problem. The margin is deliberately small. On a weekday the longest late is 8h20 and
- * the shortest long early is 8h25: five minutes, which is what "slightly" has to mean when the
+ * recruitment problem. The margin is deliberately small. On a weekday the longest late is 8h10 and
+ * the shortest long early is 8h15: five minutes, which is what "slightly" has to mean when the
  * day's minutes are fixed. Across the whole turn it comes to about an hour — a weekday late
- * averages 7h51 against an early's 8h49.
+ * averages 7h46 against an early's 8h54.
  *
  * The Sunday non-closer cap moved from 22:15 to 22:25 in the same pass, and that is arithmetic
  * rather than preference: with two turns required past 22:00 and finishes fifteen minutes apart, a
@@ -115,10 +148,18 @@
  * 11:00*. That proxy fought the timetable: Saturday's measured peak is 10:00–11:00, and satisfying
  * the start count dropped the busiest hour of the day to six people. Event crowds are not in the
  * timetable at all — the same trains run fuller — so the honest expression is a WEIGHT: the
- * search values Saturday's 17:00–22:00 at 1.25x its demand share. Measured on the result, that
- * band carries 36.9% of Saturday's cover against 34.7% of its demand, while the weekday's carries
- * 35.9% against 36.7%. Saturday leans to the evening; a weekday does not. That is the assertion
- * the test makes, because it is the claim that is actually true.
+ * search values Saturday's 17:00–22:00 at 1.25x its demand share. The claim that follows is a
+ * COMPARISON, not a threshold: Saturday's evening takes a bigger share of its day's cover than of
+ * its day's demand, and a weekday's takes a smaller one. Saturday leans to the evening; a weekday
+ * does not.
+ *
+ * **The four percentages that used to sit in this paragraph are gone (v21.12), and how they went
+ * is the lesson.** They were measured at v21.06, printed here, and left alone — so when v21.10
+ * retuned the whole table they became wrong by more than two points while still reading as a
+ * measurement, and nothing failed, because the test asserts the COMPARISON and prints the live
+ * figures in its own failure message. A number in prose beside a rule is a second copy of that
+ * rule which nothing checks; the rule is here, the numbers are in `links-default-targets.test.mjs`
+ * where they are recomputed on every run.
  *
  * ── SUNDAY IS DESIGNED NOW, NOT CARRIED ────────────────────────────────────────────────────────
  *
@@ -187,61 +228,51 @@ export const TARGET_DAYS_PER_WEEK = 4.2;
 /**
  * The table itself.
  *
- * Read each day class in three blocks. **Openers** all start at the window open and are staggered
- * by their FINISH, because a link where four people walk off at the same minute hands the
- * afternoon a cliff rather than a handover. **Middles** roll through the day. **Closers** all
- * finish at the window close and stagger by their start, for the same reason in reverse.
+ * Read it in TWO blocks, not three (v21.12). **Mon–Sat** comes first, because Monday to Saturday
+ * now run the same turns; **Sunday** follows, because it keeps its own window. Inside each block:
+ * **openers** all start at the window open and stagger by their FINISH, because a link where four
+ * people walk off at the same minute hands the afternoon a cliff rather than a handover;
+ * **middles** roll through the day; **closers** all finish at the window close and stagger by
+ * their start, for the same reason in reverse.
  *
- * A row with a zero in a column is a duty that day does not have — a Saturday turn is genuinely
- * shorter than a weekday's and a Sunday runs to a different window, which is why most rows serve
- * one day class. Where two days do share a time they share the row, which is what keeps this to a
- * readable length.
+ * **Saturday is the weekday, with one late turned into a fourth closer.** Exactly two rows differ
+ * — `15:05-22:45` carries two on a weekday and one on a Saturday, and `16:15-23:55` is Saturday's
+ * alone — and that single swap IS the events lean, stated in a form somebody can hold in their
+ * head. Everything else about the two days is the same twelve rows.
+ *
+ * A row with a zero in a column is a duty that day does not have. Two people may share a row (the
+ * count says how many) but no more than two: three or four on one time is a block of people with
+ * the same handover, which is the cliff rule again in the middle of the day.
  *
  * @type {ReadonlyArray<Readonly<{time: string, weekday: number, sat: number, sun: number}>>}
  */
 const TABLE = Object.freeze([
-    // ── Mon–Fri: four on at the open, staggered finishes. The FIRST is the short early.
-    Object.freeze({ time: '06:20-13:35', weekday: 1, sat: 1, sun: 0 }),
-    Object.freeze({ time: '06:20-14:45', weekday: 1, sat: 0, sun: 0 }),
-    Object.freeze({ time: '06:20-15:00', weekday: 1, sat: 0, sun: 0 }),
-    Object.freeze({ time: '06:20-15:20', weekday: 1, sat: 0, sun: 0 }),
-    // ── Mon–Fri morning middles — into the 08:00–09:00 peak. Long turns, all of them.
-    Object.freeze({ time: '07:00-16:15', weekday: 1, sat: 1, sun: 0 }),
-    Object.freeze({ time: '07:00-16:30', weekday: 1, sat: 1, sun: 0 }),
-    Object.freeze({ time: '08:10-17:40', weekday: 1, sat: 0, sun: 0 }),
-    // ── Mon–Fri lates — SHORTER than every early but one, and only two of them past 22:00
-    Object.freeze({ time: '13:15-21:35', weekday: 1, sat: 0, sun: 0 }),
-    Object.freeze({ time: '14:40-22:00', weekday: 1, sat: 0, sun: 0 }),
-    Object.freeze({ time: '15:00-22:45', weekday: 1, sat: 0, sun: 0 }),
-    Object.freeze({ time: '15:20-22:45', weekday: 1, sat: 0, sun: 0 }),
-    // ── Mon–Fri closers — THREE, and nothing else finishes near them
-    Object.freeze({ time: '15:35-23:55', weekday: 1, sat: 0, sun: 0 }),
-    Object.freeze({ time: '15:50-23:55', weekday: 1, sat: 1, sun: 0 }),
-    Object.freeze({ time: '16:05-23:55', weekday: 1, sat: 1, sun: 0 }),
-    // ── Saturday: four on at the open (the short early is shared with the weekday, above)
-    Object.freeze({ time: '06:20-14:50', weekday: 0, sat: 1, sun: 0 }),
-    Object.freeze({ time: '06:20-15:10', weekday: 0, sat: 1, sun: 0 }),
-    Object.freeze({ time: '06:20-15:30', weekday: 0, sat: 1, sun: 0 }),
-    // ── Saturday morning middle — the 10:00–11:00 peak is the day's busiest
-    Object.freeze({ time: '08:05-17:35', weekday: 0, sat: 1, sun: 0 }),
-    // ── Saturday lates — one past 22:00, the rest of the evening carried by four closers
-    Object.freeze({ time: '14:20-22:00', weekday: 0, sat: 1, sun: 0 }),
-    Object.freeze({ time: '14:35-22:00', weekday: 0, sat: 1, sun: 0 }),
-    Object.freeze({ time: '15:05-22:45', weekday: 0, sat: 1, sun: 0 }),
-    // ── Saturday closers — FOUR, the events lean carried to the close-down
-    Object.freeze({ time: '15:30-23:55', weekday: 0, sat: 1, sun: 0 }),
-    Object.freeze({ time: '16:20-23:55', weekday: 0, sat: 1, sun: 0 }),
-    // ── Sunday — its own window (07:15–23:25): four open, one middle, two evening, three close
-    Object.freeze({ time: '07:15-14:20', weekday: 0, sat: 0, sun: 1 }),
-    Object.freeze({ time: '07:15-15:50', weekday: 0, sat: 0, sun: 1 }),
-    Object.freeze({ time: '07:15-16:10', weekday: 0, sat: 0, sun: 1 }),
-    Object.freeze({ time: '07:15-16:40', weekday: 0, sat: 0, sun: 1 }),
-    Object.freeze({ time: '09:05-18:35', weekday: 0, sat: 0, sun: 1 }),
-    Object.freeze({ time: '13:55-22:25', weekday: 0, sat: 0, sun: 1 }),
-    Object.freeze({ time: '14:40-22:25', weekday: 0, sat: 0, sun: 1 }),
-    Object.freeze({ time: '15:30-23:25', weekday: 0, sat: 0, sun: 1 }),
-    Object.freeze({ time: '15:45-23:25', weekday: 0, sat: 0, sun: 1 }),
-    Object.freeze({ time: '16:00-23:25', weekday: 0, sat: 0, sun: 1 }),
+    // ── MON–SAT. Four on at the 06:20 open, staggered finishes. The FIRST is the short early.
+    Object.freeze({ time: '06:20-13:40', weekday: 1, sat: 1, sun: 0 }),   // 7h20 — THE short early
+    Object.freeze({ time: '06:20-14:35', weekday: 1, sat: 1, sun: 0 }),   // 8h15
+    Object.freeze({ time: '06:20-15:10', weekday: 1, sat: 1, sun: 0 }),   // 8h50
+    Object.freeze({ time: '06:20-15:45', weekday: 1, sat: 1, sun: 0 }),   // 9h25
+    // ── Morning middles — into the 08:00–09:00 weekday peak and Saturday's 10:00–11:00 one.
+    Object.freeze({ time: '07:00-16:30', weekday: 2, sat: 2, sun: 0 }),   // 9h30
+    Object.freeze({ time: '08:10-17:40', weekday: 1, sat: 1, sun: 0 }),   // 9h30
+    // ── Lates — SHORTER than every early but one.
+    Object.freeze({ time: '14:15-22:00', weekday: 2, sat: 2, sun: 0 }),   // 7h45
+    Object.freeze({ time: '15:05-22:45', weekday: 2, sat: 1, sun: 0 }),   // 7h40  ← the swapped one
+    // ── Closers — THREE on a weekday, FOUR on a Saturday.
+    Object.freeze({ time: '15:45-23:55', weekday: 1, sat: 1, sun: 0 }),   // 8h10
+    Object.freeze({ time: '16:00-23:55', weekday: 1, sat: 1, sun: 0 }),   // 7h55
+    Object.freeze({ time: '16:15-23:55', weekday: 0, sat: 1, sun: 0 }),   // 7h40  ← the fourth closer
+    Object.freeze({ time: '16:30-23:55', weekday: 1, sat: 1, sun: 0 }),   // 7h25
+    // ── SUNDAY — its own window (07:15–23:25): four open, one middle, two evening, three close.
+    Object.freeze({ time: '07:15-14:35', weekday: 0, sat: 0, sun: 1 }),   // 7h20 — Sunday's short early
+    Object.freeze({ time: '07:15-15:45', weekday: 0, sat: 0, sun: 1 }),   // 8h30
+    Object.freeze({ time: '07:15-16:05', weekday: 0, sat: 0, sun: 1 }),   // 8h50
+    Object.freeze({ time: '07:15-16:30', weekday: 0, sat: 0, sun: 1 }),   // 9h15
+    Object.freeze({ time: '09:05-18:35', weekday: 0, sat: 0, sun: 1 }),   // 9h30
+    Object.freeze({ time: '14:15-22:25', weekday: 0, sat: 0, sun: 2 }),   // 8h10
+    Object.freeze({ time: '15:30-23:25', weekday: 0, sat: 0, sun: 1 }),   // 7h55
+    Object.freeze({ time: '15:45-23:25', weekday: 0, sat: 0, sun: 1 }),   // 7h40
+    Object.freeze({ time: '16:00-23:25', weekday: 0, sat: 0, sun: 1 }),   // 7h25
 ]);
 
 /** Every distinct shift time this table proposes, in the order it lists them. */
