@@ -852,6 +852,46 @@ test('overtime — the member form, seven days unanswered (mobile 390)', async (
     await expect(page).toHaveScreenshot('overtime-member-mobile-390.png');
 });
 
+test('overtime — the member form on the desktop band (desktop 1280)', async ({ page }) => {
+    // The DAY ROW is the whole design at this width — day, roster badge, then the run of options —
+    // and its shape is the thing v21.15 changed: the seven options used to need 814px in a 786px
+    // row, so five of the seven days wrapped one lonely "Custom times" under a full line with ~690px
+    // of nothing beside it. Two independently-argued changes (the left column stops hoarding 20px it
+    // never uses; the pills take desktop density like every other pill family in the app) leave it
+    // on one line — a consequence, not a contract, which is exactly why it is worth a picture.
+    //
+    // A behavioural test cannot see this. The buttons were all present, all clickable and all the
+    // right size before the change; only their arrangement was wrong.
+    await prep(page, { width: 1280, height: 1200 });
+    // A week the seeded member actually WORKS, unlike the mobile baseline's spare week. That is the
+    // whole point of this picture: a rest day offers four options and always fitted, and a worked
+    // day offers seven — the case that wrapped. Five worked days and two rest days here, so the
+    // frame carries both shapes and the badge column can be seen aligning down the two.
+    await stubOvertime(page, {
+        windows: [{ ...OT_WINDOW, weekEnding: '2026-09-26', weekStart: '2026-09-20',
+            // Milestones moved with the week (18 and 11 days before the Saturday, as the real
+            // timetable puts them). Inheriting OT_WINDOW's would print July deadlines above a
+            // September week — harmless to the layout, and an invitation to somebody later to go
+            // looking for a date bug that is only in the fixture.
+            initialDeadlineAt: Date.parse('2026-09-08T11:00:00Z'), draftRosterDate: '2026-09-10',
+            finalDeadlineAt: Date.parse('2026-09-15T11:00:00Z'), finalRosterDate: '2026-09-17',
+            phase: 'INITIAL_OPEN',
+            participant: { grade: 'CEA', rosterOrder: 2 }, submission: null }],
+    });
+    await page.goto('/overtime.html');
+    await settle(page, '.ot-day');
+    await expect(page.locator('.ot-day')).toHaveCount(7);
+    // Sentinels, so a regenerated baseline cannot quietly bless the defect coming back: a worked day
+    // shows seven options, and they sit on ONE line.
+    const worked = page.locator('.ot-day').first().locator('.ot-mode');
+    await expect(worked).toHaveCount(7);
+    const lines = await page.locator('.ot-day').first().locator('.ot-modes').evaluate(g =>
+        new Set([...g.querySelectorAll('.ot-mode')]
+            .map(b => Math.round(b.getBoundingClientRect().top))).size);
+    expect(lines, 'a worked day\'s options, in rows').toBe(1);
+    await expect(page).toHaveScreenshot('overtime-member-desktop-1280.png');
+});
+
 test('overtime — the planning horizon, every row state (desktop 1280)', async ({ page }) => {
     await prep(page, { width: 1280, height: 1000 });
     await stubOvertime(page, {

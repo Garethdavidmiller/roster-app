@@ -201,6 +201,30 @@ body {
 
 .ot-tab:focus-visible { outline: var(--focus-outline-light); outline-offset: 2px; }
 
+/* ── The two touch tiers this page had skipped (v21.15) ──────────────────────
+   v20.77 raised `.ot-mode` from 36px to 44px with the argument that copying
+   admin's pill LOOK and not its SIZE left the one page built entirely out of
+   pills below the standard every other page meets. That argument applies just
+   as well to the two controls it did not touch, and measuring the app on a real
+   coarse pointer says so plainly: every page-specific control on admin is 36px
+   (`.type-pill-btn`, `.btn-bulk-select`, `.btn-bulk-apply`), settings' fields
+   are 42px — and Overtime's tabs and row buttons were 31px, the shortest
+   page-specific controls in the app.
+
+   36px, not 44px, deliberately: these are admin's compact tier, not its primary
+   one. `.ot-tab` is the page's own navigation and `.ot-row-btn` is "Open now" /
+   "View" / "Add N" / "Try again" — the same weight of control as an admin bulk
+   button, and they should match it rather than out-shout the mode pills that
+   are the actual answer-giving controls.
+
+   Scoped to `pointer: coarse` because it is a TOUCH decision, not a width one
+   (css-tokens.md) — a mouse does not need the extra 5px and desktop keeps the
+   density it has. */
+@media (pointer: coarse) {
+    .ot-tab     { min-height: 36px; }
+    .ot-row-btn { min-height: 36px; }
+}
+
 /* ── Explainer + privacy copy ───────────────────────────────────────────── */
 
 .ot-explainer {
@@ -444,7 +468,13 @@ body {
 @media (min-width: 1024px) {
     .ot-day {
         display: grid;
-        grid-template-columns: minmax(190px, 240px) minmax(0, 1fr);
+        /* 224px, measured — NOT the 240 this shipped with. The widest head the app can produce is
+           the longest day name plus a worked-day badge with its times ("Wed 23 Sep" +
+           "☀️ EARLY 06:20–13:35"), which comes to 219.8px including the 8px gap between them. A
+           fixed track holds its maximum whenever there is room, so the extra 20px was reserved on
+           every row of every week and used by none of them — and the column it was taken from is
+           the one holding seven capsules that do not fit. */
+        grid-template-columns: minmax(190px, 224px) minmax(0, 1fr);
         column-gap: var(--space-4);
         align-items: center;
     }
@@ -677,6 +707,37 @@ body {
 
 .ot-mode--yes[aria-checked="true"] { background: var(--success-green); border-color: var(--success-green); color: white; }
 .ot-mode--no[aria-checked="true"]  { background: var(--charcoal);      border-color: var(--charcoal);      color: white; }
+
+/* DECLARED AFTER `.ot-mode`, NOT beside the `.ot-day` grid where it belongs by subject. Both
+   declarations are one class deep, so the later one wins — and written up there, next to the
+   desktop layout it is part of, it sat ~220 lines ABOVE the base rule and silently lost. That is
+   the identical cascade trap css-tokens.md records against links.css, where a correct
+   `pointer: coarse` guard did nothing for releases because its base rule happened to come after
+   it. Caught here only by measuring the COMPUTED padding rather than reading the file. */
+/* ── Desktop density on the mode pills (v21.15) ──────────────────────────────
+   The app's rule is that density is a POINTER decision, not a width one
+   (css-tokens.md), and admin follows it: its row pills are 34–36px with tighter
+   padding on a fine pointer and grow on a coarse one. `.ot-mode` was the only
+   pill family in the app that carried touch sizing on a mouse — 44px tall with
+   10px of horizontal padding at every width — on the page that has the most of
+   them by a wide margin (up to seven options on each of seven days).
+
+   Both halves are the same decision, and the horizontal half has a visible
+   second effect worth stating plainly so nobody builds on it: a worked day's
+   seven capsules need 814px at the touch padding and the row offers 786, so
+   five of the seven days on every desktop wrapped one lonely "Custom times"
+   under a full line with ~690px of nothing beside it. At 8px they need 786 and,
+   with the 16px the left column above gives back, the row offers 802. So it
+   fits — today, at these seven labels. That is a consequence, NOT a constraint:
+   the wording here has changed three times in twenty releases and a longer label
+   will wrap it again, which is fine. Do not treat one line as a contract, and do
+   not shrink anything further to defend it. */
+@media (min-width: 1024px) and (pointer: fine) {
+    .ot-mode {
+        padding: 5px 8px;
+        min-height: 36px;
+    }
+}
 
 /* A recorded answer, as a chip — the reviewer's list and a member's closed form share it.
    THREE tones, matching the three sections of a day panel: said yes, said no, said nothing. The

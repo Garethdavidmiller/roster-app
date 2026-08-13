@@ -613,8 +613,14 @@ export function init() {
         // and with the whole horizon pre-created, that is EVERY week they could answer.
         // The scheduler tops these up nightly; this is the same thing, now, when you have just
         // invited somebody and want them to see a form.
-        const shortBy = w.exists && Number.isInteger(w.audienceCount)
-            ? w.audienceCount - (w.expected || 0) : 0;
+        //
+        // ONE SERVER-SIDE NUMBER, not two subtracted here (v21.15). This used to be
+        // `audienceCount - expected`, and those count different populations: `expected` is net of
+        // withdrawals while the top-up compares against every participant document. So one use of
+        // "Stop asking" gave the row a permanent "Add 1" that reported "Nobody new to add" and came
+        // straight back. The arithmetic now lives beside the code that performs the action — see
+        // `canAdd` in functions/overtime.js.
+        const shortBy = w.exists && Number.isInteger(w.canAdd) ? w.canAdd : 0;
         const action = w.exists
             ? `${shortBy > 0
                 ? `<button type="button" class="ot-row-btn ot-row-btn--primary" data-topup="${esc(w.weekEnding)}">Add ${shortBy}</button>`
@@ -710,8 +716,7 @@ export function init() {
                 + `${w.expectedCount} expected ${w.expectedCount === 1 ? 'participant' : 'participants'}`;
         }
         armConfirmBar();
-        if (bar) bar.hidden = false;
-        reserveConfirmSpace(true);
+        showConfirmBar(bar);
     }
 
     /**
@@ -807,8 +812,7 @@ export function init() {
     function wireConfirmBar() {
         el('otConfirmCancel')?.addEventListener('click', () => {
             pendingWeek = null;
-            const bar = el('otConfirmBar'); if (bar) bar.hidden = true;
-            reserveConfirmSpace(false);
+            hideConfirmBar();
         });
         el('otConfirmCreate')?.addEventListener('click', async () => {
             if (!pendingWeek) return;
@@ -829,12 +833,29 @@ export function init() {
                 return;
             }
             pendingWeek = null;
-            const bar = el('otConfirmBar'); if (bar) bar.hidden = true;
-            reserveConfirmSpace(false);
+            hideConfirmBar();
             await loadHorizon();
             selectWeek(week);
         });
     }
+
+    /**
+     * The pending auto-hide from the last SUCCESS flash.
+     *
+     * ── A TIMER FROM ONE MESSAGE MUST NOT CLOSE THE NEXT ONE (v21.15) ───────────────────────────
+     *
+     * A success flash hides itself after 2.5 seconds, and that timer used to be untracked. Every
+     * success is followed by `loadHorizon()`, so the reviewer is back in a live list with up to two
+     * seconds still on a clock nothing is watching — and the very next thing they do is often press
+     * "Open now" on another week. The preview lands, the bar is shown with the question on it, and
+     * the old timer hides it again, leaving an ARMED create with nothing on screen.
+     *
+     * The reviewer sees a button that took a press and did nothing, which is precisely the failure
+     * v20.73 exists to prevent, arriving from the other end: there the press showed nothing while it
+     * worked, here it shows nothing after it worked.
+     */
+    /** @type {any} */
+    let confirmHideTimer = null;
 
     /** @param {string} html @param {boolean} ok */
     function flashConfirm(html, ok) {
@@ -842,12 +863,32 @@ export function init() {
         if (text) text.innerHTML = html;
         const bar = el('otConfirmBar');
         armConfirmBar();
-        if (bar) bar.hidden = false;
-        reserveConfirmSpace(true);
-        if (ok) setTimeout(() => {
+        showConfirmBar(bar);
+        if (ok) confirmHideTimer = setTimeout(() => {
+            confirmHideTimer = null;
             if (bar) bar.hidden = true;
             reserveConfirmSpace(false);
         }, 2500);
+
+    }
+
+    /**
+     * Put the bar on screen and cancel any pending auto-hide. EVERY path that shows the bar goes
+     * through here, so a stale timer can never outlive the message that set it.
+     * @param {HTMLElement|null} bar
+     */
+    function showConfirmBar(bar) {
+        if (confirmHideTimer) { clearTimeout(confirmHideTimer); confirmHideTimer = null; }
+        if (bar) bar.hidden = false;
+        reserveConfirmSpace(true);
+    }
+
+    /** Take the bar down, and the pending auto-hide with it. The mirror of `showConfirmBar`. */
+    function hideConfirmBar() {
+        if (confirmHideTimer) { clearTimeout(confirmHideTimer); confirmHideTimer = null; }
+        const bar = el('otConfirmBar');
+        if (bar) bar.hidden = true;
+        reserveConfirmSpace(false);
     }
 
     // ── Week detail (filled in by the Manager workspace step) ───────────────────────────────────
@@ -866,6 +907,19 @@ export function init() {
         const host = el('otWeekContent');
         if (card) card.hidden = false;
         if (hint) hint.textContent = weekLabel(weekEnding);
+        // CLEAR THE RATIO BEFORE THE TITLE CHANGES UNDER IT.
+        //
+        // The chip is written only by a SUCCESSFUL `renderWeekDetail`, so switching weeks used to
+        // leave the previous week's `5/8` sitting beside the new week's name — through the whole
+        // load, and permanently if that load failed. That is the same "two answers to one question"
+        // the chip's own code worries about three functions down, one level up: there the mismatch
+        // is between the chip and the card, here it is between the chip and the title beside it,
+        // and a reader has no way to tell which half is stale.
+        //
+        // Empty is the honest state and it costs nothing to show: `.card-year-chip` is hidden while
+        // `:empty`, so the header simply has no chip until there is a number to put in it.
+        const chip = el('otWeekChip');
+        if (chip) chip.textContent = '';
         if (host) renderLoading(host, 'Loading availability…');
         document.querySelectorAll('[data-open]').forEach(b =>
             b.setAttribute('aria-pressed', String(b.getAttribute('data-open') === weekEnding)));

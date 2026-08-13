@@ -753,10 +753,32 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                 // under even if the policy has since changed.
                 const milestones = doc ? storedMilestones(doc) : OT.deriveMilestones(weekEnding);
                 const counts = countsByWeek.get(weekEnding) || null;
-                // How many the CURRENT audience would select for this week. Compared against the
-                // frozen `expected`, it is what tells a reviewer an invitation has not landed yet —
-                // and it costs nothing: `selectParticipants` is pure and local, and `expected`
-                // already came back from the count aggregation above.
+                // How many people pressing "Add N" would ACTUALLY add — one number with one
+                // meaning, not two for the client to subtract.
+                //
+                // ── THE OFFER AND THE ACTION MUST COUNT THE SAME POPULATION (v21.15) ────────────
+                //
+                // This used to send `audienceCount` (the size of the current audience) and let the
+                // client subtract `expected`. Those count different things: `expected` is net of
+                // withdrawals, and `addMissingParticipants` compares the audience against EVERY
+                // participant document, withdrawn included — because a withdrawn member already has
+                // one and must not be re-added by a top-up.
+                //
+                // So the moment a reviewer used "Stop asking" — the entire point of the withdrawal
+                // feature — the row began offering "Add 1" for somebody who was already there.
+                // Pressing it returned nothing to add, reported "Nobody new to add", re-rendered,
+                // and offered "Add 1" again. Permanently, on every load, for as long as the week
+                // stayed in INITIAL_OPEN. That is the same never-clearing button v20.81 fixed
+                // below, arriving through a different door: the withdrawal feature changed what
+                // `expected` MEANS without changing what it was being compared against.
+                //
+                // Subtracting the raw participant count is exact whenever the audience only grows,
+                // which is the case this button exists for. Its one inexactness is somebody who
+                // LEAVES the audience while keeping their document, which masks that many genuinely
+                // new people from the manual shortcut — bounded, because the nightly job runs
+                // `addMissingParticipants` on every open week regardless, so the worst outcome is
+                // that the shortcut is unavailable for a night rather than that somebody is never
+                // asked. The old behaviour's worst outcome was a control that never worked.
                 //
                 // ── `INITIAL_OPEN`, NOT `isOpenPhase` — THIS FIGURE IS AN OFFER ─────────────────
                 //
@@ -774,17 +796,25 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                 // A week that cannot grow reports `null`, which the client already reads as "no
                 // offer" — the same answer a CLOSED week has always given.
                 const canGrow = OT.phaseFor(milestones, nowMs) === 'INITIAL_OPEN';
-                const audienceCount = doc && canGrow ? audienceFor(milestones.weekStart).length : null;
+                const canAdd = doc && canGrow
+                    ? Math.max(0, audienceFor(milestones.weekStart).length
+                        - (counts ? counts.participantCount : 0))
+                    : null;
                 planningWeeks.push({
                     ...milestones,
                     exists: !!doc,
                     state: OT.windowRowState(milestones, nowMs, !!doc, overdue.has(weekEnding)),
                     audience: doc ? doc.audience : null,
-                    audienceCount,
+                    canAdd,
                     canCreate: !doc && OT.validateWeekEnding(weekEnding, {
                         nowMs, maxRosterYear: rosterMembers.maxRosterYear,
                     }).ok,
-                    ...(counts || {}),
+                    // `participantCount` deliberately does NOT go over the wire. It exists so the
+                    // line above can compare like with like, and shipping it would put the raw
+                    // population back within reach of a client doing exactly the subtraction that
+                    // produced the phantom "Add 1".
+                    ...(counts ? { expected: counts.expected, received: counts.received,
+                        noResponse: counts.noResponse } : {}),
                 });
             }
 
@@ -833,7 +863,15 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                 ref.collection('submissions').doc(n).get()));
             received -= subs.filter(d => d.exists).length;
         }
-        return { expected, received, noResponse: expected - received };
+        return {
+            expected,
+            received,
+            noResponse: expected - received,
+            // The RAW population — everybody who holds a participant document, withdrawn included.
+            // `expected` is deliberately net of withdrawals, so it is the wrong thing to compare an
+            // audience size against; see `canAdd` in the horizon loop for what that cost.
+            participantCount: participants.data().count,
+        };
     }
 
     // ── getMyOvertimeState ──────────────────────────────────────────────────────────────────────
