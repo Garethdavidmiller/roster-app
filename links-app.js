@@ -1660,10 +1660,17 @@ export function init() {
         // belongs to the first block it appears in, which is also where it is listed.
         const _primary = (/** @type {any} */ sl) =>
             ['weekday', 'sat', 'sun'].find(c => (sl[c] ?? 0) > 0) ?? '';
-        // Runs of at least two, both sides. A table whose rows each staff a different day would
-        // otherwise take a rule on every row, which is the same as no rules but heavier — and the
-        // common designer's table, where every row staffs all three days, has ONE run and takes
-        // none, which is right.
+        // A rule is drawn where a real block BEGINS — a run of at least two rows. A table whose rows
+        // each staff a different day would otherwise take a rule on every row, which is the same as
+        // no rules but heavier; and the common designer's table, where every row staffs all three
+        // days, has ONE run and takes none, which is right.
+        //
+        // The run ABOVE is deliberately not consulted (v21.12). It was, until the default table
+        // compacted to two blocks — Mon–Sat, then Sunday — with Saturday's fourth closer sitting in
+        // the Mon–Sat block as a run of one. Requiring both sides to be substantial then suppressed
+        // the ONE rule the table needs, because the row above the Sunday block was that singleton.
+        // Whether the row above was a stray is not the reader's question; where the next block
+        // starts is.
         const _runs = genSlots.map(_primary);
         const _runLen = (/** @type {number} */ at) => {
             let a = at, b = at;
@@ -1674,8 +1681,7 @@ export function init() {
         let prevSig = '';
         tbody.innerHTML = genSlots.map((slot, i) => {
             const sig = _primary(slot);
-            const newBlock = i > 0 && sig !== prevSig && !!sig && !!prevSig
-                && _runLen(i) >= 2 && _runLen(i - 1) >= 2;
+            const newBlock = i > 0 && sig !== prevSig && !!sig && !!prevSig && _runLen(i) >= 2;
             prevSig = sig;
             return `<tr data-slot="${i}"${newBlock ? ' class="gen-slot-newblock"' : ''}>` +
             `<td class="gen-td-time"><select class="gen-select gen-slot-time" data-slot="${i}" ` +
