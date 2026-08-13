@@ -532,6 +532,15 @@ const CHECKS_DESIGN = (() => {
     return p;
 })();
 
+// ⚠️ THIS BASELINE DRIFTS WITHOUT THE CONTENT CHANGING, and has now done so twice (v21.07, v21.09).
+// Before assuming a regression, check the CONTENT: at 1068×1898 it is by far the largest and most
+// text-dense baseline in the suite, and what shows up is a handful of narrow bands where identical
+// glyphs sit a pixel across — same wrapping, same words, same panel height. At v21.09 it was chased
+// properly: the differing bands were mapped (four of them, 7–14 rows each, inside one block), the
+// rendered text compared word for word against the expected, and `#checksContent` measured at the
+// same 1068px with and without the change in place. Nothing had moved. If it fails again, read the
+// actual PNG against the expected one before re-baselining — and only re-baseline once you can say
+// what, if anything, is different.
 test('links — design checks panel, disclosure open (desktop 1280)', async ({ page }) => {
     await page.addInitScript((pats) => {
         /** @type {any} */ (window).__E2E = /** @type {any} */ (window).__E2E || {};

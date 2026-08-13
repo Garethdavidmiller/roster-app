@@ -744,10 +744,74 @@ body.auth-ready .container { display: grid; }
     font-size: var(--type-badge);
     color: var(--text-dark);
 }
+/* ROW HOVER (v21.09). The grid is eleven columns wide since the totals arrived, so following one
+   line from its Sunday cell to its hours needs the row picked out. Cosmetic only, and scoped to a
+   real pointer — the app's rule is that hover/pointer queries are safe for a `:hover` transition
+   and never for layout, because some Android devices misreport `hover: hover`. */
+@media (hover: hover) and (pointer: fine) {
+    .links-grid tbody tr:hover td { background-color: color-mix(in srgb, var(--accent-gold) 7%, transparent); }
+    .links-grid tbody tr:hover .shift-cell-btn { background-color: transparent; }
+}
 .cov-label-e { color: var(--shift-early-text); }
 .cov-label-l { color: var(--shift-late-text); }
 .cov-label-n { color: var(--shift-night-text); }
 .cov-label-s { color: var(--shift-spare-text); }
+
+/* ── PER-LINE TOTALS (v21.09) ───────────────────────────────────────────────────────────────────
+   Three read-only columns to the right of Saturday, set apart from the seven editable day columns
+   by a heavier rule and a sunken fill: they are a RESULT of the row, not part of it, and nothing in
+   them can be clicked. The header carries a two-line label (name + unit) like the generator's own
+   table, so the columns need no legend. */
+.links-grid th.col-total {
+    background: var(--surface-sunken);
+    line-height: 1.2;
+    white-space: nowrap;
+    /* Sized to their content ("36h 20m" is the widest string) rather than sharing the table's
+       spare width equally with the day columns — the day cells carry two lines of time and are
+       what the designer is actually reading. */
+    width: 68px;
+    min-width: 68px;
+}
+.links-grid th.col-total:first-of-type,
+.links-grid td.tot-cell:first-of-type { border-left: 2px solid var(--border-mid); }
+.col-total-sub {
+    display: block;
+    font-weight: 400;
+    font-size: 9px;
+    color: var(--text-light);
+    text-transform: none;
+    letter-spacing: 0;
+}
+.links-grid td.tot-cell {
+    background: var(--surface-sunken);
+    text-align: center;
+    font-size: var(--type-badge);
+    font-variant-numeric: tabular-nums;   /* a column of hours must align on the digits */
+    color: var(--text-dark);
+    white-space: nowrap;
+}
+/* A cover week's figure is a CONVENTION, not a reading of the row — see `_totalCells`. Muted and
+   italic so it cannot be mistaken for a measured week; the title says which. */
+.links-grid td.tot-assumed { color: var(--text-light); font-style: italic; }
+/* At least one duty on the line could not be read, so the figure is a floor. */
+.links-grid td.tot-uncertain { color: var(--orange-text); }
+/* Same figure as the Mon–Sat column beside it, i.e. no Sunday duty. Muted so the lines that DO
+   work a Sunday are the ones the eye lands on. */
+.links-grid td.tot-same { color: var(--text-light); }
+.links-grid tfoot td.tot-cell { line-height: 1.3; }
+.tot-avg-num {
+    display: block;
+    font-weight: 700;
+    color: var(--text-dark);
+}
+/* The divisor, stated on every average — the hours are over the whole rotation and the days over
+   the working lines only, and an average whose divisor is not on screen invites the wrong one. */
+.tot-avg-note {
+    display: block;
+    font-size: 9px;
+    font-weight: 400;
+    color: var(--text-light);
+}
 
 /* iOS force-zooms the page when a focused field is under 16px. Scoped to
    coarse pointers so the dense desktop grid keeps its compact type.
@@ -1588,6 +1652,13 @@ body.auth-ready .container { display: grid; }
     /* Sticky positioning confuses print pagination — flatten it */
     .links-grid thead th,
     .links-grid .pos-num { position: static !important; }
+    /* The totals go on the paper (v21.09): "what does line 11 work?" is the question in the room,
+       and the sheet is read away from the app. Three short columns — the widest string is "36h 20m"
+       — so the day columns keep ample room at this size. The print constraint on this grid has
+       always been HEIGHT, not width; see the measurement note above. */
+    .links-grid td.tot-cell,
+    .links-grid th.col-total { font-size: 8px; padding: 0 3px; }
+    .col-total-sub, .tot-avg-note { font-size: 7px; }
 }
 
 /* ---- "Nothing to report" disclosure in the fatigue panel (v19.57) ----

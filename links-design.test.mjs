@@ -24,6 +24,7 @@ import {
     normalisePatterns,
     ROTATING_LINES,
     weeklyHours,
+    lineTotals,
     dutyMinutes,
     CONTRACTED_HOURS_PER_WEEK,
     hmFromHours,
@@ -857,5 +858,91 @@ describe('hmFromHours — the one hours-a-week formatter', () => {
 
     test('minutes are always two digits, so columns of figures align', () => {
         assert.equal(hmFromHours(6.15), '6h 09m');
+    });
+});
+
+
+// ── lineTotals (v21.09) ─────────────────────────────────────────────────────────────────────────
+//
+// The grid's right-hand columns. Organised around the THREE line states whose totals cannot be read
+// straight off the cells, because those are the only ones an implementation can get plausibly
+// wrong: a cover week (no stored times, but a paid contracted week), an unfilled line (a week
+// somebody works with nothing in it), and a line carrying a duty the parser cannot read.
+//
+// The divisor is the other half. Hours average over the whole rotation and days over the WORKING
+// lines, and the two are easy to "tidy" into one — which would report a 4.2-day rotation as 3.5
+// and look entirely reasonable doing it.
+describe('lineTotals', () => {
+    const DAY_KEYS2 = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const row = (o) => Object.fromEntries(DAY_KEYS2.map(d => [d, o[d] ?? 'RD']));
+    const SPARE_ROW = Object.fromEntries(DAY_KEYS2.map(d => [d, 'SPARE']));
+    const SEVEN = '09:00-16:00';   // 7h
+
+    test('a plain line: Mon–Sat and all-week differ only by the Sunday', () => {
+        const t = lineTotals({ 1: row({ mon: SEVEN, tue: SEVEN, sun: SEVEN }) }, 1);
+        assert.equal(t.rows[0].exSundayMinutes, 840);   // 2 x 7h
+        assert.equal(t.rows[0].allMinutes, 1260);       // 3 x 7h
+        assert.equal(t.rows[0].days, 2, 'Sunday is not a contracted day and is not counted as one');
+    });
+
+    test('a COVER week is the contracted week, and its days are unknown rather than none', () => {
+        // Zero would contradict the average the same rotation reports, and inventing days for it
+        // would be worse. `assumed` is what lets the grid say which of the two it is showing.
+        const t = lineTotals({ 1: SPARE_ROW }, 1);
+        assert.equal(t.rows[0].exSundayMinutes, CONTRACTED_HOURS_PER_WEEK * 60);
+        assert.equal(t.rows[0].allMinutes, CONTRACTED_HOURS_PER_WEEK * 60);
+        assert.equal(t.rows[0].assumed, true);
+        assert.equal(t.rows[0].days, null, 'unknown — a cover week does not record which days');
+        assert.equal(t.daysAverage, null, 'and it cannot be averaged into a days figure');
+        assert.equal(t.daysLines, 0);
+    });
+
+    test('an UNFILLED line is zero and says so — it is not a cover week', () => {
+        const t = lineTotals({ 1: row({}) }, 1);
+        assert.equal(t.rows[0].unfilled, true);
+        assert.equal(t.rows[0].assumed, false, 'an empty week is not a spare week');
+        assert.equal(t.rows[0].exSundayMinutes, 0);
+        assert.equal(t.daysLines, 0, 'it states no days, so it cannot pull the days average');
+    });
+
+    test('an unreadable duty is COUNTED, not silently skipped', () => {
+        // Silently skipping it makes a line read as a light week with nothing to say why — the
+        // same failure `weeklyHours` counts `unreadable` to avoid.
+        const t = lineTotals({ 1: row({ mon: SEVEN, tue: 'half seven' }) }, 1);
+        assert.equal(t.rows[0].unreadable, 1);
+        assert.equal(t.rows[0].exSundayMinutes, 420, 'the figure is a floor');
+        assert.equal(t.rows[0].days, 1, 'and so is the day count');
+    });
+
+    test('THE DAYS AVERAGE IS OVER THE WORKING LINES, NOT THE ROTATION', () => {
+        // The distinction this whole function turns on. Four lines: two worked, two cover. Over
+        // the working lines the answer is 4; over the rotation it would be 2 — a rotation built to
+        // 4.2 days a week reported as if people worked half the days they do.
+        const four = row({ mon: SEVEN, tue: SEVEN, wed: SEVEN, thu: SEVEN });
+        const t = lineTotals({ 1: four, 2: four, 3: SPARE_ROW, 4: SPARE_ROW }, 4);
+        assert.equal(t.daysAverage, 4);
+        assert.equal(t.daysLines, 2);
+    });
+
+    test('the average matches how the generator\'s own target was derived', () => {
+        // `links-default-targets.js` sets 4.2 as (5 x weekday + sat) / working. A design built to
+        // that must measure back as 4.2 here, or the target and the measurement are two different
+        // questions wearing one number.
+        const wk = row({ mon: SEVEN, tue: SEVEN, wed: SEVEN, thu: SEVEN });        // 4 weekdays
+        const wkSat = row({ mon: SEVEN, tue: SEVEN, wed: SEVEN, thu: SEVEN, sat: SEVEN }); // 5
+        // 8 lines at 4 days + 2 lines at 5 = 42 days over 10 working lines = 4.2
+        const pats = {};
+        for (let i = 1; i <= 8; i++) pats[String(i)] = wk;
+        pats['9'] = wkSat; pats['10'] = wkSat;
+        assert.equal(lineTotals(pats, 10).daysAverage, 4.2);
+    });
+
+    test('every line in the rotation gets a row, in order, even the empty ones', () => {
+        // The renderer indexes `rows[pos - 1]`, so a function that skipped or reordered anything
+        // would put one line's totals against another's cells — wrong, and entirely plausible.
+        const t = lineTotals({ 3: row({ mon: SEVEN }) }, 5);
+        assert.equal(t.rows.length, 5);
+        assert.deepEqual(t.rows.map(r => r.pos), [1, 2, 3, 4, 5]);
+        assert.equal(t.rows[2].days, 1, 'line 3 is the one with the duty');
     });
 });

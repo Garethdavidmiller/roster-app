@@ -2175,6 +2175,40 @@ test('links sets: Load asks before it throws away a table you have changed', asy
     await expect(page.locator('#genSlotRows tr')).toHaveCount(1); // Robson's single-row set
 });
 
+test('links grid: each line carries its own totals, and they follow an edit', async ({ page }) => {
+    // The maths is unit-tested (`lineTotals`); what only a browser answers is that the columns are
+    // WIRED — that every row got its three cells, that the footer averages are the same figures the
+    // rest of the page states, and that painting a cell moves the row it belongs to. That last one
+    // is the fiddly path: the edit handler rewrites ONE row rather than re-rendering the tbody, so
+    // a mistake there puts one line's hours against another line's cells and nothing looks broken.
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    await seedSession(page, 'G. Miller');
+    await openLinks(page);
+    await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+    await page.locator('#genApplyBtn').click();
+    const ok = page.locator('.lb-overlay.open .dialog-btn-confirm');
+    if (await ok.count()) await ok.first().click();
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
+
+    // Three cells on every line, no exceptions — the renderer indexes rows by position, so a short
+    // list would silently shift every total one line up.
+    await expect(page.locator('#linksGridBodyRows .tot-cell')).toHaveCount(ROTATING_LINES * 3);
+
+    const row1 = page.locator('#linksGridBodyRows tr').first();
+    const before = await row1.locator('.tot-cell').first().textContent();
+
+    // The footer average must be the SAME figure the summary strip states. Two places computing a
+    // design's hours separately is how they end up disagreeing; the footer reads `weeklyHours`,
+    // which is what the strip and the Design-checks row already read.
+    const avg = await page.locator('#linksCoverageFoot .tot-avg-num').first().textContent();
+    await expect(page.locator('#linksSummary')).toContainText(String(avg).trim());
+
+    // Paint a rest day over line 1's Monday: its Mon–Sat total must fall.
+    await page.locator('#brushBar button', { hasText: 'RD' }).first().click();
+    await row1.locator('.shift-cell-btn').nth(1).click();
+    await expect.poll(() => row1.locator('.tot-cell').first().textContent()).not.toBe(before);
+});
+
 test('links: the roster seed samples the whole MAIN cycle and nothing else', async ({ page }) => {
     // The seed has been wrong in both directions and the symptom was the same number either time.
     // v19.59: main's 20 weeks plus only the TWO bilingual weeks two bilingual members happen to sit
