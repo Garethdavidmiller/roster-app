@@ -182,7 +182,10 @@ describe('the generator refuses to underpay', () => {
         ];
         assert.equal(targetExSundayMinutes(mixed), WORKING * CONTRACTED_HOURS_PER_WEEK * 60,
             'fixture premise: five different lengths adding to the contracted week exactly');
-        assert.ok(generateLink({ slots: mixed, spareLines: SPARE, lines: LINES }).patterns);
+        // `requireRest: false` — this fixture is about the MINUTES, and it staffs a 23:55 closer in
+        // front of an 06:20 open on nearly every line, which no rearrangement can rest. The rest
+        // gate is exercised on its own terms in links-design.test.mjs.
+        assert.ok(generateLink({ slots: mixed, spareLines: SPARE, lines: LINES, requireRest: false }).patterns);
 
         // And the SAME NUMBER of duties, one of them ten minutes shorter, is refused. Duty count is
         // identical; only minutes moved. A duty-counting gate cannot tell these two apart.
@@ -215,6 +218,12 @@ describe('the opt-out is not a back door', () => {
         const app = readFileSync(new URL('./links-app.js', import.meta.url), 'utf8');
         assert.equal(/requireContract/.test(app), false,
             'links-app.js mentions requireContract — the app must never opt out of the contract gate');
+        // Same guard for the rest gate (v21.11), and for the same reason. It exists so construction
+        // fixtures — several of which staff every line every day, which no arrangement can rest —
+        // can still exercise the constructions. A design the app hands a designer is one somebody
+        // could be rostered to, and there is no reading of that where 11h45 between turns is fine.
+        assert.equal(/requireRest/.test(app), false,
+            'links-app.js mentions requireRest — the app must never opt out of the minimum-rest gate');
     });
 
     test('and leaving it out is the SAFE default', () => {

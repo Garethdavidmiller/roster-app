@@ -1046,6 +1046,129 @@ function slotAt(/** @type {Array<any>} */ group, /** @type {string} */ cls, /** 
 }
 
 /**
+ * The rest between one duty and the next, in minutes. Null when either has no readable time —
+ * a rest day or a spare week is not a turnaround at all.
+ *
+ * `endMinutesAbs`, never `endMinutes`: a duty running past midnight has to eat into the rest that
+ * follows it rather than be credited with a phantom extra day of it.
+ *
+ * @param {string} from @param {string} to
+ * @returns {number|null}
+ */
+export function restBetween(from, to) {
+    const end = endMinutesAbs(from), start = startMinutes(to);
+    if (end === null || start === null) return null;
+    return (24 * 60 - end) + start;
+}
+
+/**
+ * Repair every turnaround shorter than the minimum rest, by SWAPPING TWO LINES' DUTIES ON ONE DAY.
+ *
+ * ── WHY A SWAP, AND WHY WITHIN A SINGLE DAY COLUMN (v21.11) ────────────────────────────────────
+ *
+ * Owner, Aug 2026: "It keeps offering me a gap of 11 hours 45 minutes between a shift. That would
+ * never be allowed by Chiltern." It was right — the generated default put a Sunday 09:05–18:35 in
+ * front of a Monday 06:20 open, 11h45 apart against a 12-hour minimum — and the app only REPORTED
+ * it, in the Design checks, after building it. A minimum rest period is not an observation about a
+ * design; it is a condition of one being legal, which is the same class of statement as the
+ * contract, and the contract is refused rather than reported.
+ *
+ * The construction cannot easily be taught the rule: it is a sliding window whose stride arithmetic
+ * decides feasibility, and adding a per-cell constraint to it risks making ordinary tables
+ * unbuildable for reasons no message could explain. So the repair runs AFTER, and it is a swap
+ * because a swap is the one edit that **changes nothing anybody asked for**. Exchanging two lines'
+ * duties in the same day column leaves that day's headcount on every shift time exactly as it was,
+ * so the targets, the contract, the coverage heat map and the demand fit are all untouched by
+ * construction rather than by re-checking. Only WHO works WHICH duty moves.
+ *
+ * ── WHAT IT WILL AND WILL NOT TRADE ────────────────────────────────────────────────────────────
+ *
+ * Timed↔timed swaps are tried first: they leave both lines' days-worked unchanged, so nothing moves
+ * but the two shift times. Only if none fixes the breach does it try timed↔rest, which moves a duty
+ * between two lines and shifts each one's week by a day. The rotation's AVERAGE days worked is
+ * unchanged either way — the duty still exists — but an individual line's is not, which is why it
+ * is the second choice and not the first.
+ *
+ * SPARE lines are never touched. A spare week is a whole week (v19.58); swapping a duty into one
+ * would silently turn a cover week into a working week with six spare days, which is a different
+ * thing wearing the same word.
+ *
+ * A swap is only accepted when it breaks nothing else: all four adjacencies it can affect — either
+ * side of both moved cells — must come out at or above the minimum. Otherwise the repair would
+ * "fix" a breach by walking it to another line, which reads as success and is not.
+ *
+ * @param {Record<string, any>} patterns  MUTATED in place — the caller owns a fresh object
+ * @param {number} lines
+ * @param {number} [minRest]
+ * @returns {{repaired: number, remaining: Array<{line:number, day:string, rest:number}>}}
+ */
+export function repairShortRest(patterns, lines = ROTATING_LINES, minRest = MIN_REST_MINUTES) {
+    const at = (/** @type {number} */ w, /** @type {string} */ d) => patterns[String(w)]?.[d] ?? 'RD';
+    const set = (/** @type {number} */ w, /** @type {string} */ d, /** @type {string} */ v) => {
+        if (patterns[String(w)]) patterns[String(w)][d] = v;
+    };
+    /** A whole-week cover line — never a candidate, in either direction. */
+    const isSpareLine = (/** @type {number} */ w) => DAYS.every(d => at(w, d) === 'SPARE');
+    /** The cell BEFORE (w, d) in the rotation: the previous day, wrapping to the previous line. */
+    const prevOf = (/** @type {number} */ w, /** @type {string} */ d) => {
+        const i = DAYS.indexOf(d);
+        return i > 0 ? { w, d: DAYS[i - 1] } : { w: ((w - 2 + lines) % lines) + 1, d: DAYS[6] };
+    };
+    const nextOf = (/** @type {number} */ w, /** @type {string} */ d) => {
+        const i = DAYS.indexOf(d);
+        return i < 6 ? { w, d: DAYS[i + 1] } : { w: (w % lines) + 1, d: DAYS[0] };
+    };
+    /** Is the rest either side of this cell acceptable? */
+    const okAround = (/** @type {number} */ w, /** @type {string} */ d) => {
+        const p = prevOf(w, d), n = nextOf(w, d);
+        const before = restBetween(at(p.w, p.d), at(w, d));
+        const after  = restBetween(at(w, d), at(n.w, n.d));
+        return (before === null || before >= minRest) && (after === null || after >= minRest);
+    };
+
+    const breaches = () => {
+        const out = [];
+        for (let w = 1; w <= lines; w++) {
+            for (const d of DAYS) {
+                const n = nextOf(w, d);
+                const rest = restBetween(at(w, d), at(n.w, n.d));
+                if (rest !== null && rest < minRest) out.push({ line: n.w, day: n.d, rest });
+            }
+        }
+        return out;
+    };
+
+    let repaired = 0;
+    // Bounded by the cell count: each pass either fixes one breach or stops. A swap can in
+    // principle re-open an earlier one, so the loop re-measures from scratch rather than walking a
+    // stale list — and the guard is what makes "cannot repair" a decision instead of a hang.
+    for (let guard = 0; guard < lines * DAYS.length; guard++) {
+        const bad = breaches();
+        if (!bad.length) break;
+        const { line: w, day: d } = bad[0];
+        if (isSpareLine(w)) break;                    // cannot move a cover week's day
+        const mine = at(w, d);
+        let done = false;
+        // Timed partners first (both lines keep their days-worked), then rest days.
+        for (const wantTimed of [true, false]) {
+            for (let u = 1; u <= lines && !done; u++) {
+                if (u === w || isSpareLine(u)) continue;
+                const theirs = at(u, d);
+                if (theirs === mine) continue;
+                const theirsTimed = startMinutes(theirs) !== null;
+                if (theirsTimed !== wantTimed) continue;
+                set(w, d, theirs); set(u, d, mine);
+                if (okAround(w, d) && okAround(u, d)) { done = true; repaired++; }
+                else { set(w, d, mine); set(u, d, theirs); }
+            }
+            if (done) break;
+        }
+        if (!done) break;                             // no swap fixes it — the caller refuses
+    }
+    return { repaired, remaining: breaches() };
+}
+
+/**
  * Generate a link, reporting WHICH construction produced it.
  *
  * `generatePatterns` is the thin wrapper that returns only the patterns; it keeps the older
@@ -1059,14 +1182,17 @@ function slotAt(/** @type {Array<any>} */ group, /** @type {string} */ cls, /** 
  * @param {number} [opts.lines=ROTATING_LINES]
  * @param {boolean} [opts.settled=true]
  * @param {boolean} [opts.requireContract=true] refuse targets that do not pay the contracted week EXACTLY - false forces the rotating fallback (for comparison)
+ * @param {boolean} [opts.requireRest=true] refuse a design that cannot give everyone the minimum rest between turns. The SAME kind of opt-out as `requireContract` and for the same callers: construction fixtures describe a rotation SHAPE, and several deliberately staff every line every day, which no arrangement can rest. Never passed by the app - `links-contract.test.mjs` fails if it ever is.
  * @returns {{patterns: Object|null, mode: 'settled'|'rotating'|null, waves: number,
- *            reason: string|null, askedMinutes?: number, needMinutes?: number, working?: number}}
- *   The three extra fields accompany `short-hours` and `over-hours` ONLY. They are the whole
- *   actionable content of those refusals — a caller told merely that the targets are wrong cannot
- *   say by how much, and the gap is the only number a designer can do anything with.
+ *            reason: string|null, askedMinutes?: number, needMinutes?: number, working?: number,
+ *            shortRest?: number, shortRestCount?: number}}
+ *   The extra fields accompany a REFUSAL and nothing else. `askedMinutes`/`needMinutes`/`working`
+ *   belong to `short-hours` and `over-hours`, `shortRest`/`shortRestCount` to `short-rest`. They are
+ *   the whole actionable content of those refusals — a caller told merely that the targets are wrong
+ *   cannot say by how much, and the gap is the only number a designer can do anything with.
  */
 export function generateLink({ slots, spareLines = 0, lines = ROTATING_LINES, settled = true,
-                               requireContract = true }) {
+                               requireContract = true, requireRest = true }) {
     const fail = (/** @type {string} */ reason) => ({ patterns: null, mode: null, waves: 0, reason });
 
     if (!Array.isArray(slots) || slots.length === 0) return fail('no-slots');
@@ -1164,7 +1290,7 @@ export function generateLink({ slots, spareLines = 0, lines = ROTATING_LINES, se
                 const pos = ((idx - plan.starts[i]) % plan.n + plan.n) % plan.n;
                 return slotAt(plan.group, dayClass(d), pos);
             });
-            return { patterns, mode: 'settled', waves: waves.length, reason: null };
+            return _restChecked(patterns, 'settled', waves.length, lines, requireRest);
         }
     }
 
@@ -1182,7 +1308,32 @@ export function generateLink({ slots, spareLines = 0, lines = ROTATING_LINES, se
         const pos = ((wIndex - starts[i]) % working + working) % working;
         return slotAt(sorted, dayClass(d), pos);
     });
-    return { patterns, mode: 'rotating', waves: waves.length, reason: null };
+    return _restChecked(patterns, 'rotating', waves.length, lines, requireRest);
+}
+
+/**
+ * The last gate before a design leaves the generator: no turnaround under the minimum rest.
+ *
+ * It REPAIRS first and refuses only if it cannot (v21.11). The refusal names the shortest remaining
+ * gap because that is the whole actionable content — a designer told merely that the rest is wrong
+ * cannot see which pair of times to move, and the fix is always a shift time rather than anything
+ * about the rotation.
+ *
+ * @param {Record<string, any>} patterns @param {'settled'|'rotating'} mode
+ * @param {number} waves @param {number} lines @param {boolean} requireRest
+ */
+function _restChecked(patterns, mode, waves, lines, requireRest) {
+    // The REPAIR runs either way — a shape fixture is no reason to hand back a turnaround that could
+    // have been swapped out. Only the REFUSAL is opt-out-able.
+    const { remaining } = repairShortRest(patterns, lines);
+    if (requireRest && remaining.length) {
+        const worst = remaining.reduce((a, b) => (b.rest < a.rest ? b : a));
+        return {
+            patterns: null, mode: null, waves: 0, reason: 'short-rest',
+            shortRest: worst.rest, shortRestCount: remaining.length,
+        };
+    }
+    return { patterns, mode, waves, reason: null };
 }
 
 /**
