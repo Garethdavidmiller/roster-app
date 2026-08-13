@@ -2101,10 +2101,10 @@ test('links generator: a zero target recedes, and each day\'s block is separated
     await firstRow.locator('[data-class="sun"]').fill('0');
     await expect(firstRow.locator('[data-class="sun"]')).toHaveClass(/is-zero/);
 
-    // The default table is TWO blocks since v21.12 — Mon–Sat, then Sunday — because Monday to
-    // Saturday now run the same turns. So it carries exactly one boundary, not the two it had when
-    // the weekday and the Saturday were separate lists.
-    await expect(page.locator('#genSlotRows tr.gen-slot-newblock')).toHaveCount(1);
+    // The default table is three blocks since v21.13 — the eleven turns Mon–Sat run alike, then
+    // Saturday's own two, then Sunday's six — so it carries exactly two boundaries. The sizes are
+    // the readable part: Saturday's block IS the whole of its difference from a weekday.
+    await expect(page.locator('#genSlotRows tr.gen-slot-newblock')).toHaveCount(2);
 });
 
 test('links sets: a set can be deleted, and only by someone allowed to', async ({ page }) => {
