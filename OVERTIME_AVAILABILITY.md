@@ -302,7 +302,7 @@ whatever the roster later becomes.
 A submission is a **head document plus an append-only `revisions` subcollection**, both written in one
 transaction so a head can never point at a revision that does not exist.
 
-`initialSnapshot` and `lateInitial` are **derived** from the revision list against the stored initial
+`initialRevision` and `lateInitial` are **derived** from the revision list against the stored initial
 deadline (`deriveHistory`), never stored. A stored copy is a second answer that can disagree with the
 revisions it summarises — and the summary is the one a reviewer acts on.
 
