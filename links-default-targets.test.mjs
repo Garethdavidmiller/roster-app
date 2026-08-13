@@ -469,7 +469,7 @@ describe('the table is short enough to hold in your head (v21.12)', () => {
         // readability back. Starts and finishes are counted separately because they are two
         // different columns of the thing a reader scans.
         const CEILING = {
-            weekday: { starts: 8, finishes: 9 },
+            weekday: { starts: 7, finishes: 9 },
             sat:     { starts: 9, finishes: 9 },
             sun:     { starts: 6, finishes: 7 },
         };
@@ -484,38 +484,78 @@ describe('the table is short enough to hold in your head (v21.12)', () => {
         }
     });
 
-    test('Saturday IS the weekday, with one late turned into a fourth closer', () => {
-        // The single most useful sentence anyone can carry away from this table, and the one the
-        // row-sharing bought. It is also the events lean in structural form: Saturday spends a late
-        // turn on a body that stays to the close-down.
+    test('Saturday is the weekday, moved in exactly TWO ways', () => {
+        // v21.12 could say "one late turned into a fourth closer" — two rows, one sentence. The
+        // quarter-hour pass could not keep that shape without the generated design breaching a HARD
+        // limit (15 consecutive worked days), so Saturday is searched rather than derived, and the
+        // difference is now two moves rather than one:
         //
-        // Asserted as "exactly two rows differ, and the difference is one duty moved from a
-        // non-closer to a closer" rather than by naming the two times — naming them would pass on a
-        // table where five other rows had also diverged, as long as those two still read right.
+        //   · the morning body arrives LATER — Saturday's measured peak is 10:00–11:00, a weekday's
+        //     is 08:00–09:00, so its long middle starts at 08:30 instead of 07:15
+        //   · one late is spent on a FOURTH CLOSER — the events lean, in structural form
+        //
+        // Asserted as "two bodies move, one of them onto the close" rather than by naming times:
+        // naming them would pass on a table where five other rows had also diverged.
         const close = windowMinutes(WINDOW_FOR.sat.end);
         const differing = slots.filter(s => s.weekday !== s.sat);
-        assert.equal(differing.length, 2,
-            `Mon–Fri and Saturday differ in ${differing.length} rows: `
+        const moved = differing.reduce((a, s) => a + Math.abs(s.weekday - s.sat), 0) / 2;
+        assert.equal(moved, 2,
+            `${moved} bodies move between Mon–Fri and Saturday, not 2: `
             + differing.map(s => `${s.time} (${s.weekday} vs ${s.sat})`).join(', '));
-
-        const lost = differing.filter(s => s.sat < s.weekday);
+        for (const s of differing) {
+            assert.equal(Math.abs(s.weekday - s.sat), 1,
+                `${s.time} moves more than one body (${s.weekday} vs ${s.sat}) — that is a redesign, not a lean`);
+        }
         const gained = differing.filter(s => s.sat > s.weekday);
-        assert.equal(lost.length, 1, 'Saturday should give up exactly one weekday turn');
-        assert.equal(gained.length, 1, 'and take exactly one of its own');
-        assert.equal(lost[0].weekday - lost[0].sat, 1, 'one body, not several');
-        assert.equal(gained[0].sat - gained[0].weekday, 1);
-        assert.notEqual(endMinutesAbs(lost[0].time), close,
-            `Saturday gives up ${lost[0].time}, which is already a closer — then nothing was swapped`);
-        assert.equal(endMinutesAbs(gained[0].time), close,
-            `Saturday's extra turn (${gained[0].time}) does not run to the close, so it is not the fourth closer`);
+        assert.equal(gained.filter(s => endMinutesAbs(s.time) === close).length, 1,
+            'exactly one of Saturday\'s extra turns must run to the close — that is the fourth closer');
+        assert.equal(differing.filter(s => s.sat < s.weekday).length, 2,
+            'and Saturday gives up exactly two turns, one for each move');
     });
 
-    test('every Saturday time is a weekday time, bar that one', () => {
-        // What makes the two blocks readable as one. If a retune re-diverges the two days the row
-        // count climbs straight back toward 33, and this says so before anyone counts the table.
+    test('Saturday states only TWO times of its own — one per move', () => {
+        // What keeps the table readable as mostly one list. If a retune re-diverges the two days the
+        // row count climbs straight back toward 33, and this says so before anyone counts the table.
         const weekdayTimes = new Set(slots.filter(s => s.weekday > 0).map(s => s.time));
         const satOnly = slots.filter(s => s.sat > 0 && !weekdayTimes.has(s.time)).map(s => s.time);
-        assert.equal(satOnly.length, 1,
+        assert.equal(satOnly.length, 2,
             `Saturday states ${satOnly.length} times of its own — ${satOnly.join(', ')}`);
+    });
+
+    test('no start or finish is five or ten past the hour (v21.13)', () => {
+        // Owner: "ditch the odd start/finish times like 5 or 10 past the hour, unless they are
+        // opening or closing." The exemption is exactly the WINDOW'S OWN instants — 06:20 and 23:55
+        // Mon–Sat, 07:15 and 23:25 on a Sunday — because those are the station's hours, not a
+        // choice this table gets to make. Everything else is a decision, and :05 and :10 read as
+        // arbitrary on a roster somebody has to remember.
+        const pinned = new Set(DAY_CLASSES.flatMap(cls =>
+            [WINDOW_FOR[cls].start, WINDOW_FOR[cls].end]));
+        const offenders = [];
+        for (const s of slots) {
+            for (const half of s.time.split('-')) {
+                if (pinned.has(half)) continue;
+                if ([5, 10].includes(Number(half.split(':')[1]))) offenders.push(`${s.time} (${half})`);
+            }
+        }
+        assert.deepEqual(offenders, [],
+            `these read as arbitrary and are not the window's own hours: ${offenders.join(', ')}`);
+    });
+
+    test('and nearly every other time is on the quarter hour', () => {
+        // The owner's IDEAL was :00/:15/:30/:45 throughout. That is not reachable while the window
+        // opens at 06:20 and closes at 23:55 — see the module header for the arithmetic — so this
+        // pins how close it gets rather than pretending it is absolute. A CEILING on the exceptions,
+        // so a table that manages more quarters still passes.
+        const pinned = new Set(DAY_CLASSES.flatMap(cls =>
+            [WINDOW_FOR[cls].start, WINDOW_FOR[cls].end]));
+        const off = new Set();
+        for (const s of slots) {
+            for (const half of s.time.split('-')) {
+                if (pinned.has(half)) continue;
+                if (![0, 15, 30, 45].includes(Number(half.split(':')[1]))) off.add(half);
+            }
+        }
+        assert.ok(off.size <= 3,
+            `${off.size} distinct times are off the quarter hour, up from 3: ${[...off].sort().join(', ')}`);
     });
 });
