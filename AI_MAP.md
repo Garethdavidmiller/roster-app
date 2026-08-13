@@ -5,6 +5,37 @@
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
 
+## This file's SIZE is not a duplication problem — measured v21.18, do not re-open it
+
+It is ~335k characters with ~536 version references, and the obvious reading is that it has become
+what CLAUDE.md's file tree had become before the v20.11 pass: a changelog restating what the module
+headers already say. **That reading was proposed, measured, and is wrong**, and it is recorded here
+because the next person to notice the size will reach for it too.
+
+| Measure | AI_MAP vs the modules it describes |
+|---|---|
+| Word-set overlap with the module's own header | **55%** |
+| Sentences that are VERBATIM a header sentence | **0.4%** (5 of 1,271) |
+| Sentences sharing a substantial 7-word run with anything in the module | **10.4%** |
+
+The 55% is the misleading one, and it is the figure the proposal was built on. It measures shared
+**vocabulary** — a doc about `calendar-overrides.js` and that module's own header both say "override",
+"cache", "month", "authoritative", because they are about the same thing. It is not a measure of
+duplicated content, and reporting it as one was an error.
+
+Nearly ninety per cent of this file says something the modules do not. So a v20.11-style sweep here
+would not be removing duplication; it would be **deleting reasoning that exists nowhere else** — the
+one outcome that pass was careful to avoid ("moved into the module header first, and verified there").
+
+The other half of the v20.11 argument does not transfer either. That pass was driven by CLAUDE.md
+being loaded into **every** session, so its bulk was paid whether or not it was relevant. This file
+is read **on demand**, by a session that has already decided it needs the map. A large, detailed,
+on-demand module map that does not duplicate the code is a good module map.
+
+**What would change the answer:** a measurement, not an impression. If the verbatim or 7-gram figures
+above climb materially, the duplication is real and the sweep is the right response. Re-measure before
+proposing it.
+
 ---
 
 ## Quick decision table
