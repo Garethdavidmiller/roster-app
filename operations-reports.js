@@ -702,9 +702,16 @@ async function initPageSpeedCard() {
     const verdictBanner = (verdict, overall, total, unit, windowLabel = 'this month') => {
         const div = document.createElement('div');
         div.className = `speed-verdict speed-verdict--${TONE_CLASS[verdict.tone]}`;
+        // NO "(few)" MARKER HERE, deliberately — `perfVerdict` already returns a whole sentence
+        // saying it ("Too few sign-ins yet to read as a trend"), and this line sits directly under
+        // that sentence. v21.16 added one anyway and it was doing nothing twice over: it repeated
+        // the sentence above it, and `.speed-thin` is `--text-mid`/400 against a sub-line that is
+        // ALREADY `--text-mid`/400 — measured identical in colour, weight and size, so it read as
+        // three more words rather than as a mark. The marker earns its place on the breakdown rows
+        // and the per-page table, where the label beside it is `--text-dark` and there is no
+        // sentence; it does not earn it here.
         const sub = total
             ? `${overall.pctQuick}% within a second · ${total.toLocaleString('en-GB')} ${unit} ${windowLabel}`
-                + (total < THIN_SAMPLE ? ' <span class="speed-thin">(few)</span>' : '')
             : (windowLabel === 'this month'
                 ? 'Fills in as staff use the app over the coming days.'
                 : 'No data recorded last month.');
