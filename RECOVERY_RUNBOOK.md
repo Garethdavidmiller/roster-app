@@ -390,6 +390,31 @@ stops the hold outliving the rollout: it cannot be forgotten quietly, only remov
    overrides — and from this moment `CALENDAR_PIN_ACCESS: false` is **no longer a rollback**, because
    the reads are denied by the server whatever the client asks for. After step 4 the rollback is
    step 4's own revert.
+
+   > **SCHEDULED: Monday 24 Aug 2026** (owner, 14 Aug — "let it soak another week then close the
+   > hold"). Set for the Monday rather than the Friday: it is more soak, not less, and a tightening
+   > whose rollback has just become a rules deploy is a poor thing to ship into a weekend.
+   >
+   > **What the soak is actually for, and it is not what it sounds like.** It is not about proving
+   > the PIN works — that was step 2b, by hand, on 10 Aug. It is about *how many devices are still
+   > running a pre-v20.46 client*, because those are the ones this step breaks for one load. Every
+   > day converts more of them, and only opening the app converts one.
+   >
+   > **Pre-flight, in this order:**
+   > 1. **Operations → App Speed → "Why some are slower" → by version.** The share of real loads
+   >    still on a pre-v20.46 client. This is the number that decides go/no-go; a trickle is fine.
+   >    (Versions roll up into ranges, so `v20.40–v20.49` straddles the cutover — read the older
+   >    ranges, which are unambiguous.)
+   > 2. **Operations → Usage → calendar page views**, last 7 days vs. the same window before 10 Aug.
+   >    A successful unlock records usage and a failed one records nothing, so a material drop means
+   >    unlocks are failing. **This is the only soak signal there is** — a locked Calendar has no
+   >    identity, so a failing PIN exchange never reaches the Error Log. Silence there is not health.
+   > 3. `unlockCalendarViewer` in the Functions log, for outright errors.
+   > 4. The rules deploy path is green — proven 14 Aug (`f51400f`) after a transient failure the day
+   >    before. Do not ship step 4 on top of a red rules workflow.
+   >
+   > **Be free to postpone.** The exposure this closes has stood for years and another fortnight
+   > costs little; getting a roster wrong for somebody on their first shift back costs more.
 5. **Verify in production**, in a fresh private window: PIN → roster → reload → still unlocked →
    Team View → month navigation → Admin (must demand a member sign-in) → close the browser →
    PIN again. Then on a phone, and at an office-desktop width.
