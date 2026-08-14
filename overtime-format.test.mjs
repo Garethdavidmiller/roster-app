@@ -136,8 +136,14 @@ describe('answers in words', () => {
         // this answer and carries no roster beside it, so the qualifier cannot be left implicit —
         // without it, "up to 12 hours" against an 07:00–15:00 duty reads as either a 12-hour
         // extension or a 12-hour total, and those differ by eight hours of somebody's day.
-        assert.equal(answerCopy({ mode: 'twelve_hours' }), 'Available for up to 12 hours in total');
+        assert.equal(answerCopy({ mode: 'twelve_hours' }), 'Available for a full 12 hours in total');
         assert.match(answerCopy({ mode: 'twelve_hours' }), /in total/);
+        // AND it says "a full", matching the button the member pressed (v21.23). v21.22 reworded the
+        // button and left the chip on "up to" — the broader claim — so a member declaring they would
+        // work the maximum was read as declaring any amount at most that. Both phrasings were pinned,
+        // which is how the two sides of one answer stayed apart while the suite was green.
+        assert.match(answerCopy({ mode: 'twelve_hours' }), /a full/);
+        assert.equal(/up to/.test(answerCopy({ mode: 'twelve_hours' })), false);
         assert.equal(answerCopy({ mode: 'before', until: '07:00' }), 'Available before 07:00');
         assert.equal(answerCopy({ mode: 'after', from: '15:00' }), 'Available after 15:00');
         assert.equal(answerCopy({ mode: 'before_after', until: '07:00', from: '15:00' }),

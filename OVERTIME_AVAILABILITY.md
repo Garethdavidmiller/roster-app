@@ -320,6 +320,16 @@ Full multi-select was considered and rejected: it creates contradiction states t
 have to referee, and every stored answer stops being one unambiguous statement — the property the
 whole feature is built on.
 
+**OPEN (external review of v21.22).** The reviewer argues the standalone `twelve_hours` answer is
+still redundant now the cap is stated — on a rest day "All day" already permits a 12-hour duty, and
+on a worked day "Before & after duty" gives the clerk a WINDOW where `twelve_hours` gives only a
+duration, so the clerk cannot act on it without asking. Their remedy is to delete the mode and keep
+12 hours purely as the planning ceiling; the cost is losing the willingness signal the owner asked
+for at v20.83. The unresolved question is whether willingness needs capturing at all, and if it
+does, whether it belongs as its own optional question rather than as an availability window. **A
+real wording mismatch inside it was fixed at v21.23** — see below. Do not change the model without
+the owner: it has been settled twice already.
+
 ---
 
 ## Revisions, and why two of the interesting fields are not stored

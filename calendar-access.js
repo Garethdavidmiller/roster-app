@@ -47,7 +47,7 @@
  */
 
 import { auth, signInWithCustomToken, signInAnonymously, signOut, setViewerPersistence, onAuthStateChanged } from './firebase-client.js';
-import { getSession, reconcileExpiredIdentity, ensureNamedSession } from './session.js';
+import { getSession, clearSession, reconcileExpiredIdentity, ensureNamedSession } from './session.js';
 import { CONFIG } from './roster-data.js';
 import { isViewerUser, decideAccess, normalisePin, isCompletePin, classifyUnlockFailure, attemptBackoffMs, PIN_LENGTH, CALENDAR_VIEWER_CLAIM } from './calendar-access-core.js';
 
@@ -687,7 +687,29 @@ function showMemberPanel(name) {
         initLoginOverlay({ pageLabel: 'the Calendar', onSuccess: () => window.location.reload() });
     });
 
-    pinAlt.addEventListener('click', () => { hideLockPanel(); showLockPanel(); });
+    // ── LEAVING A NAMED IDENTITY IS A SIGN-OUT, NOT A PANEL SWAP (v21.23, external review) ─────────
+    //
+    // This used to be `hideLockPanel(); showLockPanel();` — it changed the card and nothing else. But
+    // the local session that named this card is the SAME one `calendar-app.js` already built the nav
+    // drawer from, at module scope, before access is decided (deliberately, so a locked visitor still
+    // has the drawer). So the next person at a shared PC unlocked with the staff PIN and got a
+    // Calendar whose drawer still said "G. Miller", still offered Sign out, and still showed whatever
+    // page pills that member's permissions earned — Operations and Links among them.
+    //
+    // No privilege travelled with it: those pages guard themselves, and the viewer token carries no
+    // `name`/`admin`/`manager`/`linksDesigner` claim. What travelled was the previous person's NAME
+    // and, readable off the pills, their ROLE — on the one screen in the app designed to be handed
+    // between strangers.
+    //
+    // The remedy is the one the app already uses for exactly this transition, one line away in
+    // `onSignOut`: drop the local session and reload. The reload is doing the work — every consumer
+    // seeded from `getSession()` at module scope is rebuilt from nothing, which no in-place repaint
+    // of this panel could achieve. `decideAccess` then sees no session and no identity and lands on
+    // the PIN card, which is where the tap was going anyway.
+    pinAlt.addEventListener('click', () => {
+        clearSession();
+        window.location.reload();
+    });
 
     // The silent attempt. It runs AFTER the panel is on screen deliberately: awaiting it first would
     // hold the page blank for the length of a round trip, and this state is already the slow path.
