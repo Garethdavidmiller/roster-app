@@ -148,6 +148,20 @@ What it buys is that the roster is no longer readable by the open internet, and 
 at minimum be someone who has been told the code. It buys nothing else, and nothing in the app
 claims otherwise.
 
+**One residual defect was NOT deliberate, and is closed (found Aug 2026, fixed v21.21).** The
+session-only lifetime — the property everything above leans on — held only until the first reload.
+`authReady` applied the member persistence chain unconditionally at module init on every page, and
+Firebase's `setPersistence` MIGRATES the current user between stores: one ordinary reload of an
+unlocked Calendar moved the shared viewer out of sessionStorage into IndexedDB, where it survived
+the browser closing, so the next person at a shared office PC got the roster with no PIN. Found by
+line-by-line reading during a latency review, proven in a real Chromium against the Auth emulator
+(`experiments/viewer-persistence-proof/` — both arms, with storage dumps), and fixed by making the
+boot persistence decision viewer-aware. The fix **self-heals machines the old behaviour already
+leaked into**: re-asserting session persistence migrates the viewer back out of IndexedDB, so it
+dies at that browser's next close — no manual cleanup and no token-revocation sweep needed. Shape
+pinned by `calendar-viewer-parity.test.mjs` Contract C; no unit or e2e test can observe the property
+itself, because it only exists across a genuine browser exit.
+
 **Residual limitations once it is switched on, all deliberate:**
 - **Rotation is manual.** Changing the PIN is a Secret Manager update (no client release —
   OPERATIONS_REFERENCE.md → "Rotating the Calendar PIN"). Existing viewer sessions survive a
