@@ -599,6 +599,39 @@ export function isWithdrawn(participant) {
 }
 
 /**
+ * May this withdrawal be undone? The CLIENT copy of the rule (v21.26).
+ *
+ * ⚠️ THE SAME RULE EXISTS SERVER-SIDE, in `functions/overtime-core.js` (`canRestoreParticipant`),
+ * and THAT one is the protection — this copy only decides what the panel OFFERS. The pattern is
+ * `canOverwriteTargetSet` in the Links workspace: the button asks the client, the write asks the
+ * server, and the client is allowed to be wrong only in the direction of offering less.
+ *
+ * Kept in step by `overtime-parity.test.mjs`, which compares BEHAVIOUR over a table of states
+ * rather than source text — the drift here is silent in the usual way, because a client that
+ * quietly loosens would put the button back on a case the server refuses, and the reviewer would
+ * meet a refusal instead of an explanation.
+ *
+ * Full reasoning — including why an unreadable stamp refuses — is in the server module's header.
+ * @param {number} initialDeadlineAt
+ * @param {number|null|undefined} withdrawnAtMs
+ * @param {number} nowMs
+ * @returns {boolean}
+ */
+export function canRestoreNow(initialDeadlineAt, withdrawnAtMs, nowMs) {
+    // AN UNKNOWN DEADLINE ASKS THE SERVER — the one branch that is client-only, and it runs the
+    // opposite way to the server's unknown case on purpose. The server refuses an unreadable
+    // `withdrawnAt` because it is the protection and a wrong yes writes a false record. Here a
+    // wrong no puts a SENTENCE on screen — "stopped before the first deadline" — explaining a
+    // refusal that may not exist, and a false explanation is worse than a refused tap: the tap
+    // costs a moment, the sentence is believed. So when this client cannot tell, it offers the
+    // button and lets the endpoint answer.
+    if (!Number.isFinite(initialDeadlineAt) || !Number.isFinite(nowMs)) return true;
+    if (nowMs <= initialDeadlineAt) return true;
+    if (!Number.isFinite(withdrawnAtMs)) return false;
+    return /** @type {number} */ (withdrawnAtMs) > initialDeadlineAt;
+}
+
+/**
  * "Stopped by H. Croft, Wed 12 Aug" — the caption that makes an exclusion visible.
  *
  * The by-WHOM half is not decoration. This is the one action on the page that removes a person from
@@ -732,7 +765,8 @@ export function answerTone(day) {
  * @param {Array<{revision:number, days:object, acceptedAt:number}>} revisions
  * @param {Record<string, any>|null} headDays
  * @param {number} initialDeadlineAt
- * @returns {{ initialRevision: any, lateInitial: boolean, changedSinceInitial: boolean }}
+ * @returns {{ initialRevision: any, lateInitial: boolean, changedSinceInitial: boolean,
+ *   dayChangedAt: Record<string, number> }}
  */
 export function deriveHistory(revisions, headDays, initialDeadlineAt) {
     const sorted = [...(revisions || [])].sort((a, b) => a.revision - b.revision);
@@ -746,7 +780,55 @@ export function deriveHistory(revisions, headDays, initialDeadlineAt) {
         lateInitial: hasSubmission && !initialRevision,
         changedSinceInitial: !!(initialRevision && headDays
             && stableStringify(initialRevision.days) !== stableStringify(headDays)),
+        dayChangedAt: dayChangedAt(sorted),
     };
+}
+
+/**
+ * When each individual DATE's answer last changed (v21.26, external review of v21.22).
+ *
+ * ── THE DEFECT ──────────────────────────────────────────────────────────────────────────────────
+ *
+ * A submission has ONE `updatedAt` for the whole form, and the reviewer's rows printed their age
+ * from it. So a member who answered all seven days a fortnight ago and edited only the Saturday
+ * this morning had every one of their days reported as declared today. The figure was not
+ * approximate — it was the wrong day's timestamp on six rows, always in the direction of looking
+ * FRESHER than it was, which is the direction that costs something: a clerk arranging short-notice
+ * cover is weighing exactly how current an answer is.
+ *
+ * ── DERIVED, NOT STORED ─────────────────────────────────────────────────────────────────────────
+ *
+ * The revisions are append-only and already carry every answer at every point, so the per-day
+ * instant is a fact about data we already hold. Storing it alongside would be a second copy of a
+ * derivable truth, free to disagree with the history it summarises — the same reasoning that keeps
+ * `initialRevision` and `lateInitial` derived.
+ *
+ * A day's answer "changes" when it first appears and whenever its stored shape differs from the
+ * revision before it. Structural comparison, not identity: the two sides pass through different
+ * producers and a reordered object is not a change of mind.
+ *
+ * Returns `{}` when there are no revisions — a read of the history can fail while the head is
+ * perfectly readable, and the caller then falls back to the whole-form timestamp rather than
+ * printing nothing.
+ * @param {any[]} sortedRevisions revisions in ascending `revision` order
+ * @returns {Record<string, number>} date → epoch ms
+ */
+function dayChangedAt(sortedRevisions) {
+    /** @type {Record<string, number>} */
+    const changedAt = {};
+    /** @type {Record<string, string>} */
+    const seen = {};
+    for (const r of sortedRevisions) {
+        const days = r?.days;
+        if (!days || typeof days !== 'object') continue;
+        for (const date of Object.keys(days)) {
+            const shape = stableStringify(days[date]);
+            if (seen[date] === shape) continue;
+            seen[date] = shape;
+            changedAt[date] = r.acceptedAt;
+        }
+    }
+    return changedAt;
 }
 
 /**

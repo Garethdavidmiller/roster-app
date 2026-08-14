@@ -781,6 +781,53 @@ describe('withdrawal is reachable for somebody who has already ANSWERED (v21.20)
     });
 });
 
+describe('a row reports how old THIS day\'s answer is (v21.26, external review)', () => {
+    // ── THE DEFECT, AND WHY IT NEEDS A TEST HERE AND NOT ONLY IN THE FORMATTER ──────────────────
+    //
+    // The derivation is pinned in overtime-format.test.mjs. This suite pins that the ROW USES it —
+    // two separate passes over the same feature, and the repo has been caught by exactly that gap
+    // before (the roster review picker, where asserting the summary counter alone had no teeth).
+    // Found by mutation: reverting the row to the whole-form timestamp left every other test green.
+    const NOW = Date.parse('2026-08-17T09:00:00Z');
+    const DAY_MS = 86_400_000;
+
+    const render = (/** @type {any} */ history, /** @type {number} */ updatedAt) => {
+        const host = fakeHost();
+        renderWeekDetail(/** @type {any} */ (host), WIN,
+            { participants: PARTICIPANTS, submissions: submissions({ 'A. One': { history, updatedAt } }) },
+            { dates: DATES, now: NOW });
+        return host.innerHTML;
+    };
+
+    test('an untouched day shows ITS age, not the age of the last edit to the form', () => {
+        // The whole form was saved today; both of this window's dates were last changed ten days
+        // ago. Before the fix the rows said "today" — always the fresher of the two, which is the
+        // misleading direction. BOTH dates are stamped deliberately: with only one stamped, the
+        // other legitimately falls back to the form's age and prints "today", so an assertion that
+        // "today" is absent would fail for a reason that is not the defect (found while writing it).
+        const out = render(
+            { lateInitial: false, changedSinceInitial: false,
+              dayChangedAt: { '2026-08-30': NOW - 10 * DAY_MS, '2026-08-31': NOW - 10 * DAY_MS } }, NOW);
+        assert.match(out, /10 days ago/);
+        assert.equal(/today/.test(out), false, 'a row still reports the whole form\'s age');
+    });
+
+    test('a day edited today still reads as today', () => {
+        // The gate must not have made everything look old — the other direction of the same bug.
+        const out = render(
+            { lateInitial: false, changedSinceInitial: false,
+              dayChangedAt: { '2026-08-30': NOW } }, NOW);
+        assert.match(out, /today/);
+    });
+
+    test('and with NO per-day history the row falls back to the whole-form age', () => {
+        // A revision read can fail while the head is perfectly readable. A coarse age beats none —
+        // and beats a crash on a page a clerk is mid-decision on.
+        const out = render({ lateInitial: false, changedSinceInitial: false }, NOW - 3 * DAY_MS);
+        assert.match(out, /3 days ago/);
+    });
+});
+
 describe('a CLOSED week is a record, so it offers no participant controls (v21.23)', () => {
     // ── THE DEFECT ──────────────────────────────────────────────────────────────────────────────
     //
@@ -823,6 +870,56 @@ describe('a CLOSED week is a record, so it offers no participant controls (v21.2
         assert.match(closed, /Who was asked/);
         assert.equal(/Who is being asked/.test(closed), false);
         assert.match(render('FINAL_OPEN'), /Who is being asked/);
+    });
+
+    describe('restoring is offered per PERSON, not per week (v21.26)', () => {
+        // Putting somebody back into a week whose initial deadline has passed, when they were stood
+        // down BEFORE it, makes the app report them as having submitted late to a deadline they were
+        // never asked about. So the button is decided per row, and the row that cannot have it says
+        // why — a control that silently vanishes for one person and not another reads as a
+        // rendering fault, and the reviewer's next move is a reload that changes nothing.
+        const DEADLINE = Date.parse('2026-08-12T11:00:00Z');
+        const NOW_AFTER = Date.parse('2026-08-17T09:00:00Z');
+        const stood = (/** @type {string} */ name, /** @type {number} */ at) => ({
+            memberName: name, grade: 'CEA', rosterOrder: 9, withdrawn: true,
+            withdrawnBy: 'H. Croft', withdrawnAt: at,
+        });
+        const render = (/** @type {any[]} */ extra, /** @type {number} */ now) => {
+            const host = fakeHost();
+            renderWeekDetail(/** @type {any} */ (host),
+                { ...WIN, phase: 'FINAL_OPEN', initialDeadlineAt: DEADLINE },
+                { participants: [...PARTICIPANTS, ...extra], submissions: submissions() },
+                { dates: DATES, now });
+            return host.innerHTML;
+        };
+
+        test('a withdrawal made AFTER the deadline is still an ordinary undo', () => {
+            const out = render([stood('Late. Leaver', DEADLINE + 60_000)], NOW_AFTER);
+            assert.match(out, /data-ask-again="Late\. Leaver"/);
+        });
+
+        test('one made BEFORE it loses the button and gains an explanation', () => {
+            const out = render([stood('Early. Leaver', DEADLINE - 60_000)], NOW_AFTER);
+            assert.equal(/data-ask-again="Early\. Leaver"/.test(out), false,
+                'a restore is offered that the server would refuse');
+            assert.match(out, /Stopped before the first deadline/);
+        });
+
+        test('and before the deadline everything is still undoable', () => {
+            // Nothing has been decided yet, so a restore claims nothing about anybody.
+            const out = render([stood('Early. Leaver', DEADLINE - 120_000)], DEADLINE - 60_000);
+            assert.match(out, /data-ask-again="Early\. Leaver"/);
+            assert.equal(/Stopped before the first deadline/.test(out), false);
+        });
+
+        test('the two states can sit in ONE panel without either losing its own answer', () => {
+            // The realistic week: somebody stood down early and somebody stood down yesterday. A
+            // per-WEEK gate would have to pick one answer for both, which is the bug.
+            const out = render([stood('Early. Leaver', DEADLINE - 60_000),
+                                stood('Late. Leaver',  DEADLINE + 60_000)], NOW_AFTER);
+            assert.match(out, /data-ask-again="Late\. Leaver"/);
+            assert.equal(/data-ask-again="Early\. Leaver"/.test(out), false);
+        });
     });
 
     test('the closed panel says WHY there is nothing to press', () => {
