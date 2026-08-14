@@ -447,6 +447,23 @@ export function countsCopy(expected, received) {
  * unknown, and unknown is not "already rostered 12 hours", so the pill shows. That is the same
  * direction every unknown resolves on this page — withhold what would ANCHOR to an unverified
  * roster (the before/after shortcuts), keep what anchors to nothing (this, all-day, custom).
+ *
+ * ── ONE BOTH-SIDES ANSWER PER DAY (v21.22, owner) ───────────────────────────────────────────────
+ *
+ * On a normal worked day, "Any time around my shift" (all_day) and "Before & after duty" said the
+ * SAME thing to a roster clerk — free both sides of the duty — and the owner's review named the
+ * pair as the confusion it was. The one that stays is `before_after`, because it stores the clock
+ * times the member actually declared: a later roster change leaves their answer saying what they
+ * said (flagged by `answerAnchorStale`), which is the schema's own philosophy, where all_day
+ * silently re-points at whatever the shift becomes. all_day is KEPT everywhere before_after cannot
+ * be offered — rest/spare days (nothing to anchor to), overnight duties (before_after is refused
+ * by the server as inverted) and unknown rosters — so every day still has a both-sides answer,
+ * and a SAVED all_day on a worked day still renders (the form re-adds a stored mode to the list).
+ *
+ * The same review settled why this stays a single-select at all: twelve hours is the ceiling every
+ * plan is subject to, not something a member grants — so "before & after AND up to 12 hours" adds
+ * nothing to "before & after". The form now says so (the cap note in overtime-form.js), and the
+ * 12-hour pill is worded as what it really is: willingness for the LONGEST day allowed.
  * @param {{hasTime?: boolean, overnight?: boolean, rosteredMinutes?: number|null}|null} ctx
  * @returns {string[]}
  */
@@ -455,7 +472,7 @@ export function modesFor(ctx) {
         ? [] : ['twelve_hours'];
     if (!ctx || !ctx.hasTime) return ['unavailable', 'all_day', ...twelve, 'custom'];
     if (ctx.overnight) return ['unavailable', 'all_day', ...twelve, 'before', 'custom'];
-    return ['unavailable', 'all_day', ...twelve, 'before', 'after', 'before_after', 'custom'];
+    return ['unavailable', ...twelve, 'before', 'after', 'before_after', 'custom'];
 }
 
 /**

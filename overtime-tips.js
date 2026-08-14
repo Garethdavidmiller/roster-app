@@ -62,7 +62,7 @@ export const CARD_TIPS = {
                 items: [
                     { icon: '📋', html: 'This tells the roster team when you are <strong>available</strong>. It does not book overtime and does not guarantee any.' },
                     { icon: '➕', html: 'What you offer is time <strong>around whatever you are already rostered</strong>. Saying you are available never puts your rostered shift at risk, and never means you would rather work a different one.' },
-                    { icon: '⏱️', html: '<strong>Up to 12 hours</strong> means your whole day may run to twelve hours, including anything you are already rostered — not twelve hours on top. It is not offered where the day already reaches that.' },
+                    { icon: '⏱️', html: 'A working day is never planned past <strong>12 hours in total</strong>, however you answer — you do not need to choose anything to get that protection. The <strong>full 12 hours</strong> option adds one thing: it says you would work the longest day allowed, counting anything you are already rostered. It is not offered where the day already reaches that.' },
                     { icon: '🧾', html: 'A submitted form says so at the top, with when you last changed it. That line is still there when you come back to it.' },
                     { icon: '✅', html: 'The <strong>released roster</strong> is the only place that shows overtime you have actually been given.' },
                     { icon: '🔒', html: 'Managers and the admin can see what you submit. Forms are kept for around 13 weeks and then deleted.' },
