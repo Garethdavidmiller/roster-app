@@ -14,7 +14,7 @@
  *     the pages actually consult it on a viewer session is a wiring question.
  */
 import { test, expect } from './fixtures.js';
-import { seedMember, seedMemberSession, seedSession, stubPinExchange, enterPin, collectFatalErrors } from './helpers.js';
+import { seedMember, seedMemberSession, seedSession, seedSessionOnce, stubPinExchange, enterPin, collectFatalErrors } from './helpers.js';
 import { disableCalendarPin, enableCalendarPin } from './fixtures.js';
 
 // The shipped default is OFF while the feature is deployed dark (v20.17), so every test here that
@@ -340,8 +340,19 @@ test('a MIGRATED member whose identity is gone is offered sign-in, with the PIN 
     await expect(page.locator('#loginOverlay')).toBeVisible();
 });
 
-test('the member card can fall back to the staff PIN', async ({ page }) => {
-    await seedSession(page, 'G. Miller');
+test('the member card falls back to the staff PIN by SIGNING OUT first', async ({ page }) => {
+    // ── WHAT THIS PINS, AND WHY IT CHANGED AT v21.23 ────────────────────────────────────────────
+    //
+    // "Use the staff PIN instead" used to swap one card for another and leave everything else
+    // alone. But `calendar-app.js` builds the nav drawer at module scope from the local session,
+    // before access is decided — so the next person at a shared PC unlocked with the staff PIN onto
+    // a Calendar whose drawer still named the previous member and still showed the page pills their
+    // permissions earned. It now clears the session and reloads.
+    //
+    // The seed is ONE-SHOT (`seedSessionOnce`) because the ordinary `seedSession` re-runs on every
+    // navigation, so it wrote the session back after the reload and this test failed against
+    // behaviour that was working. That is what it did for four releases — see the helper's header.
+    await seedSessionOnce(page, 'G. Miller');
     await seedMember(page, 'G. Miller');
     await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { failSignIn: true }); });
     await stubPinExchange(page);
@@ -349,7 +360,20 @@ test('the member card can fall back to the staff PIN', async ({ page }) => {
 
     await expect(page.locator('#calLockPinInstead')).toBeVisible();
     await page.locator('#calLockPinInstead').click();
-    await expect(page.locator('#calLockPin')).toBeVisible();
+
+    // The PIN card arrives via a RELOAD, not a repaint — so the wait is for the reloaded page.
+    await expect(page.locator('#calLockPin')).toBeVisible({ timeout: 20_000 });
+
+    // THE PRIVACY PROPERTY, which the old test did not check at all: the previous member's identity
+    // is gone, not merely covered over. Asserted on the stored session rather than the pixels,
+    // because every consumer — the drawer's name, its Sign out button, its permission pills — is
+    // seeded from this one value at module scope.
+    assert_cleared: {
+        const stored = await page.evaluate(() => localStorage.getItem('myb_admin_session'));
+        expect(stored, 'the previous member\'s session survived the switch to the staff PIN').toBeNull();
+    }
+    await expect(page.locator('#calLockWho')).toHaveCount(0);
+
     await enterPin(page, '1234');
     await expect(page.locator('#calendarDisplay')).toBeVisible();
 });

@@ -382,8 +382,18 @@ describe('the viewer account is invisible to staff enumeration', () => {
 // the symptom least likely to lead anyone to the cause. Asserted through the same helper the
 // endpoint uses, since the endpoint itself needs the emulator.
 describe('deployed-secret shape', () => {
+    // ⚠️ EVERY FIXTURE BELOW IS INVENTED, AND MUST STAY THAT WAY (v21.27).
+    //
+    // These were previously written as near-misses of the LIVE PIN — a truncation of it, a spaced
+    // version, and it with a trailing keystroke. Individually each is malformed; together they
+    // reconstruct the secret for anybody reading the file, which is exactly the leak
+    // `calendar-viewer-parity.test.mjs` Contract B exists to prevent. That guard did not catch it
+    // because its file scan skips `*.test.*` — the one place the value had got to.
+    //
+    // A malformed input does not need to resemble the real value to test a shape rule. Derive these
+    // from nothing.
     test('the shape rule rejects exactly what a slipped keystroke produces', () => {
-        for (const bad of ['12345', '147', '14 75', 'abcd', '147a', '', '   ', '1475\n5']) {
+        for (const bad of ['12345', '908', '90 81', 'abcd', '908a', '', '   ', '9081\n5']) {
             assert.equal(isValidPinShape(bad.trim()), false, `"${bad}" must not pass as a configured PIN`);
         }
     });

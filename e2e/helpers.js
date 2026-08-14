@@ -40,6 +40,32 @@ export function seedSession(page, name = 'G. Miller') {
     }, name);
 }
 
+/**
+ * Seed a session that does NOT come back after the page reloads itself.
+ *
+ * ── WHY THIS EXISTS (v21.27) ────────────────────────────────────────────────────────────────────
+ *
+ * `seedSession` above uses `addInitScript`, which Playwright re-runs on EVERY navigation — a
+ * reload included. That is right for almost every test, and exactly wrong for the ones that
+ * exercise a flow which SIGNS THE MEMBER OUT AND RELOADS: the init script writes the session
+ * straight back, the app correctly decides the member is still signed in, and the test fails
+ * against behaviour that is working perfectly in production.
+ *
+ * A one-shot seed models the real thing — somebody signed in once, and the app then cleared it.
+ * The sentinel lives in `sessionStorage` so `clearSession()` (which only touches the app's own
+ * localStorage key) cannot reset it and re-arm the seed.
+ * @param {import('@playwright/test').Page} page @param {string} name
+ */
+export function seedSessionOnce(page, name = 'G. Miller') {
+    return page.addInitScript((n) => {
+        if (sessionStorage.getItem('__e2e_session_seeded')) return;
+        sessionStorage.setItem('__e2e_session_seeded', '1');
+        localStorage.setItem('myb_admin_session', JSON.stringify({
+            name: n, ver: 2, expiry: Date.now() + 90 * 24 * 60 * 60 * 1000,
+        }));
+    }, name);
+}
+
 // Seed a chosen calendar member so index.html renders the grid instead of the first-run
 // "choose your name" prompt (shown only when NO member is saved AND not signed in).
 //
