@@ -288,7 +288,7 @@ is softer than that, because **both halves are ours**:
 - **Firestore rules are evaluated server-side.** The persistent local cache serves offline reads without
   consulting them. The roster is still on the device.
 
-> **✅ The second bullet was an UNVALIDATED assumption until v21.21, and is now DEMONSTRATED.** It was
+> **✅ The second bullet was an UNVALIDATED assumption until Aug 2026, and is now DEMONSTRATED.** It was
 > always how Firestore is documented to work, and this section rests on it entirely — so it was carrying
 > a warning that no one should rely on it. The experiment this note used to ask for has been run:
 > `experiments/firestore-offline-proof/`, against the Firestore emulator and the production SDK build,
