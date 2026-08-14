@@ -122,6 +122,29 @@ describe('Contract B — the PIN is not in the repository', () => {
         .filter(f => /\.(js|mjs|html|css)$/.test(f))
         .filter(f => !f.includes('.test.'));
 
+    /**
+     * The same files PLUS the test suites (v21.27).
+     *
+     * ── WHY THIS EXISTS: THE EXCLUSION ABOVE IS WHERE A LEAK ACTUALLY LANDED ────────────────────
+     *
+     * `clientFiles` skips `*.test.*` because a test may legitimately name the parameter while
+     * exercising the shape rule. That exemption was reasonable and it was also the blind spot: the
+     * live PIN reached the repository inside `calendar-viewer-auth.test.mjs`, as a set of malformed
+     * fixtures written as near-misses of it — a truncation, a spaced form, and it with a trailing
+     * keystroke. Each is individually harmless and together they reconstruct the secret, and the
+     * one guard built to prevent exactly this was not looking at the file.
+     *
+     * This file still CANNOT check for the value — writing it here would be the leak. What it can
+     * do is stop a test becoming a verifier or a comparison, which is the shape a deliberate leak
+     * takes, and keep the exemption to the one thing it was for.
+     */
+    // THIS FILE IS EXCLUDED FROM ITS OWN SCAN: it necessarily contains every banned pattern,
+    // because listing them is what it does. A guard that flags itself reports nothing useful and
+    // trains the next reader to ignore it.
+    const SELF = 'calendar-viewer-parity.test.mjs';
+    const testFiles = readdirSync(new URL('.', import.meta.url))
+        .filter(f => /\.test\.mjs$/.test(f)).filter(f => f !== SELF);
+
     test('no client file names the secret parameter', () => {
         // The browser has no business knowing the secret's NAME either: the only way a client could
         // use it is by having its value, and a reference is the first step of putting one there.
@@ -153,6 +176,37 @@ describe('Contract B — the PIN is not in the repository', () => {
             'a client-side PIN check turns a 10,000-space secret into an offline brute force:\n  '
             + offenders.join('\n  '));
     });
+
+    test('and NO TEST FILE holds one either (v21.27)', () => {
+        // The exemption above is for naming the parameter, nothing more. A test that stores a
+        // verifier, a hash or a literal comparison is the same leak as a client that does, and it
+        // is the file class the live PIN actually reached.
+        const banned = [/EXPECTED_PIN/i, /PIN_HASH/i, /CORRECT_PIN/i, /VALID_PIN\b/i];
+        /** @type {string[]} */
+        const offenders = [];
+        for (const f of testFiles) {
+            const src = read('./' + f);
+            for (const re of banned) if (re.test(src)) offenders.push(`${f} — matched ${re}`);
+        }
+        assert.deepEqual(offenders, [], 'a test file holds a PIN verifier:\n  ' + offenders.join('\n  '));
+    });
+
+    // ── A GUARD THAT WAS TRIED AND DELIBERATELY NOT SHIPPED (v21.27) ────────────────────────────
+    //
+    // The leak this file failed to catch was three malformed fixtures — a truncation, a spaced form
+    // and a trailing-keystroke form — that together reconstructed the live PIN. The obvious guard is
+    // to flag a CLUSTER of digit fixtures sharing a stem, and it was written and run.
+    //
+    // It cannot be made precise. A suite that reuses ONE obviously-fake PIN throughout (which is
+    // good practice, and what this repo does) clusters on its stem exactly as a real one written
+    // three ways does: the measured counts here were 13 and 18 for entirely innocent fixtures. The
+    // only way to separate them is to know the real value, which is the thing that must not be here.
+    //
+    // So it was dropped rather than exempted. A guard with an exemption list for its false positives
+    // is one people learn to silence, and this repo has that lesson written down in three other
+    // places. What protects the secret instead: the verifier scan above now covers test files, the
+    // fixtures in calendar-viewer-auth.test.mjs carry a comment saying why they are invented, and
+    // the value itself must be ROTATED — removing it from the working tree leaves it in git history.
 
     test('the client sends the PIN to the server and does nothing else with it', () => {
         const src = read('./calendar-access.js');
