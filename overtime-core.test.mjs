@@ -601,6 +601,72 @@ describe('the availability schema — never invent an answer', () => {
         }
     });
 
+    describe('the willingness flag rides ALONGSIDE a window (v21.24)', () => {
+        // The availability/willingness split. `twelve_hours` said HOW LONG in a control whose every
+        // other option said WHEN, so the two competed; `fullTwelve` is a separate axis and can
+        // therefore accompany any window without overlapping it.
+        const AVAILABLE = [
+            { mode: 'all_day' },
+            { mode: 'before', until: '07:00' },
+            { mode: 'after', from: '15:00' },
+            { mode: 'before_after', until: '07:00', from: '15:00' },
+            { mode: 'custom', start: '18:00', end: '23:00', nextDay: false },
+        ];
+
+        test('every available mode accepts it, and it survives the round trip', () => {
+            for (const m of AVAILABLE) {
+                const day = { ...m, fullTwelve: true };
+                const r = C.normaliseDays(week(day), DATES);
+                assert.equal(r.ok, true, `${m.mode} should accept the flag`);
+                assert.deepEqual(r.days[DATES[0]], day, `${m.mode} must keep it verbatim`);
+                // Fixed point, like every other answer — a saved form must not drift when it is
+                // read back and re-submitted.
+                assert.deepEqual(C.normaliseDays(r.days, DATES).days, r.days);
+            }
+        });
+
+        test('FALSE is stored as an absence, never as a declared no', () => {
+            // An unticked box has said nothing. Storing `fullTwelve: false` would make answers
+            // written before this field structurally different from identical ones written after,
+            // for a difference nobody expressed — and would need a migration to keep them
+            // comparable. Same reasoning as a restored participant losing `withdrawn` outright.
+            const r = C.normaliseDays(week({ mode: 'all_day', fullTwelve: false }), DATES);
+            assert.equal(r.ok, true);
+            assert.deepEqual(r.days[DATES[0]], { mode: 'all_day' });
+            assert.equal('fullTwelve' in r.days[DATES[0]], false);
+        });
+
+        test('"not available" refuses it — the one mode it cannot mean anything beside', () => {
+            const r = C.normaliseDays(week({ mode: 'unavailable', fullTwelve: true }), DATES);
+            assert.equal(r.ok, false);
+            assert.equal(r.error, 'unknown-field');
+        });
+
+        test('and it is type-checked, like every other field', () => {
+            for (const bad of ['yes', 1, null, {}]) {
+                const r = C.normaliseDays(week({ mode: 'all_day', fullTwelve: bad }), DATES);
+                assert.equal(r.ok, false, `fullTwelve: ${JSON.stringify(bad)} was accepted`);
+            }
+        });
+
+        test('an answer WITHOUT it is unchanged — this is additive, not a new requirement', () => {
+            // The field is optional in the true sense: every form submitted before v21.24 stays
+            // valid, and a client that never sends it keeps working for ever.
+            const r = C.normaliseDays(week({ mode: 'before_after', until: '07:00', from: '15:00' }), DATES);
+            assert.equal(r.ok, true);
+            assert.equal('fullTwelve' in r.days[DATES[0]], false);
+        });
+
+        test('the retired twelve_hours mode still parses, because revisions are immutable', () => {
+            // It is no longer offered by any client, but answers stored under it exist until their
+            // retention window ends and must keep loading. Deleting it from the table would make
+            // real records unreadable rather than tidy the schema.
+            const r = C.normaliseDays(week({ mode: 'twelve_hours' }), DATES);
+            assert.equal(r.ok, true);
+            assert.deepEqual(r.days[DATES[0]], { mode: 'twelve_hours' });
+        });
+    });
+
     test('overnight custom is accepted and its nextDay flag is DERIVED, not trusted', () => {
         const ok = C.normaliseDays(week({ mode: 'custom', start: '22:00', end: '02:00', nextDay: true }), DATES);
         assert.equal(ok.ok, true);

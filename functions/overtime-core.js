@@ -579,19 +579,53 @@ function isSafeDocId(name) {
 const AVAILABILITY_MODES = Object.freeze({
     unavailable:  Object.freeze([]),
     all_day:      Object.freeze([]),
-    // "Available for up to 12 hours" (v20.83, owner). SELF-CONTAINED like all_day — the twelve is
-    // the legal ceiling of a turn, not a clock boundary, so there is nothing to store beyond the
-    // mode and nothing here for a roster change to invalidate. The client withholds the OFFER on a
-    // day whose effective roster already reaches 12 hours (nothing left to give — see modesFor in
-    // overtime-format.js); the server deliberately does not re-check that, because the gate is
-    // about not asking a pointless question, and a member's declaration that they will work up to
-    // 12 hours is valid whatever their roster later becomes.
+    // ── LEGACY since v21.24. Still PARSED for ever; no longer OFFERED by any client ──────────────
+    //
+    // "Available for up to 12 hours" (v20.83, owner) answered a different question from every mode
+    // beside it: the others say WHEN somebody can work, this one said HOW LONG. One mutually
+    // exclusive control cannot carry two dimensions, so the two competed — on a rest day it
+    // duplicated `all_day`, and on a worked day it gave a duration with no window, which a clerk
+    // cannot build a duty from. Both were reported by external review of v21.22, and the owner
+    // settled it by splitting the dimensions: willingness became `fullTwelve` below.
+    //
+    // IT MUST STAY IN THIS TABLE. Revisions are append-only and immutable, so answers stored under
+    // this mode live for the length of their retention window and have to keep parsing and
+    // rendering. Removing it would not tidy the schema; it would make existing records unreadable.
     twelve_hours: Object.freeze([]),
     before:       Object.freeze(['until']),
     after:        Object.freeze(['from']),
     before_after: Object.freeze(['until', 'from']),
     custom:       Object.freeze(['start', 'end', 'nextDay']),
 });
+
+/**
+ * The one field that may accompany ANY available answer (v21.24, owner — the availability /
+ * willingness split).
+ *
+ * ── WHY A FIELD AND NOT A MODE ──────────────────────────────────────────────────────────────────
+ *
+ * "When can you work" and "how long a day would you work" are independent questions, so they cannot
+ * share a mutually exclusive control without one of them being lost. As a flag ALONGSIDE a window
+ * both are expressible at once and nothing overlaps: "before and after my duty, and go long if it
+ * helps" is one unambiguous statement — exactly what the old `twelve_hours` mode could not make.
+ *
+ * ── "UP TO", DELIBERATELY ───────────────────────────────────────────────────────────────────────
+ *
+ * As a mode competing with windows, "up to 12 hours" WAS the ambiguity: it admitted any duration
+ * and named no window. As a flag beside a window it is precisely right — the member grants
+ * PERMISSION to build a long duty rather than committing to a 12-hour turn. The window says where;
+ * this says how far it may run.
+ *
+ * ── STORED ONLY WHEN TRUE ───────────────────────────────────────────────────────────────────────
+ *
+ * An unticked box is the ABSENCE of a declaration, not a declared "no" — the same reasoning that
+ * makes a restored participant lose its `withdrawn` field rather than gain `withdrawn: false`. It
+ * also keeps answers written before this field comparable with those written after: neither carries
+ * the key, so nothing has to be migrated and no historical answer acquires an opinion it never gave.
+ *
+ * It is refused on `unavailable`, which is the one mode it cannot mean anything beside.
+ */
+const OPTIONAL_DAY_FIELDS = Object.freeze(['fullTwelve']);
 
 /** @returns {{ok:true, day:object}|{ok:false, error:string}} */
 function normaliseDay(raw) {
@@ -603,11 +637,19 @@ function normaliseDay(raw) {
     // Reject unknown keys rather than dropping them: a client sending a field this server does not
     // know about is a version mismatch, and silently discarding it would store an answer the member
     // did not give.
-    const extra = Object.keys(raw).filter(k => k !== 'mode' && !fields.includes(k));
+    const optional = mode === 'unavailable' ? [] : OPTIONAL_DAY_FIELDS;
+    const extra = Object.keys(raw).filter(k => k !== 'mode' && !fields.includes(k) && !optional.includes(k));
     if (extra.length) return { ok: false, error: 'unknown-field' };
 
     /** @type {Record<string, any>} */
     const day = { mode };
+
+    // The willingness flag. Type-checked like everything else, and written ONLY when true — see
+    // OPTIONAL_DAY_FIELDS for why the false case is an absence rather than a stored opinion.
+    if (raw.fullTwelve !== undefined) {
+        if (typeof raw.fullTwelve !== 'boolean') return { ok: false, error: 'bad-full-twelve' };
+        if (raw.fullTwelve) day.fullTwelve = true;
+    }
     for (const f of fields) {
         const v = raw[f];
         if (f === 'nextDay') {
@@ -750,6 +792,7 @@ module.exports = {
     MAX_PARTICIPANTS_PER_WINDOW,
     AUDIENCES,
     AVAILABILITY_MODES,
+    OPTIONAL_DAY_FIELDS,
     // clock
     londonOffsetMinutes,
     londonTimestamp,        // exported for the DST-pathology tests, not for production callers
