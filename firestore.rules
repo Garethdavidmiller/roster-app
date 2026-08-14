@@ -138,7 +138,7 @@ service cloud.firestore {
       // every override it saw. calendar-overrides.js refuses those reads separately
       // (`setOverrideAccess`). Tightening this rule without that gate would look secure and leak.
       //
-      // MEASURED, not inherited (v21.21): experiments/firestore-offline-proof/ demonstrates it
+      // MEASURED, not inherited (Aug 2026): experiments/firestore-offline-proof/ demonstrates it
       // against a real browser cache — cached overrides read back in full while the server read on
       // the same query returns permission-denied, and they survive a full browser restart. A denied
       // LISTEN does not evict them either. So closing this rule protects the roster on devices that
