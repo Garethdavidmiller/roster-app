@@ -774,6 +774,34 @@ body {
     margin-top: var(--space-2);
 }
 
+/* The willingness tick (v21.24) — the SECOND question on a day, and it must read as subordinate to
+   the pills above it rather than as an eighth option. So: a plain checkbox in the muted meta colour,
+   no pill shape, no fill, no colour of its own. The whole label is the hit area (a 12px-wide box is
+   not a touch target on a phone), and the row keeps 44px of height for the same reason. */
+.ot-longday {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 44px;
+    margin-top: 2px;
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    cursor: pointer;
+}
+
+.ot-longday-box {
+    width: 18px;
+    height: 18px;
+    flex: none;
+    accent-color: var(--primary-blue);
+    cursor: pointer;
+}
+
+.ot-longday-box:focus-visible {
+    outline: var(--focus-outline);
+    outline-offset: 2px;
+}
+
 .ot-custom-label {
     display: flex;
     flex-direction: column;

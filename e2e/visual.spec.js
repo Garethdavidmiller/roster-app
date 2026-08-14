@@ -852,6 +852,29 @@ test('overtime — the member form, seven days unanswered (mobile 390)', async (
     await expect(page).toHaveScreenshot('overtime-member-mobile-390.png');
 });
 
+test('overtime — a day ANSWERED, with the willingness tick (mobile 390)', async ({ page }) => {
+    // The v21.24 split put a SECOND question on each day, and it is invisible in the two baselines
+    // above because it only appears once that day has an available answer. So the one control this
+    // release adds had no picture of it at all — and it is a checkbox in a design that is otherwise
+    // entirely pills, which is exactly the kind of thing that renders wrong without failing a test.
+    //
+    // Two days answered, deliberately: one with the tick on and one with it off, so the frame
+    // carries both states and a CSS change that flattened the difference would show here.
+    await prep(page, { width: 390, height: 1800 });
+    await stubOvertime(page, {
+        windows: [{ ...OT_WINDOW, phase: 'INITIAL_OPEN', participant: { grade: 'CEA', rosterOrder: 2 }, submission: null }],
+    });
+    await page.goto('/overtime.html');
+    await settle(page, '.ot-day');
+    const days = page.locator('.ot-day');
+    await days.nth(0).locator('[data-mode="all_day"]').click();
+    await days.nth(0).locator('[data-fulltwelve]').check();
+    await days.nth(1).locator('[data-mode="all_day"]').click();
+    await expect(days.nth(0).locator('[data-fulltwelve]')).toBeChecked();
+    await expect(days.nth(1).locator('[data-fulltwelve]')).not.toBeChecked();
+    await expect(page).toHaveScreenshot('overtime-member-answered-mobile-390.png');
+});
+
 test('overtime — the member form on the desktop band (desktop 1280)', async ({ page }) => {
     // The DAY ROW is the whole design at this width — day, roster badge, then the run of options —
     // and its shape is the thing v21.15 changed: the seven options used to need 814px in a 786px
@@ -883,9 +906,10 @@ test('overtime — the member form on the desktop band (desktop 1280)', async ({
     await settle(page, '.ot-day');
     await expect(page.locator('.ot-day')).toHaveCount(7);
     // Sentinels, so a regenerated baseline cannot quietly bless the defect coming back: a worked day
-    // shows the six anchored options (no all_day since the v21.22 fold), and they sit on ONE line.
+    // shows the five anchored options (no all_day since the v21.22 fold, no twelve_hours since the
+    // v21.24 availability/willingness split), and they sit on ONE line.
     const worked = page.locator('.ot-day').first().locator('.ot-mode');
-    await expect(worked).toHaveCount(6);
+    await expect(worked).toHaveCount(5);
     const lines = await page.locator('.ot-day').first().locator('.ot-modes').evaluate(g =>
         new Set([...g.querySelectorAll('.ot-mode')]
             .map(b => Math.round(b.getBoundingClientRect().top))).size);

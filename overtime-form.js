@@ -30,7 +30,8 @@ import * as OTD from './overtime-data.js';
 import { loadRosterContext, rosterBadge } from './overtime-roster.js';
 import {
     weekLabel, weekSpan, shortDate, answerCopy, answerTone, deadlineLines,
-    answerAnchorStale, submitDisposition, modesFor, submitFailureCopy, sameAnswer, receiptLine,
+    answerAnchorStale, submitDisposition, modesFor, offersFullTwelve, submitFailureCopy,
+    sameAnswer, receiptLine,
 } from './overtime-format.js';
 
 /**
@@ -39,7 +40,7 @@ import {
  * ── ONE GRAMMAR: every green pill completes "Available …" (v20.84) ──────────────────────────────
  *
  * "Not available" stands apart — it is the charcoal answer, deliberately the odd one out — and the
- * rest are ellipses of one stem: All day · For a full 12-hour turn · Before 07:00 · After 15:00 ·
+ * rest are ellipses of one stem: All day · Before 07:00 · After 15:00 ·
  * Before & after duty · Custom times. The set used to mix three grammars ("Available all day" carried its
  * stem, "Up to 12 hours" elided it, "Custom times" named a control), which is what "the wording is
  * messy" looks like at pill scale. The recorded CHIP (`answerCopy`) keeps the full "Available all
@@ -53,12 +54,11 @@ const MODE_LABELS = {
     // Replaced at render from the day's roster — see `modeButton`. The stem here is the rest-day
     // reading; a day with a duty on it gets the "in total" form instead.
     //
-    // "FOR A FULL …", not "up to …" (v21.22, owner — Option 1 of the availability-model review).
-    // The 12-hour ceiling binds every plan whatever a member answers — the cap note on the form
-    // says so — which makes "up to 12 hours" a pill offering something every other answer already
-    // has. What this answer genuinely ADDS is willingness: "I would work the longest day allowed."
-    // So the label states the maximum rather than the range, and stops reading as a duplicate of
-    // "All day" on a rest day.
+    // LEGACY since v21.24 — `modesFor` no longer offers this, so the only way to see it is to have
+    // SAVED it before the split, and `dayBlock` re-adds a stored mode to the list precisely so an
+    // answer already given keeps rendering as the answer it is. Willingness is now the `fullTwelve`
+    // tick beside a real window. Do not delete these two labels: without them a member who chose
+    // this in the beta would return to a day marked answered with an unlabelled control on it.
     twelve_hours: 'For a full 12-hour turn',
     before:       'Before {until}',
     after:        'After {from}',
@@ -165,13 +165,14 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
                     custom times.
                 </div>` : ''}
             ${closed ? '' : `
-                <!-- The cap note (v21.22, owner). The 12-hour ceiling is the rule the roster is
-                     planned under, not something a member opts into — and until this line existed,
-                     nothing said so, which made "before & after AND up to 12 hours" look like a
-                     combination the form should offer. Stating the cap is what lets every answer
-                     stay one tap. -->
-                <p class="ot-cap-note">However you answer, a working day is never planned past
-                12 hours in total.</p>`}
+                <!-- The cap note (v21.22, reworded v21.24). It states the rule the roster is planned
+                     under, which nothing said out loud until v21.22. Its job CHANGED when the
+                     willingness tick arrived: it used to explain why no second press was needed,
+                     and now it sets the ceiling the tick refers to — so "a full 12-hour day" on a
+                     row below means something exact rather than inviting a guess. Both sentences
+                     are still about the same number, which is why they belong in one line. -->
+                <p class="ot-cap-note">A working day is never planned past 12 hours in total,
+                whatever you answer below.</p>`}
             <div class="ot-days"></div>
             ${closed ? `
                 <div class="ot-closed-note">
@@ -264,6 +265,25 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             updateSubmitState();
             focusMode(date, String(next.getAttribute('data-mode')));
         }));
+        daysHost.querySelectorAll('[data-fulltwelve]').forEach(box => box.addEventListener('change', () => {
+            const date = String(box.getAttribute('data-fulltwelve'));
+            const cur = answers[date];
+            if (!cur || cur.mode === 'unavailable') return;
+            // Written only when TRUE, and DELETED rather than set false — the client mirrors the
+            // stored shape exactly (see OPTIONAL_DAY_FIELDS in functions/overtime-core.js). If it
+            // wrote `false`, an untick would produce an answer structurally different from the one
+            // the server stores, and `sameAnswer` would report a saved form as changed for ever.
+            if (/** @type {HTMLInputElement} */ (box).checked) cur.fullTwelve = true;
+            else delete cur.fullTwelve;
+            // REPAINT, like every other control here. Skipping it looks harmless — the checkbox is
+            // already in the state the member put it in — but the row's state tint is computed at
+            // paint time, so a tick that changed a SAVED answer would leave the row still reading
+            // green "recorded" while holding an unsaved edit. The tint is the form's whole account
+            // of what is and is not on the server, so it cannot go stale for one control.
+            paintDays();
+            focusFullTwelve(date);
+            updateSubmitState();
+        }));
         daysHost.querySelectorAll('.ot-custom-input').forEach(inp => inp.addEventListener('change', () => {
             const date = String(inp.getAttribute('data-date'));
             const which = String(inp.getAttribute('data-which'));
@@ -331,6 +351,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
                         ${modes.map((m, i) => modeButton(date, m, c, a, i)).join('')}
                        </div>
                        ${a?.mode === 'custom' ? customRow(date, a) : ''}
+                       ${fullTwelveRow(date, c, a)}
                        ${answerAnchorStale(a, c) ? `
                         <p class="ot-day-stale" role="status">Your shift has changed since you
                         answered. Your answer still says <strong>${esc(answerCopy(a))}</strong> —
@@ -385,6 +406,38 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
                         aria-checked="${on}" tabindex="${tabbable ? 0 : -1}">${esc(label)}</button>`;
     }
 
+    /**
+     * The willingness tick — the SECOND question, and the whole point of the v21.24 split.
+     *
+     * ── IT APPEARS ONLY ONCE A DAY HAS AN AVAILABLE ANSWER ──────────────────────────────────────
+     *
+     * A tick floating beside seven unanswered days would be a question about nothing, and on a fresh
+     * form that is all seven of them. It is a REFINEMENT of an answer, so it waits for one — which
+     * also puts it in the right reading order: when, then how long.
+     *
+     * ── AND NEVER BESIDE "NOT AVAILABLE" ────────────────────────────────────────────────────────
+     *
+     * There is nothing for it to qualify, and the server refuses the pairing outright — so offering
+     * it would be a control that can only produce a refused submission.
+     *
+     * ── "UP TO", AND WHY THAT IS RIGHT HERE ─────────────────────────────────────────────────────
+     *
+     * As a mode competing with windows, "up to 12 hours" was the ambiguity that got the mode
+     * retired. As a tick beside a window it is exact: the member is granting PERMISSION for a long
+     * duty, not committing to a 12-hour turn. It reads as a sentence completing the answer above it.
+     * @param {string} date @param {any} c @param {any} a
+     */
+    function fullTwelveRow(date, c, a) {
+        if (!a?.mode || a.mode === 'unavailable') return '';
+        if (!offersFullTwelve(c)) return '';
+        const on = a.fullTwelve === true;
+        return `
+            <label class="ot-longday">
+                <input type="checkbox" class="ot-longday-box" data-fulltwelve="${esc(date)}"${on ? ' checked' : ''}>
+                <span>I'd work up to a full 12-hour day</span>
+            </label>`;
+    }
+
     /** @param {string} date @param {any} a */
     function customRow(date, a) {
         return `
@@ -434,6 +487,12 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             `[data-day="${CSS.escape(date)}"] [data-mode="${CSS.escape(mode)}"]`))?.focus();
     }
 
+    /** The repaint above rebuilds the checkbox, so focus has to be put back on it. @param {string} date */
+    function focusFullTwelve(date) {
+        /** @type {HTMLElement|null} */ (daysHost?.querySelector(
+            `[data-fulltwelve="${CSS.escape(date)}"]`))?.focus();
+    }
+
     /** @param {string} date */
     function paintCustomHint(date) {
         const el = daysHost?.querySelector(`[data-hint="${CSS.escape(date)}"]`);
@@ -457,24 +516,38 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
      * v20.75: the request carried the empty boundary. Keeping `previous` verbatim is also simply
      * what the press MEANS — "this, the thing already selected".
      */
-    /** @param {string} mode @param {any} c @param {any} previous */
+    /**
+     * ── THE WILLINGNESS TICK SURVIVES A CHANGE OF WINDOW (v21.24) ────────────────────────────────
+     *
+     * The whole point of the split is that the two answers are independent, so moving the window
+     * from "all day" to "after my duty" must not silently retract "and I would go long" — the
+     * member said that about the DAY, and nothing they just pressed contradicts it. A silent reset
+     * is the class of defect this form is most careful about elsewhere.
+     *
+     * The exception is `unavailable`, where it cannot mean anything and the server refuses it
+     * outright. Dropping it there is what keeps the client incapable of building a payload the
+     * server would reject.
+     * @param {string} mode @param {any} c @param {any} previous
+     */
     function buildAnswer(mode, c, previous) {
         if (previous?.mode === mode) return previous;
+        const keep = mode !== 'unavailable' && previous?.fullTwelve === true ? { fullTwelve: true } : {};
         switch (mode) {
             case 'unavailable':
+                return { mode };
             case 'all_day':
             case 'twelve_hours':
-                return { mode };
+                return { mode, ...keep };
             case 'before':
-                return { mode, until: c?.start || '' };
+                return { mode, until: c?.start || '', ...keep };
             case 'after':
-                return { mode, from: c?.end || '' };
+                return { mode, from: c?.end || '', ...keep };
             case 'before_after':
-                return { mode, until: c?.start || '', from: c?.end || '' };
+                return { mode, until: c?.start || '', from: c?.end || '', ...keep };
             case 'custom':
-                return { mode, start: '', end: '', nextDay: false };
+                return { mode, start: '', end: '', nextDay: false, ...keep };
             default:
-                return { mode };
+                return { mode, ...keep };
         }
     }
 
