@@ -865,7 +865,8 @@ test('overtime — the member form on the desktop band (desktop 1280)', async ({
     await prep(page, { width: 1280, height: 1200 });
     // A week the seeded member actually WORKS, unlike the mobile baseline's spare week. That is the
     // whole point of this picture: a rest day offers four options and always fitted, and a worked
-    // day offers seven — the case that wrapped. Five worked days and two rest days here, so the
+    // day offers the anchored run — the case that wrapped (seven options until the v21.22 fold
+    // removed the all_day duplicate; six since). Five worked days and two rest days here, so the
     // frame carries both shapes and the badge column can be seen aligning down the two.
     await stubOvertime(page, {
         windows: [{ ...OT_WINDOW, weekEnding: '2026-09-26', weekStart: '2026-09-20',
@@ -882,9 +883,9 @@ test('overtime — the member form on the desktop band (desktop 1280)', async ({
     await settle(page, '.ot-day');
     await expect(page.locator('.ot-day')).toHaveCount(7);
     // Sentinels, so a regenerated baseline cannot quietly bless the defect coming back: a worked day
-    // shows seven options, and they sit on ONE line.
+    // shows the six anchored options (no all_day since the v21.22 fold), and they sit on ONE line.
     const worked = page.locator('.ot-day').first().locator('.ot-mode');
-    await expect(worked).toHaveCount(7);
+    await expect(worked).toHaveCount(6);
     const lines = await page.locator('.ot-day').first().locator('.ot-modes').evaluate(g =>
         new Set([...g.querySelectorAll('.ot-mode')]
             .map(b => Math.round(b.getBoundingClientRect().top))).size);

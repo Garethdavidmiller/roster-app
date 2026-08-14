@@ -856,27 +856,34 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await expect(page.locator(`[data-day="${D[0]}"] [data-mode="twelve_hours"]`)).toHaveCount(1);
         await expect(page.locator(`[data-day="${D[6]}"] [data-mode="twelve_hours"]`)).toHaveCount(1);
 
-        // ── "ALL DAY" IS WORDED FOR THE DAY TOO (owner, Aug 2026) ───────────────────────────────
+        // ── "ALL DAY" APPEARS ONLY WHERE IT IS NOT A DUPLICATE (v21.22, owner) ──────────────────
         //
-        // The settled meaning is availability AROUND a rostered duty — never an offer to move or
-        // give it up. On a rest day "All day" already says that; beside a duty it had three
-        // readings and the app committed to none, and the dangerous one costs a member the shift
-        // they planned their week around.
+        // On a normal worked day "Any time around my shift" and "Before & after duty" said the
+        // same thing to a clerk, so the roster-relative one is withheld there — the day's
+        // both-sides answer is before_after, which stores the declared times. A spare day keeps
+        // "All day": it has no boundary to anchor before_after to.
         await expect(page.locator(`[data-day="${D[0]}"] [data-mode="all_day"]`))
             .toHaveText('All day');
         await expect(page.locator(`[data-day="${D[6]}"] [data-mode="all_day"]`))
-            .toHaveText('Any time around my shift');
+            .toHaveCount(0);
+        await expect(page.locator(`[data-day="${D[6]}"] [data-mode="before_after"]`))
+            .toHaveCount(1);
 
-        // ── AND THE SAME FOR THE 12-HOUR OPTION ─────────────────────────────────────────────────
+        // ── AND THE 12-HOUR OPTION IS WORDED FOR THE DAY IT SITS ON ─────────────────────────────
         //
         // The rule is that twelve hours is a TOTAL including whatever is rostered. On a rest day
         // there is nothing to include, so "a 12-hour turn" says it exactly; beside a duty the same
         // phrase is ambiguous by eight hours — a clerk could read 07:00–19:00 or 04:00–16:00 from
-        // it. Nothing errors if these drift back to one phrase, which is why it is pinned here.
+        // it. "For a full …" (v21.22): the cap note states that 12 hours is every answer's limit
+        // anyway, so the pill's own content is willingness for the maximum, and its label says
+        // that rather than restating the cap. Nothing errors if these drift, hence the pins.
         await expect(page.locator(`[data-day="${D[0]}"] [data-mode="twelve_hours"]`))
-            .toHaveText('Up to a 12-hour turn');
+            .toHaveText('For a full 12-hour turn');
         await expect(page.locator(`[data-day="${D[6]}"] [data-mode="twelve_hours"]`))
-            .toHaveText('Up to 12 hours in total');
+            .toHaveText('For a full 12 hours in total');
+
+        // The standing cap note renders once, above the day list, on an open form.
+        await expect(page.locator('.ot-cap-note')).toHaveText(/never planned past\s+12 hours in total/);
         // And it submits like any other answer — the label is a real option, not a decoration.
         await page.locator(`[data-day="${D[0]}"] [data-mode="twelve_hours"]`).click();
         await expect(page.locator(`[data-day="${D[0]}"] [data-mode="twelve_hours"]`)).toHaveAttribute('aria-checked', 'true');

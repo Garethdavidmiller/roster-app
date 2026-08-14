@@ -39,8 +39,8 @@ import {
  * ── ONE GRAMMAR: every green pill completes "Available …" (v20.84) ──────────────────────────────
  *
  * "Not available" stands apart — it is the charcoal answer, deliberately the odd one out — and the
- * rest are ellipses of one stem: All day · Up to 12 hours · Before 07:00 · After 15:00 · Before &
- * after duty · Custom times. The set used to mix three grammars ("Available all day" carried its
+ * rest are ellipses of one stem: All day · For a full 12-hour turn · Before 07:00 · After 15:00 ·
+ * Before & after duty · Custom times. The set used to mix three grammars ("Available all day" carried its
  * stem, "Up to 12 hours" elided it, "Custom times" named a control), which is what "the wording is
  * messy" looks like at pill scale. The recorded CHIP (`answerCopy`) keeps the full "Available all
  * day" form on purpose: chips stand alone on the reviewer's list, where the stem is the meaning —
@@ -52,7 +52,14 @@ const MODE_LABELS = {
     all_day:      'All day',
     // Replaced at render from the day's roster — see `modeButton`. The stem here is the rest-day
     // reading; a day with a duty on it gets the "in total" form instead.
-    twelve_hours: 'Up to a 12-hour turn',
+    //
+    // "FOR A FULL …", not "up to …" (v21.22, owner — Option 1 of the availability-model review).
+    // The 12-hour ceiling binds every plan whatever a member answers — the cap note on the form
+    // says so — which makes "up to 12 hours" a pill offering something every other answer already
+    // has. What this answer genuinely ADDS is willingness: "I would work the longest day allowed."
+    // So the label states the maximum rather than the range, and stops reading as a duplicate of
+    // "All day" on a rest day.
+    twelve_hours: 'For a full 12-hour turn',
     before:       'Before {until}',
     after:        'After {from}',
     before_after: 'Before & after duty',
@@ -60,17 +67,19 @@ const MODE_LABELS = {
 };
 
 /**
- * The "up to 12 hours" label for a day that ALREADY has a duty on it.
+ * The 12-hour label for a day that ALREADY has a duty on it.
  *
  * The owner settled the rule in Aug 2026: the declaration means the member's whole day may run to
  * twelve hours, INCLUDING what is rostered — not twelve hours on top of it. On a rest day there is
  * nothing to include, so "a 12-hour turn" says it exactly; beside an 07:00–15:00 duty the same
  * phrase is ambiguous in an eight-hour way, and a roster clerk could reasonably plan 07:00–19:00
- * from one reading and 04:00–16:00 from another.
+ * from one reading and 04:00–16:00 from another. "IN TOTAL" is therefore load-bearing and stays
+ * through the v21.22 rewording (see MODE_LABELS.twelve_hours for why "for a full" replaced
+ * "up to").
  *
  * Both forms complete the page's one grammar — every green pill finishes "Available …" (v20.84).
  */
-const TWELVE_ON_DUTY = 'Up to 12 hours in total';
+const TWELVE_ON_DUTY = 'For a full 12 hours in total';
 
 /**
  * The "all day" label for a day that ALREADY has a duty on it.
@@ -83,10 +92,15 @@ const TWELVE_ON_DUTY = 'Up to 12 hours in total';
  * hand over by accident — a member answering "all day" to be helpful could lose the shift they had
  * planned their week around.
  *
- * The settled meaning is the first, and it matches the "Up to 12 hours" ruling: what a member
- * declares here is time they can work IN ADDITION to what they are already rostered. So on a
- * worked day the button names the duty it wraps around, and on a rest day — where there is nothing
- * to wrap around — "All day" already says it exactly.
+ * The settled meaning is the first, and it matches the 12-hour ruling: what a member declares here
+ * is time they can work IN ADDITION to what they are already rostered. So on a worked day the
+ * button names the duty it wraps around, and on a rest day — where there is nothing to wrap
+ * around — "All day" already says it exactly.
+ *
+ * Since v21.22 this label is reachable ONLY on an OVERNIGHT duty (and as the rendered form of a
+ * saved all_day answer on a day that no longer offers it): on a normal worked day `modesFor` no
+ * longer offers all_day at all, because it duplicated "Before & after duty" — see the fold note
+ * in overtime-format.js. Overnight keeps it because before_after cannot be offered there.
  *
  * Completes the page's one grammar ("Available any time around my shift"), like every other green
  * pill.
@@ -150,6 +164,14 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
                     Couldn't confirm your current MYB roster. You can still enter availability using
                     custom times.
                 </div>` : ''}
+            ${closed ? '' : `
+                <!-- The cap note (v21.22, owner). The 12-hour ceiling is the rule the roster is
+                     planned under, not something a member opts into — and until this line existed,
+                     nothing said so, which made "before & after AND up to 12 hours" look like a
+                     combination the form should offer. Stating the cap is what lets every answer
+                     stay one tap. -->
+                <p class="ot-cap-note">However you answer, a working day is never planned past
+                12 hours in total.</p>`}
             <div class="ot-days"></div>
             ${closed ? `
                 <div class="ot-closed-note">

@@ -427,14 +427,28 @@ describe('which modes a day may offer', () => {
     const night     = { hasTime: true,  overnight: true,  start: '22:00', end: '07:00', rosteredMinutes: 540 };
     const rest      = { hasTime: false, overnight: false, start: '',      end: '', rosteredMinutes: 0 };
 
-    test('a plain timed duty offers everything', () => {
+    test('a plain timed duty offers the anchored set — and NOT all_day (v21.22)', () => {
+        // The fold: on a normal worked day "Any time around my shift" duplicated "Before & after
+        // duty" — same meaning to a clerk, two pills — so all_day is withheld wherever
+        // before_after can be offered. The one that stays is the one that stores what was said.
         assert.deepEqual(modesFor(timed),
-            ['unavailable', 'all_day', 'twelve_hours', 'before', 'after', 'before_after', 'custom']);
+            ['unavailable', 'twelve_hours', 'before', 'after', 'before_after', 'custom']);
     });
 
     test('no context, or no duty time, offers only the unanchored four', () => {
         assert.deepEqual(modesFor(null), ['unavailable', 'all_day', 'twelve_hours', 'custom']);
         assert.deepEqual(modesFor(rest), ['unavailable', 'all_day', 'twelve_hours', 'custom']);
+    });
+
+    test('all_day survives exactly where before_after cannot be offered', () => {
+        // The fold must never leave a day without a both-sides answer. Overnight duties refuse
+        // before_after server-side (inverted pair), and rest/spare/unknown days have no boundary
+        // to anchor to — so each of those keeps all_day, and only the day where the two answers
+        // genuinely coexisted loses one.
+        assert.ok(modesFor(night).includes('all_day'), 'overnight keeps the roster-relative answer');
+        assert.ok(modesFor(rest).includes('all_day'));
+        assert.ok(modesFor(null).includes('all_day'));
+        assert.equal(modesFor(timed).includes('all_day'), false);
     });
 
     test('"Up to 12 hours" is withheld ONLY where the day already reaches 12 rostered hours', () => {
@@ -450,7 +464,7 @@ describe('which modes a day may offer', () => {
         // Everything else about the day is untouched — the gate removes ONE offer, never reshapes
         // the list around it.
         assert.deepEqual(modesFor(twelveUp),
-            ['unavailable', 'all_day', 'before', 'after', 'before_after', 'custom']);
+            ['unavailable', 'before', 'after', 'before_after', 'custom']);
     });
 
     test('an UNKNOWN day length is not "already rostered 12 hours" — the pill shows', () => {

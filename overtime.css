@@ -548,6 +548,16 @@ body {
     color: var(--text-mid);
 }
 
+/* The standing 12-hour cap note (v21.22). Deliberately QUIET — it states a rule that is always
+   true, not a warning about this week — so it wears the muted meta colour, no tint and no border.
+   Rendered once above the day list, open forms only. */
+.ot-cap-note {
+    margin: 0 0 var(--space-3);
+    font-size: var(--type-small);
+    line-height: 1.5;
+    color: var(--text-mid);
+}
+
 /* Roster context could not be established. Says so, and says what still works —
    never a bare failure, and never a base roster dressed up as current. */
 .ot-roster-warning {

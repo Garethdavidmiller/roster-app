@@ -295,6 +295,31 @@ to nothing (this, all-day, custom). The server accepts the mode unconditionally,
 gate is about not asking a pointless question, not about policing a declaration that is valid
 whatever the roster later becomes.
 
+### The 12-hour ceiling is a rule, not an answer (v21.22, owner)
+
+The owner's Aug 2026 review of the option set asked whether a member needs to press TWO pills —
+"before or after my shift, but also up to 12 hours". The answer settled the model: **the 12-hour
+ceiling binds every plan whatever a member answers**, so "before & after AND up to 12 hours" adds
+nothing to "before & after" — the cap is not the member's to grant, and the form stays one tap per
+day. Three consequences shipped together:
+
+- **The cap is now STATED** — a standing `.ot-cap-note` above the day list ("However you answer, a
+  working day is never planned past 12 hours in total"), because until it was said, the 12-hour
+  pill reasonably looked like something you had to opt into.
+- **The 12-hour pill is worded as what it uniquely adds** — willingness for the LONGEST day
+  allowed: "For a full 12-hour turn" (rest) / "For a full 12 hours in total" (on duty). As "up
+  to …" it read as a duplicate of "All day" on rest days.
+- **The both-sides duplicate is folded**: on a normal worked day "Any time around my shift"
+  (`all_day`) and "Before & after duty" meant the same thing to a clerk, so `modesFor` withholds
+  `all_day` wherever `before_after` can be offered. The survivor stores the declared clock times —
+  a later roster change flags the answer stale instead of silently re-pointing it, which is the
+  schema's own philosophy. `all_day` stays on rest/spare days, overnight duties and unknown
+  rosters, and a saved `all_day` on any day still renders (the form re-adds a stored mode).
+
+Full multi-select was considered and rejected: it creates contradiction states the server would
+have to referee, and every stored answer stops being one unambiguous statement — the property the
+whole feature is built on.
+
 ---
 
 ## Revisions, and why two of the interesting fields are not stored
