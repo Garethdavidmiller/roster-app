@@ -780,3 +780,54 @@ describe('withdrawal is reachable for somebody who has already ANSWERED (v21.20)
             'both positions are named in the panel');
     });
 });
+
+describe('a CLOSED week is a record, so it offers no participant controls (v21.23)', () => {
+    // ── THE DEFECT ──────────────────────────────────────────────────────────────────────────────
+    //
+    // `withdrawOvertimeParticipant` has always refused a closed week — that week is the record the
+    // roster was planned from — but both panels rendered their buttons regardless of phase. So the
+    // only way to discover the rule was to press a control and be refused, on a page whose whole
+    // job is to state a position clearly. Found by external review of v21.22.
+    //
+    // Asserted from BOTH sides. A test that only checks the buttons are gone on a closed week would
+    // still pass if they had been removed everywhere — which would silently delete the feature.
+    const render = (/** @type {string} */ phase) => {
+        const host = fakeHost();
+        renderWeekDetail(/** @type {any} */ (host), { ...WIN, phase },
+            // The withdrawn are DERIVED from `participants` by `isWithdrawn`, not passed alongside
+            // them — so the fixture has to put the flagged person in the same list.
+            { participants: [...PARTICIPANTS,
+                { memberName: 'W. One', grade: 'CEA', rosterOrder: 9, withdrawn: true,
+                  withdrawnBy: 'H. Croft', withdrawnAt: Date.parse('2026-08-10T09:00:00Z') }],
+              submissions: submissions() },
+            { dates: DATES, now: Date.parse('2026-08-17T09:00:00Z') });
+        return host.innerHTML;
+    };
+
+    test('CLOSED renders neither Stop asking nor Ask again', () => {
+        const out = render('CLOSED');
+        assert.equal(/data-stop-asking=/.test(out), false, 'a closed week still offers withdrawal');
+        assert.equal(/data-ask-again=/.test(out), false, 'a closed week still offers restore');
+    });
+
+    test('and an OPEN week still offers both — the control is gated, not deleted', () => {
+        const out = render('FINAL_OPEN');
+        assert.ok(/data-stop-asking=/.test(out), 'withdrawal vanished from an open week');
+        assert.ok(/data-ask-again=/.test(out), 'restore vanished from an open week');
+    });
+
+    test('the heading moves to the past tense, because the present tense is false', () => {
+        // Not cosmetic. "Who is being asked" over a finished week is a claim that somebody is still
+        // expected to answer, and it is the line a reviewer reads while working out why nobody has.
+        const closed = render('CLOSED');
+        assert.match(closed, /Who was asked/);
+        assert.equal(/Who is being asked/.test(closed), false);
+        assert.match(render('FINAL_OPEN'), /Who is being asked/);
+    });
+
+    test('the closed panel says WHY there is nothing to press', () => {
+        // A control that disappears with no explanation reads as a rendering fault. The panel states
+        // the rule in its own note instead.
+        assert.match(render('CLOSED'), /closed, so who was asked can no longer be changed/);
+    });
+});

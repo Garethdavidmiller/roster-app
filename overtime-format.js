@@ -521,7 +521,20 @@ export function answerCopy(day) {
         // a 07:00–15:00 duty could plan either, and the two differ by eight hours of somebody's day.
         // The chip has to carry the qualifier alone, because unlike the form's button it has no
         // roster context beside it to disambiguate.
-        case 'twelve_hours': return 'Available for up to 12 hours in total';
+        //
+        // ── "FOR A FULL", MATCHING THE BUTTON THE MEMBER PRESSED (v21.23, external review) ──────
+        //
+        // v21.22 reworded the member's button to "For a full 12-hour turn" / "For a full 12 hours in
+        // total" and left this chip saying "up to". Those are not the same statement — "up to" is
+        // the BROADER one, admitting any duration below the ceiling — so the member declared a
+        // willingness to work the maximum and the reviewer read a willingness to work some amount at
+        // most that. Both phrases were pinned by tests, which is how a product ambiguity stays green.
+        //
+        // The chip follows the BUTTON, never the other way round: the record has to state what the
+        // person was actually shown when they chose it. That is the same rule the anchored answers
+        // already follow, where a selected option reads its boundary off the stored answer rather
+        // than off a roster that has since moved.
+        case 'twelve_hours': return 'Available for a full 12 hours in total';
         case 'before':       return `Available before ${day.until}`;
         case 'after':        return `Available after ${day.from}`;
         case 'before_after': return `Available before ${day.until} and after ${day.from}`;

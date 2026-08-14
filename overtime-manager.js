@@ -215,8 +215,8 @@ function build(win, data, { dates, now, grade, day = 'ALL' }) {
         ${dates.map(date => dayPanel(date, participants, submissions, day, data.roster || {},
             { now, frozenAt: frozenAt(active) })).join('')}
         ${awaitingPanel(participants, submissions, { now, frozenAt: frozenAt(active) })}
-        ${askedPanel(participants, submissions)}
-        ${withdrawnPanel(ofGrade(withdrawn, grade))}`;
+        ${askedPanel(participants, submissions, win.phase === 'CLOSED')}
+        ${withdrawnPanel(ofGrade(withdrawn, grade), win.phase === 'CLOSED')}`;
 }
 
 /**
@@ -538,24 +538,36 @@ function awaitingPanel(participants, submissions, meta = {}) {
  * lot until you notice the seven day panels above already carry each name once — this adds a
  * fourteenth of what is on the page, at the bottom, muted. If it ever does need collapsing, collapse
  * it; do not solve it by moving the control back onto rows, which is the bug this panel exists for.
+ * ── A CLOSED WEEK IS A RECORD, SO IT LOSES ITS CONTROLS (v21.23, external review) ───────────────
+ *
+ * The server has always refused a withdrawal on a closed week — that week is the record the roster
+ * was planned from — but the panel offered the button anyway, so the only way to learn the rule was
+ * to press it and be told no. An interface should not offer what it already knows cannot succeed.
+ *
+ * The heading moves to the PAST TENSE with it. That is not decoration: "Who is being asked" over a
+ * finished week is a false statement in the present tense, and it is the sentence a reviewer reads
+ * when working out why nobody has responded.
  * @param {any[]} participants the ACTIVE population, already grade-filtered
  * @param {Map<string, any>} submissions
+ * @param {boolean} [closed] the week's final deadline has passed
  */
-function askedPanel(participants, submissions) {
+function askedPanel(participants, submissions, closed = false) {
     if (!participants.length) return '';
     return `
         <div class="ot-day-panel ot-day-panel--muted">
-            <div class="ot-day-panel-head">Who is being asked</div>
-            <div class="ot-section-note">Everyone counted on this page. Use <strong>Stop asking</strong>
+            <div class="ot-day-panel-head">${closed ? 'Who was asked' : 'Who is being asked'}</div>
+            <div class="ot-section-note">${closed
+                ? 'This week has closed, so who was asked can no longer be changed.'
+                : `Everyone counted on this page. Use <strong>Stop asking</strong>
                 when somebody has left or moved role — their answers are kept, they come out of the
-                counts, and you can put them back while the week is open.</div>
+                counts, and you can put them back while the week is open.`}</div>
             ${participants.map(p => `
                 <div class="ot-person">
                     <span class="ot-person-name">${esc(p.memberName)}</span>
                     ${p.grade ? `<span class="ot-person-grade">${esc(p.grade)}</span>` : ''}
                     <span class="ot-person-note">${submissions.has(p.memberName)
                         ? 'Answered' : 'No form yet'}</span>
-                    <button type="button" class="ot-person-btn" data-stop-asking="${esc(p.memberName)}">Stop asking</button>
+                    ${closed ? '' : `<button type="button" class="ot-person-btn" data-stop-asking="${esc(p.memberName)}">Stop asking</button>`}
                 </div>`).join('')}
         </div>`;
 }
@@ -571,13 +583,16 @@ function askedPanel(participants, submissions) {
  * withdrawn from almost every week, and a permanent empty panel on every screen would be furniture
  * — and furniture is what a reviewer stops reading. When it IS there, it is a statement that the
  * expected count on this page is smaller than the frozen population, which is a thing to notice.
+ * Like `askedPanel`, it goes read-only and past-tense on a CLOSED week (v21.23) — the server refuses
+ * a restore there, so offering "Ask again" was offering a button that could only fail.
  * @param {any[]} withdrawn
+ * @param {boolean} [closed] the week's final deadline has passed
  */
-function withdrawnPanel(withdrawn) {
+function withdrawnPanel(withdrawn, closed = false) {
     if (!withdrawn.length) return '';
     return `
         <div class="ot-day-panel ot-day-panel--muted">
-            <div class="ot-day-panel-head">Not being asked</div>
+            <div class="ot-day-panel-head">${closed ? 'Was not asked' : 'Not being asked'}</div>
             <div class="ot-section-note">Left out of the counts above. Their forms and anything they
                 already said are kept.</div>
             ${withdrawn.map(p => `
@@ -585,7 +600,7 @@ function withdrawnPanel(withdrawn) {
                     <span class="ot-person-name">${esc(p.memberName)}</span>
                     ${p.grade ? `<span class="ot-person-grade">${esc(p.grade)}</span>` : ''}
                     <span class="ot-person-note">${esc(withdrawnLine(p))}</span>
-                    <button type="button" class="ot-person-btn" data-ask-again="${esc(p.memberName)}">Ask again</button>
+                    ${closed ? '' : `<button type="button" class="ot-person-btn" data-ask-again="${esc(p.memberName)}">Ask again</button>`}
                 </div>`).join('')}
         </div>`;
 }

@@ -92,6 +92,7 @@ function emitAuth(user) {
 mock.module('./session.js', {
     namedExports: {
         getSession: () => sessionValue,
+        clearSession: () => { ops.push('clearSession'); sessionValue = null; },
         reconcileExpiredIdentity: async (opts) => {
             ops.push('reconcile:' + JSON.stringify(opts || {}));
             if (reconcileHangs) await new Promise(() => {});   // never settles — the wedged-auth case
@@ -505,6 +506,35 @@ describe('initCalendarAccess', () => {
         assert.ok(html.includes('calLockPinInstead'), 'the PIN was not left reachable underneath');
         assert.ok(ops.some(o => o === 'ensureNamedSession:G. Miller'),
             `the silent re-establishment was never attempted: ${JSON.stringify(ops)}`);
+    });
+
+    test('"Use the staff PIN instead" SIGNS THE MEMBER OUT — it is not a panel swap (v21.23)', async () => {
+        // ── THE DEFECT (external review of v21.22) ──────────────────────────────────────────────
+        //
+        // This used to be `hideLockPanel(); showLockPanel();` — it changed the card and nothing more.
+        // But `calendar-app.js` builds the nav drawer at module scope from the SAME local session,
+        // before access is decided, so the next person at a shared PC unlocked with the staff PIN
+        // onto a Calendar whose drawer still named the previous member and still showed the page
+        // pills their permissions earned. No privilege travelled with it; a name and a role did.
+        //
+        // Asserted as the ORDER of two effects, because only the pairing fixes it: clearing without
+        // reloading leaves every module-scope consumer holding the stale name it already read, and
+        // reloading without clearing puts the same card back up.
+        sessionValue = { name: 'G. Miller' };
+        let reloaded = 0;
+        globalThis.window.location.reload = () => { ops.push('reload'); reloaded++; };
+        await initCalendarAccess({ onGranted: () => {} });
+        await new Promise(r => setTimeout(r, 0));   // let the silent attempt settle
+
+        const alt = document.getElementById('calLockPinInstead');
+        assert.ok(alt, 'the member card offers no route to the staff PIN');
+        alt._listeners.get('click')();
+
+        assert.ok(ops.includes('clearSession'), `the stale named session survived: ${JSON.stringify(ops)}`);
+        assert.equal(reloaded, 1, 'nothing was rebuilt, so the drawer keeps the previous name');
+        assert.ok(ops.indexOf('clearSession') < ops.lastIndexOf('reload'),
+            'reloaded before clearing — the reload would restore the session it was meant to drop');
+        assert.equal(sessionValue, null, 'the local session was not actually dropped');
     });
 
     test('the silent re-establishment GRANTS when it works — nothing is typed', async () => {
