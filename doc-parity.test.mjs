@@ -220,7 +220,12 @@ test('no live doc names a symbol the source does not contain', () => {
     // Every file a doc could legitimately be naming something from.
     const here = new URL('.', import.meta.url);
     const dirs = [['.', /\.(?:js|mjs|css|html|json|rules)$/], ['functions', /\.js$/],
-        ['e2e', /\.js$/], ['scripts', /\.mjs$/]];
+        ['e2e', /\.js$/], ['scripts', /\.mjs$/],
+        // Experiments are a legitimate thing for a doc to name symbols from — AUTH_PLAN.md cites the
+        // offline proof's harness by name. Without this the guard would flag those names as
+        // non-existent, which is the opposite of its job: it exists to catch prose describing code
+        // that is not there, not to forbid prose describing code it forgot to look at.
+        ['experiments/firestore-offline-proof', /\.(?:mjs|html)$/]];
     let corpus = '';
     for (const [dir, re] of dirs) {
         let names = [];

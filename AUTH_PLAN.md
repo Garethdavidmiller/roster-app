@@ -288,15 +288,33 @@ is softer than that, because **both halves are ours**:
 - **Firestore rules are evaluated server-side.** The persistent local cache serves offline reads without
   consulting them. The roster is still on the device.
 
-> **⚠️ The second bullet is an UNVALIDATED assumption, and this whole section rests on it.** It is how
-> Firestore is documented to work, but it has never been demonstrated *in this app*, and E4 is what makes
-> E3 acceptable rather than a regression. **Prove it before anyone relies on it**, with a throwaway
-> experiment against the Firestore emulator: deny reads at the rules level, populate the persistent
-> cache, go offline, and confirm a `getDocsFromCache` read still resolves — then reconnect and confirm
-> what a live listener does. An hour's work that decides whether E3 is shippable.
+> **✅ The second bullet was an UNVALIDATED assumption until v21.21, and is now DEMONSTRATED.** It was
+> always how Firestore is documented to work, and this section rests on it entirely — so it was carrying
+> a warning that no one should rely on it. The experiment this note used to ask for has been run:
+> `experiments/firestore-offline-proof/`, against the Firestore emulator and the production SDK build,
+> in a real headless Chromium with a real IndexedDB cache.
+>
+> Cached `overrides` survive a page reload, **a full browser restart**, a rules tightening and the loss
+> of the network, **in any combination** — while the server read on the same query returns
+> `permission-denied`. A live listener under denied rules emits the cached snapshot *first* and only
+> then errors, and **a denied listen does not evict the cache**. The full matrix, the method and the
+> caveats are in that directory's README.
+>
+> **Two things it does not license.** It runs against the emulator, so it is strong evidence rather than
+> proof of production behaviour — say so wherever it is relied on. And the cache is leased to one
+> primary client: after a browser restart there is a **2–3 second window** (measured in a container, so
+> not a number to inherit) in which a cache read returns zero documents *with no error*. Any design that
+> needs the roster on screen instantly at launch has to handle that, and E4's grace mode is where it
+> belongs.
 
 So an offline member with a lapsed session would not be locked out by Firebase — they would be locked out
 by *our own overlay*. That makes it a design problem, not a constraint.
+
+**And the same measurement settles the security half, which matters sooner.** The mechanism cuts both
+ways: because the cache is served without consulting the rules, closing the `overrides` read rule
+(RECOVERY_RUNBOOK step 4) protects the roster on devices that have **not** already seen it, and does
+nothing whatever about devices that have. That is exactly what `calendar-overrides.js`'s own gate exists
+for, and it is now a measured statement rather than an inherited one.
 
 **The design:**
 
