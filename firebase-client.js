@@ -146,15 +146,82 @@ function _setMemberPersistence() {
         });
 }
 
+// PURE, and imported for the same reason session.js imports it: the question "is this identity the
+// shared Calendar viewer?" must have ONE answer, and the boot-persistence decision below is a place
+// where a second local copy of that predicate would be a second place a bypass could be introduced.
+// calendar-access-core.js imports nothing, so this adds no cycle (import-graph.test.mjs).
+import { isViewerUser } from './calendar-access-core.js';
+
+/** Resolve the FIRST auth emission (the persisted-user restore), bounded so a wedged auth layer
+ *  cannot hold `authReady` — and with it every page's boot — hostage. Local and minimal: the shared
+ *  `restoreFirstAuthUser` lives in session.js, which imports THIS module, so using it here would be
+ *  a cycle. On timeout resolves null, and the boot proceeds exactly as it would for a signed-out
+ *  visitor. @returns {Promise<any>} */
+function _firstAuthUserAtBoot() {
+    return new Promise(resolve => {
+        /** @type {null | (() => void)} */
+        let unsub       = null;
+        let settled     = false;
+        let detachEarly = false;   // the listener fired before onAuthStateChanged returned
+        // Same TDZ-safe detach shape as session.js's restoreFirstAuthUser, for the same reason:
+        // Firebase does not emit synchronously, but a shape that would throw if it ever did does
+        // not belong on the one promise every page's boot awaits.
+        const detach = () => {
+            if (unsub) { try { unsub(); } catch { /* already gone */ } unsub = null; }
+            else detachEarly = true;
+        };
+        /** @type {any} */
+        let timer;
+        const finish = (/** @type {any} */ u) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            detach();
+            resolve(u || null);
+        };
+        timer = setTimeout(() => finish(null), 8000);
+        try { unsub = onAuthStateChanged(auth, (/** @type {any} */ u) => finish(u)); }
+        catch { finish(null); }
+        if (detachEarly) detach();
+    });
+}
+
 // Exported so callers can `await authReady` before signing in — guarantees persistence
 // is configured before the auth token is written, otherwise iOS may drop the session.
-// BOOT MUST NOT INHERIT THE STRICTER POLICY (v20.39). `_setMemberPersistence` now rejects when no
+// BOOT MUST NOT INHERIT THE STRICTER POLICY (v20.39). `_setMemberPersistence` rejects when no
 // mode could be established, which is what the viewer↔member transitions need — but this promise is
 // awaited at boot by every page, mostly without a catch, so propagating here would turn a rare
 // storage failure into an unhandled rejection and a blank app. An in-memory session still works for
 // the current tab, which is the right trade for ordinary use. Security-sensitive callers use
 // `restoreMemberPersistence()` and get the rejection.
-export const authReady = _setMemberPersistence().catch(() => /** @type {const} */ ('none'));
+//
+// ── THE RESTORED USER IS READ FIRST, AND THE CALENDAR VIEWER KEEPS SESSION PERSISTENCE ──────────
+//
+// This used to apply the member chain unconditionally, and that quietly broke the PIN feature's one
+// security property. `setPersistence` MIGRATES the current user between stores (SDK: AuthImpl.
+// setPersistence → getCurrentUser → removeCurrentUser → setCurrentUser under the new persistence) —
+// so on any page load of a browser holding the shared Calendar viewer, the unconditional
+// setPersistence(indexedDB) here lifted the viewer OUT of sessionStorage and INTO IndexedDB, where
+// it survives the browser closing. One ordinary reload of an unlocked Calendar was enough, and the
+// next person at a shared office PC then got the roster with no PIN. Measured in a real Chromium
+// against the Auth emulator (experiments/viewer-persistence-proof/): unlock → reload → browser
+// restart → still signed in; without the reload, correctly gone.
+//
+// So the boot now waits for the restore FIRST — which costs nothing, because setPersistence already
+// queues behind the SDK's initialization and that initialization IS the restore — and only then
+// chooses: the viewer re-asserts session-only persistence (a no-op when it is already there, and a
+// MIGRATION BACK OUT of IndexedDB for any browser the old behaviour has already leaked into, which
+// is what heals the office PCs affected before this fix); everyone else gets the member chain
+// exactly as before. Member sign-ins that REPLACE a viewer are unaffected — they run through
+// `shedCalendarViewer`, which signs the viewer out before calling `restoreMemberPersistence()`.
+export const authReady = (async () => {
+    const u = await _firstAuthUserAtBoot();
+    if (isViewerUser(u)) {
+        try { await setPersistence(auth, browserSessionPersistence); return /** @type {const} */ ('session'); }
+        catch { return /** @type {const} */ ('none'); }
+    }
+    return _setMemberPersistence();
+})().catch(() => /** @type {const} */ ('none'));
 
 /**
  * Re-arm the long-lived MEMBER persistence chain.

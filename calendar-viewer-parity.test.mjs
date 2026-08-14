@@ -210,3 +210,36 @@ describe('Contract B — the PIN is not in the repository', () => {
             'a four-digit PIN value looks to be committed:\n  ' + offenders.join('\n  '));
     });
 });
+
+// ── CONTRACT C: boot may not promote the viewer into long-lived persistence ─────────────────────
+//
+// `setPersistence` MIGRATES the current user between stores, and `authReady` runs at module init on
+// every page — so an unconditional member chain there lifts a restored viewer out of sessionStorage
+// into IndexedDB, where it survives the browser closing. That happened: one ordinary reload of an
+// unlocked Calendar made the shared viewer permanent on that machine, and the next person at the PC
+// got the roster with no PIN. Measured in a real Chromium against the Auth emulator —
+// experiments/viewer-persistence-proof/ has the harness, both arms, and the storage dumps.
+//
+// No unit or e2e test can see this: unit suites mock the SDK, the e2e stubs it, and the property
+// only exists across a genuine browser exit. So the executable proof lives in the experiment, and
+// this contract pins the SHAPE of the fix — the boot initializer consults `isViewerUser` before any
+// persistence is applied. A shape check is weaker than a behaviour check and is what is available;
+// if it fails, re-run the experiment before deciding the new shape is safe.
+describe('Contract C — boot persistence is viewer-aware', () => {
+    test('firebase-client consults isViewerUser inside the authReady initializer', () => {
+        const src = read('./firebase-client.js').replace(/\/\/[^\n]*/g, '');
+        assert.match(src, /import \{ isViewerUser \} from '\.\/calendar-access-core\.js'/,
+            'firebase-client.js no longer imports the ONE viewer predicate — a second local copy '
+            + 'would be a second place a bypass could be introduced');
+        const at = src.indexOf('export const authReady');
+        assert.ok(at > -1, 'authReady not found — this contract is checking nothing');
+        // The initializer is the async IIFE the export is assigned; take a bounded slice of it.
+        const body = src.slice(at, at + 900);
+        assert.ok(body.includes('isViewerUser('),
+            'authReady applies persistence without asking whether the restored user is the shared '
+            + 'viewer — the exact shape that migrated it into IndexedDB (see the experiment)');
+        assert.ok(body.includes('browserSessionPersistence'),
+            'authReady has no session-persistence branch for the viewer — a restored viewer must '
+            + 'KEEP session-only persistence, or re-assert it to migrate back out of IndexedDB');
+    });
+});

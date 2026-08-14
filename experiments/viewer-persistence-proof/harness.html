@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>viewer persistence probe</title></head><body>
+<pre id="log"></pre>
+<script type="module">
+// Mirrors the app's auth layer exactly: getAuth (default hierarchy [indexedDB, local, session]),
+// then the same calls firebase-client.js / calendar-access.js make, in the same order.
+import { initializeApp } from './sdk/firebase-app.js';
+import {
+    getAuth, connectAuthEmulator, setPersistence,
+    indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence,
+    signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut,
+} from './sdk/firebase-auth.js';
+
+const app  = initializeApp({ apiKey: 'fake-api-key', projectId: 'viewer-proof', authDomain: 'viewer-proof.firebaseapp.com' });
+const auth = getAuth(app);
+connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+
+const out = [];
+function log(m) { out.push(m); document.getElementById('log').textContent = out.join('\n'); }
+
+/** The app's `_setMemberPersistence()` — the chain authReady runs AT MODULE INIT on every page. */
+async function memberChain() {
+    return setPersistence(auth, indexedDBLocalPersistence).then(() => 'indexeddb')
+        .catch(() => setPersistence(auth, browserLocalPersistence).then(() => 'local'))
+        .catch(() => setPersistence(auth, browserSessionPersistence).then(() => 'session'));
+}
+
+/** First onAuthStateChanged emission — the restore. */
+function firstUser() {
+    return new Promise(resolve => {
+        const t = setTimeout(() => resolve(null), 5000);
+        const off = onAuthStateChanged(auth, u => { clearTimeout(t); off(); resolve(u || null); });
+    });
+}
+
+window.__P = {
+    // The UNLOCK, as calendar-access.js performs it: sign out anything current, session-only
+    // persistence, then sign in. (Email/password stands in for the custom token — same storage path.)
+    unlock: async () => {
+        if (auth.currentUser) await signOut(auth);
+        await setPersistence(auth, browserSessionPersistence);
+        try { await createUserWithEmailAndPassword(auth, 'viewer@myb-roster.local', 'viewer-secret'); }
+        catch { await signInWithEmailAndPassword(auth, 'viewer@myb-roster.local', 'viewer-secret'); }
+        return auth.currentUser?.email || null;
+    },
+    // An APP PAGE LOAD, as firebase-client.js performs it: the member chain at module init,
+    // then read who is signed in.
+    appBoot: async () => {
+        const mode = await memberChain();
+        const u = auth.currentUser || await firstUser();
+        return { persistence: mode, user: u ? u.email : null };
+    },
+    // The FIXED app page load: restore first, and a viewer keeps session-only persistence.
+    // Mirrors the new authReady in firebase-client.js line for line.
+    fixedBoot: async () => {
+        const u = auth.currentUser || await firstUser();
+        const isViewer = !!(u && !u.isAnonymous && u.email === 'viewer@myb-roster.local');
+        let mode;
+        if (isViewer) { await setPersistence(auth, browserSessionPersistence); mode = 'session'; }
+        else mode = await memberChain();
+        return { persistence: mode, user: u ? u.email : null };
+    },
+    // A page load with NO setPersistence at all — the control that separates the SDK's own
+    // restore behaviour from what the app's boot does to it.
+    passiveBoot: async () => {
+        const u = auth.currentUser || await firstUser();
+        return { user: u ? u.email : null };
+    },
+    // What is physically in each storage layer for this origin, read directly.
+    storages: async () => {
+        const ss = Object.keys(sessionStorage).filter(k => k.includes('firebase'));
+        const ls = Object.keys(localStorage).filter(k => k.includes('firebase'));
+        const dbs = (await indexedDB.databases()).map(d => d.name);
+        let idbUser = null;
+        if (dbs.includes('firebaseLocalStorageDb')) {
+            idbUser = await new Promise(res => {
+                const r = indexedDB.open('firebaseLocalStorageDb');
+                r.onsuccess = () => {
+                    try {
+                        const tx = r.result.transaction('firebaseLocalStorage', 'readonly');
+                        const g = tx.objectStore('firebaseLocalStorage').getAllKeys();
+                        g.onsuccess = () => res(g.result);
+                        g.onerror = () => res('err');
+                    } catch { res('no-store'); }
+                };
+                r.onerror = () => res('open-err');
+            });
+        }
+        return { sessionStorage: ss, localStorage: ls, indexedDbKeys: idbUser };
+    },
+};
+log('ready');
+</script>
+</body></html>
