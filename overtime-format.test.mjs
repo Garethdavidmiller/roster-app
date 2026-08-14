@@ -20,7 +20,7 @@ import {
     clockOffset, submitDisposition, shouldResyncClock, SUBMIT_GRACE_MS, DEADLINE_SYNC_WINDOW_MS,
     shortDate, longDate, weekLabel, weekSpan, deadlineLabel, phaseCopy, rowStateCopy,
     countsCopy, answerCopy, answerTone, answerAnchorStale, isUnavailable, weekSummary, asAtLine,
-    modesFor, submitFailureCopy, shiftSpanMinutes, sameAnswer, deadlineLines, receiptLine,
+    modesFor, offersFullTwelve, submitFailureCopy, shiftSpanMinutes, sameAnswer, deadlineLines, receiptLine,
     declaredAgo,
 } from './overtime-format.js';
 
@@ -144,6 +144,8 @@ describe('answers in words', () => {
         // which is how the two sides of one answer stayed apart while the suite was green.
         assert.match(answerCopy({ mode: 'twelve_hours' }), /a full/);
         assert.equal(/up to/.test(answerCopy({ mode: 'twelve_hours' })), false);
+        // It stays rendered although no client offers it any more (v21.24): revisions are immutable,
+        // so beta answers stored under it must keep reading back as what they were.
         assert.equal(answerCopy({ mode: 'before', until: '07:00' }), 'Available before 07:00');
         assert.equal(answerCopy({ mode: 'after', from: '15:00' }), 'Available after 15:00');
         assert.equal(answerCopy({ mode: 'before_after', until: '07:00', from: '15:00' }),
@@ -171,6 +173,50 @@ describe('answers in words', () => {
         assert.equal(isUnavailable({ mode: 'unavailable' }), true);
         assert.equal(isUnavailable({ mode: 'all_day' }), false);
         assert.equal(isUnavailable(null), false, 'no answer is not an unavailable answer');
+    });
+
+    describe('the willingness flag on a reviewer\'s chip (v21.24)', () => {
+        // The reviewer's chip is their ONLY sight of this answer, and it now carries two independent
+        // statements: the window is where a duty may sit, the suffix is how far it may run. The
+        // external review of v21.22 made the point directly — a duration with no window cannot be
+        // built into a duty, and a window that hides a declared willingness wastes it.
+        test('it is APPENDED to the window, never shown in place of it', () => {
+            assert.equal(answerCopy({ mode: 'before_after', until: '07:00', from: '15:00', fullTwelve: true }),
+                'Available before 07:00 and after 15:00 · would work up to 12 hours');
+            // The window half is byte-identical to the same answer without the flag — the suffix
+            // adds, it does not rewrite.
+            assert.ok(answerCopy({ mode: 'all_day', fullTwelve: true })
+                .startsWith(answerCopy({ mode: 'all_day' })));
+        });
+
+        test('every window shape carries it', () => {
+            for (const day of [
+                { mode: 'all_day' },
+                { mode: 'before', until: '07:00' },
+                { mode: 'after', from: '15:00' },
+                { mode: 'custom', start: '18:00', end: '23:00', nextDay: false },
+            ]) {
+                assert.match(answerCopy({ ...day, fullTwelve: true }), /would work up to 12 hours/,
+                    `${day.mode} drops the willingness`);
+            }
+        });
+
+        test('and an answer WITHOUT it says nothing about duration', () => {
+            // The absence is not a declared "no", so the chip must not imply one — a reviewer
+            // reading "would not work 12 hours" against somebody who simply never ticked would be
+            // the same invention as reading silence as unavailable.
+            for (const day of [{ mode: 'all_day' }, { mode: 'all_day', fullTwelve: false }]) {
+                assert.equal(/12 hours/.test(answerCopy(day)), false);
+            }
+        });
+
+        test('it never attaches to "not available" or to no answer at all', () => {
+            // The server refuses the pairing, so it should be unreachable — but a chip that
+            // rendered it would be describing a state that cannot exist, which is worse than a
+            // wrong word: it would make a reviewer doubt the rest of the panel.
+            assert.equal(answerCopy({ mode: 'unavailable', fullTwelve: true }), 'Not available');
+            assert.equal(answerCopy({ mode: 'nonsense', fullTwelve: true }), 'Not answered');
+        });
     });
 
     // ── The roster moving under a saved answer ──────────────────────────────────────────────────
@@ -438,12 +484,24 @@ describe('which modes a day may offer', () => {
         // duty" — same meaning to a clerk, two pills — so all_day is withheld wherever
         // before_after can be offered. The one that stays is the one that stores what was said.
         assert.deepEqual(modesFor(timed),
-            ['unavailable', 'twelve_hours', 'before', 'after', 'before_after', 'custom']);
+            ['unavailable', 'before', 'after', 'before_after', 'custom']);
     });
 
-    test('no context, or no duty time, offers only the unanchored four', () => {
-        assert.deepEqual(modesFor(null), ['unavailable', 'all_day', 'twelve_hours', 'custom']);
-        assert.deepEqual(modesFor(rest), ['unavailable', 'all_day', 'twelve_hours', 'custom']);
+    test('no context, or no duty time, offers only the unanchored three', () => {
+        assert.deepEqual(modesFor(null), ['unavailable', 'all_day', 'custom']);
+        assert.deepEqual(modesFor(rest), ['unavailable', 'all_day', 'custom']);
+    });
+
+    test('twelve_hours is offered NOWHERE — it stopped being a window (v21.24)', () => {
+        // The split. It answered HOW LONG in a control whose every other option answers WHEN, so it
+        // competed with them rather than combining; willingness is now `fullTwelve` beside a real
+        // window. Asserted across every shape of day, because "no longer offered" is only true if
+        // it is true everywhere — one surviving branch would put the old ambiguity back on the
+        // days that branch covers, which is exactly how it would go unnoticed.
+        for (const ctx of [timed, night, rest, null, { ...timed, rosteredMinutes: 720 }]) {
+            assert.equal(modesFor(ctx).includes('twelve_hours'), false,
+                `still offered for ${JSON.stringify(ctx)}`);
+        }
     });
 
     test('all_day survives exactly where before_after cannot be offered', () => {
@@ -457,30 +515,29 @@ describe('which modes a day may offer', () => {
         assert.equal(modesFor(timed).includes('all_day'), false);
     });
 
-    test('"Up to 12 hours" is withheld ONLY where the day already reaches 12 rostered hours', () => {
-        // The owner's rule: the pill appears on days where 12 hours has not already been rostered
-        // as extra. A 12-hour RDW already agreed IS 720 effective minutes, so it gates the same way
-        // a 12-hour ordinary shift would. The boundary is exact — 719 minutes still leaves a minute
-        // to offer, which is silly in practice and correct on principle, and testing one minute
-        // either side is what pins the comparison operator.
-        const twelveUp = { ...timed, rosteredMinutes: 720 };
-        const justUnder = { ...timed, rosteredMinutes: 719 };
-        assert.equal(modesFor(twelveUp).includes('twelve_hours'), false);
-        assert.ok(modesFor(justUnder).includes('twelve_hours'));
-        // Everything else about the day is untouched — the gate removes ONE offer, never reshapes
-        // the list around it.
-        assert.deepEqual(modesFor(twelveUp),
+    test('the WILLINGNESS question is withheld only where the day already reaches 12 rostered hours', () => {
+        // The old `twelve_hours` offer gate, inherited whole by `offersFullTwelve` (v21.24) —
+        // because that gate was never about the mode. A day already rostered 720 effective minutes
+        // has nothing left to give, so the question has no answer worth recording; a 12-hour RDW
+        // already agreed as extra gates it exactly as a 12-hour ordinary shift would. The boundary
+        // is exact: 719 minutes still leaves a minute to offer, which is silly in practice and
+        // correct on principle, and one minute either side is what pins the comparison operator.
+        assert.equal(offersFullTwelve({ ...timed, rosteredMinutes: 720 }), false);
+        assert.ok(offersFullTwelve({ ...timed, rosteredMinutes: 719 }));
+        // And the WINDOW list is untouched by it — the two are independent questions now, so the
+        // duration gate must not quietly reshape the choice of when.
+        assert.deepEqual(modesFor({ ...timed, rosteredMinutes: 720 }),
             ['unavailable', 'before', 'after', 'before_after', 'custom']);
     });
 
-    test('an UNKNOWN day length is not "already rostered 12 hours" — the pill shows', () => {
+    test('an UNKNOWN day length is not "already rostered 12 hours" — the question stands', () => {
         // The gate needs a positive fact to fire. `rosteredMinutes` is null when the roster could
-        // not be read; hiding the pill there would punish a failed Firestore query with a narrower
-        // form, which is the wrong direction — the declaration anchors to no roster time, so it is
-        // safe to offer regardless (the same reasoning that keeps all_day and custom).
-        assert.ok(modesFor({ hasTime: false, overnight: false, rosteredMinutes: null }).includes('twelve_hours'));
-        assert.ok(modesFor({ hasTime: true, overnight: false, start: '06:00', end: '14:00' }).includes('twelve_hours'),
-            'a context predating the field entirely must behave as unknown, not as zero');
+        // not be read; withholding there would punish a failed Firestore query with a narrower
+        // form, which is the wrong direction — willingness anchors to no roster time, so it is safe
+        // to ask regardless (the same reasoning that keeps all_day and custom).
+        assert.ok(offersFullTwelve({ rosteredMinutes: null }));
+        assert.ok(offersFullTwelve({}), 'a context predating the field must behave as unknown, not as zero');
+        assert.ok(offersFullTwelve(null));
     });
 
     test('an overnight duty offers NO "after" and NO "before & after"', () => {
@@ -529,15 +586,15 @@ describe('how long a duty runs', () => {
         assert.equal(shiftSpanMinutes('00:00', '00:00'), null);
     });
 
-    test('and null means the 12-hour offer STANDS, which is the safe direction', () => {
-        // The consequence of the old 1440 was 1440 >= 720, so the pill was WITHHELD on the
-        // strength of a garbage reading. `modesFor` needs a positive fact to withhold; asserting
-        // the null alone would not have caught that, because null is also what a rest day's
-        // unknown length looks like and the two must behave the same.
+    test('and null means the willingness question STANDS, which is the safe direction', () => {
+        // The consequence of the old 1440 was 1440 >= 720, so the question was WITHHELD on the
+        // strength of a garbage reading. `offersFullTwelve` needs a positive fact to withhold;
+        // asserting the null alone would not have caught that, because null is also what a rest
+        // day's unknown length looks like and the two must behave the same.
         const malformed = { hasTime: true, overnight: false, start: '08:00', end: '08:00',
             rosteredMinutes: shiftSpanMinutes('08:00', '08:00') };
-        assert.ok(modesFor(malformed).includes('twelve_hours'),
-            'withholding an option costs the member something; offering one on a nonsense roster does not');
+        assert.ok(offersFullTwelve(malformed),
+            'withholding a question costs the member something; asking one on a nonsense roster does not');
     });
 });
 

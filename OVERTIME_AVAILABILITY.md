@@ -48,9 +48,10 @@ was four faults with one rule each. Keep to these when adding copy:
    "Closed <deadline>". The same instant had been "Changes close", "Closed — the final deadline
    was", "Closes" and "Answers due" on one page; only the reviewer's horizon keeps "Answers due"
    for the FIRST deadline, because it genuinely is a different boundary.
-3. **Every green pill completes "Available …"** — All day · Up to 12 hours · Before 07:00 · After
-   15:00 · Before & after duty · Custom times — and "Not available" stands apart as the charcoal
-   answer. The recorded CHIP keeps the full form ("Available all day"): chips stand alone on the
+3. **Every green pill completes "Available …"** — All day · Before 07:00 · After 15:00 · Before &
+   after duty · Custom times — and "Not available" stands apart as the charcoal answer. (The list
+   shrank twice after this rule was written: the `all_day` duplicate on worked days at v21.22, and
+   the 12-hour pill at v21.24 when willingness became its own tick. The RULE is unchanged.) The recorded CHIP keeps the full form ("Available all day"): chips stand alone on the
    reviewer's list; buttons sit in a radiogroup already labelled "Availability on <day>".
 4. **Each fact is stated once, in one phrasing.** The BETA strip says the data is real, the card
    hint says who the form tells, the explainer says it books nothing — three sentences, three
@@ -320,15 +321,41 @@ Full multi-select was considered and rejected: it creates contradiction states t
 have to referee, and every stored answer stops being one unambiguous statement — the property the
 whole feature is built on.
 
-**OPEN (external review of v21.22).** The reviewer argues the standalone `twelve_hours` answer is
-still redundant now the cap is stated — on a rest day "All day" already permits a 12-hour duty, and
-on a worked day "Before & after duty" gives the clerk a WINDOW where `twelve_hours` gives only a
-duration, so the clerk cannot act on it without asking. Their remedy is to delete the mode and keep
-12 hours purely as the planning ceiling; the cost is losing the willingness signal the owner asked
-for at v20.83. The unresolved question is whether willingness needs capturing at all, and if it
-does, whether it belongs as its own optional question rather than as an availability window. **A
-real wording mismatch inside it was fixed at v21.23** — see below. Do not change the model without
-the owner: it has been settled twice already.
+### SETTLED at v21.24: the two dimensions split (owner)
+
+External review of v21.22 pressed the point and it was right: with the cap stated, `twelve_hours`
+was redundant on a rest day (where "All day" already permits a 12-hour duty) and actively unhelpful
+on a worked one (it gave a DURATION with no WINDOW, so a clerk could not build a duty from it
+without ringing the person). The reviewer's remedy was to delete it and keep 12 hours purely as the
+planning ceiling — which is clean, and throws away the willingness signal the owner asked for at
+v20.83.
+
+The owner chose the third option: **split the dimensions rather than trade one for the other.**
+
+| Question | Control | Stored as |
+|---|---|---|
+| When can you work? | the radio group | `mode` (+ its clock boundaries) |
+| Would you work a long day? | an optional tick under it | `fullTwelve: true`, or absent |
+
+Nothing now overlaps, and both answers are expressible at once — "before and after my duty, **and**
+go long if it helps" is one unambiguous statement, which is exactly what the retired mode could not
+make. Five consequences worth keeping:
+
+- **`twelve_hours` is retired, not deleted.** Revisions are append-only and immutable, so beta
+  answers stored under it live out their retention window; it stays in the schema, in `answerCopy`,
+  and in the form's stored-mode fallback. Removing it would make real records unreadable.
+- **"Up to" is correct on the tick and was wrong on the mode.** Beside a window it grants
+  PERMISSION for a long duty rather than naming a duration — the ambiguity that retired the mode.
+- **The flag is stored only when true**, so answers written before and after this change stay
+  structurally comparable and nothing needs migrating.
+- **It is refused beside `unavailable`**, server and client, and the chip never renders that pairing.
+- **It survives a change of window but not a change to `unavailable`** — the two answers are
+  independent, so moving the window must not silently retract it.
+
+**It shipped in TWO pushes**, and anything similar must too: the three deploy workflows fire in
+parallel, so a client that gained the field before the server accepted it would have met
+`unknown-field` and refused real submissions for the length of the Functions deploy. v21.24 was the
+server accepting it (inert, nothing sent it); v21.25 was the client offering it.
 
 ---
 

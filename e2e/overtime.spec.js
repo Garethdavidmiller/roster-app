@@ -838,10 +838,11 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         expect(await late.locator('[data-mode]').allTextContents()).toContain('Before & after duty');
     });
 
-    test('"Up to 12 hours" is withheld only where the day already reaches 12 rostered hours (v20.83)', async ({ page }) => {
-        // The owner's rule end-to-end: a 12-hour RDW already agreed as extra gates the offer on
-        // THAT day, while a spare day and an ordinary duty keep it. Driven through the real
-        // roster loader — override read, resolveEffectiveShift, span maths — not a stubbed ctx.
+    test('the willingness tick is withheld only where the day already reaches 12 rostered hours', async ({ page }) => {
+        // The owner's rule end-to-end (v20.83's gate, inherited by the v21.24 tick): a 12-hour RDW
+        // already agreed as extra withholds the question on THAT day, while a spare day and an
+        // ordinary duty keep it. Driven through the real roster loader — override read,
+        // resolveEffectiveShift, span maths — not a stubbed ctx.
         await seedSession(page, 'G. Miller');
         const twelve = [...OVR,
             { id: 'o4', memberName: 'G. Miller', date: D[3], type: 'rdw', value: '09:00-21:00', note: '', source: 'manual' }];
@@ -849,12 +850,26 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await page.goto('/overtime.html');
         await page.locator(`[data-day="${D[3]}"]`).waitFor();
 
-        // Not by label — by MODE. The label is context-dependent since v20.86 and asserting on its
-        // words would pass a build that offered the option under the other wording.
-        await expect(page.locator(`[data-day="${D[3]}"] [data-mode="twelve_hours"]`)).toHaveCount(0);
-        // A spare day (no times) and an 8.7-hour duty both leave headroom, so both offer it.
-        await expect(page.locator(`[data-day="${D[0]}"] [data-mode="twelve_hours"]`)).toHaveCount(1);
-        await expect(page.locator(`[data-day="${D[6]}"] [data-mode="twelve_hours"]`)).toHaveCount(1);
+        // The tick only exists once a day has an AVAILABLE answer, so each day is answered first.
+        // That is the contract, not an inconvenience: it is a refinement of an answer, so a form
+        // with seven unanswered days must show none of them.
+        await expect(page.locator('[data-fulltwelve]')).toHaveCount(0);
+        for (const d of [D[0], D[3], D[6]]) {
+            const first = page.locator(`[data-day="${d}"] .ot-mode`).nth(1);   // anything but "Not available"
+            await first.click();
+        }
+        await expect(page.locator(`[data-day="${D[3]}"] [data-fulltwelve]`)).toHaveCount(0);
+        // A spare day (no times) and an 8.7-hour duty both leave headroom, so both ask it.
+        await expect(page.locator(`[data-day="${D[0]}"] [data-fulltwelve]`)).toHaveCount(1);
+        await expect(page.locator(`[data-day="${D[6]}"] [data-fulltwelve]`)).toHaveCount(1);
+
+        // And "Not available" takes it away again — the server refuses that pairing, so the client
+        // must not be able to build it.
+        await page.locator(`[data-day="${D[0]}"] [data-mode="unavailable"]`).click();
+        await expect(page.locator(`[data-day="${D[0]}"] [data-fulltwelve]`)).toHaveCount(0);
+
+        // The retired mode is offered NOWHERE — the split, end to end.
+        await expect(page.locator('[data-mode="twelve_hours"]')).toHaveCount(0);
 
         // ── "ALL DAY" APPEARS ONLY WHERE IT IS NOT A DUPLICATE (v21.22, owner) ──────────────────
         //
@@ -869,24 +884,39 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await expect(page.locator(`[data-day="${D[6]}"] [data-mode="before_after"]`))
             .toHaveCount(1);
 
-        // ── AND THE 12-HOUR OPTION IS WORDED FOR THE DAY IT SITS ON ─────────────────────────────
-        //
-        // The rule is that twelve hours is a TOTAL including whatever is rostered. On a rest day
-        // there is nothing to include, so "a 12-hour turn" says it exactly; beside a duty the same
-        // phrase is ambiguous by eight hours — a clerk could read 07:00–19:00 or 04:00–16:00 from
-        // it. "For a full …" (v21.22): the cap note states that 12 hours is every answer's limit
-        // anyway, so the pill's own content is willingness for the maximum, and its label says
-        // that rather than restating the cap. Nothing errors if these drift, hence the pins.
-        await expect(page.locator(`[data-day="${D[0]}"] [data-mode="twelve_hours"]`))
-            .toHaveText('For a full 12-hour turn');
-        await expect(page.locator(`[data-day="${D[6]}"] [data-mode="twelve_hours"]`))
-            .toHaveText('For a full 12 hours in total');
+        // The standing cap note renders once, above the day list, on an open form. It sets the
+        // ceiling the tick refers to, so "a full 12-hour day" on a row below means something exact.
+        await expect(page.locator('.ot-cap-note')).toHaveText(/never planned past 12 hours in total/);
+    });
 
-        // The standing cap note renders once, above the day list, on an open form.
-        await expect(page.locator('.ot-cap-note')).toHaveText(/never planned past\s+12 hours in total/);
-        // And it submits like any other answer — the label is a real option, not a decoration.
-        await page.locator(`[data-day="${D[0]}"] [data-mode="twelve_hours"]`).click();
-        await expect(page.locator(`[data-day="${D[0]}"] [data-mode="twelve_hours"]`)).toHaveAttribute('aria-checked', 'true');
+    test('the willingness tick survives a change of WINDOW, and dies with "not available" (v21.24)', async ({ page }) => {
+        // The whole point of the split is that the two answers are independent. Moving the window
+        // must not silently retract "and I would go long" — the member said that about the DAY, and
+        // nothing they just pressed contradicts it. A silent reset here would be exactly the class
+        // of defect this form is careful about everywhere else, and it is invisible: the tick simply
+        // is not ticked any more, on a row they have already dealt with.
+        await seedSession(page, 'G. Miller');
+        await stubWithRoster(page, [winOver()], OVR);
+        await page.goto('/overtime.html');
+        const day = page.locator(`[data-day="${D[6]}"]`);            // a plain 15:15–23:55 duty
+        await day.waitFor();
+
+        await day.locator('[data-mode="before"]').click();
+        await day.locator('[data-fulltwelve]').check();
+        await expect(day.locator('[data-fulltwelve]')).toBeChecked();
+
+        // Change the window: the tick stays.
+        await day.locator('[data-mode="before_after"]').click();
+        await expect(day.locator('[data-fulltwelve]')).toBeChecked();
+
+        // Go unavailable: the control goes entirely.
+        await day.locator('[data-mode="unavailable"]').click();
+        await expect(day.locator('[data-fulltwelve]')).toHaveCount(0);
+
+        // Come back to an available answer: it is NOT silently remembered, because leaving the day
+        // unavailable genuinely retracted it — the answer that carried it no longer exists.
+        await day.locator('[data-mode="before_after"]').click();
+        await expect(day.locator('[data-fulltwelve]')).not.toBeChecked();
     });
 
     test('the day rows speak admin\'s state grammar — cream over a changed saved answer (v20.83)', async ({ page }) => {

@@ -435,18 +435,19 @@ export function countsCopy(expected, received) {
  * there is no boundary to anchor to, and offering them anyway would either invent one or quietly
  * attach one from a base roster nobody has verified.
  *
- * ── "UP TO 12 HOURS" IS OFFERED UNLESS THE DAY ALREADY REACHES 12 (v20.83, owner) ───────────────
+ * ── THE 12-HOUR ANSWER IS NO LONGER A MODE (v21.24, owner) ──────────────────────────────────────
  *
- * Twelve hours is the ceiling of a turn, so the declaration means "I will work up to a 12-hour
- * day" — a full 12-hour turn on a rest day, or extending a rostered duty to 12 hours total on a
- * worked one. The one day it is meaningless is a day whose EFFECTIVE roster already reaches
- * 720 minutes — including a 12-hour RDW already agreed as extra — because there is nothing left
- * to offer; on that day the pill is withheld.
+ * `twelve_hours` (v20.83) answered HOW LONG in a control whose every other option answered WHEN,
+ * so the two competed: on a rest day it duplicated `all_day`, and on a worked day it gave a
+ * duration with no window, which a clerk cannot build a duty from. External review of v21.22
+ * reported both, and the owner split the dimensions — the window stays here, and willingness
+ * became the optional `fullTwelve` flag the form ticks alongside it.
  *
- * The gate needs a POSITIVE fact to fire: `rosteredMinutes` is null when the day's length is
- * unknown, and unknown is not "already rostered 12 hours", so the pill shows. That is the same
- * direction every unknown resolves on this page — withhold what would ANCHOR to an unverified
- * roster (the before/after shortcuts), keep what anchors to nothing (this, all-day, custom).
+ * So this function no longer offers it. `offersFullTwelve` below carries what is left of the old
+ * gate, because that gate was always about the DAY rather than the mode: a day whose effective
+ * roster already reaches 720 minutes has nothing left to give, so there is nothing to ask.
+ * `answerCopy` still renders the retired mode, and the form still shows it when it is what somebody
+ * saved — an answer already given does not stop being the answer they gave.
  *
  * ── ONE BOTH-SIDES ANSWER PER DAY (v21.22, owner) ───────────────────────────────────────────────
  *
@@ -468,11 +469,28 @@ export function countsCopy(expected, received) {
  * @returns {string[]}
  */
 export function modesFor(ctx) {
-    const twelve = Number.isFinite(ctx?.rosteredMinutes) && /** @type {number} */ (ctx?.rosteredMinutes) >= 720
-        ? [] : ['twelve_hours'];
-    if (!ctx || !ctx.hasTime) return ['unavailable', 'all_day', ...twelve, 'custom'];
-    if (ctx.overnight) return ['unavailable', 'all_day', ...twelve, 'before', 'custom'];
-    return ['unavailable', ...twelve, 'before', 'after', 'before_after', 'custom'];
+    if (!ctx || !ctx.hasTime) return ['unavailable', 'all_day', 'custom'];
+    if (ctx.overnight) return ['unavailable', 'all_day', 'before', 'custom'];
+    return ['unavailable', 'before', 'after', 'before_after', 'custom'];
+}
+
+/**
+ * Whether this day should ASK the willingness question at all (v21.24).
+ *
+ * Inherited whole from the old `twelve_hours` offer gate, because that gate was never about the
+ * mode: a day whose EFFECTIVE roster already reaches 720 minutes — a 12-hour shift, or a 12-hour
+ * RDW already agreed as extra — has nothing left to give, so the question has no answer worth
+ * recording. Every other day may be asked, including a rest day, where "go long if it helps" means
+ * a full 12-hour turn.
+ *
+ * It needs a POSITIVE fact to withhold: `rosteredMinutes` is null when the day's length could not
+ * be read, and unknown is not "already rostered 12 hours", so the tick shows. Same direction every
+ * unknown resolves on this page — withhold what would ANCHOR to an unverified roster (the
+ * before/after shortcuts), keep what anchors to nothing (this, all-day, custom).
+ * @param {{rosteredMinutes?: number|null}|null} ctx
+ */
+export function offersFullTwelve(ctx) {
+    return !(Number.isFinite(ctx?.rosteredMinutes) && /** @type {number} */ (ctx?.rosteredMinutes) >= 720);
 }
 
 /**
@@ -511,6 +529,26 @@ export function submitFailureCopy(code, dayLabel) {
  * @param {any} day
  */
 export function answerCopy(day) {
+    const base = answerWindowCopy(day);
+    // The willingness rides on the END of the window, never in place of it (v21.24). The reviewer's
+    // chip is their only sight of this answer, and the two halves say different things: the window
+    // is where a duty may sit, the suffix is how far it may run. A chip that showed only one of them
+    // would be the old `twelve_hours` problem again, in the one place it did the most damage.
+    //
+    // It attaches ONLY to a real availability window. The server refuses `fullTwelve` beside
+    // `unavailable`, so "Not available · would work up to 12 hours" describes a state that cannot
+    // exist — and a chip rendering an impossible state is worse than a clumsy phrase, because it
+    // makes a reviewer doubt the rest of the panel. Same for an answer we could not read at all.
+    const attaches = !!day && typeof day === 'object' && day.fullTwelve === true
+        && WINDOW_MODES.has(day.mode);
+    return attaches ? `${base} · would work up to 12 hours` : base;
+}
+
+/** The modes that describe a window a duty could sit in — everything except "not available". */
+const WINDOW_MODES = new Set(['all_day', 'twelve_hours', 'before', 'after', 'before_after', 'custom']);
+
+/** The WINDOW half, alone. @param {any} day */
+function answerWindowCopy(day) {
     if (!day || typeof day !== 'object') return 'Not answered';
     switch (day.mode) {
         case 'unavailable':  return 'Not available';
