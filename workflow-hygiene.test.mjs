@@ -152,3 +152,65 @@ describe('workflow-lint reaches composite actions', () => {
         }
     });
 });
+
+// ── A DEPLOY FAILURE MUST REACH SOMEBODY, INCLUDING ONE THAT KILLS THE JOB BEFORE ITS STEPS ─────
+//
+// The reporter was originally the deploy job's own last step under `if: failure()`, and the comment
+// beside it said that covered "EVERY step above". It did. What it could not cover is a job that
+// never reaches a step: on 14 Aug 2026 the rules deploy failed in `Prepare all required actions`
+// because codeload would not serve a pinned action, so every step was skipped, no issue was opened,
+// and a failed production deploy sat unnoticed until someone listed the workflow runs by hand.
+//
+// The fix is structural — a separate job with `needs` + a JOB-level `if: failure()` — and so is
+// this guard. It asserts the SHAPE rather than the outcome, because the outcome only occurs during
+// an outage: there is no way to make a real setup failure happen on demand in CI, which is exactly
+// why the original gap survived review.
+describe('a failed deploy is announced, whenever it fails', () => {
+    const DEPLOY_WORKFLOWS = ['deploy-rules.yml', 'deploy-hosting.yml', 'deploy-functions.yml'];
+
+    test('the deploy workflows are all present', () => {
+        for (const f of DEPLOY_WORKFLOWS) {
+            assert.ok(readFileSync(join(WF_DIR, f), 'utf8').length > 0, `${f} is missing or empty`);
+        }
+    });
+
+    for (const file of DEPLOY_WORKFLOWS) {
+        test(`${file}: the reporter is its own job, gated at JOB level`, () => {
+            const src = readFileSync(join(WF_DIR, file), 'utf8');
+            const jobsAt = src.search(/^jobs:/m);
+            const body = src.slice(jobsAt);
+
+            const start = body.search(/^ {2}report-failure:[ \t]*$/m);
+            assert.ok(start > -1,
+                `${file}: no report-failure job. A deploy that fails during setup would be silent.`);
+            const rest = body.slice(start + 1);
+            const next = rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m);
+            const block = next === -1 ? rest : rest.slice(0, next);
+
+            // `needs` is what makes it run after the deploy; the job-level `if` is what makes it run
+            // when the deploy died before its first step. A step-level guard is the defect.
+            assert.match(block, /^ {4}needs: deploy[ \t]*$/m,
+                `${file}: report-failure must declare 'needs: deploy'`);
+            assert.match(block, /^ {4}if: failure\(\)[ \t]*$/m,
+                `${file}: report-failure needs a JOB-level 'if: failure()' — a step-level guard is `
+                + 'exactly what could not fire when the job failed during setup.');
+            // Without issues:write the reporter runs and the API call fails — a notifier that
+            // reports nothing is worse than none, because the workflow still goes green-ish.
+            assert.match(block, /^ {6}issues: write[ \t]*$/m,
+                `${file}: report-failure must hold issues:write or it cannot open the issue`);
+            assert.match(block, /report-deploy-failure/,
+                `${file}: report-failure must actually invoke the reporter action`);
+        });
+
+        test(`${file}: the reporter is NOT also an in-job step`, () => {
+            // Two reporters on one failure comment twice on the same issue, and a channel that
+            // repeats itself is one people stop reading. One notifier, covering both classes.
+            const src = readFileSync(join(WF_DIR, file), 'utf8');
+            const jobsAt = src.search(/^jobs:/m);
+            const deployBlock = src.slice(jobsAt).split(/^ {2}report-failure:[ \t]*$/m)[0];
+            assert.ok(!/report-deploy-failure/.test(deployBlock),
+                `${file}: the deploy job still calls the reporter itself — remove it, the job-level `
+                + 'handler already covers every failure the step could see, and more.');
+        });
+    }
+});

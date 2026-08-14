@@ -31,6 +31,21 @@ Fixed: the SILENCE. All three deploy workflows now open (or comment on) a `deplo
 issue via `.github/actions/report-deploy-failure`. Read that action's header for why an issue rather
 than email or push.
 
+**And a second silent class, found the hard way (Aug 2026).** The reporter shipped as the deploy
+job's own last step under `if: failure()`, with a comment claiming that covered "EVERY step above".
+It did — and a step-level guard cannot run when NO step runs. On 14 Aug the rules deploy failed in
+`Prepare all required actions` (codeload would not serve a pinned action), so the job died during
+setup, every step including the reporter was skipped, and a failed production deploy sat unnoticed
+until someone listed the workflow runs by hand. That is the exact outcome the reporter was built to
+prevent, reached by a route it could not see. It is now a **separate job** — `needs: deploy` plus a
+JOB-level `if: failure()` — which fires whatever kills the deploy, setup included, and it replaces
+the in-job step rather than joining it (two reporters would comment twice on one issue). Enforced by
+`workflow-hygiene.test.mjs`, which asserts the shape, because the triggering condition is an outage
+and cannot be reproduced on demand — which is precisely why the gap survived review the first time.
+The irreducible tail: the reporter job still needs `checkout` and the action itself, so an outage
+broad enough to take those down takes the reporter with it. Nothing inside a workflow can report
+that.
+
 NOT fixed: the flake itself, and deliberately. An automatic retry would have hidden this one, but it
 also hands a genuinely intermittent product bug a second chance to reach staff. The gate stays
 single-shot; the notification tells you to re-run when the failure is spurious.
