@@ -9,6 +9,7 @@ export default [
             '.claude/**',         // Agent worktrees and session data
             'scripts/**',         // Dev utilities: bump-version, generate-roster-members
             'e2e/**',             // Playwright smoke tests — Node + Playwright globals, not browser
+            'experiments/**',     // One-off proofs driven from Node (Playwright + process.env), not app code
             'playwright.config.mjs', // Playwright config — Node globals (process.env)
             'playwright.csp.mjs',    // Playwright config (CSP proof) — Node globals (process.env)
             'playwright.visual.mjs', // Playwright config (visual baselines) — Node globals (process.env)

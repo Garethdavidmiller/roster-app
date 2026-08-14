@@ -38,6 +38,7 @@
       "playwright.visual.mjs",
       "playwright.offline.mjs",
       "e2e/**",
+      "experiments/**",
       "test-fixtures/**",
       "playwright-report/**",
       "test-results/**",

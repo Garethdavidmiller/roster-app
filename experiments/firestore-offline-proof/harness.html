@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>offline proof</title></head><body>
+<h1>Firestore offline/rules proof</h1>
+<pre id="log"></pre>
+<script type="module">
+// Mirrors how the app actually reads: initializeFirestore + persistentLocalCache (IndexedDB),
+// and getDocs({source:'cache'}) — the same call fetchOverridesForRangeFromCache makes.
+import { initializeApp } from './sdk/firebase-app.js';
+import {
+    initializeFirestore, persistentLocalCache, connectFirestoreEmulator,
+    collection, query, where, getDocs, getDocsFromCache, getDocsFromServer,
+    doc, setDoc, onSnapshot, disableNetwork, enableNetwork,
+} from './sdk/firebase-firestore.js';
+
+const PROJECT = 'myb-roster-offline-proof';
+const app = initializeApp({ projectId: PROJECT, apiKey: 'fake-api-key' });
+const db = initializeFirestore(app, { localCache: persistentLocalCache() });
+connectFirestoreEmulator(db, '127.0.0.1', 8080);
+
+const out = [];
+function log(m) { out.push(m); document.getElementById('log').textContent = out.join('\n'); }
+
+// The app's real query shape: overrides for a date range.
+const RANGE = { from: '2026-09-01', to: '2026-09-30' };
+function overridesQuery() {
+    return query(collection(db, 'overrides'),
+        where('date', '>=', RANGE.from), where('date', '<=', RANGE.to));
+}
+
+/** Run a read and classify the outcome the way a caller would experience it. */
+async function attempt(label, fn) {
+    try {
+        const snap = await fn();
+        const r = { label, ok: true, count: snap.size, fromCache: snap.metadata.fromCache };
+        log(`${label}: OK n=${snap.size} fromCache=${snap.metadata.fromCache}`);
+        return r;
+    } catch (e) {
+        const r = { label, ok: false, code: e?.code || null, message: String(e?.message || e) };
+        log(`${label}: FAILED ${r.code}`);
+        return r;
+    }
+}
+
+window.__P = {
+    seed: async (n) => {
+        // Written through the client while rules are permissive — so the documents land in the
+        // server AND in this browser's IndexedDB cache, which is the state the experiment needs.
+        for (let i = 1; i <= n; i++) {
+            const date = `2026-09-${String(i).padStart(2, '0')}`;
+            await setDoc(doc(db, 'overrides', `M. Member|${date}`), {
+                date, memberName: 'M. Member', type: 'annual_leave', value: 'AL',
+                note: '', source: 'manual', changedBy: 'M. Member',
+            });
+        }
+        return n;
+    },
+    readServer: () => attempt('server', () => getDocsFromServer(overridesQuery())),
+    readCache:  () => attempt('cache',  () => getDocsFromCache(overridesQuery())),
+    readDefault:() => attempt('default',() => getDocs(overridesQuery())),
+    goOffline:  async () => { await disableNetwork(db); return 'offline'; },
+    goOnline:   async () => { await enableNetwork(db);  return 'online'; },
+
+    /** What a LIVE listener does — the second half of the plan's question. Returns the first
+     *  terminal outcome: a snapshot (with its size) or an error code. */
+    listenOnce: (ms = 6000) => new Promise((resolve) => {
+        let done = false;
+        const finish = (v) => { if (!done) { done = true; try { off(); } catch {} resolve(v); } };
+        const off = onSnapshot(overridesQuery(),
+            (snap) => { log(`listener: snapshot n=${snap.size} fromCache=${snap.metadata.fromCache}`);
+                        finish({ ok: true, count: snap.size, fromCache: snap.metadata.fromCache }); },
+            (err)  => { log(`listener: ERROR ${err?.code}`);
+                        finish({ ok: false, code: err?.code || null }); });
+        setTimeout(() => finish({ ok: false, code: 'timeout-no-emission' }), ms);
+    }),
+
+    // Distinguish "the cache is empty" from "the DOCUMENTS are cached but this QUERY returns
+    // nothing". Firestore stores documents and query targets separately, so a filtered query can
+    // come back empty from a cache that still holds every document.
+    readDocById: () => attempt('doc-by-id', async () => {
+        const { getDocFromCache } = await import('./sdk/firebase-firestore.js');
+        const snap = await getDocFromCache(doc(db, 'overrides', 'M. Member|2026-09-01'));
+        return { size: snap.exists() ? 1 : 0, metadata: snap.metadata };
+    }),
+    readWholeCollection: () => attempt('whole-collection', () =>
+        getDocsFromCache(collection(db, 'overrides'))),
+
+    // What IndexedDB databases exist for this origin, and how big is Firestore's? This separates
+    // "never durably written" from "written, then wiped by the SDK on startup".
+    listDbs: async () => (await indexedDB.databases()).map(d => `${d.name}@v${d.version}`),
+
+    // Read Firestore's OWN IndexedDB directly, bypassing the SDK entirely. This is the only way to
+    // tell "the SDK discarded documents it still has on disk" from "they were never durably
+    // written" — and those have opposite implications for the offline claim.
+    dumpFirestoreDb: (project) => new Promise((res, rej) => {
+        const name = `firestore/[DEFAULT]/${project}/main`;
+        const r = indexedDB.open(name);
+        r.onsuccess = () => {
+            const db = r.result;
+            const stores = Array.from(db.objectStoreNames);
+            if (!stores.length) return res({ stores: [], counts: {} });
+            const tx = db.transaction(stores, 'readonly');
+            const counts = {}; let left = stores.length;
+            for (const s of stores) {
+                const c = tx.objectStore(s).count();
+                c.onsuccess = () => { counts[s] = c.result; if (--left === 0) res({ stores, counts }); };
+                c.onerror = () => { counts[s] = 'err'; if (--left === 0) res({ stores, counts }); };
+            }
+        };
+        r.onerror = () => rej(r.error);
+    }),
+
+    idbPut: (v) => new Promise((res, rej) => {
+        const r = indexedDB.open('probe', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('kv');
+        r.onsuccess = () => { const tx = r.result.transaction('kv', 'readwrite');
+            tx.objectStore('kv').put(v, 'k'); tx.oncomplete = () => res('put'); tx.onerror = () => rej(tx.error); };
+        r.onerror = () => rej(r.error);
+    }),
+    idbGet: () => new Promise((res, rej) => {
+        const r = indexedDB.open('probe', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('kv');
+        r.onsuccess = () => { const tx = r.result.transaction('kv', 'readonly');
+            const g = tx.objectStore('kv').get('k'); g.onsuccess = () => res(g.result ?? null); g.onerror = () => rej(g.error); };
+        r.onerror = () => rej(r.error);
+    }),
+
+    /** Keep a listener attached and report EVERY event, so we can see whether a permission-denied
+     *  listen evicts what the cache already held. */
+    watch: (ms = 6000) => new Promise((resolve) => {
+        const events = [];
+        const off = onSnapshot(overridesQuery(),
+            (snap) => events.push({ type: 'snapshot', count: snap.size, fromCache: snap.metadata.fromCache }),
+            (err)  => events.push({ type: 'error', code: err?.code || null }));
+        setTimeout(() => { try { off(); } catch {} resolve(events); }, ms);
+    }),
+};
+log('ready');
+</script>
+</body></html>
