@@ -19,7 +19,6 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
-      issues: write    # open/update the deploy-failure issue (see the last step)
       id-token: write   # required for GitHub OIDC → Workload Identity Federation (A2)
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -128,14 +127,34 @@ jobs:
           mcode=$(curl -sS -o /dev/null -w '%{http_code}' https://garethdavidmiller.github.io/roster-app/ || echo 000)
           if [ "$mcode" = "200" ]; then echo "OK: Pages mirror live (200)"; else echo "::warning::Pages mirror returned $mcode — check the mirror build"; fi
 
-      # ── A FAILED DEPLOY MUST NOT BE SILENT ────────────────────────────────────────────────────
-      # Added after the v19.94 hosting deploy failed its own gate on a flaky test and nobody was
-      # told: staff sat on v19.91 while the Pages mirror (which has no gate) went to v19.94. The
-      # rationale, and why an issue rather than email or push, is in the action itself.
-      # `if: failure()` covers EVERY step above — tests, e2e, CSP, auth and the deploy itself.
-      - name: Report the failure
-        if: failure()
-        uses: ./.github/actions/report-deploy-failure
+  # ── AND A FAILURE BEFORE THE FIRST STEP MUST NOT BE SILENT EITHER ───────────────────────────
+  #
+  # The reporter used to be the deploy job's own last step, guarded by `if: failure()`, and its
+  # comment claimed that covered "EVERY step above". True, and not the whole surface: a step-level
+  # guard cannot run when NO step runs. On 14 Aug 2026 this workflow failed in `Prepare all
+  # required actions` — codeload would not serve the pinned `actions/setup-java` — so the job died
+  # during setup, every step including the reporter was skipped, and the deploy failed in exactly
+  # the silence the reporter exists to prevent. It was found by hand, days later.
+  #
+  # A SEPARATE JOB closes that: `needs` + a job-level `if: failure()` fires when the deploy job
+  # fails for ANY reason, setup included. It REPLACES the in-job step rather than joining it —
+  # two reporters on one failure would comment twice on the same issue, and a notification
+  # channel that repeats itself is one people stop reading.
+  #
+  # The irreducible tail: this job needs `checkout` and the action itself, so a codeload outage
+  # broad enough to take those down takes the reporter with it. Nothing inside a workflow can
+  # report that. It is a far smaller target than the four actions the deploy job pulls.
+  report-failure:
+    needs: deploy
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: ./.github/actions/report-deploy-failure
         with:
           target: 'Firebase Hosting'
           token: ${{ github.token }}
