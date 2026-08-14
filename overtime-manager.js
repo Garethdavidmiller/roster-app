@@ -46,7 +46,7 @@
 import {
     shortDate, deadlineLabel, weekSpan, weekLabel, countsCopy, answerCopy, answerTone,
     isUnavailable, isAvailableAnswer, asAtLine, rosterBadge, sameAnswer, answerAnchorStale,
-    declaredAgo, isWithdrawn, withdrawnLine,
+    declaredAgo, isWithdrawn, withdrawnLine, canRestoreNow,
 } from './overtime-format.js';
 
 /**
@@ -216,7 +216,8 @@ function build(win, data, { dates, now, grade, day = 'ALL' }) {
             { now, frozenAt: frozenAt(active) })).join('')}
         ${awaitingPanel(participants, submissions, { now, frozenAt: frozenAt(active) })}
         ${askedPanel(participants, submissions, win.phase === 'CLOSED')}
-        ${withdrawnPanel(ofGrade(withdrawn, grade), win.phase === 'CLOSED')}`;
+        ${withdrawnPanel(ofGrade(withdrawn, grade), win.phase === 'CLOSED',
+            { initialDeadlineAt: win.initialDeadlineAt, now })}`;
 }
 
 /**
@@ -358,8 +359,14 @@ function dayPanel(date, participants, submissions, activeDay = 'ALL', roster = {
         const sub = submissions.get(p.memberName);
         if (!sub) { noResponse.push(personRow(p, null, null, ctx, null, meta)); continue; }
         const day = sub.days?.[date];
+        // THIS DATE's age, not the whole form's (v21.26). A member who answered the week a
+        // fortnight ago and edited only the Saturday this morning had every row reporting today —
+        // always in the fresher direction, which is the one that misleads a clerk arranging cover.
+        // The whole-form stamp remains the fallback: a revision read can fail while the head is
+        // perfectly readable, and no age at all is worse than a coarse one.
         const row = personRow(p, day, sub.history, ctx,
-            sub.history?.initialRevision?.days?.[date], meta, sub.updatedAt);
+            sub.history?.initialRevision?.days?.[date], meta,
+            sub.history?.dayChangedAt?.[date] ?? sub.updatedAt);
         // THREE-VALUED, asked positively (v20.87). It used to be `isUnavailable(day) ? unavailable
         // : available`, whose negation is TRUE for a missing day — so a submission that somehow
         // lacked this date filed that person under Available, with no answer chip beside their
@@ -585,23 +592,40 @@ function askedPanel(participants, submissions, closed = false) {
  * expected count on this page is smaller than the frozen population, which is a thing to notice.
  * Like `askedPanel`, it goes read-only and past-tense on a CLOSED week (v21.23) — the server refuses
  * a restore there, so offering "Ask again" was offering a button that could only fail.
+ *
+ * ── AND PER PERSON, SINCE v21.26 ────────────────────────────────────────────────────────────────
+ *
+ * Restoring is not the mirror of withdrawing: putting somebody back into a week whose initial
+ * deadline has passed, when they were stood down BEFORE it, makes the app report them as having
+ * submitted late to a deadline they were never asked about. So the button is per-row now — present
+ * where `canRestoreNow` says the server would accept it, and replaced by a line saying why not
+ * where it would not. The line matters: a button that silently disappears for one person and not
+ * another reads as a rendering fault, and the reviewer's next move would be to reload.
  * @param {any[]} withdrawn
  * @param {boolean} [closed] the week's final deadline has passed
+ * @param {{ initialDeadlineAt?: number, now?: number }} [win] milestones for the per-row rule
  */
-function withdrawnPanel(withdrawn, closed = false) {
+function withdrawnPanel(withdrawn, closed = false, win = {}) {
     if (!withdrawn.length) return '';
     return `
         <div class="ot-day-panel ot-day-panel--muted">
             <div class="ot-day-panel-head">${closed ? 'Was not asked' : 'Not being asked'}</div>
             <div class="ot-section-note">Left out of the counts above. Their forms and anything they
                 already said are kept.</div>
-            ${withdrawn.map(p => `
+            ${withdrawn.map(p => {
+                const restorable = !closed
+                    && canRestoreNow(Number(win.initialDeadlineAt), p.withdrawnAt, Number(win.now));
+                return `
                 <div class="ot-person ot-person--withdrawn">
                     <span class="ot-person-name">${esc(p.memberName)}</span>
                     ${p.grade ? `<span class="ot-person-grade">${esc(p.grade)}</span>` : ''}
                     <span class="ot-person-note">${esc(withdrawnLine(p))}</span>
-                    ${closed ? '' : `<button type="button" class="ot-person-btn" data-ask-again="${esc(p.memberName)}">Ask again</button>`}
-                </div>`).join('')}
+                    ${restorable
+                        ? `<button type="button" class="ot-person-btn" data-ask-again="${esc(p.memberName)}">Ask again</button>`
+                        : closed ? ''
+                        : '<span class="ot-person-note">Stopped before the first deadline — they join again next week</span>'}
+                </div>`;
+            }).join('')}
         </div>`;
 }
 

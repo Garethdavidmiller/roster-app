@@ -454,6 +454,17 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             const pSnap = await pRef.get();
             if (!pSnap.exists) return res.status(404).json({ error: 'not-a-participant' });
 
+            // RESTORING is not the mirror of withdrawing (v21.26). Putting somebody back into a week
+            // whose initial deadline has already passed, when they were stood down BEFORE it, makes
+            // the app report them as having submitted late to a deadline they were never asked
+            // about. The rule and the reasoning live in overtime-core.js; the check is here because
+            // only this endpoint has the stored stamp to test.
+            if (!withdrawn) {
+                const restorable = OT.canRestoreParticipant(
+                    storedMilestones(snap.data()), toMillis(pSnap.data().withdrawnAt), nowMs);
+                if (!restorable.ok) return res.status(409).json({ error: restorable.error });
+            }
+
             const del = admin.firestore.FieldValue.delete();
             await pRef.update(withdrawn
                 ? {

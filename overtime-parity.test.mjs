@@ -21,10 +21,12 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { deriveHistory as clientDerive, isWithdrawn as clientWithdrawn } from './overtime-format.js';
+import { deriveHistory as clientDerive, isWithdrawn as clientWithdrawn,
+    canRestoreNow as clientCanRestore } from './overtime-format.js';
 
 const require = createRequire(import.meta.url);
-const { deriveHistory: serverDerive, isWithdrawn: serverWithdrawn } = require('./functions/overtime-core.js');
+const { deriveHistory: serverDerive, isWithdrawn: serverWithdrawn,
+    canRestoreParticipant: serverCanRestore } = require('./functions/overtime-core.js');
 
 const A = { '2026-08-30': { mode: 'all_day' }, '2026-08-31': { mode: 'unavailable' } };
 const B = { '2026-08-30': { mode: 'unavailable' }, '2026-08-31': { mode: 'unavailable' } };
@@ -38,6 +40,11 @@ const CASES = [
     ['one revision, after the deadline',      [rev(1, A, 5000)], A],
     ['exactly ON the deadline',               [rev(1, A, DEADLINE)], A],
     ['one millisecond before it',             [rev(1, A, DEADLINE - 1)], A],
+    // Two revisions with the SAME answer. Without this the per-day freshness map is never asked to
+    // dedupe on either side, so both copies could count a no-op resubmission as a change and still
+    // agree — found by mutation, which is the point of having this file at all.
+    ['resubmitted unchanged',                 [rev(1, A, 100), rev(2, A, 5000)], A],
+    ['changed, then one day reverted',        [rev(1, A, 100), rev(2, B, 200), rev(3, A, 5000)], A],
     ['changed after the deadline',            [rev(1, A, 100), rev(2, B, 5000)], B],
     ['changed and changed back',              [rev(1, A, 100), rev(2, B, 5000), rev(3, A, 6000)], A],
     ['several before the deadline',           [rev(1, A, 100), rev(2, B, 500)], B],
@@ -54,6 +61,11 @@ describe('client and server derive the same history', () => {
             assert.equal(c.lateInitial, s.lateInitial, 'lateInitial');
             assert.equal(c.changedSinceInitial, s.changedSinceInitial, 'changedSinceInitial');
             assert.equal(c.initialRevision?.revision ?? null, s.initialRevision?.revision ?? null, 'initialRevision');
+            // The per-day freshness map (v21.26). deepEqual, not a field-by-field check: this one
+            // is a MAP, so the ways it can drift are extra keys, missing keys and wrong instants,
+            // and only a whole-value comparison covers all three. Its absence here is why a broken
+            // server-side dedupe survived mutation when this field was first added.
+            assert.deepEqual(c.dayChangedAt, s.dayChangedAt, 'dayChangedAt');
         });
     }
 
@@ -65,6 +77,10 @@ describe('client and server derive the same history', () => {
         assert.ok(results.some(r => r.changedSinceInitial),  'no case produces changedSinceInitial: true');
         assert.ok(results.some(r => !r.changedSinceInitial), 'no case produces changedSinceInitial: false');
         assert.ok(results.some(r => r.initialRevision), 'no case finds an initial revision');
+        // …and the same for the freshness map: a table where no case has two revisions would never
+        // ask either copy to dedupe, so both could count a no-op resubmission as a change and agree.
+        assert.ok(CASES.some(([, r]) => (r || []).length > 1), 'no case has a SECOND revision to dedupe against');
+        assert.ok(results.some(r => Object.keys(r.dayChangedAt).length), 'no case produces a freshness map');
     });
 
     test('a reordered week is not read as a change, on either side', () => {
@@ -111,5 +127,45 @@ describe('client and server agree who is still being asked', () => {
         // list somebody rings round from.
         assert.equal(clientWithdrawn({ withdrawn: 'true' }), false);
         assert.equal(serverWithdrawn({ withdrawn: 'true' }), false);
+    });
+});
+
+
+describe('may this withdrawal be undone? — the client and the server must agree (v21.26)', () => {
+    // The SECOND rule that now exists on both sides of this boundary. The server's copy is the
+    // protection; the client's decides whether the reviewer is offered an "Ask again" button at all.
+    //
+    // Drift is silent in the usual way and points the wrong direction: a client that quietly
+    // loosens puts the button back on a case the server refuses, so the reviewer's tap produces a
+    // refusal instead of the explanation the panel would otherwise have shown them.
+    const DL = 1_000_000;
+    const M = { initialDeadlineAt: DL, finalDeadlineAt: DL + 7 * 864e5, retentionUntil: DL + 99 * 864e5 };
+
+    /** Each is a state a real withdrawal can be in, at a real moment in a week's life. */
+    const CASES = [
+        ['before the deadline, withdrawn earlier',   DL - 5000, DL - 1000],
+        ['before the deadline, no stamp at all',     null,      DL - 1000],
+        ['after the deadline, withdrawn after it',   DL + 5000, DL + 9000],
+        ['after the deadline, withdrawn before it',  DL - 5000, DL + 9000],
+        ['after the deadline, withdrawn ON it',      DL,        DL + 9000],
+        ['after the deadline, one ms after it',      DL + 1,    DL + 9000],
+        ['after the deadline, no stamp at all',      null,      DL + 9000],
+        ['after the deadline, unreadable stamp',     NaN,       DL + 9000],
+    ];
+
+    for (const [label, withdrawnAt, now] of CASES) {
+        test(label, () => {
+            assert.equal(clientCanRestore(DL, withdrawnAt, now),
+                serverCanRestore(M, withdrawnAt, now).ok,
+                'the button and the endpoint disagree about this state');
+        });
+    }
+
+    test('and the client is allowed to be wrong ONLY by offering less', () => {
+        // A closed or expired week refuses server-side for reasons the client copy does not model —
+        // it is handed `closed` separately by the panel. So the one direction that must never occur
+        // is the client saying yes where the server says no; the reverse is merely a quiet button.
+        const closedNow = M.finalDeadlineAt + 1000;
+        assert.equal(serverCanRestore(M, closedNow - 10, closedNow).ok, false);
     });
 });

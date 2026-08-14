@@ -342,6 +342,54 @@ function canChangeParticipation(milestones, nowMs) {
 }
 
 /**
+ * May this withdrawal be UNDONE? (v21.26, external review of v21.22.)
+ *
+ * Restoring is not the mirror of withdrawing, and treating it as one produced a false record.
+ *
+ * ── THE DEFECT ──────────────────────────────────────────────────────────────────────────────────
+ *
+ * Withdraw somebody BEFORE the initial deadline; let the deadline pass; restore them. They are now
+ * expected for a week whose first deadline they were never asked about — so the moment they submit,
+ * `deriveHistory` finds nothing accepted before that deadline and marks them **submitted after
+ * initial deadline**. That is a true statement about the data and a false one about the person, on
+ * the one screen a reviewer uses to judge who is responsive.
+ *
+ * ── WHY THIS RULE AND NOT A LOOSER ONE ──────────────────────────────────────────────────────────
+ *
+ * The app ALREADY refuses to add a new participant after the initial deadline — `addMissingParticipants`
+ * returns early unless the window is `INITIAL_OPEN`, so a newly eligible member joins from the
+ * following week instead, precisely so that nobody is recorded as having missed a deadline they were
+ * never asked about. Restoring was the one path that escaped the principle. This makes the two agree
+ * rather than inventing a second policy for the same situation.
+ *
+ * It still allows the case worth allowing: a withdrawal made AFTER the initial deadline is an
+ * ordinary undo — an accidental press, a leaver who turned out to be staying — and the person's
+ * history across that deadline is untouched, so restoring them claims nothing false.
+ *
+ * ── AN UNREADABLE STAMP REFUSES ─────────────────────────────────────────────────────────────────
+ *
+ * `withdrawnAt` has been written beside the flag since the feature shipped, so a withdrawn record
+ * without one should not exist. If one does, we cannot tell which side of the deadline it fell, and
+ * the two ways of being wrong are not equal: refusing blocks an undo (visible, and the person simply
+ * joins next week), while allowing re-creates the false "late" marker this rule exists to prevent.
+ *
+ * @param {{initialDeadlineAt:number, finalDeadlineAt:number, retentionUntil:number}} milestones
+ * @param {number|null|undefined} withdrawnAtMs when they were stood down, epoch ms
+ * @param {number} nowMs
+ * @returns {{ ok:boolean, error?:string }} `error` is a stable machine code, not display copy
+ */
+function canRestoreParticipant(milestones, withdrawnAtMs, nowMs) {
+    const base = canChangeParticipation(milestones, nowMs);
+    if (!base.ok) return base;
+    // Before the initial deadline nothing has been decided yet, so a restore claims nothing.
+    if (nowMs <= milestones.initialDeadlineAt) return { ok: true };
+    if (!Number.isFinite(withdrawnAtMs)) return { ok: false, error: 'restore-window-passed' };
+    return /** @type {number} */ (withdrawnAtMs) > milestones.initialDeadlineAt
+        ? { ok: true }
+        : { ok: false, error: 'restore-window-passed' };
+}
+
+/**
  * Is this frozen participant record withdrawn?
  *
  * A BOOLEAN field set only on withdrawal, never written `false` at creation — which is not a style
@@ -777,7 +825,58 @@ function deriveHistory(revisions, headDays, initialDeadlineAt) {
         // NOT have this person's availability when the draft was planned.
         lateInitial: hasSubmission && !initialRevision,
         changedSinceInitial: !!(initialRevision && headDays && !daysEqual(initialRevision.days, headDays)),
+        dayChangedAt: dayChangedAt(sorted),
     };
+}
+
+/**
+ * When each individual DATE's answer last changed (v21.26, external review of v21.22).
+ *
+ * A submission has ONE `updatedAt` for the whole form, and the reviewer's rows printed their age
+ * from it — so somebody who answered all seven days a fortnight ago and edited only the Saturday
+ * this morning had every day reported as declared today. Always in the FRESHER direction, which is
+ * the one that costs something when a clerk is arranging short-notice cover.
+ *
+ * Derived rather than stored: the append-only revisions already hold every answer at every point,
+ * so a stored copy would be a second version of a derivable truth, free to disagree with the
+ * history it summarises. Same reasoning as `initialRevision` and `lateInitial` above.
+ *
+ * ⚠️ THE CLIENT HAS ITS OWN COPY, in `overtime-format.js` — the Manager view is the only thing that
+ * renders this, and it cannot import a CommonJS module. `overtime-parity.test.mjs` compares the two
+ * by behaviour.
+ * @param {any[]} sortedRevisions revisions in ascending `revision` order
+ * @returns {Record<string, number>} date → epoch ms
+ */
+function dayChangedAt(sortedRevisions) {
+    /** @type {Record<string, number>} */
+    const changedAt = {};
+    /** @type {Record<string, string>} */
+    const seen = {};
+    for (const r of sortedRevisions) {
+        const days = r && r.days;
+        if (!days || typeof days !== 'object') continue;
+        for (const date of Object.keys(days)) {
+            const shape = JSON.stringify(stableKeyOrder(days[date]));
+            if (seen[date] === shape) continue;
+            seen[date] = shape;
+            changedAt[date] = r.acceptedAt;
+        }
+    }
+    return changedAt;
+}
+
+/**
+ * A value with every object's keys sorted, so `JSON.stringify` becomes an order-independent
+ * comparison — the CommonJS counterpart of the client's `stableStringify`.
+ * @param {any} v
+ */
+function stableKeyOrder(v) {
+    if (v === null || typeof v !== 'object') return v;
+    if (Array.isArray(v)) return v.map(stableKeyOrder);
+    /** @type {Record<string, any>} */
+    const out = {};
+    for (const k of Object.keys(v).sort()) out[k] = stableKeyOrder(v[k]);
+    return out;
 }
 
 module.exports = {
@@ -811,6 +910,7 @@ module.exports = {
     phaseFor,
     isOpenPhase,
     canChangeParticipation,
+    canRestoreParticipant,
     isWithdrawn,
     validateWeekEnding,
     planningWeekEndings,

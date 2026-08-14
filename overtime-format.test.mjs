@@ -21,7 +21,7 @@ import {
     shortDate, longDate, weekLabel, weekSpan, deadlineLabel, phaseCopy, rowStateCopy,
     countsCopy, answerCopy, answerTone, answerAnchorStale, isUnavailable, weekSummary, asAtLine,
     modesFor, offersFullTwelve, submitFailureCopy, shiftSpanMinutes, sameAnswer, deadlineLines, receiptLine,
-    declaredAgo,
+    declaredAgo, deriveHistory,
 } from './overtime-format.js';
 
 describe('the corrected clock', () => {
@@ -173,6 +173,82 @@ describe('answers in words', () => {
         assert.equal(isUnavailable({ mode: 'unavailable' }), true);
         assert.equal(isUnavailable({ mode: 'all_day' }), false);
         assert.equal(isUnavailable(null), false, 'no answer is not an unavailable answer');
+    });
+
+    describe('how old is THIS day\'s answer? (v21.26, external review)', () => {
+        // ── THE DEFECT ──────────────────────────────────────────────────────────────────────────
+        //
+        // A submission has ONE `updatedAt`, and the reviewer's rows printed their age from it. So a
+        // member who answered the whole week a fortnight ago and edited only the Saturday this
+        // morning had all seven days reported as declared today — always in the FRESHER direction,
+        // which is the one that costs something when a clerk is arranging short-notice cover.
+        const A = { mode: 'all_day' };
+        const B = { mode: 'unavailable' };
+        const D1 = '2026-08-30';
+        const D2 = '2026-08-31';
+        const rev = (/** @type {number} */ n, /** @type {any} */ days, /** @type {number} */ at) =>
+            ({ revision: n, days, acceptedAt: at });
+        const changed = (/** @type {any[]} */ revs) =>
+            deriveHistory(revs, revs[revs.length - 1]?.days, 0).dayChangedAt;
+
+        test('an untouched day keeps its ORIGINAL instant while its neighbour moves', () => {
+            // The defect, stated directly. Both days were answered at 1000; only D2 changed at 9000.
+            const out = changed([
+                rev(1, { [D1]: A, [D2]: A }, 1000),
+                rev(2, { [D1]: A, [D2]: B }, 9000),
+            ]);
+            assert.equal(out[D1], 1000, 'an untouched day was reported as freshly declared');
+            assert.equal(out[D2], 9000);
+        });
+
+        test('a day that changes twice reports the LAST change, not the first', () => {
+            const out = changed([
+                rev(1, { [D1]: A }, 1000),
+                rev(2, { [D1]: B }, 5000),
+                rev(3, { [D1]: A }, 9000),
+            ]);
+            assert.equal(out[D1], 9000);
+        });
+
+        test('re-submitting the same answer is not a change', () => {
+            // Pressing Submit again with nothing altered must not make a fortnight-old declaration
+            // look like this morning's — which is the whole failure, reintroduced one level down.
+            const out = changed([
+                rev(1, { [D1]: A }, 1000),
+                rev(2, { [D1]: A }, 9000),
+            ]);
+            assert.equal(out[D1], 1000);
+        });
+
+        test('and a REORDERED answer is not a change either', () => {
+            // Structural, like `sameAnswer`: the two sides pass through different producers and key
+            // order is not a change of mind.
+            const out = changed([
+                rev(1, { [D1]: { mode: 'custom', start: '18:00', end: '23:00', nextDay: false } }, 1000),
+                rev(2, { [D1]: { nextDay: false, end: '23:00', start: '18:00', mode: 'custom' } }, 9000),
+            ]);
+            assert.equal(out[D1], 1000);
+        });
+
+        test('a day added in a later revision dates from that revision', () => {
+            const out = changed([rev(1, { [D1]: A }, 1000), rev(2, { [D1]: A, [D2]: B }, 9000)]);
+            assert.equal(out[D1], 1000);
+            assert.equal(out[D2], 9000);
+        });
+
+        test('no revisions gives an empty map, so the caller can fall back', () => {
+            // A revision read can fail while the head is perfectly readable. The row then prints the
+            // whole-form age — coarse, but no age at all would be worse.
+            assert.deepEqual(deriveHistory([], null, 0).dayChangedAt, {});
+            assert.deepEqual(deriveHistory(null, null, 0).dayChangedAt, {});
+        });
+
+        test('a malformed revision is skipped rather than throwing mid-render', () => {
+            const out = changed([
+                rev(1, null, 1000), rev(2, 'nonsense', 2000), rev(3, { [D1]: A }, 9000),
+            ]);
+            assert.equal(out[D1], 9000);
+        });
     });
 
     describe('the willingness flag on a reviewer\'s chip (v21.24)', () => {

@@ -106,6 +106,7 @@ export const CARD_TIPS = {
                     // Added with the feature (v20.95). Without it the only way to discover the
                     // control is to notice a small button on a row you are trying to scroll past.
                     { icon: '🚪', html: '<strong>Stop asking</strong>, beside a name in <em>Who is being asked</em>, is for somebody who has left. They come out of that week\'s counts, stop seeing it on their own page, and a <strong>Not being asked</strong> note names them at the bottom. Their form is kept, and <strong>Ask again</strong> puts them back.' },
+                    { icon: '↩️', html: '<strong>Ask again</strong> is offered while the <strong>first deadline is still ahead</strong>, and after it only for somebody stopped <em>since</em> that deadline — so an accidental press can always be undone, while somebody stood down before the cut-off is not put back into a deadline they were never asked about. They join again from the next week.' },
                     { icon: '🔒', html: 'It works one week at a time, and only while that week is open. A closed week is the record the roster was planned from, so who was asked can no longer be changed.' },
                 ],
             },

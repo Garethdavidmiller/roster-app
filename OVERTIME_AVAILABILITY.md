@@ -359,6 +359,56 @@ server accepting it (inert, nothing sent it); v21.25 was the client offering it.
 
 ---
 
+## Restoring is not the mirror of withdrawing (v21.26, external review)
+
+`Stop asking` and `Ask again` look like one control in two directions. They are not, because only
+one of them can make the app state something false about a person.
+
+Withdraw somebody BEFORE a week's initial deadline, let the deadline pass, then restore them: they
+are now expected for a deadline they were never asked about, so the moment they submit,
+`deriveHistory` finds nothing accepted before it and marks them **submitted after initial deadline**.
+True of the data, false of the person, on the screen a reviewer uses to judge who is responsive.
+
+**The rule: after the initial deadline, a withdrawal may be undone only if the withdrawal ITSELF
+happened after that deadline.** `canRestoreParticipant` in `functions/overtime-core.js`; the client
+copy (`canRestoreNow` in `overtime-format.js`) only decides whether the button is offered.
+
+This is not a new policy — it is the one the app already had, applied to the path that escaped it.
+`addMissingParticipants` returns early unless a window is `INITIAL_OPEN`, so a newly eligible member
+joins from the following week rather than being added late. Restoring now agrees with adding.
+
+Three details worth keeping:
+
+- **The two "unknown" cases run opposite ways, deliberately.** The server refuses an unreadable
+  `withdrawnAt` — it is the protection, and a wrong yes writes a false record. The client offers the
+  button when it does not know the deadline, because a wrong no puts a *sentence* on screen
+  ("Stopped before the first deadline") explaining a refusal that may not exist, and a false
+  explanation is believed where a refused tap merely costs a moment.
+- **The gate is per PERSON, not per week.** A realistic week has somebody stood down early and
+  somebody stood down yesterday; one answer for both is the bug.
+- **The refused row says why.** A button that vanishes for one person and not another reads as a
+  rendering fault, and the reviewer's next move is a reload that changes nothing.
+
+---
+
+## Per-day freshness (v21.26, external review)
+
+A submission has ONE `updatedAt`, and the reviewer's rows printed their age from it. So a member who
+answered the whole week a fortnight ago and edited only the Saturday this morning had all seven days
+reported as declared today — always in the FRESHER direction, which is the one that costs something
+when a clerk is arranging short-notice cover.
+
+`dayChangedAt` (in both copies of `deriveHistory`) walks the append-only revisions and records, per
+date, the instant that date's answer last actually changed. Derived rather than stored, for the same
+reason `initialRevision` and `lateInitial` are: a stored summary is a second answer free to disagree
+with the history it summarises. A no-op resubmission is not a change, and neither is a reordered
+answer — structural comparison, like `sameAnswer`.
+
+The whole-form receipt stays as it is, and remains the row's fallback: a revision read can fail while
+the head is perfectly readable, and a coarse age beats none.
+
+---
+
 ## Revisions, and why two of the interesting fields are not stored
 
 A submission is a **head document plus an append-only `revisions` subcollection**, both written in one

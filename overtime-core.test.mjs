@@ -353,6 +353,9 @@ describe('withdrawal — the one exception to the freeze, and its bounds', () =>
         // Deliberately NOT the `INITIAL_OPEN`-only rule that governs ADDING somebody. Adding late
         // manufactures a non-responder for a deadline that pre-dates the invitation; removing
         // somebody creates no record at all, so the reason to be strict is simply absent.
+        //
+        // RESTORING is a different question and has its own rule — see the block below. Withdrawing
+        // takes a record away; restoring puts one back, and that is where a false claim can appear.
     });
 
     test('a CLOSED week refuses it — that week is a record, not a work list', () => {
@@ -365,6 +368,72 @@ describe('withdrawal — the one exception to the freeze, and its bounds', () =>
         // `expired` outranks `closed` — every expired week is also closed, and the caller wants the
         // more specific reason.
         assert.equal(C.canChangeParticipation(m, m.retentionUntil + 9e8).error, 'expired');
+    });
+
+    describe('restoring is NOT the mirror of withdrawing (v21.26, external review)', () => {
+        // ── THE DEFECT ──────────────────────────────────────────────────────────────────────────
+        //
+        // Withdraw before the initial deadline → let it pass → restore. The person is now expected
+        // for a week whose first deadline they were never asked about, so the moment they submit,
+        // `deriveHistory` finds nothing accepted before it and marks them "submitted after initial
+        // deadline". True of the data, false of the person, on the screen a reviewer uses to judge
+        // who is responsive.
+        const m = C.deriveMilestones(WEEK_SEP);
+        const before = m.initialDeadlineAt - 60_000;
+        const after  = m.initialDeadlineAt + 60_000;
+
+        test('before the initial deadline, any withdrawal may be undone', () => {
+            // Nothing has been decided yet, so putting somebody back claims nothing about them.
+            assert.equal(C.canRestoreParticipant(m, before - 60_000, before).ok, true);
+        });
+
+        test('after it, a withdrawal made AFTER it is still an ordinary undo', () => {
+            // The case worth keeping: an accidental press, or a leaver who turned out to be
+            // staying. Their history across the deadline is untouched, so nothing false is claimed.
+            assert.equal(C.canRestoreParticipant(m, after, after + 60_000).ok, true);
+        });
+
+        test('after it, a withdrawal made BEFORE it is refused', () => {
+            // The defect itself. They join from the next week instead — which is exactly what the
+            // app already does with a newly eligible member (`addMissingParticipants` returns early
+            // outside INITIAL_OPEN), so this makes one principle out of two.
+            assert.deepEqual(C.canRestoreParticipant(m, before, after),
+                { ok: false, error: 'restore-window-passed' });
+        });
+
+        test('the boundary is the deadline instant itself, tested either side', () => {
+            // A minute out here is a person wrongly marked late, or wrongly refused a restore.
+            assert.equal(C.canRestoreParticipant(m, m.initialDeadlineAt + 1, after).ok, true);
+            assert.equal(C.canRestoreParticipant(m, m.initialDeadlineAt, after).ok, false,
+                'a withdrawal AT the deadline is not after it');
+        });
+
+        test('an unreadable stamp refuses, because the two ways of being wrong are not equal', () => {
+            // `withdrawnAt` has been written beside the flag since the feature shipped, so this
+            // should be unreachable. If it happens we cannot tell which side of the deadline it
+            // fell — and refusing blocks an undo (visible, recoverable next week) where allowing
+            // re-creates the false "late" marker the rule exists to prevent.
+            // The NUMERIC STRING is the case that matters and the only one the type check earns
+            // its place on: `null`, `undefined`, `NaN` and prose all compare false against a number
+            // anyway, so a test made only of those passes with the guard deleted (found by mutation
+            // — the first version of this test had exactly that hole). A string coerces, and
+            // '9999999999999' would sail past the comparison as a withdrawal in the year 2286.
+            for (const bad of [null, undefined, NaN, 'yesterday', String(after + 1000), '']) {
+                assert.equal(C.canRestoreParticipant(m, /** @type {any} */ (bad), after).ok, false,
+                    `${String(bad)} was treated as a readable stamp`);
+            }
+            // …and it does NOT refuse before the deadline, where the stamp is not consulted at all.
+            assert.equal(C.canRestoreParticipant(m, null, before).ok, true);
+        });
+
+        test('it still inherits every bound withdrawal has', () => {
+            // A closed or expired week refuses a restore for the reasons it refuses everything
+            // else, and those answers must not be masked by the new one — a reviewer reading
+            // "restore window passed" on a week that is simply closed would go looking for the
+            // wrong thing.
+            assert.equal(C.canRestoreParticipant(m, after, m.finalDeadlineAt).error, 'closed');
+            assert.equal(C.canRestoreParticipant(m, after, m.retentionUntil).error, 'expired');
+        });
     });
 
     test('a missing window is refused rather than throwing mid-request', () => {
