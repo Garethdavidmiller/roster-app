@@ -13,7 +13,7 @@
 
 import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadges,
          isSunday, DAY_NAMES, MONTH_ABB, escapeHtml, TIME_RE, parseISODate } from './roster-data.js';
-import { isRestShift, shouldReplaceOverride, buildOverrideWrite, buildOverrideCacheRecord } from './override-utils.js';
+import { isRestShift, isForbiddenOnSunday, shouldReplaceOverride, buildOverrideWrite, buildOverrideCacheRecord } from './override-utils.js';
 import { db, collection, query, orderBy, limit, getDocs,
          deleteDoc, doc, serverTimestamp, writeBatch, auth, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { sessionReady } from './session.js';
@@ -930,7 +930,7 @@ function _initBulkBar() {
             const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
             if (!checkbox || !checkbox.checked) return;
             ticked++;
-            if ((_bulkActiveType === 'annual_leave' || _bulkActiveType === 'sick' || _bulkActiveType === 'other' || _bulkActiveType === 'shift') && isSunday(row.dataset.date ?? '')) { sundaySkipped++; return; } // Rule: see CLAUDE.md — "Sundays are non-contracted" (layer 2: bulk-bar skip). 'shift' too: a worked Sunday is RDW, not a plain shift (record it via the RDW pill individually).
+            if (isForbiddenOnSunday(_bulkActiveType) && isSunday(row.dataset.date ?? '')) { sundaySkipped++; return; } // Layer 2 of the Sunday rule — the list is `SUNDAY_FORBIDDEN_TYPES` (override-utils.js).
             const pills   = row.querySelectorAll('.type-pill-btn');
             const startEl = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start'));
             const endEl   = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end'));

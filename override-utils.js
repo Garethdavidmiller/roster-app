@@ -594,3 +594,35 @@ export function resolveEffectiveShift(override, baseShift, sunday) {
     }
     return { shift: override.value, rdwTime: '', derivedRdw: false, note };
 }
+
+// ── WHAT MAY NOT BE RECORDED ON A SUNDAY (v21.32) ───────────────────────────────────────────────
+//
+// Sundays are not contracted for any grade here, so annual leave, an absence and an "Other" day
+// cannot apply to one — and a worked Sunday is always RDW (overtime), never a plain shift.
+//
+// The rule is enforced in FOUR places on purpose and that stays: the week-grid pills, the bulk bar,
+// the range-booking write path and the roster import. Defence in depth is right for a rule whose
+// failure writes leave against a day nobody was contracted to work. What was wrong is that each
+// layer STATED the policy itself, in its own vocabulary, with `// Rule: see CLAUDE.md` comments
+// pointing at prose because there was no code to point at. They agreed — checked at v21.32, layer
+// for layer — but nothing made them agree, and the next layer would have had to re-derive it.
+//
+// TWO VOCABULARIES, DELIBERATELY NOT COLLAPSED. The admin surfaces reason in override TYPE ids
+// (what a pill writes); the roster import reasons in parsed VALUES (what a PDF cell said). They are
+// different alphabets for the same policy, and forcing one on the other would mean translating at
+// the point of use — which is where a translation gets skipped.
+
+/** Override TYPES that may never be written to a Sunday. `rdw` is deliberately absent: Sunday work
+ *  is overtime, so RDW is the one thing that BELONGS there. @type {readonly string[]} */
+export const SUNDAY_FORBIDDEN_TYPES = Object.freeze(['annual_leave', 'sick', 'other', 'shift']);
+
+/** @param {string} type an override type id @returns {boolean} */
+export function isForbiddenOnSunday(type) { return SUNDAY_FORBIDDEN_TYPES.includes(type); }
+
+/** Parsed roster VALUES that cannot stand on a Sunday, and what they become instead.
+ *  Returns the value unchanged when it is fine, so a caller can use it unconditionally.
+ *  The import NORMALISES rather than refusing — a PDF is a statement about the past, and rejecting
+ *  the whole week over one cell would lose the other six. @param {string} value @returns {string} */
+export function sundaySafeValue(value) {
+    return (value === 'AL' || value === 'SICK' || isOtherValue(value)) ? 'RD' : value;
+}

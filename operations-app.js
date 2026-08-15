@@ -12,7 +12,10 @@
 import { CONFIG, teamMembers, isValidEmail, isChilternWorkEmail, escapeHtml } from './roster-data.js';
 import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAllPasswordStatus, resetMemberPassword, getResetRequests, clearResetRequest, uploadCircular, uploadNewsletter, withClaimRetry } from './firebase-client.js';
 import { isPasswordMigrated } from './auth-identity.js';
-import { initErrorLog, initUsageCard, initPageSpeedCard, _cardLoadError, _relativeTime } from './operations-reports.js';
+import { _cardLoadError, _relativeTime } from './operations-reports.js';
+import { initErrorLog } from './operations-errors.js';
+import { initUsageCard } from './operations-usage.js';
+import { initPageSpeedCard } from './operations-speed.js';
 import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';

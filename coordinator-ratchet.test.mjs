@@ -31,6 +31,28 @@
  * lines exactly — a cap of 1,200 and zero headroom. A guard that fails on a one-line fix is a guard
  * that gets waived, and a waived guard is worse than none.
  *
+ * ── WHAT A GOOD RESPONSE LOOKS LIKE WHEN THIS FAILS ────────────────────────────────────────────
+ *
+ * Written down because the caps are now nearly all tight — eleven of thirteen modules sit within a
+ * hundred lines — so this guard has stopped being an occasional event and become a routine one. The
+ * risk that creates is not over-extraction. It is that raising a cap becomes the quickest way past a
+ * red test, and the ratchet quietly turns into a log of the sizes files happened to reach.
+ *
+ * Three responses, and the failure names which one it is:
+ *
+ *   EXTRACT  — the growth is a RULE: something that would be WRONG if it were wrong, that a test
+ *              could pin without a DOM. This is the default and it is what the guard is for. The
+ *              tell is that you can state the thing in a sentence beginning "it must…".
+ *   SPLIT    — the growth is COORDINATION, and the file is doing several unrelated jobs. No rule
+ *              comes out; the file becomes two or three that each have one subject.
+ *   RAISE    — neither. The file has one subject, the growth is wiring or the argument for it, and
+ *              there is nothing a Node test could hold. Legitimate, and it must be DELIBERATE:
+ *              lower the cap again the moment the file shrinks, and say why in the commit.
+ *
+ * A cap that goes up must not go up quietly, and one that could come down should. When code leaves
+ * a file, bring its ceiling with it — a cap left where it was banks the saving as future headroom,
+ * which is this mechanism loosening while appearing to hold.
+ *
  * ── AND A NEW LARGE FILE IS A DELIBERATE ACT ────────────────────────────────────────────────────
  *
  * Anything crossing LARGE_THRESHOLD that is not in the table fails this test. That is the point: a
@@ -77,7 +99,10 @@ const CAPS = {
     'admin-roster-upload.js':  1250,
     'nav-panel.js':            1250,
     'overtime-app.js':         1200,   // the young one — this is the cap that matters most
-    'operations-reports.js':   1150,
+    // 1150 → 200 at v21.32. It was one edit from refusing, and the response was SPLIT: no rule was
+    // in there to extract (the maths is in perf-stats/usage-stats/client-errors), just three
+    // unrelated cards sharing a file. What is left is the shared helpers and the re-export barrel.
+    'operations-reports.js':    200,
     'service-worker.js':       1000,
 };
 

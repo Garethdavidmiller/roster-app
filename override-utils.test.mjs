@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { tsToMillis, shouldReplaceOverride, reconcileRangeIntoCache, isBeforeMemberStart, isRestShift, computePeriodDeleteIds,
          OTHER_FLAVOURS, OTHER_RDW_DEFAULT_MINS, isOtherValue, parseOtherValue, composeOtherValue, resolveOtherPay,
          isOverrideDisplaySuppressed, mergeBookedPeriods, resolveEffectiveShift, toOverrideRecord,
-         buildOverrideWrite, buildOverrideCacheRecord, collectOverrideRecords } from './override-utils.js';
+         buildOverrideWrite, buildOverrideCacheRecord, collectOverrideRecords, SUNDAY_FORBIDDEN_TYPES, isForbiddenOnSunday, sundaySafeValue } from './override-utils.js';
 
 /** Build a fake Firestore QuerySnapshot from an array of {id, ...data} rows. */
 function fakeSnapshot(rows) {
@@ -775,6 +775,70 @@ describe('composeOtherValue', () => {
             assert.equal(back.flavour, c.flavour);
             assert.equal(back.rdw, !!(c.rdwTicked || c.baseIsRd));
             assert.equal(back.time, c.start ? `${c.start}-${c.end}` : null);
+        }
+    });
+});
+
+// ── The Sunday policy ──────────────────────────────────────────────────────────────────────────
+//
+// Enforced in FOUR places on purpose, and that stays — the failure it prevents is annual leave
+// written against a day nobody was contracted to work. What is new is that the policy is DECLARED
+// once instead of restated four times in four vocabularies. These tests pin the declaration; the
+// last one pins the layer that keeps its own bespoke copy, so the four cannot drift apart again.
+
+import { readFileSync } from 'node:fs';
+const readSrc = (/** @type {string} */ f) => readFileSync(new URL(f, import.meta.url), 'utf8');
+
+describe('what may not be recorded on a Sunday', () => {
+    it('RDW is NOT forbidden — Sunday work is the one thing that belongs there', () => {
+        // The single most important entry in this list is the one that is absent. Sundays are
+        // uncontracted, so any Sunday work is overtime; forbidding `rdw` would make a real,
+        // payable shift unrecordable.
+        assert.equal(isForbiddenOnSunday('rdw'), false);
+        assert.ok(!SUNDAY_FORBIDDEN_TYPES.includes('rdw'));
+    });
+
+    it('leave, absence, an Other day and a plain shift are all forbidden', () => {
+        for (const t of ['annual_leave', 'sick', 'other', 'shift']) {
+            assert.equal(isForbiddenOnSunday(t), true, `${t} must be forbidden on a Sunday`);
+        }
+    });
+
+    it('a type nobody has heard of is not silently forbidden', () => {
+        // Fail OPEN here, deliberately: the four enforcement layers each also check `isSunday`, and
+        // an unknown type reaching this predicate means a new override type has been added without
+        // a decision about Sundays. Refusing it by default would make that new type mysteriously
+        // unwritable on one day a week; allowing it makes the omission visible at review.
+        assert.equal(isForbiddenOnSunday('correction'), false);
+        assert.equal(isForbiddenOnSunday('spare_shift'), false);
+    });
+
+    it('the import NORMALISES rather than refusing — AL, Absent and Other become RD', () => {
+        // A PDF is a statement about the past, and rejecting a whole week over one cell would lose
+        // the other six.
+        assert.equal(sundaySafeValue('AL'), 'RD');
+        assert.equal(sundaySafeValue('SICK'), 'RD');
+        assert.equal(sundaySafeValue('TRG'), 'RD');
+    });
+
+    it('and it leaves everything else alone, so a caller can use it unconditionally', () => {
+        for (const v of ['RD', 'RDW', 'SPARE', '07:00-14:00']) {
+            assert.equal(sundaySafeValue(v), v, `${v} must pass through untouched`);
+        }
+    });
+
+    it('LAYER 1 disables a pill for every forbidden type — it keeps its own copy', () => {
+        // The week-grid pills carry bespoke wording per pill ("Annual leave cannot be recorded on a
+        // Sunday…"), which is right — a shared message would be vaguer than any of them. So that
+        // layer cannot consume the list directly, and this is what keeps it honest instead: a fifth
+        // forbidden type added to the declaration and not to the grid would leave a pill a member
+        // can press on a day the write path will silently drop.
+        const src = readSrc('./admin-overrides.js');
+        const block = src.slice(src.indexOf('layer 1: disable pills in week grid'));
+        const scope = block.slice(0, block.indexOf('\n        }'));
+        for (const t of SUNDAY_FORBIDDEN_TYPES) {
+            assert.ok(scope.includes(`.pill-${t}`),
+                `no Sunday-disable for the ${t} pill — the declaration and the grid have drifted`);
         }
     });
 });
