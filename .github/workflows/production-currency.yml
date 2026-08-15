@@ -1,0 +1,161 @@
+name: Is production current?
+
+# ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────────
+#
+# On 14 Aug 2026 the primary staff URL served v21.22 for ten hours while `main` moved to v21.26.
+# Four consecutive Hosting deploys had failed on a test gate, and the `report-deploy-failure` action
+# did its job perfectly — it opened issue #1245 within minutes of the first failure. Nobody read it.
+#
+# So the gap was never detection of a FAILED DEPLOY. It was that nothing ever asked the only
+# question that actually matters: **is the version staff are being served the version we think?**
+#
+# That question has failure modes the deploy workflow structurally cannot see, because it is not
+# running when they happen:
+#
+#   · a deploy that failed and whose issue went unread (the 14 Aug case);
+#   · a deploy that reported success but did not propagate;
+#   · a rolled-back or manually-changed Hosting release;
+#   · the GitHub Pages mirror drifting from Firebase Hosting, in either direction;
+#   · `paths-ignore: '**/*.md'` meaning a stale deploy does NOT self-heal — production stays
+#     behind until some unrelated non-docs commit lands.
+#
+# It runs on a SCHEDULE rather than after a deploy for exactly that reason: a check that only runs
+# when the pipeline runs cannot see a pipeline that is not running.
+#
+# ── WHY IT COMPARES AGAINST `main` AND NOT AGAINST ITSELF ───────────────────────────────────────
+#
+# `roster-data.js` on `main` is the version that SHOULD be live. Fetching the same file from each
+# served origin and comparing is the whole check — no API tokens, no Firebase credentials, no
+# deploy permissions. It reads what a member's browser would read.
+#
+# ── AND WHY IT TOLERATES A LAG ─────────────────────────────────────────────────────────────────
+#
+# A deploy takes a few minutes and the schedule is hourly, so a run can legitimately catch a deploy
+# in flight. It therefore re-checks after a pause before saying anything: a canary that cries on
+# every deploy is one that gets muted, which would leave things exactly where they were on 14 Aug.
+
+on:
+  schedule:
+    # Hourly. Frequent enough that a stale production is measured in hours rather than the ten it
+    # took to notice by hand, cheap enough to be unremarkable (two curls).
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+# Least privilege: read the repo, and open an issue when production is stale. No deploy rights —
+# this workflow observes and reports, it never fixes.
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Compare every served origin against main
+        id: compare
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          version_of() {   # $1 = a base URL; echoes the APP_VERSION it serves, or empty
+            curl -fsSL --max-time 30 "$1/roster-data.js" 2>/dev/null \
+              | grep -oE "APP_VERSION = '[^']+'" | head -1 | grep -oE "[0-9]+\.[0-9]+" || true
+          }
+
+          EXPECTED=$(grep -oE "APP_VERSION = '[^']+'" roster-data.js | head -1 | grep -oE "[0-9]+\.[0-9]+")
+          echo "expected=$EXPECTED" >> "$GITHUB_OUTPUT"
+
+          WEB="https://myb-roster.web.app"
+          PAGES="https://garethdavidmiller.github.io/roster-app"
+
+          LIVE_WEB=$(version_of "$WEB")
+          LIVE_PAGES=$(version_of "$PAGES")
+
+          # A deploy may be in flight. Re-check once after a pause before accusing anything —
+          # a canary that fires on every release is a canary that gets switched off.
+          if [ "$LIVE_WEB" != "$EXPECTED" ] || [ "$LIVE_PAGES" != "$EXPECTED" ]; then
+            echo "First read disagreed (web=$LIVE_WEB pages=$LIVE_PAGES, expected=$EXPECTED) — re-checking in 180s."
+            sleep 180
+            LIVE_WEB=$(version_of "$WEB")
+            LIVE_PAGES=$(version_of "$PAGES")
+          fi
+
+          echo "web=$LIVE_WEB"     >> "$GITHUB_OUTPUT"
+          echo "pages=$LIVE_PAGES" >> "$GITHUB_OUTPUT"
+
+          STALE=""
+          # An UNREADABLE origin is reported too, and deliberately not as "stale": a 404 or a TLS
+          # failure on the staff URL is worse than an old version, and the two need different
+          # remedies. CLAUDE.md's deployment health check exists because exactly that went unnoticed.
+          [ -z "$LIVE_WEB" ]                  && STALE="$STALE web.app:UNREADABLE"
+          [ -n "$LIVE_WEB" ]   && [ "$LIVE_WEB"   != "$EXPECTED" ] && STALE="$STALE web.app:v$LIVE_WEB"
+          [ -z "$LIVE_PAGES" ]                && STALE="$STALE pages:UNREADABLE"
+          [ -n "$LIVE_PAGES" ] && [ "$LIVE_PAGES" != "$EXPECTED" ] && STALE="$STALE pages:v$LIVE_PAGES"
+
+          if [ -n "$STALE" ]; then
+            echo "stale=$STALE" >> "$GITHUB_OUTPUT"
+            echo "::error::Production is not current. Expected v$EXPECTED —$STALE"
+            exit 1
+          fi
+          echo "Both origins are serving v$EXPECTED."
+
+      - name: Say so, once, in an issue
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED: ${{ steps.compare.outputs.expected }}
+          STALE: ${{ steps.compare.outputs.stale }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -uo pipefail
+          LABEL="deploy-failure"
+
+          # DEDUPED onto the existing label, so a stale production and the failed deploy that caused
+          # it are ONE thread rather than two. A run of hourly checks is one situation; N issues is
+          # how a channel teaches its reader to ignore it — the same rule report-deploy-failure uses.
+          EXISTING=$(gh issue list --label "$LABEL" --state open --limit 1 --json number \
+            --jq '.[0].number' 2>/dev/null || true)
+
+          BODY=$(printf '%s\n' \
+          "**Staff are not being served the current version.**" \
+          "" \
+          "| | |" \
+          "|---|---|" \
+          "| Expected (\`main\`) | \`v${EXPECTED}\` |" \
+          "| Disagreeing origins | \`${STALE}\` |" \
+          "| Checked | ${RUN_URL} |" \
+          "" \
+          "This was read from the served \`roster-data.js\` on each origin — the same file a" \
+          "member's browser fetches — and re-checked after three minutes, so it is not a deploy in" \
+          "flight." \
+          "" \
+          "### Checking your own phone will not show this" \
+          "" \
+          "The app is offline-first: an installed phone keeps launching from its service-worker" \
+          "cache and looks perfectly healthy. CLAUDE.md → *\"The installed PWA masks live-site" \
+          "breakage\"*." \
+          "" \
+          "### Where to look" \
+          "" \
+          "1. The most recent \`deploy-hosting.yml\` run — a failed test gate blocks the deploy and" \
+          "   does **not** self-heal, because \`paths-ignore: '**/*.md'\` means a docs commit will" \
+          "   not retry it." \
+          "2. If that run succeeded, the deploy did not propagate — check the Firebase Hosting" \
+          "   release history." \
+          "3. \`UNREADABLE\` means the origin did not answer at all. That is worse than stale," \
+          "   and RECOVERY_RUNBOOK.md → *\"GitHub-mirror failover\"* is the page for it.")
+
+          # Never fails the job: this step only runs when something has already gone wrong, and a
+          # failed notification must not bury the real error under a second one.
+          if [ -n "${EXISTING:-}" ]; then
+            gh issue comment "$EXISTING" --body "$BODY" \
+              || echo "::warning::could not comment on issue #${EXISTING}"
+          else
+            gh issue create --title "⚠️ Production is not current — staff are on an old version" \
+              --label "$LABEL" --body "$BODY" \
+              || echo "::warning::could not open the stale-production issue"
+          fi

@@ -529,7 +529,22 @@ test('a signed-in member keeps the full footer — name, bell and sign out', asy
     await expect(page.locator('.nav-panel-footer')).toBeVisible();
     await expect(page.locator('#navPanelMember')).toHaveText('G. Miller');
     await expect(page.locator('#navSignOutBtn')).toBeVisible();
-    await expect(page.locator('#navNotifBell')).toHaveCount(1);
+
+    // ── THE BELL FOLLOWS THE BROWSER'S CAPABILITY, NOT THIS TEST'S EXPECTATIONS (v21.28) ────────
+    //
+    // This asserted `toHaveCount(1)` unconditionally, which is a CHROMIUM assumption: `notifSupported`
+    // hides the bell where Web Push does not exist, and Safari is exactly that case. Adding WebKit
+    // coverage found it on the first run — the app was right and the test was provincial.
+    //
+    // Asked of the PAGE rather than branched on the project name, because the question is what this
+    // browser can actually do. A per-browser branch would go stale the day Safari ships Web Push in
+    // this context, and would go stale silently.
+    const pushCapable = await page.evaluate(() =>
+        'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window);
+    await expect(page.locator('#navNotifBell')).toHaveCount(pushCapable ? 1 : 0);
+    // Either way the footer is INTACT — which is what this test is guarding. A missing bell is a
+    // capability the browser lacks; a missing name or sign-out would be a broken footer.
+    await expect(page.locator('.nav-panel-footer')).toBeVisible();
 });
 
 // ── The on/off switch (v20.16) ──────────────────────────────────────────────────────────────────

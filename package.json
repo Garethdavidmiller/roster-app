@@ -18,7 +18,8 @@
     "generate:roster-members": "node scripts/generate-roster-members.mjs",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "node scripts/typecheck.mjs",
-    "check": "npm run lint && npm run typecheck && npm test"
+    "check": "npm run lint && npm run typecheck && npm test",
+    "test:webkit": "playwright test --config playwright.webkit.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",
