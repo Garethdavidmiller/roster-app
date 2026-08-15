@@ -33,10 +33,8 @@ import {
     normaliseCustomShift,
     calcCoverage,
     generateLink,
-    dutyMinutes,
     CONTRACTED_HOURS_PER_WEEK,
     hmFromHours,
-    targetExSundayMinutes,
     lineTotals,
     weeklyHours,
     MIN_REST_MINUTES,
@@ -46,6 +44,7 @@ import { LEGACY_DOC_ID, deepCopyPatterns, designFromDoc, binEntryFromDoc, docPay
 import { parseDesignImport, summariseImport } from './links-import.js';
 import { buildRosterTargets } from './links-seed.js';
 import { buildDefaultTargets, DEFAULT_SHIFT_TIMES, sameTargetTable, isSupersededMemory } from './links-default-targets.js';
+import { assessTargetHours, targetHoursLines, targetProvenanceNote } from './links-target-hours.js';
 import { targetSetFromDoc, targetSetPayload, describeSetState, sortTargetSets, MAX_SET_NAME } from './links-target-sets.js';
 import { reorderLines, applyOrder, cost, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
 import { normaliseWindow, formatWindow, isDefaultWindow, isValidWindowRow, canonicaliseWindowTime } from './links-window.js';
@@ -1776,83 +1775,17 @@ export function init() {
         return tot;
     }
 
-    /**
-     * What a week on these targets actually comes to, in hours (v20.04).
-     *
-     * The table above totals PEOPLE. It has never totalled TIME, so the question the targets exist
-     * to answer — is this a contracted week? — had no answer anywhere on the page, before or after
-     * generating. Measured: the live main roster comes to exactly 35h 00m, and the seeded 24-line
-     * design falls hours short, because the same duties are spread over more working lines than the
-     * roster they were sampled from. That is the hole nothing showed — and since v20.98 the
-     * generator refuses to build it rather than reporting it.
-     *
-     * SUNDAYS ARE EXCLUDED — Sunday is not contracted for any grade here, so counting it towards 35
-     * would report a target as contracted using time that is not. The Sunday column is untouched;
-     * it simply is not part of this comparison.
-     *
-     * The DENOMINATOR is the working lines, not all of them: a spare line carries no timed duty, so
-     * dividing by all 24 would charge the average with cover weeks of zero and report a week nobody
-     * works. Both exclusions are named in the row.
-     */
+    /** Write the target-table verdict into the card. The RULE and the WORDS are
+     *  `links-target-hours.js`; this only puts them on screen. */
     function _updateGenHours() {
         const valEl = document.getElementById('genHoursValue');
         const noteEl = document.getElementById('genHoursNote');
         if (!valEl || !noteEl) return;
-
-        const working = TOTAL_POS - genSpareLines;
-        // Mon–Fri counts five times, Saturday once. Sunday is deliberately absent.
-        let minutes = 0, unreadable = 0;
-        for (const s of genSlots) {
-            const m = dutyMinutes(s.time);
-            if (m === null) { if (s.weekday || s.sat) unreadable++; continue; }
-            minutes += m * (s.weekday * 5 + s.sat);
-        }
-
-        if (working <= 0 || minutes === 0) {
-            // Never "0h 00m" — a zero here reads as a finding about the targets rather than as an
-            // empty table, which is the same mistake `weeklyHours` returns null to avoid. A table
-            // holding only Sunday targets also lands here (Sundays are excluded from this figure),
-            // so the note must not claim there are no shifts when there are.
-            valEl.textContent = '—';
-            valEl.className = '';
-            noteEl.textContent = working <= 0 ? 'every line is a spare week'
-                : genSlots.length ? 'no Mon–Sat hours in these targets yet'
-                : 'add a shift to see this';
-            return;
-        }
-
-        // The SAME average the Design-checks row reports (v20.98): each spare week counts as a full
-        // contracted week and the divisor is the whole rotation. Computed here from the targets
-        // rather than from patterns that do not exist yet, but it must be the same number — a
-        // generator card predicting one figure and the design reporting another is two answers to
-        // one question, arriving four seconds apart.
-        const hours = (minutes + genSpareLines * CONTRACTED_HOURS_PER_WEEK * 60) / 60 / TOTAL_POS;
-        const off = hours - CONTRACTED_HOURS_PER_WEEK;
-        const hm = hmFromHours;
-        // THE TICK IS THE GENERATOR'S OWN TEST, not an approximation of it (v21.07). It used to
-        // pass anything within half an hour — a tolerance inherited from the Design-checks row,
-        // where it is right because a design can be painted by hand. Here it is wrong: since v20.98
-        // `generateLink` refuses on an EQUALITY, so a table twenty minutes out wore a green "on
-        // target (35h)" and then met a red refusal on the next press. Computed with the gate's own
-        // `targetExSundayMinutes` (null if any time is unreadable) so the two cannot drift.
-        const askedMin = targetExSundayMinutes(genSlots);
-        const needMin = working * CONTRACTED_HOURS_PER_WEEK * 60;
-        const onTarget = unreadable === 0 && askedMin !== null && askedMin === needMin;
-
-        valEl.textContent = `${hm(hours)} each`;
-        valEl.className = onTarget ? 'gen-hours-ok' : 'gen-hours-off';
-        // When it is off, the gap is stated as a TOTAL rather than per line. The per-line average
-        // divides by the whole rotation, so a full hour of missing duty reads "0h 02m" — a figure
-        // that makes a refusal look like a rounding error. The total is the number that has to
-        // reach zero, and naming the equality is what stops the next press being a surprise.
-        const diffMin = askedMin === null ? null : askedMin - needMin;
-        noteEl.textContent = (onTarget
-            ? `on target (${CONTRACTED_HOURS_PER_WEEK}h)`
-            : diffMin !== null
-                ? `${hm(Math.abs(diffMin) / 60)} ${diffMin < 0 ? 'short' : 'over'} in total — Generate needs it exact`
-                : `${hm(Math.abs(off))} ${off < 0 ? 'under' : 'over'} the ${CONTRACTED_HOURS_PER_WEEK}h contract`)
-            + ` · over ${working} working line${working === 1 ? '' : 's'}`
-            + (unreadable ? ` · ${unreadable} shift${unreadable === 1 ? '' : 's'} not counted (unreadable time)` : '');
+        const { value, tone, note } = targetHoursLines(
+            assessTargetHours(genSlots, { spareLines: genSpareLines, totalLines: TOTAL_POS }));
+        valEl.textContent = value;
+        valEl.className = tone === 'none' ? '' : tone === 'ok' ? 'gen-hours-ok' : 'gen-hours-off';
+        noteEl.textContent = note;
     }
 
     // ── Generator targets: remembered per design (v19.38) ──────────────────────────────────────
@@ -1899,19 +1832,14 @@ export function init() {
     function _updateMemoryNote() {
         const el = document.getElementById('genMemoryNote');
         if (!el) return;
-        const differs = genFromMemory && !sameTargetTable(
-            { slots: genSlots, spareLines: genSpareLines }, buildDefaultTargets());
-        el.hidden = !differs;
-        if (differs) {
-            // Naming the SET when there is one, because "the table your device remembers" is true of
-            // a loaded set and tells the designer nothing: they knew they loaded something, and what
-            // they cannot see is which. Cleared by any edit — an edited copy is no longer that set.
-            el.textContent = (genFromSetName
-                ? `These hours came from the saved set “${genFromSetName}”, not the demand-based default. `
-                : 'These hours are from the table your device remembers, not the demand-based default. ')
-                + 'Press “Back to the demand-based default” to load it; '
-                + 'anything you change here is kept.';
-        }
+        const note = targetProvenanceNote({
+            fromMemory: genFromMemory,
+            differsFromDefault: !sameTargetTable(
+                { slots: genSlots, spareLines: genSpareLines }, buildDefaultTargets()),
+            setName: genFromSetName,
+        });
+        el.hidden = !note;
+        if (note) el.textContent = note;
     }
 
     /** Persist the current target table for the active design. Silent — losing it is a nuisance,

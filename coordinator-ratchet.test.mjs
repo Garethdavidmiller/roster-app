@@ -58,7 +58,10 @@ const LARGE_THRESHOLD = 900;
  * to reconsider — that is the whole mechanism.
  */
 const CAPS = {
-    'links-app.js':            3250,   // ← the one the reviewer named; the next Links rule goes in a domain module
+    // 3250 → 3200 at v21.31. The generator's target VERDICT left for links-target-hours.js, so the
+    // ceiling comes down with it — a cap left where it was would bank the saving as future headroom,
+    // which is the ratchet quietly loosening rather than tightening.
+    'links-app.js':            3200,   // ← the one the reviewer named; the next Links rule goes in a domain module
     'paycalc-app.js':          2000,
     'admin-overrides.js':      1800,
     'admin-app.js':            1800,

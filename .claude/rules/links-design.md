@@ -79,6 +79,7 @@ the whole of v20. A number written beside the list it describes is a second copy
 | `links-adjacency.js` | what happens BETWEEN the lines — the ORDER they sit in (v19.58) |
 | `links-seed.js` | the generator's TARGET SEED — read the real roster, produce the starting targets (v19.92) |
 | `links-design-doc.js` | the SHAPE of a design in memory and in Firestore, and every conversion between (v19.94) |
+| `links-target-hours.js` | does a target table pay the contract, and the words the card says so in (v21.31) |
 
 ## Access control
 
