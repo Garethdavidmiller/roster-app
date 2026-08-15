@@ -609,24 +609,16 @@ every active participant with their position. Not a button per person per day: t
 each on a page that already repeats every name once per day, for an action taken a handful of times a
 year.
 
-**Still open, and it is an owner's decision:** `Ask again` is currently allowed at any point while the
-week is open, including during `FINAL_OPEN`. Somebody restored after the initial deadline could not
-reasonably have met it, so their status is ambiguous. The simplest policy would be to allow restoring
-only during `INITIAL_OPEN`. Not changed unilaterally — it removes an ability a reviewer has today.
+**SETTLED at v21.26** — this section used to end by leaving restoration open ("allowed at any point
+while the week is open") and asking for an owner decision. It got one, and the answer is neither of
+the two policies floated here: see **Restoring is not the mirror of withdrawing** above. Left as a
+pointer rather than deleted because the question was a real one and the answer reads better against it.
 
-## Open: a day's answer wears the whole form's age (external review P2, verified v21.20)
+## A day's answer used to wear the whole form's age — FIXED at v21.26
 
-`personRow` renders `declaredAgo(sub.updatedAt, now)` on every day, and `updatedAt` is the SUBMISSION
-head's — one timestamp for all seven. So a member who changes Tuesday alone makes Monday through
-Sunday read as freshly declared, and the age chip — which exists so a reviewer can tell a stale
-answer from a current one — is the one thing on the row that cannot be trusted after any edit.
-
-It bends the safe way (an answer looks NEWER than it is, so nobody is chased about something they
-have just confirmed) which is why it is a P2 rather than a P1. **No schema change is needed to fix
-it:** the revisions are already read eagerly for the late/changed markers, so the last revision in
-which each day's value actually changed is computable from what the page already holds. Deliberately
-not folded into v21.20 — that release carries three P1s, and this is a behaviour change to a surface
-that has just been reviewed, so it wants its own tests and its own look.
+Kept as a pointer, because this was an "Open" heading for six releases after it had been closed, and
+a reader reaching the end of the file got the stale answer while the fix sat 200 lines above.
+The behaviour, the derivation and why it is not stored: **Per-day freshness (v21.26)**, above.
 
 ## The daily top-up is daily again (v21.20, external review)
 
