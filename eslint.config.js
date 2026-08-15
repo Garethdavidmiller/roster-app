@@ -14,6 +14,7 @@ export default [
             'playwright.csp.mjs',    // Playwright config (CSP proof) — Node globals (process.env)
             'playwright.visual.mjs', // Playwright config (visual baselines) — Node globals (process.env)
             'playwright.offline.mjs', // Playwright config (offline SW test) — Node globals (process.env)
+            'playwright.webkit.mjs',  // Playwright config (WebKit engine run) — Node globals (process.env)
             '*.test.mjs',         // Test files — use test-runner globals, not browser
             '*.test.js',
             'purify.es.mjs',      // Vendor bundle — do not lint

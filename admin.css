@@ -362,7 +362,8 @@
             z-index: 1;
         }
 
-        /* Blue border when the displayed week is the current week */
+        /* Gold border + tinted fill when the displayed week is the current week (the comment said
+           "Blue border" from the rule's first version; it has been gold for a long time). */
         .week-nav-label.is-current-week {
             border-color: var(--accent-gold);
             background: var(--week-current-bg);
@@ -451,6 +452,10 @@
             white-space: nowrap;
             align-self: center;
         }
+        /* Empty is EMPTY (v21.40). With no days ticked the span holds no text but still painted its
+           tint and padding — a 16×4 grey dash sitting under the select buttons that reads as a
+           rendering fault. Same `:empty` idiom as the card header's count chip. */
+        .bulk-sel-count:empty { display: none; }
 
         .btn-bulk-select {
             background: white;
@@ -665,9 +670,15 @@
             .day-row .col-base   { grid-column: 3; grid-row: 1; justify-self: end; }
             .day-row .col-pills  { grid-column: 1 / -1; grid-row: 2; display: flex; }
             .day-row .col-time   { grid-column: 1 / -1; grid-row: 3; }
-            /* Pills and time hidden unless pre-selected or type-active */
+            /* Pills appear as soon as a row is ticked (you have to be able to choose a type).
+               TIME DOES NOT — and that asymmetry is the whole rule (v21.40). The time row used to
+               be `display`-ed on a ticked row and merely `visibility: hidden` (the base rule below
+               the media queries), so every ticked-but-untyped day reserved 34px of blank cream —
+               170px on the Mon–Fri bulk selection the bulk bar exists to encourage, and invisible
+               to any test because nothing was wrong with the markup. It did not even buy stability:
+               choosing a type SHRINKS the row to 14px ("No time needed") on a fixed type. */
             .day-row:not(.active):not(.selected) .col-pills { display: none; }
-            .day-row:not(.active):not(.selected) .col-time  { display: none; }
+            .day-row:not(.active) .col-time  { display: none; }
 
             /* Inline column labels on mobile so users know what they're looking at */
             /* Shared label style for inline col labels injected via ::before */
@@ -986,18 +997,35 @@
         /* The overrides body manages its own internal spacing */
         #overridesBody { padding: 0; }
 
+        /* ONE BAND, NOT FOUR THINGS (v21.40). The toolbar held a count, a checkbox label, a button
+           and a select at four different heights — 15, 16, 26 and 36px — in 370px of phone. It read
+           as a row that had failed to line up rather than as a set of controls. The select's height
+           is the floor and cannot move (16px minimum font, or iOS zooms the viewport on focus), so
+           the other two rise to meet it, and on a phone the count takes its own line rather than
+           competing for width with three controls. */
         .list-toolbar {
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
-            gap: 10px;
+            gap: 8px 10px;
             padding: 10px 14px;
             background: var(--bg-faint);
             border-bottom: 1px solid var(--border-light);
         }
 
-        .list-count { font-size: var(--type-small); color: var(--text-light); white-space: nowrap; flex: 1; }
-
+        /* THE COUNT TAKES ITS OWN LINE AT EVERY WIDTH, and that is a width decision made once
+           rather than per breakpoint (v21.40). This card is full-width on a phone and full-width on
+           a tablet, but on desktop it moves into the ~420px side column — so "is there room for one
+           line?" flips back and forth as the viewport grows, and a breakpoint that answered it at
+           768px was still answering for 1280px, where the card is narrower than it is on a phone.
+           One line for the count, one for the two scope controls, everywhere. */
+        .list-count { font-size: var(--type-small); color: var(--text-light); white-space: nowrap; flex: 1 0 100%; }
+        .override-selectall, .btn-show-all-overrides { min-height: 36px; }
         .btn-bulk-delete {
+            /* 36px like every other control in this toolbar. It appears only once rows are ticked,
+               takes its own line at narrow widths, and is the destructive one — the last button on
+               the page that should read as smaller than the filters above it. */
+            min-height: 36px;
             padding: 5px 12px;
             border: none;
             border-radius: 8px;
@@ -1011,8 +1039,23 @@
         @media (hover: hover) and (pointer: fine) { .btn-bulk-delete:hover { background: var(--delete-red-dark); } }
         .btn-bulk-delete:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 
+        /* ONE BLOCK, DELIBERATELY (v21.40). The width rules used to sit in a second
+           `.overrides-month-filter` block twelve lines above this one, and equal specificity twelve
+           lines apart is how this repo has twice shipped a rule that reads correctly and does
+           nothing (`.claude/rules/css-tokens.md` → the 16px field rule, and `.ot-mode`). Anyone
+           adding a `width` here would have silently undone it from below.
+
+           `width: auto` overrides the page's shared `select { width: 100% }`, which as a flex-basis
+           made this the only item on its line and pushed the two scope controls onto a third row.
+           `min-width` is the chevron's guarantee — at ~118px "All months" ran right up against its
+           own arrow. It grows to share the row and stops at 240px, past which a month picker is
+           just a wide empty box. */
         .overrides-month-filter {
-            padding: 6px 8px;
+            padding: 6px 26px 6px 8px;
+            width: auto;
+            flex: 1 1 auto;
+            min-width: 150px;
+            max-width: 240px;
             border: 2px solid var(--border-mid);
             border-radius: 8px;
             font-size: var(--type-medium); /* 16px minimum — iOS Safari zooms viewport on focus below this */
@@ -1449,16 +1492,20 @@
             color: white;
         }
 
+        /* A SENTENCE, NOT A ROW (v21.40). This was `display: flex; gap: 8px`, which turns each
+           top-level piece of the message into its own flex item — so `<strong>5 working days</strong>`
+           shrank to its min-content width and wrapped internally to "5 / working / days" beside the
+           rest of the sentence. It reads as a rendering fault, and it is worst in the case that
+           matters most: a real booking preview in the narrow right-hand column. The `<br>`-separated
+           Spare warning had the same problem. It is prose, so it lays out as prose; `min-height` was
+           already inert (one line of 13px text plus 16px of padding clears 28px on its own). */
         .al-preview {
             padding: 8px 12px;
             border-radius: 8px;
             font-size: var(--type-label);
             font-weight: 600;
             margin-bottom: 10px;
-            min-height: 28px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
+            line-height: 1.45;
         }
 
         .al-preview.empty { color: var(--text-light); }
@@ -1503,10 +1550,23 @@
                 min-height: 36px;
             }
 
-            .btn-delete {
+            /* EDIT AND DELETE ARE ONE CLUSTER AND MUST BE ONE SIZE (v21.40). This block has raised
+               Delete to 36px for a long time and never mentioned Edit, so on a phone the two
+               buttons stacked in the same corner of every saved-change row at 36px and 24px — a
+               mismatch you can see, over a tap target you can miss. The same omission caught the
+               row checkbox, whose twin in the week grid (`.day-cb`) is enlarged three rules below. */
+            .btn-delete, .btn-edit {
                 padding: 8px 12px;
                 min-height: 36px;
             }
+            .override-card .row-select { width: 22px; height: 22px; }
+            /* The over-entitlement decision — the one confirm on this page a manager can get wrong
+               in a way that costs somebody leave. It was the smallest pair of buttons on it. */
+            .al-confirm-bar .btn-confirm-save,
+            .al-confirm-bar .btn-confirm-cancel { min-height: 36px; }
+            /* The page's primary control. 4px of vertical padding around 16px text is 30px, which
+               is smaller than the month filter inside the card below it. */
+            .member-context-bar select { padding-top: 7px; padding-bottom: 7px; }
 
             .week-nav-btn {
                 width: 44px;
@@ -1619,8 +1679,7 @@
             .app-header { margin-bottom: 0; }
             .col-main, .col-side { gap: 14px; }
 
-            /* List toolbar: always on one line */
-            .list-toolbar { flex-wrap: nowrap; gap: 10px; }
+            .list-toolbar { gap: 10px; }
         }
 
         /* ── Desktop: 1024px — two-column grid ──
@@ -1733,9 +1792,11 @@
             .day-row .col-base  { grid-column: 3; grid-row: 1; justify-self: end; }
             .day-row .col-pills { grid-column: 1 / -1; grid-row: 2; display: flex; }
             .day-row .col-time  { grid-column: 1 / -1; grid-row: 3; }
-            /* Hide pills and time on inactive rows — same pattern as ≤680px */
+            /* Hide pills and time on inactive rows — same pattern as ≤680px, including the
+               ticked-but-untyped case: this layout stacks too, so a reserved time row is the same
+               band of blank cream here. */
             .day-row:not(.active):not(.selected) .col-pills { display: none; }
-            .day-row:not(.active):not(.selected) .col-time  { display: none; }
+            .day-row:not(.active) .col-time  { display: none; }
         }
         /* ≥1400px viewport: the container is now capped at --content-max-width (1100), so the
            left column is ~656px — this wider day-row template keeps the pill column snug rather
@@ -1752,7 +1813,7 @@
             /* Bulk bar: slightly more spacious */
             .bulk-bar { gap: 14px; }
 
-            .list-toolbar { flex-wrap: nowrap; gap: 12px; }
+            .list-toolbar { gap: 12px; }
         }
 
         @media print {
@@ -1918,77 +1979,6 @@
 .other-rdw-warn { flex-basis: 100%; color: var(--warning-amber); font-weight: 600; font-size: var(--type-badge); }
 .other-rdw-warn[hidden] { display: none; }
 .other-opts-hint { flex-basis: 100%; color: var(--text-light); font-size: var(--type-badge); }
-/* ── TASK FOCUS ROW (v21.38) ─────────────────────────────────────────────────────────────────────
-   Four jobs, one page. The row sits on the NAVY CANVAS, not inside a card, so it is styled like the
-   nav drawer's pills rather than like a card chip — an on-card treatment put navy text on navy and
-   the SELECTED chip, the one that most needs to be visible, was the only invisible one.
-
-   A 2×2 GRID, NOT A WRAPPING FLEX ROW. Four equal chips at 390px do not fit on one line, and letting
-   them wrap left "Saved changes" alone across the full width — the orphan-row problem the nav drawer
-   notes record, where content-width flexing produces a different ragged shape at every viewport. A
-   grid gives one predictable shape: two-by-two on a phone, one row of four once there is room. */
-.admin-task-row {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-    margin: 0 0 16px;
-}
-/* FULL WIDTH ON DESKTOP (v21.38, review). `.container` is an explicit two-column grid at ≥1024px and
-   every other direct child declares its placement — the header and member bar span `1 / -1`,
-   `.col-main` takes 1, `.col-side` takes 2. This was added without one, so auto-placement dropped it
-   into column 1 and left a ~420px void beside it, at exactly the sidebar's width. It controls both
-   columns, so it spans both. */
-@media (min-width: 1024px) {
-    .container > .admin-task-row { grid-column: 1 / -1; }
-}
-.admin-task-chip {
-    min-height: 44px;                       /* a touch target, not a label */
-    padding: 8px 10px;
-    border: 1px solid rgba(255, 255, 255, .18);
-    border-radius: var(--radius-pill);
-    background: rgba(255, 255, 255, .10);
-    color: rgba(255, 255, 255, .85);        /* the drawer's on-navy tuning: comfortably above AA */
-    font-family: inherit;
-    font-size: var(--type-small);
-    font-weight: 600;                       /* quiet status, not identity — see css-tokens.md */
-    cursor: pointer;
-    transition: background var(--dur-fast) var(--ease-standard),
-                color var(--dur-fast) var(--ease-standard),
-                border-color var(--dur-fast) var(--ease-standard),
-                transform var(--dur-fast) var(--ease-standard);
-}
-.admin-task-chip:active { transform: scale(var(--press-scale)); }
-/* Gold on navy for focus, matching the drawer's Calendar pill and the calendar's today button —
-   the app's established "this is the active one" colour, and the strongest contrast available here.
-   --focus-outline-light because the surface underneath is the darkest fill on the page. */
-.admin-task-chip:focus-visible { outline: var(--focus-outline-light); outline-offset: 2px; }
-.admin-task-chip[aria-pressed="true"] {
-    background: var(--accent-gold);
-    border-color: var(--accent-gold);
-    color: var(--primary-blue);
-    font-weight: 700;
-}
-
-/* A DIMMED CARD IS STILL A CARD. Collapsing already does the work of getting it out of the way;
-   this only softens the header so the focused card reads as the active one. Deliberately not
-   `opacity` on the whole card — that would grey the header text below AA, and a card you cannot
-   read is hidden rather than de-emphasised, which is not what this is for. */
-.card.task-dimmed > .card-header h2 { opacity: .72; }
-/* A REAL EDGE, NOT A COLOUR ON A BORDER THAT DOES NOT EXIST (v21.38, review). `.card` sets no
-   `border`, so `border-color` alone painted nothing at all and the focused card looked identical to
-   the others — the whole visual half of the feature was a no-op. A box-shadow ring adds no layout,
-   so it cannot shift the grid the way declaring a border would. */
-.card.task-focused { box-shadow: 0 0 0 2px var(--primary-blue), var(--shadow-1); }
-
-/* The focused card is scrolled to the top of the viewport, and on mobile the member bar is STICKY
-   there — so without this the card's own header lands underneath it and the first thing you see of
-   the card you just chose is its second line. 64px clears the bar plus a little breathing room. */
-#change-shift, #book-annual-leave, #record-sick-days, #overridesCard { scroll-margin-top: 64px; }
-
-@media (min-width: 700px) {
-    .admin-task-row { grid-template-columns: repeat(4, 1fr); }
-}
-
 /* ── SAVE RECEIPT (v21.38) ───────────────────────────────────────────────────────────────────────
    The day-by-day list under a successful save. FOLDED by default: the headline already answers the
    ordinary case, and a list that opens itself would push the week grid down the screen after every
@@ -2013,6 +2003,4 @@
 @media print {
     .lpill-other { background: var(--other-light) !important; color: var(--other) !important; }
     .other-opts { display: none !important; }
-    /* The chips are navigation, not content — a printed sheet has no tasks to switch between. */
-    .admin-task-row { display: none !important; }
 }

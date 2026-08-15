@@ -30,12 +30,31 @@
  * double the deploy's critical path and give a WebKit-only flake the power to keep staff on a stale
  * version — which is exactly the failure that had production four releases behind on 14 Aug 2026.
  * This runs in branch CI (`e2e.yml`), where a failure is loud and blocks nothing that staff see.
+ *
+ * ── ONE RETRY ON CI, AND WHY THAT IS NOT CHEATING HERE (v21.40) ─────────────────────────────────
+ *
+ * By Aug 2026 this job was red on most pushes, and the failures were measured as flake, not signal:
+ * across consecutive runs on the SAME commit the failing sets had zero overlap, and the commonest
+ * failure reproduced locally 1 run in 6 on unchanged code (KNOWN_LIMITATIONS → "The webkit job is
+ * intermittently red"). A job that is usually red teaches everyone to stop reading it — which
+ * spends the entire value of running the engine at all.
+ *
+ * A retry here automates the discriminating test a human was doing by hand: an ENGINE difference —
+ * the thing this suite exists to catch — is deterministic and fails both attempts, so the job stays
+ * red for it. A slow-runner race passes on retry and is reported as "flaky" in the summary rather
+ * than failing the run. CI-only, because locally a first-attempt failure is something you are
+ * actively looking at and a silent retry would hide it mid-diagnosis.
+ *
+ * The DEPLOY gate keeps its single-shot rule unchanged — that reasoning (an automatic retry hands a
+ * genuinely intermittent product bug a second chance to reach staff) is about a gate that ships to
+ * production, which this is not.
  */
 import base from './playwright.config.mjs';
 import { devices } from '@playwright/test';
 
 export default {
     ...base,
+    retries: process.env.CI ? 1 : 0,
     projects: [
         { name: 'webkit', use: { ...devices['Desktop Safari'] } },
         // Mobile Safari — the shape most staff would actually hold, if they hold an iPhone at all.

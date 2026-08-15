@@ -28,12 +28,18 @@ the *what*, and it is written down once.
 | When the RMT award lands | — | **Update `GRADES` / `AWARD_RATES`** with the confirmed rates. Evidence class B required — do not enter a rumoured figure. The 28 Aug 2026 step is `VAL-PAY-002` — check it off the payslip rather than assuming it landed | `.claude/rules/paycalc.md` · `VAL-PAY-002` |
 | **21 Nov 2026** | **Dec 2026** | **ARM the Overtime retention purge** (`VAL-OT-001`, closes `EXC-002`)**.** The job is written and scheduled (`purgeExpiredOvertimeWindows`, daily 04:00 London) but ships DISARMED — it walks each expired window and logs exactly what it would remove, deleting nothing. Read one run of `[purgeExpiredOvertimeWindows]` in the Functions log, confirm the weeks and the counts, then set `purgeArmed: true` in `functions/index.js`. **The dates were RELATIVE until Aug 2026 ("10 weeks after the first Overtime window"), and relative dates are how a deadline gets misread — this one was, in both directions.** They are now computed: the scheduler's first run on 11 Aug 2026 created weeks ending 22 Aug – 12 Sep, and retention is 91 days past the week-ending Saturday, so **the earliest window becomes purgeable on 21 Nov 2026**. Before that the job has nothing to report and the read-a-run gate CANNOT be satisfied — arming early would arm it blind, which is the one thing the disarm exists to prevent. Until it is armed, expired data persists, invisible to the app and contrary to what the retention design says happens to it | `OVERTIME_AVAILABILITY.md` → Retention · `VAL-OT-001` |
 
-**The Overtime purge row is now a REVIEW rather than a build** (v20.96 wrote the job), and it is still the row with a moving start date, because its clock begins when the
-first real window is created rather than on a calendar date. Windows are created automatically from
-v20.61, so that clock starts on the first scheduled run after deploy — **diary the warning point
-then**. The failure of missing it is not an outage: expired data simply persists, invisible to the
-app and contrary to what the retention design says happens to it, which is the kind of gap that is
-only ever found by someone asking a data question at the wrong moment.
+**The Overtime purge row is a REVIEW, not a build** (v20.96 wrote the job), and its date is now
+FIXED — 21 Nov 2026. This paragraph said the opposite until the v21.40 sweep: that the row "still has
+a moving start date" and that the warning point should be diaried "on the first scheduled run after
+deploy". That was true while the clock had not started. It has: the daily creator (`0 5 * * *`,
+Europe/London) made its first weeks on 11 Aug 2026, which is what let the row above compute the date
+instead of describing it. Leaving the old sentence under the new row is precisely the failure that
+row warns about — a relative date sitting beside the absolute one that replaced it, and a reader
+free to believe either.
+
+The failure of missing the date is not an outage: expired data simply persists, invisible to the app
+and contrary to what the retention design says happens to it, which is the kind of gap that is only
+ever found by someone asking a data question at the wrong moment.
 
 **The period selector runs out at ≈ P62 (March 2027).** That is the real failure mode of missing the
 first row: the calculator does not warn, it simply stops offering periods, and a member planning

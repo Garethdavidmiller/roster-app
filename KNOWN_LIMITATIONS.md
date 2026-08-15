@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: August 2026 — v21.30 · Updated every 0.10 version*
+*Last updated: August 2026 — v21.40 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -58,6 +58,36 @@ channel teaches its reader to ignore it.
 
 **A deploy failure does not fix itself.** `paths-ignore: '**/*.md'` means a documentation-only commit
 will not retry it, so production can stay stale indefinitely until an unrelated change lands.
+
+### The `webkit` job is intermittently red, and it is not a gate (measured Aug 2026, v21.40)
+
+Branch CI has shown a red `webkit` job on most recent pushes while `unit`, `smoke`, `rules` and
+`csp` were all green. **It is flake, and unlike the entry above this one is measured rather than
+inferred**: `paycalc: backup → restore round trip survives the reload` failed **1 run in 6** locally,
+same code, same machine, same command — and it failed on *desktop webkit* locally while CI failed it
+on *mobile-safari*, which is a different project each time. Across two CI runs on one commit the
+failing sets had **zero overlap**.
+
+**Do not read a red `webkit` as a broken build, and do not read it as nothing either.** The right
+check is the one that distinguishes them: compare the failing test NAMES between runs. Different
+names ⇒ flake. The same test failing repeatedly ⇒ investigate it, because the engine difference is
+exactly what this job exists to catch.
+
+`webkit` is deliberately **not** in `deploy-hosting.yml` — the reasoning is in `e2e.yml`'s own header,
+and it is the v19.94 lesson applied: a second engine in the deploy gate lets a WebKit-only flake keep
+staff on a stale version. Merging with `webkit` red and the other four green is the designed
+behaviour, not a shortcut.
+
+**Both candidate fixes were applied the same day (v21.40), because a job that is usually red teaches
+everyone to stop reading it.** The commonest offender — the paycalc backup→restore round trip — was a
+genuine race in the TEST (a fixed 1200ms sleep betting on the card's own 800ms self-reload; the log
+said so plainly: "Execution context was destroyed") and now waits for the navigation itself. The
+residual tail — click timeouts on a slow runner, different tests each run — is covered by
+`retries: process.env.CI ? 1 : 0` in `playwright.webkit.mjs` ONLY: an engine difference is
+deterministic and still fails both attempts, so the job stays red for exactly the thing it exists to
+catch, while a one-off race is reported "flaky" instead of failing the run. The deploy gate keeps its
+single-shot rule — the entry above explains why, and nothing here touches it. If `webkit` goes red
+NOW, take it seriously: the flake excuse has been spent.
 
 ## Security
 

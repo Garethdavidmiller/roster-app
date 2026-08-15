@@ -869,7 +869,10 @@ describe('what may not be recorded on a Sunday', () => {
         // layer cannot consume the list directly, and this is what keeps it honest instead: a fifth
         // forbidden type added to the declaration and not to the grid would leave a pill a member
         // can press on a day the write path will silently drop.
-        const scope = blockAfter(readSrc('./admin-overrides.js'),
+        // Anchored on admin-week-editor.js since v21.38 — the week grid moved there in the Admin
+        // split. The re-anchor was forced by this assertion failing, which is the guard doing its
+        // job: it refuses to pass when it cannot find the code it claims to be checking.
+        const scope = blockAfter(readSrc('./admin-week-editor.js'),
             'layer 1: disable pills in week grid', '\n        }');
         for (const t of SUNDAY_FORBIDDEN_TYPES) {
             assert.ok(scope.includes(`.pill-${t}`),
