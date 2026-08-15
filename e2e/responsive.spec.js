@@ -143,3 +143,26 @@ test('admin week label fits at 375px for every week across 13 months', async ({ 
     expect(overflowing, `week labels ellipsising at 375px — the 📅 affordance is cut off:\n${overflowing.join('\n')}`)
         .toEqual([]);
 });
+
+// ── Team View must reach BOTH ends of the boot ladder (v21.37, external review) ────────────────
+// "Shifts shown" and "Confirmed" are the ladder's two far rungs, and LATENCY_PLAN.md decides
+// whether narrower Firestore reads are worth doing from the GAP between them. Team View recorded
+// the first and never the second, so every launch spent there widened that gap for free.
+//
+// IT MUST BE A RESTORE, NOT A CLICK. The first version of this asserted after clicking into Team
+// View from the Calendar — and passed with the bug fully present, because the Calendar had already
+// marked `rosterLive` on its own render before the click. Three mutations all survived it. Seeding
+// `myb_team_view` makes Team View the BOOT surface, so the Calendar never renders and the mark can
+// only come from the path under test.
+test('team view restored at boot records the roster-live milestone, not just page-ready', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await seedMember(page);
+    await page.addInitScript(() => localStorage.setItem('myb_team_view', '1'));
+    await page.goto('/');
+    await expect(page.locator('.team-table-wrap')).toBeVisible();
+
+    await expect.poll(async () => page.evaluate(() =>
+        performance.getEntriesByType('mark').map(m => m.name)
+    ), { message: 'a Team View boot must record the roster-live mark once its grid is authoritative' })
+        .toContain('myb-roster-live');
+});

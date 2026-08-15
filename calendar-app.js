@@ -94,6 +94,14 @@ function _markReadyIfGridShown() {
         // answer; what COUNTS as a roster is `showsRoster`, beside the states it reads.
         if (_teamView?.isTeamViewMode()) {
             if (_teamView.isGridShown()) markPageReady();
+            // BOTH RUNGS, NOT JUST THE FIRST (v21.37, external review). This branch used to return
+            // here, so a launch that restored straight into Team View was counted at "Shifts shown"
+            // and never at "Confirmed" — the surface simply dropped out of the ladder at the far
+            // end. Harmless for the roster (the grid was right either way) and NOT harmless for the
+            // decision the ladder exists to inform: LATENCY_PLAN.md reads the gap between those two
+            // rungs to decide whether narrower Firestore reads are worth doing, and a whole surface
+            // missing from one end widens that gap for free.
+            if (_teamView.isGridConfirmed()) markMilestone('rosterLive');
             return;
         }
         const display = decideDisplay(knowledgeOf(monthKey(getDisplayYear(), getDisplayMonth())));

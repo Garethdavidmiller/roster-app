@@ -2,6 +2,9 @@
 
 *Not version-stamped; not a runtime asset. What the Calendar may SHOW, and when.*
 
+**This is the authoritative contract for Calendar data.** Other documents link here rather than
+restating knowledge-state, access-gate or cache-ordering rules.
+
 Read the invariants. If you are about to change how a shift reaches the screen, one of them is
 probably the thing you are about to break.
 

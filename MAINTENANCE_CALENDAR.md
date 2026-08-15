@@ -12,6 +12,11 @@ either happened in time or it did not.
 
 Nothing here is optional and nothing here is a feature. Product direction lives in `ROADMAP.md`.
 
+**Rows cite stable IDs rather than restating them.** `VAL-*` rows live in `VALIDATION_REGISTER.md`
+(a claim the app already makes on unchecked evidence); `EXC-*` rows live in `ARCHITECTURE.md` → §3
+(deployed behaviour that differs from the documented target). A date here is the *when*; the ID is
+the *what*, and it is written down once.
+
 ---
 
 ## Hard dates
@@ -20,8 +25,8 @@ Nothing here is optional and nothing here is a feature. Product direction lives 
 |---|---|---|---|
 | **Feb 2027** | **6 Apr 2027** | **2027/28 Pay Calculator rollover.** Extend `TAX_YEARS`, `FIRST_OFFSET`/`LAST_OFFSET` and the tax/NI/student-loan thresholds in `paycalc-calc.js` so the period selector keeps advancing | KNOWN_LIMITATIONS → Time-boxed maintenance; `.claude/rules/paycalc.md` |
 | **Mid-2028** | **End 2028** | **`MAX_YEAR` 2030 → 2032.** Update the lunar / bank-holiday data *first*, then raise the constant | KNOWN_LIMITATIONS → Time-boxed maintenance |
-| When the RMT award lands | — | **Update `GRADES` / `AWARD_RATES`** with the confirmed rates. Evidence class B required — do not enter a rumoured figure | `.claude/rules/paycalc.md` |
-| **21 Nov 2026** | **Dec 2026** | **ARM the Overtime retention purge.** The job is written and scheduled (`purgeExpiredOvertimeWindows`, daily 04:00 London) but ships DISARMED — it walks each expired window and logs exactly what it would remove, deleting nothing. Read one run of `[purgeExpiredOvertimeWindows]` in the Functions log, confirm the weeks and the counts, then set `purgeArmed: true` in `functions/index.js`. **The dates were RELATIVE until Aug 2026 ("10 weeks after the first Overtime window"), and relative dates are how a deadline gets misread — this one was, in both directions.** They are now computed: the scheduler's first run on 11 Aug 2026 created weeks ending 22 Aug – 12 Sep, and retention is 91 days past the week-ending Saturday, so **the earliest window becomes purgeable on 21 Nov 2026**. Before that the job has nothing to report and the read-a-run gate CANNOT be satisfied — arming early would arm it blind, which is the one thing the disarm exists to prevent. Until it is armed, expired data persists, invisible to the app and contrary to what the retention design says happens to it | `OVERTIME_AVAILABILITY.md` → Retention |
+| When the RMT award lands | — | **Update `GRADES` / `AWARD_RATES`** with the confirmed rates. Evidence class B required — do not enter a rumoured figure. The 28 Aug 2026 step is `VAL-PAY-002` — check it off the payslip rather than assuming it landed | `.claude/rules/paycalc.md` · `VAL-PAY-002` |
+| **21 Nov 2026** | **Dec 2026** | **ARM the Overtime retention purge** (`VAL-OT-001`, closes `EXC-002`)**.** The job is written and scheduled (`purgeExpiredOvertimeWindows`, daily 04:00 London) but ships DISARMED — it walks each expired window and logs exactly what it would remove, deleting nothing. Read one run of `[purgeExpiredOvertimeWindows]` in the Functions log, confirm the weeks and the counts, then set `purgeArmed: true` in `functions/index.js`. **The dates were RELATIVE until Aug 2026 ("10 weeks after the first Overtime window"), and relative dates are how a deadline gets misread — this one was, in both directions.** They are now computed: the scheduler's first run on 11 Aug 2026 created weeks ending 22 Aug – 12 Sep, and retention is 91 days past the week-ending Saturday, so **the earliest window becomes purgeable on 21 Nov 2026**. Before that the job has nothing to report and the read-a-run gate CANNOT be satisfied — arming early would arm it blind, which is the one thing the disarm exists to prevent. Until it is armed, expired data persists, invisible to the app and contrary to what the retention design says happens to it | `OVERTIME_AVAILABILITY.md` → Retention · `VAL-OT-001` |
 
 **The Overtime purge row is now a REVIEW rather than a build** (v20.96 wrote the job), and it is still the row with a moving start date, because its clock begins when the
 first real window is created rather than on a calendar date. Windows are created automatically from
@@ -41,7 +46,7 @@ their April pay finds the year they need is not there.
 | Watch | Act at | Work |
 |---|---|---|
 | `overrides` document count | Design the archive at **~4,000**; it must land before **~5,000** | Query cost and client cache size both grow with it. A watch item today — no action needed yet, but the design should not start at 4,900 |
-| Migration percentage (`passwordStatus`) | **≥90%** | Track C5 — retire the surname default. Irreversible; also gated on Track E |
+| Migration percentage (`passwordStatus`) | **≥90%** | Track C5 — retire the surname default (closes `EXC-005`). Irreversible; also gated on Track E |
 | App Speed card, calendar tail | Material drift | The only trigger that reopens the bundler / SDK-deferral question — `ROADMAP.md` → Build tooling |
 
 ---

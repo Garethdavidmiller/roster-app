@@ -238,6 +238,30 @@ export function trapFocus(container, e) {
 }
 
 /**
+ * Mark a lightbox panel that has more content below the fold, so the fade in shared.css appears.
+ *
+ * Toggled rather than always-on: fading the last line of a panel that FITS would invent the
+ * ambiguity this exists to remove. Re-measured on scroll (the fade must go once you reach the
+ * bottom) and on resize — a phone rotating turns a scrolling panel into a fitting one.
+ *
+ * Everything is best-effort: this is decoration, and a panel that never gains the class simply
+ * looks the way it did before v21.36.
+ *
+ * @param {HTMLElement|null} panel the  element
+ */
+function _watchScrollFade(panel) {
+    if (!panel) return;
+    const sync = () => {
+        const more = panel.scrollHeight - panel.clientHeight - panel.scrollTop > 2;
+        panel.classList.toggle('has-more', more);
+    };
+    // After layout — on open the panel is still mid-transition and its height is not final.
+    requestAnimationFrame(() => requestAnimationFrame(sync));
+    panel.addEventListener('scroll', sync, { passive: true });
+    window.addEventListener('resize', sync, { passive: true });
+}
+
+/**
  * Build a lightbox with the canonical open/close lifecycle (see CLAUDE.md
  * "Canonical lightbox lifecycle"). One factory so every lightbox gets the
  * same behaviour and none can drift: focus save/restore, .visible → rAF →
@@ -293,6 +317,7 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
         lockBodyScroll();
         _pushOverlayState(close);
         overlay.classList.add('visible');
+        _watchScrollFade(/** @type {HTMLElement|null} */ (content ?? null));
         requestAnimationFrame(() => {
             overlay.classList.add('open');
             const explicit = typeof initialFocus === 'function' ? initialFocus() : initialFocus;

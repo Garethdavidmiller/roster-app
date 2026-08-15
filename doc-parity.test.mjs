@@ -565,3 +565,87 @@ test('the CLAUDE.md file tree stays a routing table', () => {
         'changelog living in a routing table, loaded into every session. Release history belongs ' +
         'in git and the plan docs.');
 });
+
+// ── CONTRACT 5: the register IDs resolve, and the index knows every document ────────────────────
+//
+// v21.38 introduced two stable ID spaces so that a doubt is WRITTEN DOWN ONCE and cited everywhere
+// else — `VAL-*` in VALIDATION_REGISTER.md (the app asserts this on unchecked evidence) and `EXC-*`
+// in ARCHITECTURE.md §3 (deployed differs from documented target). The whole value of an ID is that
+// it resolves. A citation of `VAL-PAY-007` that matches nothing is strictly worse than the paragraph
+// it replaced, because it LOOKS like a reference and reads as authoritative.
+//
+// The failure is silent in both directions and neither is visible while reading: a row can be closed
+// and deleted while three documents still point at it, and an ID can be duplicated in two families
+// so that "see VAL-OT-001" is ambiguous. Nothing about either shows up in prose.
+//
+// The index gets the same treatment for the same reason — a routing table that has fallen behind
+// routes you nowhere, and its silence is indistinguishable from success. Its doc list is derived
+// from the FILESYSTEM here rather than from a hand list, because a hand-maintained checker of a
+// hand-maintained index is two lists that can drift together.
+
+const REGISTER = read('./VALIDATION_REGISTER.md');
+const INDEX = read('./ARCHITECTURE.md');
+
+/** Docs that are deliberately not in the index: the index itself, and the two the repo generates. */
+const INDEX_EXEMPT = new Set(['ARCHITECTURE.md']);
+
+const declaredIds = (/** @type {string} */ src, /** @type {RegExp} */ re) =>
+    [...src.matchAll(re)].map(m => m[1]);
+
+test('every VAL-* and EXC-* id cited anywhere resolves to a declared row', () => {
+    // Declared = the row's own leading cell in its register, `| **VAL-PAY-001** |`.
+    const declared = new Set([
+        ...declaredIds(REGISTER, /\|\s*\*\*(VAL-[A-Z]+-\d{3})\*\*\s*\|/g),
+        ...declaredIds(INDEX, /\|\s*\*\*(EXC-\d{3})\*\*\s*\|/g),
+    ]);
+    assert.ok(declared.size >= 10,
+        `only ${declared.size} ids declared — the row pattern has changed and this test is ` +
+        'checking nothing');
+
+    const docs = [...LIVE_DOCS, './VALIDATION_REGISTER.md', './ARCHITECTURE.md',
+        './MAINTENANCE_CALENDAR.md', './AUTH_AND_SESSIONS.md', './CALENDAR_DATA.md',
+        './OVERTIME_AVAILABILITY.md', './.claude/rules/paycalc.md'];
+
+    /** @type {string[]} */ const dangling = [];
+    for (const doc of docs) {
+        for (const [, id] of read(doc).matchAll(/\b((?:VAL-[A-Z]+|EXC)-\d{3})\b/g)) {
+            if (!declared.has(id)) dangling.push(`${doc.replace('./', '')} cites ${id}`);
+        }
+    }
+    assert.deepEqual([...new Set(dangling)].sort(), [],
+        'these citations resolve to nothing. Either the row was closed and its citations were not ' +
+        'followed, or the id was mistyped:\n  ' + [...new Set(dangling)].join('\n  '));
+});
+
+test('no id is declared twice — an ambiguous citation is not a citation', () => {
+    const all = [
+        ...declaredIds(REGISTER, /\|\s*\*\*(VAL-[A-Z]+-\d{3})\*\*\s*\|/g),
+        ...declaredIds(INDEX, /\|\s*\*\*(EXC-\d{3})\*\*\s*\|/g),
+    ];
+    const dupes = all.filter((id, i) => all.indexOf(id) !== i);
+    assert.deepEqual([...new Set(dupes)], [],
+        `declared more than once: ${[...new Set(dupes)].join(', ')}. Ids are never reused — a ` +
+        'closed row keeps its id and moves to Closed.');
+});
+
+test('every top-level .md is routed from ARCHITECTURE.md — the index cannot fall behind', () => {
+    const mdFiles = readdirSync(new URL('.', import.meta.url))
+        .filter(f => f.endsWith('.md') && !INDEX_EXEMPT.has(f));
+    assert.ok(mdFiles.length > 15, `found only ${mdFiles.length} docs — the scan is wrong`);
+
+    const missing = mdFiles.filter(f => !INDEX.includes(f));
+    assert.deepEqual(missing, [],
+        'these documents exist and the index does not mention them, so nothing sends a reader to ' +
+        'them:\n  ' + missing.join('\n  '));
+});
+
+test('the index still carries its exceptions table and its vocabulary — guard the guard', () => {
+    // Both are the point of the file. An index that lost either would still pass every test above,
+    // because those only check that it NAMES things.
+    assert.match(INDEX, /##\s*3\s*·\s*Current production exceptions/,
+        'the EXC table is gone — that is the section that says what is actually deployed');
+    for (const label of ['CURRENT', 'TEMPORARY', 'VALIDATION', 'DEFERRED']) {
+        assert.ok(new RegExp(`\\*\\*${label}\\*\\*`).test(INDEX),
+            `the status vocabulary no longer defines ${label}`);
+    }
+});
