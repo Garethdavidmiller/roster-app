@@ -128,8 +128,8 @@ test('the Other-family flavours in firestore.rules match OTHER_FLAVOURS exactly'
 // produce must be creatable under the rules, or the save fails with a permission error that looks
 // like an auth problem.
 test('every override type the client can create is permitted by firestore.rules', () => {
-    const pt = read('admin-overrides.js').match(/export const PILL_TYPES = \[([^\]]*)\]/);
-    assert.ok(pt, 'PILL_TYPES not found in admin-overrides.js');
+    const pt = read('admin-shift-types.js').match(/export const PILL_TYPES = \[([^\]]*)\]/);
+    assert.ok(pt, 'PILL_TYPES not found in admin-shift-types.js');
     const pillTypes = [...pt[1].matchAll(/'([a-z_]+)'/g)].map(x => x[1]);
 
     const rt = RULES.match(/request\.resource\.data\.type in \[([\s\S]*?)\]/);

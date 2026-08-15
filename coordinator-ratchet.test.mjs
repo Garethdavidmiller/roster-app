@@ -85,7 +85,12 @@ const CAPS = {
     // which is the ratchet quietly loosening rather than tightening.
     'links-app.js':            3200,   // ← the one the reviewer named; the next Links rule goes in a domain module
     'paycalc-app.js':          2000,
-    'admin-overrides.js':      1800,
+    // 1727 → 486 (v21.38): the store, the week editor, the Saved Changes list and the shift-type
+    // table all moved out. Re-set to its new size plus the usual room — a cap left at 1800 over a
+    // 486-line file is the "quietly generous" case this suite's own last check refuses.
+    'admin-overrides.js':      560,
+    'admin-week-editor.js':    950,
+    'admin-saved-changes.js':  460,
     'admin-app.js':            1800,
     'links-design.js':         1500,   // a DOMAIN module: large is less alarming here, but still capped
     'firebase-client.js':      1350,

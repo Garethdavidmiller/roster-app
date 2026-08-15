@@ -964,6 +964,26 @@ Admin's task-focus row (v21.38) — four jobs on one page, one focused at a time
 - `initAdminTasks({ onFocus })` — renders the chips, wires them, focuses the opening task. **Focuses by CLICKING the card's own collapse control**, never by setting classes: the state is three things `initCardCollapse` keeps in step, and a second writer of one leaves an arrow contradicting its card
 - Reorders nothing — the desktop grid's row order is what makes the mobile stack work (`.claude/rules/css-tokens.md`)
 
+### `admin-shift-types.js`
+The shift-type table (v21.38). Pure data, no imports — which is what lets every consumer read it without importing the coordinator back.
+- `TYPES` — per-type metadata (label, pill, fixed, fixedValue)
+- `PILL_TYPES` — the ONE ordered declaration of which pills exist; both pill rows are generated from it
+- `WORKED_OVERRIDE_TYPES` — the types a Sunday RD-correction must never overwrite
+
+### `admin-week-editor.js`
+The seven-day grid and everything staged but not saved (v21.38, extracted from `admin-overrides.js`).
+- `renderWeekGrid()` / `buildWeekGridInto(container, dateStr)` / `updateWeekNavLabel(dateStr)`
+- `updateSaveBtn()` / `resetBulkPills()` / `resetStagedRows()` (the row lifecycle after a save)
+- `_hasStagedEdits()` — counts a staged ADD/CHANGE and a staged REMOVAL; counting only the first discarded un-ticked rows on a background refresh while the dirty flag stayed set
+- Draws a LOADING state for a member whose slice has not arrived and a distinct FAILED state when their load stopped — seven base-roster days would be indistinguishable from a clear week
+- Permissions, feedback and the dirty marker arrive via `initWeekEditor`
+
+### `admin-saved-changes.js`
+The Saved Changes list, and un-recording (v21.38, extracted from `admin-overrides.js`).
+- `renderTable()` / `resetTableMemberFilter()` + the month/member filters, the count chip and both delete paths
+- **`coversAllStaff()` is asked at RENDER time**, not at the toggle: the toggle flips a flag and then starts a load, so a failed or in-flight load would otherwise leave a per-member cache labelled "(all staff)"
+- Renderers and permissions arrive via `initSavedChanges`
+
 ### `admin-override-store.js`
 The override cache, the reads that fill it, and the states they put on screen (v21.38 — split out when `admin-overrides.js` reached its ratchet cap).
 - `initOverrideStore({ renderTable, renderWeekGrid, hasStagedEdits, onAfterLoad })` — the renderers are injected, never imported back (acyclic)
