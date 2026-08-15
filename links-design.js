@@ -402,8 +402,9 @@ export function hmFromHours(hours) {
  *
  * ── SUNDAYS COME OUT, AND THAT IS NOT A DETAIL ────────────────────────────────────────────────
  *
- * Sunday is **not contracted** for any grade here (the rule is enforced in five places across the
- * app — no AL, no absence, ever, on a Sunday). So a Sunday duty is overtime-shaped work sitting on
+ * Sunday is **not contracted** for any grade here (the rule is enforced across the app at every
+ * point that writes or shows a day — no AL, no absence, ever, on a Sunday; the forbidden types are
+ * `SUNDAY_FORBIDDEN_TYPES` in `override-utils.js`). So a Sunday duty is overtime-shaped work on
  * top of the contract, and folding it into the weekly average would flatter the design: it would
  * report a link as delivering the contracted hours when a chunk of what it counted is not
  * contracted time at all. Both figures are returned; only `exSunday` is comparable to 35.

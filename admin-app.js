@@ -767,6 +767,12 @@ export function init() {
             const date    = row.dataset.date || '';
             let   type    = row.dataset.type || '';
 
+            // ── Sunday write guard — the list is `SUNDAY_FORBIDDEN_TYPES` (override-utils.js) ──
+            // A bespoke copy on purpose: each of the four types gets a DIFFERENT answer here (see
+            // below), so this cannot be a loop over the declaration. `override-utils.test.mjs` pins
+            // it to that list instead, so a fifth forbidden type fails there rather than being
+            // silently written by this path.
+            //
             // A worked Sunday is always RDW, never a plain shift (Sundays are uncontracted). The Shift
             // pill is disabled on Sunday rows, but promote defensively here too — matching the roster-
             // upload path — so a legacy or time-edited Sunday shift can never be written as a non-RDW

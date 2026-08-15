@@ -857,8 +857,9 @@ which is where you want to know), and the sticky summary chip.
 
 **Two exclusions, and each one "simplifies" into a plausible wrong answer:**
 
-- **Sundays come out.** Sunday is not contracted for any grade here — the rule is enforced in five
-  places across the app. A Sunday duty is therefore work sitting on top of the contract, and folding
+- **Sundays come out.** Sunday is not contracted for any grade here — the rule is enforced across
+  the app at every point that writes or shows a day (`SUNDAY_FORBIDDEN_TYPES` in `override-utils.js`
+  is the declaration). A Sunday duty is therefore work sitting on top of the contract, and folding
   it into the weekly figure reports a design as delivering contracted hours using time that is not
   contracted. It **flatters**. Both figures are returned; only `exSunday` is comparable to 35.
 - **A COVER WEEK COUNTS AS A FULL CONTRACTED WEEK, and the divisor is the whole rotation**

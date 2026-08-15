@@ -79,6 +79,25 @@ test('every runner config is listed in CLAUDE.md', () => {
     assert.deepEqual(missing, [], 'unlisted runner configs: ' + missing.join(', '));
 });
 
+test('and no dev-only root file is DEPLOYED — the hosting ignore list is hand-maintained too', () => {
+    // `firebase.json`'s `ignore` is a denylist, so anything new at the root ships to the live site by
+    // DEFAULT. Nothing announces that: the file is simply there, publicly fetchable, and the app
+    // works exactly as before. `playwright.webkit.mjs` shipped that way at v21.28 while its four
+    // siblings were correctly excluded — found by reading the list, which is not a control.
+    //
+    // Scoped to the two classes that are unambiguously dev-only. Test FILES were already covered by
+    // the `**/*.test.mjs` glob; runner configs are named one by one, which is exactly where a new
+    // one gets missed.
+    const hosting = JSON.parse(readFileSync(new URL('./firebase.json', import.meta.url), 'utf8'));
+    const ignore  = new Set(hosting.hosting.ignore);
+    const served  = rootFiles
+        .filter(f => f.startsWith('playwright.') || f.includes('.test.'))
+        .filter(f => !ignore.has(f) && !(f.includes('.test.') && ignore.has('**/*.test.mjs')));
+    assert.deepEqual(served, [],
+        'these dev-only files are missing from firebase.json → hosting.ignore, so they are served '
+        + 'from the live site:\n  ' + served.join('\n  '));
+});
+
 test('every root TEST file is listed in CLAUDE.md', () => {
     // The pre-commit hook covers modules on a STAGED commit. It cannot see a file added earlier and
     // never listed, and it does not look at tests at all — which is how `calendar-doc-viewer.test.mjs`

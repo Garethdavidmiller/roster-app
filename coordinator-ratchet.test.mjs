@@ -101,7 +101,9 @@ const CAPS = {
     'overtime-app.js':         1200,   // the young one — this is the cap that matters most
     // 1150 → 200 at v21.32. It was one edit from refusing, and the response was SPLIT: no rule was
     // in there to extract (the maths is in perf-stats/usage-stats/client-errors), just three
-    // unrelated cards sharing a file. What is left is the shared helpers and the re-export barrel.
+    // unrelated cards sharing a file. What is left is the shared helpers and nothing else — there
+    // is deliberately NO re-export barrel; the first cut had one and import-graph.test.mjs refused
+    // it as a cycle, so operations-app.js imports each card from its own file.
     'operations-reports.js':    200,
     'service-worker.js':       1000,
 };
