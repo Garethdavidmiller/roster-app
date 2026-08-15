@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: August 2026 — v21.20 · Updated every 0.10 version*
+*Last updated: August 2026 — v21.30 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -1304,6 +1304,22 @@ Pure date-bucketing + aggregation for the usage analytics — no DOM, no Firebas
 
 ### `perf-reporter.js`
 Anonymous page-load latency recorder (Project 0 instrumentation, v14.89; FCP + admin-exclusion v14.95) — the performance analogue of `usage-reporter.js`. `recordPageLatency(page, identity?)`: reads the browser's `PerformanceNavigationTiming` entry, buckets `responseEnd` (metric `ttfb`) and `domContentLoadedEventEnd` (metric `domReady`), **plus First Contentful Paint (metric `fcp`, from the Paint Timing API — when the page first "appears", via `getEntriesByType('paint')` with a `PerformanceObserver` fallback for a late paint)**, and writes an anonymous bucketed counter via `firebase-client.recordPerfSample` for each. **Boot phases (v20.33):** the same call also records the three phase spans (`swBoot`/`sdkLoad`/`appBoot`) — split by the pure `perf-stats.bootPhases` from the nav entry + the `myb-sdk-ready` performance mark — under the same page/mode/conn dimensions. Reads non-identifying env dimensions (PWA display mode, connection class). **When `identity` is an admin (the developer), nothing is recorded** — but the one-shot login marker is still consumed so it can't mis-time a later load. Called once per page from each coordinator at the same point as `recordUsage()`/`initErrorReporter()` (so the write satisfies `request.auth != null`). Imports `CONFIG` from `roster-data.js`. Fire-and-forget — never throws, never blocks. **No member identity and no raw millisecond value is ever stored** — only coarse buckets.
+- **The START LADDER (v21.29, external latency review) — four cumulative milestones, so the card can
+  say WHERE a slow start went.** `markMilestone(id)` writes a mark for `authBoot` (the shared boot
+  restore settled), `access` (Calendar access granted) and `rosterLive` (a CONFIRMED roster on
+  screen); `ready` is the third rung and already existed. Each gets its own deferred promise for the
+  same reason `ready` has one — reading the mark table at one arbitrary instant sampled a fifth of
+  its own population, not at random — and the deferred half is what makes `rosterLive` usable at all,
+  since the case worth measuring is the one where Firestore lands after `recordPageLatency` has run.
+  Marked from `calendar-app.js` rather than inside the modules that own the events: `firebase-client`
+  would be an import cycle, and `calendar-access` is the one module that decides whether this browser
+  may see anything, which is no place for telemetry. Observed from outside the instants are the same
+  to within a microtask. Labels + the summariser: `perf-stats.START_MILESTONES` /
+  `summariseStartMilestones`; rendered as "How far the start gets" by `operations-reports.js`.
+  **`ready` is deliberately NOT the last rung** — it fires on a cached grid as readily as a confirmed
+  one, which is right, but a device can show yesterday's roster instantly and take another two
+  seconds to confirm it.
+
 - **The `ready` milestone (v20.80) — the one the other two cannot be.** `markPageReady()` writes a
   `myb-page-ready` performance mark at the moment a page's own content is genuinely on screen, and
   `recordPageLatency` records it as metric `ready`. It exists because the v20.12 access gate quietly

@@ -305,6 +305,88 @@ function _compareVersionsDesc(a, b) {
  *  minmax(76px, 27%) ≈ 89px at 375px, "Waking the app" (14) fit and "Loading the engine" (18)
  *  ellipsised — a truncated label in one block only would break the rows' shared rhythm. The `sub`
  *  carries the precision the short label gives up, and reaches readers via the bar's aria-label. */
+/**
+ * The Calendar's START LADDER — four cumulative milestones from the moment the page began.
+ *
+ * ── WHY CUMULATIVE, WHERE BOOT_PHASES ARE SPANS ─────────────────────────────────────────────────
+ *
+ * `BOOT_PHASES` answers "which STAGE ran long" and stops at DOMContentLoaded. Everything expensive
+ * on the Calendar happens AFTER that: the auth restore, the access decision, then Firestore. Those
+ * are not stages of loading code, they are things the page waits for, and each one only makes sense
+ * as "how far into the start had we got when this happened". So they share the card's normal bands
+ * rather than the phase bands — the reader is asking the same question they ask of a page open.
+ *
+ * ── THE ONE QUESTION THIS EXISTS TO ANSWER ──────────────────────────────────────────────────────
+ *
+ * Before it, a slow Calendar was a single number and the card could not say WHERE it went. The
+ * ladder separates the three candidates, and because each milestone contains the ones above it, a
+ * reader compares adjacent rows rather than doing arithmetic: signed in fast but access slow means
+ * the gate; access fast but roster slow means Firestore.
+ *
+ * `ready` is deliberately the third rung and NOT the last. It fires on a cached grid as readily as
+ * an authoritative one, which is right — that is a roster the member can read — but it would flatter
+ * the figure if it were the end of the story, because a device can show yesterday's roster instantly
+ * and take another two seconds to confirm it. `rosterLive` is that confirmation.
+ */
+export const START_MILESTONES = /** @type {const} */ ([
+    // "Recognised", NOT "Signed in" — the card's FIRST section is "🔑 Signing in" and means an
+    // actual credential sign-in, which is a different event with a different distribution. Two
+    // near-identical names for two different things in one card is the kind of collision a reader
+    // resolves silently and wrongly. This rung is the saved session being restored, no typing.
+    { metric: 'authBoot',   label: 'Recognised',   sub: 'your saved sign-in being restored' },
+    { metric: 'access',     label: 'Unlocked',     sub: 'the Calendar deciding you may see it' },
+    { metric: 'ready',      label: 'Shifts shown', sub: 'a roster on screen, saved or current' },
+    { metric: 'rosterLive', label: 'Confirmed',    sub: 'those shifts checked against the server' },
+]);
+
+/**
+ * Roll the start ladder up for one page, in ladder order, on the card's standard bands. Same shape
+ * as `summariseBootPhases` so the card renders both blocks through one idiom. A milestone nothing
+ * has reported yet is simply absent — no scaffolding for data that does not exist.
+ * @param {Record<string, number>} samples raw `analytics/perf_<month>.samples`
+ * @param {{ page: string }} opts
+ * @returns {{ total: number, rows: Array<{ metric: string, label: string, sub: string, total: number,
+ *   quick: number, ok: number, slow: number, pctQuick: number, pctOk: number, pctSlow: number,
+ *   pctOver1s: number }> }}
+ */
+export function summariseStartMilestones(samples, { page }) {
+    /** @type {Record<string, Record<string, number>>} */
+    const perMilestone = {};
+    for (const [key, raw] of Object.entries(samples || {})) {
+        const n = Number(raw);
+        if (!Number.isFinite(n) || n <= 0) continue;
+        const parsed = parsePerfSampleKey(key);
+        if (parsed.page !== page) continue;
+        if (!START_MILESTONES.some(m => m.metric === parsed.metric)) continue;
+        (perMilestone[parsed.metric] || (perMilestone[parsed.metric] = {}))[parsed.bucket] =
+            (perMilestone[parsed.metric]?.[parsed.bucket] || 0) + n;
+    }
+    const rows = [];
+    let grand = 0;
+    for (const milestone of START_MILESTONES) {
+        const buckets = perMilestone[milestone.metric];
+        if (!buckets) continue;
+        const g = { quick: 0, ok: 0, slow: 0 };
+        for (const [bucket, n] of Object.entries(buckets)) {
+            const band = _BUCKET_GROUP[bucket];
+            if (band) g[band] += n;
+        }
+        const p = _withPct(g);
+        if (!p.total) continue;
+        rows.push({
+            metric: milestone.metric, label: milestone.label, sub: milestone.sub,
+            // The share OVER a second — the complement of pctQuick, and deliberately that way round.
+            // Every other block in this section states a bad-when-high number ("over ½s", "over 1s"),
+            // so a good-when-high column here would flip the reading direction halfway down one
+            // section with nothing but the header to say so. Same band as the neighbouring splits.
+            pctOver1s: p.total ? Math.round(((p.ok + p.slow) / p.total) * 100) : 0,
+            ...p,
+        });
+        grand = Math.max(grand, p.total);
+    }
+    return { total: grand, rows };
+}
+
 export const BOOT_PHASES = /** @type {const} */ ([
     { metric: 'swBoot',  label: 'Waking up',     sub: 'the saved offline copy starting' },
     { metric: 'sdkLoad', label: 'Loading code',  sub: 'the shared code every page needs' },

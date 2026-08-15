@@ -13,7 +13,7 @@
  */
 
 import { CONFIG, MONTH_NAMES, computeEaster, getPaydaysAndCutoffs, formatISO } from './roster-data.js';
-import { authReady } from './firebase-client.js';
+import { authReady, authBootstrap } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
 import { NOTICE_PW_OWN_DONE } from './storage-keys.js';
 import { getSession, clearSession } from './session.js';   // reconcileExpiredIdentity now runs inside calendar-access.js
@@ -26,7 +26,7 @@ import { initAboutLightbox } from './about-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
-import { recordPageLatency, markPageReady } from './perf-reporter.js';
+import { recordPageLatency, markPageReady, markMilestone } from './perf-reporter.js';
 import { initHuddleViewer } from './calendar-huddle-viewer.js';
 import { initDocViewer } from './calendar-doc-viewer.js';
 import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress, setOverrideAccess, setOverrideAccessLostHandler, monthKey, clearFetchedMonth } from './calendar-overrides.js';
@@ -94,15 +94,34 @@ function _markReadyIfGridShown() {
         // answer; what COUNTS as a roster is `showsRoster`, beside the states it reads.
         if (_teamView?.isTeamViewMode()) {
             if (_teamView.isGridShown()) markPageReady();
-        } else if (showsRoster(decideDisplay(knowledgeOf(monthKey(getDisplayYear(), getDisplayMonth()))))) {
-            markPageReady();
+            return;
         }
+        const display = decideDisplay(knowledgeOf(monthKey(getDisplayYear(), getDisplayMonth())));
+        if (showsRoster(display)) markPageReady();
+        // The LAST rung, and the reason `ready` is not the end of the ladder: a device can put
+        // yesterday's roster up instantly and take another two seconds to confirm it. Without this
+        // the card would call that load fast, which for a member checking whether their shift
+        // changed is the one question the cached grid cannot answer.
+        if (display === 'render') markMilestone('rosterLive');
     } catch { /* the metric must never be able to break the boot */ }
 }
 
 /** True once the boot has rendered EITHER the Calendar or Team View, so the ready metric knows
  *  which surface it is measuring. See `_markReadyIfGridShown`. */
 let _bootSurfaceDecided = false;
+
+// ── THE FIRST TWO RUNGS OF THE START LADDER (v21.29) ────────────────────────────────────────────
+//
+// Marked HERE rather than inside the modules that own these events, and that is deliberate: both
+// would otherwise need `perf-reporter.js`, which imports `firebase-client.js` — so marking inside
+// `firebase-client` would be an import cycle, and marking inside `calendar-access` would put
+// telemetry in the one module whose job is to decide whether this browser may see anything at all.
+// Observed from outside, the instants are the same to within a microtask.
+//
+// Deliberately NOT awaited by anything. A milestone is a record of when something happened; it must
+// never become a thing the boot waits for.
+authBootstrap.then(() => markMilestone('authBoot')).catch(() => { /* never rejects */ });
+calendarAccessReady.then(() => markMilestone('access')).catch(() => { /* never rejects */ });
 
 /** Set once `initTeamView` has run. Module-scope because `_markReadyIfGridShown` is declared above
  *  the coordinator's init block and must not close over a `teamView` that does not exist yet.

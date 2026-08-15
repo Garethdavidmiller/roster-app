@@ -9,8 +9,19 @@
  */
 import { sessionReady } from './session.js';
 import { withClaimRetry, getClientErrors, resolveClientError, getUsageStats, getPerfStats, getSignInStats } from './firebase-client.js';
-import { SPEED_GROUPS, perfVerdict, summarisePerfBy, PERF_DIMENSIONS, summariseBootPhases, THIN_SAMPLE } from './perf-stats.js';
+import { SPEED_GROUPS, perfVerdict, summarisePerfBy, PERF_DIMENSIONS, summariseBootPhases, summariseStartMilestones, THIN_SAMPLE } from './perf-stats.js';
 import { escapeHtml } from './roster-data.js';
+
+/**
+ * The privacy footer both reporting cards end on — ONE declaration, two consumers (v21.29).
+ *
+ * It was written twice, and the two copies had drifted into saying the same two things in the
+ * opposite order and slightly different words. That matters more here than ordinary duplication:
+ * it is the app's most-repeated promise to staff, and a promise phrased differently each time it
+ * appears reads as approximate. Exclusion first, anonymity last, so both cards close on the
+ * stronger claim.
+ */
+const PRIVACY_FOOTER = 'Your own (admin) loads are excluded. Anonymous — we never record who.';
 
 /**
  * Emoji + label for each page id — shared by the Usage and App Speed cards (was defined
@@ -439,7 +450,7 @@ async function initUsageCard() {
 
         const note = document.createElement('p');
         note.className = 'usage-note';
-        note.textContent = 'Anonymous — we never record who. Your own (admin) loads are excluded.';
+        note.textContent = PRIVACY_FOOTER;
         content.appendChild(note);
 
     } catch (e) {
@@ -904,6 +915,53 @@ async function initPageSpeedCard() {
         return frag;
     };
 
+    /** The START LADDER — four cumulative milestones, in order, on the card's NORMAL bands.
+     *
+     *  Sits between the boot stages and the dimensional splits because it answers the question in
+     *  between: the stages say which part of LOADING ran long and stop at DOMContentLoaded, and on
+     *  the Calendar everything expensive happens after that. Before this the card could say a page
+     *  was slow and nothing about where the time went.
+     *
+     *  Read by comparing ADJACENT rows, which is why they are cumulative and why the note says so:
+     *  signed in quickly but unlocked slowly points at the gate, unlocked quickly but shifts slow
+     *  points at Firestore. Subtracting is not asked of the reader — the rows already nest.
+     *
+     *  Renders nothing until updated devices report, and each row appears only when IT has data —
+     *  so a partly-reported ladder shows the rungs it has rather than a row of zeroes.
+     *  @param {Record<string, number>} samples @param {string} page */
+    const ladderRows = (samples, page) => {
+        const { rows } = summariseStartMilestones(samples, { page });
+        if (!rows.length) return null;
+        const frag = document.createDocumentFragment();
+        const heading = document.createElement('p');
+        heading.className = 'usage-section-label speed-dim-label';
+        heading.textContent = 'How far the start gets';
+        frag.appendChild(heading);
+        frag.appendChild(noteLine('Each step includes the ones above it, so compare neighbouring rows: a big jump is where the time went. Same bands as the rest of the card.'));
+
+        const list = document.createElement('div');
+        list.className = 'speed-rows';
+        const head = document.createElement('div');
+        head.className = 'speed-row speed-row--why speed-dual-head';
+        head.innerHTML = '<span></span><span></span>'
+            + '<span class="speed-dual-label">over 1s</span>'
+            + '<span class="speed-dual-label">loads</span>';
+        list.appendChild(head);
+        rows.forEach(r => {
+            const row = document.createElement('div');
+            row.className = 'speed-row speed-row--why';
+            const thin = r.total < THIN_SAMPLE;
+            row.innerHTML =
+                `<span class="speed-row-label">${escapeHtml(r.label)}${thin ? ' <span class="speed-thin">(few)</span>' : ''}</span>` +
+                `<span class="speed-bar" role="img" aria-label="${escapeHtml(r.sub)}: ${r.pctQuick}% quick, ${r.pctOk}% a moment, ${r.pctSlow}% slow">${segs(r)}</span>` +
+                `<span class="speed-row-count">${r.pctOver1s}%</span>` +
+                `<span class="speed-row-sub">${r.total.toLocaleString('en-GB')}</span>`;
+            list.appendChild(row);
+        });
+        frag.appendChild(list);
+        return frag;
+    };
+
     /** The whole "why" section, for the page with the most samples.
      *
      *  Deliberately NOT hardcoded to the Calendar, even though the Calendar is what prompted it and
@@ -927,6 +985,10 @@ async function initPageSpeedCard() {
         // splits below can only gesture at, so when the data exists it leads.
         const phases = phaseRows(samples, busiest.page);
         if (phases) { frag.appendChild(phases); any = true; }
+        // Then how far the START had got — the stages above stop at DOMContentLoaded, and on the
+        // Calendar the auth restore, the access decision and Firestore all happen after it.
+        const ladder = ladderRows(samples, busiest.page);
+        if (ladder) { frag.appendChild(ladder); any = true; }
         for (const dim of /** @type {Array<'conn'|'mode'|'version'>} */ (['conn', 'mode', 'version'])) {
             const block = breakdownRows(samples, busiest.page, dim);
             if (block) { frag.appendChild(block); any = true; }
@@ -991,7 +1053,7 @@ async function initPageSpeedCard() {
 
             const note = document.createElement('p');
             note.className = 'usage-note';
-            note.textContent = 'Speeds are how long the app took to respond. Groups marked "(few)" have too few loads to read into. Your own (admin) loads are excluded. Anonymous — we never record who.';
+            note.textContent = 'Speeds are how long the app took to respond. Groups marked "(few)" have too few loads to read into. ' + PRIVACY_FOOTER;
             body.appendChild(note);
         };
 
