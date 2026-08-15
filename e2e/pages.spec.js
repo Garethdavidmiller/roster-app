@@ -1,5 +1,5 @@
 import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the literal 22 — and `links: the rotation
 // length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
@@ -723,7 +723,15 @@ test('links: the sticky summary bar carries a live reading of the analysis below
     // …and it must UPDATE. Painting rest days over worked cells has to move a figure.
     const before = await chips.allTextContents();
     await page.locator('.brush-chip').first().click();          // the RD brush
-    for (let i = 0; i < 40; i++) await page.locator('.shift-cell-btn').nth(i).click();
+    // Paint until a figure MOVES, rather than a fixed 40 clicks. Same assertion, and the same worst
+    // case, but it stops at the first cell that changes anything — which matters because under
+    // WebKit the fixed loop measured 28s against this suite's 30s timeout and duly tipped over on a
+    // loaded CI runner. A test spending 93% of its budget on setup is not passing with any margin.
+    const cells = page.locator('.shift-cell-btn');
+    for (let i = 0; i < 40; i++) {
+        await clickInView(cells.nth(i));
+        if ((await chips.allTextContents()).join('\u0000') !== before.join('\u0000')) break;
+    }
     await expect.poll(() => chips.allTextContents()).not.toEqual(before);
 });
 
@@ -2247,8 +2255,8 @@ test('links grid: each line carries its own totals, and they follow an edit', as
     await expect(page.locator('#linksSummary')).toContainText(String(avg).trim());
 
     // Paint a rest day over line 1's Monday: its Mon–Sat total must fall.
-    await page.locator('#brushBar button', { hasText: 'RD' }).first().click();
-    await row1.locator('.shift-cell-btn').nth(1).click();
+    await clickInView(page.locator('#brushBar button', { hasText: 'RD' }).first());
+    await clickInView(row1.locator('.shift-cell-btn').nth(1));
     await expect.poll(() => row1.locator('.tot-cell').first().textContent()).not.toBe(before);
 });
 

@@ -360,3 +360,47 @@ export function seedContractTargets(page, { spareLines = 5, designIds = ['unsave
         for (const id of ids) localStorage.setItem('myb_links_gen_' + id, targets);
     }, [spareLines, designIds]);
 }
+
+/**
+ * Click something WebKit reports as "outside of the viewport".
+ *
+ * Playwright auto-scrolls before every click, but inside the Links grid's sticky bars and
+ * horizontally-scrolling containers WebKit can report an element as off-screen AFTER that scroll and
+ * then keep reporting it — the click retries until the test times out. Both failures the WebKit
+ * projection found on its first branch run (v21.29) were this, and both passed locally at full
+ * speed, which is the signature of a harness limit rather than a defect: nothing in either test
+ * asserts anything about scroll position, and a real user simply scrolls.
+ *
+ * Centres the element with the DOM's own `scrollIntoView`, which WebKit honours, then clicks
+ * normally — so every actionability check still runs. Deliberately **not** `{ force: true }`: that
+ * skips those checks and would hide a control that had genuinely become unclickable, which is one of
+ * the things this suite exists to catch.
+ *
+ * @param {import('@playwright/test').Locator} locator
+ */
+export async function clickInView(locator) {
+    // Re-issued, not scrolled once. Applying a generated design leaves the Links page scrolled ~3,100px
+    // down (measured: the RD brush chip sat at top -2891 in a 1000px viewport), and the app's own
+    // scroll can land AFTER ours — so a single scrollIntoView is undone before the click and
+    // Playwright then retries an off-screen click until the test times out. Polling until the box is
+    // actually inside the viewport is what makes it deterministic rather than a race.
+    for (let i = 0; i < 20; i++) {
+        const inView = await locator.evaluate(el => {
+            // `window.scrollTo`, NOT `el.scrollIntoView`. Measured on the Links page in WebKit:
+            // scrollIntoView left `getBoundingClientRect().top` at -2891 with the window still at
+            // scrollY 3115 — it simply did not move the document, twenty times in a row. Computing
+            // the absolute position and scrolling the window does.
+            const r = el.getBoundingClientRect();
+            const inside = r.top >= 0 && r.left >= 0
+                && r.bottom <= (window.innerHeight || 0) && r.right <= (window.innerWidth || 0);
+            if (!inside) {
+                window.scrollTo(window.scrollX + r.left - (window.innerWidth  - r.width)  / 2,
+                                window.scrollY + r.top  - (window.innerHeight - r.height) / 2);
+            }
+            return inside;
+        });
+        if (inView) break;
+        await new Promise(r => setTimeout(r, 50));
+    }
+    await locator.click();
+}
