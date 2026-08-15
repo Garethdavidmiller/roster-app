@@ -59,6 +59,34 @@ import { initCalendarTooltip, initCalendarKeyboard } from './calendar-keyboard.j
 /** @type {(() => void)|null} */
 let _startCalendarWorkspace = null;
 
+/** How long the boot will wait for the local override cache before painting anything (v21.29).
+ *  Short on purpose: it is a chance for the cache to win, not a loading state. Long enough for an
+ *  IndexedDB read that has already started, far too short to be noticed if it misses. */
+const CACHE_FIRST_PAINT_MS = 90;
+
+/**
+ * Mark the page ready ONLY when a real roster grid is on screen.
+ *
+ * `markPageReady` used to be called unconditionally after the first render — and that render is
+ * frequently "Checking this month…", because a withheld grid is exactly what the knowledge model
+ * produces while the override state is unknown. So the App Speed card's "usable" figure was timing
+ * the moment the Calendar finished deciding it had nothing to show yet, which is the opposite of
+ * usable, and it did so most often on the SLOWEST loads — the ones where the data had not arrived.
+ *
+ * `render` and `stale` are both real grids: one is current, the other is labelled last-known. Both
+ * are a roster the member can read, which is what the metric claims to measure. `loading` and
+ * `unavailable` are not, and neither may be timed as though it were.
+ *
+ * Idempotent downstream (the first `markPageReady` wins), so this is safe to call after every
+ * render — which is the point: whichever render first puts a grid up is the one that counts.
+ */
+function _markReadyIfGridShown() {
+    try {
+        const shown = decideDisplay(knowledgeOf(monthKey(getDisplayYear(), getDisplayMonth())));
+        if (shown === 'render' || shown === 'stale') markPageReady();
+    } catch { /* the metric must never be able to break the boot */ }
+}
+
 // ============================================
 // CEA ROSTER CALENDAR
 // ============================================
@@ -624,7 +652,7 @@ try {
     // splash dismissal. The guides, the Huddle, the Circular and the Newsletter are reachable
     // without Calendar access on purpose — making somebody type the staff PIN to read the Railcard
     // guide would be locking the building to reach the noticeboard.
-    _startCalendarWorkspace = function startCalendarWorkspace() {
+    _startCalendarWorkspace = async function startCalendarWorkspace() {
         // validateRosterPatterns() already ran at module load in roster-data.js.
         // Only run the team-member shape check here — it's unique to this file.
         const allErrors = validateTeamMembers();
@@ -653,15 +681,15 @@ try {
         // ensureOverridesCached no longer fires a COMPETING per-month fetch for the display month —
         // that duplicate read logged a bogus "[Firestore] Duplicate override" warn per doc on
         // every launch and doubled the month's reads. (Previously called at the module tail.)
-        initInitialFetch({
+        const _initialFetch = initInitialFetch({
             isTeamViewMode: () => teamView.isTeamViewMode(),
             // Deferred: the 3-month fetch can resolve mid-swipe on a slow connection — an immediate
             // render would wipe the carousel and freeze the grid on the old month (v16.23).
-            renderCalendar: renderCalendarWhenIdle,
+            renderCalendar: () => { renderCalendarWhenIdle(); _markReadyIfGridShown(); },
             // Team view active when the 3-month fetch lands → repaint its grid from the cache
             // (v18.21 — without this an early/boot-time team view stayed base-roster-only: see
             // initInitialFetch's JSDoc for the two-sided stand-down).
-            renderTeamView: () => teamView.refreshFromCache(),
+            renderTeamView: () => { teamView.refreshFromCache(); _markReadyIfGridShown(); },
             // Phase 2 (the authoritative server read) waits for this; phase 1 (the local-cache
             // paint) deliberately does not — see AUTH_PLAN.md → E1. Since v20.12 the promise is
             // `calendarAccessReady`, which is ALREADY RESOLVED whenever this runs: the whole
@@ -675,6 +703,22 @@ try {
             onAccessLost: () => { setOverrideAccess(false); handleAccessLost(); },
         });
 
+        // ── LET THE LOCAL CACHE WIN THE FIRST PAINT (v21.29, external latency review) ────────────
+        //
+        // Phase 1 of the initial fetch reads IndexedDB with no network and no auth, and on a
+        // returning device it usually answers in a few milliseconds. But the first render used to
+        // fire SYNCHRONOUSLY beside it, so that device reliably painted "Checking this month…" and
+        // then repainted with data that had been milliseconds away — the eye's first meaningful
+        // impression of the app was a spinner it never needed to see.
+        //
+        // Bounded, and short. A cache MISS resolves false immediately, a slow read falls through at
+        // the deadline, and either way the old behaviour follows — so nothing waits on a device that
+        // has nothing to show. This is the one place in the boot where waiting is the faster answer.
+        await Promise.race([
+            _initialFetch.cacheSettled,
+            new Promise(r => setTimeout(r, CACHE_FIRST_PAINT_MS)),
+        ]);
+
         // Restore team view if the user was in it before the last refresh; else render the
         // personal calendar. renderCalendar() itself shows the first-run "choose your name"
         // prompt when no member is picked and no session exists (see its guard). (H1)
@@ -684,12 +728,7 @@ try {
             renderCalendar();
         }
 
-        // THE milestone (v20.80). Everything before this line is a page the member is looking at and
-        // cannot use, and neither of the two metrics the App Speed card already had can see it:
-        // `fcp` is the splash painting, and `domReady` fires while the access decision is still
-        // outstanding — measured at 669ms on a load whose roster arrived at 2630ms. Marked here,
-        // after the first render, because a grid on screen is what "the Calendar has opened" means.
-        markPageReady();
+        _markReadyIfGridShown();
 
         // Swipe gesture handler — see calendar-swipe.js for full implementation.
         initSwipeHandler({

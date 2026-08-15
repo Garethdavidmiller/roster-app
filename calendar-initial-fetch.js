@@ -325,6 +325,14 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
     }
   }
 
+  // Resolves the moment PHASE 1 has settled — true if the local cache painted, false if it had
+  // nothing (or threw). Exposed so the boot can give the cache a brief, bounded chance to win the
+  // first paint instead of rendering "Checking this month…" beside a cache hit that was
+  // milliseconds away. Never rejects: it is a timing signal, not a result.
+  /** @type {(v: boolean) => void} */
+  let _resolveCacheSettled = () => {};
+  const cacheSettled = /** @type {Promise<boolean>} */ (new Promise(r => { _resolveCacheSettled = r; }));
+
   (async () => {
     try {
       const startStr = formatISO(new Date(prev.getFullYear(), prev.getMonth(), 1));
@@ -334,7 +342,13 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // Deliberately NOT gated on authReady — that is the whole point of the split. It never
       // touches syncResolved/_dataLoaded: those mean "the authoritative read settled", and the chip
       // must still say "Updating…" while phase 2 runs. A cache miss returns false and paints nothing.
+      // NO `.catch()` chained here, deliberately: it would add a microtask tick to the phase-1
+      // chain, and a throw is already handled by the IIFE's own catch below, which settles the
+      // signal too. Tick parity matters because it is observable — the suite flushes a fixed
+      // number of microtasks, so an extra link makes four unrelated tests fail on the render they
+      // were asserting had happened.
       const _painted = await fetchOverridesForRangeFromCache(startStr, endStr);
+      _resolveCacheSettled(!!_painted);
       // The device holds a previously-known state for this window, so the grid may be drawn — but
       // only as `cached`, never as current (v20.40). An EMPTY cache stays `unknown`, deliberately:
       // "nothing cached" and "no overrides" are indistinguishable from here, and that conflation is
@@ -367,6 +381,9 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       if (syncChip) { /** @type {HTMLButtonElement} */ (syncChip).remove(); syncChip = null; }
       announceSync('');
     } catch (err) {
+      // Settle the first-paint signal on ANY failure path too — a boot waiting on it must never be
+      // held by an error thrown before phase 1 got to answer. Resolving twice is a no-op.
+      _resolveCacheSettled(false);
       // A retry may have already succeeded while this original request was still
       // in-flight — if so, the UI is already in a good state; don't clobber it.
       if (_origGen !== _fetchGen) return;
@@ -427,4 +444,6 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       if (isTeamViewMode()) renderTeamView(); else renderCalendar();
     }
   });
+
+  return { cacheSettled };
 }
