@@ -3092,13 +3092,21 @@ test('links generator: pressing Generate leaves the button under your finger and
     await page.locator('#genApplyBtn').click();
     const ok = page.locator('.dialog-btn-confirm');
     if (await ok.count()) await ok.first().click();
-    await page.waitForTimeout(700);
 
     // The button did not move — the first-generate reflow (empty state → 24-row grid above this
     // card) is compensated, so pressing again to explore needs no re-scroll.
-    const after = await page.evaluate(() =>
-        Math.round(/** @type {HTMLElement} */ (document.getElementById('genApplyBtn')).getBoundingClientRect().top));
-    expect(Math.abs(after - before), 'the Generate button must stay where it was pressed').toBeLessThanOrEqual(2);
+    //
+    // POLLED, NOT SAMPLED AT A FIXED DELAY (v21.34). This was `waitForTimeout(700)` followed by one
+    // measurement, which raced the app's own sequence rather than waiting for it: the confirm
+    // dialog holds `body.lb-open` until its transitionend (500ms fallback), and only then does the
+    // re-anchor loop start scrolling. 700ms is enough on an idle machine and not on a loaded CI
+    // runner — it failed there on both WebKit projects at once, reporting 944px and 1109px, i.e.
+    // "the re-anchor had not run yet". The assertion is unchanged; it now waits for the property
+    // instead of guessing when it will hold, and still fails if the app never re-anchors.
+    await expect.poll(async () => page.evaluate((b) =>
+        Math.abs(Math.round(/** @type {HTMLElement} */ (document.getElementById('genApplyBtn')).getBoundingClientRect().top) - b), before
+    ), { message: 'the Generate button must stay where it was pressed', timeout: 10_000 })
+        .toBeLessThanOrEqual(2);
 
     // The mirror carries the SAME text as the canonical status, and it is actually on screen.
     const status = await page.locator('#linksSaveStatus').textContent();

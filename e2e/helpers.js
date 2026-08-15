@@ -30,6 +30,19 @@ export function collectFatalErrors(page) {
 // The expiry below is deliberately an ARBITRARY future date, not a copy of `SESSION_MS`: these
 // tests only need a session that is unexpired, and mirroring the real term would make every spec
 // a place the policy is restated (it changed 30 → 60 at v20.47 and nothing here needed to move).
+//
+// IT ALSO SUPPRESSES THE `pw-own-2026` NOTICE, and this is the THIRD seeder to need that (v21.34).
+// `seedMember` and `seedMemberSession` both got it; this one was missed, and it is the seeder the
+// authenticated-page specs use. The notice opens 1,500ms after load on `/` and its dialog
+// intercepts pointer events, so any spec that clicks something on the Calendar after ~1.5s is
+// racing it — and loses whenever the machine is slow enough. That is what had `overtime.spec.js`'s
+// "every signed-in page offers the reviewer the pill" failing in CI while passing everywhere else:
+// its sweep starts at `/`, the burger click was still retrying at 1,500ms, and the notice then
+// covered it for the remaining 28 seconds of the timeout.
+//
+// A spec that is ABOUT the notice re-enables it with a later addInitScript removing the key —
+// later init scripts run after this one, so the remove wins (axe.spec.js and calendar.spec.js
+// both do exactly that, and are unaffected).
 export function seedSession(page, name = 'G. Miller') {
     return page.addInitScript((n) => {
         localStorage.setItem('myb_admin_session', JSON.stringify({
@@ -37,6 +50,7 @@ export function seedSession(page, name = 'G. Miller') {
             ver: 2,
             expiry: Date.now() + 90 * 24 * 60 * 60 * 1000,   // arbitrary future — NOT SESSION_MS
         }));
+        localStorage.setItem('myb_notice_pw_own_2026_done', '1');
     }, name);
 }
 
