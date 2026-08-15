@@ -20,7 +20,7 @@ import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSess
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
-import { TYPES, PILL_TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, whenOverridesReady, isOverrideCacheLoaded } from './admin-overrides.js';
+import { TYPES, PILL_TYPES, getAllOverrides, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, whenOverridesReady, isOverrideCacheLoaded, hasOverrideAuthorityFor, ensureMemberLoaded } from './admin-overrides.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
 
@@ -35,7 +35,7 @@ import { isRestShift, computePeriodDeleteIds, mergeBookedPeriods, composeOtherVa
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
-import { recordPageLatency, markPageReady } from './perf-reporter.js';
+import { recordPageLatency, markPageReady, markMilestone } from './perf-reporter.js';
 
 
 /**
@@ -894,7 +894,11 @@ export function init() {
         // shifts (a real <12h rest gap missed) and the AL entitlement check would read zero existing
         // leave. Refuse to validate/save against it and prompt a reload (Finding #2, v16.97). The
         // finally restores the button; this returns BEFORE the misleading validation runs.
-        if (!isOverrideCacheLoaded()) return showError("Couldn't load saved changes — reload the page before making changes.");
+        // ASK ABOUT THIS MEMBER (v21.38). It used to ask whether the load had succeeded, which was the
+        // same question while the load fetched everybody. Now it is not: the cache can be loaded and
+        // hold nothing about the member on screen, and the checks below (rest gap, AL entitlement)
+        // would then be built from an absence they cannot distinguish from an empty week.
+        if (!hasOverrideAuthorityFor(fieldMember?.value)) return showError("Still loading this member's saved changes — try again in a moment.");
 
         // Validate shift duration and rest-gap rules
         const ruleErrors = validateShiftRules(toSave, memberName, toDelete);
@@ -1004,6 +1008,11 @@ export function init() {
             hideALConfirm();
             resetTableMemberFilter(); // also calls renderTable internally
             renderWeekGrid();
+            // The new member's overrides may never have been read. renderWeekGrid paints a "loading"
+            // week for an uncovered member rather than an empty one — an empty week is a claim, and
+            // it would be a false one. ensureMemberLoaded is a no-op for anyone already covered, so
+            // switching back to a member costs nothing and flashes nothing.
+            ensureMemberLoaded(chosen).catch(() => { /* the load path renders its own retry */ });
         };
         if (confirmNavigate(go)) { go(); return; }
         // Revert the dropdown to the previously confirmed member while the banner waits
@@ -1290,7 +1299,7 @@ export function init() {
                 deleteIds.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
                 await batch.commit();
             });
-            setAllOverrides(getAllOverrides().filter(o => !idSet.has(o.id)));
+            removeFromCache(idSet);   // drops the deleted rows; does NOT widen coverage (v21.38)
             renderTable();
             updateALBanner();
             updateALBookedBox();
@@ -1629,7 +1638,13 @@ export function init() {
             markChanged,
             onEditRow: handleEdit,
         });
-        loadOverrides(); // internally calls renderWeekGrid() after data loads
+        // Loads the SELECTED MEMBER only (v21.38) — see admin-override-coverage.js. `rosterLive` is
+        // the ladder's last rung and, on this page, the moment writes are safe: `ready` above fires
+        // when the working surface appears, which is BEFORE the override cache exists, so a card
+        // reading `ready` alone would report Admin fully ready while Saved Changes was still a
+        // skeleton and every save was still being refused. Only a SUCCESSFUL load qualifies — a
+        // failed one leaves the page visible and unusable, which is the opposite of the claim.
+        loadOverrides().then(() => { if (isOverrideCacheLoaded()) markMilestone('rosterLive'); });
 
         // If arriving via deep-link (e.g. from the AL lightbox), open and scroll to the target card.
         // Look the target up by ID, never `querySelector(location.hash)` — a malformed hash (#[, #%, #..)

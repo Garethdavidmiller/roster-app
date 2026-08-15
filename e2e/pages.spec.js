@@ -1169,6 +1169,78 @@ test('a tips panel with more below the fold says so, and stops saying it at the 
     await expect(panel).not.toHaveClass(/\bhas-more\b/);
 });
 
+// ── THE STAGED OVERRIDE LOAD (v21.38, external review) ──────────────────────────────────────────
+//
+// Admin used to read the newest few thousand documents of the whole collection on every open and
+// filter them locally. It now reads the selected member, and the collection only when the All-staff
+// view asks. The claim is entirely about WHICH QUERY RUNS, and that is invisible from the rendered
+// table — both versions draw a correct-looking list. So these read `__E2E.whereCalls`, which the
+// stub records for exactly this reason.
+test('admin boot reads ONE member, not the whole overrides collection', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    // Asserted against the LIVE field rather than a hardcoded name: admin restores its own selected
+    // member (saved, or the first in the list), which is not the session's member — an earlier draft
+    // of this assumed it was and failed against perfectly correct code.
+    const { wheres, selected } = await page.evaluate(() => ({
+        wheres: (window.__E2E?.whereCalls || []).filter(w => w[0] === 'memberName'),
+        selected: /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'))?.value,
+    }));
+    expect(wheres.length, 'the boot load must filter by memberName').toBeGreaterThan(0);
+    expect(wheres[0], 'and by the member the page is actually showing')
+        .toEqual(['memberName', '==', selected]);
+});
+
+test('admin: switching member fetches THAT member, and their week is not drawn as empty first',
+    async ({ page }) => {
+        // The silent-wrong-answer case. An unfetched member and a member with a clear week produce
+        // the same empty slice, so painting the grid before their data lands would show seven
+        // base-roster days and read as "nothing recorded for them".
+        await seedSession(page, 'G. Miller');
+        await page.goto('/admin.html');
+        await page.waitForSelector('.day-row', { timeout: 10000 });
+
+        const select = page.locator('#fieldMember');
+        const other = await select.evaluate((el) => {
+            const sel = /** @type {HTMLSelectElement} */ (el);
+            const opt = [...sel.options].find(o => o.value && o.value !== sel.value);
+            return opt ? opt.value : '';
+        });
+        expect(other, 'the roster needs a second selectable member for this test').not.toBe('');
+
+        await select.selectOption(other);
+        await expect.poll(async () => page.evaluate(() => (window.__E2E?.whereCalls || [])
+            .filter(w => w[0] === 'memberName').map(w => w[2])),
+        { message: 'selecting a member must fetch that member' }).toContain(other);
+        // And the grid comes back: the loading state is a moment, not a dead end.
+        await expect(page.locator('.day-row').first()).toBeVisible({ timeout: 10000 });
+    });
+
+test('admin: "All staff" fetches everyone rather than listing whoever happened to be loaded',
+    async ({ page }) => {
+        // A short list that looks complete is the failure the query-cap banner exists to prevent one
+        // level up; rendering All staff from a per-member cache would be the same defect earlier.
+        await seedSession(page, 'G. Miller');
+        await page.goto('/admin.html');
+        await page.waitForSelector('.day-row', { timeout: 10000 });
+
+        // Saved Changes is a collapsible card and ships collapsed, so the toggle exists but is not
+        // reachable until it is opened — the same route a manager takes.
+        await page.locator('#overridesToggleHeader').click();
+        const showAll = page.locator('#showAllOverridesBtn');
+        await expect(showAll).toBeVisible();
+        const before = await page.evaluate(() => window.__E2E?.docReads || 0);
+        await showAll.click();
+
+        await expect.poll(async () => page.evaluate(() => window.__E2E?.docReads || 0),
+            { message: 'turning on All staff must run a collection read' })
+            .toBeGreaterThan(before);
+        await expect(showAll, 'and the toggle flips so it can be turned back off')
+            .toHaveText('This member only');
+    });
+
 test('admin: selecting a pill with hours causes no horizontal blowout (touch layout)', async ({ page }) => {
     // 360px = the most common Android CSS width (1080 physical ÷ 3, e.g. Samsung) — the
     // width where the second-round residue (the nowrap bulk-time-group) actually clipped.

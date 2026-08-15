@@ -14,10 +14,12 @@
 import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadges,
          isSunday, DAY_NAMES, MONTH_ABB, escapeHtml, TIME_RE, parseISODate } from './roster-data.js';
 import { isRestShift, isForbiddenOnSunday, shouldReplaceOverride, buildOverrideWrite, buildOverrideCacheRecord } from './override-utils.js';
-import { db, collection, query, orderBy, limit, getDocs,
+import { db, collection, query, where, orderBy, limit, getDocs,
          deleteDoc, doc, serverTimestamp, writeBatch, auth, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
+import { emptyCoverage, withMember, withAll, hasAuthorityFor, coversEveryone, replaceMemberSlice } from './admin-override-coverage.js';
 import { sessionReady } from './session.js';
 import { parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
+import { checkShiftRules } from './admin-shift-rules.js';
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 /** @type {Record<string, any>} */
@@ -133,9 +135,32 @@ export function whenOverridesReady() { return _overridesReady; }
 // check this flag and REFUSE to write on a never-successfully-loaded cache (with a clear "reload" message),
 // rather than corrupt data. Set true by a successful loadOverrides OR an explicit setAllOverrides; once
 // true it stays true (a later refresh failure leaves the last-good data intact — safe to keep writing).
-let _cacheLoadedOk = false;
-/** @returns {boolean} True once the override cache has been authoritatively populated at least once. */
-export function isOverrideCacheLoaded() { return _cacheLoadedOk; }
+//
+// ── IT IS A COVERAGE RECORD, NOT A FLAG (v21.38, external review) ───────────────────────────────
+//
+// It was a boolean, and that was honest while the load fetched the entire collection: succeeding
+// meant knowing everything about everybody. The load is now staged — the SELECTED MEMBER on the
+// critical path, everyone else only when the All-staff view asks — so "the load succeeded" and "we
+// know about this member" became different questions, and answering the second with the first would
+// re-open every failure listed above on the one path least likely to be tested: a member selected
+// before their slice has arrived.
+//
+// The rules live in `admin-override-coverage.js`, pure and tested, because an empty slice and an
+// unfetched member are indistinguishable by looking at the data — which is exactly why the data is
+// never the thing asked.
+/** @type {import('./admin-override-coverage.js').Coverage} */
+let _coverage = emptyCoverage();
+
+/** @returns {boolean} True once the override cache has been authoritatively populated at least once.
+ *  Kept as the page-wide "has anything loaded" signal; a WRITE must ask `hasOverrideAuthorityFor`. */
+export function isOverrideCacheLoaded() { return _coverage.all || _coverage.members.length > 0; }
+
+/** @param {string|null|undefined} member @returns {boolean} May a decision about this member be
+ *  built from the cache? The question every write gate asks. */
+export function hasOverrideAuthorityFor(member) { return hasAuthorityFor(_coverage, member); }
+
+/** @returns {boolean} May a list claiming to show EVERY member be rendered? */
+export function hasAllStaffAuthority() { return coversEveryone(_coverage); }
 
 // Saved-Changes list query cap. orderBy('date','desc') + this limit means the NEWEST 5000 overrides
 // load; beyond that the oldest aren't fetched. `_overridesTruncated` records a cap hit so renderTable
@@ -153,8 +178,27 @@ export function setAllOverrides(arr) {
     // delete-path cache mutations in admin-app), so readiness is already resolved; it also lets the
     // write-path unit tests, which seed the cache via setAllOverrides() rather than loadOverrides(),
     // satisfy the whenOverridesReady() gate. (v16.85)
-    _cacheLoadedOk = true;   // an authoritative set counts as a successful load (Finding #2)
+    // AN ASSERTION OF COMPLETENESS, so it grants FULL coverage (Finding #2). Use it only when the
+    // array genuinely is the whole cache — seeding a test, or replacing everything. To DROP rows,
+    // use `removeFromCache`: a delete learns nothing and must not widen what the cache claims.
+    _coverage = withAll(_coverage);
     _resolveOverridesReady();
+}
+
+/**
+ * Drop deleted rows from the cache WITHOUT widening what the cache claims to know.
+ *
+ * The distinction `setAllOverrides` cannot make (v21.38). That one is an assertion of completeness —
+ * "this array is the whole cache" — and it grants full coverage. A delete is the opposite operation:
+ * it removes data and learns nothing. Routing a delete through the assertion made the cache claim it
+ * held every member the moment anybody deleted a booking, so the next "All staff" view would have
+ * rendered from one member's slice and called it everybody.
+ * @param {Set<string>|string[]} ids Firestore document IDs that no longer exist
+ * @returns {void}
+ */
+export function removeFromCache(ids) {
+    const set = ids instanceof Set ? ids : new Set(ids);
+    _allOverrides = _allOverrides.filter(o => !set.has(o.id));
 }
 
 /** Clears the "show all staff" toggle and re-renders the table. Call when the selected member changes. */
@@ -562,6 +606,18 @@ export function renderWeekGrid() {
 
     if (!memberName || !dateStr) {
         if (weekGrid) weekGrid.innerHTML = `<div class="week-empty">${_currentIsAdmin ? 'Select a staff member and date above to load the week.' : 'Select a date above to load the week.'}</div>`;
+        if (bulkBar)  bulkBar.style.display = 'none';
+        if (saveBtn)  saveBtn.disabled = true;
+        return;
+    }
+
+    // AN UNREAD MEMBER IS NOT A MEMBER WITH NO CHANGES (v21.38). The load is staged, so selecting
+    // somebody whose slice has not arrived would paint seven base-roster days with no overrides on
+    // them — which is exactly what a member with a clear week looks like, and an admin reading it
+    // would conclude there is nothing recorded. Saving is refused in this state anyway; this is the
+    // half that stops it being MISREAD. Cleared by the re-render `loadOverrides` runs on arrival.
+    if (!hasAuthorityFor(_coverage, memberName)) {
+        if (weekGrid) weekGrid.innerHTML = '<div class="week-empty" role="status">Loading this member\'s saved changes…</div>';
         if (bulkBar)  bulkBar.style.display = 'none';
         if (saveBtn)  saveBtn.disabled = true;
         return;
@@ -986,7 +1042,10 @@ export async function executeSave(toSave, toDelete = []) {
     // A failed initial load leaves the cache empty; the just-computed toSave/toDelete would still write
     // correctly to Firestore, but the admin is operating blind (their Saved-Changes view never loaded).
     // Refuse uniformly with the other write paths and prompt a reload (Finding #2, v16.97).
-    if (!_cacheLoadedOk) {
+    // Every member this batch touches, not merely the one in the dropdown: the entries carry their
+    // own `memberName`, and authority is now per member, so the question has to be asked of each.
+    const writeMembers = [...new Set([memberName, ...toSave.map(e => e.memberName)].filter(Boolean))];
+    if (writeMembers.some(m => !hasAuthorityFor(_coverage, m))) {
         _showError("Couldn't load your saved changes — reload the page before making changes.");
         if (saveBtn) { saveBtn.textContent = 'Save changes'; }
         updateSaveBtn();
@@ -1082,33 +1141,77 @@ export function _hasStagedEdits() {
  * Loads all override documents from Firestore into _allOverrides,
  * then renders the table, week grid, and calls onAfterSave to refresh AL/sick banners.
  */
-export async function loadOverrides() {
+/** Guards against overlapping loads. A Retry tap while a load is in flight must not start a second
+ *  one — two snapshots resolving out of order would let the older win, which is the eviction bug the
+ *  Calendar had to fix in `_monthOwner`. The in-flight promise is returned instead. */
+/** @type {Promise<void>|null} */
+let _loadInFlight = null;
+
+/**
+ * Load override documents into `_allOverrides`, then render the table, week grid and banners.
+ *
+ * STAGED: the selected member on the critical path, everyone else only when the All-staff view asks.
+ * Why one member is the right scope — and why a date window is not — is argued in
+ * `admin-override-coverage.js`, which owns the concept.
+ *
+ * `everyone` defaults to whatever the cache already claims, so once an admin has opened All staff,
+ * later resyncs keep the list whole rather than silently narrowing it under them.
+ * @param {{ everyone?: boolean, member?: string }} [opts]
+ * @returns {Promise<void>}
+ */
+export async function loadOverrides(opts = {}) {
+    if (_loadInFlight) return _loadInFlight;
+    const run = _loadOverridesInner(opts).finally(() => { _loadInFlight = null; });
+    _loadInFlight = run;
+    return run;
+}
+
+/** @param {{ everyone?: boolean, member?: string }} opts @returns {Promise<void>} */
+async function _loadOverridesInner(opts) {
     const tableBody = document.getElementById('overrideTableBody');
     const listCount = document.getElementById('listCount');
+    const fieldMember = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
+    const everyone = opts.everyone ?? coversEveryone(_coverage);
+    const member   = opts.member ?? fieldMember?.value ?? '';
+    // Nobody selected and not asking for everyone: there is no query to run, and pretending to have
+    // loaded would grant authority over a member we never read.
+    if (!everyone && !member) { _resolveOverridesReady(); return; }
     // Shimmer skeleton (v16.73) — three placeholder rows shaped like the cards being fetched.
     // role="status" + visually-hidden text keeps it announced for screen readers.
     if (tableBody) tableBody.innerHTML =
         '<div role="status"><span class="visually-hidden">Loading saved changes…</span></div>'
         + '<div class="skeleton-row" aria-hidden="true"></div>'.repeat(3);
     try {
-        // Fetch CAP+1 (orderBy date DESC) so "genuinely more than CAP exist" is distinguishable from
-        // "exactly CAP" — the +1 row only returns in the former case (mirrors getClientErrors' limit+1
-        // truncation probe, so the banner never false-alarms at exactly CAP).
-        const snap = await getDocs(query(collection(db, COLLECTIONS.overrides), orderBy('date', 'desc'), limit(OVERRIDES_QUERY_CAP + 1)));
-        _allOverrides = [];
-        snap.forEach(/** @param {any} s */ s => _allOverrides.push({ id: s.id, ...s.data() }));
-        // More than CAP means the OLDEST overrides beyond it aren't shown — surface that rather than
-        // silently showing a partial list (no-silent-caps). Trim the probe row so the list is exactly the
-        // CAP newest; editing recent dates is unaffected, only very old bookings are omitted. (Finding #8)
-        _overridesTruncated = snap.size > OVERRIDES_QUERY_CAP;
-        if (_overridesTruncated) {
-            _allOverrides.length = OVERRIDES_QUERY_CAP;   // drop the +1 probe row (already date-desc sorted)
-            console.warn(`[Admin] Override query hit the ${OVERRIDES_QUERY_CAP}-doc cap — oldest overrides not loaded. Consider archiving old overrides.`);
+        if (everyone) {
+            // Fetch CAP+1 (orderBy date DESC) so "genuinely more than CAP exist" is distinguishable from
+            // "exactly CAP" — the +1 row only returns in the former case (mirrors getClientErrors' limit+1
+            // truncation probe, so the banner never false-alarms at exactly CAP).
+            const snap = await getDocs(query(collection(db, COLLECTIONS.overrides), orderBy('date', 'desc'), limit(OVERRIDES_QUERY_CAP + 1)));
+            /** @type {any[]} */ const rows = [];
+            snap.forEach(/** @param {any} d */ d => rows.push({ id: d.id, ...d.data() }));
+            // More than CAP means the OLDEST overrides beyond it aren't shown — surface that rather than
+            // silently showing a partial list (no-silent-caps). Trim the probe row so the list is exactly the
+            // CAP newest; editing recent dates is unaffected, only very old bookings are omitted. (Finding #8)
+            _overridesTruncated = snap.size > OVERRIDES_QUERY_CAP;
+            if (_overridesTruncated) {
+                rows.length = OVERRIDES_QUERY_CAP;   // drop the +1 probe row (already date-desc sorted)
+                console.warn(`[Admin] Override query hit the ${OVERRIDES_QUERY_CAP}-doc cap — oldest overrides not loaded. Consider archiving old overrides.`);
+            }
+            _allOverrides = rows;
+            _coverage = withAll(_coverage);
+        } else {
+            // ONE MEMBER, EVERY DATE. No cap and no truncation flag: a single member cannot approach
+            // the collection cap, so the partial-list banner would be claiming something untrue.
+            const snap = await getDocs(query(collection(db, COLLECTIONS.overrides), where('memberName', '==', member)));
+            /** @type {any[]} */ const fresh = [];
+            snap.forEach(/** @param {any} d */ d => fresh.push({ id: d.id, ...d.data() }));
+            // A replace, not a merge — the read is authoritative for this member, so a document it
+            // does not contain has been deleted and must not survive in the cache.
+            _allOverrides = replaceMemberSlice(_allOverrides, member, fresh);
+            _coverage = withMember(_coverage, member);
         }
-        _cacheLoadedOk = true;   // the cache now holds authoritative data — write paths may proceed (Finding #2)
         renderTable();
-        const fieldMember = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
-        const fieldDate   = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
+        const fieldDate = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
         // Do NOT re-render over staged edits: on a slow first load the admin can already have
         // rendered the grid (from the empty cache) and selected pills — an unconditional
         // renderWeekGrid() here rebuilt every row and silently discarded them, while
@@ -1119,8 +1222,18 @@ export async function loadOverrides() {
     } catch (err) {
         console.error('[Admin] Load failed:', err);
         if (tableBody) {
-            tableBody.innerHTML = '<div class="override-state">Couldn\'t load saved changes.<br><span class="reload-link" id="reloadLink">↻ Reload page</span></div>';
-            document.getElementById('reloadLink')?.addEventListener('click', () => location.reload());
+            // RETRY, NOT RELOAD (v21.38, external review). The refusal to render a list we could not
+            // read is right and stays; throwing away the whole page to fix one failed query was not.
+            // A reload re-runs sign-in, the SW handshake and every other card on the page to recover
+            // from something that is usually one dropped request — and it discards any staged edits
+            // in the week grid, which is a worse outcome than the error it is recovering from.
+            tableBody.innerHTML = '<div class="override-state">Couldn\'t load saved changes.<br><span class="reload-link" id="retryLoadLink" role="button" tabindex="0">↻ Retry</span></div>';
+            const retry = document.getElementById('retryLoadLink');
+            const again = () => { loadOverrides(opts); };
+            retry?.addEventListener('click', again);
+            retry?.addEventListener('keydown', /** @param {KeyboardEvent} e */ e => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); again(); }
+            });
         }
         if (listCount) listCount.textContent = 'Error';
     } finally {
@@ -1128,6 +1241,20 @@ export async function loadOverrides() {
         // loadOverrides() calls after saves/resyncs re-resolve the already-resolved promise, a no-op).
         _resolveOverridesReady();
     }
+}
+
+/**
+ * Ensure the cache holds this member authoritatively, fetching if it does not.
+ *
+ * The member-change path's entry point. A no-op — and importantly a SYNCHRONOUSLY-resolved one —
+ * when the member is already covered, so switching back to somebody already loaded costs nothing
+ * and does not flash a loading state.
+ * @param {string} member
+ * @returns {Promise<void>}
+ */
+export async function ensureMemberLoaded(member) {
+    if (hasAuthorityFor(_coverage, member)) return;
+    await loadOverrides({ everyone: false, member });
 }
 
 /**
@@ -1403,6 +1530,15 @@ function _initOverridesTable() {
     document.getElementById('showAllOverridesBtn')?.addEventListener('click', () => {
         if (!(_currentIsAdmin || _currentIsManager)) return;  // defence-in-depth: self-service can't view all staff
         _tableShowAllOverrides = !_tableShowAllOverrides;
+        // TURNING IT ON IS A DIFFERENT QUESTION, SO IT MAY NEED A DIFFERENT READ (v21.38). The cache
+        // holds whichever members have been selected; rendering "All staff" from that would list a
+        // handful of people and call it everybody — a short list that looks complete, which is the
+        // failure the query-cap banner exists to prevent one level up. Fetch the collection first.
+        // Turning it OFF needs nothing: the member's slice is already covered.
+        if (_tableShowAllOverrides && !coversEveryone(_coverage)) {
+            loadOverrides({ everyone: true });   // renders on completion, and shows its own retry on failure
+            return;
+        }
         renderTable();
     });
 }
@@ -1444,27 +1580,6 @@ function _initTimeInputs() {
 }
 
 // ── SHIFT RULE HELPERS ────────────────────────────────────────────────────────
-/** @param {string} timeStr */
-function _parseMinutes(timeStr) {
-    const [h, m] = timeStr.split(':').map(Number);
-    return h * 60 + m;
-}
-
-/**
- * @param {string} startStr
- * @param {string} endStr
- */
-function _effectiveEndMins(startStr, endStr) {
-    const s = _parseMinutes(startStr), e = _parseMinutes(endStr);
-    return e >= s ? e : e + 24 * 60;
-}
-
-/** @param {number} mins */
-function _fmtHours(mins) {
-    const h = mins / 60;
-    return (Number.isInteger(h) ? h : h.toFixed(1)) + 'h';
-}
-
 /**
  * Returns the effective shift value for a member on a date, checking the
  * pending save batch first, then _allOverrides, then the base roster.
@@ -1491,6 +1606,12 @@ export function getEffectiveShift(memberName, dateISO, batch, toDelete = []) {
 /**
  * Validates max shift duration (12 h) and minimum rest gap (12 h) for toSave.
  * Marks failing rows with .row-error in the DOM.
+ *
+ * DECIDES ELSEWHERE, PAINTS HERE (v21.38): the rules are `checkShiftRules` in
+ * `admin-shift-rules.js`, which has no DOM and no cache — the two things that made a legally
+ * load-bearing check awkward to test. This resolves the adjacent days, then marks exactly the rows
+ * it was told failed; deriving the rows again from the messages is how a highlight and its sentence
+ * come to disagree.
  * @param {any[]}  toSave
  * @param {string} memberName
  * @param {string[]} [toDelete]  Override doc IDs being deleted in the same save (v16.83) — so an
@@ -1498,81 +1619,24 @@ export function getEffectiveShift(memberName, dateISO, batch, toDelete = []) {
  * @returns {string[]} Human-readable error strings (empty = valid)
  */
 export function validateShiftRules(toSave, memberName, toDelete = []) {
-    const weekGrid   = document.getElementById('weekGrid');
-    /** @type {string[]} */
-    const ruleErrors = [];
-
-    toSave.forEach(entry => {
-        const { date, value, type } = entry;
-        if (TYPES[type]?.fixed) return;
-        // Other-family values carry the grammar FLAVOUR[" RDW"][" HH:MM-HH:MM"] — a naive
-        // split('-') would shred it into NaN and silently skip every check. No times →
-        // nothing to validate (the pay defaults apply); times → validate the time part.
-        let checkValue = value;
-        if (type === 'other') {
-            const _t = parseOtherValue(value);
-            if (!_t || !_t.time) return;
-            checkValue = _t.time;
-        }
-        if (!checkValue || !checkValue.includes('-')) return;
-
-        const [startStr, endStr] = checkValue.split('-');
-        const startMins = _parseMinutes(startStr);
-        const endMins   = _effectiveEndMins(startStr, endStr);
-
-        const markRow = () => {
-            weekGrid?.querySelector(`.day-row[data-date="${date}"]`)?.classList.add('row-error');
-        };
-
-        const duration = endMins - startMins;
-        if (duration > 12 * 60) {
-            markRow();
-            ruleErrors.push(`${formatDisplay(date)}: shift is ${_fmtHours(duration)} — max is 12h`);
-            return;
-        }
-
-        // Check rest gap against adjacent days
-        [-1, 1].forEach(delta => {
-            const adjDate = parseISODate(date);
-            adjDate.setDate(adjDate.getDate() + delta);
-            const adjISO   = formatISO(adjDate);
-            let adjShift = getEffectiveShift(memberName, adjISO, toSave, toDelete);
-            // Adjacent Other-family values: a TIMED Other day constrains via its actual times; an
-            // untimed as-base Other day constrains via its BASE shift (the member attends those
-            // hours); only an untimed Other REST-day is exempt (its hours are unknowable here).
-            const _adjOther = parseOtherValue(adjShift);
-            if (_adjOther) {
-                if (_adjOther.time) {
-                    adjShift = _adjOther.time;
-                } else if (_adjOther.rdw) {
-                    return;
-                } else {
-                    const _adjMember = teamMembers.find(m => m.name === memberName);
-                    adjShift = _adjMember ? getBaseShift(_adjMember, parseISODate(adjISO)) : '';
-                    if (parseOtherValue(adjShift) || isRestShift(adjShift)) return;
-                }
-            }
-            if (!adjShift || !adjShift.includes('-')) return;
-            const [adjStart, adjEnd] = adjShift.split('-');
-            if (delta === -1) {
-                const prevEnd = _effectiveEndMins(adjStart, adjEnd);
-                const gap = startMins + 24 * 60 - prevEnd;
-                if (gap < 12 * 60) {
-                    markRow();
-                    ruleErrors.push(`${formatDisplay(date)}: only ${_fmtHours(gap)} rest after ${formatDisplay(adjISO)} shift — need 12h`);
-                }
-            } else {
-                const nextStart = _parseMinutes(adjStart);
-                const gap = nextStart + 24 * 60 - endMins;
-                if (gap < 12 * 60) {
-                    markRow();
-                    ruleErrors.push(`${formatDisplay(date)}: only ${_fmtHours(gap)} rest before ${formatDisplay(adjISO)} shift — need 12h`);
-                }
-            }
-        });
+    const weekGrid = document.getElementById('weekGrid');
+    const memberObj = teamMembers.find(m => m.name === memberName);
+    const { errors, failedDates } = checkShiftRules({
+        toSave,
+        isFixedType: t => Boolean(TYPES[t]?.fixed),
+        resolveShift: iso => getEffectiveShift(memberName, iso, toSave, toDelete),
+        baseShiftFor: iso => (memberObj ? getBaseShift(memberObj, parseISODate(iso)) : ''),
+        formatDate: formatDisplay,
+        shiftDate: (iso, delta) => {
+            const d = parseISODate(iso);
+            d.setDate(d.getDate() + delta);
+            return formatISO(d);
+        },
     });
-
-    return ruleErrors;
+    failedDates.forEach(date => {
+        weekGrid?.querySelector(`.day-row[data-date="${date}"]`)?.classList.add('row-error');
+    });
+    return errors;
 }
 
 // ── RANGE ABSENCE SAVE ───────────────────────────────────────────────────────
@@ -1608,7 +1672,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     // If that initial read FAILED the cache is empty, not merely cold — writing now would build the
     // exact duplicate/erased-Sunday corruption the wait above guards against. Refuse rather than corrupt;
     // the caller surfaces a "reload before recording" message (Finding #2, v16.97).
-    if (!_cacheLoadedOk) throw new Error('cache/load-failed');
+    if (!hasAuthorityFor(_coverage, memberName)) throw new Error('cache/load-failed');
     if (!auth.currentUser) throw new Error('auth/session-expired');
 
     const memberObj = teamMembers.find(m => m.name === memberName);

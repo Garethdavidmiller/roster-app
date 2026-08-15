@@ -45,7 +45,16 @@ export const persistentLocalCache = () => marker('cache');
 // getDocs, which falls back to the shared docs array when no per-path seed exists.
 export const collection = (/** @type {any} */ _db, /** @type {any} */ path) => ({ __stub: 'collection', path });
 export const query = () => marker('query');
-export const where = () => marker('where');
+// where() RECORDS its constraint (v21.38), like writeBatch records its writes and doc captures its
+// path. The staged Admin load's whole claim is about WHICH query runs — one member versus the
+// collection — and that is invisible from the rendered DOM: both produce a correct-looking table.
+// Counting reads is not enough either; a spec has to be able to say what was asked for.
+export const where = (/** @type {any} */ field, /** @type {any} */ op, /** @type {any} */ value) => {
+  const e2e = globalThis.__E2E || {};
+  (e2e.whereCalls = e2e.whereCalls || []).push([field, op, value]);
+  globalThis.__E2E = e2e;
+  return marker('where');
+};
 export const orderBy = () => marker('orderBy');
 export const limit = () => marker('limit');
 // doc(db, collection, id) captures its PATH (v18.97) so deleteDoc below can tell which row was
