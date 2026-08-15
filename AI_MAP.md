@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: August 2026 — v21.30 · Updated every 0.10 version*
+*Last updated: August 2026 — v21.40 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -955,14 +955,6 @@ What a save did, said day by day (v21.38). Pure.
 - One line per DATE, in date order — not per document and not grouped by kind, because a manager checks a receipt against their intention and their intention was a run of days
 - A REMOVED day is named, not omitted: an absence in a receipt reads as the receipt being short, not as a change. Its old value is deliberately not repeated (it invites reading as the new one)
 - `removed` must be captured BEFORE the batch commits — afterwards the rows are gone
-
-### `admin-tasks.js`
-Admin's task-focus row (v21.38) — four jobs on one page, one focused at a time.
-- `ADMIN_TASKS` — the four tasks in order, each naming the card it focuses and (where the card collapses) its body/chevron pair
-- `DEFAULT_TASK` — `'shift'`. Change a Shift for **everyone, every time**: not role-dependent and not remembered, because a page that opens somewhere different each time defeats the muscle memory a fixed starting point buys
-- `taskForHash(hash)` / `initialTask(hash)` — a deep link like `#book-annual-leave` still lands on its card AND selects the matching chip; a hash naming anything else falls back to the default rather than to no selection
-- `initAdminTasks({ onFocus })` — renders the chips, wires them, focuses the opening task. **Focuses by CLICKING the card's own collapse control**, never by setting classes: the state is three things `initCardCollapse` keeps in step, and a second writer of one leaves an arrow contradicting its card
-- Reorders nothing — the desktop grid's row order is what makes the mobile stack work (`.claude/rules/css-tokens.md`)
 
 ### `admin-shift-types.js`
 The shift-type table (v21.38). Pure data, no imports — which is what lets every consumer read it without importing the coordinator back.

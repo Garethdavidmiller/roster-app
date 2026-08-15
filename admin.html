@@ -130,13 +130,6 @@
         </select>
     </div>
 
-    <!-- ==================== TASK FOCUS ====================
-         Four jobs, one page, one selected member. Sits directly under the member selector because
-         that is the context all four share: pick somebody once, then do any of these to them.
-         Populated by admin-tasks.js; empty markup here so nothing renders if the module never runs
-         (progressive enhancement — every card is still reachable by scrolling). -->
-    <div class="admin-task-row" id="adminTaskRow" role="group" aria-label="What do you want to do?"></div>
-
     <!-- ==================== OVERRIDE FORM ==================== -->
     <div class="col-main">
     <div class="card" id="change-shift">
@@ -349,7 +342,11 @@
         <div class="card-collapsible-body" id="overridesBody">
         <div class="list-toolbar">
             <span class="list-count" id="listCount">Loading…</span>
-            <label class="override-selectall"><input type="checkbox" id="selectAllOverrides" aria-label="Select all changes"> All</label>
+            <!-- "Select all", not "All" (v21.40): it sits directly beside the "All staff" scope
+                 button, and two adjacent controls both labelled "All" meaning different things
+                 (tick every row / show every member) is a coin-flip for anyone reading quickly.
+                 The visible label now also matches the accessible name instead of abbreviating it. -->
+            <label class="override-selectall"><input type="checkbox" id="selectAllOverrides"> Select all</label>
             <button type="button" id="showAllOverridesBtn" class="btn-show-all-overrides" hidden>All staff</button>
             <select id="overridesMonthFilter" class="overrides-month-filter" aria-label="Filter by month">
                 <option value="">All months</option>

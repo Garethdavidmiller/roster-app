@@ -36,14 +36,7 @@ import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady, markMilestone } from './perf-reporter.js';
-import { initAdminTasks } from './admin-tasks.js';
 
-
-/** The task row's handle, so the paths that move the user BETWEEN cards can keep the chips honest.
- *  Discarding it was what let the row say "Saved changes" over the Change-a-Shift card after an
- *  Edit (v21.38, review). Module scope because `showInChangeAShift` lives outside `initAuthorised`.
- *  @type {{ focusTask: (id: string) => void } | null} */
-let _adminTasks = null;
 
 /**
  * Programmatically open a collapsible card body, keeping the collapse control's ARIA state
@@ -1087,11 +1080,6 @@ export function init() {
             updateALBanner(); updateALBookedBox(); updateSickBookedBox();
             lsSet(SELECTED_MEMBER, memberName);
             renderWeekGrid();
-            // The chip follows the user (v21.38, review). Both jumps into the week editor moved the
-            // page and left the row saying "Saved changes" or "Annual leave" over the Change-a-Shift
-            // card — two answers on one screen, and nothing could re-sync it because the row's handle
-            // was being discarded.
-            _adminTasks?.focusTask('shift');
             /** @type {HTMLElement} */ (document.querySelector('.card')).scrollIntoView({ behavior: 'smooth', block: 'start' });
         };
         if (confirmNavigate(go)) go();
@@ -1121,7 +1109,6 @@ export function init() {
             // Align the saved-changes month filter so the new days aren't filtered out.
             const monthFilter = /** @type {HTMLSelectElement} */ (document.getElementById('overridesMonthFilter'));
             if (monthFilter) monthFilter.value = date.substring(0, 7);
-            _adminTasks?.focusTask('shift');   // the chip follows the user (v21.38, review)
             renderTable();
             renderWeekGrid();
             // The grid was rebuilt fresh from saved data — no pending edits remain.
@@ -1580,18 +1567,6 @@ export function init() {
     initCardCollapse('alToggleHeader',          'alBody',            'alChevron');
     initCardCollapse('sickToggleHeader',        'sickBody',          'sickChevron');
     initCardCollapse('overridesToggleHeader',   'overridesBody',     'overridesChevron');
-    // AFTER the collapsibles (v21.38). The task row focuses a card by CLICKING its real chevron
-    // rather than setting classes, so the controls have to exist first — wiring it earlier would
-    // silently do nothing to the collapse state while still moving the chips, which is the shape of
-    // bug where the page and its own controls disagree.
-    initAdminTasks({
-        onFocus: id => {
-            // The AL and Absence previews are computed for the selected member; refresh whichever
-            // becomes the focused task so a card opened from a chip is never showing stale figures.
-            if (id === 'leave')   _refreshAlPreview?.();
-            if (id === 'absence') _refreshSickPreview?.();
-        },
-    });
 
 
     // Admin is not a printable page (v18.71) — printing shows a branded "use the
@@ -1678,6 +1653,12 @@ export function init() {
             _setSelectValue(sickMember, fieldMember.value);
             syncMemberDisplay();
             syncSickMemberDisplay();
+            // AND REPAINT THE PREVIEWS (v21.39). Both sections render once at init, which happens
+            // BEFORE this — so setting the selects silently left two cards still showing "Select a
+            // staff member above" over a page that had one. The task row's chip handler happened to
+            // refresh them, which masked it; removing the row is what exposed it.
+            _refreshAlPreview?.();
+            _refreshSickPreview?.();
         }
         // Render bulk-bar type pills from PILL_TYPES (single source of truth with per-row pills).
         // 'other' is excluded here — the deliberate one exception: an "Other" day needs a per-row

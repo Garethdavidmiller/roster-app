@@ -637,15 +637,19 @@ export function updateSaveBtn() {
     if (gridPreview) {
         const memberName = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'))?.value;
         if (total > 0 && memberName) {
+            // THE VERB BELONGS TO EACH CLAUSE, NOT TO THE SENTENCE (v21.40). This used to read
+            // "You're about to save <n days to change>", which is what you get when one fixed verb
+            // has to cover both halves — and it was worse on a pure deletion ("about to save 2 to
+            // remove"). Each clause carries its own verb, so every combination is a sentence.
             const bits = [];
-            if (saveCount) bits.push(`${saveCount} day${saveCount > 1 ? 's' : ''} to change`);
-            if (delCount)  bits.push(`${delCount} to remove`);
+            if (saveCount) bits.push(`change <strong>${saveCount} day${saveCount > 1 ? 's' : ''}</strong>`);
+            if (delCount)  bits.push(`remove <strong>${delCount} change${delCount > 1 ? 's' : ''}</strong>`);
             // #gridPreview is an aria-live region, and updateSaveBtn() also fires on every
             // time-input keystroke — only rewrite (and thus re-announce) when the summary
             // actually changes, so typing a shift time doesn't re-read the unchanged sentence.
-            const sig = `${bits.join('|')}|${memberName}`;
+            const sig = `${saveCount}|${delCount}|${memberName}`;
             if (gridPreview.dataset.sig !== sig) {
-                gridPreview.innerHTML = `<span aria-hidden="true">🗓️</span> <span>You're about to save <strong>${bits.join(' and ')}</strong> for <strong>${escapeHtml(memberName)}</strong>.</span>`;
+                gridPreview.innerHTML = `<span aria-hidden="true">🗓️</span> <span>You're about to ${bits.join(' and ')} for <strong>${escapeHtml(memberName)}</strong>.</span>`;
                 gridPreview.dataset.sig = sig;
             }
             gridPreview.hidden = false;
@@ -712,7 +716,7 @@ function _initBulkBar() {
                 pill.setAttribute('aria-pressed', 'true');
                 _bulkActiveType = type;
                 const bulkApplyLabel = document.getElementById('bulkApplyLabel');
-                if (bulkApplyLabel) bulkApplyLabel.textContent = `Apply "${TYPES[type]?.label ?? type}" to ticked days`;
+                if (bulkApplyLabel) bulkApplyLabel.textContent = `Apply “${TYPES[type]?.label ?? type}” to ticked days`;
                 if (bulkTimeGroup) bulkTimeGroup.style.display = (TYPES[type] && !TYPES[type].fixed) ? 'flex' : 'none';
                 if (bulkStart) bulkStart.value = '';
                 if (bulkEnd)   bulkEnd.value   = '';
