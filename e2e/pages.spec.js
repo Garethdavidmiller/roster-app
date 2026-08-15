@@ -1141,6 +1141,34 @@ test('links: saving a design deleted by someone else offers a fork, and does not
 // was selected — clipping the header, member bar, and every card at the right edge.
 // Desktop never showed it (the coarse-pointer stylesheet block doesn't apply), which
 // is why this must assert element widths on the Pixel-5 project, not desktop.
+test('a tips panel with more below the fold says so, and stops saying it at the bottom', async ({ page }) => {
+    // The fade is a MASK on a scroll container: it appears in no screenshot the suite takes (no
+    // baseline captures a scrolling panel), it changes no text, and no behavioural test could
+    // notice it. So the one thing that can go wrong silently — the class never being applied, or
+    // never being cleared — is pinned here, in the suite that runs on every branch.
+    //
+    // Change a Shift is the right panel: at 390px it is ~1,100px of content in a 765px box, and it
+    // is the panel a member is most likely to be reading when they need the part below the fold.
+    await seedSession(page, 'G. Miller');
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto('/admin.html');
+    await page.locator('.btn-card-tips').first().click();
+
+    const panel = page.locator('#tipsLightboxContent');
+    await expect(panel).toBeVisible();
+    // PREMISE: this panel really does overflow. Without it the assertion below would pass happily
+    // on a panel that fits, which is the same test passing for the opposite reason.
+    await expect.poll(async () => panel.evaluate(el => el.scrollHeight - el.clientHeight),
+        { message: 'premise: the Change a Shift tips panel overflows at 390px' })
+        .toBeGreaterThan(2);
+    await expect(panel).toHaveClass(/\bhas-more\b/);
+
+    await panel.evaluate(el => { el.scrollTop = el.scrollHeight; });
+    // And it goes once there is nothing more to read — a fade that never clears is a panel that
+    // always claims to be hiding something.
+    await expect(panel).not.toHaveClass(/\bhas-more\b/);
+});
+
 test('admin: selecting a pill with hours causes no horizontal blowout (touch layout)', async ({ page }) => {
     // 360px = the most common Android CSS width (1080 physical ÷ 3, e.g. Samsung) — the
     // width where the second-round residue (the nowrap bulk-time-group) actually clipped.

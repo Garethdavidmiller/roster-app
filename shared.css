@@ -551,6 +551,21 @@ body.lb-open #stickyTotal { display: none !important; }
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
 }
+/* ── A SCROLLING PANEL SAYS SO (v21.36) ────────────────────────────────────────────────────────
+   `.lb-content` caps at 85vh and scrolls, and nothing marked the fold. At 390px the Change a Shift
+   panel runs 765px against ~1,100px of content and the Link design grid panel clips its "MULTIPLE
+   DESIGNS" heading exactly on the edge — which reads as a rendering fault, not as "there is more".
+   Both are the panels with the most to say, so the readers most in need of the rest of it are the
+   ones told least clearly that it exists.
+
+   A mask rather than an overlaid gradient: on a scroll container the mask is applied to the border
+   box, so it stays pinned at the bottom edge instead of scrolling away with the content. `has-more`
+   is toggled by overlay.js, so a panel that fits is never faded — fading the last line of a SHORT
+   panel would invent the very ambiguity this removes. */
+.lb-content.has-more {
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
+            mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
+}
 /* The panel receives a `tabindex="-1"` so createLightbox can move focus into the dialog on open
    (WAI-ARIA) without landing a keyboard-focus ring on the ✕ (see overlay.js). It is never a Tab
    target, so suppressing its own focus outline can't affect keyboard users — it only stops an
