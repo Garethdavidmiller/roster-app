@@ -66,8 +66,13 @@ export const DEFAULT_TASK = 'shift';
  * @returns {string|null} a task id, or null when the hash names something else
  */
 export function taskForHash(hash) {
-    const id = String(hash || '').replace(/^#/, '');
+    let id = String(hash || '').replace(/^#/, '');
     if (!id) return null;
+    // DECODE LIKE THE DEEP-LINK HANDLER DOES (v21.38, review). It calls `decodeURIComponent` and
+    // this did not, so `#book%2Dannual%2Dleave` opened the Annual Leave card with the Change-a-shift
+    // chip lit — the page and its own control disagreeing, from one link. A malformed escape throws,
+    // and is treated as "names no task": the same fail-safe the handler uses.
+    try { id = decodeURIComponent(id); } catch { return null; }
     const hit = ADMIN_TASKS.find(t => t.card === id);
     return hit ? hit.id : null;
 }
@@ -132,8 +137,13 @@ export function initAdminTasks({ onFocus } = {}) {
             const el = /** @type {HTMLElement} */ (btn);
             el.setAttribute('aria-pressed', String(el.dataset.task === chosen.id));
         });
-        const card = document.getElementById(chosen.card);
-        card?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // SCROLL SO THE ROW STAYS REACHABLE (v21.38, review). Scrolling the CARD to the top put the
+        // chip row above the viewport on its own first tap — the control whose entire point is
+        // one-tap switching between four jobs removed itself the instant it was used, and switching
+        // again meant scrolling back past the card just opened. Scrolling the ROW instead keeps the
+        // chips on screen with the focused card directly beneath them, which is the arrangement the
+        // row was placed in. `nearest` so a card already in view does not jump at all.
+        row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         onFocus?.(chosen.id);
     };
 

@@ -964,6 +964,14 @@ Admin's task-focus row (v21.38) — four jobs on one page, one focused at a time
 - `initAdminTasks({ onFocus })` — renders the chips, wires them, focuses the opening task. **Focuses by CLICKING the card's own collapse control**, never by setting classes: the state is three things `initCardCollapse` keeps in step, and a second writer of one leaves an arrow contradicting its card
 - Reorders nothing — the desktop grid's row order is what makes the mobile stack work (`.claude/rules/css-tokens.md`)
 
+### `admin-override-store.js`
+The override cache, the reads that fill it, and the states they put on screen (v21.38 — split out when `admin-overrides.js` reached its ratchet cap).
+- `initOverrideStore({ renderTable, renderWeekGrid, hasStagedEdits, onAfterLoad })` — the renderers are injected, never imported back (acyclic)
+- `loadOverrides({ everyone?, member? })` / `ensureMemberLoaded(member)` — **the in-flight guard is keyed by the QUERY**: same key shares the flight, a different key CHAINS behind it. Sharing one flight across different queries meant a member selected mid-load was never fetched at all
+- `getAllOverrides()` / `setAllOverrides()` (asserts completeness) / `removeFromCache(ids)` / `mutateCache(fn)` (rearranges rows, learns nothing)
+- `whenOverridesReady()` / `whenLoadSettled()` — the second is awaited by the write paths so a collection read cannot land on top of a just-committed cache mutation
+- `isOverrideCacheLoaded()` / `hasOverrideAuthorityFor(member)` (the write question) / `coversAllStaff()` (the list's question — true for a CAPPED read too) / `loadFailedFor(member)` / `isTruncated()`
+
 ### `admin-override-coverage.js`
 What the Admin override cache actually knows (v21.38). Pure — no DOM, no Firebase, no imports.
 - `emptyCoverage()` / `withMember(cov, member)` / `withAll(cov)` / `clearedCoverage()` — the record, never mutated in place

@@ -88,6 +88,12 @@ describe('what a page open lands on', () => {
         assert.equal(initialTask('#some-other-card'), DEFAULT_TASK);
     });
 
+    test('a PERCENT-ENCODED hash resolves like the deep-link handler decodes it', () => {
+        // The handler decodes and this did not, so `#book%2Dannual%2Dleave` opened the AL card with
+        // the Change-a-shift chip lit — the page and its own control disagreeing, from one link.
+        assert.equal(taskForHash('#book%2Dannual%2Dleave'), 'leave');
+    });
+
     test('a malformed hash does not throw', () => {
         // The page already learned this once: `querySelector(location.hash)` threw on `#[`, and the
         // bad hash then survived the reload it was caught into and looped.

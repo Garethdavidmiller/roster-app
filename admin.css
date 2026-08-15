@@ -1933,6 +1933,14 @@
     gap: 8px;
     margin: 0 0 16px;
 }
+/* FULL WIDTH ON DESKTOP (v21.38, review). `.container` is an explicit two-column grid at ≥1024px and
+   every other direct child declares its placement — the header and member bar span `1 / -1`,
+   `.col-main` takes 1, `.col-side` takes 2. This was added without one, so auto-placement dropped it
+   into column 1 and left a ~420px void beside it, at exactly the sidebar's width. It controls both
+   columns, so it spans both. */
+@media (min-width: 1024px) {
+    .container > .admin-task-row { grid-column: 1 / -1; }
+}
 .admin-task-chip {
     min-height: 44px;                       /* a touch target, not a label */
     padding: 8px 10px;
@@ -1966,7 +1974,11 @@
    `opacity` on the whole card — that would grey the header text below AA, and a card you cannot
    read is hidden rather than de-emphasised, which is not what this is for. */
 .card.task-dimmed > .card-header h2 { opacity: .72; }
-.card.task-focused { border-color: var(--primary-blue); }
+/* A REAL EDGE, NOT A COLOUR ON A BORDER THAT DOES NOT EXIST (v21.38, review). `.card` sets no
+   `border`, so `border-color` alone painted nothing at all and the focused card looked identical to
+   the others — the whole visual half of the feature was a no-op. A box-shadow ring adds no layout,
+   so it cannot shift the grid the way declaring a border would. */
+.card.task-focused { box-shadow: 0 0 0 2px var(--primary-blue), var(--shadow-1); }
 
 /* The focused card is scrolled to the top of the viewport, and on mobile the member bar is STICKY
    there — so without this the card's own header lands underneath it and the first thing you see of

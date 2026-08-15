@@ -39,6 +39,12 @@ import { recordPageLatency, markPageReady, markMilestone } from './perf-reporter
 import { initAdminTasks } from './admin-tasks.js';
 
 
+/** The task row's handle, so the paths that move the user BETWEEN cards can keep the chips honest.
+ *  Discarding it was what let the row say "Saved changes" over the Change-a-Shift card after an
+ *  Edit (v21.38, review). Module scope because `showInChangeAShift` lives outside `initAuthorised`.
+ *  @type {{ focusTask: (id: string) => void } | null} */
+let _adminTasks = null;
+
 /**
  * Programmatically open a collapsible card body, keeping the collapse control's ARIA state
  * in step. `initCardCollapse` only syncs `aria-expanded` on user click, so a class-only
@@ -1081,6 +1087,11 @@ export function init() {
             updateALBanner(); updateALBookedBox(); updateSickBookedBox();
             lsSet(SELECTED_MEMBER, memberName);
             renderWeekGrid();
+            // The chip follows the user (v21.38, review). Both jumps into the week editor moved the
+            // page and left the row saying "Saved changes" or "Annual leave" over the Change-a-Shift
+            // card — two answers on one screen, and nothing could re-sync it because the row's handle
+            // was being discarded.
+            _adminTasks?.focusTask('shift');
             /** @type {HTMLElement} */ (document.querySelector('.card')).scrollIntoView({ behavior: 'smooth', block: 'start' });
         };
         if (confirmNavigate(go)) go();
@@ -1110,6 +1121,7 @@ export function init() {
             // Align the saved-changes month filter so the new days aren't filtered out.
             const monthFilter = /** @type {HTMLSelectElement} */ (document.getElementById('overridesMonthFilter'));
             if (monthFilter) monthFilter.value = date.substring(0, 7);
+            _adminTasks?.focusTask('shift');   // the chip follows the user (v21.38, review)
             renderTable();
             renderWeekGrid();
             // The grid was rebuilt fresh from saved data — no pending edits remain.
@@ -1153,9 +1165,12 @@ export function init() {
             details.appendChild(ul);
             formFeedback.appendChild(details);
         }
-        // Longer while a receipt is up: it exists to be READ, and seven seconds is not long enough
-        // to open a fold and check four dates against what you meant to do.
-        _feedbackTimer = setTimeout(hideFeedback, lines?.length ? 20000 : 7000);
+        // A RECEIPT DOES NOT TIME OUT (v21.38, review). A plain confirmation can fade, but the fold
+        // is an interactive control: hiding it on a timer takes focus off whatever the user was
+        // reading and dumps it on <body>, and a manager checking a seven-day batch against a paper
+        // request can easily outlast any number we would have picked. It stays until the next save,
+        // the next error, or a member change — each of which replaces the block outright.
+        if (!lines?.length) _feedbackTimer = setTimeout(hideFeedback, 7000);
 
         // Also show a bottom-anchored toast so confirmation is visible regardless of scroll position
         const toast = document.getElementById('saveToast');
@@ -1565,19 +1580,6 @@ export function init() {
     initCardCollapse('alToggleHeader',          'alBody',            'alChevron');
     initCardCollapse('sickToggleHeader',        'sickBody',          'sickChevron');
     initCardCollapse('overridesToggleHeader',   'overridesBody',     'overridesChevron');
-    // SYNC THE BOOKING SELECTS FROM THE MEMBER FIELD (v21.38). They were only ever set by the
-    // fieldMember CHANGE handler, so on a fresh admin load — where the member is RESTORED rather
-    // than chosen — they stayed empty and both booking cards said "Select a staff member above"
-    // over a page that plainly had one selected. Harmless before, because the cards shipped
-    // collapsed and few opened them at boot; the task row makes each one a single tap away, so the
-    // contradiction is now the first thing you see. Self-service users are already pinned above and
-    // their selects are disabled, so this only fills a genuine gap.
-    if (fieldMember.value && !alMember.disabled) {
-        _setSelectValue(alMember, fieldMember.value);
-        _setSelectValue(sickMember, fieldMember.value);
-        syncMemberDisplay();
-        syncSickMemberDisplay();
-    }
     // AFTER the collapsibles (v21.38). The task row focuses a card by CLICKING its real chevron
     // rather than setting classes, so the controls have to exist first — wiring it earlier would
     // silently do nothing to the collapse state while still moving the chips, which is the shape of
@@ -1659,6 +1661,24 @@ export function init() {
         // `auth-ready`, so everything before it was a blank page (v20.80). See markPageReady.
         markPageReady();
         applyPermissions();
+        // SYNC THE BOOKING SELECTS FROM THE MEMBER FIELD (v21.38). They were only ever set by the
+        // fieldMember CHANGE handler, so on a fresh admin load — where the member is RESTORED rather
+        // than chosen — they stayed empty and both booking cards said "Select a staff member above"
+        // over a page that plainly had one selected. Harmless while the cards shipped collapsed;
+        // the task row makes each one a single tap away, so the contradiction is now the first
+        // thing you see.
+        //
+        // AFTER applyPermissions, NOT BEFORE (review). `alMember.disabled` is set by that function,
+        // so running first meant the guard could never be false and the sync fired for everybody —
+        // including the LEAVER branch, which clears the selects, disables them and returns WITHOUT
+        // re-syncing the displays. A hidden member would have read a colleague's name under "Your
+        // account is no longer on the roster", which is the alarming display the v16.23 fix removed.
+        if (fieldMember.value && !alMember.disabled) {
+            _setSelectValue(alMember, fieldMember.value);
+            _setSelectValue(sickMember, fieldMember.value);
+            syncMemberDisplay();
+            syncSickMemberDisplay();
+        }
         // Render bulk-bar type pills from PILL_TYPES (single source of truth with per-row pills).
         // 'other' is excluded here — the deliberate one exception: an "Other" day needs a per-row
         // flavour (Training/Induction/Assessment/Team Day/Union/Spare) that the bulk bar can't supply, so

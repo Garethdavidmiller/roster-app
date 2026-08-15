@@ -94,6 +94,24 @@ describe('what a line says', () => {
         assert.doesNotMatch(lines[0], /07:00/);
     });
 
+    test('a removal the cache could not resolve is still counted and still named', () => {
+        // The caller looks each deleted id up in the cache and can miss — a staged delete can
+        // outlive a capped collection read that trimmed the row. Dropping it took the day off the
+        // list AND out of the count, so a pure-deletion save could report "0 changes saved" over
+        // documents that were genuinely deleted. The receipt may say it does not know WHICH day; it
+        // may not say nothing happened.
+        const { summary, lines } = build([], [null]);
+        assert.match(summary, /^1 change saved/);
+        assert.equal(lines.length, 1);
+        assert.match(lines[0], /removed/);
+    });
+
+    test('an unresolved removal sorts LAST rather than throwing on a missing date', () => {
+        const { lines } = build([{ date: '2026-07-13', type: 'shift', value: 'a' }], [null]);
+        assert.equal(lines.length, 2);
+        assert.match(lines[0], /^13/, 'the dated line comes first');
+    });
+
     test('an empty save produces an empty list rather than a fabricated line', () => {
         const { lines, summary } = build([], []);
         assert.deepEqual(lines, []);

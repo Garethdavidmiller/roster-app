@@ -62,13 +62,15 @@
 
 /**
  * @typedef {object} Coverage
- * @property {boolean} all       True once the WHOLE collection has been read authoritatively.
- * @property {string[]} members  Members individually read authoritatively, in insertion order.
+ * @property {boolean} all        The WHOLE collection has been read, completely.
+ * @property {boolean} allPartial The collection was read but hit the query CAP, so the oldest
+ *   documents are missing. Enough to list; NOT enough to decide a write. See `withAll`.
+ * @property {string[]} members   Members individually read authoritatively, in insertion order.
  */
 
 /** @returns {Coverage} A cache that knows nothing. The honest starting state. */
 export function emptyCoverage() {
-    return { all: false, members: [] };
+    return { all: false, allPartial: false, members: [] };
 }
 
 /**
@@ -81,16 +83,31 @@ export function emptyCoverage() {
 export function withMember(cov, member) {
     if (!member) return cov;
     if (cov.members.includes(member)) return cov;
-    return { all: cov.all, members: [...cov.members, member] };
+    return { ...cov, members: [...cov.members, member] };
 }
 
 /**
- * Record that the whole collection has been read.
+ * Record that the collection has been read.
+ *
+ * ── A CAPPED READ IS NOT A COMPLETE ONE (v21.38, external review) ───────────────────────────────
+ *
+ * The collection read is capped, and past that cap the OLDEST documents are simply not returned.
+ * That is fine for the list — it carries a banner saying so — and it is not fine for a WRITE: an
+ * override older than the cap would be invisible, so the range writer would miss an existing
+ * `roster_import` document and write a duplicate, and an entitlement check would under-count a past
+ * year's leave and skip its own warning. Both are exactly the failures this module exists to stop.
+ *
+ * So a capped read grants `allPartial`, which answers "may I list everybody?" and never "may I
+ * decide about this member?". It also does not touch `members`: a member read individually — which
+ * has no cap by design — stays authoritative.
  * @param {Coverage} cov
+ * @param {{ complete?: boolean }} [opts] `complete: false` when the read hit its cap
  * @returns {Coverage}
  */
-export function withAll(cov) {
-    return { all: true, members: cov.members };
+export function withAll(cov, { complete = true } = {}) {
+    return complete
+        ? { ...cov, all: true, allPartial: false }
+        : { ...cov, allPartial: true };
 }
 
 /**
@@ -122,11 +139,15 @@ export function hasAuthorityFor(cov, member) {
 
 /**
  * May a list claiming to show EVERY member be rendered from the cache?
+ *
+ * True for a CAPPED collection read as well as a complete one — the list has a banner for that, and
+ * refusing to draw it would be worse than drawing it with its caveat. This is deliberately a
+ * different question from `hasAuthorityFor`, which a capped read never satisfies.
  * @param {Coverage} cov
  * @returns {boolean}
  */
 export function coversEveryone(cov) {
-    return cov.all;
+    return cov.all || cov.allPartial;
 }
 
 /**
