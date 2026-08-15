@@ -35,6 +35,24 @@ rule `doc-parity.test.mjs` applies to suite sizes. Say what is in it, not how bi
 **Read the module header before changing any rule.** Most of what follows is a record of something
 that shipped wrong once, and the reasoning is usually more load-bearing than the code it describes.
 
+## Invariants
+
+The short list, for someone about to change something. Each states WHAT must hold; the WHY is below,
+or in the module header beside the code.
+
+| # | Invariant | Where it lives |
+|---|---|---|
+| 1 | **The rotation length is declared once and written down nowhere** — not in a module, not in a comment, not in prose. A literal is a fourth copy waiting to drift. | `links-design.js` (`ROTATING_LINES`) · `links-rotation-parity.test.mjs` |
+| 2 | **A hard limit and a fatigue factor are opposite kinds of statement.** Separate modules, separate counts, separate sections. Fatigue factors report what is PRESENT; they never pass or fail a design, and nothing here may read as a certificate. | `links-limits.js` · `links-fatigue.js` |
+| 3 | **Every fatigue rule laps the rotation.** Somebody on the last line goes to the first next week. | `links-fatigue.js` |
+| 4 | **The generator REFUSES what it cannot repair.** Reporting a shortfall is not refusing it — a design that exists gets saved, compared, printed and taken into a room. | `links-design.js` (`repairShortRest`) · `links-contract.test.mjs` |
+| 5 | **A failed read-back flags the baseline UNKNOWN, never merely null.** Every co-editing bug here has been a SILENT overwrite of a colleague's work, discovered only on reopening. | `links-concurrency.js` |
+| 6 | **An import becomes a design or a refusal, never a half-design.** An unreadable cell is refused BY NAME, never defaulted to a rest day — an import that "succeeds" four duties light reads as a lighter week, and every panel then reports confidently about it. | `links-import.js` |
+| 7 | **The days-worked divisor is the WORKING lines, not the rotation** — unlike the hours average beside it. | `links-design.js` (`lineTotals`) |
+| 8 | **Reordering is free with respect to coverage**, so the line-order objectives compete only with each other. | `links-adjacency.js` |
+| 9 | **A saved target set is refused whole or loaded whole**, and the client's ownership check only decides what is OFFERED — the rules are the protection. | `links-target-sets.js` · `firestore.rules` |
+| 10 | **Every class an analysis panel emits must exist in `links.css`**, and any section claiming a limit must name whose requirement it is. | `links-analysis.js` · `links-analysis.test.mjs` |
+
 ## The module set
 
 The workspace is one coordinator over the pure/extracted modules below. Everything except `links-app.js`

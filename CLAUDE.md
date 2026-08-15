@@ -132,6 +132,45 @@ When compacting, always preserve:
 
 ---
 
+## Feature contracts — read one BEFORE changing a feature
+
+Five documents state, as numbered invariants, what each feature must never stop doing. They are
+**routing tables, not explanations**: each row names the property and points at the module header
+where the reasoning lives beside the code. That is the same three-homes discipline as the file tree
+below — a contract that restated its own reasoning would be a fourth copy of it.
+
+| Feature | Contract | What it protects |
+|---|---|---|
+| Calendar data | `CALENDAR_DATA.md` | what may be SHOWN, and when — knowledge states, the access gate, cache ordering |
+| Authentication | `AUTH_AND_SESSIONS.md` | session ↔ identity ↔ claim, and the three ways they disagree |
+| Overtime | `OVERTIME_AVAILABILITY.md` → Invariants | the frozen population, the deadline clock, no-response ≠ not-available |
+| Pay calculator | `.claude/rules/paycalc.md` → Invariants | round trips, per-member keys, and never guessing a figure |
+| Links workspace | `.claude/rules/links-design.md` → Invariants | advisory vs hard limits, co-editing, refusing rather than half-loading |
+
+**When an invariant changes, the row changes in the same commit** — a contract nobody updates is
+worse than none, because it is believed.
+
+## Change impact — what one edit reaches
+
+Most of this app is one page deep. These are the exceptions, and every one of them has caused a
+regression somewhere the author was not looking.
+
+| Change this | And you have changed | Verify with |
+|---|---|---|
+| `resolveEffectiveShift` (`override-utils.js`) | Calendar · Team Week View · Overtime roster context | `override-utils.test.mjs` · `e2e/overtime.spec.js` |
+| `getBaseShift` / `resolveMemberRoster` (`roster-data.js`) | every shift the app displays, on every page, plus roster PDF import | `roster-data.test.mjs` · `admin-roster-upload.test.mjs` |
+| `session.js` · `login-overlay.js` · `auth-policy.js` | all six protected pages at once | `e2e/auth.spec.js` (it drives each page) |
+| `firestore.rules` | client and server together — the client copies of ownership rules only drive BUTTONS | `npm run test:rules` **and** `firestore-contract-parity.test.mjs` |
+| `firebase.json` CSP header | every page's `<meta>` CSP, because the Pages mirror serves no headers | `csp-meta-parity.test.mjs` · `npm run test:csp` |
+| any `overlay.js` lifecycle | every lightbox in the app, including the one-time notices | `overlay.test.mjs` · `overlay-history.test.mjs` |
+| adding a PAGE | ~8 hand-maintained lists (CSP meta, nav pill, policy, SW, analytics id, boot shim…) | `page-contract-parity.test.mjs` — it checks the checkers |
+| adding a MODULE or dropping an export | `CLAUDE.md` + `AI_MAP.md`, same commit | `githooks/pre-commit` · `doc-parity.test.mjs` |
+| `CONFIG.LINKS_DESIGNERS` / `CONFIG.OVERTIME_BETA` | the SERVER's copy — run `npm run generate:roster-members` in the same commit | `sw-asset-check.test.mjs` |
+| a Firebase SDK bump (`firebase-client.js`) | `FIREBASE_SDK_VERSION` in `service-worker.js` | `sw-asset-check.test.mjs` |
+| the VAPID key | `functions/index.js` **and** `notif.js` — a mismatch is silent AND permanent | `sw-asset-check.test.mjs` |
+
+---
+
 ## Current file structure
 
 **This tree ROUTES; it does not explain** (v20.11). Each entry says what a file is and where its
@@ -298,6 +337,9 @@ roster-app/
 ├── CLAUDE.md / AI_MAP.md / OPERATIONS_REFERENCE.md / KNOWN_LIMITATIONS.md / ROADMAP.md ← the five VERSION-STAMPED docs (re-stamped every 0.10 milestone; enforced by `sw-asset-check.test.mjs`)
 ├── ROADMAP_HISTORY.md ← everything ROADMAP.md used to carry about the PAST — completed phases, shipped features, removed features with their restoration specs, reverted experiments, closed audits. **Moved VERBATIM.** If something here becomes live again, MOVE it back rather than copying it. Not version-stamped; not a runtime asset.
 ├── MAINTENANCE_CALENDAR.md ← the work that has a DEADLINE whether or not anyone plans it (v19.97, external review): the 2027/28 paycalc rollover (hard 6 Apr 2027), `MAX_YEAR` 2030→2032 (end 2028), the override-count archive trigger (~5,000 docs), the recurring guide/pay source reviews, and the after-every-new-starter checks. It was scattered through KNOWN_LIMITATIONS.md prose and GUIDE_SOURCES.md rows — the wrong place, because those files are read when investigating something and a tax-year rollover is not something you investigate. **Every row carries a WARNING POINT earlier than its deadline**, deliberately: "must be done by 6 April" reliably becomes "started on 4 April". Not version-stamped; not a runtime asset.
+├── VALIDATION_REGISTER.md ← what the app ALREADY ASSERTS on evidence nobody has checked — the back-pay accrual, the 28 Aug 2026 award step, the one derived pension figure, the disarmed purge, the two guide conflicts. Its sibling registers answer different questions: MAINTENANCE_CALENDAR is *by when*, ROADMAP is *what to build*, GUIDE_SOURCES is the same discipline for the guides. Not version-stamped; not a runtime asset.
+├── CALENDAR_DATA.md ← the Calendar's feature CONTRACT: twelve invariants about what may be shown and when, each routing to the module header that argues it. States WHAT must hold, never why. Not version-stamped; not a runtime asset.
+├── AUTH_AND_SESSIONS.md ← the authentication feature CONTRACT: the local session / Firebase identity / claim triangle and the fourteen invariants across it. Same routing-not-explaining rule; STATUS still lives in SECURITY_RELEASE_PLAN.md. Not version-stamped; not a runtime asset.
 ├── SECURITY_RELEASE_PLAN.md ← master sequencing/risk plan for the deferred security release (per-member isolation, named sessions, App Check, password retirement, WIF, firebase-admin bump). **Carries the CANONICAL TRACK STATUS table (v19.97) — the single source of truth for what stage every track is at.** Status had to be reconciled across five files, and `auth-plan-parity.test.mjs` exists because two of them had already drifted; every other plan now owns DESIGN and points here for STATUS. If you are updating a stage, update it there and nowhere else. Not version-stamped; not a runtime asset.
 ├── PASSWORD_PLAN.md ← the agreed "C-lite" chosen-password design (Track C with email deferred): gated dual-attempt sign-in, self-service set/change, admin break-glass, the migration flags and the Operations Account-status table. **Status lives in SECURITY_RELEASE_PLAN.md's canonical track table.** Not version-stamped; not a runtime asset.
 ├── AUTH_PLAN.md ← the full-app authentication design (Track E): what "behind authentication" can and cannot mean when the app shell is static files on public hosting, what is actually open today, and the E0–E6 phases either side of one binary decision gate. **Status lives in SECURITY_RELEASE_PLAN.md's canonical track table.** Not version-stamped; not a runtime asset.
@@ -380,6 +422,7 @@ roster-app/
 ├── guide-sources.test.mjs ← structural guard for GUIDE_SOURCES.md: every high-risk row keeps its source, review dates and class; the two-way `data-guide-source` contract; the RENDERED freshness dates on FIP country cards; per-country rows citing their own page; and the provisional-state contract (a Draft/Conflict row must be declared on the page it certifies). Part of test:hygiene
 ├── app-name-parity.test.mjs ← **"MYB" may name the STATION; it may never name the SOFTWARE.** The on-screen name has been "Marylebone Roster" since v15.05 and was violated twice with no review catching either — the paycalc PRINT header (the one string that leaves the app on paper) and the staff-PIN card's "MYB member?" link. The distinction is the whole design: `MYB` is Marylebone's real station code, correct and expected in the guides, so a blanket ban would fire on those, acquire an exemption list and stop guarding. Scoped to `MYB` + a PRODUCT word, which needs no exemptions; the iOS home-screen meta is removed structurally, by attribute. Part of test:hygiene. Teeth-verified against both shipped defects
 ├── card-header-parity.test.mjs ← static guard for the two canonical card-header conventions across the 5 card-bearing app pages: every card title is an `h2` (operations.html had all nine as `h3` — styled identically, so its heading outline silently ran h1→h3; axe's heading-order rule is best-practice-tagged, so the a11y gate never saw it) and every card title leads with an emoji ("Change a Shift" was the only bare one in the app). Comments are stripped before matching so a long comment can't hide a card from the guard. Part of test:hygiene. Teeth-verified
+├── coordinator-ratchet.test.mjs ← **coordinators coordinate; domain modules decide** — an already-large module may not get larger. A RATCHET, not a limit: a limit would fail the day it landed and be waived by lunchtime, so each large module carries the size it had when measured, plus 50–99 lines of room for a fix that is not a business rule. Shrinking one is free; raising a cap is a decision somebody makes. A file crossing the threshold that is NOT in the table also fails, and a cap drifting far above its file fails too — a guard with no teeth would let the whole suite pass while the thing it prevents happened. Part of test:hygiene. Teeth-verified
 ├── doc-parity.test.mjs ← the documentation is CHECKED, not merely reviewed (v20.11). The 0.10 re-stamp is a prompt to look and verifies nothing — and looking has repeatedly not been enough (a nav-drawer entry wrong for ten versions, a `~90` count, six "22 lines" comments, a 30-day countdown promised ten versions after the purge was switched off). All one bug: **prose restating a fact that lives somewhere else.** Four contracts: every module routed from BOTH docs and every test + runner config from CLAUDE.md; every test file actually RUN by an npm script, because a suite that is listed and never wired passes by not existing (it found two, both written and teeth-verified in the same session that forgot to wire them); no live doc writes down a count a constant owns (a doc stating the RULE may name the number it forbids); and **the file tree stays a routing table** — no entry over ~1,600 chars, and a cap on version references, because the tree had reached 136k chars and 208 stamps. Part of test:hygiene. Teeth-verified
 ├── overtime-endpoints.test.mjs ← the Overtime endpoints actually EXECUTED against a fake Firestore and token verifier, because a surface test proves the handlers were DEFINED, not that any of them works — the lesson of the Calendar PIN outage, whose token-mint path had never once run in production. Teeth-verified by 11 mutations; the first pass found one guard (the single-batch participant bound) with no test at all. Runs in test:functions
 ├── page-visibility-parity.test.mjs ← **`hidden` must actually hide.** The attribute works by a UA rule at the lowest possible specificity, so ANY author `display:` out-specifies it and the element renders in full while every piece of code around it believes it is hidden — nothing errors, nothing warns, and no behavioural test can see it. The app had hit this three times (calendar controls, the Links window editor, and — found by this guard — an empty AL banner on admin, an Operations shortcut shown to designers who are not admins, and an empty Links summary strip). Part of test:hygiene
@@ -456,7 +499,7 @@ npm run lint          # ESLint on all JS files
 npm run typecheck     # tsc --noEmit on all root JS modules
 
 # By test runner (same as npm test, useful for --watch or targeting specific files):
-npm run test:hygiene  # sw-asset-check, doc-parity, app-name-parity, calendar-access-core, calendar-viewer-auth, calendar-viewer-parity, import-graph, links-design, links-seed, links-design-doc, links-demand, links-rotation-parity, admin-rangepicker, client-errors, claim-retry, overlay(+history), usage-stats, perf-stats, surname-parity, payday-cutoff-parity, storage-rules-static, storage-utils, auth-identity, auth-state-core, auth-state, auth-policy, sw-register, sw-internals, csp-hygiene, csp-meta-parity, date-picker, guide-sources, guide-colour-parity, links-analysis, links-compare, paycalc-format, paycalc-breakdown, paycalc-inputs, paycalc-hpp-schedule, paycalc-transfer, paycalc-backpay-state, paycalc-key-parity, card-header-parity, page-css-parity, firestore-contract-parity, focus-ring-parity, type-scale-parity, chip-radius-parity, auth-plan-parity, workflow-hygiene, tips-content, password-force, error-reporter, roster-prompt-parity (authoritative list: package.json `test:hygiene`)
+npm run test:hygiene  # sw-asset-check, doc-parity, coordinator-ratchet, app-name-parity, calendar-access-core, calendar-viewer-auth, calendar-viewer-parity, import-graph, links-design, links-seed, links-design-doc, links-demand, links-rotation-parity, admin-rangepicker, client-errors, claim-retry, overlay(+history), usage-stats, perf-stats, surname-parity, payday-cutoff-parity, storage-rules-static, storage-utils, auth-identity, auth-state-core, auth-state, auth-policy, sw-register, sw-internals, csp-hygiene, csp-meta-parity, date-picker, guide-sources, guide-colour-parity, links-analysis, links-compare, paycalc-format, paycalc-breakdown, paycalc-inputs, paycalc-hpp-schedule, paycalc-transfer, paycalc-backpay-state, paycalc-key-parity, card-header-parity, page-css-parity, firestore-contract-parity, focus-ring-parity, type-scale-parity, chip-radius-parity, auth-plan-parity, workflow-hygiene, tips-content, password-force, error-reporter, roster-prompt-parity (authoritative list: package.json `test:hygiene`)
 npm run test:parse    # module-parse (--experimental-vm-modules)
 npm run test:unit     # all --experimental-test-module-mocks tests
 npm run test:functions # Cloud Functions tests (roster-parse-helpers.test.mjs + functions-surface.test.mjs, which requires functions/index.js and pins the deploy surface, + overtime-endpoints.test.mjs) — not part of npm test (needs functions/node_modules)

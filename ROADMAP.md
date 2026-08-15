@@ -255,12 +255,10 @@ Add Dispatcher pay rates to `GRADES` in `paycalc-calc.js` so Dispatcher staff ca
 **Blocked on** confirmed Dispatcher hourly rate, contracted hours and pension contribution. **Do not
 add placeholder rates** — the calculator must be accurate or it misleads staff about their pay.
 
-### Validate the back-pay accrual against the real 24 Oct 2025 payslip
-**Status:** Blocked · **Owner:** Gareth (has the payslip) · **Effort:** one-time check
-
-Two assumptions in `calcBackPay` are payslip-checkable but unverified: (1) the accrual includes the **full April-paid period** (P4, paid 11 Apr 2025) even though its work window is mostly late March — if Chiltern pro-rates the award from literal 1 April, P4's row overstates slightly; (2) the per-bucket arithmetic (`_accrueBackPayPeriod`) should reproduce the real lump when the 2025/26 hours are entered. The 24 Oct 2025 payslip carries the actual back-pay lines (the basic-line spike was ~£591 vs a contracted-only estimate of ~£730 including London — the gap is explainable by variable-line placement, but unconfirmed).
-
-If P4 turns out to be pro-rated, add a first-period factor to the accrual and a fixture-based test.
+> **Validating the back-pay accrual against the real 24 Oct 2025 payslip has MOVED** to
+> `VALIDATION_REGISTER.md` (August 2026). It was never a feature: nothing gets built, a payslip gets read.
+> Sitting here between a pre-fill feature and Dispatcher rate support, it read like work to schedule
+> rather than a figure to confirm — which is exactly how validation debt goes unpaid.
 
 ---
 

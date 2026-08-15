@@ -21,6 +21,30 @@ release. Everything else is routed the usual way:
 
 ---
 
+## Invariants
+
+The short list, for someone about to change something. Each states WHAT must hold; the WHY is in the
+module beside the code.
+
+| # | Invariant | Where it lives |
+|---|---|---|
+| 1 | **No response and not available are different answers.** No view may merge them, and an empty section still renders its heading — a hidden "No response" makes *nobody outstanding* look exactly like a section that failed to draw. | `overtime-manager.js` |
+| 2 | **An unanswered day stays unanswered.** No default, no copy-last-week, no inferring from the roster. | `overtime-form.js` |
+| 3 | **The client never refuses a submission near a deadline.** Inside the grace band it sends and lets the server decide — a client that refuses has denied somebody who was in time. | `overtime-format.js` (`submitDisposition`) |
+| 4 | **A timed-out write goes into RECONCILIATION, never reported as failed.** Aborting stops us waiting; it does not stop the server writing. `clientMutationId` is generated in one place so no call site can forget it. | `overtime-form.js` · `overtime-data.js` |
+| 5 | **The participant snapshot is frozen at creation.** Its one exception is a leaver: a flag, never a delete, refused on a closed week, and removing the flag rather than writing `withdrawn: false` — because `where('withdrawn','==',true)` never matches a missing field. | `functions/overtime.js` (`withdrawOvertimeParticipant`) |
+| 6 | **Identity is always `decoded.name`, never the request body.** | `functions/overtime.js` |
+| 7 | **Deadlines are stored, never recomputed.** A window keeps the timetable it ran under; `policyVersion` records which. | `functions/overtime-core.js` |
+| 8 | **`initialRevision` and `lateInitial` are derived, never stored.** A stored summary is a second answer that can disagree with the history it summarises — and it exists twice, so it may not drift. | `overtime-format.js` · `overtime-parity.test.mjs` |
+| 9 | **Retention is filtered in the endpoints, not in the rules.** Rules are not filters: a `resource.data` condition fails the whole query rather than dropping a row, so one expired document would blank a reviewer's workspace. | `functions/overtime.js` |
+| 10 | **The purge deletes bottom-up, parent LAST.** Firestore does not cascade, and a parent deleted alone orphans its tree permanently. | `functions/overtime.js` (`purgeExpiredOvertimeWindows`) |
+| 11 | **Never name an internal document in staff-facing copy.** "The draft roster" is the roster office's artefact; to staff "the roster" is the one released on the Thursday. Reviewer surfaces may name it freely. | `overtime-format.js` |
+
+Reviewing is not participating — that one is an authorisation rule and lives in
+`AUTH_AND_SESSIONS.md` invariant 14, with the rest of the claim model.
+
+---
+
 ## The one catastrophic failure, and the thing that guards it
 
 A weekly-window system fails silently before any document exists: **nobody creates the window.** Then
