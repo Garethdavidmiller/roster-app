@@ -818,7 +818,7 @@ export function init() {
                     ]},
                     { heading: 'How to read it', items: [
                         { icon: '🟢', html: 'Mostly green is healthy. A page is usually slower on a <strong>weak phone signal</strong> or right after an <strong>app update</strong> (the first load rebuilds the cache)' },
-                        { icon: '🔴', html: 'If a page is <strong>consistently</strong> red across many loads, that\'s worth raising — it\'s not just one person on a bad connection' },
+                        { icon: '🔴', html: 'If a page is <strong>consistently</strong> red across many opens, that\'s worth raising — it\'s not just one person on a bad connection' },
                     ]},
                     { heading: 'Privacy', items: [
                         { icon: '🔒', html: 'Completely <strong>anonymous</strong> — it records <em>how fast</em> pages opened, never <em>who</em> opened them. No names are stored' },

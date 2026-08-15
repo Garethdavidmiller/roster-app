@@ -128,7 +128,14 @@ async function initPageSpeedCard() {
         head.className = 'speed-row speed-row--dual speed-dual-head';
         // The last cell was EMPTY until v21.34, which left the one number in this table as the only
         // unlabelled figure on the card — every other numeric column here names itself ("over 1s",
-        // "loads"). "opens" is the word the sentence above the table already uses.
+        // "over ½s", "opens").
+        //
+        // ── ONE QUANTITY, ONE WORD (v21.35) ─────────────────────────────────────────────────────
+        // This column said "opens" and the three breakdown blocks below said "loads", for the same
+        // thing: one page being opened once. Two words for one quantity on a single card makes a
+        // reader look for the distinction, and there is none — the prose here has always said
+        // "page opens". They are all "opens" now, including the shared privacy footer. If you add
+        // another count to this card, it is an OPEN.
         head.innerHTML = '<span></span><span class="speed-dual-label">Appears</span>' +
                          '<span class="speed-dual-label">Code</span>' +
                          '<span class="speed-dual-label">Usable</span>' +
@@ -202,7 +209,7 @@ async function initPageSpeedCard() {
         head.className = 'speed-row speed-row--why speed-dual-head';
         head.innerHTML = '<span></span><span></span>'
             + '<span class="speed-dual-label">over 1s</span>'
-            + '<span class="speed-dual-label">loads</span>';
+            + '<span class="speed-dual-label">opens</span>';
         list.appendChild(head);
         rows.forEach(r => {
             const row = document.createElement('div');
@@ -212,7 +219,7 @@ async function initPageSpeedCard() {
             //
             // It said "% slow" first, and the first real data showed that was the wrong band. Every
             // row read 0–3% slow while its bar carried a wide amber middle: the Calendar's tail is
-            // not "over 3 seconds", it is "over ONE second", which is 13% of loads and the band the
+            // not "over 3 seconds", it is "over ONE second", which is 13% of opens and the band the
             // whole card is framed around ("86% within a second"). A number reporting 3% next to a
             // bar that is visibly a quarter amber makes the reader trust the number and miss the
             // finding.
@@ -236,7 +243,7 @@ async function initPageSpeedCard() {
 
     /** The boot-phase block (v20.33): the busiest page's opens split into the three STAGES of
      *  starting up, in boot order. Same row grammar as the dimensional blocks — but where those
-     *  split the LOADS into groups, these rows are contiguous SPANS of every load, so the loads
+     *  split the opens into groups, these rows are contiguous SPANS of every open, so the opens
      *  column reads near-identical down the rows and each row answers "how often did THIS stage
      *  run long". The stated number is the share over ½ SECOND — a stage-scaled threshold, named
      *  in the column header exactly like the dimensional blocks name theirs (the v20.19 rule: a
@@ -262,7 +269,7 @@ async function initPageSpeedCard() {
         head.className = 'speed-row speed-row--why speed-dual-head';
         head.innerHTML = '<span></span><span></span>'
             + '<span class="speed-dual-label">over ½s</span>'
-            + '<span class="speed-dual-label">loads</span>';
+            + '<span class="speed-dual-label">opens</span>';
         list.appendChild(head);
         rows.forEach(r => {
             const row = document.createElement('div');
@@ -312,7 +319,7 @@ async function initPageSpeedCard() {
         head.className = 'speed-row speed-row--why speed-dual-head';
         head.innerHTML = '<span></span><span></span>'
             + '<span class="speed-dual-label">over 1s</span>'
-            + '<span class="speed-dual-label">loads</span>';
+            + '<span class="speed-dual-label">opens</span>';
         list.appendChild(head);
         rows.forEach(r => {
             const row = document.createElement('div');
@@ -347,7 +354,7 @@ async function initPageSpeedCard() {
         // put the card's third subject one level below the two it sits beside.
         frag.appendChild(subhead('🔍', `Why some are slower — ${meta ? meta.emoji + ' ' + meta.label : busiest.page}`, true));
         frag.appendChild(noteLine(
-            `The busiest page (${busiest.total.toLocaleString('en-GB')} opens), split by what was already being recorded with each load.`));
+            `The busiest page (${busiest.total.toLocaleString('en-GB')} opens), split by what was already being recorded with each one.`));
         let any = false;
         // Boot stages FIRST — "which part of starting up ran long" is the question the dimensional
         // splits below can only gesture at, so when the data exists it leads.
@@ -421,7 +428,7 @@ async function initPageSpeedCard() {
 
             const note = document.createElement('p');
             note.className = 'usage-note';
-            note.textContent = 'Speeds are how long the app took to respond. Groups marked "(few)" have too few loads to read into. ' + PRIVACY_FOOTER;
+            note.textContent = 'Speeds are how long the app took to respond. Groups marked "(few)" have too few opens to read into. ' + PRIVACY_FOOTER;
             body.appendChild(note);
         };
 
