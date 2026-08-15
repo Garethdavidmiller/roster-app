@@ -30,7 +30,7 @@ import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import { initHuddleViewer } from './calendar-huddle-viewer.js';
 import { initDocViewer } from './calendar-doc-viewer.js';
 import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress, setOverrideAccess, setOverrideAccessLostHandler, monthKey, clearFetchedMonth } from './calendar-overrides.js';
-import { forget as forgetOverrideKnowledge, knowledgeOf, decideDisplay } from './calendar-data-state.js';
+import { forget as forgetOverrideKnowledge, knowledgeOf, decideDisplay, showsRoster } from './calendar-data-state.js';
 import { initCalendarAccess, calendarAccessReady, calendarAuthReady, getAccessType, isViewerMode, lockCalendar, handleAccessLost } from './calendar-access.js';
 import { getCurrentMember, getSelectedMemberIndex, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName, isFirstRun } from './calendar-member.js';
 import { buildCalendarContainer } from './calendar-renderer.js';
@@ -82,10 +82,32 @@ const CACHE_FIRST_PAINT_MS = 90;
  */
 function _markReadyIfGridShown() {
     try {
-        const shown = decideDisplay(knowledgeOf(monthKey(getDisplayYear(), getDisplayMonth())));
-        if (shown === 'render' || shown === 'stale') markPageReady();
+        // NOT BEFORE THE BOOT HAS CHOSEN ITS SURFACE. Phase 1 of the initial fetch paints from the
+        // local cache and calls back, and on a cache hit that happens BEFORE `restoreTeamView()`
+        // has run — so `isTeamViewMode()` is still false and a team-view member's readiness would
+        // be timed against a Calendar grid they are about to be taken off. The boot sets this the
+        // instant it has rendered, so the mark lands within the same tick either way.
+        if (!_bootSurfaceDecided) return;
+        // ASK THE SURFACE THAT IS ON SCREEN. Team View gates on the WORST knowledge across the
+        // months its week spans, and a week routinely spans two — so reading the Calendar's display
+        // month here would time the wrong thing in both directions. Each surface computes its own
+        // answer; what COUNTS as a roster is `showsRoster`, beside the states it reads.
+        if (_teamView?.isTeamViewMode()) {
+            if (_teamView.isGridShown()) markPageReady();
+        } else if (showsRoster(decideDisplay(knowledgeOf(monthKey(getDisplayYear(), getDisplayMonth()))))) {
+            markPageReady();
+        }
     } catch { /* the metric must never be able to break the boot */ }
 }
+
+/** True once the boot has rendered EITHER the Calendar or Team View, so the ready metric knows
+ *  which surface it is measuring. See `_markReadyIfGridShown`. */
+let _bootSurfaceDecided = false;
+
+/** Set once `initTeamView` has run. Module-scope because `_markReadyIfGridShown` is declared above
+ *  the coordinator's init block and must not close over a `teamView` that does not exist yet.
+ *  @type {any} */
+let _teamView = null;
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -135,6 +157,7 @@ const teamView = initTeamView({
     _pushOverlayState,
     _clearOverlayHistory,
 });
+_teamView = teamView;   // see `_markReadyIfGridShown` — the ready metric asks whichever surface is on screen
 
 
 // ============================================
@@ -714,7 +737,7 @@ try {
         // Bounded, and short. A cache MISS resolves false immediately, a slow read falls through at
         // the deadline, and either way the old behaviour follows — so nothing waits on a device that
         // has nothing to show. This is the one place in the boot where waiting is the faster answer.
-        await Promise.race([
+        const _cachePainted = await Promise.race([
             _initialFetch.cacheSettled,
             new Promise(r => setTimeout(r, CACHE_FIRST_PAINT_MS)),
         ]);
@@ -724,10 +747,16 @@ try {
         // prompt when no member is picked and no session exists (see its guard). (H1)
         if (lsGet('myb_team_view') === '1') {
             teamView.restoreTeamView();
-        } else {
+        } else if (_cachePainted !== true) {
+            // SKIPPED when phase 1 already painted: it renders through this same path the moment
+            // its cache read lands, so rendering again here is a second full grid build a few
+            // milliseconds later for an identical result. Only the non-team case can skip — phase 1
+            // runs before `restoreTeamView`, so it always paints the CALENDAR, and a team-view
+            // member still needs the restore below it.
             renderCalendar();
         }
 
+        _bootSurfaceDecided = true;
         _markReadyIfGridShown();
 
         // Swipe gesture handler — see calendar-swipe.js for full implementation.
@@ -1200,7 +1229,18 @@ initCalendarAccess({
         }
     },
     // ONCE: re-running this would re-wire the swipe handler and re-launch the initial 3-month fetch.
-    onGranted: () => { _workspaceStarted = true; _startCalendarWorkspace?.(); },
+    onGranted: () => {
+        _workspaceStarted = true;
+        // CAUGHT, because the workspace start became async at v21.29 (it awaits a bounded chance
+        // for the local cache to paint first). An un-awaited async call with no catch turns any
+        // throw in here into an unhandled rejection — which `error-reporter.js` does capture, so it
+        // would reach the Error Log, but the member would be left looking at an empty workspace
+        // with nothing said and no way to know a reload might fix it. Reporting it here keeps the
+        // failure attached to the thing that failed.
+        Promise.resolve(_startCalendarWorkspace?.()).catch(err => {
+            console.error('[Calendar] the workspace failed to start', err);
+        });
+    },
 });
 
 

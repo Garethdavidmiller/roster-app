@@ -348,12 +348,17 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // number of microtasks, so an extra link makes four unrelated tests fail on the render they
       // were asserting had happened.
       const _painted = await fetchOverridesForRangeFromCache(startStr, endStr);
-      _resolveCacheSettled(!!_painted);
       // The device holds a previously-known state for this window, so the grid may be drawn — but
       // only as `cached`, never as current (v20.40). An EMPTY cache stays `unknown`, deliberately:
       // "nothing cached" and "no overrides" are indistinguishable from here, and that conflation is
       // precisely the bug this model exists to stop. The chip already says "Updating…" meanwhile.
       if (_painted) noteKnowledge(_initialMonthKeys, 'cached');
+      // Settle AFTER the knowledge is recorded, never before. A boot awaiting this signal is about
+      // to render, and it renders from `knowledgeOf` — so signalling first left the ordering to
+      // microtask scheduling. It happened to work (the continuation here is synchronous, so it beat
+      // the awaiting microtask), but nothing said so and moving either line would have made the
+      // first paint say "Checking this month…" over data that was already in the cache.
+      _resolveCacheSettled(!!_painted);
       // Skip the paint if a retry has already superseded this load (same guard as the catch below).
       if (_painted && _origGen === _fetchGen && !syncResolved) {
         if (isTeamViewMode()) renderTeamView(); else renderCalendar();

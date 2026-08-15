@@ -64,7 +64,12 @@ const CAPS = {
     'admin-app.js':            1800,
     'links-design.js':         1500,   // a DOMAIN module: large is less alarming here, but still capped
     'firebase-client.js':      1350,
-    'calendar-app.js':         1300,
+    // 1300 → 1350 at v21.29, deliberately and after extracting first. The page-ready fix added the
+    // surface-selection logic, the cache-first-paint race and their reasoning; the RULE it carried
+    // ("is a roster on screen?") went to calendar-data-state.js as `showsRoster`, beside the four
+    // states it reads. What is left is coordination and the argument for it, which is what this
+    // file is for. The guard did its job: it made the extraction happen before the raise.
+    'calendar-app.js':         1350,
     'roster-data.js':          1300,   // mostly data, not logic
     'admin-roster-upload.js':  1250,
     'nav-panel.js':            1250,

@@ -17,7 +17,7 @@
 
 import { test, describe, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { noteKnowledge, forget, knowledgeOf, worstKnowledge, decideDisplay, _reset }
+import { noteKnowledge, forget, knowledgeOf, worstKnowledge, decideDisplay, showsRoster, _reset }
     from './calendar-data-state.js';
 
 const JAN = '2026-0', FEB = '2026-1', MAR = '2026-2';
@@ -151,5 +151,48 @@ describe('noteKnowledge takes one key or many', () => {
     test('a single key works without wrapping it in an array', () => {
         noteKnowledge(JAN, 'cached');
         assert.equal(knowledgeOf(JAN), 'cached');
+    });
+});
+
+// ── showsRoster: what the page-ready metric is allowed to call "usable" ────────────────────────
+//
+// Same two directions as the rest of this file, and the same asymmetry. Saying YES too readily is
+// the shipped defect: `markPageReady` fired on the first render regardless, so the App Speed card
+// timed the moment the Calendar finished deciding it had nothing to show — and did so most often
+// on the SLOWEST loads, where the data had not arrived, which biases the figure in the flattering
+// direction and leaves it unreadable in either. Saying NO too readily is the hasty fix: it would
+// drop every offline and every cached load out of the sample, i.e. exactly the devices whose speed
+// anyone would want to know about.
+
+describe('showsRoster — is an actual roster on screen?', () => {
+    test('a settled server read is a roster', () => {
+        assert.equal(showsRoster('render'), true);
+    });
+
+    test('a CACHED grid is a roster too — it is data the member can read', () => {
+        // The one most likely to be "tidied" away on the reasoning that stale is not ready. It is
+        // labelled last-known, not withheld, and an offline device sees nothing else all day.
+        assert.equal(showsRoster('stale'), true);
+    });
+
+    test('a withheld grid is NOT a roster, however finished the page looks', () => {
+        assert.equal(showsRoster('loading'), false);
+    });
+
+    test('a failed read is not a roster either — a retry is not a shift', () => {
+        assert.equal(showsRoster('unavailable'), false);
+    });
+
+    test('the four knowledge states map through decideDisplay to withheld / roster / roster / withheld', () => {
+        // Pins the two functions together rather than testing this one in isolation. A fifth
+        // display state added to decideDisplay and not considered here would fall through to
+        // `false` and silently stop recording readiness for whatever case it represents — an
+        // absence, which is the hardest kind of gap to notice in telemetry.
+        const answers = ['unknown', 'cached', 'authoritative', 'error'].map(k => {
+            _reset();
+            noteKnowledge(JAN, /** @type {any} */ (k));
+            return showsRoster(decideDisplay(knowledgeOf(JAN)));
+        });
+        assert.deepEqual(answers, [false, true, true, false]);
     });
 });

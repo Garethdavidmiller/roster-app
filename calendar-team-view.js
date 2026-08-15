@@ -41,7 +41,7 @@ const _unknownShiftWarned = new Set();
  * @param {Function} deps.renderCalendar         Called when team view is dismissed
  * @param {Function} deps._pushOverlayState      Registers Back-button close handler
  * @param {Function} deps._clearOverlayHistory   Removes Back-button handler when closing via button
- * @returns {{ toggleTeamView: any, isTeamViewMode: any, restoreTeamView: any, jumpToCurrentWeek: any, refreshFromCache: any }}
+ * @returns {{ toggleTeamView: any, isTeamViewMode: any, restoreTeamView: any, jumpToCurrentWeek: any, refreshFromCache: any, isGridShown: () => boolean }}
  */
 export function initTeamView({ rosterOverridesCache, ensureOverridesCached, monthKey, clearFetchedMonth,
                                 getSelectedMemberIndex, isFirstRun, renderCalendar,
@@ -50,6 +50,8 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
     // ── STATE ─────────────────────────────────────────────────────────────────
 
     let teamViewMode = false;
+    /** Did the last team render withhold its shift data? See `isGridShown` below. */
+    let _lastRenderWithheld = true;
 
     /** Sunday of the week currently shown in team view. Reset to current week on each open. */
     let currentTeamWeekStart = getSunday(new Date());
@@ -207,6 +209,12 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         const _weekMonths  = [...new Set(weekDates.map(d => monthKey(d.getFullYear(), d.getMonth())))];
         const _weekDisplay = decideDisplay(worstKnowledge(_weekMonths));
         const _withheld    = _weekDisplay === 'loading' || _weekDisplay === 'unavailable';
+        // Remembered so the page-ready metric can ask THIS surface whether a grid is on screen
+        // (v21.29). The Calendar's own answer is per DISPLAY MONTH, and a team week routinely spans
+        // two — so reading the month there would time the wrong thing in both directions: marking
+        // ready over a withheld week whose other month happens to be known, or withholding the mark
+        // from a week that is fully drawn.
+        _lastRenderWithheld = _withheld;
 
         const tableBody = _withheld
             ? `<tr><td colspan="8" class="tv-empty tv-pending" role="${_weekDisplay === 'unavailable' ? 'alert' : 'status'}">`
@@ -495,5 +503,8 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         restoreTeamView,
         jumpToCurrentWeek,
         refreshFromCache,
+        /** @returns {boolean} did the last team render draw SHIFT DATA, rather than the withheld
+         *  "checking"/"couldn't check" panel? False before the first render. */
+        isGridShown: () => teamViewMode && !_lastRenderWithheld,
     };
 }
