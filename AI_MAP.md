@@ -949,6 +949,13 @@ The Change a Shift module. Owns the week grid and override list entirely.
 - `whenOverridesReady()` — resolves once the FIRST `loadOverrides()` has SETTLED (success OR failure); the three write/validate paths await it so they never act on a cold cache (v16.85). `isOverrideCacheLoaded()` (v16.97, Finding #2) is the companion SUCCESS flag — but since **v21.38 the load is STAGED and the question a WRITE must ask is `hasOverrideAuthorityFor(member)`**, because the cache can be loaded and know nothing about the member on screen (`hasAllStaffAuthority()` answers the All-staff view's separate question). Rules + reasoning: `admin-override-coverage.js`. The older flag stays as the page-wide "has anything loaded" signal: `whenOverridesReady` resolving on failure (so the Save button never hangs) would let a write build from an EMPTY cache — duplicate overrides, an erased worked Sunday, a missed <12h rest gap — so `recordRangeOverrides` (throws `cache/load-failed`), `executeSave`, and the admin-app click handler additionally refuse when this is false. Latches true on a successful load or `setAllOverrides`; a later refresh failure keeps the last-good data. Tested by `admin-overrides.test.mjs`.
 - Also exported (grid/bulk internals reused across the module and by `admin-app.js`): `resetTableMemberFilter()`, `updateWeekNavLabel()`, `buildWeekGridInto(container)`, `resetBulkPills()`, `_hasStagedEdits()` (true when any week-grid row holds a staged-but-unsaved add/change/removal — the background-refresh paths in both modules skip `renderWeekGrid()` while it's true so a refresh can't clobber staged rows)
 
+### `admin-save-receipt.js`
+What a save did, said day by day (v21.38). Pure.
+- `buildSaveReceipt({ toSave, removed, memberName, formatDate, describe })` → `{ summary, lines }`
+- One line per DATE, in date order — not per document and not grouped by kind, because a manager checks a receipt against their intention and their intention was a run of days
+- A REMOVED day is named, not omitted: an absence in a receipt reads as the receipt being short, not as a change. Its old value is deliberately not repeated (it invites reading as the new one)
+- `removed` must be captured BEFORE the batch commits — afterwards the rows are gone
+
 ### `admin-tasks.js`
 Admin's task-focus row (v21.38) — four jobs on one page, one focused at a time.
 - `ADMIN_TASKS` — the four tasks in order, each naming the card it focuses and (where the card collapses) its body/chevron pair

@@ -1132,11 +1132,30 @@ export function init() {
     /** @type {any} */ let _toastTimer = null;
     /** @type {any} */ let _feedbackTimer = null;
     /** Shows a success message in the week editor feedback area.  @param {string} msg */
-    function showSuccess(msg) {
+    /**
+     * @param {string} msg
+     * @param {string[]} [lines] one per changed DAY — rendered as an expandable receipt (v21.38).
+     *   Built with DOM nodes rather than markup: the lines carry member-entered times and notes, and
+     *   textContent cannot be made to mean anything but text.
+     */
+    function showSuccess(msg, lines) {
         clearTimeout(_feedbackTimer);
         formFeedback.className = 'feedback success';
         formFeedback.textContent = '✓ ' + msg;
-        _feedbackTimer = setTimeout(hideFeedback, 7000);
+        if (lines?.length) {
+            const details = document.createElement('details');
+            details.className = 'save-receipt';
+            const summary = document.createElement('summary');
+            summary.textContent = `Show the ${lines.length === 1 ? 'day' : lines.length + ' days'}`;
+            details.appendChild(summary);
+            const ul = document.createElement('ul');
+            lines.forEach(l => { const li = document.createElement('li'); li.textContent = l; ul.appendChild(li); });
+            details.appendChild(ul);
+            formFeedback.appendChild(details);
+        }
+        // Longer while a receipt is up: it exists to be READ, and seven seconds is not long enough
+        // to open a fold and check four dates against what you meant to do.
+        _feedbackTimer = setTimeout(hideFeedback, lines?.length ? 20000 : 7000);
 
         // Also show a bottom-anchored toast so confirmation is visible regardless of scroll position
         const toast = document.getElementById('saveToast');

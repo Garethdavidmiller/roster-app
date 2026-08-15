@@ -1977,6 +1977,27 @@
     .admin-task-row { grid-template-columns: repeat(4, 1fr); }
 }
 
+/* ── SAVE RECEIPT (v21.38) ───────────────────────────────────────────────────────────────────────
+   The day-by-day list under a successful save. FOLDED by default: the headline already answers the
+   ordinary case, and a list that opens itself would push the week grid down the screen after every
+   save — the receipt is for checking, not for reading every time. */
+.save-receipt { margin-top: 6px; }
+.save-receipt > summary {
+    cursor: pointer;
+    font-size: var(--type-small);
+    font-weight: 600;
+    padding: 2px 0;
+    list-style: revert;                     /* keep the platform disclosure triangle */
+}
+.save-receipt > summary:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+.save-receipt ul {
+    margin: 4px 0 0;
+    padding-left: 18px;
+    font-size: var(--type-small);
+    font-weight: 400;                       /* the LIST is data; the headline above carries the weight */
+}
+.save-receipt li { padding: 1px 0; }
+
 @media print {
     .lpill-other { background: var(--other-light) !important; color: var(--other) !important; }
     .other-opts { display: none !important; }

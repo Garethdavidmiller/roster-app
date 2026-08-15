@@ -20,6 +20,7 @@ import { emptyCoverage, withMember, withAll, hasAuthorityFor, coversEveryone, re
 import { sessionReady } from './session.js';
 import { parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
 import { checkShiftRules } from './admin-shift-rules.js';
+import { buildSaveReceipt } from './admin-save-receipt.js';
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 /** @type {Record<string, any>} */
@@ -72,7 +73,7 @@ let _currentIsAdmin   = false;
 // Managers have full access too (edit any member on their behalf). Both admin and manager
 // may view the "All staff" override list; a locked self-service user may not.
 let _currentIsManager = false;
-/** @type {(msg: string) => void} */
+/** @type {(msg: string, lines?: string[]) => void} */
 let _showSuccess      = () => {};
 /** @type {(msg: string) => void} */
 let _showError        = () => {};
@@ -265,7 +266,7 @@ let _listenersWired = false;
  * @param {string}   opts.currentUser       Logged-in member name (written to changedBy on saves)
  * @param {boolean}  opts.currentIsAdmin    Whether the user has admin rights
  * @param {boolean} [opts.currentIsManager] Whether the user has manager rights (full access, like admin)
- * @param {(msg: string) => void} opts.showSuccess  Show a success message in the week editor
+ * @param {(msg: string, lines?: string[]) => void} opts.showSuccess  Success message; `lines` is the per-day save receipt
  * @param {(msg: string) => void} opts.showError    Show an error message in the week editor
  * @param {() => void} opts.onAfterSave       Called after any write; refreshes AL/sick banners
  * @param {() => void} opts.markChanged       Marks the week grid as having unsaved changes
@@ -1023,10 +1024,12 @@ export async function executeSave(toSave, toDelete = []) {
     const weekGrid    = document.getElementById('weekGrid');
     const saveBtn     = /** @type {HTMLButtonElement|null} */ (document.getElementById('saveBtn'));
     const memberName  = fieldMember?.value;
-    const overwrites  = toSave.filter(e => e.existingId).length;
-    const creates     = toSave.length - overwrites;
-    const removes     = toDelete.length;
-    const total       = toSave.length + removes;
+    // Captured BEFORE the write: after it these rows are gone, and a receipt that cannot name what
+    // it removed is missing the half a manager is least able to reconstruct from the grid.
+    const removedRows = toDelete.map(id => _allOverrides.find(o => o.id === id)).filter(Boolean);
+    // The per-kind counters went with the summary line they fed — the receipt names the DAYS, so
+    // "2 added, 1 updated" had nobody left to tell (v21.38).
+    const total       = toSave.length + toDelete.length;
 
     // Disable the button BEFORE awaiting sessionReady (v16.23). While sessionReady is still
     // pending (early after a slow-auth page load), a double-tap could pass the collector twice —
@@ -1083,11 +1086,17 @@ export async function executeSave(toSave, toDelete = []) {
             return docs;
         });
 
-        const parts = [];
-        if (creates    > 0) parts.push(`${creates} added`);
-        if (overwrites > 0) parts.push(`${overwrites} updated`);
-        if (removes    > 0) parts.push(`${removes} removed`);
-        _showSuccess(`${parts.join(', ')} for ${memberName}`);
+        // A RECEIPT, NOT A COUNT (v21.38). "2 added, 1 removed" cannot answer the question a manager
+        // actually has — did I change the days I meant to? — and the commonest real mistake here
+        // (a bulk apply that caught the wrong days, a grid left on last week) produces a perfectly
+        // plausible count. The days are known before the commit, so this costs nothing.
+        const receipt = buildSaveReceipt({
+            toSave, removed: removedRows, memberName: memberName ?? '',
+            formatDate: formatDisplay,
+            describe: e => (TYPES[e.type]?.fixed ? TYPES[e.type].label
+                : `${TYPES[e.type]?.label ?? e.type}${e.value ? ' ' + e.value : ''}`),
+        });
+        _showSuccess(receipt.summary, receipt.lines);
 
         // Reset checked rows in the grid
         weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {

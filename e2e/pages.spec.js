@@ -1169,6 +1169,43 @@ test('a tips panel with more below the fold says so, and stops saying it at the 
     await expect(panel).not.toHaveClass(/\bhas-more\b/);
 });
 
+// ── THE SAVE RECEIPT (v21.38, external review) ──────────────────────────────────────────────────
+//
+// A count cannot answer "did I change the days I meant to?", and the commonest real mistake on this
+// page — a right-shaped batch against the wrong days — produces a perfectly plausible count. Driven
+// in a browser because the wording is unit-tested but the WIRING is not: whether the days a save
+// actually staged reach the receipt is a different pass over the same state.
+test('admin: saving reports the DAYS it changed, not just how many', async ({ page }) => {
+    // executeSave refuses without a Firebase user ("You've been signed out"), which is right — so
+    // opt the stub in, the way every other spec that reaches a real write does.
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    // Stage several days through the real bulk path, then save.
+    await page.locator('#bulkSelMonFri').click();
+    await page.locator('#bulkTypePills .pill-annual_leave').click();
+    await page.locator('#bulkApplyBtn').click();
+    await page.locator('#saveBtn').click();
+
+    const feedback = page.locator('#formFeedback');
+    await expect(feedback).toContainText('changes saved for', { timeout: 10000 });
+
+    // The receipt itself: folded, and naming one day per line when opened.
+    const receipt = feedback.locator('.save-receipt');
+    await expect(receipt).toBeVisible();
+    await expect(receipt).not.toHaveAttribute('open', '');
+    await receipt.locator('summary').click();
+    const lines = receipt.locator('li');
+    expect(await lines.count(), 'one line per changed day').toBeGreaterThan(1);
+    // And the headline's count agrees with the list it folds — two passes over one state, which is
+    // exactly where a summary and its detail drift apart.
+    const headline = await feedback.textContent();
+    const stated = Number((headline || '').match(/(\d+) changes? saved/)?.[1]);
+    expect(await lines.count(), 'the headline must agree with its own receipt').toBe(stated);
+});
+
 // ── THE TASK FOCUS ROW (v21.38, external review) ────────────────────────────────────────────────
 //
 // Four jobs on one page, and a chip row that focuses one. Driven here rather than in a unit test
