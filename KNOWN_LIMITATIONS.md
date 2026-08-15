@@ -78,9 +78,16 @@ and it is the v19.94 lesson applied: a second engine in the deploy gate lets a W
 staff on a stale version. Merging with `webkit` red and the other four green is the designed
 behaviour, not a shortcut.
 
-**Not fixed, same reasoning as above:** no automatic retry. The candidates if it becomes tiresome are
-`retries: 1` scoped to the WebKit config only, or finding the actual race in that spec — the second is
-the real fix and nobody has done it.
+**Both candidate fixes were applied the same day (v21.40), because a job that is usually red teaches
+everyone to stop reading it.** The commonest offender — the paycalc backup→restore round trip — was a
+genuine race in the TEST (a fixed 1200ms sleep betting on the card's own 800ms self-reload; the log
+said so plainly: "Execution context was destroyed") and now waits for the navigation itself. The
+residual tail — click timeouts on a slow runner, different tests each run — is covered by
+`retries: process.env.CI ? 1 : 0` in `playwright.webkit.mjs` ONLY: an engine difference is
+deterministic and still fails both attempts, so the job stays red for exactly the thing it exists to
+catch, while a one-off race is reported "flaky" instead of failing the run. The deploy gate keeps its
+single-shot rule — the entry above explains why, and nothing here touches it. If `webkit` goes red
+NOW, take it seriously: the flake excuse has been spent.
 
 ## Security
 

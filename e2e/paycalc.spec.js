@@ -256,10 +256,18 @@ test('paycalc: backup → restore round trip survives the reload', async ({ page
 
     await page.evaluate(() => localStorage.setItem('myb_pc_gmiller_p16', '{"satH":0,"satM":0}'));
     await page.locator('#ptPaste').fill(backup);
+    // The card reloads the page 800ms after a successful restore. WAIT FOR THAT NAVIGATION, never a
+    // fixed sleep: the old `waitForTimeout(1200)` raced it — on a slow CI runner the reload was
+    // still in flight when the sleep ended, so the localStorage read below landed mid-navigation
+    // and died with "Execution context was destroyed". It was the suite's most frequent WebKit
+    // flake (three sightings), and the flake was REAL information about the test, not the engine:
+    // a sleep is a bet about someone else's timer. The listener is armed before the click that can
+    // trigger the reload, so it cannot miss a fast one either.
+    const reloaded = page.waitForEvent('load');
     await page.locator('#ptPasteGo').click();
     await page.locator('.dialog-btn-confirm').click();      // "Replace" — the write is gated on this
     await expect(page.locator('#ptStatus')).toContainText(/Restored/);
-    await page.waitForTimeout(1200);                        // the card reloads the page after 800ms
+    await reloaded;
     expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_p16')))
         .toBe('{"satH":7,"satM":30}');
 });
