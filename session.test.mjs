@@ -41,10 +41,39 @@ const _authThrow = code => { const e = new Error(code); /** @type {any} */ (e).c
 // mutate mockAuth.currentUser directly.
 const mockAuth = { currentUser: /** @type {any} */ (null) };
 
+/** The ONE boot restore, memoised — the mock's model of `authBootstrap` (v21.29).
+ *  Reset via `_resetBootRestore()` between tests that count subscriptions. @type {Promise<void>|null} */
+let _bootRestore = null;
+const _resetBootRestore = () => { _bootRestore = null; };
+/** Subscribe once, on the first caller; every later caller awaits the same promise. Emission sets
+ *  `currentUser` BEFORE resolving, which is what the real SDK does and what makes reading ground
+ *  truth afterwards correct rather than lossy. */
+function _bootOnce() {
+    if (!_bootRestore) {
+        _bootRestore = new Promise(resolve => {
+            _onAuthSubs++;
+            if (_authNeverEmits) return;             // never settles — each caller's own bound decides
+            const emit = () => { mockAuth.currentUser = _existingUser; _authUnsubs++; resolve(); };
+            if (_authEmitDelayMs) setTimeout(emit, _authEmitDelayMs);
+            else Promise.resolve().then(emit);
+        });
+    }
+    return _bootRestore;
+}
+
 mock.module('./firebase-client.js', {
     namedExports: {
         auth:                           mockAuth,
         authReady:                      Promise.resolve(),
+        // The shared boot authority (v21.29). Returns GROUND TRUTH after the one restore, never the
+        // remembered emission — see the real implementation in firebase-client.js for why.
+        currentUserAfterBoot:           async (timeoutMs = 8000) => {
+            if (mockAuth.currentUser) return mockAuth.currentUser;
+            /** @type {any} */ let timer;
+            await Promise.race([_bootOnce(), new Promise(r => { timer = setTimeout(r, timeoutMs); })]);
+            clearTimeout(timer);
+            return mockAuth.currentUser || null;
+        },
         // Invoke the callback asynchronously with the configured existing user, then return
         // the unsubscribe fn (matching the real onAuthStateChanged contract session.js relies on).
         onAuthStateChanged:             (_auth, cb) => { _onAuthSubs++; if (!_authNeverEmits) { if (_authEmitDelayMs) setTimeout(() => cb(_existingUser), _authEmitDelayMs); else Promise.resolve().then(() => cb(_existingUser)); } return () => { _authUnsubs++; }; },
@@ -87,6 +116,30 @@ const {
 const { nameToEmail, auth } = await import('./firebase-client.js');
 // The real (pure) auth store — session.js feeds it; these tests verify the Phase-2 bridge.
 const { getAuthSnapshot, _resetAuthStateForTest } = await import('./auth-state.js');
+
+// EVERY test is a fresh page load. The boot restore is memoised for a page's lifetime (v21.29) —
+// which is the point of it — so one carried between tests would let an earlier test's identity
+// answer a later test's question. Root-level, because that mistake is silent: the tests that caught
+// it failed with "the stale anonymous session must be signed out first", which reads like a
+// sign-out bug rather than a fixture leak.
+// It clears `currentUser` too, because the mock now SETS it on emission — as the real SDK does,
+// and as reading ground truth afterwards requires. Without that, a restored identity survived into
+// the next test and answered its fast path.
+beforeEach(() => { _resetBootRestore(); mockAuth.currentUser = null; });
+
+/** Wait until the sign-in mock has actually been ENTERED `n` times.
+ *
+ *  Replaces `for (let i = 0; i < 6; i++) await Promise.resolve()` (v21.29). Counting microtask
+ *  ticks was never a synchronisation — it was a guess about how many awaits sat between
+ *  `ensureFirebaseSession` and its sign-in call, and it silently became wrong the moment the boot
+ *  restore stopped being a fresh subscription. The failure it produced was a superseded-attempt
+ *  test reporting the WINNER as failed, which reads like a generation-guard bug. Wait for the
+ *  event instead. */
+async function signInEntered(n = 1, tries = 500) {
+    for (let i = 0; i < tries && _signInCalls < n; i++) await new Promise(r => setTimeout(r, 1));
+    if (_signInCalls < n) throw new Error(`sign-in was never entered ${n}x (saw ${_signInCalls})`);
+}
+
 const { CONFIG } = await import('./roster-data.js');
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -116,37 +169,80 @@ describe('constants', () => {
 // emission, so every awaiting coordinator waited for ever with it. The property to pin is not
 // "there is a timeout" but what the timeout DOES: resolve null, the answer every caller is already
 // built to handle, rather than reject into two call sites that have no catch.
+//
+// ── AND SINCE v21.29 IT DELEGATES ───────────────────────────────────────────────────────────────
+//
+// It no longer opens a subscription of its own — it awaits the ONE boot restore
+// (`currentUserAfterBoot` → `authBootstrap`). So the assertion that used to matter here ("it
+// detaches its listener") has been replaced by the one that matters now: **N callers subscribe
+// ONCE.** That is the property the change exists to deliver, and the old detach assertion could
+// not have caught its absence — three modules each detaching their own listener passed it
+// perfectly, which is exactly the state that produced the ~12.5s Calendar tail.
+//
+// The DETACH itself is now a property of `authBootstrap`, in firebase-client.js, which imports the
+// gstatic SDK and so cannot load in Node. Noted rather than silently dropped.
 
 describe('restoreFirstAuthUser', () => {
-    beforeEach(() => { _authNeverEmits = false; _authEmitDelayMs = 0; _authUnsubs = 0; _existingUser = null; });
-    afterEach(()  => { _authNeverEmits = false; _authEmitDelayMs = 0; });
+    beforeEach(() => {
+        _authNeverEmits = false; _authEmitDelayMs = 0; _authUnsubs = 0; _onAuthSubs = 0;
+        _existingUser = null; mockAuth.currentUser = null; _resetBootRestore();
+    });
+    afterEach(()  => { _authNeverEmits = false; _authEmitDelayMs = 0; mockAuth.currentUser = null; });
 
-    test('resolves with the restored user and unsubscribes', async () => {
+    test('resolves with the restored user', async () => {
         _existingUser = { isAnonymous: false, email: 'g.miller@myb.test' };
         const u = await restoreFirstAuthUser();
         assert.equal(u, _existingUser);
-        assert.equal(_authUnsubs, 1, 'the listener must be detached once it has answered');
     });
 
-    test('a restore that NEVER answers resolves null at the bound, and detaches', async () => {
+    test('a restore that NEVER answers resolves null at the bound', async () => {
         // The whole point: before this, an unanswered restore hung the caller for ever.
         _authNeverEmits = true;
         const t0 = Date.now();
         const u = await restoreFirstAuthUser(60);
         assert.equal(u, null, 'a hung restore must read as "nobody is signed in", not hang');
         assert.ok(Date.now() - t0 >= 55, 'it must actually have waited for the bound');
-        assert.equal(_authUnsubs, 1, 'a timed-out restore must not leak its auth listener');
     });
 
     test('a LATE emission after the bound changes nothing', async () => {
-        // Firebase answering at 9s must not re-resolve a promise that already answered null at 8,
-        // and must not throw on the second resolve either. `settled` is the guard.
+        // Firebase answering at 9s must not overturn an answer already given at 8.
         _existingUser = { isAnonymous: false, email: 'late@myb.test' };
         _authEmitDelayMs = 80;
         const u = await restoreFirstAuthUser(20);
         assert.equal(u, null, 'the bound wins — the late user must not appear');
-        await new Promise(r => setTimeout(r, 120));   // let the late emission land
-        assert.equal(_authUnsubs, 1, 'still detached exactly once, no throw from the late callback');
+        await new Promise(r => setTimeout(r, 120));   // let the late emission land, harmlessly
+    });
+
+    test('MANY callers share ONE boot restore — the stacked-timeout fix', async () => {
+        // THE regression this change exists to prevent. Before v21.29 each caller opened its own
+        // subscription with its own ceiling, and on the Calendar two of them ran in sequence: 6.5s
+        // for the reconcile, then a further 6s for the access decision's own restore. Neither bound
+        // was wrong; adding them was, and nothing measured the addition.
+        _existingUser = { isAnonymous: false, email: 'shared@myb.test' };
+        const users = await Promise.all([
+            restoreFirstAuthUser(), restoreFirstAuthUser(), restoreFirstAuthUser(),
+        ]);
+        assert.deepEqual(users, [_existingUser, _existingUser, _existingUser]);
+        assert.equal(_onAuthSubs, 1, 'three callers must produce ONE subscription, not three');
+    });
+
+    test('a timed-out caller does not leave a second subscription behind', async () => {
+        // The other half: timing out must not make the NEXT caller start again from scratch, or the
+        // sharing evaporates in precisely the degraded case it was built for.
+        _authEmitDelayMs = 80;
+        _existingUser = { isAnonymous: false, email: 'slow@myb.test' };
+        assert.equal(await restoreFirstAuthUser(20), null, 'first caller gives up at its bound');
+        assert.equal(await restoreFirstAuthUser(200), _existingUser, 'the second sees the same restore land');
+        assert.equal(_onAuthSubs, 1, 'still one subscription across both');
+    });
+
+    test('ground truth beats the remembered emission — a signed-out member stays signed out', async () => {
+        // Returning `authBootstrap`'s snapshot would resurrect an identity that has since gone, and
+        // `ensureFirebaseSession` would then believe a session exists when it does not.
+        _existingUser = { isAnonymous: false, email: 'gone@myb.test' };
+        assert.equal(await restoreFirstAuthUser(), _existingUser);
+        mockAuth.currentUser = null;                       // signed out after boot
+        assert.equal(await restoreFirstAuthUser(30), null, 'the boot snapshot must not bring them back');
     });
 
     test('the default bound is generous enough to be a hang, not a slow phone', () => {
@@ -794,26 +890,52 @@ describe('primeAuth + currentUser fast path', () => {
         _signInBehavior  = 'ok';
         _signInCalls     = 0;
         _onAuthSubs      = 0;
+        _signOutCalled   = false;
+        _authEmitDelayMs = 0;
+        _resetBootRestore();   // the boot restore is memoised (v21.29) — a stale one hides a subscription
         auth.currentUser = null;
         CONFIG.ENFORCE_NAMED_SESSION = false;
     });
-    afterEach(() => { auth.currentUser = null; });
+    afterEach(() => { auth.currentUser = null; _authEmitDelayMs = 0; });
 
-    test('primeAuth pre-subscribes the restore once and ensureFirebaseSession consumes it (no 2nd subscription)', async () => {
-        _existingUser = { isAnonymous: false, email: nameToEmail('G. Miller') };
+    test('primeAuth pre-subscribes the restore once and ensureFirebaseSession reuses it (no 2nd subscription)', async () => {
+        // The restore is STILL IN FLIGHT when the sign-in starts — the cold-restore case primeAuth
+        // exists for. Without the delay the emission populates `currentUser` during the flush, the
+        // sign-in takes the fast path, and this test passes without the primed promise doing
+        // anything at all (it did exactly that until v21.29, and the leaked promise then answered a
+        // LATER test's sign-in with a stale identity — which is how the value-vs-wait bug surfaced).
+        _existingUser    = { isAnonymous: false, email: nameToEmail('G. Miller') };
+        _authEmitDelayMs = 30;
         primeAuth();
-        // flush the authReady → _restoreFirstAuthUser microtask chain so the eager subscription happens
-        for (let i = 0; i < 5; i++) await Promise.resolve();
+        await new Promise(r => setTimeout(r, 5));   // let the eager subscription happen
         assert.equal(_onAuthSubs, 1, 'primeAuth subscribes the first auth-state once, eagerly');
 
         const ok = await ensureFirebaseSession('G. Miller');
         assert.equal(ok, true);
         assert.equal(getFirebaseIdentity(), 'named');
-        assert.equal(_onAuthSubs, 1, 'the primed restore was consumed — no second onAuthStateChanged');
+        assert.equal(_onAuthSubs, 1, 'the primed wait was reused — no second onAuthStateChanged');
 
         primeAuth();   // one-shot per page life: a second prime is a no-op
-        for (let i = 0; i < 5; i++) await Promise.resolve();
+        await new Promise(r => setTimeout(r, 5));
         assert.equal(_onAuthSubs, 1, 'primeAuth is idempotent');
+        _authEmitDelayMs = 0;
+    });
+
+    test('a primed restore supplies the TIMING, never the identity (shared device)', async () => {
+        // Priming happens when the login overlay MOUNTS, so its promise can be minutes old by the
+        // time somebody signs in — and on a shared device the person who signs in may not be the
+        // person whose session was restored. Reading the identity out of that promise would hand
+        // the second member the first member's user object.
+        _existingUser = { isAnonymous: false, email: nameToEmail('A. Panchal') };
+        primeAuth();                                    // no-op after the test above, but explicit
+        await new Promise(r => setTimeout(r, 5));
+        mockAuth.currentUser = null;                    // A. Panchal has since been signed out
+        _existingUser        = null;
+
+        const ok = await ensureFirebaseSession('G. Miller');
+        assert.equal(ok, true);
+        assert.equal(getFirebaseIdentity(), 'named');
+        assert.equal(_signOutCalled, false, 'nobody was signed in, so nothing needed signing out');
     });
 
     test('fast path: a live matching named currentUser returns immediately (no restore wait, no sign-in)', async () => {
@@ -865,7 +987,7 @@ describe('auth generation guard', () => {
         _signInGate = new Promise(r => { releaseGate = r; });
 
         const p1 = ensureFirebaseSession('G. Miller');          // attempt 1 — hangs awaiting the gate
-        for (let i = 0; i < 6; i++) await Promise.resolve();    // let it reach the gate
+        await signInEntered(1);                                 // let it reach the gate
         _signInGate = null;                                     // attempt 2 won't gate
 
         const ok2 = await ensureFirebaseSession('G. Miller');   // attempt 2 — wins
@@ -930,7 +1052,7 @@ describe('B5: superseded login is identity-honest, not a spurious failure', () =
         _signInGate = new Promise(r => { releaseGate = r; });
 
         const login = ensureNamedSession('G. Miller', { delayMs: 0 });   // G1 — parks at the gate
-        for (let i = 0; i < 6; i++) await Promise.resolve();             // let it reach the gate
+        await signInEntered(1);                                          // let it reach the gate
         _signInGate = null;                                             // the superseding call won't gate
 
         // The member's own session is now live (real Firebase populates currentUser on sign-in).

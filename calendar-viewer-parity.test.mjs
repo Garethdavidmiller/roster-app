@@ -280,20 +280,45 @@ describe('Contract B — the PIN is not in the repository', () => {
 // persistence is applied. A shape check is weaker than a behaviour check and is what is available;
 // if it fails, re-run the experiment before deciding the new shape is safe.
 describe('Contract C — boot persistence is viewer-aware', () => {
-    test('firebase-client consults isViewerUser inside the authReady initializer', () => {
+    test('the boot initializer consults isViewerUser before applying persistence', () => {
         const src = read('./firebase-client.js').replace(/\/\/[^\n]*/g, '');
         assert.match(src, /import \{ isViewerUser \} from '\.\/calendar-access-core\.js'/,
             'firebase-client.js no longer imports the ONE viewer predicate — a second local copy '
             + 'would be a second place a bypass could be introduced');
-        const at = src.indexOf('export const authReady');
-        assert.ok(at > -1, 'authReady not found — this contract is checking nothing');
+        // `authBootstrap` since v21.29 (it was `authReady`, which now derives from it). The name
+        // moved because the boot restore gained a second consumer; the PROPERTY did not move, so
+        // this contract follows the initializer rather than the old export.
+        const at = src.indexOf('export const authBootstrap');
+        assert.ok(at > -1, 'the boot initializer was not found — this contract is checking nothing');
         // The initializer is the async IIFE the export is assigned; take a bounded slice of it.
         const body = src.slice(at, at + 900);
         assert.ok(body.includes('isViewerUser('),
-            'authReady applies persistence without asking whether the restored user is the shared '
+            'the boot applies persistence without asking whether the restored user is the shared '
             + 'viewer — the exact shape that migrated it into IndexedDB (see the experiment)');
         assert.ok(body.includes('browserSessionPersistence'),
-            'authReady has no session-persistence branch for the viewer — a restored viewer must '
+            'the boot has no session-persistence branch for the viewer — a restored viewer must '
             + 'KEEP session-only persistence, or re-assert it to migrate back out of IndexedDB');
+    });
+
+    test('authReady is DERIVED — boot persistence is decided in exactly one place', () => {
+        // Added with the v21.29 bootstrap split, because that split is precisely how a SECOND
+        // persistence path gets introduced: `authReady` and `authBootstrap` both look like
+        // reasonable places to set it, and a copy in the second one would be viewer-unaware while
+        // every test above kept passing against the first.
+        const src = read('./firebase-client.js').replace(/\/\/[^\n]*/g, '');
+        const line = src.split('\n').find(l => l.includes('export const authReady'));
+        assert.ok(line, 'authReady not found');
+        assert.match(line, /authBootstrap/,
+            'authReady no longer derives from authBootstrap — if it computes persistence itself '
+            + 'there are two boot paths, and only one of them is covered by the contract above');
+        // THREE legitimate places, and naming them is the point — a bare count would be satisfied
+        // by swapping one for another. The member chain's own last-resort fallback is one of them,
+        // which is easy to forget: it lands a MEMBER on session persistence when neither IndexedDB
+        // nor localStorage could be established, and that is a degraded member session, not a viewer.
+        const setters = (src.match(/setPersistence\(auth, browserSessionPersistence\)/g) || []).length;
+        assert.equal(setters, 3, `boot session-persistence is set in ${setters} places, not 3. The `
+            + 'three are: the member chain\'s last-resort fallback (_setMemberPersistence), the '
+            + 'viewer branch of authBootstrap, and setViewerPersistence. A FOURTH is the thing this '
+            + 'guards — the shared viewer must not acquire a second, viewer-unaware boot path.');
     });
 });
