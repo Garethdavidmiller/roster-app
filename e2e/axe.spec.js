@@ -61,6 +61,26 @@ const GLOBAL_WAIVERS = [];
  * @param {string[]} [pageWaivers]  extra rule ids to disable for this page only
  */
 async function scan(page, { pageWaivers = [], exclude = [] } = {}) {
+    // ── NEVER SCAN THROUGH THE SPLASH (v21.35) ──────────────────────────────────────────────────
+    //
+    // The Calendar's splash fades for 400ms and is then REMOVED from the DOM. While it fades it is
+    // a full-screen navy panel with white text lying over whatever is underneath, so axe measures
+    // `#splash-title` against the card behind it and reports a SERIOUS colour-contrast violation —
+    // for a state that lasts under half a second and that `pointer-events: none` already makes
+    // untouchable. There is no defect to fix in the app: nobody reads that frame.
+    //
+    // It surfaced on WebKit in CI, where the runner is slow enough that the scan lands inside the
+    // fade. Locally it never reproduced, which is exactly why the wait belongs HERE rather than in
+    // the one test that happened to catch it: seven scans load `/`, all seven have the same race,
+    // and the other six pass today only because whatever they wait for outlasts the fade.
+    //
+    // Waiting for DETACHMENT, not for `.hidden` — the class goes on at the START of the fade, so
+    // waiting on it would still leave the whole 400ms in front of us.
+    await page.locator('#splash').waitFor({ state: 'detached', timeout: 15_000 }).catch(() => {
+        // Pages other than the Calendar have no splash, and `detached` resolves immediately for an
+        // element that never existed. A timeout here means one genuinely never came down — let the
+        // scan run and report whatever it finds rather than failing with a harness error.
+    });
     let builder = new AxeBuilder({ page })
         .withTags(WCAG_TAGS)
         .disableRules([...GLOBAL_WAIVERS, ...pageWaivers]);
