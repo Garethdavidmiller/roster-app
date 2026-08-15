@@ -79,6 +79,51 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
+  # ── SAFARI'S ENGINE (v21.28) ─────────────────────────────────────────────────────────────────
+  #
+  # iOS is a supported platform carrying a dozen documented Safari workarounds, and until now not
+  # one of them was exercised by a browser that behaves that way. The first WebKit run found a test
+  # asserting the notification bell exists unconditionally — a Chromium assumption, where the app
+  # was right and the test was provincial.
+  #
+  # It runs HERE and not in deploy-hosting.yml on purpose: a second engine in the deploy gate would
+  # double the critical path and let a WebKit-only flake keep staff on a stale version, which is the
+  # failure that had production four releases behind on 14 Aug 2026.
+  webkit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # `--with-deps` matters here in a way it does not for Chromium: WebKit needs a long list of
+      # GTK/GStreamer libraries that no runner ships by default, and without them every test fails
+      # at browser launch with an error that looks nothing like a test failure.
+      - name: Install Playwright WebKit
+        run: npx playwright install --with-deps webkit
+
+      - name: Run the smoke suite under WebKit
+        run: npm run test:webkit
+        env:
+          CI: true
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playwright-report-webkit
+          path: playwright-report/
+          retention-days: 7
+
   # Emulator integration pack — Firestore + Storage security rules exercised against the REAL
   # emulators (npm run test:rules). This previously ran ONLY at rules-deploy time
   # (deploy-rules.yml); running it here gates every branch/PR, so a rules ↔ app contract

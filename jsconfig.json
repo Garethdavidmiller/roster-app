@@ -21,6 +21,7 @@
         "playwright.config.mjs",
         "playwright.csp.mjs",
         "playwright.visual.mjs",
-        "playwright.offline.mjs"
+        "playwright.offline.mjs",
+        "playwright.webkit.mjs"
     ]
 }

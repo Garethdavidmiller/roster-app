@@ -423,6 +423,7 @@ roster-app/
 ├── playwright.csp.mjs      ← Playwright config for the deployed-CSP proof (e2e/csp.spec.js): baseURL → the Firebase Hosting emulator (127.0.0.1:5000), NO webServer (started by `npm run test:csp` = firebase emulators:exec --only hosting). Same chromium + mobile-chrome projects
 ├── playwright.visual.mjs   ← Playwright config for the visual-regression baselines (e2e/visual.spec.js, `npm run test:visual`): one desktop project, http-server webServer, tolerant-but-teethed `toHaveScreenshot` defaults (threshold 0.15, maxDiffPixelRatio 0.001), flat baseline dir `e2e/visual-baselines/`. Opt-in (NOT in `npm test`/CI) because pixel diffs are environment-sensitive
 ├── playwright.offline.mjs  ← Playwright config for the offline-behaviour proof (e2e/offline.spec.js, `npm run test:offline`). Opt-in (NOT in `npm test`/CI)
+├── playwright.webkit.mjs   ← the smoke suite under SAFARI'S ENGINE — desktop + Mobile Safari over the same specs (`npm run test:webkit`). Runs in branch CI (`e2e.yml`), deliberately NOT the deploy gate. It is the ENGINE, not an iPhone. Why it exists and what it cannot see: the module header
 ├── package.json            ← dev dependencies only
 ├── eslint.config.js        ← flat ESLint config (browser globals); run on staged JS by the pre-commit hook and `npm run check`
 ├── scripts/
@@ -479,6 +480,9 @@ npm run test:csp
 # Locks page composition (incl. the accepted desktop voids) against silent CSS/layout drift.
 # Opt-in, env-sensitive, NOT in npm test/CI. Regenerate: `npm run test:visual -- --update-snapshots=all` (`=all` is load-bearing — a bare `--update-snapshots` only rewrites baselines whose comparison FAILED, so a baseline that drifted inside the tolerance could never be refreshed). **Then `git status e2e/visual-baselines/` and revert anything you cannot explain** (v19.62): `=all` rewrites every baseline including the ones that PASSED, so a run intended to capture ONE change came back with FIVE modified — four of them sub-tolerance rendering noise that would have been committed as though reviewed. Reverting a file and re-running is the check: still passes ⇒ it was noise and does not belong in the diff:
 npm run test:visual
+
+# The smoke suite under Safari's engine. Runs in branch CI, not the deploy gate:
+npm run test:webkit
 
 # Offline-behaviour proof (e2e/offline.spec.js under playwright.offline.mjs) — SW/offline-first paths
 # with the network cut. Opt-in, NOT in npm test/CI:
