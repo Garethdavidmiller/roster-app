@@ -126,9 +126,13 @@ async function initPageSpeedCard() {
         rows.className = 'speed-rows';
         const head = document.createElement('div');
         head.className = 'speed-row speed-row--dual speed-dual-head';
+        // The last cell was EMPTY until v21.34, which left the one number in this table as the only
+        // unlabelled figure on the card — every other numeric column here names itself ("over 1s",
+        // "loads"). "opens" is the word the sentence above the table already uses.
         head.innerHTML = '<span></span><span class="speed-dual-label">Appears</span>' +
                          '<span class="speed-dual-label">Code</span>' +
-                         '<span class="speed-dual-label">Usable</span><span></span>';
+                         '<span class="speed-dual-label">Usable</span>' +
+                         '<span class="speed-dual-label">opens</span>';
         rows.appendChild(head);
 
         allPages.forEach(pg => {
@@ -145,8 +149,9 @@ async function initPageSpeedCard() {
                 // A page with three opens can render a full-width RED bar and mean nothing at all.
                 // Same marker, same threshold and same reasoning as the breakdown rows below — it
                 // was simply never applied here, where the bar is at its most emphatic.
-                `<span class="speed-row-label"><span aria-hidden="true">${emoji}</span> ${label}`
-                    + `${count && count < THIN_SAMPLE ? ' <span class="speed-thin">(few)</span>' : ''}</span>` +
+                `<span class="speed-row-label"><span class="speed-row-name">`
+                    + `<span aria-hidden="true">${emoji}</span> ${label}</span>`
+                    + `${count && count < THIN_SAMPLE ? '<span class="speed-thin">(few)</span>' : ''}</span>` +
                 `<span class="speed-bar" role="img" aria-label="appears: ${f ? f.pctQuick : 0}% quick">${f ? segs(f) : ''}</span>` +
                 `<span class="speed-bar" role="img" aria-label="code loaded: ${r ? r.pctQuick : 0}% quick">${r ? segs(r) : ''}</span>` +
                 (u ? `<span class="speed-bar" role="img" aria-label="usable: ${u.pctQuick}% quick">${segs(u)}</span>`
@@ -154,7 +159,14 @@ async function initPageSpeedCard() {
                    // milestone" — an unfilled track sitting beside a filled one reads as 0%, which
                    // is a measurement, and the wrong one. A dash says there is no number.
                    : '<span class="speed-bar-none" aria-label="usable: not reported">—</span>') +
-                `<span class="speed-row-count">${count.toLocaleString('en-GB')}</span>`;
+                // MUTED, not bold navy (v21.34). It wore `.speed-row-count` — the class that, three
+                // blocks down in this same card, means "the figure you are hunting". Here the only
+                // number in the row is the SAMPLE SIZE, so the emphasis sat on the least
+                // interesting thing on the line and the bars beside it competed with it. The
+                // breakdown rows already got this right: bold for the finding, muted for how many
+                // loads it rests on. Same class, same role, and its 4ch floor also stops the bars
+                // reflowing when a page crosses into five digits.
+                `<span class="speed-row-sub">${count.toLocaleString('en-GB')}</span>`;
             rows.appendChild(row);
         });
         frag.appendChild(rows);
@@ -211,7 +223,8 @@ async function initPageSpeedCard() {
             // bar.
             const overOneSecond = 100 - r.pctQuick;
             row.innerHTML =
-                `<span class="speed-row-label">${escapeHtml(r.label)}${thin ? ' <span class="speed-thin">(few)</span>' : ''}</span>` +
+                `<span class="speed-row-label"><span class="speed-row-name">${escapeHtml(r.label)}</span>`
+                    + `${thin ? '<span class="speed-thin">(few)</span>' : ''}</span>` +
                 `<span class="speed-bar" role="img" aria-label="${r.pctQuick}% quick, ${r.pctOk}% a moment, ${r.pctSlow}% slow">${segs(r)}</span>` +
                 `<span class="speed-row-count">${overOneSecond}%</span>` +
                 `<span class="speed-row-sub">${r.total.toLocaleString('en-GB')}</span>`;
@@ -258,7 +271,8 @@ async function initPageSpeedCard() {
             // The aria-label states the PHASE bands, because this block's bars do not follow the
             // card legend — a screen-reader user must not be told "quick/a moment/slow" here.
             row.innerHTML =
-                `<span class="speed-row-label">${escapeHtml(r.label)}${thin ? ' <span class="speed-thin">(few)</span>' : ''}</span>` +
+                `<span class="speed-row-label"><span class="speed-row-name">${escapeHtml(r.label)}</span>`
+                    + `${thin ? '<span class="speed-thin">(few)</span>' : ''}</span>` +
                 `<span class="speed-bar" role="img" aria-label="${escapeHtml(r.sub)}: ${r.pctQuick}% under half a second, ${r.pctOk}% between half and one second, ${r.pctSlow}% over a second">${segs(r)}</span>` +
                 `<span class="speed-row-count">${r.pctOver500}%</span>` +
                 `<span class="speed-row-sub">${r.total.toLocaleString('en-GB')}</span>`;
@@ -305,7 +319,8 @@ async function initPageSpeedCard() {
             row.className = 'speed-row speed-row--why';
             const thin = r.total < THIN_SAMPLE;
             row.innerHTML =
-                `<span class="speed-row-label">${escapeHtml(r.label)}${thin ? ' <span class="speed-thin">(few)</span>' : ''}</span>` +
+                `<span class="speed-row-label"><span class="speed-row-name">${escapeHtml(r.label)}</span>`
+                    + `${thin ? '<span class="speed-thin">(few)</span>' : ''}</span>` +
                 `<span class="speed-bar" role="img" aria-label="${escapeHtml(r.sub)}: ${r.pctQuick}% quick, ${r.pctOk}% a moment, ${r.pctSlow}% slow">${segs(r)}</span>` +
                 `<span class="speed-row-count">${r.pctOver1s}%</span>` +
                 `<span class="speed-row-sub">${r.total.toLocaleString('en-GB')}</span>`;

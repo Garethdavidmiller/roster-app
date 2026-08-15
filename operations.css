@@ -1230,13 +1230,26 @@ select:focus-visible, input:focus-visible {
     align-items: center;
     gap: 10px;
 }
+/* The NAME ellipsises; the "(few)" marker does not (v21.34).
+   Both were one nowrap-ellipsis span, so at 390px — the width this app is primarily used at —
+   "Settings (few)" truncated to "Settings (f…". The marker is the row's honesty caveat: it is
+   exactly the part that must survive, because a row reading "Settings" beside a confident full-green
+   bar is the claim the marker exists to withdraw. Flex with a shrinkable name and a fixed marker,
+   so the truncation lands on the part that can afford it. */
 .speed-row-label {
     font-size: var(--type-small);
     color: var(--text-dark);
-    white-space: nowrap;
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    min-width: 0;
+}
+.speed-row-name {
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
 }
+.speed-row-label > .speed-thin { flex: none; }
 .speed-bar {
     display: flex;
     height: 12px;
