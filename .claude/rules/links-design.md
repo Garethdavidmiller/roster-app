@@ -8,6 +8,11 @@ paths:
 
 # Links workspace — full architecture
 
+**This is the authoritative contract for the Links workspace.** Other documents link here rather
+than restating grid, generator, coverage, fatigue, concurrency or deletion rules.
+`LINKS_DEC2026_PLAN.md` holds the project context and the modules' release history; it does not
+restate the rules.
+
 > **The `paths:` list above uses GLOBS, and must stay that way** (fixed Aug 2026). It enumerated five
 > filenames from the extraction-programme era and had silently stopped covering **nine of the
 > sixteen** Links files — every module added since (`links-analysis`, `-compare`, `-concurrency`,

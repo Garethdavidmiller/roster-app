@@ -5,6 +5,10 @@
 Staff declare, per day, when they are available for overtime in a future roster week. A reviewer
 (Manager or Master Admin) reads the answers by day and plans cover from them.
 
+**This is the authoritative contract for Overtime Availability.** Other documents link here rather than restating
+participant, deadline, revision or retention rules — those rules exist in one place on purpose, and a second copy is
+the defect, not the convenience.
+
 This file holds only what no module header owns — the decisions that span client, server, rules and
 release. Everything else is routed the usual way:
 
@@ -39,6 +43,8 @@ module beside the code.
 | 9 | **Retention is filtered in the endpoints, not in the rules.** Rules are not filters: a `resource.data` condition fails the whole query rather than dropping a row, so one expired document would blank a reviewer's workspace. | `functions/overtime.js` |
 | 10 | **The purge deletes bottom-up, parent LAST.** Firestore does not cascade, and a parent deleted alone orphans its tree permanently. | `functions/overtime.js` (`purgeExpiredOvertimeWindows`) |
 | 11 | **Never name an internal document in staff-facing copy.** "The draft roster" is the roster office's artefact; to staff "the roster" is the one released on the Thursday. Reviewer surfaces may name it freely. | `overtime-format.js` |
+| 12 | **A withdrawn member is withdrawn on BOTH sides.** `getMyOvertimeState` omits the window and `submitOvertimeAvailability` refuses with its own code (`withdrawn`, distinct from `not-a-participant` — one was never asked, the other was and has been stood down). Hiding the window is the courtesy; refusing the write is the half that matters, because a page opened before the withdrawal still has the form and the button. | `functions/overtime.js` |
+| 13 | **Creation is conditional; the daily top-up is not.** "Nothing due" is the NORMAL state — the horizon is pre-created — so an early return on it would run the top-up only on the one day a week a new week enters the horizon, and a member invited on any other day would have no form on any already-open week until then. | `functions/overtime.js` (`autoCreateOvertimeWindows`) |
 
 Reviewing is not participating — that one is an authorisation rule and lives in
 `AUTH_AND_SESSIONS.md` invariant 14, with the rest of the claim model.
@@ -572,59 +578,26 @@ because none existed before.
 
 ---
 
+## Known temporary exceptions
+
+Two, both stated in full in `ARCHITECTURE.md` → §3 and deliberately not re-explained here:
+
+- **`EXC-002`** — the retention purge ships **disarmed**. It reports; it deletes nothing, so expired
+  data persists contrary to what *Retention* above says happens to it. `VAL-OT-001` is the evidence
+  that closes it, after 21 Nov 2026.
+- **`EXC-003`** — participation is a **restricted beta**. The audience ladder is server-owned, so
+  widening it is a one-word edit plus `npm run generate:roster-members`.
+
+---
+
 ## Deliberately not built
 
 - **No reminder notifications.** The horizon is the guard against a missing window; nudging
   non-responders is a later decision with its own design (see `.claude/rules/notifications.md` —
   anything naming one person must use `sendTargetedPush`, never `fanOutPush`).
-- **The scheduled purge ships disarmed** — it reports, it does not delete. See Retention.
+- **The scheduled purge ships disarmed** — see `EXC-002` above.
 - **No override write-back.** Availability is a declaration, not a roster change; nothing here
   writes to `overrides`.
 - **No collection-group query, and so no composite index.** Participation is resolved by point reads
   across the retained windows — a couple of dozen at most — which keeps the first release free of the
   index deploy-ordering dance.
-
-## Withdrawal means the same thing to everyone (v21.20, external review)
-
-`Stop asking` shipped at v20.95 with the reviewer's side complete and the member's side untouched.
-Both member endpoints asked only whether the participant document EXISTED — and withdrawal is a flag
-on that document, never a delete, precisely so the record survives. So a withdrawn member kept the
-form, could fill it in, and received `✓ Availability submitted`, while the reviewer's screen said
-they were not part of the week. Two contradictory truths about one week.
-
-`getMyOvertimeState` now omits the window and `submitOvertimeAvailability` refuses with its own code
-(`withdrawn`, distinct from `not-a-participant` — one was never asked, the other was and has been
-stood down). Hiding the window is the courtesy; refusing the write is the half that matters, because
-a page opened before the withdrawal still has the form and the button.
-
-**The window disappears rather than going read-only.** Both are defensible. Withdrawal means a leaver
-or a move to Management, so the honest state is that the week is not theirs; `Ask again` restores the
-document and the window returns with the submission intact, because nothing was deleted.
-
-**And the control is reachable for somebody who has already answered.** It lived only on the Awaiting
-panel, which by definition holds people who have NOT submitted — so the commoner case (a leaver two
-weeks out, who has usually already filled the form in) had no route through the UI at all, on a page
-whose endpoint had supported it all along. It now lives in one place, `Who is being asked`, listing
-every active participant with their position. Not a button per person per day: that is seven controls
-each on a page that already repeats every name once per day, for an action taken a handful of times a
-year.
-
-**SETTLED at v21.26** — this section used to end by leaving restoration open ("allowed at any point
-while the week is open") and asking for an owner decision. It got one, and the answer is neither of
-the two policies floated here: see **Restoring is not the mirror of withdrawing** above. Left as a
-pointer rather than deleted because the question was a real one and the answer reads better against it.
-
-## A day's answer used to wear the whole form's age — FIXED at v21.26
-
-Kept as a pointer, because this was an "Open" heading for six releases after it had been closed, and
-a reader reaching the end of the file got the stale answer while the fix sat 200 lines above.
-The behaviour, the derivation and why it is not stored: **Per-day freshness (v21.26)**, above.
-
-## The daily top-up is daily again (v21.20, external review)
-
-`autoCreateOvertimeWindows` returned early when no window needed creating, before reaching
-`topUpOpenWindows`. "Nothing due" is the NORMAL state, because the whole horizon is pre-created — so
-the top-up ran only on the one day a week a new week entered the horizon, and a beta tester invited on
-any other day had no form on any already-open week until then. That is the exact gap the job exists to
-close. Creation is conditional; the top-up is not.
-

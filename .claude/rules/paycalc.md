@@ -9,6 +9,10 @@ paths:
 
 # Pay calculator — full reference
 
+**This is the authoritative contract for the Pay Calculator.** Other documents link here rather
+than restating rates, payroll rules, storage keys or layout. Unverified pay claims are `VAL-PAY-*`
+rows in `VALIDATION_REGISTER.md` and are cited by ID, never re-argued.
+
 ## Invariants
 
 A long file. If you are about to change how a figure reaches the screen, one of these is probably the
