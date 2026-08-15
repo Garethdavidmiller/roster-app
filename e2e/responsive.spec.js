@@ -125,21 +125,44 @@ test('paycalc desktop @1280×720 (short height): result card renders, no horizon
 // ellipsises inside its own box, so the page stays clean. Measuring scrollWidth vs clientWidth on
 // the element itself is what catches it. 57 weeks covers 13 months, so every cross-month boundary
 // (including the long "30 Aug–5 Sep 2026" shape) is exercised.
+// ONE real click, then the walk happens INSIDE the page (v21.40). This used to be 57 Playwright
+// clicks — 114 protocol round-trips at ~9s per project, which sat close enough to the 30s test
+// budget that a loaded CI runner pushed it over: it was the webkit job's one REPEAT offender
+// (three red runs, mobile-safari every time), and a retry cannot save it because the retry runs
+// on the same busy runner. The loop is safe to move in-page because `shiftWeek` is SYNCHRONOUS —
+// the label is rewritten inside the click handler with no awaited step, and `swipeCooldown` only
+// arms during a real pointer swipe — so `btn.click()` produces byte-identical label text and the
+// scrollWidth read after it forces the same layout Playwright's click path would have measured.
+// The first click stays a real one so the button's own wiring keeps a browser-driven check.
 test('admin week label fits at 375px for every week across 13 months', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await seedSession(page, 'G. Miller');
     await page.goto('/admin.html');
     await expect(page.locator('#weekNavLabel')).toBeVisible();
 
-    const overflowing = [];
-    for (let i = 0; i < 57; i++) {
-        const r = await page.evaluate(() => {
-            const el = document.getElementById('weekNavLabel');
-            return el ? { text: el.textContent, sw: el.scrollWidth, cw: el.clientWidth } : null;
-        });
-        if (r && r.sw > r.cw) overflowing.push(`${r.text} (${r.sw}px into ${r.cw}px)`);
-        await page.locator('#nextWeekBtn').click();
-    }
+    const measure = () => page.evaluate(() => {
+        const el = document.getElementById('weekNavLabel');
+        return { text: el.textContent, sw: el.scrollWidth, cw: el.clientWidth };
+    });
+    const first = await measure();
+    await page.locator('#nextWeekBtn').click();
+    const second = await measure();
+
+    // The remaining 55 weeks in one evaluate: measure, click, repeat.
+    const rest = await page.evaluate(() => {
+        const el  = document.getElementById('weekNavLabel');
+        const btn = document.getElementById('nextWeekBtn');
+        const out = [];
+        for (let i = 0; i < 55; i++) {
+            btn.click();
+            out.push({ text: el.textContent, sw: el.scrollWidth, cw: el.clientWidth });
+        }
+        return out;
+    });
+
+    const overflowing = [first, second, ...rest]
+        .filter(r => r.sw > r.cw)
+        .map(r => `${r.text} (${r.sw}px into ${r.cw}px)`);
     expect(overflowing, `week labels ellipsising at 375px — the 📅 affordance is cut off:\n${overflowing.join('\n')}`)
         .toEqual([]);
 });
