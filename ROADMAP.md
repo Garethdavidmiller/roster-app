@@ -364,6 +364,14 @@ Native, native platform development and the then-current alternatives if the tri
 reached** — a 2026 implementation preference must not become a 2028 architectural requirement.
 Distribution costs an Apple Developer account ($99/year) and Google Play ($25) whatever is chosen.
 
+### Sign-in and Calendar start latency
+**Status:** Phase 1 shipped (v21.29–30) · **Owner:** Gareth · **Plan:** `LATENCY_PLAN.md` · **Trigger:** one full month of start-ladder data
+
+The measurement landed before the work, deliberately. Phases 2 (fetch the displayed month, not three
+months of the whole team) and 3 (split Firebase Auth from Firestore) are both real, and which one is
+worth doing is a question the App Speed card's "How far the start gets" block now answers. Read it
+before starting either. The decision rule is a table in the plan.
+
 ### Build tooling — trigger-based; no action currently
 **Status:** Conditional · **Do nothing until a trigger occurs**
 
