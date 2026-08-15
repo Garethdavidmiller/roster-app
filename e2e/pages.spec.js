@@ -1,5 +1,5 @@
 import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clearPwNoticeFlag } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the literal 22 — and `links: the rotation
 // length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
@@ -723,7 +723,15 @@ test('links: the sticky summary bar carries a live reading of the analysis below
     // …and it must UPDATE. Painting rest days over worked cells has to move a figure.
     const before = await chips.allTextContents();
     await page.locator('.brush-chip').first().click();          // the RD brush
-    for (let i = 0; i < 40; i++) await page.locator('.shift-cell-btn').nth(i).click();
+    // Paint until a figure MOVES, rather than a fixed 40 clicks. Same assertion, and the same worst
+    // case, but it stops at the first cell that changes anything — which matters because under
+    // WebKit the fixed loop measured 28s against this suite's 30s timeout and duly tipped over on a
+    // loaded CI runner. A test spending 93% of its budget on setup is not passing with any margin.
+    const cells = page.locator('.shift-cell-btn');
+    for (let i = 0; i < 40; i++) {
+        await clickInView(cells.nth(i));
+        if ((await chips.allTextContents()).join('\u0000') !== before.join('\u0000')) break;
+    }
     await expect.poll(() => chips.allTextContents()).not.toEqual(before);
 });
 
@@ -1479,6 +1487,7 @@ test('settings: a member migrated on ANOTHER device retires the calendar notice 
     // The server says migrated; this device has never been told. `toMillis` because that is the
     // shape isPasswordMigrated reads — a plain Date would silently score 0 and pass for the wrong
     // reason, reporting un-migrated on a doc that says otherwise.
+    await clearPwNoticeFlag(page);
     await page.addInitScript(() => {
         /** @type {any} */ (window).__E2E = /** @type {any} */ (window).__E2E || {};
         /** @type {any} */ (window).__E2E.getDocData = { passwordSetAt: { toMillis: () => 1_760_000_000_000 } };
@@ -1499,6 +1508,7 @@ test('settings: an UN-migrated member is left alone — the notice must still re
     // silently remove the only channel that reaches roster-only staff, and nothing would report it.
     // Default fixture `getDoc` resolves "does not exist", i.e. still on the surname default.
     await seedSession(page, 'G. Miller');
+    await clearPwNoticeFlag(page);
     await page.goto('/settings.html');
     await expect(page.locator('#passwordStatusChip')).toHaveText(/using surname/);
     expect(await page.evaluate(() => localStorage.getItem('myb_notice_pw_own_2026_done'))).toBeNull();
@@ -1510,6 +1520,7 @@ test('settings: the forced overlay\'s success also retires the calendar notice',
     // OPTIMISTICALLY — the serverTimestamp has not resolved — so it is a second route to the flag,
     // and it was the other half of the review finding.
     await seedSession(page, 'G. Miller');
+    await clearPwNoticeFlag(page);
     await page.goto('/settings.html');
     await expect(page.locator('#passwordStatusChip')).toHaveText(/using surname/);
     expect(await page.evaluate(() => localStorage.getItem('myb_notice_pw_own_2026_done'))).toBeNull();
@@ -2247,8 +2258,8 @@ test('links grid: each line carries its own totals, and they follow an edit', as
     await expect(page.locator('#linksSummary')).toContainText(String(avg).trim());
 
     // Paint a rest day over line 1's Monday: its Mon–Sat total must fall.
-    await page.locator('#brushBar button', { hasText: 'RD' }).first().click();
-    await row1.locator('.shift-cell-btn').nth(1).click();
+    await clickInView(page.locator('#brushBar button', { hasText: 'RD' }).first());
+    await clickInView(row1.locator('.shift-cell-btn').nth(1));
     await expect.poll(() => row1.locator('.tot-cell').first().textContent()).not.toBe(before);
 });
 
@@ -3084,13 +3095,21 @@ test('links generator: pressing Generate leaves the button under your finger and
     await page.locator('#genApplyBtn').click();
     const ok = page.locator('.dialog-btn-confirm');
     if (await ok.count()) await ok.first().click();
-    await page.waitForTimeout(700);
 
     // The button did not move — the first-generate reflow (empty state → 24-row grid above this
     // card) is compensated, so pressing again to explore needs no re-scroll.
-    const after = await page.evaluate(() =>
-        Math.round(/** @type {HTMLElement} */ (document.getElementById('genApplyBtn')).getBoundingClientRect().top));
-    expect(Math.abs(after - before), 'the Generate button must stay where it was pressed').toBeLessThanOrEqual(2);
+    //
+    // POLLED, NOT SAMPLED AT A FIXED DELAY (v21.34). This was `waitForTimeout(700)` followed by one
+    // measurement, which raced the app's own sequence rather than waiting for it: the confirm
+    // dialog holds `body.lb-open` until its transitionend (500ms fallback), and only then does the
+    // re-anchor loop start scrolling. 700ms is enough on an idle machine and not on a loaded CI
+    // runner — it failed there on both WebKit projects at once, reporting 944px and 1109px, i.e.
+    // "the re-anchor had not run yet". The assertion is unchanged; it now waits for the property
+    // instead of guessing when it will hold, and still fails if the app never re-anchors.
+    await expect.poll(async () => page.evaluate((b) =>
+        Math.abs(Math.round(/** @type {HTMLElement} */ (document.getElementById('genApplyBtn')).getBoundingClientRect().top) - b), before
+    ), { message: 'the Generate button must stay where it was pressed', timeout: 10_000 })
+        .toBeLessThanOrEqual(2);
 
     // The mirror carries the SAME text as the canonical status, and it is actually on screen.
     const status = await page.locator('#linksSaveStatus').textContent();

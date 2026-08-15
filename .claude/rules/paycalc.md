@@ -9,6 +9,28 @@ paths:
 
 # Pay calculator — full reference
 
+## Invariants
+
+A long file. If you are about to change how a figure reaches the screen, one of these is probably the
+thing you are about to break. Each states WHAT must hold; the WHY is below, or in the module header.
+
+| # | Invariant | Where it lives |
+|---|---|---|
+| 1 | **A figure not on record is never guessed.** A blank box the member can complete beats an inferred number that looks authoritative — the rate lock keys off the RECORD, never off box contents. | `paycalc-backpay-state.js` · `paycalc-calc.js` (`AWARD_RATES`) |
+| 2 | **The form ↔ saved-data round trip is symmetric.** Write → read → write must return the same thing. Four money-affecting defects in four releases were all an asymmetry here. | `paycalc-form-data.js` |
+| 3 | **Every per-member key carries `pcPrefix()`; device flags never do.** And a retired device flag stays DECLARED — deleting one reclassifies it as member data and fires the ownership prompt at people who have none. | `paycalc-migrations.js` |
+| 4 | **A tax year's holiday premium is paid on the FIRST JANUARY PAYSLIP OF THE FOLLOWING YEAR** — outside that year's own window. Four hand-rolled copies got this wrong; there is now one. | `paycalc-hpp-schedule.js` |
+| 5 | **Back pay is not fed into HPP.** Whole-year settled pricing already includes the award uplift, so adding the lump double-counts it. | `paycalc-hpp.js` |
+| 6 | **London Allowance does not accrue HPP.** It is a fixed allowance paid every period, including while on leave. | `paycalc-hpp.js` (`_varPayForPeriod`) |
+| 7 | **HPP is never pro-rated for a joiner.** It accrues on actual extras done, so a part-year lump is naturally lower without any scaling term. | `.claude/rules/paycalc.md` → joiners |
+| 8 | **The hourly rate is fixed by grade and never stored.** Deriving it removes the whole stale-saved-rate failure class. | `paycalc-settings.js` |
+| 9 | **Sunday-on-BH: Sunday wins (`dow===0` before `isBH`). BH + RDW is additive.** | `paycalc-calc.js` |
+| 10 | **`validateBackup` is the trust boundary, and restore is a REPLACE, never a merge.** A backup is a file from somewhere; these are pay figures, not approximations. | `paycalc-transfer.js` |
+| 11 | **The roster-assist never infers an ambiguous category** (swap shifts, rest-day weekday overrides) — and **viewing a period never persists it**. | `paycalc-roster-suggestions.js` · `paycalc-app.js` |
+
+Unverified assumptions behind these figures — including the back-pay accrual and the 28 Aug 2026
+award step — are in `VALIDATION_REGISTER.md`, not here.
+
 ## Current rates (v8.21+)
 
 Primarily **manual-entry**. Staff enter hours; calculator computes tax, NI, pension, take-home.

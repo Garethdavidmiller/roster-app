@@ -78,8 +78,25 @@ mock.module('./firebase-client.js', {
             cb(currentUser);
             return () => authSubs.delete(cb);
         },
+        // The shared boot authority (v21.29). The Calendar's access decision used to open its OWN
+        // subscription here with its OWN 6s ceiling, stacked BEHIND the reconcile's 6.5s one — so a
+        // wedged auth layer held the decision for ~12.5s. It now waits on the one boot restore and
+        // reads ground truth, which is what this fake models: `bootRestoreHangs` is the wedged case.
+        currentUserAfterBoot: async (timeoutMs = 8000) => {
+            if (currentUser) return currentUser;
+            if (bootRestoreHangs) {
+                await new Promise(r => setTimeout(r, timeoutMs));
+                bootWaitedMs += timeoutMs;
+            }
+            return currentUser || null;
+        },
     },
 });
+
+/** When true the boot restore never answers — the degraded case both bounds existed for. */
+let bootRestoreHangs = false;
+/** Total time the fake boot restore was made to wait, so a STACKED bound is measurable. */
+let bootWaitedMs = 0;
 
 /** Live `onAuthStateChanged` subscribers. @type {Set<(u:any)=>void>} */
 const authSubs = new Set();

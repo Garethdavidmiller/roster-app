@@ -37,6 +37,7 @@
       "playwright.csp.mjs",
       "playwright.visual.mjs",
       "playwright.offline.mjs",
+      "playwright.webkit.mjs",
       "e2e/**",
       "experiments/**",
       "test-fixtures/**",

@@ -46,7 +46,7 @@
  *     second copy that can disagree with it.
  */
 
-import { auth, signInWithCustomToken, signInAnonymously, signOut, setViewerPersistence, onAuthStateChanged } from './firebase-client.js';
+import { auth, signInWithCustomToken, signInAnonymously, signOut, setViewerPersistence, onAuthStateChanged, currentUserAfterBoot } from './firebase-client.js';
 import { getSession, clearSession, reconcileExpiredIdentity, ensureNamedSession } from './session.js';
 import { CONFIG } from './roster-data.js';
 import { isViewerUser, decideAccess, normalisePin, isCompletePin, classifyUnlockFailure, attemptBackoffMs, PIN_LENGTH, CALENDAR_VIEWER_CLAIM } from './calendar-access-core.js';
@@ -58,6 +58,12 @@ const UNLOCK_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/unlockCal
  *  a rarely-called function is a real several seconds, and timing out into "check the connection"
  *  on a working network is the more annoying of the two errors. */
 const UNLOCK_TIMEOUT_MS = 15000;
+
+/** The whole access decision's deadline — NOT a per-step one (v21.29). Everything `resolveAccess`
+ *  waits for shares this budget, so a wedged auth layer costs it once rather than once per step.
+ *  Past it the answer is `none`, which shows the unlock card, which is recoverable — and the
+ *  late-identity watcher then corrects it the moment a real identity turns up. */
+const ACCESS_DECISION_BUDGET_MS = 6500;
 
 /** @type {'named'|'viewer'|'open'|'none'} */
 let _accessType = 'none';
@@ -126,23 +132,32 @@ export function isViewerMode() { return _accessType === 'viewer'; }
  * @returns {Promise<'named'|'viewer'|'none'>}
  */
 async function resolveAccess() {
+    // ── ONE BUDGET FOR THE WHOLE DECISION (v21.29, external latency review) ─────────────────────
+    //
+    // These used to be two SEQUENTIAL bounds — 6.5s for the reconcile, then a further 6s for the
+    // restore — and because both were waiting on the same first auth emission, a wedged auth layer
+    // could hold the access decision for ~12.5s while each of them waited out its own ceiling in
+    // turn. Neither number was wrong; adding them was.
+    //
+    // Now the deadline belongs to the DECISION, and each step gets what is left of it. The worst
+    // case is the budget, not the sum of its parts, and the normal path is unchanged: both steps
+    // resolve promptly and nothing waits at all.
+    const started   = Date.now();
+    const remaining = () => Math.max(0, ACCESS_DECISION_BUDGET_MS - (Date.now() - started));
     try {
-        // BOUNDED, like every other wait on this path (v20.45). `reconcileExpiredIdentity` awaits
-        // the first auth emission with no timeout of its own, and it runs BEFORE `firstAuthUser`
-        // below — so the 6-second ceiling that keeps a wedged auth layer from holding the Calendar
-        // at a blank page sat behind an unbounded wait on the same emission, and could never fire.
         // The race leaves reconcile running in the background if it is merely slow: it is an
         // idempotent teardown, and the decision below reads ground truth either way.
         await Promise.race([
             reconcileExpiredIdentity({ preserveCalendarViewer: true }),
-            new Promise(resolve => setTimeout(resolve, 6500)),
+            new Promise(resolve => setTimeout(resolve, remaining())),
         ]);
     } catch { /* best effort — the decision below is made from ground truth either way */ }
     // `auth.currentUser` alone MISSES a cold restore: persistence being configured does not mean the
-    // persisted user has loaded, and the first `onAuthStateChanged` emission is what delivers it.
-    // Reading too early would report `none` for a member who is signed in and put the PIN in front
-    // of them — the exact "distracting flash" this has to avoid.
-    const user = auth.currentUser || await firstAuthUser();
+    // persisted user has loaded, and the boot restore is what delivers it. Reading too early would
+    // report `none` for a member who is signed in and put the PIN in front of them — the exact
+    // "distracting flash" this has to avoid. `currentUserAfterBoot` is the SHARED wait on that one
+    // restore (firebase-client.js), so this no longer opens a third subscription of its own.
+    const user = await currentUserAfterBoot(remaining());
     return decideAccess({ session: getSession(), firebaseUser: user });
 }
 
@@ -180,22 +195,6 @@ function watchForLateNamedIdentity() {
         }, () => stop());
     } catch { /* an auth layer that cannot be watched simply leaves the panel up */ }
     return stop;
-}
-
-/** Resolve the first `onAuthStateChanged` emission (the persisted-user restore), or null.
- *  Bounded, because a wedged auth layer must not hold the Calendar at a blank screen for ever —
- *  timing out here yields `none`, which shows the unlock panel, which is recoverable. */
-function firstAuthUser() {
-    return new Promise(resolve => {
-        let done = false;
-        const finish = (/** @type {any} */ u) => { if (!done) { done = true; resolve(u || null); } };
-        const timer = setTimeout(() => finish(null), 6000);
-        try {
-            const off = onAuthStateChanged(auth, (/** @type {any} */ u) => {
-                clearTimeout(timer); try { off(); } catch { /* noop */ } finish(u);
-            }, () => { clearTimeout(timer); finish(null); });
-        } catch { clearTimeout(timer); finish(null); }
-    });
 }
 
 /** Commit an access decision exactly once, and let the Calendar start. */

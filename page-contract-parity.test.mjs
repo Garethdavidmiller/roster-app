@@ -303,3 +303,52 @@ function optionsObjectAfter(src, marker) {
     }
     return src.slice(from);
 }
+
+
+test("a pill's GATE and the page policy's ROLE agree — in both directions", () => {
+    // Two lists answer "may this person use this page": the `NAV_PAGES` gate decides whether the
+    // pill is DRAWN, and `PAGE_POLICIES.role` decides whether the page lets them STAY. Nothing has
+    // ever checked they say the same thing, and the two ways they can disagree are not equally
+    // visible:
+    //
+    //   pill shown, policy forbids  → the member taps and is bounced. Annoying, and obvious.
+    //   pill HIDDEN, policy allows  → the feature is reachable by typing its URL and by nothing
+    //                                 else. Silent, and it has already happened once in this app
+    //                                 (the Overtime pill, by a different mechanism — see the
+    //                                 reachability test above). Nobody reports a page they do not
+    //                                 know exists.
+    //
+    // Deliberately checks the CORRESPONDENCE, not the values: which role maps to which gate is a
+    // product decision that changes (Overtime's list collapses at full launch), but "role-gated
+    // page ⇔ gated pill" is the invariant underneath it and does not.
+    const nav    = read('./nav-panel.js');
+    const policy = read('./auth-policy.js');
+
+    // Page ids that carry a role in PAGE_POLICIES — i.e. not every named member may be there.
+    const policiesBlock = policy.slice(policy.indexOf('PAGE_POLICIES = Object.freeze({'));
+    const roleGated = new Set(
+        [...policiesBlock.matchAll(/^\s{4}(\w+):\s*\{[^}]*role:\s*\[/gm)].map(m => m[1]));
+    assert.ok(roleGated.size >= 3,
+        `expected several role-gated pages in PAGE_POLICIES, found ${[...roleGated]}`);
+
+    // Page ids whose NAV_PAGES entry carries one of the flags the filter chain applies.
+    const gateFlags = [...nav.matchAll(/\.filter\(p => !p\.(\w+) \|\| \w+\)/g)].map(m => m[1]);
+    assert.ok(gateFlags.length >= 3, `expected the NAV_PAGES gate chain, found ${gateFlags.length}`);
+    const navEntries = [...nav.matchAll(/\{\s*id:\s*'(\w+)'[^}]*\}/g)];
+    const navIds   = new Set(navEntries.map(m => m[1]));
+    const navGated = new Set(navEntries.filter(m => gateFlags.some(f => m[0].includes(`${f}: true`)))
+                                       .map(m => m[1]));
+    assert.ok(navGated.size >= 3, `expected several gated pills, found ${[...navGated]}`);
+
+    // `guides` and `paycalc` have policies but no pill of their own, so only ids present in BOTH
+    // vocabularies are compared — the question is about pages the drawer offers.
+    const shown  = [...roleGated].filter(id => navIds.has(id) && !navGated.has(id));
+    const hidden = [...navGated].filter(id => !roleGated.has(id));
+
+    assert.deepEqual(shown, [],
+        'these pages restrict who may STAY but their pill is offered to everyone, so the member '
+        + 'taps it and is bounced: ' + shown.join(', '));
+    assert.deepEqual(hidden, [],
+        'these pills are hidden from people the page would ADMIT, so the feature is reachable only '
+        + 'by typing its URL: ' + hidden.join(', '));
+});

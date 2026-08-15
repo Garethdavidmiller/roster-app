@@ -30,6 +30,19 @@ export function collectFatalErrors(page) {
 // The expiry below is deliberately an ARBITRARY future date, not a copy of `SESSION_MS`: these
 // tests only need a session that is unexpired, and mirroring the real term would make every spec
 // a place the policy is restated (it changed 30 → 60 at v20.47 and nothing here needed to move).
+//
+// IT ALSO SUPPRESSES THE `pw-own-2026` NOTICE, and this is the THIRD seeder to need that (v21.34).
+// `seedMember` and `seedMemberSession` both got it; this one was missed, and it is the seeder the
+// authenticated-page specs use. The notice opens 1,500ms after load on `/` and its dialog
+// intercepts pointer events, so any spec that clicks something on the Calendar after ~1.5s is
+// racing it — and loses whenever the machine is slow enough. That is what had `overtime.spec.js`'s
+// "every signed-in page offers the reviewer the pill" failing in CI while passing everywhere else:
+// its sweep starts at `/`, the burger click was still retrying at 1,500ms, and the notice then
+// covered it for the remaining 28 seconds of the timeout.
+//
+// A spec that is ABOUT the notice re-enables it with a later addInitScript removing the key —
+// later init scripts run after this one, so the remove wins (axe.spec.js and calendar.spec.js
+// both do exactly that, and are unaffected).
 export function seedSession(page, name = 'G. Miller') {
     return page.addInitScript((n) => {
         localStorage.setItem('myb_admin_session', JSON.stringify({
@@ -37,7 +50,28 @@ export function seedSession(page, name = 'G. Miller') {
             ver: 2,
             expiry: Date.now() + 90 * 24 * 60 * 60 * 1000,   // arbitrary future — NOT SESSION_MS
         }));
+        localStorage.setItem('myb_notice_pw_own_2026_done', '1');
     }, name);
+}
+
+/**
+ * Undo that suppression, for a spec whose SUBJECT is the notice flag.
+ *
+ * ── WHY THIS IS A NAMED HELPER AND NOT AN INLINE removeItem (v21.34) ────────────────────────────
+ *
+ * Three tests in `pages.spec.js` assert on this flag, and all three depended on `seedSession`
+ * happening not to set it — a dependency on a SILENCE, which nothing could see. When the
+ * suppression was added to `seedSession`, two failed loudly and the third did something worse: it
+ * polls for the flag to BECOME '1', so a run that starts at '1' passes without ever exercising the
+ * write. Green, and covering nothing — the failure mode its own comment names two lines above.
+ *
+ * Calling this makes the dependency explicit at the point of use, so the next person to touch a
+ * seeder sees it. Later init scripts run after earlier ones, so this must come AFTER the seed.
+ *
+ * @param {import('@playwright/test').Page} page
+ */
+export function clearPwNoticeFlag(page) {
+    return page.addInitScript(() => localStorage.removeItem('myb_notice_pw_own_2026_done'));
 }
 
 /**
@@ -359,4 +393,48 @@ export function seedContractTargets(page, { spareLines = 5, designIds = ['unsave
         const targets = JSON.stringify({ slots, spareLines: spare });
         for (const id of ids) localStorage.setItem('myb_links_gen_' + id, targets);
     }, [spareLines, designIds]);
+}
+
+/**
+ * Click something WebKit reports as "outside of the viewport".
+ *
+ * Playwright auto-scrolls before every click, but inside the Links grid's sticky bars and
+ * horizontally-scrolling containers WebKit can report an element as off-screen AFTER that scroll and
+ * then keep reporting it — the click retries until the test times out. Both failures the WebKit
+ * projection found on its first branch run (v21.29) were this, and both passed locally at full
+ * speed, which is the signature of a harness limit rather than a defect: nothing in either test
+ * asserts anything about scroll position, and a real user simply scrolls.
+ *
+ * Centres the element with the DOM's own `scrollIntoView`, which WebKit honours, then clicks
+ * normally — so every actionability check still runs. Deliberately **not** `{ force: true }`: that
+ * skips those checks and would hide a control that had genuinely become unclickable, which is one of
+ * the things this suite exists to catch.
+ *
+ * @param {import('@playwright/test').Locator} locator
+ */
+export async function clickInView(locator) {
+    // Re-issued, not scrolled once. Applying a generated design leaves the Links page scrolled ~3,100px
+    // down (measured: the RD brush chip sat at top -2891 in a 1000px viewport), and the app's own
+    // scroll can land AFTER ours — so a single scrollIntoView is undone before the click and
+    // Playwright then retries an off-screen click until the test times out. Polling until the box is
+    // actually inside the viewport is what makes it deterministic rather than a race.
+    for (let i = 0; i < 20; i++) {
+        const inView = await locator.evaluate(el => {
+            // `window.scrollTo`, NOT `el.scrollIntoView`. Measured on the Links page in WebKit:
+            // scrollIntoView left `getBoundingClientRect().top` at -2891 with the window still at
+            // scrollY 3115 — it simply did not move the document, twenty times in a row. Computing
+            // the absolute position and scrolling the window does.
+            const r = el.getBoundingClientRect();
+            const inside = r.top >= 0 && r.left >= 0
+                && r.bottom <= (window.innerHeight || 0) && r.right <= (window.innerWidth || 0);
+            if (!inside) {
+                window.scrollTo(window.scrollX + r.left - (window.innerWidth  - r.width)  / 2,
+                                window.scrollY + r.top  - (window.innerHeight - r.height) / 2);
+            }
+            return inside;
+        });
+        if (inView) break;
+        await new Promise(r => setTimeout(r, 50));
+    }
+    await locator.click();
 }

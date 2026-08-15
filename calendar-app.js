@@ -13,7 +13,7 @@
  */
 
 import { CONFIG, MONTH_NAMES, computeEaster, getPaydaysAndCutoffs, formatISO } from './roster-data.js';
-import { authReady } from './firebase-client.js';
+import { authReady, authBootstrap } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
 import { NOTICE_PW_OWN_DONE } from './storage-keys.js';
 import { getSession, clearSession } from './session.js';   // reconcileExpiredIdentity now runs inside calendar-access.js
@@ -26,11 +26,11 @@ import { initAboutLightbox } from './about-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
-import { recordPageLatency, markPageReady } from './perf-reporter.js';
+import { recordPageLatency, markPageReady, markMilestone } from './perf-reporter.js';
 import { initHuddleViewer } from './calendar-huddle-viewer.js';
 import { initDocViewer } from './calendar-doc-viewer.js';
 import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress, setOverrideAccess, setOverrideAccessLostHandler, monthKey, clearFetchedMonth } from './calendar-overrides.js';
-import { forget as forgetOverrideKnowledge, knowledgeOf, decideDisplay } from './calendar-data-state.js';
+import { forget as forgetOverrideKnowledge, knowledgeOf, decideDisplay, showsRoster } from './calendar-data-state.js';
 import { initCalendarAccess, calendarAccessReady, calendarAuthReady, getAccessType, isViewerMode, lockCalendar, handleAccessLost } from './calendar-access.js';
 import { getCurrentMember, getSelectedMemberIndex, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName, isFirstRun } from './calendar-member.js';
 import { buildCalendarContainer } from './calendar-renderer.js';
@@ -58,6 +58,75 @@ import { initCalendarTooltip, initCalendarKeyboard } from './calendar-keyboard.j
 // precisely so that the assignment sits with the code it initialises.
 /** @type {(() => void)|null} */
 let _startCalendarWorkspace = null;
+
+/** How long the boot will wait for the local override cache before painting anything (v21.29).
+ *  Short on purpose: it is a chance for the cache to win, not a loading state. Long enough for an
+ *  IndexedDB read that has already started, far too short to be noticed if it misses. */
+const CACHE_FIRST_PAINT_MS = 90;
+
+/**
+ * Mark the page ready ONLY when a real roster grid is on screen.
+ *
+ * `markPageReady` used to be called unconditionally after the first render — and that render is
+ * frequently "Checking this month…", because a withheld grid is exactly what the knowledge model
+ * produces while the override state is unknown. So the App Speed card's "usable" figure was timing
+ * the moment the Calendar finished deciding it had nothing to show yet, which is the opposite of
+ * usable, and it did so most often on the SLOWEST loads — the ones where the data had not arrived.
+ *
+ * `render` and `stale` are both real grids: one is current, the other is labelled last-known. Both
+ * are a roster the member can read, which is what the metric claims to measure. `loading` and
+ * `unavailable` are not, and neither may be timed as though it were.
+ *
+ * Idempotent downstream (the first `markPageReady` wins), so this is safe to call after every
+ * render — which is the point: whichever render first puts a grid up is the one that counts.
+ */
+function _markReadyIfGridShown() {
+    try {
+        // NOT BEFORE THE BOOT HAS CHOSEN ITS SURFACE. Phase 1 of the initial fetch paints from the
+        // local cache and calls back, and on a cache hit that happens BEFORE `restoreTeamView()`
+        // has run — so `isTeamViewMode()` is still false and a team-view member's readiness would
+        // be timed against a Calendar grid they are about to be taken off. The boot sets this the
+        // instant it has rendered, so the mark lands within the same tick either way.
+        if (!_bootSurfaceDecided) return;
+        // ASK THE SURFACE THAT IS ON SCREEN. Team View gates on the WORST knowledge across the
+        // months its week spans, and a week routinely spans two — so reading the Calendar's display
+        // month here would time the wrong thing in both directions. Each surface computes its own
+        // answer; what COUNTS as a roster is `showsRoster`, beside the states it reads.
+        if (_teamView?.isTeamViewMode()) {
+            if (_teamView.isGridShown()) markPageReady();
+            return;
+        }
+        const display = decideDisplay(knowledgeOf(monthKey(getDisplayYear(), getDisplayMonth())));
+        if (showsRoster(display)) markPageReady();
+        // The LAST rung, and the reason `ready` is not the end of the ladder: a device can put
+        // yesterday's roster up instantly and take another two seconds to confirm it. Without this
+        // the card would call that load fast, which for a member checking whether their shift
+        // changed is the one question the cached grid cannot answer.
+        if (display === 'render') markMilestone('rosterLive');
+    } catch { /* the metric must never be able to break the boot */ }
+}
+
+/** True once the boot has rendered EITHER the Calendar or Team View, so the ready metric knows
+ *  which surface it is measuring. See `_markReadyIfGridShown`. */
+let _bootSurfaceDecided = false;
+
+// ── THE FIRST TWO RUNGS OF THE START LADDER (v21.29) ────────────────────────────────────────────
+//
+// Marked HERE rather than inside the modules that own these events, and that is deliberate: both
+// would otherwise need `perf-reporter.js`, which imports `firebase-client.js` — so marking inside
+// `firebase-client` would be an import cycle, and marking inside `calendar-access` would put
+// telemetry in the one module whose job is to decide whether this browser may see anything at all.
+// Observed from outside, the instants are the same to within a microtask.
+//
+// Deliberately NOT awaited by anything. A milestone is a record of when something happened; it must
+// never become a thing the boot waits for.
+authBootstrap.then(() => markMilestone('authBoot')).catch(() => { /* never rejects */ });
+calendarAccessReady.then(() => markMilestone('access')).catch(() => { /* never rejects */ });
+
+/** Set once `initTeamView` has run. Module-scope because `_markReadyIfGridShown` is declared above
+ *  the coordinator's init block and must not close over a `teamView` that does not exist yet.
+ *  @type {any} */
+let _teamView = null;
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -107,6 +176,7 @@ const teamView = initTeamView({
     _pushOverlayState,
     _clearOverlayHistory,
 });
+_teamView = teamView;   // see `_markReadyIfGridShown` — the ready metric asks whichever surface is on screen
 
 
 // ============================================
@@ -624,7 +694,7 @@ try {
     // splash dismissal. The guides, the Huddle, the Circular and the Newsletter are reachable
     // without Calendar access on purpose — making somebody type the staff PIN to read the Railcard
     // guide would be locking the building to reach the noticeboard.
-    _startCalendarWorkspace = function startCalendarWorkspace() {
+    _startCalendarWorkspace = async function startCalendarWorkspace() {
         // validateRosterPatterns() already ran at module load in roster-data.js.
         // Only run the team-member shape check here — it's unique to this file.
         const allErrors = validateTeamMembers();
@@ -653,15 +723,15 @@ try {
         // ensureOverridesCached no longer fires a COMPETING per-month fetch for the display month —
         // that duplicate read logged a bogus "[Firestore] Duplicate override" warn per doc on
         // every launch and doubled the month's reads. (Previously called at the module tail.)
-        initInitialFetch({
+        const _initialFetch = initInitialFetch({
             isTeamViewMode: () => teamView.isTeamViewMode(),
             // Deferred: the 3-month fetch can resolve mid-swipe on a slow connection — an immediate
             // render would wipe the carousel and freeze the grid on the old month (v16.23).
-            renderCalendar: renderCalendarWhenIdle,
+            renderCalendar: () => { renderCalendarWhenIdle(); _markReadyIfGridShown(); },
             // Team view active when the 3-month fetch lands → repaint its grid from the cache
             // (v18.21 — without this an early/boot-time team view stayed base-roster-only: see
             // initInitialFetch's JSDoc for the two-sided stand-down).
-            renderTeamView: () => teamView.refreshFromCache(),
+            renderTeamView: () => { teamView.refreshFromCache(); _markReadyIfGridShown(); },
             // Phase 2 (the authoritative server read) waits for this; phase 1 (the local-cache
             // paint) deliberately does not — see AUTH_PLAN.md → E1. Since v20.12 the promise is
             // `calendarAccessReady`, which is ALREADY RESOLVED whenever this runs: the whole
@@ -675,21 +745,38 @@ try {
             onAccessLost: () => { setOverrideAccess(false); handleAccessLost(); },
         });
 
+        // ── LET THE LOCAL CACHE WIN THE FIRST PAINT (v21.29, external latency review) ────────────
+        //
+        // Phase 1 of the initial fetch reads IndexedDB with no network and no auth, and on a
+        // returning device it usually answers in a few milliseconds. But the first render used to
+        // fire SYNCHRONOUSLY beside it, so that device reliably painted "Checking this month…" and
+        // then repainted with data that had been milliseconds away — the eye's first meaningful
+        // impression of the app was a spinner it never needed to see.
+        //
+        // Bounded, and short. A cache MISS resolves false immediately, a slow read falls through at
+        // the deadline, and either way the old behaviour follows — so nothing waits on a device that
+        // has nothing to show. This is the one place in the boot where waiting is the faster answer.
+        const _cachePainted = await Promise.race([
+            _initialFetch.cacheSettled,
+            new Promise(r => setTimeout(r, CACHE_FIRST_PAINT_MS)),
+        ]);
+
         // Restore team view if the user was in it before the last refresh; else render the
         // personal calendar. renderCalendar() itself shows the first-run "choose your name"
         // prompt when no member is picked and no session exists (see its guard). (H1)
         if (lsGet('myb_team_view') === '1') {
             teamView.restoreTeamView();
-        } else {
+        } else if (_cachePainted !== true) {
+            // SKIPPED when phase 1 already painted: it renders through this same path the moment
+            // its cache read lands, so rendering again here is a second full grid build a few
+            // milliseconds later for an identical result. Only the non-team case can skip — phase 1
+            // runs before `restoreTeamView`, so it always paints the CALENDAR, and a team-view
+            // member still needs the restore below it.
             renderCalendar();
         }
 
-        // THE milestone (v20.80). Everything before this line is a page the member is looking at and
-        // cannot use, and neither of the two metrics the App Speed card already had can see it:
-        // `fcp` is the splash painting, and `domReady` fires while the access decision is still
-        // outstanding — measured at 669ms on a load whose roster arrived at 2630ms. Marked here,
-        // after the first render, because a grid on screen is what "the Calendar has opened" means.
-        markPageReady();
+        _bootSurfaceDecided = true;
+        _markReadyIfGridShown();
 
         // Swipe gesture handler — see calendar-swipe.js for full implementation.
         initSwipeHandler({
@@ -1161,7 +1248,18 @@ initCalendarAccess({
         }
     },
     // ONCE: re-running this would re-wire the swipe handler and re-launch the initial 3-month fetch.
-    onGranted: () => { _workspaceStarted = true; _startCalendarWorkspace?.(); },
+    onGranted: () => {
+        _workspaceStarted = true;
+        // CAUGHT, because the workspace start became async at v21.29 (it awaits a bounded chance
+        // for the local cache to paint first). An un-awaited async call with no catch turns any
+        // throw in here into an unhandled rejection — which `error-reporter.js` does capture, so it
+        // would reach the Error Log, but the member would be left looking at an empty workspace
+        // with nothing said and no way to know a reload might fix it. Reporting it here keeps the
+        // failure attached to the thing that failed.
+        Promise.resolve(_startCalendarWorkspace?.()).catch(err => {
+            console.error('[Calendar] the workspace failed to start', err);
+        });
+    },
 });
 
 

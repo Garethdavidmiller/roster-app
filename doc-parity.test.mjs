@@ -79,6 +79,54 @@ test('every runner config is listed in CLAUDE.md', () => {
     assert.deepEqual(missing, [], 'unlisted runner configs: ' + missing.join(', '));
 });
 
+test('a doc that says "`symbol` in `file.js`" is right about the file', () => {
+    // The docs ROUTE — that is their whole job — and a routing claim is checkable, so check it.
+    // Nothing did, and the two this found were both live: `CONDITIONAL_ROWS` was attributed to
+    // paycalc-app.js while living in paycalc-periods.js, under a sentence telling the reader to add
+    // an array entry there; and `_appendOriginSection` still pointed at operations-reports.js one
+    // release after the v21.32 split moved it, written by the same session that did the moving.
+    //
+    // That is the failure mode this file exists for: prose restating a fact that lives elsewhere,
+    // and drifting the moment the fact moves. A stale route is worse than no route — it sends a
+    // reader somewhere confidently wrong, and the tree beside it was RIGHT in both cases, so the
+    // file disagreed with itself.
+    //
+    // Deliberately narrow: only the "`sym` in `file.js`" shape, which is unambiguous and mechanical.
+    // A looser match would pull in prose that mentions a symbol near a filename for other reasons,
+    // acquire an exemption list, and stop guarding.
+    const claims = [];
+    for (const doc of ['./CLAUDE.md', './AI_MAP.md']) {
+        for (const m of read(doc).matchAll(/`([A-Za-z_$][\w$]*)`\s*(?:\([^)]*\)\s*)?in\s+`([\w.-]+\.(?:js|mjs))`/g))
+            claims.push({ doc, sym: m[1], file: m[2] });
+    }
+    assert.ok(claims.length >= 20, `expected many routing claims, found ${claims.length}`);
+    const wrong = claims
+        .filter(({ file }) => rootFiles.includes(file) || file.startsWith('functions/'))
+        .filter(({ sym, file }) => !new RegExp(`\\b${sym.replace(/\$/g, '\\$')}\\b`).test(read('./' + file)))
+        .map(({ doc, sym, file }) => `${doc}: \`${sym}\` is not in ${file}`);
+    assert.deepEqual(wrong, [],
+        'these routing claims send a reader to the wrong file:\n  ' + wrong.join('\n  '));
+});
+
+test('and no dev-only root file is DEPLOYED — the hosting ignore list is hand-maintained too', () => {
+    // `firebase.json`'s `ignore` is a denylist, so anything new at the root ships to the live site by
+    // DEFAULT. Nothing announces that: the file is simply there, publicly fetchable, and the app
+    // works exactly as before. `playwright.webkit.mjs` shipped that way at v21.28 while its four
+    // siblings were correctly excluded — found by reading the list, which is not a control.
+    //
+    // Scoped to the two classes that are unambiguously dev-only. Test FILES were already covered by
+    // the `**/*.test.mjs` glob; runner configs are named one by one, which is exactly where a new
+    // one gets missed.
+    const hosting = JSON.parse(readFileSync(new URL('./firebase.json', import.meta.url), 'utf8'));
+    const ignore  = new Set(hosting.hosting.ignore);
+    const served  = rootFiles
+        .filter(f => f.startsWith('playwright.') || f.includes('.test.'))
+        .filter(f => !ignore.has(f) && !(f.includes('.test.') && ignore.has('**/*.test.mjs')));
+    assert.deepEqual(served, [],
+        'these dev-only files are missing from firebase.json → hosting.ignore, so they are served '
+        + 'from the live site:\n  ' + served.join('\n  '));
+});
+
 test('every root TEST file is listed in CLAUDE.md', () => {
     // The pre-commit hook covers modules on a STAGED commit. It cannot see a file added earlier and
     // never listed, and it does not look at tests at all — which is how `calendar-doc-viewer.test.mjs`

@@ -78,6 +78,44 @@ let _resolveReady = () => {};
 /** @type {Promise<number>} */
 const _pageReady = new Promise((resolve) => { _resolveReady = resolve; });
 
+// ── THE REST OF THE START LADDER (v21.29, external latency review) ──────────────────────────────
+//
+// `ready` had this machinery to itself. The other three milestones need exactly the same thing —
+// a mark, and a promise so `recordPageLatency` can record one that has not happened yet — so it is
+// generalised rather than copied three times. Each keeps its own deferred promise for the reason
+// spelled out above `_pageReady`: reading the mark table at one arbitrary instant sampled a fifth
+// of its own population, and not at random.
+//
+// The DEFERRED half is what makes these usable at all. `access` fires early and would usually be
+// present, but `rosterLive` waits on Firestore — the very case worth measuring is the one where it
+// lands after `recordPageLatency` has run.
+/** @type {Record<string, string>} milestone id → performance.mark name */
+const MILESTONE_MARKS = { authBoot: 'myb-auth-boot', access: 'myb-access', rosterLive: 'myb-roster-live' };
+/** @type {Record<string, (t: number) => void>} */
+const _resolveMilestone = {};
+/** @type {Record<string, Promise<number>>} */
+const _milestone = {};
+for (const id of Object.keys(MILESTONE_MARKS)) {
+    _milestone[id] = new Promise((resolve) => { _resolveMilestone[id] = resolve; });
+}
+
+/**
+ * Mark one of the start-ladder milestones. Idempotent, silent on any platform without the
+ * Performance API, and — like `markPageReady` — it must never be able to break the page it times.
+ * @param {'authBoot'|'access'|'rosterLive'} id
+ * @returns {void}
+ */
+export function markMilestone(id) {
+    const name = MILESTONE_MARKS[id];
+    if (!name) return;
+    try {
+        if (performance.getEntriesByName?.(name)?.length) return;
+        performance.mark(name);
+        const t = performance.getEntriesByName?.(name)?.[0]?.startTime;
+        if (typeof t === 'number') _resolveMilestone[id]?.(t);
+    } catch { /* Performance API unavailable — the metric is simply absent */ }
+}
+
 /**
  * Mark the instant this page's MAIN CONTENT is actually on screen.
  *
@@ -191,6 +229,21 @@ export function recordPageLatency(page, identity = null) {
         // four loads in five, silently, and not at random.
         else _pageReady.then(recordReady)
             .catch(() => { /* never rejects; here so a future change cannot make it unhandled */ });
+
+        // The other three rungs, by exactly the same rule — already marked, or recorded when they
+        // arrive. A page that never reaches one simply never reports it, which is the honest
+        // answer: a milestone that did not happen must not be given a time.
+        for (const id of Object.keys(MILESTONE_MARKS)) {
+            const write = (/** @type {number} */ startTime) => {
+                const b = bucketDuration(startTime);
+                if (b) recordPerfSample({ page, metric: id, bucket: b, mode, conn });
+            };
+            let now;
+            try { now = performance.getEntriesByName?.(MILESTONE_MARKS[id])?.[0]?.startTime; }
+            catch { /* no marks on this platform — the await below simply never fires */ }
+            if (typeof now === 'number') write(now);
+            else _milestone[id]?.then(write).catch(() => { /* never rejects */ });
+        }
 
         // Navigation-timing metrics for THIS page (every load).
         const nav = /** @type {any} */ (performance.getEntriesByType?.('navigation')?.[0]);

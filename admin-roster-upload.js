@@ -6,7 +6,7 @@
 
 import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO, isSunday, parseISODate } from './roster-data.js';
 import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
-import { shouldReplaceOverride, isOtherValue, parseOtherValue, buildOverrideWrite } from './override-utils.js';
+import { shouldReplaceOverride, isOtherValue, sundaySafeValue, parseOtherValue, buildOverrideWrite } from './override-utils.js';
 
 const RDW_PREFIX   = 'RDW|';
 const isRdwEncoded = /** @param {any} v */ v => typeof v === 'string' && v.startsWith(RDW_PREFIX);
@@ -253,8 +253,7 @@ export async function fetchOverridesForWeek(dates) {
 export function normaliseCellValue(rawShift, baseShift, date) {
     const parsedValue = isRdwEncoded(rawShift) ? stripRdw(rawShift) : rawShift;
     const isSun       = isSunday(date);
-    const sundaySafe  = (isSun && (parsedValue === 'AL' || parsedValue === 'SICK' || isOtherValue(parsedValue)))
-        ? 'RD' : parsedValue;
+    const sundaySafe  = isSun ? sundaySafeValue(parsedValue) : parsedValue;
     const normRest = /** @param {any} s */ s => (s === 'OFF' ? 'RD' : s);
     const restSafe = ((normRest(sundaySafe) === 'SICK' || normRest(sundaySafe) === 'AL') && normRest(baseShift) === 'RD')
         ? 'RD' : sundaySafe;
@@ -1176,9 +1175,10 @@ export function isZeroLengthRange(value) {
  * @returns {string}  override type
  */
 export function shiftValueToOverrideType(value, baseShift, date = null) {
-    // Sundays are non-contracted — AL, Absent, and Other days cannot apply; treat as RD correction
+    // Layer 4 of the Sunday rule — the transformation is `sundaySafeValue` (override-utils.js).
+    // A value it rewrites to RD becomes a correction rather than the type it claimed to be.
     const isSun = date !== null && isSunday(date);
-    if (isSun && (value === 'AL' || value === 'SICK' || isOtherValue(value))) return 'correction';
+    if (isSun && sundaySafeValue(value) === 'RD' && value !== 'RD') return 'correction';
     if (value === 'AL')    return 'annual_leave';
     if (value === 'SICK')  return 'sick';
     if (value === 'SPARE') return 'spare_shift';

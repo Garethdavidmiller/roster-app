@@ -14,7 +14,7 @@
  *   must be accompanied by a password reset for all affected users.
  */
 
-import { auth, authReady, onAuthStateChanged, nameToEmail, normaliseSurname, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut as firebaseSignOut, restoreMemberPersistence } from './firebase-client.js';
+import { auth, authReady, currentUserAfterBoot, nameToEmail, normaliseSurname, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut as firebaseSignOut, restoreMemberPersistence } from './firebase-client.js';
 // PURE, and imported rather than re-derived: `isViewerUser` decides whether an identity may be
 // PRESERVED across the expired-identity teardown, so a second local copy of that predicate is a
 // second place a bypass could be introduced. calendar-access-core.js imports nothing, so this adds
@@ -208,45 +208,22 @@ export const AUTH_RESTORE_TIMEOUT_MS = 8000;
  * The bound is generous for that reason: firing it early on a merely-slow restore would tell a
  * signed-in admin their session is missing. 8s is a hang, not a slow phone.
  *
+ * ── AND IT NO LONGER OPENS ITS OWN SUBSCRIPTION (v21.29, external latency review) ────────────────
+ *
+ * It used to hand-roll a second `onAuthStateChanged` wait, which was harmless on its own and
+ * compounding in aggregate — see `authBootstrap` in firebase-client.js for the three-listeners,
+ * three-timeouts picture and the ~12.5s Calendar tail it produced. The boot now answers that
+ * question once; this delegates to it and keeps its own bound as a ceiling on the shared wait.
+ *
+ * The returned value is GROUND TRUTH rather than the boot snapshot, which is a small correctness
+ * gain as well as a latency one: a member who signed out after boot is now reported as signed out,
+ * where the remembered emission would have resurrected them.
+ *
  * @param {number} [timeoutMs] override, for tests
  * @returns {Promise<any>} the restored user, or null (no user, or the restore never answered)
  */
 export function restoreFirstAuthUser(timeoutMs = AUTH_RESTORE_TIMEOUT_MS) {
-    return new Promise(resolve => {
-        /** @type {null | (() => void)} */
-        let unsub       = null;
-        let settled     = false;
-        let detachEarly = false;   // the listener fired before onAuthStateChanged returned
-        /** @type {any} */
-        let timer;
-
-        // Firebase does not emit synchronously, but the old `const unsub` + `unsub()`-inside-the
-        // -callback shape would have thrown a TDZ ReferenceError if it ever did. This survives it:
-        // an early emission sets the flag and the unsubscribe happens as soon as we hold the handle.
-        const detach = () => {
-            if (unsub) { try { unsub(); } catch { /* already gone */ } unsub = null; }
-            else detachEarly = true;
-        };
-        const finish = (/** @type {any} */ user) => {
-            if (settled) return;      // a late emission after the timeout must change nothing
-            settled = true;
-            clearTimeout(timer);
-            detach();
-            resolve(user);
-        };
-
-        timer = setTimeout(() => {
-            console.warn(`[Auth] session restore did not answer in ${timeoutMs}ms — continuing as signed out`);
-            finish(null);
-        }, timeoutMs);
-        // NO `unref()` here, though it looks tidy: under `node --test` it lets the event loop drain
-        // while a caller is still awaiting this promise, which fails the await with "Promise
-        // resolution is still pending but the event loop has already resolved". The timer is cleared
-        // on every settle, so it holds nothing open in practice.
-
-        unsub = onAuthStateChanged(auth, (/** @type {any} */ user) => finish(user));
-        if (detachEarly) detach();
-    });
+    return currentUserAfterBoot(timeoutMs);
 }
 
 /** Pre-warmed restore promise from primeAuth(), consumed exactly once by ensureFirebaseSession.
@@ -364,7 +341,16 @@ export async function ensureFirebaseSession(name, _gen, password) {
     // mounted), consume the already-in-flight promise so the restore overlapped the user's typing — a
     // pure latency win, no behaviour change. One-shot: a later call does a fresh restore; tests (which
     // never prime, and whose mock currentUser is null) always take the await path.
-    const existing = auth.currentUser || await (_consumePrimedAuthUser() || restoreFirstAuthUser());
+    // Priming overlaps the WAIT with the user's typing; the VALUE is always read fresh (v21.29).
+    // Consuming the primed promise FOR ITS RESULT was the one remaining place a stale identity could
+    // survive: it is created when the login overlay mounts and may be minutes old by the time a
+    // sign-in consumes it, so on a shared device a second member's sign-in could read the first
+    // member's restored user out of it. Harmless in the end — the email mismatch below signs them
+    // out and re-authenticates — but it is the same hazard `currentUserAfterBoot` was just made to
+    // avoid, and awaiting the primed promise purely for its TIMING keeps the whole latency win with
+    // none of it. `await null` is a no-op, so the un-primed path is unchanged.
+    await _consumePrimedAuthUser();
+    const existing = auth.currentUser || await restoreFirstAuthUser();
     // Gen-guard EVERY shared-auth mutation from here down (like commit/recordError/the reset above):
     // a SUPERSEDED attempt resuming after this long await — the sign-out below on the mismatch path,
     // but equally the signInWithEmailAndPassword / signInAnonymously calls further down on the

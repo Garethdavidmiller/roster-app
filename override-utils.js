@@ -594,3 +594,51 @@ export function resolveEffectiveShift(override, baseShift, sunday) {
     }
     return { shift: override.value, rdwTime: '', derivedRdw: false, note };
 }
+
+// ── WHAT MAY NOT BE RECORDED ON A SUNDAY (v21.32) ───────────────────────────────────────────────
+//
+// Sundays are not contracted for any grade here, so annual leave, an absence and an "Other" day
+// cannot apply to one — and a worked Sunday is always RDW (overtime), never a plain shift.
+//
+// The rule is enforced at SEVERAL points on purpose and that stays. Defence in depth is right for a
+// rule whose failure writes leave against a day nobody was contracted to work. What was wrong is
+// that each site STATED the policy itself, in its own vocabulary, with `// Rule: see CLAUDE.md`
+// comments pointing at prose because there was no code to point at. They agreed — checked site by
+// site — but nothing made them agree, and the next site would have had to re-derive it.
+//
+// Two sites now CONSULT this declaration: the bulk bar (`isForbiddenOnSunday`) and the roster import
+// (`sundaySafeValue`). Two keep a bespoke copy for a reason, and are pinned to this list by
+// override-utils.test.mjs instead — a fifth forbidden type added here fails those tests rather than
+// being silently writable:
+//
+//   · the week-grid PILLS (`admin-overrides.js`) carry per-pill wording — "Annual leave cannot be
+//     recorded on a Sunday…" — and one shared message would be vaguer than any of them.
+//   · the single-row SAVE (`admin-app.js`) does three different things with the four types: a plain
+//     `shift` is PROMOTED to `rdw` rather than refused, an "Other" day is refused unless its flavour
+//     is Spare (v18.91), and leave and absence are refused outright. That is not drift — it is what
+//     each type should do — but it means the site cannot be a loop over this list.
+//
+// NOT the same question, and deliberately not wired to this list: `isOverrideDisplaySuppressed` at
+// the top of this file. It asks what may be SHOWN, not what may be WRITTEN, and its answer is a
+// deliberate subset — a legacy Sunday `shift` is still displayed, because hiding a day somebody
+// actually worked is the worse error.
+//
+// TWO VOCABULARIES, DELIBERATELY NOT COLLAPSED. The admin surfaces reason in override TYPE ids
+// (what a pill writes); the roster import reasons in parsed VALUES (what a PDF cell said). They are
+// different alphabets for the same policy, and forcing one on the other would mean translating at
+// the point of use — which is where a translation gets skipped.
+
+/** Override TYPES that may never be written to a Sunday. `rdw` is deliberately absent: Sunday work
+ *  is overtime, so RDW is the one thing that BELONGS there. @type {readonly string[]} */
+export const SUNDAY_FORBIDDEN_TYPES = Object.freeze(['annual_leave', 'sick', 'other', 'shift']);
+
+/** @param {string} type an override type id @returns {boolean} */
+export function isForbiddenOnSunday(type) { return SUNDAY_FORBIDDEN_TYPES.includes(type); }
+
+/** Parsed roster VALUES that cannot stand on a Sunday, and what they become instead.
+ *  Returns the value unchanged when it is fine, so a caller can use it unconditionally.
+ *  The import NORMALISES rather than refusing — a PDF is a statement about the past, and rejecting
+ *  the whole week over one cell would lose the other six. @param {string} value @returns {string} */
+export function sundaySafeValue(value) {
+    return (value === 'AL' || value === 'SICK' || isOtherValue(value)) ? 'RD' : value;
+}

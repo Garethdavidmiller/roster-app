@@ -144,5 +144,22 @@ export function decideDisplay(knowledge) {
     return 'loading';
 }
 
+/**
+ * Is this display state one in which an actual ROSTER is on screen?
+ *
+ * The question the page-ready metric asks, and it lives here rather than in a coordinator because
+ * it is a statement about the four states above, not about any page. `render` and `stale` are both
+ * real grids — one current, one labelled last-known — and both are a roster a member can read.
+ * `loading` and `unavailable` are a withheld grid, which is this module working correctly and is
+ * the opposite of usable.
+ *
+ * It matters because the metric that got this wrong was wrong in the flattering direction: timing
+ * the moment the Calendar finished deciding it had nothing to show, most often on the slowest
+ * loads, so the figure could not be read in either direction.
+ * @param {'render'|'stale'|'loading'|'unavailable'} display
+ * @returns {boolean}
+ */
+export function showsRoster(display) { return display === 'render' || display === 'stale'; }
+
 /** Test seam — the module holds process-wide state, so a suite must be able to reset it. */
 export function _reset() { _knowledge.clear(); }

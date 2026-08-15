@@ -186,8 +186,6 @@ function _firstAuthUserAtBoot() {
     });
 }
 
-// Exported so callers can `await authReady` before signing in — guarantees persistence
-// is configured before the auth token is written, otherwise iOS may drop the session.
 // BOOT MUST NOT INHERIT THE STRICTER POLICY (v20.39). `_setMemberPersistence` rejects when no
 // mode could be established, which is what the viewer↔member transitions need — but this promise is
 // awaited at boot by every page, mostly without a catch, so propagating here would turn a rare
@@ -214,14 +212,70 @@ function _firstAuthUserAtBoot() {
 // is what heals the office PCs affected before this fix); everyone else gets the member chain
 // exactly as before. Member sign-ins that REPLACE a viewer are unaffected — they run through
 // `shedCalendarViewer`, which signs the viewer out before calling `restoreMemberPersistence()`.
-export const authReady = (async () => {
-    const u = await _firstAuthUserAtBoot();
-    if (isViewerUser(u)) {
-        try { await setPersistence(auth, browserSessionPersistence); return /** @type {const} */ ('session'); }
-        catch { return /** @type {const} */ ('none'); }
+// ── ONE BOOT AUTHORITY (v21.29, external latency review) ────────────────────────────────────────
+//
+// The question "who did this browser restore?" was being asked THREE times, by three separate
+// `onAuthStateChanged` subscriptions with three separate timeouts:
+//
+//   `_firstAuthUserAtBoot` here (8s)   → and it then THREW THE ANSWER AWAY, returning only the
+//                                        persistence mode
+//   `restoreFirstAuthUser` in session.js  → re-asked, for `reconcileExpiredIdentity`
+//   `firstAuthUser` in calendar-access.js (6s) → re-asked again, for the access decision
+//
+// In normal operation Firebase answers a new subscriber immediately, so this cost nothing and was
+// invisible. In the degraded case it COMPOUNDED: the Calendar gave the reconcile 6.5s and then gave
+// its own restore another 6s, so one wedged auth layer could hold the access decision for ~12.5s.
+//
+// So the boot now resolves the pair — the restored user AND the persistence that was established for
+// them — once, and everything downstream consumes it. `authReady` is unchanged in meaning and still
+// yields the mode; it is now derived rather than separately computed.
+/** @type {Promise<{ user: any, persistence: 'indexeddb'|'local'|'session'|'none' }>} */
+export const authBootstrap = (async () => {
+    const user = await _firstAuthUserAtBoot();
+    if (isViewerUser(user)) {
+        try { await setPersistence(auth, browserSessionPersistence); return { user, persistence: /** @type {const} */ ('session') }; }
+        catch { return { user, persistence: /** @type {const} */ ('none') }; }
     }
-    return _setMemberPersistence();
-})().catch(() => /** @type {const} */ ('none'));
+    return { user, persistence: await _setMemberPersistence() };
+})().catch(() => ({ user: null, persistence: /** @type {const} */ ('none') }));
+
+// Unchanged in meaning: awaited before signing in, so persistence is configured before the auth
+// token is written (otherwise iOS may drop the session). Derived now rather than separately computed.
+export const authReady = authBootstrap.then(b => b.persistence);
+
+/**
+ * Who is signed in, once the one boot restore has had its chance?
+ *
+ * The shared replacement for "subscribe to `onAuthStateChanged` and wait for the first emission",
+ * which is a BOOT-TIME question that three modules were each answering for themselves.
+ *
+ * **It returns ground truth, not the boot snapshot** — deliberately, and it is the reason this is
+ * safe to share. Returning `authBootstrap`'s remembered user would resurrect an identity that has
+ * signed out since boot, and two of the callers (`ensureFirebaseSession`, `admin-auth.js`) would
+ * then believe a session exists when it does not. Waiting for the bootstrap and then reading
+ * `auth.currentUser` answers the question the callers are actually asking, and Firebase sets
+ * `currentUser` before it notifies listeners, so nothing is lost by reading it afterwards.
+ *
+ * Still bounded, because `setPersistence` sits inside the bootstrap and a storage layer that never
+ * answers must not hold a page for ever. The bound no longer STACKS: whichever caller arrives first
+ * pays the wait, and the rest find it settled.
+ *
+ * @param {number} [timeoutMs] how long to wait for the boot restore before answering from whatever
+ *        is there. Callers with a deadline of their own pass their remaining budget.
+ * @returns {Promise<any>} the signed-in user, or null
+ */
+export async function currentUserAfterBoot(timeoutMs = 8000) {
+    if (auth.currentUser) return auth.currentUser;          // already known — no wait at all
+    let timer;
+    try {
+        await Promise.race([
+            authBootstrap,
+            new Promise(resolve => { timer = setTimeout(resolve, timeoutMs); }),
+        ]);
+    } catch { /* the bootstrap never rejects; a future change must not make this throw */ }
+    finally { clearTimeout(timer); }
+    return auth.currentUser || null;
+}
 
 /**
  * Re-arm the long-lived MEMBER persistence chain.

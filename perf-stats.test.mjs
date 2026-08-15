@@ -2,7 +2,7 @@
 // Run with: node --test perf-stats.test.mjs   (part of test:hygiene)
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { THIN_SAMPLE, PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, summarisePerfBy, PERF_DIMENSIONS, perfVerdict, loginDurationBucket, LOGIN_MAX_MS, BOOT_PHASES, bootPhases, summariseBootPhases } from './perf-stats.js';
+import { THIN_SAMPLE, PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, summarisePerfBy, PERF_DIMENSIONS, perfVerdict, loginDurationBucket, LOGIN_MAX_MS, BOOT_PHASES, bootPhases, summariseBootPhases, START_MILESTONES, summariseStartMilestones } from './perf-stats.js';
 
 /** Build a samples map from [page, metric, bucket, count] rows (version/mode/conn fixed). */
 function samplesFrom(rows) {
@@ -440,5 +440,73 @@ describe('loginDurationBucket', () => {
         assert.equal(loginDurationBucket(5000, 4000), null, 'clock went backwards');
         assert.equal(loginDurationBucket(1000, 1000 + LOGIN_MAX_MS), null, 'stale (>= max)');
         assert.equal(loginDurationBucket(1000, 1000 + LOGIN_MAX_MS + 1), null, 'well past max');
+    });
+});
+
+// ── summariseStartMilestones — "How far the start had got" ─────────────────────────────────────
+//
+// The rows are CUMULATIVE, which is the whole reason the block is readable: a reader compares
+// neighbours instead of subtracting. Two things therefore have to hold and neither is visible in
+// the output — ladder ORDER, and that a rung with no data is ABSENT rather than zero. A zero row
+// in a cumulative ladder reads as "nothing ever got this far", which is a much stronger claim than
+// "nobody has reported it yet", and it is the claim a partly-rolled-out release would make.
+
+const mk = (page, metric, bucket, n) => [perfSampleKey({ version: 'v21.29', page, metric, bucket, mode: 'standalone', conn: '4g' }), n];
+
+describe('summariseStartMilestones', () => {
+    test('rows come back in LADDER order, not sample order', () => {
+        // Fed deliberately backwards. Insertion order would put "Confirmed" above "Signed in",
+        // which inverts the one relationship the block asks the reader to use.
+        const samples = Object.fromEntries([
+            mk('calendar', 'rosterLive', '1-3s', 5),
+            mk('calendar', 'ready', 'lt500ms', 5),
+            mk('calendar', 'access', 'lt500ms', 5),
+            mk('calendar', 'authBoot', 'lt500ms', 5),
+        ]);
+        const { rows } = summariseStartMilestones(samples, { page: 'calendar' });
+        assert.deepEqual(rows.map(r => r.metric), START_MILESTONES.map(m => m.metric));
+    });
+
+    test('a rung nobody has reported is ABSENT, not a zero row', () => {
+        const samples = Object.fromEntries([mk('calendar', 'authBoot', 'lt500ms', 3)]);
+        const { rows } = summariseStartMilestones(samples, { page: 'calendar' });
+        assert.deepEqual(rows.map(r => r.metric), ['authBoot']);
+    });
+
+    test('another page\'s samples never leak in', () => {
+        const samples = Object.fromEntries([
+            mk('calendar', 'access', 'lt500ms', 4),
+            mk('paycalc',  'access', 'over8s', 90),
+        ]);
+        const { rows } = summariseStartMilestones(samples, { page: 'calendar' });
+        assert.equal(rows.length, 1);
+        assert.equal(rows[0].total, 4, 'the other page\'s 90 slow loads must not be counted here');
+        assert.equal(rows[0].pctQuick, 100);
+    });
+
+    test('bands are the CARD\'S bands, not the boot-phase bands', () => {
+        // The distinction matters: boot phases call 500ms slow, the card calls under a second
+        // quick. A milestone landing at 700ms is quick here and would be amber there.
+        const samples = Object.fromEntries([mk('calendar', 'ready', '500ms-1s', 10)]);
+        const { rows } = summariseStartMilestones(samples, { page: 'calendar' });
+        assert.equal(rows[0].pctQuick, 100);
+    });
+
+    test('an unknown bucket is dropped rather than counted into a band', () => {
+        const samples = Object.fromEntries([
+            mk('calendar', 'ready', 'lt500ms', 2),
+            mk('calendar', 'ready', 'nonsense', 99),
+        ]);
+        const { rows } = summariseStartMilestones(samples, { page: 'calendar' });
+        assert.equal(rows[0].total, 2);
+    });
+
+    test('every milestone has a label and a distinct id', () => {
+        const ids = START_MILESTONES.map(m => m.metric);
+        assert.equal(new Set(ids).size, ids.length, 'duplicate milestone ids would merge two rungs');
+        for (const m of START_MILESTONES) {
+            assert.ok(m.label && m.label.length <= 13, `${m.metric}: label must fit the row column`);
+            assert.ok(m.sub && m.sub.length > 0, `${m.metric}: the sub carries what the label gives up`);
+        }
     });
 });
