@@ -36,6 +36,7 @@ import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady, markMilestone } from './perf-reporter.js';
+import { initAdminTasks } from './admin-tasks.js';
 
 
 /**
@@ -1515,8 +1516,11 @@ export function init() {
         if (sickHint)  sickHint.textContent = 'Record your own absence days — for any reason';
         if (savedHint) savedHint.textContent = 'Your saved changes — tap any row to edit or delete';
 
-        // Auto-open the Annual Leave card — most staff visit here primarily to book AL
-        openCollapsibleCard(document.getElementById('alBody'), document.getElementById('alChevron'));
+        // The Annual Leave card used to auto-open here, on the reasoning that self-service staff
+        // mostly come to book leave. The task row replaced that at v21.38 and the default is now
+        // Change a shift for EVERYONE (owner) — so this would have been a second writer of the same
+        // collapse state, settling it by source order rather than by decision. Annual leave is one
+        // tap away on the row, which is the same reach the auto-open bought and costs no surprise.
     }
 
     // ============================================
@@ -1542,6 +1546,31 @@ export function init() {
     initCardCollapse('alToggleHeader',          'alBody',            'alChevron');
     initCardCollapse('sickToggleHeader',        'sickBody',          'sickChevron');
     initCardCollapse('overridesToggleHeader',   'overridesBody',     'overridesChevron');
+    // SYNC THE BOOKING SELECTS FROM THE MEMBER FIELD (v21.38). They were only ever set by the
+    // fieldMember CHANGE handler, so on a fresh admin load — where the member is RESTORED rather
+    // than chosen — they stayed empty and both booking cards said "Select a staff member above"
+    // over a page that plainly had one selected. Harmless before, because the cards shipped
+    // collapsed and few opened them at boot; the task row makes each one a single tap away, so the
+    // contradiction is now the first thing you see. Self-service users are already pinned above and
+    // their selects are disabled, so this only fills a genuine gap.
+    if (fieldMember.value && !alMember.disabled) {
+        _setSelectValue(alMember, fieldMember.value);
+        _setSelectValue(sickMember, fieldMember.value);
+        syncMemberDisplay();
+        syncSickMemberDisplay();
+    }
+    // AFTER the collapsibles (v21.38). The task row focuses a card by CLICKING its real chevron
+    // rather than setting classes, so the controls have to exist first — wiring it earlier would
+    // silently do nothing to the collapse state while still moving the chips, which is the shape of
+    // bug where the page and its own controls disagree.
+    initAdminTasks({
+        onFocus: id => {
+            // The AL and Absence previews are computed for the selected member; refresh whichever
+            // becomes the focused task so a card opened from a chip is never showing stale figures.
+            if (id === 'leave')   _refreshAlPreview?.();
+            if (id === 'absence') _refreshSickPreview?.();
+        },
+    });
 
 
     // Admin is not a printable page (v18.71) — printing shows a branded "use the

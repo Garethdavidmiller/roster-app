@@ -1918,7 +1918,68 @@
 .other-rdw-warn { flex-basis: 100%; color: var(--warning-amber); font-weight: 600; font-size: var(--type-badge); }
 .other-rdw-warn[hidden] { display: none; }
 .other-opts-hint { flex-basis: 100%; color: var(--text-light); font-size: var(--type-badge); }
+/* ── TASK FOCUS ROW (v21.38) ─────────────────────────────────────────────────────────────────────
+   Four jobs, one page. The row sits on the NAVY CANVAS, not inside a card, so it is styled like the
+   nav drawer's pills rather than like a card chip — an on-card treatment put navy text on navy and
+   the SELECTED chip, the one that most needs to be visible, was the only invisible one.
+
+   A 2×2 GRID, NOT A WRAPPING FLEX ROW. Four equal chips at 390px do not fit on one line, and letting
+   them wrap left "Saved changes" alone across the full width — the orphan-row problem the nav drawer
+   notes record, where content-width flexing produces a different ragged shape at every viewport. A
+   grid gives one predictable shape: two-by-two on a phone, one row of four once there is room. */
+.admin-task-row {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin: 0 0 16px;
+}
+.admin-task-chip {
+    min-height: 44px;                       /* a touch target, not a label */
+    padding: 8px 10px;
+    border: 1px solid rgba(255, 255, 255, .18);
+    border-radius: var(--radius-pill);
+    background: rgba(255, 255, 255, .10);
+    color: rgba(255, 255, 255, .85);        /* the drawer's on-navy tuning: comfortably above AA */
+    font-family: inherit;
+    font-size: var(--type-small);
+    font-weight: 600;                       /* quiet status, not identity — see css-tokens.md */
+    cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-standard),
+                color var(--dur-fast) var(--ease-standard),
+                border-color var(--dur-fast) var(--ease-standard),
+                transform var(--dur-fast) var(--ease-standard);
+}
+.admin-task-chip:active { transform: scale(var(--press-scale)); }
+/* Gold on navy for focus, matching the drawer's Calendar pill and the calendar's today button —
+   the app's established "this is the active one" colour, and the strongest contrast available here.
+   --focus-outline-light because the surface underneath is the darkest fill on the page. */
+.admin-task-chip:focus-visible { outline: var(--focus-outline-light); outline-offset: 2px; }
+.admin-task-chip[aria-pressed="true"] {
+    background: var(--accent-gold);
+    border-color: var(--accent-gold);
+    color: var(--primary-blue);
+    font-weight: 700;
+}
+
+/* A DIMMED CARD IS STILL A CARD. Collapsing already does the work of getting it out of the way;
+   this only softens the header so the focused card reads as the active one. Deliberately not
+   `opacity` on the whole card — that would grey the header text below AA, and a card you cannot
+   read is hidden rather than de-emphasised, which is not what this is for. */
+.card.task-dimmed > .card-header h2 { opacity: .72; }
+.card.task-focused { border-color: var(--primary-blue); }
+
+/* The focused card is scrolled to the top of the viewport, and on mobile the member bar is STICKY
+   there — so without this the card's own header lands underneath it and the first thing you see of
+   the card you just chose is its second line. 64px clears the bar plus a little breathing room. */
+#change-shift, #book-annual-leave, #record-sick-days, #overridesCard { scroll-margin-top: 64px; }
+
+@media (min-width: 700px) {
+    .admin-task-row { grid-template-columns: repeat(4, 1fr); }
+}
+
 @media print {
     .lpill-other { background: var(--other-light) !important; color: var(--other) !important; }
     .other-opts { display: none !important; }
+    /* The chips are navigation, not content — a printed sheet has no tasks to switch between. */
+    .admin-task-row { display: none !important; }
 }

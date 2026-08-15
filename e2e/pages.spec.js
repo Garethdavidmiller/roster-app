@@ -1169,6 +1169,75 @@ test('a tips panel with more below the fold says so, and stops saying it at the 
     await expect(panel).not.toHaveClass(/\bhas-more\b/);
 });
 
+// ── THE TASK FOCUS ROW (v21.38, external review) ────────────────────────────────────────────────
+//
+// Four jobs on one page, and a chip row that focuses one. Driven here rather than in a unit test
+// because the mechanism is a CLICK on the shared collapse control — whether that control exists,
+// responds, and leaves the card's three state carriers in step is precisely what a fake DOM cannot
+// answer, and a private copy of the collapse logic is the drift this design exists to avoid.
+test('admin opens on Change a shift, for everyone, every time', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    const chips = page.locator('.admin-task-chip');
+    await expect(chips).toHaveCount(4);
+    await expect(chips.first()).toHaveText('Change a shift');
+    await expect(chips.first()).toHaveAttribute('aria-pressed', 'true');
+    // And the other three are collapsed, which is what "focused" has to mean to be worth anything.
+    await expect(page.locator('#alBody')).not.toHaveClass(/open/);
+    await expect(page.locator('#overridesBody')).not.toHaveClass(/open/);
+});
+
+test('admin: choosing a task opens THAT card and collapses the previous one', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    await page.locator('.admin-task-chip[data-task="leave"]').click();
+    await expect(page.locator('#alBody')).toHaveClass(/open/);
+    await expect(page.locator('.admin-task-chip[data-task="leave"]')).toHaveAttribute('aria-pressed', 'true');
+
+    // Switching again closes the first. Two open cards would be no focus at all.
+    await page.locator('.admin-task-chip[data-task="saved"]').click();
+    await expect(page.locator('#overridesBody')).toHaveClass(/open/);
+    await expect(page.locator('#alBody')).not.toHaveClass(/open/);
+    await expect(page.locator('.admin-task-chip[data-task="leave"]')).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('admin: the chevron and the card never disagree after a task switch', async ({ page }) => {
+    // The failure this design is built against: a second writer that sets ONE of the three state
+    // carriers leaves an arrow pointing the wrong way over a card whose state it contradicts. This
+    // repo has shipped that twice. Driving the real control cannot desynchronise — asserted rather
+    // than assumed, because the whole argument for the approach rests on it.
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    await page.locator('.admin-task-chip[data-task="absence"]').click();
+    await expect(page.locator('#sickBody')).toHaveClass(/open/);
+    await expect(page.locator('#sickChevron')).toHaveClass(/open/);
+    await expect(page.locator('#sickChevron')).toHaveAttribute('aria-expanded', 'true');
+
+    await page.locator('.admin-task-chip[data-task="shift"]').click();
+    await expect(page.locator('#sickBody')).not.toHaveClass(/open/);
+    await expect(page.locator('#sickChevron')).not.toHaveClass(/open/);
+    await expect(page.locator('#sickChevron')).toHaveAttribute('aria-expanded', 'false');
+});
+
+test('admin: an existing deep link still lands on its card AND selects the matching chip',
+    async ({ page }) => {
+        // `#book-annual-leave` is what the calendar's AL lightbox links to. It must keep working —
+        // and the row must agree with it, or the page shows one answer and claims another.
+        await seedSession(page, 'G. Miller');
+        await page.goto('/admin.html#book-annual-leave');
+        await page.waitForSelector('.day-row', { timeout: 10000 });
+
+        await expect(page.locator('#alBody')).toHaveClass(/open/);
+        await expect(page.locator('.admin-task-chip[data-task="leave"]')).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator('.admin-task-chip[data-task="shift"]')).toHaveAttribute('aria-pressed', 'false');
+    });
+
 // ── THE STAGED OVERRIDE LOAD (v21.38, external review) ──────────────────────────────────────────
 //
 // Admin used to read the newest few thousand documents of the whole collection on every open and

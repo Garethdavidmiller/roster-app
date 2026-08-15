@@ -949,6 +949,14 @@ The Change a Shift module. Owns the week grid and override list entirely.
 - `whenOverridesReady()` — resolves once the FIRST `loadOverrides()` has SETTLED (success OR failure); the three write/validate paths await it so they never act on a cold cache (v16.85). `isOverrideCacheLoaded()` (v16.97, Finding #2) is the companion SUCCESS flag — but since **v21.38 the load is STAGED and the question a WRITE must ask is `hasOverrideAuthorityFor(member)`**, because the cache can be loaded and know nothing about the member on screen (`hasAllStaffAuthority()` answers the All-staff view's separate question). Rules + reasoning: `admin-override-coverage.js`. The older flag stays as the page-wide "has anything loaded" signal: `whenOverridesReady` resolving on failure (so the Save button never hangs) would let a write build from an EMPTY cache — duplicate overrides, an erased worked Sunday, a missed <12h rest gap — so `recordRangeOverrides` (throws `cache/load-failed`), `executeSave`, and the admin-app click handler additionally refuse when this is false. Latches true on a successful load or `setAllOverrides`; a later refresh failure keeps the last-good data. Tested by `admin-overrides.test.mjs`.
 - Also exported (grid/bulk internals reused across the module and by `admin-app.js`): `resetTableMemberFilter()`, `updateWeekNavLabel()`, `buildWeekGridInto(container)`, `resetBulkPills()`, `_hasStagedEdits()` (true when any week-grid row holds a staged-but-unsaved add/change/removal — the background-refresh paths in both modules skip `renderWeekGrid()` while it's true so a refresh can't clobber staged rows)
 
+### `admin-tasks.js`
+Admin's task-focus row (v21.38) — four jobs on one page, one focused at a time.
+- `ADMIN_TASKS` — the four tasks in order, each naming the card it focuses and (where the card collapses) its body/chevron pair
+- `DEFAULT_TASK` — `'shift'`. Change a Shift for **everyone, every time**: not role-dependent and not remembered, because a page that opens somewhere different each time defeats the muscle memory a fixed starting point buys
+- `taskForHash(hash)` / `initialTask(hash)` — a deep link like `#book-annual-leave` still lands on its card AND selects the matching chip; a hash naming anything else falls back to the default rather than to no selection
+- `initAdminTasks({ onFocus })` — renders the chips, wires them, focuses the opening task. **Focuses by CLICKING the card's own collapse control**, never by setting classes: the state is three things `initCardCollapse` keeps in step, and a second writer of one leaves an arrow contradicting its card
+- Reorders nothing — the desktop grid's row order is what makes the mobile stack work (`.claude/rules/css-tokens.md`)
+
 ### `admin-override-coverage.js`
 What the Admin override cache actually knows (v21.38). Pure — no DOM, no Firebase, no imports.
 - `emptyCoverage()` / `withMember(cov, member)` / `withAll(cov)` / `clearedCoverage()` — the record, never mutated in place

@@ -130,9 +130,16 @@
         </select>
     </div>
 
+    <!-- ==================== TASK FOCUS ====================
+         Four jobs, one page, one selected member. Sits directly under the member selector because
+         that is the context all four share: pick somebody once, then do any of these to them.
+         Populated by admin-tasks.js; empty markup here so nothing renders if the module never runs
+         (progressive enhancement — every card is still reachable by scrolling). -->
+    <div class="admin-task-row" id="adminTaskRow" role="group" aria-label="What do you want to do?"></div>
+
     <!-- ==================== OVERRIDE FORM ==================== -->
     <div class="col-main">
-    <div class="card">
+    <div class="card" id="change-shift">
         <div class="card-header card-header--row">
             <div>
                 <!-- ✏️ added v18.86: this was the ONLY card header in the whole app with no leading
