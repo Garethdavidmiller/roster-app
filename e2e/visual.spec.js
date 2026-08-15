@@ -159,6 +159,18 @@ test('admin — desktop 1280 (signed in)', async ({ page }) => {
     await expect(page).toHaveScreenshot('admin-desktop-1280.png');
 });
 
+// ADMIN ON A PHONE (v21.38, external review). Admin had a desktop baseline and no mobile one, which
+// is the wrong way round for the page most likely to be used standing on a concourse: the sticky
+// member context, the task row, the week navigation, the bulk pills, the time boxes and the staged
+// save bar are all interactions where an innocuous CSS change makes the page awkward WITHOUT causing
+// horizontal overflow — so the responsive suite, which asks about overflow, cannot see it.
+test('admin — mobile 390 (signed in)', async ({ page }) => {
+    await prep(page, { width: 390, height: 1400 });
+    await page.goto('/admin.html');
+    await settle(page, '.card');
+    await expect(page).toHaveScreenshot('admin-mobile-390.png');
+});
+
 test('operations — desktop 1280 (signed in)', async ({ page }) => {
     await prep(page, { width: 1280, height: 900 });
     await page.goto('/operations.html');

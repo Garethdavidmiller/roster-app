@@ -20,7 +20,7 @@ import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSess
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
-import { TYPES, PILL_TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, whenOverridesReady, isOverrideCacheLoaded } from './admin-overrides.js';
+import { TYPES, PILL_TYPES, getAllOverrides, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, whenOverridesReady, isOverrideCacheLoaded, hasOverrideAuthorityFor, ensureMemberLoaded } from './admin-overrides.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
 
@@ -35,8 +35,15 @@ import { isRestShift, computePeriodDeleteIds, mergeBookedPeriods, composeOtherVa
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
-import { recordPageLatency, markPageReady } from './perf-reporter.js';
+import { recordPageLatency, markPageReady, markMilestone } from './perf-reporter.js';
+import { initAdminTasks } from './admin-tasks.js';
 
+
+/** The task row's handle, so the paths that move the user BETWEEN cards can keep the chips honest.
+ *  Discarding it was what let the row say "Saved changes" over the Change-a-Shift card after an
+ *  Edit (v21.38, review). Module scope because `showInChangeAShift` lives outside `initAuthorised`.
+ *  @type {{ focusTask: (id: string) => void } | null} */
+let _adminTasks = null;
 
 /**
  * Programmatically open a collapsible card body, keeping the collapse control's ARIA state
@@ -894,7 +901,11 @@ export function init() {
         // shifts (a real <12h rest gap missed) and the AL entitlement check would read zero existing
         // leave. Refuse to validate/save against it and prompt a reload (Finding #2, v16.97). The
         // finally restores the button; this returns BEFORE the misleading validation runs.
-        if (!isOverrideCacheLoaded()) return showError("Couldn't load saved changes — reload the page before making changes.");
+        // ASK ABOUT THIS MEMBER (v21.38). It used to ask whether the load had succeeded, which was the
+        // same question while the load fetched everybody. Now it is not: the cache can be loaded and
+        // hold nothing about the member on screen, and the checks below (rest gap, AL entitlement)
+        // would then be built from an absence they cannot distinguish from an empty week.
+        if (!hasOverrideAuthorityFor(fieldMember?.value)) return showError("Still loading this member's saved changes — try again in a moment.");
 
         // Validate shift duration and rest-gap rules
         const ruleErrors = validateShiftRules(toSave, memberName, toDelete);
@@ -1004,6 +1015,11 @@ export function init() {
             hideALConfirm();
             resetTableMemberFilter(); // also calls renderTable internally
             renderWeekGrid();
+            // The new member's overrides may never have been read. renderWeekGrid paints a "loading"
+            // week for an uncovered member rather than an empty one — an empty week is a claim, and
+            // it would be a false one. ensureMemberLoaded is a no-op for anyone already covered, so
+            // switching back to a member costs nothing and flashes nothing.
+            ensureMemberLoaded(chosen).catch(() => { /* the load path renders its own retry */ });
         };
         if (confirmNavigate(go)) { go(); return; }
         // Revert the dropdown to the previously confirmed member while the banner waits
@@ -1071,6 +1087,11 @@ export function init() {
             updateALBanner(); updateALBookedBox(); updateSickBookedBox();
             lsSet(SELECTED_MEMBER, memberName);
             renderWeekGrid();
+            // The chip follows the user (v21.38, review). Both jumps into the week editor moved the
+            // page and left the row saying "Saved changes" or "Annual leave" over the Change-a-Shift
+            // card — two answers on one screen, and nothing could re-sync it because the row's handle
+            // was being discarded.
+            _adminTasks?.focusTask('shift');
             /** @type {HTMLElement} */ (document.querySelector('.card')).scrollIntoView({ behavior: 'smooth', block: 'start' });
         };
         if (confirmNavigate(go)) go();
@@ -1100,6 +1121,7 @@ export function init() {
             // Align the saved-changes month filter so the new days aren't filtered out.
             const monthFilter = /** @type {HTMLSelectElement} */ (document.getElementById('overridesMonthFilter'));
             if (monthFilter) monthFilter.value = date.substring(0, 7);
+            _adminTasks?.focusTask('shift');   // the chip follows the user (v21.38, review)
             renderTable();
             renderWeekGrid();
             // The grid was rebuilt fresh from saved data — no pending edits remain.
@@ -1122,11 +1144,33 @@ export function init() {
     /** @type {any} */ let _toastTimer = null;
     /** @type {any} */ let _feedbackTimer = null;
     /** Shows a success message in the week editor feedback area.  @param {string} msg */
-    function showSuccess(msg) {
+    /**
+     * @param {string} msg
+     * @param {string[]} [lines] one per changed DAY — rendered as an expandable receipt (v21.38).
+     *   Built with DOM nodes rather than markup: the lines carry member-entered times and notes, and
+     *   textContent cannot be made to mean anything but text.
+     */
+    function showSuccess(msg, lines) {
         clearTimeout(_feedbackTimer);
         formFeedback.className = 'feedback success';
         formFeedback.textContent = '✓ ' + msg;
-        _feedbackTimer = setTimeout(hideFeedback, 7000);
+        if (lines?.length) {
+            const details = document.createElement('details');
+            details.className = 'save-receipt';
+            const summary = document.createElement('summary');
+            summary.textContent = `Show the ${lines.length === 1 ? 'day' : lines.length + ' days'}`;
+            details.appendChild(summary);
+            const ul = document.createElement('ul');
+            lines.forEach(l => { const li = document.createElement('li'); li.textContent = l; ul.appendChild(li); });
+            details.appendChild(ul);
+            formFeedback.appendChild(details);
+        }
+        // A RECEIPT DOES NOT TIME OUT (v21.38, review). A plain confirmation can fade, but the fold
+        // is an interactive control: hiding it on a timer takes focus off whatever the user was
+        // reading and dumps it on <body>, and a manager checking a seven-day batch against a paper
+        // request can easily outlast any number we would have picked. It stays until the next save,
+        // the next error, or a member change — each of which replaces the block outright.
+        if (!lines?.length) _feedbackTimer = setTimeout(hideFeedback, 7000);
 
         // Also show a bottom-anchored toast so confirmation is visible regardless of scroll position
         const toast = document.getElementById('saveToast');
@@ -1290,7 +1334,7 @@ export function init() {
                 deleteIds.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
                 await batch.commit();
             });
-            setAllOverrides(getAllOverrides().filter(o => !idSet.has(o.id)));
+            removeFromCache(idSet);   // drops the deleted rows; does NOT widen coverage (v21.38)
             renderTable();
             updateALBanner();
             updateALBookedBox();
@@ -1506,8 +1550,11 @@ export function init() {
         if (sickHint)  sickHint.textContent = 'Record your own absence days — for any reason';
         if (savedHint) savedHint.textContent = 'Your saved changes — tap any row to edit or delete';
 
-        // Auto-open the Annual Leave card — most staff visit here primarily to book AL
-        openCollapsibleCard(document.getElementById('alBody'), document.getElementById('alChevron'));
+        // The Annual Leave card used to auto-open here, on the reasoning that self-service staff
+        // mostly come to book leave. The task row replaced that at v21.38 and the default is now
+        // Change a shift for EVERYONE (owner) — so this would have been a second writer of the same
+        // collapse state, settling it by source order rather than by decision. Annual leave is one
+        // tap away on the row, which is the same reach the auto-open bought and costs no surprise.
     }
 
     // ============================================
@@ -1533,6 +1580,18 @@ export function init() {
     initCardCollapse('alToggleHeader',          'alBody',            'alChevron');
     initCardCollapse('sickToggleHeader',        'sickBody',          'sickChevron');
     initCardCollapse('overridesToggleHeader',   'overridesBody',     'overridesChevron');
+    // AFTER the collapsibles (v21.38). The task row focuses a card by CLICKING its real chevron
+    // rather than setting classes, so the controls have to exist first — wiring it earlier would
+    // silently do nothing to the collapse state while still moving the chips, which is the shape of
+    // bug where the page and its own controls disagree.
+    initAdminTasks({
+        onFocus: id => {
+            // The AL and Absence previews are computed for the selected member; refresh whichever
+            // becomes the focused task so a card opened from a chip is never showing stale figures.
+            if (id === 'leave')   _refreshAlPreview?.();
+            if (id === 'absence') _refreshSickPreview?.();
+        },
+    });
 
 
     // Admin is not a printable page (v18.71) — printing shows a branded "use the
@@ -1602,6 +1661,24 @@ export function init() {
         // `auth-ready`, so everything before it was a blank page (v20.80). See markPageReady.
         markPageReady();
         applyPermissions();
+        // SYNC THE BOOKING SELECTS FROM THE MEMBER FIELD (v21.38). They were only ever set by the
+        // fieldMember CHANGE handler, so on a fresh admin load — where the member is RESTORED rather
+        // than chosen — they stayed empty and both booking cards said "Select a staff member above"
+        // over a page that plainly had one selected. Harmless while the cards shipped collapsed;
+        // the task row makes each one a single tap away, so the contradiction is now the first
+        // thing you see.
+        //
+        // AFTER applyPermissions, NOT BEFORE (review). `alMember.disabled` is set by that function,
+        // so running first meant the guard could never be false and the sync fired for everybody —
+        // including the LEAVER branch, which clears the selects, disables them and returns WITHOUT
+        // re-syncing the displays. A hidden member would have read a colleague's name under "Your
+        // account is no longer on the roster", which is the alarming display the v16.23 fix removed.
+        if (fieldMember.value && !alMember.disabled) {
+            _setSelectValue(alMember, fieldMember.value);
+            _setSelectValue(sickMember, fieldMember.value);
+            syncMemberDisplay();
+            syncSickMemberDisplay();
+        }
         // Render bulk-bar type pills from PILL_TYPES (single source of truth with per-row pills).
         // 'other' is excluded here — the deliberate one exception: an "Other" day needs a per-row
         // flavour (Training/Induction/Assessment/Team Day/Union/Spare) that the bulk bar can't supply, so
@@ -1629,7 +1706,13 @@ export function init() {
             markChanged,
             onEditRow: handleEdit,
         });
-        loadOverrides(); // internally calls renderWeekGrid() after data loads
+        // Loads the SELECTED MEMBER only (v21.38) — see admin-override-coverage.js. `rosterLive` is
+        // the ladder's last rung and, on this page, the moment writes are safe: `ready` above fires
+        // when the working surface appears, which is BEFORE the override cache exists, so a card
+        // reading `ready` alone would report Admin fully ready while Saved Changes was still a
+        // skeleton and every save was still being refused. Only a SUCCESSFUL load qualifies — a
+        // failed one leaves the page visible and unusable, which is the opposite of the claim.
+        loadOverrides().then(() => { if (isOverrideCacheLoaded()) markMilestone('rosterLive'); });
 
         // If arriving via deep-link (e.g. from the AL lightbox), open and scroll to the target card.
         // Look the target up by ID, never `querySelector(location.hash)` — a malformed hash (#[, #%, #..)

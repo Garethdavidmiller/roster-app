@@ -938,16 +938,54 @@ The Change a Shift module. Owns the week grid and override list entirely.
 - `PILL_TYPES` — ordered array of type keys for both pill lists (`['annual_leave', 'shift', 'rdw', 'sick', 'correction', 'other']` — 6 since v15.57; `spare_shift` removed from the top row and demoted to a chip in the Other submenu). Single source of truth — `renderWeekGrid()` generates per-row pills from this; `admin-app.js` generates bulk-bar pills from this at init. Never duplicate the list. (v13.48; `training` added v15.37 — `TYPES.training` is `timesOptional: true` (time inputs shown, blank = valid → pay defaults) and activating it reveals the per-row `.other-opts` sub-controls: flavour Train/Ind/Assess/Team + a 📋 **Spare** chip (v15.57 — picking Spare writes a `spare_shift`/'SPARE', NOT an 'other' day, and hides the RDW tick/times via `_syncOtherSpareMode`) + an RDW tick pre-ticked on rest-day bases; the save collector in admin-app.js composes the grammar `FLAVOUR[" RDW"][" HH:MM-HH:MM"]`; `validateShiftRules` validates the time part of a timed training and skips untimed ones; Sunday training is blocked at pill/bulk/collect layers.)
 - `initOverrides(opts)` — called once by `admin-app.js` after login; receives callbacks
 - `renderWeekGrid()` — generates per-row type pills from `PILL_TYPES`
-- `loadOverrides()` / `renderTable()` — Saved Changes list
+- `loadOverrides({ everyone?, member? })` / `ensureMemberLoaded(member)` / `renderTable()` — Saved Changes list. **Staged since v21.38**: the default read is `where('memberName','==',…)` for the selected member (no cap, no composite index); the capped whole-collection read runs only when the All-staff view asks, and once it has, later resyncs stay whole. A failed read offers **Retry**, not a page reload — a reload re-runs sign-in and every other card to recover from one dropped request, and discards staged week-grid edits
 - `executeSave()` — writes override to Firestore
 - `updateSaveBtn()` — exported so swipe carousel can call it
-- State accessors: `getAllOverrides()` / `setAllOverrides()` — `getAllOverrides()` used by `admin-al.js` (entitlement check)
+- State accessors: `getAllOverrides()` / `setAllOverrides()` / `removeFromCache(ids)` — `getAllOverrides()` used by `admin-al.js` (entitlement check). **`setAllOverrides` ASSERTS completeness** and grants full coverage; **`removeFromCache` drops rows and grants nothing** (v21.38). The period-delete path uses the second: routing a delete through the assertion made the cache claim it held every member the moment anybody deleted a booking, after which All staff would render one member's slice and call it everybody
 - `recordRangeOverrides({ type, value, memberName, dates, changedBy })` — shared batch-write helper called by `admin-range-booking.js` on behalf of both booking sections; filters out Sundays and RD days, writes Sunday RD corrections alongside AL/sick overrides, updates `_allOverrides` cache, and re-renders the week grid and override list
 - `formatDisplay(str)` — shared date formatter (`YYYY-MM-DD` → `18 Mar 2026`); imported by `admin-range-booking.js` for the AL/absence range labels
-- `getEffectiveShift(memberName, dateISO, batch, toDelete = [])` / `validateShiftRules(...)` / `buildMemberDateMap(memberName)` (reads the module's `_allOverrides` cache filtered by member) — shift-resolution + validation helpers, covered by `admin-overrides.test.mjs`
+- `getEffectiveShift(memberName, dateISO, batch, toDelete = [])` / `validateShiftRules(...)` / `buildMemberDateMap(memberName)` (reads the module's `_allOverrides` cache filtered by member) — shift-resolution + validation helpers, covered by `admin-overrides.test.mjs`. **The RULES inside `validateShiftRules` moved to `admin-shift-rules.js` at v21.38** — this now resolves the adjacent days, asks `checkShiftRules`, and marks exactly the rows it is told failed
 - `isWorkingDate(memberObj, dateStr, ovByDate)` — SINGLE SOURCE for the AL/absence "is this a working day" rule (Sunday→override→base). Used by recordRangeOverrides AND the AL/sick previews; previously reimplemented 4× and the previews had drifted from the save path (v16.06 unified + fixed).
-- `whenOverridesReady()` — resolves once the FIRST `loadOverrides()` has SETTLED (success OR failure); the three write/validate paths await it so they never act on a cold cache (v16.85). `isOverrideCacheLoaded()` (v16.97, Finding #2) is the companion SUCCESS flag: `whenOverridesReady` resolving on failure (so the Save button never hangs) would let a write build from an EMPTY cache — duplicate overrides, an erased worked Sunday, a missed <12h rest gap — so `recordRangeOverrides` (throws `cache/load-failed`), `executeSave`, and the admin-app click handler additionally refuse when this is false. Latches true on a successful load or `setAllOverrides`; a later refresh failure keeps the last-good data. Tested by `admin-overrides.test.mjs`.
+- `whenOverridesReady()` — resolves once the FIRST `loadOverrides()` has SETTLED (success OR failure); the three write/validate paths await it so they never act on a cold cache (v16.85). `isOverrideCacheLoaded()` (v16.97, Finding #2) is the companion SUCCESS flag — but since **v21.38 the load is STAGED and the question a WRITE must ask is `hasOverrideAuthorityFor(member)`**, because the cache can be loaded and know nothing about the member on screen (`hasAllStaffAuthority()` answers the All-staff view's separate question). Rules + reasoning: `admin-override-coverage.js`. The older flag stays as the page-wide "has anything loaded" signal: `whenOverridesReady` resolving on failure (so the Save button never hangs) would let a write build from an EMPTY cache — duplicate overrides, an erased worked Sunday, a missed <12h rest gap — so `recordRangeOverrides` (throws `cache/load-failed`), `executeSave`, and the admin-app click handler additionally refuse when this is false. Latches true on a successful load or `setAllOverrides`; a later refresh failure keeps the last-good data. Tested by `admin-overrides.test.mjs`.
 - Also exported (grid/bulk internals reused across the module and by `admin-app.js`): `resetTableMemberFilter()`, `updateWeekNavLabel()`, `buildWeekGridInto(container)`, `resetBulkPills()`, `_hasStagedEdits()` (true when any week-grid row holds a staged-but-unsaved add/change/removal — the background-refresh paths in both modules skip `renderWeekGrid()` while it's true so a refresh can't clobber staged rows)
+
+### `admin-save-receipt.js`
+What a save did, said day by day (v21.38). Pure.
+- `buildSaveReceipt({ toSave, removed, memberName, formatDate, describe })` → `{ summary, lines }`
+- One line per DATE, in date order — not per document and not grouped by kind, because a manager checks a receipt against their intention and their intention was a run of days
+- A REMOVED day is named, not omitted: an absence in a receipt reads as the receipt being short, not as a change. Its old value is deliberately not repeated (it invites reading as the new one)
+- `removed` must be captured BEFORE the batch commits — afterwards the rows are gone
+
+### `admin-tasks.js`
+Admin's task-focus row (v21.38) — four jobs on one page, one focused at a time.
+- `ADMIN_TASKS` — the four tasks in order, each naming the card it focuses and (where the card collapses) its body/chevron pair
+- `DEFAULT_TASK` — `'shift'`. Change a Shift for **everyone, every time**: not role-dependent and not remembered, because a page that opens somewhere different each time defeats the muscle memory a fixed starting point buys
+- `taskForHash(hash)` / `initialTask(hash)` — a deep link like `#book-annual-leave` still lands on its card AND selects the matching chip; a hash naming anything else falls back to the default rather than to no selection
+- `initAdminTasks({ onFocus })` — renders the chips, wires them, focuses the opening task. **Focuses by CLICKING the card's own collapse control**, never by setting classes: the state is three things `initCardCollapse` keeps in step, and a second writer of one leaves an arrow contradicting its card
+- Reorders nothing — the desktop grid's row order is what makes the mobile stack work (`.claude/rules/css-tokens.md`)
+
+### `admin-override-store.js`
+The override cache, the reads that fill it, and the states they put on screen (v21.38 — split out when `admin-overrides.js` reached its ratchet cap).
+- `initOverrideStore({ renderTable, renderWeekGrid, hasStagedEdits, onAfterLoad })` — the renderers are injected, never imported back (acyclic)
+- `loadOverrides({ everyone?, member? })` / `ensureMemberLoaded(member)` — **the in-flight guard is keyed by the QUERY**: same key shares the flight, a different key CHAINS behind it. Sharing one flight across different queries meant a member selected mid-load was never fetched at all
+- `getAllOverrides()` / `setAllOverrides()` (asserts completeness) / `removeFromCache(ids)` / `mutateCache(fn)` (rearranges rows, learns nothing)
+- `whenOverridesReady()` / `whenLoadSettled()` — the second is awaited by the write paths so a collection read cannot land on top of a just-committed cache mutation
+- `isOverrideCacheLoaded()` / `hasOverrideAuthorityFor(member)` (the write question) / `coversAllStaff()` (the list's question — true for a CAPPED read too) / `loadFailedFor(member)` / `isTruncated()`
+
+### `admin-override-coverage.js`
+What the Admin override cache actually knows (v21.38). Pure — no DOM, no Firebase, no imports.
+- `emptyCoverage()` / `withMember(cov, member)` / `withAll(cov)` / `clearedCoverage()` — the record, never mutated in place
+- `hasAuthorityFor(cov, member)` — the question every write gate asks. Full coverage is checked FIRST, so `all` genuinely means all
+- `coversEveryone(cov)` — the All-staff view's separate question. Having read fifty members one at a time is NOT having read the collection
+- `replaceMemberSlice(docs, member, fresh)` — a replace, not a merge: the read is authoritative for that member, so a document it omits has been deleted
+- **An unfetched member and a member with no overrides produce the same empty slice**, which is why authority is answered from what was REQUESTED. Tested by `admin-override-coverage.test.mjs`
+
+### `admin-shift-rules.js`
+The two rules a shift change must not break — maximum length and minimum rest (v21.38, extracted from `validateShiftRules`). Pure: no DOM, no cache.
+- `checkShiftRules({ toSave, isFixedType, resolveShift, baseShiftFor, formatDate, shiftDate })` → `{ errors, failedDates }` — it DECIDES, the caller PAINTS. `failedDates` is deduplicated so one row breaking both neighbours is marked once while both sentences are still said
+- `constrainingTime(value, baseShiftFor)` — what an adjacent day constrains by; `null` means "does not constrain", which is not the same as "constrains by nothing" and is the difference between skipping a check and feeding NaN to it
+- `MAX_SHIFT_MINS` / `MIN_REST_MINS` / `parseMinutes` / `effectiveEndMins` / `fmtHours`
+- The adjacent day is resolved by an INJECTED function so the rule holds no cache — a missed rest gap and a cache that had not loaded are indistinguishable from inside, so the question is asked outward. Tested by `admin-shift-rules.test.mjs`
 
 ### `admin-rangepicker.js`
 Inline date-range calendar widget — extracted from `admin-app.js` at v11.36.

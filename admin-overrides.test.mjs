@@ -57,6 +57,7 @@ mock.module('./firebase-client.js', {
         db:              null,
         collection:      () => null,
         query:           () => null,
+        where:           () => null,
         orderBy:         () => null,
         limit:           () => null,
         getDocs:         async () => {
@@ -126,7 +127,10 @@ describe('cache-load-failure guard (Finding #2)', () => {
     test('a FAILED initial load leaves the cache marked NOT loaded, and range writes refuse', async () => {
         assert.equal(isOverrideCacheLoaded(), false, 'flag starts false before any load');
         _failNextGetDocs = 1;
-        await loadOverrides();                        // fails internally; resolves readiness, flag stays false
+        // Member-scoped since v21.38 — the fake DOM has no member field, so the member is named here
+        // rather than read off it. A bare loadOverrides() with nobody selected is now a no-op by
+        // design: granting authority for a query that was never run is the thing coverage prevents.
+        await loadOverrides({ member: 'G. Miller' });  // fails internally; resolves readiness, flag stays false
         assert.equal(isOverrideCacheLoaded(), false, 'a failed load must NOT mark the cache loaded');
         auth.currentUser = /** @type {any} */ ({ uid: 'admin' });
         await assert.rejects(
@@ -138,8 +142,38 @@ describe('cache-load-failure guard (Finding #2)', () => {
     });
 
     test('a SUCCESSFUL load marks the cache loaded (flag latches true)', async () => {
-        await loadOverrides();
+        await loadOverrides({ member: 'G. Miller' });
         assert.equal(isOverrideCacheLoaded(), true);
+    });
+
+    // A DELETE MUST NOT WIDEN WHAT THE CACHE CLAIMS (v21.38). `setAllOverrides` asserts the array is
+    // the whole cache and grants full coverage; a delete removes rows and learns nothing. Routing
+    // the delete through the assertion made the cache claim it held EVERY member the moment anybody
+    // deleted a booking — after which "All staff" would render one member's slice and call it
+    // everybody. Nothing on screen would say so; the list would simply be short.
+    test('removing deleted rows does not grant authority over anyone new', async () => {
+        const { removeFromCache, hasOverrideAuthorityFor } = await import('./admin-overrides.js');
+        // Coverage here is exactly one member (loaded above); prove a delete leaves it that way.
+        assert.equal(hasOverrideAuthorityFor('G. Miller'), true);
+        assert.equal(hasOverrideAuthorityFor('S. Silva'), false);
+        removeFromCache(['some-deleted-id']);
+        assert.equal(hasOverrideAuthorityFor('S. Silva'), false,
+            'a delete must not make the cache claim it holds another member');
+    });
+
+    // ── THE STAGED LOAD'S OWN INVARIANT (v21.38) ────────────────────────────────────────────────
+    // Loading one member must not grant authority over another. This is the whole reason the flag
+    // became a coverage record: the cache is now genuinely loaded and genuinely ignorant, at the
+    // same time, and a write built on the second while trusting the first is how a roster_import
+    // duplicate or an erased worked Sunday gets written with nothing on screen to say so.
+    test('one member\'s load does not grant authority over another member', async () => {
+        auth.currentUser = /** @type {any} */ ({ uid: 'admin' });
+        await assert.rejects(
+            recordRangeOverrides({ type: 'annual_leave', value: 'AL', memberName: 'S. Silva', dates: ['2026-06-15'], changedBy: 'G. Miller' }),
+            /cache\/load-failed/,
+            'G. Miller being loaded says nothing about S. Silva',
+        );
+        auth.currentUser = null;
     });
 });
 

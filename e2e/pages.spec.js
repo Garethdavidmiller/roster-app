@@ -1169,6 +1169,184 @@ test('a tips panel with more below the fold says so, and stops saying it at the 
     await expect(panel).not.toHaveClass(/\bhas-more\b/);
 });
 
+// ── THE SAVE RECEIPT (v21.38, external review) ──────────────────────────────────────────────────
+//
+// A count cannot answer "did I change the days I meant to?", and the commonest real mistake on this
+// page — a right-shaped batch against the wrong days — produces a perfectly plausible count. Driven
+// in a browser because the wording is unit-tested but the WIRING is not: whether the days a save
+// actually staged reach the receipt is a different pass over the same state.
+test('admin: saving reports the DAYS it changed, not just how many', async ({ page }) => {
+    // executeSave refuses without a Firebase user ("You've been signed out"), which is right — so
+    // opt the stub in, the way every other spec that reaches a real write does.
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    // Stage several days through the real bulk path, then save.
+    await page.locator('#bulkSelMonFri').click();
+    await page.locator('#bulkTypePills .pill-annual_leave').click();
+    await page.locator('#bulkApplyBtn').click();
+    await page.locator('#saveBtn').click();
+
+    const feedback = page.locator('#formFeedback');
+    await expect(feedback).toContainText('changes saved for', { timeout: 10000 });
+
+    // The receipt itself: folded, and naming one day per line when opened.
+    const receipt = feedback.locator('.save-receipt');
+    await expect(receipt).toBeVisible();
+    await expect(receipt).not.toHaveAttribute('open', '');
+    await receipt.locator('summary').click();
+    const lines = receipt.locator('li');
+    expect(await lines.count(), 'one line per changed day').toBeGreaterThan(1);
+    // And the headline's count agrees with the list it folds — two passes over one state, which is
+    // exactly where a summary and its detail drift apart.
+    const headline = await feedback.textContent();
+    const stated = Number((headline || '').match(/(\d+) changes? saved/)?.[1]);
+    expect(await lines.count(), 'the headline must agree with its own receipt').toBe(stated);
+});
+
+// ── THE TASK FOCUS ROW (v21.38, external review) ────────────────────────────────────────────────
+//
+// Four jobs on one page, and a chip row that focuses one. Driven here rather than in a unit test
+// because the mechanism is a CLICK on the shared collapse control — whether that control exists,
+// responds, and leaves the card's three state carriers in step is precisely what a fake DOM cannot
+// answer, and a private copy of the collapse logic is the drift this design exists to avoid.
+test('admin opens on Change a shift, for everyone, every time', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    const chips = page.locator('.admin-task-chip');
+    await expect(chips).toHaveCount(4);
+    await expect(chips.first()).toHaveText('Change a shift');
+    await expect(chips.first()).toHaveAttribute('aria-pressed', 'true');
+    // And the other three are collapsed, which is what "focused" has to mean to be worth anything.
+    await expect(page.locator('#alBody')).not.toHaveClass(/open/);
+    await expect(page.locator('#overridesBody')).not.toHaveClass(/open/);
+});
+
+test('admin: choosing a task opens THAT card and collapses the previous one', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    await page.locator('.admin-task-chip[data-task="leave"]').click();
+    await expect(page.locator('#alBody')).toHaveClass(/open/);
+    await expect(page.locator('.admin-task-chip[data-task="leave"]')).toHaveAttribute('aria-pressed', 'true');
+
+    // Switching again closes the first. Two open cards would be no focus at all.
+    await page.locator('.admin-task-chip[data-task="saved"]').click();
+    await expect(page.locator('#overridesBody')).toHaveClass(/open/);
+    await expect(page.locator('#alBody')).not.toHaveClass(/open/);
+    await expect(page.locator('.admin-task-chip[data-task="leave"]')).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('admin: the chevron and the card never disagree after a task switch', async ({ page }) => {
+    // The failure this design is built against: a second writer that sets ONE of the three state
+    // carriers leaves an arrow pointing the wrong way over a card whose state it contradicts. This
+    // repo has shipped that twice. Driving the real control cannot desynchronise — asserted rather
+    // than assumed, because the whole argument for the approach rests on it.
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    await page.locator('.admin-task-chip[data-task="absence"]').click();
+    await expect(page.locator('#sickBody')).toHaveClass(/open/);
+    await expect(page.locator('#sickChevron')).toHaveClass(/open/);
+    await expect(page.locator('#sickChevron')).toHaveAttribute('aria-expanded', 'true');
+
+    await page.locator('.admin-task-chip[data-task="shift"]').click();
+    await expect(page.locator('#sickBody')).not.toHaveClass(/open/);
+    await expect(page.locator('#sickChevron')).not.toHaveClass(/open/);
+    await expect(page.locator('#sickChevron')).toHaveAttribute('aria-expanded', 'false');
+});
+
+test('admin: an existing deep link still lands on its card AND selects the matching chip',
+    async ({ page }) => {
+        // `#book-annual-leave` is what the calendar's AL lightbox links to. It must keep working —
+        // and the row must agree with it, or the page shows one answer and claims another.
+        await seedSession(page, 'G. Miller');
+        await page.goto('/admin.html#book-annual-leave');
+        await page.waitForSelector('.day-row', { timeout: 10000 });
+
+        await expect(page.locator('#alBody')).toHaveClass(/open/);
+        await expect(page.locator('.admin-task-chip[data-task="leave"]')).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator('.admin-task-chip[data-task="shift"]')).toHaveAttribute('aria-pressed', 'false');
+    });
+
+// ── THE STAGED OVERRIDE LOAD (v21.38, external review) ──────────────────────────────────────────
+//
+// Admin used to read the newest few thousand documents of the whole collection on every open and
+// filter them locally. It now reads the selected member, and the collection only when the All-staff
+// view asks. The claim is entirely about WHICH QUERY RUNS, and that is invisible from the rendered
+// table — both versions draw a correct-looking list. So these read `__E2E.whereCalls`, which the
+// stub records for exactly this reason.
+test('admin boot reads ONE member, not the whole overrides collection', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    // Asserted against the LIVE field rather than a hardcoded name: admin restores its own selected
+    // member (saved, or the first in the list), which is not the session's member — an earlier draft
+    // of this assumed it was and failed against perfectly correct code.
+    const { wheres, selected } = await page.evaluate(() => ({
+        wheres: (window.__E2E?.whereCalls || []).filter(w => w[0] === 'memberName'),
+        selected: /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'))?.value,
+    }));
+    expect(wheres.length, 'the boot load must filter by memberName').toBeGreaterThan(0);
+    expect(wheres[0], 'and by the member the page is actually showing')
+        .toEqual(['memberName', '==', selected]);
+});
+
+test('admin: switching member fetches THAT member, and their week is not drawn as empty first',
+    async ({ page }) => {
+        // The silent-wrong-answer case. An unfetched member and a member with a clear week produce
+        // the same empty slice, so painting the grid before their data lands would show seven
+        // base-roster days and read as "nothing recorded for them".
+        await seedSession(page, 'G. Miller');
+        await page.goto('/admin.html');
+        await page.waitForSelector('.day-row', { timeout: 10000 });
+
+        const select = page.locator('#fieldMember');
+        const other = await select.evaluate((el) => {
+            const sel = /** @type {HTMLSelectElement} */ (el);
+            const opt = [...sel.options].find(o => o.value && o.value !== sel.value);
+            return opt ? opt.value : '';
+        });
+        expect(other, 'the roster needs a second selectable member for this test').not.toBe('');
+
+        await select.selectOption(other);
+        await expect.poll(async () => page.evaluate(() => (window.__E2E?.whereCalls || [])
+            .filter(w => w[0] === 'memberName').map(w => w[2])),
+        { message: 'selecting a member must fetch that member' }).toContain(other);
+        // And the grid comes back: the loading state is a moment, not a dead end.
+        await expect(page.locator('.day-row').first()).toBeVisible({ timeout: 10000 });
+    });
+
+test('admin: "All staff" fetches everyone rather than listing whoever happened to be loaded',
+    async ({ page }) => {
+        // A short list that looks complete is the failure the query-cap banner exists to prevent one
+        // level up; rendering All staff from a per-member cache would be the same defect earlier.
+        await seedSession(page, 'G. Miller');
+        await page.goto('/admin.html');
+        await page.waitForSelector('.day-row', { timeout: 10000 });
+
+        // Saved Changes is a collapsible card and ships collapsed, so the toggle exists but is not
+        // reachable until it is opened — the same route a manager takes.
+        await page.locator('#overridesToggleHeader').click();
+        const showAll = page.locator('#showAllOverridesBtn');
+        await expect(showAll).toBeVisible();
+        const before = await page.evaluate(() => window.__E2E?.docReads || 0);
+        await showAll.click();
+
+        await expect.poll(async () => page.evaluate(() => window.__E2E?.docReads || 0),
+            { message: 'turning on All staff must run a collection read' })
+            .toBeGreaterThan(before);
+        await expect(showAll, 'and the toggle flips so it can be turned back off')
+            .toHaveText('This member only');
+    });
+
 test('admin: selecting a pill with hours causes no horizontal blowout (touch layout)', async ({ page }) => {
     // 360px = the most common Android CSS width (1080 physical ÷ 3, e.g. Samsung) — the
     // width where the second-round residue (the nowrap bulk-time-group) actually clipped.
