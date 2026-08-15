@@ -1,5 +1,5 @@
 import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clearPwNoticeFlag } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the literal 22 — and `links: the rotation
 // length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
@@ -1487,6 +1487,7 @@ test('settings: a member migrated on ANOTHER device retires the calendar notice 
     // The server says migrated; this device has never been told. `toMillis` because that is the
     // shape isPasswordMigrated reads — a plain Date would silently score 0 and pass for the wrong
     // reason, reporting un-migrated on a doc that says otherwise.
+    await clearPwNoticeFlag(page);
     await page.addInitScript(() => {
         /** @type {any} */ (window).__E2E = /** @type {any} */ (window).__E2E || {};
         /** @type {any} */ (window).__E2E.getDocData = { passwordSetAt: { toMillis: () => 1_760_000_000_000 } };
@@ -1507,6 +1508,7 @@ test('settings: an UN-migrated member is left alone — the notice must still re
     // silently remove the only channel that reaches roster-only staff, and nothing would report it.
     // Default fixture `getDoc` resolves "does not exist", i.e. still on the surname default.
     await seedSession(page, 'G. Miller');
+    await clearPwNoticeFlag(page);
     await page.goto('/settings.html');
     await expect(page.locator('#passwordStatusChip')).toHaveText(/using surname/);
     expect(await page.evaluate(() => localStorage.getItem('myb_notice_pw_own_2026_done'))).toBeNull();
@@ -1518,6 +1520,7 @@ test('settings: the forced overlay\'s success also retires the calendar notice',
     // OPTIMISTICALLY — the serverTimestamp has not resolved — so it is a second route to the flag,
     // and it was the other half of the review finding.
     await seedSession(page, 'G. Miller');
+    await clearPwNoticeFlag(page);
     await page.goto('/settings.html');
     await expect(page.locator('#passwordStatusChip')).toHaveText(/using surname/);
     expect(await page.evaluate(() => localStorage.getItem('myb_notice_pw_own_2026_done'))).toBeNull();

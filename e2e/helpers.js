@@ -55,6 +55,26 @@ export function seedSession(page, name = 'G. Miller') {
 }
 
 /**
+ * Undo that suppression, for a spec whose SUBJECT is the notice flag.
+ *
+ * ── WHY THIS IS A NAMED HELPER AND NOT AN INLINE removeItem (v21.34) ────────────────────────────
+ *
+ * Three tests in `pages.spec.js` assert on this flag, and all three depended on `seedSession`
+ * happening not to set it — a dependency on a SILENCE, which nothing could see. When the
+ * suppression was added to `seedSession`, two failed loudly and the third did something worse: it
+ * polls for the flag to BECOME '1', so a run that starts at '1' passes without ever exercising the
+ * write. Green, and covering nothing — the failure mode its own comment names two lines above.
+ *
+ * Calling this makes the dependency explicit at the point of use, so the next person to touch a
+ * seeder sees it. Later init scripts run after earlier ones, so this must come AFTER the seed.
+ *
+ * @param {import('@playwright/test').Page} page
+ */
+export function clearPwNoticeFlag(page) {
+    return page.addInitScript(() => localStorage.removeItem('myb_notice_pw_own_2026_done'));
+}
+
+/**
  * Seed a session that does NOT come back after the page reloads itself.
  *
  * ── WHY THIS EXISTS (v21.27) ────────────────────────────────────────────────────────────────────
