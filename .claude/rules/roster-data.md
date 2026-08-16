@@ -10,7 +10,7 @@ paths:
 
 Always invoke `/new-starter` — it has the full 3-step checklist including:
 - The pro-rata AL formula (`⌈(daysRemainingInYear / 365) × entitlement⌉`) with grade-specific entitlements
-- The mandatory `npm run generate:roster-members` step (CEA/CES/Dispatcher only) — without it, the new member's shifts are silently excluded from every roster PDF import
+- The mandatory `npm run generate:roster-members` step — **for every new member, Management included**. The file holds two unrelated things: the AI parsing names (CEA/CES/Dispatcher — skip it and their shifts are silently excluded from every roster PDF import) and the **server-owned auth lists** `activeMembers` + `roles.admin`/`manager`/`designer`, which `setupRosterAuth` trusts instead of the client `CONFIG` — skip it for a manager and the account provisions with no claim, so every write on a member's behalf permission-denies
 
 `startDate` must be `new Date(year, month-1, day)` — **midnight local, no time component**. A time component breaks `calcProRateFactor`.
 
