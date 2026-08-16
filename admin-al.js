@@ -6,9 +6,9 @@
 // Imports data and Firebase directly; receives admin-app.js-owned DOM handles and shared
 // functions via initALSection(deps) to avoid circular imports.
 
-import { getALEntitlement, getBaseShift, isSunday, escapeHtml, projectAnnualLeaveOverage, parseISODate } from './roster-data.js';
+import { getALEntitlement, getBaseShift, escapeHtml, projectAnnualLeaveOverage, parseISODate } from './roster-data.js';
 import { getAllOverrides, isWorkingDate, buildMemberDateMap } from './admin-overrides.js';
-import { isRestShift } from './override-utils.js';
+import { countedAlDates } from './al-entitlement.js';
 import { createRangeBookingSection } from './admin-range-booking.js';
 
 const esc = escapeHtml;
@@ -74,21 +74,12 @@ export function initALSection({
         const years = [...new Set(workingDates.map(d => d.substring(0, 4)))];
         for (const yearStr of years) {
             const entitlement = getALEntitlement(memberObj, parseInt(yearStr, 10), getAllOverrides());
-            // All existing AL for the year (non-Sunday); a re-booked day already in this set is not
-            // double-counted toward the cap (the shared helper excludes overlap from the new dates).
-            const existingALDates = new Set(
-                getAllOverrides()
-                    .filter(o => o.memberName === member && o.type === 'annual_leave' &&
-                                 o.date?.startsWith(yearStr) && !isSunday(o.date) &&
-                                 // Only AL that lands on a genuine WORKING day consumes entitlement.
-                                 // A stray legacy AL doc sitting on a base REST day must not inflate
-                                 // the projected total (it would trip a spurious "over entitlement"
-                                 // confirm bar). Mirrors the new-dates path, which counts only
-                                 // isWorkingDate days — here the day is AL-overridden, so we test the
-                                 // BASE shift underneath it.
-                                 !isRestShift(getBaseShift(memberObj, parseISODate(o.date))))
-                    .map(o => o.date)
-            );
+            // All existing AL for the year that CONSUMES entitlement — the Sunday and rest-day rules
+            // now live in al-entitlement.js, which the banner and the week-grid save read too
+            // (this file was the only one of the three that had the rest-day test). A re-booked day
+            // already in this set is not double-counted toward the cap: the shared helper excludes
+            // overlap from the new dates.
+            const existingALDates = countedAlDates({ overrides: getAllOverrides(), member: memberObj, year: yearStr });
             const newALDates = workingDates.filter(d => d.startsWith(yearStr));   // isWorkingDate already excluded Sundays
             const overage = projectAnnualLeaveOverage({ name: member, year: yearStr, existingALDates, newALDates, entitlement });
             if (overage) {

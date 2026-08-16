@@ -71,6 +71,7 @@ proposing it.
 | Links design workspace — the rotation design grid (`ROTATING_LINES`, 24 since v20.01), paint mode, hourly coverage heat map, design checks, auto-generator UI | `links-app.js` + `links.html` + `links.css` |
 | Link-design maths — shift classification, custom-time validation, coverage counting (per-type + hour-by-hour), rotating-window generator, design quality checks | `links-design.js` (pure — no DOM/Firebase; tested by `links-design.test.mjs`) · `runDesignChecks(patterns, rotatingLines)` returns `{ weekendsOff, weekendsOffPct, totalWeeks, unfilledLines, turnarounds, longestStretch, balance }` |
 | Annual Leave Booking section | `admin-al.js` |
+| Which AL days consume entitlement, and a member's taken/booked/remaining position | `al-entitlement.js` (pure — no DOM/Firebase; tested by `al-entitlement.test.mjs`) |
 | Sick Days Recording section | `admin-sick.js` |
 | Huddle upload (admin-only, operations page) | `huddle.js` → `initHuddleUpload` |
 | Push notifications card (all staff, settings page) | `huddle.js` → `initHuddleNotifications` |
@@ -925,7 +926,15 @@ Shared skeleton for the two admin.html date-range booking sections (AL + sick), 
 Annual Leave Booking section (extracted v9.93; thin config wrapper over `admin-range-booking.js` since v16.08).
 - `initALSection(deps)` — supplies the AL config to `createRangeBookingSection`: the 60-day cap, the 🏖️ preview with the CEA/CES spare-shift warning, and the over-entitlement pre-save check that drives the confirm bar. Receives DOM handles and callbacks via `deps` to avoid circular imports.
 - `triggerConfirmedALSave()` — called by the confirm bar in `admin-app.js` when the user accepts booking over their AL entitlement; sets internal flag and re-fires the save button (`_alSaveBtnRef`, captured from the factory return).
-- Imports `getALEntitlement`, `getBaseShift`, `isSunday`, `escapeHtml` from `roster-data.js`; `getAllOverrides`, `isWorkingDate`, `buildMemberDateMap` from `admin-overrides.js`; `createRangeBookingSection` from `admin-range-booking.js`.
+- Imports `getALEntitlement`, `getBaseShift`, `escapeHtml`, `projectAnnualLeaveOverage`, `parseISODate` from `roster-data.js`; `getAllOverrides`, `isWorkingDate`, `buildMemberDateMap` from `admin-overrides.js`; `countedAlDates` from `al-entitlement.js`; `createRangeBookingSection` from `admin-range-booking.js`.
+
+### `al-entitlement.js`
+Which annual-leave days consume entitlement, and where that leaves a member (v21.46). Pure — no DOM, no Firebase, so it loads in Node.
+- `countedAlDates({ overrides, member, year, exclude })` → `Set<string>` — the AL dates that spend entitlement. Two rules: **a Sunday never counts** (uncontracted for every grade — the read-side face of `SUNDAY_FORBIDDEN_TYPES`, so a legacy document cannot spend a day the write paths would refuse) and **a day whose BASE shift is a rest day never counts** (a member does not spend leave on a day they were not working — this also settles leave dated before a member joined, since `getBaseShift` returns `'RD'` for those, so a separate start-date test would be dead code). `exclude` drops the dates a batch is about to overwrite or delete, so they are not counted twice.
+- `consumesEntitlement(member, date)` — the single-date predicate the other two are built on, exported because BOTH halves of the overage projection must ask it: `projectAnnualLeaveOverage` adds new days to existing ones, so filtering only the existing set makes a rest day already on record free while the identical day being booked now is not.
+- `alPosition({ overrides, member, year, todayStr })` → `{ entitlement, taken, booked, remaining }` — the AL banner's figures. Split at `todayStr`: on or before today is TAKEN, after is BOOKED; both consume entitlement. `remaining` may be **negative** — an over-booked member is a real state the banner renders as "N over limit". The date is a parameter rather than a clock read, which is what makes the boundary testable.
+- **Why it exists:** the set feeding `projectAnnualLeaveOverage` was hand-built at FOUR call sites — the AL banner, the week-grid save's cap check, `admin-al.js`'s pre-save check, and the calendar's own AL lightbox — in three different combinations of the rules, because each was fixed where its own bug was reported. So the app answered one question four ways and could contradict itself: the banner showed fewer days remaining than the save path would act on, and a member's calendar balance was a fourth answer. All four now call this.
+- Imports `getALEntitlement`, `getBaseShift`, `isSunday`, `parseISODate` from `roster-data.js`; `isRestShift` from `override-utils.js`. Imported by `admin-app.js`, `admin-al.js` and `calendar-al-lightbox.js`.
 
 ### `admin-sick.js`
 Sick Days Recording section (extracted v9.93; thin config wrapper over `admin-range-booking.js` since v16.08).

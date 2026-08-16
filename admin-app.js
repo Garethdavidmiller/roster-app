@@ -32,6 +32,7 @@ import { initPasswordForce } from './password-force.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { isRestShift, computePeriodDeleteIds, mergeBookedPeriods, composeOtherValue } from './override-utils.js';
+import { alPosition, countedAlDates, consumesEntitlement } from './al-entitlement.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
@@ -680,18 +681,14 @@ export function init() {
 
         const alFrom      = /** @type {HTMLInputElement|null} */ (document.getElementById('alFrom'));
         const yearStr     = alFrom?.value ? alFrom.value.substring(0, 4) : (fieldDate.value ? fieldDate.value.substring(0, 4) : String(new Date().getFullYear()));
-        const entitlement = getALEntitlement(member, parseInt(yearStr, 10), getAllOverrides());
-        const todayStr    = formatISO(new Date());
-
-        let taken  = 0;
-        let booked = 0;
-        getAllOverrides().forEach(o => {
-            // Sundays are uncontracted — don't count Sunday AL entries against the entitlement
-            if (o.memberName === memberName && o.type === 'annual_leave' && o.date && o.date.startsWith(yearStr) && !isSunday(o.date)) {
-                if (o.date <= todayStr) taken++; else booked++;
-            }
+        // The banner and the two save-time cap checks must answer ONE question the same way — see
+        // al-entitlement.js for the two rules and the disagreement that made it a module.
+        const { entitlement, taken, booked, remaining } = alPosition({
+            overrides: getAllOverrides(),
+            member,
+            year: yearStr,
+            todayStr: formatISO(new Date()),
         });
-        const remaining   = entitlement - taken - booked;
 
         remEl.textContent    = String(remaining);
         takenEl.textContent  = String(taken);
@@ -919,19 +916,20 @@ export function init() {
             const years = [...new Set(alInBatch.map(e => e.date.substring(0, 4)))];
             for (const yearStr of years) {
                 const entitlement = getALEntitlement(member, parseInt(yearStr, 10), getAllOverrides());
-                // Existing AL for the year, excluding Sundays (uncontracted) and the dates this batch
-                // OVERWRITES or DELETES (they're re-accounted via newALDates / removed).
-                const existingALDates = new Set(
-                    getAllOverrides().filter(o =>
-                        o.memberName === memberName &&
-                        o.type       === 'annual_leave' &&
-                        o.date       && o.date.startsWith(yearStr) &&
-                        !overwriteDates.has(o.date) &&
-                        !deletedALDates.has(o.date) &&
-                        !isSunday(o.date)
-                    ).map(o => o.date)
-                );
-                const newALDates = [...new Set(alInBatch.map(e => e.date).filter(d => d.startsWith(yearStr) && !isSunday(d)))];
+                // Existing AL for the year, less the dates this batch OVERWRITES or DELETES (they
+                // are re-accounted via newALDates, or removed). The Sunday and rest-day rules live
+                // in al-entitlement.js so this can not drift from the banner or admin-al.js.
+                const existingALDates = countedAlDates({
+                    overrides: getAllOverrides(),
+                    member,
+                    year: yearStr,
+                    exclude: new Set([...overwriteDates, ...deletedALDates]),
+                });
+                // Both halves of the projection must apply the SAME rule, or a rest day already on
+                // record is free while the identical day being booked now is not — a confirm bar
+                // for leave the member is not spending.
+                const newALDates = [...new Set(alInBatch.map(e => e.date)
+                    .filter(d => d.startsWith(yearStr) && consumesEntitlement(member, d)))];
                 const overage = projectAnnualLeaveOverage({ name: memberName, year: yearStr, existingALDates, newALDates, entitlement });
                 if (overage) {
                     showALConfirm(overage.headline, overage.detail, toSave, toDelete);
