@@ -12,8 +12,9 @@ import { createLightbox } from './overlay.js';
 import { getCurrentMember } from './calendar-member.js';
 import { getDisplayYear } from './calendar-state.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
-import { getALEntitlement, isSunday, formatISO, paydayForCutoff } from './roster-data.js';
-import { shouldReplaceOverride, isBeforeMemberStart } from './override-utils.js';
+import { getALEntitlement, formatISO, paydayForCutoff } from './roster-data.js';
+import { consumesEntitlement } from './al-entitlement.js';
+import { shouldReplaceOverride } from './override-utils.js';
 import { lsGet, lsSet } from './ls.js';
 
 /**
@@ -142,12 +143,12 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
         if (!ex || shouldReplaceOverride(ex, data)) byDate.set(data.date, data);
       });
       for (const [date, ov] of byDate) {
-        // Rule: see CLAUDE.md — "Sundays are non-contracted" (AL entitlement count). Also skip
-        // leave dated before the member's startDate: the calendar + team view suppress those days
-        // from display (isBeforeMemberStart), so counting them here made the balance disagree with
-        // the grid. Local-midnight Date to match the renderer's comparison. (v17.41 review fix)
-        if (ov.type === 'annual_leave' && date && date.startsWith(yearStr) && !isSunday(date)
-            && !isBeforeMemberStart(member, new Date(date + 'T00:00:00'))) {
+        // Which days consume entitlement is ONE question with one answer, in al-entitlement.js
+        // (v21.46). This surface used to carry its own version — Sunday and start-date, but no
+        // rest-day test — so a member's own balance here could differ from the figure the Admin
+        // banner and the save-time cap were working from.
+        if (ov.type === 'annual_leave' && date && date.startsWith(yearStr)
+            && consumesEntitlement(member, date)) {
           if (date <= todayStr) taken++; else booked++;
         }
       }
