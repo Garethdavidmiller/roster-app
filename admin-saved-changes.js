@@ -92,8 +92,8 @@ export function renderTable() {
     // toggle flips a flag and then STARTS a load; if that load fails, is still running, or was
     // coalesced away, the flag stays true with a per-member cache behind it — and this function
     // would render three rows and label them "(all staff)" with the button agreeing. A manager
-    // asking "has anyone else booked that week?" would get no, and act on it. `hasAllStaffAuthority`
-    // was written for exactly this and, until now, called from nowhere.
+    // asking "has anyone else booked that week?" would get no, and act on it. `coversAllStaff()` is
+    // the LIST's question — distinct from `hasOverrideAuthorityFor`, which is every WRITE's.
     const showAll            = _tableShowAllOverrides && coversAllStaff();
     const memberFilter       = showAll ? '' : (selectedMember || '');
     const memberRows         = memberFilter

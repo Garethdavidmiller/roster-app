@@ -30,6 +30,18 @@ let _failNextCommits = 0;
 // Saved-Changes load — Finding #2). Mirrors _failNextCommits.
 let _failNextGetDocs = 0;
 
+// Lets a test HOLD a getDocs in flight (a load that has started and not yet resolved) and choose the
+// rows it eventually returns. That is the only way to exercise the ordering between a save and a
+// load, which is a property of WHEN each one writes the cache, not of what either computes.
+/** @type {null | { promise: Promise<any>, resolve: (rows: any[]) => void }} */
+let _getDocsGate = null;
+function openGetDocsGate() {
+    let resolve = (/** @type {any[]} */ _rows) => {};
+    const promise = new Promise(res => { resolve = rows => res({ size: rows.length, forEach: (/** @type {any} */ fn) => rows.forEach((/** @type {any} */ r) => fn({ id: r.id, data: () => r })) }); });
+    _getDocsGate = { promise, resolve };
+    return _getDocsGate;
+}
+
 // Faithful copy of firebase-client.writeWithClaimRetry so recordRangeOverrides exercises the real
 // retry wiring in tests (the true function can't be imported — firebase-client.js pulls the CDN).
 // Mirrors the real helper's error-preservation: if the token refresh itself fails, the ORIGINAL
@@ -62,6 +74,7 @@ mock.module('./firebase-client.js', {
         limit:           () => null,
         getDocs:         async () => {
             if (_failNextGetDocs > 0) { _failNextGetDocs--; throw new Error('Firestore unreachable'); }
+            if (_getDocsGate) { const g = _getDocsGate; _getDocsGate = null; return g.promise; }
             return { forEach: () => {} };
         },
         deleteDoc:       async () => {},
@@ -672,4 +685,42 @@ describe('_hasStagedEdits', () => {
         assert.equal(_hasStagedEdits(), true);
     });
     clearGrid();
+});
+
+// ── A SAVE MUST SURVIVE A LOAD THAT WAS ALREADY RUNNING (v21.41) ──────────────────────────────────
+//
+// The v16.85 fix made `executeSave` await `whenOverridesReady()` so the BOOT load could not resolve
+// on top of a just-saved change. That promise is a one-shot latch: once the first load settles it
+// resolves instantly for ever, so it says nothing about the loads that come later — a member switch,
+// the All-staff toggle, a Retry. `whenLoadSettled()` was written for those and, until this test,
+// was called from nowhere; `AI_MAP.md` meanwhile stated the write paths awaited it.
+//
+// The failure is silent and looks like data loss: the roster document is correctly in Firestore, but
+// the Saved Changes list re-renders without it, so the admin's own receipt and the list disagree.
+describe('a save is not undone by a load that started before it', () => {
+    test('an All-staff read in flight during executeSave does not drop the saved row', async () => {
+        setAllOverrides([]);                       // resolve readiness + grant authority
+        mockAuth.currentUser = { getIdToken: async () => 'tok' };
+        global.document.getElementById = (/** @type {string} */ id) =>
+            id === 'fieldMember' ? { value: 'G. Miller' } : null;
+
+        const gate = openGetDocsGate();            // the collection read starts and HANGS
+        const loading = loadOverrides({ everyone: true });
+        await Promise.resolve();                   // let it reach the awaited getDocs
+
+        // The save is STARTED, not awaited: without the fix it runs to completion here (its batch
+        // commits and it mutates the cache); with the fix it commits and then parks on the load.
+        // Either way the load resolves LAST, which is the ordering the bug needs.
+        const saving = executeSave([{ memberName: 'G. Miller', date: '2026-09-01', type: 'rdw', value: '06:20-14:00' }], []);
+        for (let i = 0; i < 20; i++) await Promise.resolve();   // drain the commit's microtasks
+
+        // The server snapshot was taken BEFORE the save, so it does not contain the new row.
+        gate.resolve([{ id: 'old-1', memberName: 'G. Miller', date: '2026-08-01', type: 'annual_leave', value: 'AL' }]);
+        await loading;
+        await saving;
+
+        const dates = getAllOverrides().map(o => o.date);
+        assert.ok(dates.includes('2026-09-01'),
+            `the just-saved day vanished from the list — cache holds ${JSON.stringify(dates)}`);
+    });
 });
