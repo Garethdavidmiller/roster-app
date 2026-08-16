@@ -120,6 +120,21 @@
             }
         }
 
+        /* The bar's own bottom padding is part of the gap the EYE sees. Below 1024px the bar is a
+           navy strip on a navy canvas, so its 6px of padding is invisible as padding and simply
+           reads as more space: 6px + `.container`'s 12px row gap = 18px between the name field and
+           the card below it — the widest gap on the page, and the one the toggles used to fill.
+           This subtracts the bar's own padding from the row gap, leaving the 12px the container
+           asked for. Same idiom (and same reasoning) as `.app-header { margin-bottom: -8px }` above.
+           A negative margin in a GRID shrinks the item's margin box and the gap is measured from
+           there, so the next row moves up WITHOUT the sticky bar overlapping the card's rounded
+           top corner — measured on mobile-chrome, not assumed. Scoped below 1024px because on
+           desktop the bar is a white card in `.col-side`, where that padding is card padding and
+           reads correctly. (v21.43) */
+        @media (max-width: 1023px) {
+            .member-context-bar { margin-bottom: -6px; }
+        }
+
         /* Phone (<=768px, where the body side padding is a flat 10px): the member bar runs
            edge-to-edge as a full-bleed top strip instead of a rounded floating chip — it's
            navy like the canvas, so the rounded corners barely showed and read as a chip.

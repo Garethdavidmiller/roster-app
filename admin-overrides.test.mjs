@@ -35,6 +35,12 @@ let _failNextGetDocs = 0;
 // load, which is a property of WHEN each one writes the cache, not of what either computes.
 /** @type {null | { promise: Promise<any>, resolve: (rows: any[]) => void }} */
 let _getDocsGate = null;
+
+// Every id the mock `doc()` has handed out, newest last. A save's batch takes the most recent, so a
+// test can resolve a late read with the SAME document the write created — which is the whole point:
+// the defect is one Firestore id appearing twice, not two different rows landing on one date.
+/** @type {string[]} */
+const _issuedDocIds = [];
 function openGetDocsGate() {
     let resolve = (/** @type {any[]} */ _rows) => {};
     const promise = new Promise(res => { resolve = rows => res({ size: rows.length, forEach: (/** @type {any} */ fn) => rows.forEach((/** @type {any} */ r) => fn({ id: r.id, data: () => r })) }); });
@@ -78,7 +84,7 @@ mock.module('./firebase-client.js', {
             return { forEach: () => {} };
         },
         deleteDoc:       async () => {},
-        doc:             (() => { let n = 0; return () => ({ id: 'mock-doc-' + (++n) }); })(),
+        doc:             (() => { let n = 0; return () => { const id = 'mock-doc-' + (++n); _issuedDocIds.push(id); return { id }; }; })(),
         serverTimestamp: () => null,
         writeBatch:      () => {
             let committed = false;
@@ -722,5 +728,85 @@ describe('a save is not undone by a load that started before it', () => {
         const dates = getAllOverrides().map(o => o.date);
         assert.ok(dates.includes('2026-09-01'),
             `the just-saved day vanished from the list — cache holds ${JSON.stringify(dates)}`);
+    });
+});
+
+// ── AND NOT DUPLICATED BY ONE THAT FINISHES LATE (v21.42, external review) ────────────────────────
+//
+// The v21.41 fix above closed one ordering and opened its inverse, which is the shape a "wait for the
+// other thing" fix always risks. Waiting means the load's snapshot can now be NEWER than the commit
+// — it went to the server after the batch landed — so it already contains the saved document. The
+// continuation then appended `newDocs` blindly on top of it and the same Firestore id sat in the
+// cache twice.
+//
+// Nothing is duplicated in Firestore and the effective shift is unharmed (two identical rows resolve
+// to one answer). What breaks is everything that COUNTS rows: the Saved Changes list, AL taken and
+// booked, the entitlement figures a manager books against. A leave balance that reads one day light
+// is the kind of wrong this app exists not to be.
+describe('a save is not duplicated by a load that finishes after it', () => {
+    test('a late snapshot that ALREADY contains the saved row leaves exactly one copy', async () => {
+        setAllOverrides([]);
+        mockAuth.currentUser = { getIdToken: async () => 'tok' };
+        global.document.getElementById = (/** @type {string} */ id) =>
+            id === 'fieldMember' ? { value: 'G. Miller' } : null;
+
+        const gate = openGetDocsGate();
+        const loading = loadOverrides({ everyone: true });
+        await Promise.resolve();
+
+        const saving = executeSave([{ memberName: 'G. Miller', date: '2026-10-05', type: 'rdw', value: '06:20-14:00' }], []);
+        for (let i = 0; i < 20; i++) await Promise.resolve();
+
+        // The id the save's batch actually used — a read reaching the server after the commit returns
+        // exactly this document, which is what makes the duplicate a duplicate rather than two rows.
+        const savedId = _issuedDocIds[_issuedDocIds.length - 1];
+        gate.resolve([{ id: savedId, memberName: 'G. Miller', date: '2026-10-05', type: 'rdw', value: '06:20-14:00' }]);
+        await loading;
+        await saving;
+
+        const forDate = getAllOverrides().filter(o => o.date === '2026-10-05');
+        assert.equal(forDate.length, 1,
+            `one Firestore document must appear once — cache holds ${forDate.length}: ${JSON.stringify(forDate.map(o => o.id))}`);
+        assert.equal(forDate[0].id, savedId, 'and it must be the document the write created');
+    });
+});
+
+// ── THE RANGE PATH TAKES BOTH DIRECTIONS TOO ─────────────────────────────────────────────────────
+//
+// `recordRangeOverrides` is the other writer, and it is the one where a wrong count is a wrong LEAVE
+// BALANCE: it writes a whole range, so a dropped row understates annual leave taken and a duplicated
+// row overstates it. Both are figures a manager books against. The pair below is the same two
+// orderings as above — an early snapshot that predates the write, and a late one that contains it —
+// asserted on the path where the arithmetic is consequential.
+describe('the AL/absence range path survives a load in either direction', () => {
+    /** @param {string[]} snapshotRows dates the gated read will return for this member */
+    async function raceRangeBookingAgainst(date, snapshotIds) {
+        setAllOverrides([]);
+        await loadOverrides({ member: 'G. Miller' });     // authority for the member being written
+        mockAuth.currentUser = { getIdToken: async () => 'tok' };
+        const gate = openGetDocsGate();
+        const loading = loadOverrides({ everyone: true });
+        await Promise.resolve();
+        const saving = recordRangeOverrides({
+            type: 'annual_leave', value: 'AL', memberName: 'G. Miller', dates: [date], changedBy: 'G. Miller',
+        });
+        for (let i = 0; i < 30; i++) await Promise.resolve();
+        gate.resolve(snapshotIds(_issuedDocIds).map(id => ({
+            id, memberName: 'G. Miller', date, type: 'annual_leave', value: 'AL',
+        })));
+        await loading;
+        await saving;
+        return getAllOverrides().filter(o => o.date === date);
+    }
+
+    test('an EARLY snapshot (taken before the write) does not drop the booked day', async () => {
+        const rows = await raceRangeBookingAgainst('2026-11-02', () => []);   // read predates the write
+        assert.equal(rows.length, 1, `the booked day vanished — cache holds ${JSON.stringify(rows)}`);
+    });
+
+    test('a LATE snapshot (already containing the written row) does not double it', async () => {
+        const rows = await raceRangeBookingAgainst('2026-11-03', ids => [ids[ids.length - 1]]);
+        assert.equal(rows.length, 1,
+            `one day booked must count once — cache holds ${rows.length}: ${JSON.stringify(rows.map(o => o.id))}`);
     });
 });

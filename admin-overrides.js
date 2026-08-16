@@ -261,10 +261,22 @@ export async function executeSave(toSave, toDelete = []) {
         // and called from nowhere (AI_MAP said otherwise). The `catch` is not incidental: a FAILED
         // load must not fail a save that has already committed.
         await whenLoadSettled().catch(() => {});
-        // Update in-memory cache — no Firestore round-trip needed
+        // …AND THE MERGE IS BY ID, BECAUSE WAITING MADE THE LATE SNAPSHOT POSSIBLE (v21.42, external
+        // review). Waiting is what allows the load to have gone to the server AFTER the batch landed,
+        // so its rows can ALREADY contain what was just written. Appending `newDocs` on top then put
+        // the same Firestore id in the cache twice — the inverse of the bug above, introduced by the
+        // fix for it, which is the risk any "wait for the other thing" carries.
+        //
+        // Firestore is untouched and the effective shift survives (two identical rows resolve to one
+        // answer). What breaks is everything that COUNTS rows — the Saved Changes list, AL taken and
+        // booked, the entitlement a manager books against. A leave balance reading a day light is
+        // precisely the kind of wrong this app exists not to be.
+        const newIds     = new Set(newDocs.map(d => d.id));
         const removedIds = new Set([...toDelete, ...toSave.filter(e => e.existingId).map(e => e.existingId)]);
         mutateCache(rows => {
-            const kept = rows.filter(o => !removedIds.has(o.id));
+            // `newIds` before `newDocs`: whatever the read brought back for these documents is the
+            // same document, so the write's own record replaces it rather than joining it.
+            const kept = rows.filter(o => !removedIds.has(o.id) && !newIds.has(o.id));
             kept.push(...newDocs);
             kept.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
             return kept;
@@ -478,8 +490,13 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     // is the write where this matters most, because it is the one that can put a fortnight of annual
     // leave into the list and then watch it disappear.
     await whenLoadSettled().catch(() => {});
+    // Merged by ID for the reason `executeSave` sets out: waiting is what makes a snapshot NEWER than
+    // the commit possible, so it can already hold these documents and a blind append duplicates them.
+    // This is the path where the count matters most — it writes a whole range, so a duplicated row is
+    // a duplicated DAY of annual leave in the taken/booked figures.
+    const newIds = new Set(newDocs.map(d => d.id));
     // Update in-memory cache — no Firestore round-trip needed
-    mutateCache(rows => [...rows.filter(o => !deletedIds.has(o.id)), ...newDocs]);
+    mutateCache(rows => [...rows.filter(o => !deletedIds.has(o.id) && !newIds.has(o.id)), ...newDocs]);
     mutateCache(rows => [...rows].sort((a, b) => (b.date || '').localeCompare(a.date || '')));
     renderTable();
     const fieldMember = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
