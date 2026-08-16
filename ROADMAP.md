@@ -461,6 +461,10 @@ both would need the governance gate answered before that changed.
   is Change a Shift for everyone (also an owner decision, v21.38). If that reach is ever reopened,
   the cheaper move is the auto-open that predates the row (see `applyPermissions` in `admin-app.js`),
   not a second navigation idiom — but it needs the owner to ask, not a reviewer to suggest.
+  **The row left a hole behind it** (v21.43): with the chips gone the member bar's own 6px of
+  padding and the container's 12px gap read as one 18px band of navy — the widest gap on the page,
+  and reported as having "grown", though nothing about it had changed since v21.37. Removing a
+  thing is not finished until the space it occupied is closed.
 - **Profile photo / avatar — removed** at v12.22; the nav footer shows initials on a stable per-name
   colour. Full restoration spec: `ROADMAP_HISTORY.md`.
 - **Cultural calendar — removed** at v13.23 (annual maintenance burden + GDPR Article 9 exposure +
