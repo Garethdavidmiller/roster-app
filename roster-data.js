@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '21.43';
+export const APP_VERSION = '21.44';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -49,7 +49,7 @@ export const CONFIG = {
     // `npm run generate:roster-members` in the same commit — `selectParticipants` reads the
     // generated server copy, never this one, so an un-regenerated list grants a page with no form
     // on it. Empties out at full launch, when the audience becomes every eligible member.
-    OVERTIME_BETA:                    ['T. Bibi'],                                 // CEA beta participants — availability only, no reviewer access
+    OVERTIME_BETA:                    ['T. Bibi', 'J. Sumaili'],                               // CEA beta participants — availability only, no reviewer access
     MANAGER_NAMES:                    ['S. Stewart', 'D. Watts', 'D. Harris', 'S. Gumbo', 'N. Bedingfield', 'H. Croft'], // Managers & clerks — can view/edit all staff data but cannot access master admin features (upload, auth setup)
     GRADE_ORDER:                      ['CEA', 'CES', 'Dispatcher', 'Management'], // Grade grouping order — single source for the login dropdown optgroups (login-overlay.js) AND the admin member-selector optgroups (admin-app.js), so the two can't drift
     WORK_EMAIL_DOMAIN:               'chilternrailways.co.uk',                   // Authoritative Chiltern work-email domain — single source for the auto-append + the staffContact domain validation (settings/operations/admin + firestore.rules)
