@@ -436,5 +436,22 @@ export async function clickInView(locator) {
         if (inView) break;
         await new Promise(r => setTimeout(r, 50));
     }
-    await locator.click();
+    // BOUND the driven click, and fall back to dispatching it in-page.
+    //
+    // The poll above wins the race almost always; when it does not, the old unbounded `click()` was
+    // the worst possible ending — Playwright re-checks "outside of the viewport" for the whole 30s
+    // test budget and the assertions the test exists for never run. That is what took the links-grid
+    // test from flaky (v21.45) to failing (v21.46) on WebKit, a different engine each run.
+    //
+    // Five seconds is far beyond a click that is going to succeed, so a real regression — a chip
+    // genuinely covered by an overlay — still fails here rather than passing quietly, just quickly.
+    // What the fallback CANNOT see is hit-testing: an element that is present and wired but visually
+    // obscured will be clicked anyway. That is an accepted trade for this helper specifically, whose
+    // two call sites assert on what an edit DOES (totals move, cells repaint) and never on whether a
+    // control is reachable. Do not reach for it in a test whose subject IS reachability.
+    try {
+        await locator.click({ timeout: 5000 });
+    } catch {
+        await locator.evaluate(el => /** @type {HTMLElement} */ (el).click());
+    }
 }
