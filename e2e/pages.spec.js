@@ -1768,9 +1768,18 @@ test('operations reset requests: clearing two rows quickly leaves neither behind
     await expect(page.locator('.rr-row')).toHaveCount(2);
 
     // Two Clears in quick succession — the second lands while the first's refresh is still open.
-    const clears = page.locator('.btn-rr-clear');
-    await clears.nth(0).click();
-    await clears.nth(1).click();
+    //
+    // The FIRST is a real click, which is what proves the button is genuinely clickable. The SECOND
+    // is dispatched in-page, and that is not a shortcut: the card re-renders while the delayed reads
+    // land, so a driven click spends its budget on Playwright's actionability wait — "element is not
+    // stable", then "detached from the DOM, retrying" — and on WebKit under CI load it never lands
+    // at all, timing out at 30s having never exercised the concurrency this test exists for. Keyed
+    // by `data-member` rather than by index, because after the first Clear the indices have moved.
+    await page.locator('.btn-rr-clear[data-member="A. Hared"]').click();
+    await page.evaluate(() => {
+        /** @type {HTMLButtonElement|null} */
+        (document.querySelector('.btn-rr-clear[data-member="K. Jedlinski"]'))?.click();
+    });
 
     // Both deletes happened, so the card must end up empty. With the dropped-refresh behaviour the
     // second row survives as a ghost with no pending load to remove it.
