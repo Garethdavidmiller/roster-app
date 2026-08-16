@@ -22,9 +22,22 @@ Run through every step in order. Do not skip steps.
 - [ ] Confirm password convention in `OPERATIONS_REFERENCE.md`
 - [ ] **Record their work email** — Operations → Account status → Set. Nothing prompts for this any more: the login overlay that used to ask was retired at v19.30 once every existing member was registered, so a new starter's email is now only ever added here (or by them in Settings → Work Email). Miss it and the account simply has no email on file, silently — the Account status table's Email column is where you'd notice.
 
-## Step 2b — Regenerate `functions/roster-members.json` (CEA / CES / Dispatcher only — not Management)
+## Step 2b — Regenerate `functions/roster-members.json` (ALWAYS — including Management)
 
-- [ ] Run `npm run generate:roster-members` — regenerates `functions/roster-members.json` from `roster-data.js` so the weekly roster PDF parser knows the new name. Without this, the staff member's shifts are silently excluded from every roster import. The sync is verified by `sw-asset-check.test.mjs` test 4.
+- [ ] Run `npm run generate:roster-members` — regenerates `functions/roster-members.json` from `roster-data.js`. **In the same commit as the `roster-data.js` change**; the sync is verified by `sw-asset-check.test.mjs`.
+
+That file carries **two** unrelated things, which is why this step is unconditional (it said "CEA / CES / Dispatcher only — not Management" until v21.45, and that was wrong in the one direction that costs an outage):
+
+| What | Who it affects | What breaks if you skip it |
+|---|---|---|
+| the AI parsing name lists | CEA / CES / Dispatcher | the member's shifts are silently excluded from every roster PDF import |
+| the **server-owned auth lists** — `activeMembers` and `roles.admin`/`manager`/`designer` | **everyone, Management included** | `setupRosterAuth` trusts THIS file, not the client's `CONFIG`, so the account is provisioned without its claim. A new manager can sign in, sees the pages, and every write on another member's behalf permission-denies |
+
+## Step 2c — Managers only: provision the claim
+
+- [ ] Deploy first — `setupRosterAuth` reads the DEPLOYED `roster-members.json`, so running Set up accounts before the functions deploy stamps the old list
+- [ ] Then Operations → **Set up accounts**, which creates the account AND sets the `manager` claim
+- [ ] The claim lands in the token, so an ALREADY-signed-in manager keeps a stale one until it refreshes. Writes self-heal through `writeWithClaimRetry` (permission-denied → force refresh → retry once), so this resolves itself — but a brand-new account has nothing to self-heal from until Set up accounts has run
 
 ## Step 3 — Pay calculator verification (mid-year joiners only)
 

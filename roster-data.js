@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '21.44';
+export const APP_VERSION = '21.45';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -50,7 +50,7 @@ export const CONFIG = {
     // generated server copy, never this one, so an un-regenerated list grants a page with no form
     // on it. Empties out at full launch, when the audience becomes every eligible member.
     OVERTIME_BETA:                    ['T. Bibi', 'J. Sumaili'],                               // CEA beta participants — availability only, no reviewer access
-    MANAGER_NAMES:                    ['S. Stewart', 'D. Watts', 'D. Harris', 'S. Gumbo', 'N. Bedingfield', 'H. Croft'], // Managers & clerks — can view/edit all staff data but cannot access master admin features (upload, auth setup)
+    MANAGER_NAMES:                    ['S. Stewart', 'D. Watts', 'D. Harris', 'S. Gumbo', 'N. Bedingfield', 'H. Croft', 'N. Sobers'], // Managers & clerks — can view/edit all staff data but cannot access master admin features (upload, auth setup)
     GRADE_ORDER:                      ['CEA', 'CES', 'Dispatcher', 'Management'], // Grade grouping order — single source for the login dropdown optgroups (login-overlay.js) AND the admin member-selector optgroups (admin-app.js), so the two can't drift
     WORK_EMAIL_DOMAIN:               'chilternrailways.co.uk',                   // Authoritative Chiltern work-email domain — single source for the auto-append + the staffContact domain validation (settings/operations/admin + firestore.rules)
     // Security release B1 kill-switch (SECURITY_RELEASE_PLAN.md → "Appendix: B1 detailed scope").
@@ -314,6 +314,7 @@ export const teamMembers = [
     { name: 'S. Gumbo',   currentWeek: 1, rosterType: 'main', role: 'Management', hidden: true, managerOnly: true },
     { name: 'N. Bedingfield', currentWeek: 1, rosterType: 'main', role: 'Management', hidden: true, managerOnly: true }, // started 15 Jun 2026; managerOnly has no roster, so no startDate/proRatedAL needed
     { name: 'H. Croft',   currentWeek: 1, rosterType: 'main', role: 'Management', hidden: true, managerOnly: true },
+    { name: 'N. Sobers',  currentWeek: 1, rosterType: 'main', role: 'Management', hidden: true, managerOnly: true },
 ];
 
 // ============================================
