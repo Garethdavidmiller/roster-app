@@ -1538,10 +1538,12 @@ export function init() {
         if (savedHint) savedHint.textContent = 'Your saved changes — tap any row to edit or delete';
 
         // The Annual Leave card used to auto-open here, on the reasoning that self-service staff
-        // mostly come to book leave. The task row replaced that at v21.38 and the default is now
-        // Change a shift for EVERYONE (owner) — so this would have been a second writer of the same
-        // collapse state, settling it by source order rather than by decision. Annual leave is one
-        // tap away on the row, which is the same reach the auto-open bought and costs no surprise.
+        // mostly come to book leave. It stopped at v21.38 for the task row, and the task row itself
+        // was removed at v21.40 (owner: clutter) — so nothing auto-opens now and every card ships
+        // collapsed for everyone. Re-adding the auto-open is a real option if self-service staff ask
+        // for it; what it must not become again is a SECOND writer of a collapse state something
+        // else also sets, which is how the arrow and its card ended up disagreeing before.
+        // The scroll-first self-service experience is a recorded decision — ROADMAP.md.
     }
 
     // ============================================
@@ -1639,9 +1641,10 @@ export function init() {
         // SYNC THE BOOKING SELECTS FROM THE MEMBER FIELD (v21.38). They were only ever set by the
         // fieldMember CHANGE handler, so on a fresh admin load — where the member is RESTORED rather
         // than chosen — they stayed empty and both booking cards said "Select a staff member above"
-        // over a page that plainly had one selected. Harmless while the cards shipped collapsed;
-        // the task row makes each one a single tap away, so the contradiction is now the first
-        // thing you see.
+        // over a page that plainly had one selected. It shipped harmless because the cards were
+        // collapsed, and it was the task row (v21.38–21.40) that put the contradiction on screen;
+        // the row is gone, the sync stays, because a card that has to be opened to be wrong is
+        // still wrong.
         //
         // AFTER applyPermissions, NOT BEFORE (review). `alMember.disabled` is set by that function,
         // so running first meant the guard could never be false and the sync fired for everybody —

@@ -452,8 +452,15 @@ both would need the governance gate answered before that changed.
   shape, not a rescheduled one. Nobody loses pay data by there being no notice — the card exists with
   a working deep link (`paycalc.html#payTransferCard`), and figures are lost only by switching
   address and expecting them to follow. There is no deadline.
-- **Multi-admin — resolved.** `CONFIG.ADMIN_NAMES` is an array; adding an admin is a one-line change
-  (the name must match `teamMembers[n].name` exactly).
+- **Admin task navigator — BUILT, THEN REMOVED** (owner, Aug 2026). A chip row under the member bar
+  (Change a Shift · Annual leave · Absence · Saved changes) shipped at v21.38 and came out at v21.40:
+  *"Feels like clutter."* It has since been re-recommended by an external review, so the decision is
+  written down here rather than re-argued: **the owner has seen it working and does not want it.**
+  The cost it was meant to remove is real and is accepted — a self-service member opening Admin
+  scrolls past the whole Change-a-Shift card to reach Record Annual Leave, because the default card
+  is Change a Shift for everyone (also an owner decision, v21.38). If that reach is ever reopened,
+  the cheaper move is the auto-open that predates the row (see `applyPermissions` in `admin-app.js`),
+  not a second navigation idiom — but it needs the owner to ask, not a reviewer to suggest.
 - **Profile photo / avatar — removed** at v12.22; the nav footer shows initials on a stable per-name
   colour. Full restoration spec: `ROADMAP_HISTORY.md`.
 - **Cultural calendar — removed** at v13.23 (annual maintenance burden + GDPR Article 9 exposure +
