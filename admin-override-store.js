@@ -127,8 +127,11 @@ export function isOverrideCacheLoaded() { return _coverage.all || _coverage.memb
  *  built from the cache? The question every write gate asks. */
 export function hasOverrideAuthorityFor(member) { return hasAuthorityFor(_coverage, member); }
 
-/** @returns {boolean} May a list claiming to show EVERY member be rendered? */
-export function hasAllStaffAuthority() { return coversEveryone(_coverage); }
+// `hasAllStaffAuthority()` lived here too — a second export with a byte-identical body to
+// `coversAllStaff()` below (v21.41). Two names for one question is how a reader ends up believing
+// they mean different things: the comment in `admin-saved-changes.js` said this one "was written for
+// exactly this and, until now, called from nowhere", while the line beneath it called the other.
+// Both halves of that were true, which is the problem. One name, one answer.
 
 // Saved-Changes list query cap. orderBy('date','desc') + this limit means the NEWEST 5000 overrides
 // load; beyond that the oldest aren't fetched. `_overridesTruncated` records a cap hit so renderTable

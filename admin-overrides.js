@@ -24,10 +24,10 @@ export { TYPES, PILL_TYPES, renderTable, resetTableMemberFilter,
          renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, updateSaveBtn, resetBulkPills, _hasStagedEdits };
 import { initOverrideStore, getAllOverrides, setAllOverrides, removeFromCache, mutateCache,
          whenOverridesReady, whenLoadSettled, isOverrideCacheLoaded, hasOverrideAuthorityFor,
-         hasAllStaffAuthority, loadOverrides, ensureMemberLoaded } from './admin-override-store.js';
+         loadOverrides, ensureMemberLoaded } from './admin-override-store.js';
 export { initOverrideStore, getAllOverrides, setAllOverrides, removeFromCache,
          whenOverridesReady, whenLoadSettled, isOverrideCacheLoaded, hasOverrideAuthorityFor,
-         hasAllStaffAuthority, loadOverrides, ensureMemberLoaded };
+         loadOverrides, ensureMemberLoaded };
 import { sessionReady } from './session.js';
 import { parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
 import { checkShiftRules } from './admin-shift-rules.js';
@@ -251,6 +251,16 @@ export async function executeSave(toSave, toDelete = []) {
 
         resetStagedRows();   // the row lifecycle belongs to the week editor (v21.38)
 
+        // AND ANY LOAD ALREADY RUNNING HAS TO LAND FIRST (v21.41). `whenOverridesReady()` above is a
+        // one-shot latch — it answers for the BOOT load and, once resolved, for ever after says
+        // nothing about the loads that follow: a member switch, the All-staff toggle, a Retry. Any of
+        // those can be in flight when a save commits, and when it resolves it assigns the cache
+        // wholesale from a snapshot taken BEFORE the write, so the day just saved disappears from
+        // Saved Changes while sitting correctly in Firestore — the admin's own receipt and the list
+        // disagreeing, which reads as data loss. `whenLoadSettled()` was written for this at v21.38
+        // and called from nowhere (AI_MAP said otherwise). The `catch` is not incidental: a FAILED
+        // load must not fail a save that has already committed.
+        await whenLoadSettled().catch(() => {});
         // Update in-memory cache — no Firestore round-trip needed
         const removedIds = new Set([...toDelete, ...toSave.filter(e => e.existingId).map(e => e.existingId)]);
         mutateCache(rows => {
@@ -463,6 +473,11 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
         res.delIds.forEach(id => deletedIds.add(id));
     }
 
+    // Any load already running lands FIRST — the same ordering `executeSave` takes, and for the same
+    // reason: `whenOverridesReady()` above answers only for the boot load (v21.41). A range booking
+    // is the write where this matters most, because it is the one that can put a fortnight of annual
+    // leave into the list and then watch it disappear.
+    await whenLoadSettled().catch(() => {});
     // Update in-memory cache — no Firestore round-trip needed
     mutateCache(rows => [...rows.filter(o => !deletedIds.has(o.id)), ...newDocs]);
     mutateCache(rows => [...rows].sort((a, b) => (b.date || '').localeCompare(a.date || '')));
