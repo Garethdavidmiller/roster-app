@@ -19,7 +19,8 @@ import { readFileSync } from 'node:fs';
 import {
     clockOffset, submitDisposition, shouldResyncClock, SUBMIT_GRACE_MS, DEADLINE_SYNC_WINDOW_MS,
     shortDate, longDate, weekLabel, weekSpan, deadlineLabel, phaseCopy, rowStateCopy,
-    countsCopy, answerCopy, answerTone, answerAnchorStale, isUnavailable, weekSummary, asAtLine,
+    countsCopy, answerCopy, answerTone, answerAnchorStale, isUnavailable, isAvailableAnswer,
+    weekSummary, asAtLine,
     modesFor, offersFullTwelve, submitFailureCopy, shiftSpanMinutes, sameAnswer, deadlineLines, receiptLine,
     declaredAgo, deriveHistory,
 } from './overtime-format.js';
@@ -379,10 +380,64 @@ describe('answers in words', () => {
     test('a malformed answer tones as NONE — the honest state, never as a decision', () => {
         // Matches `answerCopy`'s "Not answered" for the same inputs. If these two ever disagreed,
         // a chip would read "Not answered" in the colour of a definite answer.
-        for (const bad of [undefined, {}, { mode: '' }, 'all_day', 7]) {
+        //
+        // `{ mode: 'from' }` is the case this list did NOT have until v21.52, and it is the only one
+        // that can actually happen: a mode a LATER release adds, met by a browser still serving a
+        // cached older build. Every other entry here is a shape the server cannot produce. The
+        // invariant was right and the inputs stopped just short of it — which is how the reviewer's
+        // week came to draw an unreadable answer as a green "Not answered" under Available.
+        for (const bad of [undefined, {}, { mode: '' }, 'all_day', 7,
+            { mode: 'from', from: '15:00' }, { mode: 'a_mode_from_2027' }]) {
             assert.equal(answerTone(bad), 'none', JSON.stringify(bad));
             assert.equal(answerCopy(bad), 'Not answered', JSON.stringify(bad));
         }
+    });
+});
+
+describe('isAvailableAnswer — the predicate a clerk rings people from', () => {
+    // Its own header has said "the answer must be a KNOWN mode that is not `unavailable`" since it
+    // was written; the code accepted any non-empty string. These pin the sentence rather than the
+    // implementation, and they are here rather than beside the tone tests because the cost is
+    // different: a wrong tone is a chip somebody misreads, a wrong verdict is a phone call to
+    // somebody who never said they were free — and a count that agrees with it.
+
+    test('every real availability mode is available', () => {
+        for (const day of [
+            { mode: 'all_day' },
+            { mode: 'twelve_hours' },
+            { mode: 'before', until: '07:00' },
+            { mode: 'after', from: '15:00' },
+            { mode: 'before_after', until: '07:00', from: '15:00' },
+            { mode: 'custom', start: '18:00', end: '23:00' },
+        ]) assert.equal(isAvailableAnswer(day), true, JSON.stringify(day));
+    });
+
+    test('a declined day is not available, and neither is a missing one', () => {
+        assert.equal(isAvailableAnswer({ mode: 'unavailable' }), false);
+        for (const none of [undefined, null, {}, { mode: '' }, 'all_day', 7]) {
+            assert.equal(isAvailableAnswer(none), false, JSON.stringify(none));
+        }
+    });
+
+    test('AN UNREADABLE MODE IS NOT AVAILABLE — the direction that costs somebody a phone call', () => {
+        // The shipped defect. Both halves matter: it must not COUNT as availability, and it must
+        // agree with the words and the colour, or the panel contradicts itself three ways.
+        for (const unknown of [{ mode: 'from', from: '15:00' }, { mode: 'split' }, { mode: 'AL' }]) {
+            assert.equal(isAvailableAnswer(unknown), false, JSON.stringify(unknown));
+            assert.equal(answerTone(unknown), 'none', JSON.stringify(unknown));
+            assert.equal(answerCopy(unknown), 'Not answered', JSON.stringify(unknown));
+        }
+    });
+
+    test('it agrees with isUnavailable: no day is BOTH, and an unknown day is neither', () => {
+        // The day panel asks these two in order and falls through to "No response". If they could
+        // both be true the row would silently take the first branch; if an unknown day answered
+        // true to either, it would leave "No response" — which is where it belongs.
+        for (const day of [{ mode: 'all_day' }, { mode: 'unavailable' }, { mode: 'nope' }, undefined]) {
+            assert.equal(isAvailableAnswer(day) && isUnavailable(day), false, JSON.stringify(day));
+        }
+        assert.equal(isAvailableAnswer({ mode: 'nope' }) || isUnavailable({ mode: 'nope' }), false,
+            'an unreadable answer belongs to neither section, so it falls through to No response');
     });
 });
 

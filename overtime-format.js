@@ -670,11 +670,26 @@ export function isUnavailable(day) {
  * round from, and the failure direction is the bad one: it manufactures availability.
  *
  * So the answer must be a known mode that is not `unavailable`. Unknown is never positive.
+ *
+ * ── AND IT NOW ASKS THE KNOWN SET, WHICH IS WHAT THAT SENTENCE ALWAYS MEANT (v21.52) ────────────
+ *
+ * The rule above shipped as a comment. The code beneath it accepted ANY non-empty string, so a mode
+ * this build cannot read — `WINDOW_MODES` gaining an entry in a later release, read by a browser
+ * still serving a cached older one, which is the ordinary shape of a schema skew rather than an
+ * exotic one — was counted available, filed under Available, and drawn in the available colour,
+ * beside a chip reading "Not answered" because `answerWindowCopy` got it right. Three signals about
+ * one day, and the two that a clerk acts on were the wrong ones.
+ *
+ * Found by rendering the reviewer's week and reading it, which is the only way it could be found:
+ * no test asserted it, and the defect looks like a fully-populated panel.
  * @param {any} day
  */
 export function isAvailableAnswer(day) {
     if (!day || typeof day !== 'object' || typeof day.mode !== 'string') return false;
-    return day.mode !== 'unavailable' && day.mode !== '';
+    // WINDOW_MODES is every mode that describes a window a duty could sit in — which is exactly
+    // "known, and not `unavailable`". Consulting it rather than restating the test is what stops
+    // this drifting from the mode list again the next time one is added.
+    return WINDOW_MODES.has(day.mode);
 }
 
 /**
@@ -749,7 +764,11 @@ export function answerAnchorStale(day, shift) {
 export function answerTone(day) {
     if (!day || typeof day !== 'object' || !day.mode) return 'none';
     if (day.mode === 'unavailable') return 'no';
-    return 'yes';
+    // An UNREADABLE answer is not a green one (v21.52). Same reasoning as `isAvailableAnswer`, and
+    // it has to be the same answer: the chip's colour and the section it sits in are read together,
+    // so a green chip inside "No response" would just move the contradiction rather than end it.
+    // `none` is the tone a day with no answer already wears, which is what this is.
+    return WINDOW_MODES.has(day.mode) ? 'yes' : 'none';
 }
 
 /**
