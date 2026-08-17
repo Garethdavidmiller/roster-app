@@ -2473,7 +2473,34 @@ body.auth-ready .boot-placeholder { display: none; }
 }
 /* The chevron is the focusable collapse toggle (v17.50 — the header is no longer role="button",
    so it can't nest the Tips button). It needs its own pointer + a visible keyboard focus ring. */
-.collapse-chevron { cursor: pointer; }
+.collapse-chevron { cursor: pointer; position: relative; touch-action: manipulation; }
+
+/* ── AND IT NEEDS A TAP TARGET, WHICH IT DID NOT HAVE UNTIL v21.53 ──────────────────────────────
+   Measured by probing `elementFromPoint` outward from each control on every page: the chevron's
+   real tap region was 6×15px — the glyph and nothing else — on operations, settings, links and
+   overtime alike. It is the primary way to open and close every card in the app, and it is the
+   smallest target on any of those pages.
+
+   The fix is not a new idea; it is the one already sitting 120 lines below, on `.btn-card-tips`,
+   whose 20px circle has carried a 44px `::before` since it was written. The two controls sit 5px
+   apart in the same cluster and only one of them had it.
+
+   ENLARGING THE GLYPH WAS THE OTHER OPTION AND IT IS THE WRONG ONE: the cluster is `flex-shrink: 0`,
+   so every pixel it gains comes out of the title column, and paycalc's "🏖️ Holiday Pay Premium
+   (HPP)" already wraps to two lines at 360px — v18.53 exists to claw ~25px back there. So the hit
+   area grows and nothing moves.
+
+   `inset` is SYMMETRIC deliberately. `.collapse-chevron.open` is `transform: rotate(180deg)`, which
+   rotates this pseudo-element too — an asymmetric region would swing across the Tips button every
+   time a card opened. Symmetric maps onto itself. The two expanded regions do overlap, and the
+   chevron paints later so it wins that band; both keep more than 24px, which is what matters. */
+.collapse-chevron::after,
+.card-toggle-arrow::after {
+    content: '';
+    position: absolute;
+    inset: -12px;
+}
+.card-toggle-arrow { position: relative; touch-action: manipulation; }
 .collapse-chevron:focus-visible {
     outline: var(--focus-outline);
     outline-offset: 2px;
