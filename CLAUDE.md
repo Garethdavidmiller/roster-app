@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: August 2026 — v21.40 · Updated every 0.10 version*
+*Last updated: August 2026 — v21.50 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `21.40` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `21.50` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; **primary install + notification target** since v14.29). A GitHub Pages mirror is still served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path**, NOT the bare origin (which is a separate empty repo that 404s) — kept alive only for staff who already installed from it. `STAFF_SITE_URL` in `functions/index.js` is now the bare `https://myb-roster.web.app` (no sub-path). It only sets the notification payload's path/hash — each device's service worker discards the origin and re-bases the page onto its own scope, so existing github.io installs keep working. See API key note below. |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -673,7 +673,7 @@ Full HTML template, JS patterns (close-only and CTA+snooze), rules table, and mo
 | ID | Page | Title | Badge | Posted | Expiry | Status | Dismiss mechanism |
 |----|------|-------|-------|--------|--------|--------|-------------------|
 | `ytd_2627` | `paycalc.html` | Enter your Year to Date figures | 💷 Pay | 6 Apr 2026 | 90 days | ⛔ **inert since ~5 Jul 2026** — copy is still accurate, but nobody new sees it (see note above) | One-time; `NOTICE_YTD_KEY` set on close |
-| `links-workspace-2026` | `links.html` | Links Workspace | 🔗 Links | 2 Aug 2026 | **14 days** | ⏳ **goes inert ~16 Aug 2026** (checked at the v21.40 sweep, 15 Aug — one day left). Expiring is right for this one: it welcomes a designer to a workspace they have now been using for a fortnight. It stays in this table until the 180-day removal on ~29 Jan 2027 | One-time; `myb_links_welcome_seen` set on close |
+| `links-workspace-2026` | `links.html` | Links Workspace | 🔗 Links | 2 Aug 2026 | **14 days** | ⛔ **inert since 16 Aug 2026** (confirmed at the v21.50 sweep, 17 Aug — the v21.40 sweep called this one day out and it has now passed). Expiring is right for this one: it welcomed a designer to a workspace they have now been using for a fortnight, so nothing is lost by it going quiet. It stays in this table until the 180-day removal on ~29 Jan 2027 | One-time; `myb_links_welcome_seen` set on close |
 | `pw-own-2026` | `index.html` | Set your own password | ⚙️ Settings | 6 Aug 2026 | **`CONFIG.PASSWORD_NOTICE_DAYS`** (90) | ✅ live until ~4 Nov 2026 — **review that date, don't just let it lapse** | CTA + snooze; 7d on close, 1d on CTA; `NOTICE_PW_OWN_DONE` (storage-keys.js). Also retired the moment Settings CONFIRMS the account is migrated, on any device (v19.91) |
 
 The retired `links-beta-2026` (posted 9 Jun 2026, 28 days) was replaced at v19.51: the beta chip

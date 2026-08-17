@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: August 2026 — v21.40 · Updated every 0.10 version*
+*Last updated: August 2026 — v21.50 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -672,6 +672,29 @@ Row states, and what each means:
 | **Did not open overnight · create it here** | The last nightly run was due to open this week and did not. Press **Open now** on the row; that fixes the week whether or not the run itself is ever diagnosed. Investigate only if it repeats — the Functions log for `autoCreateOvertimeWindows` says what happened. |
 | **No form yet · first deadline has passed** | Still opens automatically, but late enough to be worth a look: anyone answering now misses the draft roster. |
 | **Missed · no form was opened, so nobody was asked** | The final deadline went by with no window. It cannot be recovered, and the row stays until its Saturday passes. |
+
+### Nobody is asked silently any more (v21.47)
+
+Two push notices go out on their own, both **only to the people they concern** — never a broadcast:
+
+| Notice | Who gets it | When |
+|---|---|---|
+| ⏱️ *Overtime — availability form open* | each member a window has just started asking | the run that adds them, naming their soonest deadline |
+| ⏱️ *Overtime — answers due today* | participants who have submitted **nothing** | the morning of the initial deadline |
+
+A member added to several weeks in one run gets **one** notice, not one per week. Somebody who has
+already answered is not reminded, and a withdrawn participant is not asked at all.
+
+What this changes operationally is what a "No response" now means: before v21.47 it could simply be
+somebody who never opened the app that week, which the system itself had done nothing about. Now a
+member with an account and a subscribed device has been told twice. A remaining blank is much more
+likely to be a real answer — they cannot do it — and worth a call rather than a nudge.
+
+**It can fail quietly, by design.** A member with no Firebase account, or who has never turned
+notifications on, is skipped rather than guessed at; the send can never fail the window it announces.
+So absence of a notice is not evidence of anything — the page is the record, the push is a courtesy.
+If you need to know whether one went, the Functions log lines are `[overtimeAsked …]` and
+`[overtimeReminder …]`, and each states how many targets it could resolve.
 
 ### Opening a week early, by hand
 
