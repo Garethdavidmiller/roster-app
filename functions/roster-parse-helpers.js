@@ -768,6 +768,13 @@ const NOTIFICATION_FEATURES = {
     newsletter: { emoji: '🗞️', tag: 'newsletter',   defaultHeadline: 'Latest Marylebone Newsletter',  hashPath: '/#newsletter' },
     // Event reminder — title "<emoji> <Event> — <urgency>"; caller passes headline + url.
     pay:        { emoji: '💷',  tag: 'pay-reminder' },
+    // Targeted-only (v21.47) — every send goes through sendTargetedPush to the members a window
+    // actually ASKED (the asked notice) or the participants still silent on the deadline's morning
+    // (the reminder). Never fanOutPush: during the restricted beta a broadcast would ping ~50 staff
+    // about a two-person pilot, and at full launch "targeted to participants" IS everyone eligible,
+    // so the reach scales itself with no code change. ⏱️ is the Overtime nav pill / page badge.
+    // Event grammar — headline + url come from the caller (overtime-core's pure notice builders).
+    overtime:   { emoji: '⏱️', tag: 'overtime' },
     // Admin-only (v18.95). 🙋 is the Operations "Password Reset Requests" card's own emoji.
     // The ONE stable tag is load-bearing here rather than merely conventional: a second request
     // REPLACES the first in the Notification Centre, so the headline carries the queue DEPTH

@@ -879,6 +879,110 @@ function stableKeyOrder(v) {
     return out;
 }
 
+// ── Push notices (v21.47) ───────────────────────────────────────────────────────────────────────
+//
+// The feature runs on deadlines and, until v21.47, nothing nudged anyone: a window opened silently
+// overnight and the initial deadline passed silently at noon. A member who did not happen to open
+// the app that week became a permanent "No response" — the record the Manager view treats as its
+// most load-bearing distinction, manufactured by the absence of a reminder rather than by the
+// person. These are the WORDS and the WHEN; the sending (uids, subscriptions, the targeted-only
+// rule) lives in functions/overtime.js and push.js.
+//
+// Everything here is pure so the boundaries — the 24-hour lookahead, the already-sent stamp, the
+// clipped-title budget — are testable in test:hygiene without an emulator.
+
+/**
+ * How far ahead of the initial deadline the reminder fires.
+ *
+ * The daily run is 05:00 London and the deadline is 12:00 London, so a 24-hour lookahead selects
+ * exactly ONE run — the deadline's own morning, seven hours out. A window (rather than a same-day
+ * test) keeps the rule pure: no timezone read, and a boundary a unit test can actually pin.
+ */
+const REMINDER_LOOKAHEAD_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Should THIS window's initial-deadline reminder go out now?
+ *
+ * `reminderSentAtMs` is the idempotency stamp (0 when never sent): the scheduler stamps after the
+ * attempt, so a re-run the same morning sends nothing. Once the deadline passes the phase moves and
+ * this is false for ever — the stamp only has to protect the one morning.
+ *
+ * @param {{ initialDeadlineAt: number, retentionUntil: number, weekStart: string,
+ *           finalDeadlineAt: number }} milestones
+ * @param {number} reminderSentAtMs
+ * @param {number} nowMs
+ * @returns {boolean}
+ */
+function reminderDue(milestones, reminderSentAtMs, nowMs) {
+    if (reminderSentAtMs > 0) return false;
+    if (milestones.retentionUntil <= nowMs) return false;
+    if (phaseFor(milestones, nowMs) !== 'INITIAL_OPEN') return false;
+    return (milestones.initialDeadlineAt - nowMs) <= REMINDER_LOOKAHEAD_MS;
+}
+
+/**
+ * A deadline as staff-facing words, in LONDON time — "Tue 18 Aug · 12:00".
+ *
+ * The client's `deadlineLabel` renders in the DEVICE's zone, which is right for a page someone is
+ * looking at. A push body is composed on a server in UTC about a deadline defined in London, so it
+ * must say London out loud rather than inherit the server's clock.
+ * @param {number} ms @returns {string}
+ */
+function londonDeadlineLabel(ms) {
+    const d = new Date(ms);
+    const date = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Europe/London', weekday: 'short', day: 'numeric', month: 'short',
+    }).format(d);
+    const time = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    }).format(d);
+    return `${date.replace(',', '')} · ${time}`;
+}
+
+/**
+ * The "you have been asked" notice — sent when a member joins a window's population, whether at
+ * creation or by the nightly top-up. Event grammar (headline — urgency; body carries the action),
+ * calm register, inside the design language's budgets (title ≤ ~40 with the emoji, body ≤ ~80) so
+ * `buildPushPayload` never has to clip it — asserted in overtime-core.test.mjs, because a clipped
+ * deadline is worse than none.
+ *
+ * ONE notice per member per run, however many weeks they were just added to — the tag replaces on
+ * the lock screen but each send still buzzes, and five buzzes in five seconds about one form is
+ * not this app's register. The body names the SOONEST deadline, which is the one that can be
+ * missed.
+ *
+ * @param {{ initialDeadlineAt: number }} soonest milestones of the earliest newly-asked week
+ * @returns {{ headline: string, body: string }}
+ */
+function askedNotice(soonest) {
+    return {
+        headline: 'Overtime — availability form open',
+        body: `Tell the roster team when you can work. Answer by ${londonDeadlineLabel(soonest.initialDeadlineAt)}.`,
+    };
+}
+
+/**
+ * The deadline-morning reminder — sent ONLY to participants with no submission at all. Somebody
+ * who answered has nothing to be reminded of, and "you have not answered" to a person who has is
+ * the kind of wrong this feature's record exists to prevent.
+ * @param {{ weekEnding: string, initialDeadlineAt: number }} milestones
+ * @returns {{ headline: string, body: string }}
+ */
+function reminderNotice(milestones) {
+    // "12:00", from the same label the asked notice uses, so the two can never state different times.
+    const time = londonDeadlineLabel(milestones.initialDeadlineAt).split('·')[1].trim();
+    // The week-ending Saturday from the ISO parts directly — a doc id, not a moment in time, so no
+    // Date and no timezone can shift it.
+    const [, m, d] = milestones.weekEnding.split('-').map(Number);
+    return {
+        headline: 'Overtime — answers due today',
+        body: `Availability for week ending Sat ${d} ${MONTH_ABB_EN[m - 1]} closes at ${time} today.`,
+    };
+}
+
+/** en-GB short months for the reminder body — a Date-free render of an ISO doc id. */
+const MONTH_ABB_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 module.exports = {
     // policy
     POLICY_VERSION,
@@ -928,4 +1032,10 @@ module.exports = {
     revisionId,
     decideSubmission,
     deriveHistory,
+    // push notices
+    REMINDER_LOOKAHEAD_MS,
+    reminderDue,
+    londonDeadlineLabel,
+    askedNotice,
+    reminderNotice,
 };

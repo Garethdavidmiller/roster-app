@@ -708,6 +708,11 @@ Object.assign(exports, buildAuthEndpoints({
 // overtime-core's `selectParticipants` — see its header for why it does not live here.
 Object.assign(exports, buildOvertimeEndpoints({
     ADMIN_FUNCTION_ORIGINS, rosterMembers,
+    // The two Overtime notices (v21.47) — "you have been asked" and the deadline-morning reminder —
+    // go through sendTargetedPush to resolved member uids, never fanOutPush. The VAPID pair rides
+    // in like documents.js's; STAFF_SITE_URL only seeds the deep link, which each device's service
+    // worker re-bases onto its own scope.
+    VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_URL,
     // The retention purge ships DISARMED: it walks the whole tree daily and logs exactly what it
     // would remove, deleting nothing. It is the only irreversible thing the feature does and it
     // runs unattended, so the walk gets proved against real documents while its mistakes are still

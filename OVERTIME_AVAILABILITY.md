@@ -590,11 +590,60 @@ Two, both stated in full in `ARCHITECTURE.md` → §3 and deliberately not re-ex
 
 ---
 
-## Deliberately not built
+## Push notices (v21.47) — targeted, and why that is the design rather than a limitation
 
-- **No reminder notifications.** The horizon is the guard against a missing window; nudging
-  non-responders is a later decision with its own design (see `.claude/rules/notifications.md` —
-  anything naming one person must use `sendTargetedPush`, never `fanOutPush`).
+The feature runs on deadlines, and until v21.47 nothing nudged anyone: a window opened silently
+overnight and the initial deadline passed silently at noon. A member who did not happen to open the
+app that week became a permanent **No response** — the record the reviewer's workspace treats as
+its most load-bearing distinction, manufactured by the absence of a reminder rather than by the
+person. Two notices close that, both built by the pure `askedNotice`/`reminderNotice` in
+`overtime-core.js` and both sent by `sendTargetedPush` to member uids resolved from the account
+email (the SAME derivation `setupRosterAuth` provisions with, so the two cannot disagree):
+
+- **Asked** — when a member joins a window's population, at creation or by the nightly top-up. ONE
+  notice per member per scheduler run however many weeks it put them into, naming their soonest
+  initial deadline: the tag collapses the lock screen, but each send still buzzes, and five buzzes
+  in five seconds about one page is not this app's register.
+- **Reminder** — the morning the initial deadline falls, ONLY to participants who have submitted
+  nothing (a withdrawn participant is no longer asked; somebody who answered has nothing to be
+  reminded of). `reminderDue`'s 24-hour lookahead selects exactly one 05:00 run per window, and the
+  server-written `reminderSentAt` stamp makes that morning idempotent.
+
+**There is deliberately no broadcast branch.** During the restricted beta a fan-out would ping ~50
+staff about a two-person pilot; at full launch, targeted-to-participants IS everyone eligible, so
+the reach widens with the audience automatically and no notification code changes at launch. A
+member with no Firebase account or no subscribed device is silently skipped — fail closed, per
+member — and no push can ever fail the write it announces.
+
+---
+
+## Full-launch checklist — everything that changes when the beta ends
+
+Consolidated here (v21.47) because these items previously lived across four documents and one being
+missed would ship a half-launched feature. Work through ALL of them; each names its home.
+
+1. **Widen the audience** — the one-word edit in `functions/overtime.js`'s `currentAudience`
+   (`EXC-003` above), plus `npm run generate:roster-members`.
+2. **Drop `CONFIG.OVERTIME_BETA`** from `roster-data.js` and regenerate — participation then follows
+   eligibility alone. The nav pill and page policy already gate on `canOpenOvertime`, which needs no
+   change (auth-policy.js keeps the reviewer/participant split).
+3. **Remove the beta banner** (`.ot-beta` in `overtime.html`) and the "restricted live beta" wording
+   in the page's tips (`overtime-tips.js`).
+4. **Arm the retention purge** — `purgeArmed` in `functions/index.js`, after reading a dry run
+   (`EXC-002`; evidence row `VAL-OT-001`, dated in `MAINTENANCE_CALENDAR.md`).
+5. **Re-check the reviewer workspace at scale** — the By-day view renders every participant under
+   every date; at ~50 staff that is ~350 rows under the ALL lens. Decide between defaulting the day
+   lens to the week's first date and collapsible day sections. (The empty-section invariant stands
+   either way: a hidden "No response" makes "nobody outstanding" look like a render failure.)
+6. **Finish the revision-read economics if needed** — v21.47 already skips the read for
+   single-revision heads (most members), so the remaining cost is one read per member who resubmitted.
+   If that ever matters at 50 members, lazy-load revisions on row expand; never store a derivation.
+7. **Notifications need nothing** — see above; targeted reach scales itself. Confirm the asked
+   notice's first full-roster morning in the Functions log (`[overtimeAsked]`) the day after launch.
+
+---
+
+## Deliberately not built
 - **The scheduled purge ships disarmed** — see `EXC-002` above.
 - **No override write-back.** Availability is a declaration, not a roster change; nothing here
   writes to `overrides`.

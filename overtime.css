@@ -88,7 +88,14 @@ body {
     background: var(--surface);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-2);
+    /* `clip` after `hidden`, deliberately (v21.47): both clip children to the rounded corner, but
+       `hidden` also makes the card a scroll container, which silently turns any `position: sticky`
+       inside it into inline layout — measured, not theorised: the submit bar laid out at y=1418 in
+       a 727px viewport. `clip` clips without capturing sticky. A browser too old to parse `clip`
+       keeps `hidden` and the bar degrades to inline, which is exactly the pre-v21.47 page. The
+       same hidden→clip pair already guards admin's `.container` for overflow-x. */
     overflow: hidden;
+    overflow: clip;
     margin-bottom: 12px;
 }
 
@@ -835,12 +842,46 @@ body {
     color: var(--text-light);
 }
 
+/* ── The sticky submit bar (v21.47) ──────────────────────────────────────────
+   The seven-day form is ~12 phone screens tall, and the submit button carries the
+   one line that answers "how much is left?" ("4 days still to answer"). Inline at
+   the bottom, both were invisible for the whole time a member was answering.
+
+   STICKY, not fixed, deliberately: fixed would float over the horizon card and
+   the reviewer workspace when the member tabs away (the bar lives inside a card
+   body that merely hides), and would need the page's fixed-bar z-index ladder.
+   Sticky scopes itself to the form card — it pins while the card is on screen
+   and scrolls away with it, which is exactly the wanted behaviour, and it sits
+   UNDER any overlay for free. `bottom` clears the iOS home-indicator inset.
+
+   The white backdrop is opaque on purpose: day rows scroll beneath it, and a
+   translucent bar would show pill fragments through the button's rounded
+   corners. The negative margins let the backdrop bleed to the card's edges so
+   rows vanish at the bar, not at a floating island above it. */
+.ot-submit-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 5; /* above the day rows' focus rings; far below overlays and the confirm bar (60) */
+    background: var(--surface);
+    /* The card body pads --space-3 vertical / --space-4 horizontal (shared.css); bleed to its
+       edges on three sides so day rows vanish at the bar rather than at an island above it. */
+    margin: 0 calc(-1 * var(--space-4)) calc(-1 * var(--space-3));
+    padding: 2px var(--space-4) max(var(--space-2), env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border-light);
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg); /* match the card's own corner */
+}
+
 .ot-feedback {
     margin: var(--space-3) 0;
     font-size: var(--type-small);
     line-height: 1.5;
     min-height: 1em;
 }
+
+/* Inside the sticky bar an EMPTY feedback line is not a spacer — it is ~40px of permanent bar
+   height on every idle scroll. Collapse it until it has something to say; the `aria-live` region
+   itself stays in the DOM, which is what screen readers key on. */
+.ot-submit-bar .ot-feedback:empty { margin: 0; min-height: 0; }
 
 .ot-feedback--ok   { color: var(--success-text); }
 .ot-feedback--warn { color: var(--error-text); }

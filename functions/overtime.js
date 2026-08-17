@@ -49,6 +49,8 @@ const { onRequest } = require('firebase-functions/v2/https');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const admin = require('firebase-admin');
 const OT = require('./overtime-core');
+const { setupWebPush, sendTargetedPush } = require('./push');
+const { nameToEmail, buildPushPayload } = require('./roster-parse-helpers');
 
 /** Collection root. One name, used everywhere, so a typo cannot create a parallel universe. */
 const WINDOWS = 'overtimeWindows';
@@ -60,8 +62,135 @@ const WINDOWS = 'overtimeWindows';
  *   is the ID token + claim check inside each handler)
  * @param {{ overtimeRoster: Array<object>, maxRosterYear: number, overtimeBeta?: string[], roles: { admin: string[], manager: string[] } }} deps.rosterMembers
  *   the GENERATED server roster — never a client payload
+ * @param {any} [deps.VAPID_PRIVATE_KEY] Web Push secret — absent in tests, where `notify` is
+ *   injected instead; absent AND uninjected, sends become logged no-ops (never a throw)
+ * @param {string} [deps.VAPID_PUBLIC_KEY]
+ * @param {string} [deps.STAFF_SITE_URL] origin for the notification deep link
+ * @param {{ sendPush?: Function, uidForName?: Function }} [deps.notify] test seam — the two
+ *   halves the fakes need to observe: what was sent, and to whom
  */
-function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeArmed = false }) {
+function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeArmed = false,
+    VAPID_PRIVATE_KEY = null, VAPID_PUBLIC_KEY = '', STAFF_SITE_URL = '', notify = null }) {
+
+    // ── Push plumbing (v21.47) — TARGETED ONLY, and a courtesy at every step ────────────────────
+    //
+    // Availability is deadline-driven and nothing used to nudge anyone: a member who did not
+    // happen to open the app before Tuesday noon became a permanent "No response". Two notices fix
+    // that — "you have been asked" when a member joins a window's population, and a reminder on
+    // the initial deadline's morning to participants who have said nothing at all.
+    //
+    // Every send is `sendTargetedPush` to resolved member uids; there is deliberately NO broadcast
+    // branch (during the beta a fan-out would ping ~50 staff about a two-person pilot, and at full
+    // launch targeted-to-participants IS everyone eligible, so reach scales itself). The uid is
+    // resolved from the member's account email — the SAME derivation `setupRosterAuth` provisions
+    // accounts with, so the two cannot disagree — and a member with no account, or no subscribed
+    // device, is silently skipped: fail closed, per member. A push can never fail the write it
+    // announces; every path here is wrapped so the worst outcome is a log line.
+    const send = (notify && notify.sendPush) || (VAPID_PRIVATE_KEY
+        ? (payload, uids, tag) => {
+            setupWebPush(VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY);
+            return sendTargetedPush(payload, uids, tag);
+        }
+        : async (_payload, _uids, tag) => { console.warn(`${tag} push not configured — nothing sent`); return 0; });
+    const uidForName = (notify && notify.uidForName) || (async (name) => {
+        try { return (await admin.auth().getUserByEmail(nameToEmail(name))).uid; }
+        catch { return null; }   // no account (or lookup hiccup) → this member is skipped, never guessed
+    });
+
+    /**
+     * Tell newly-asked members they have a form — ONE notice per member per run, however many
+     * weeks they were just added to. The tag replaces on the lock screen but each send still
+     * buzzes, and five buzzes in five seconds about one page is not this app's register. The body
+     * names each member's SOONEST new deadline — the one that can be missed.
+     * @param {Array<{ milestones: any, names: string[] }>} entries
+     */
+    async function notifyAsked(entries) {
+        try {
+            /** @type {Map<string, any>} member → milestones of their earliest newly-asked week */
+            const soonest = new Map();
+            for (const e of entries || []) {
+                if (!e || !e.milestones || !Array.isArray(e.names)) continue;
+                for (const name of e.names) {
+                    const cur = soonest.get(name);
+                    if (!cur || e.milestones.initialDeadlineAt < cur.initialDeadlineAt) soonest.set(name, e.milestones);
+                }
+            }
+            if (!soonest.size) return;
+            /** @type {Map<string, { milestones: any, names: string[] }>} one send per shared soonest week */
+            const groups = new Map();
+            for (const [name, m] of soonest) {
+                const g = groups.get(m.weekEnding) || { milestones: m, names: [] };
+                g.names.push(name);
+                groups.set(m.weekEnding, g);
+            }
+            for (const g of groups.values()) {
+                const uids = (await Promise.all(g.names.map(uidForName))).filter(Boolean);
+                if (!uids.length) {
+                    console.log(`[overtimeAsked] ${g.milestones.weekEnding} — no resolvable targets among ${g.names.length} member(s)`);
+                    continue;
+                }
+                const n = OT.askedNotice(g.milestones);
+                const payload = buildPushPayload({
+                    feature: 'overtime', headline: n.headline, body: n.body,
+                    url: `${STAFF_SITE_URL}/overtime.html`,
+                });
+                await send(payload, uids, `[overtimeAsked ${g.milestones.weekEnding}]`);
+            }
+        } catch (err) {
+            // The write this announces has already committed; the notice is a courtesy on top.
+            console.error('[overtimeAsked] send failed (window unaffected):', err);
+        }
+    }
+
+    /**
+     * The deadline-morning reminder — participants of an INITIAL_OPEN window who have submitted
+     * NOTHING, on the morning their answers are due (the 05:00 run; `reminderDue` selects the one
+     * morning within 24h of the noon deadline). Somebody who answered has nothing to be reminded
+     * of, and a withdrawn participant is no longer asked.
+     *
+     * `reminderSentAt` is stamped after the attempt whatever the send count — it protects the one
+     * morning against a re-run, and once noon passes the phase moves and the question is closed.
+     * @param {number} nowMs
+     */
+    async function sendInitialDeadlineReminders(nowMs) {
+        let snap;
+        try {
+            snap = await db().collection(WINDOWS).get();
+        } catch (err) {
+            console.error('[overtimeReminder] could not list windows — standing down:', err);
+            return;
+        }
+        for (const d of snap.docs) {
+            const data = d.data();
+            const milestones = storedMilestones(data);
+            if (!OT.reminderDue(milestones, toMillis(data.reminderSentAt), nowMs)) continue;
+            try {
+                const [pSnap, sSnap] = await Promise.all([
+                    d.ref.collection('participants').get(),
+                    d.ref.collection('submissions').select().get(),
+                ]);
+                const submitted = new Set(sSnap.docs.map(s => s.id));
+                const names = pSnap.docs
+                    .filter(p => !OT.isWithdrawn(p.data()) && !submitted.has(p.id))
+                    .map(p => p.id);
+                const uids = (await Promise.all(names.map(uidForName))).filter(Boolean);
+                if (uids.length) {
+                    const n = OT.reminderNotice(milestones);
+                    const payload = buildPushPayload({
+                        feature: 'overtime', headline: n.headline, body: n.body,
+                        url: `${STAFF_SITE_URL}/overtime.html`,
+                    });
+                    await send(payload, uids, `[overtimeReminder ${d.id}]`);
+                }
+                await d.ref.update({ reminderSentAt: admin.firestore.FieldValue.serverTimestamp() });
+                console.log(`[overtimeReminder] ${d.id} — ${names.length} unanswered, ${uids.length} resolvable target(s)`);
+            } catch (err) {
+                // One bad week must not abandon the rest; an unstamped week retries tomorrow only
+                // if its deadline is still ahead, which is exactly the right behaviour.
+                console.error(`[overtimeReminder] ${d.id} failed:`, err);
+            }
+        }
+    }
 
     /**
      * Is the retention purge allowed to DELETE, or only to report what it would delete?
@@ -181,7 +310,10 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
      * can see what will happen without being able to decide it.
      */
     const createOvertimeWindow = onRequest(
-        { region: 'europe-west2', timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS },
+        // The VAPID secret rides along when configured (the asked notice sends from this handler);
+        // conditional so the tests, which inject `notify` fakes, need no SecretParam at all.
+        { region: 'europe-west2', timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS,
+            ...(VAPID_PRIVATE_KEY ? { secrets: [VAPID_PRIVATE_KEY] } : {}) },
         async (req, res) => {
             const who = await authenticate(req, res);
             if (!who) return;
@@ -196,6 +328,11 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                 byName: who.name,
                 byUid:  who.uid,
             });
+
+            // Tell whoever was just asked, BEFORE responding — Cloud Functions may freeze the
+            // instance after the response, so fire-and-forget here can silently never fire.
+            // `notifyAsked` cannot throw, so the write's success is never held hostage to a push.
+            if (r.asked) await notifyAsked([r.asked]);
 
             switch (r.outcome) {
                 case 'invalid':         return res.status(400).json({ error: r.error });
@@ -279,6 +416,8 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             return {
                 outcome: 'existed',
                 added,
+                // Who was newly asked, for the caller to notify — the top-up's additions only.
+                asked: added.length ? { milestones: storedMilestones(existing.data()), names: added } : null,
                 window: { ...storedMilestones(existing.data()), audience: existing.data().audience },
             };
         }
@@ -309,7 +448,12 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
         }
         await batch.commit();
         console.log(`[createOvertimeWindow] ${weekEnding} · ${audience} · ${participants.length} participants · by ${byName}`);
-        return { outcome: 'created', window: preview };
+        return {
+            outcome: 'created', window: preview,
+            // Every participant was just asked; the caller decides when to say so (the scheduler
+            // accumulates across weeks so one member gets ONE notice, not one per window).
+            asked: { milestones, names: participants.map(p => p.memberName) },
+        };
     }
 
     /**
@@ -508,7 +652,8 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
      * `existed` branch above) the other six runs a week cost one collection read each.
      */
     const autoCreateOvertimeWindows = onSchedule(
-        { schedule: '0 5 * * *', timeZone: 'Europe/London', region: 'europe-west2' },
+        { schedule: '0 5 * * *', timeZone: 'Europe/London', region: 'europe-west2',
+            ...(VAPID_PRIVATE_KEY ? { secrets: [VAPID_PRIVATE_KEY] } : {}) },
         async () => {
             const nowMs = Date.now();
             let existing;
@@ -543,11 +688,15 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             // conditional and the top-up is unconditional.
             const made = [];
             const failed = [];
+            /** Everyone newly asked this run — created weeks AND top-up additions — so one member
+             *  gets ONE notice however many windows this run put them into. */
+            const asked = [];
             for (const weekEnding of due) {
                 try {
                     const r = await createWindow(weekEnding, {
                         nowMs, byName: SCHEDULER_NAME, byUid: null,
                     });
+                    if (r.asked) asked.push(r.asked);
                     if (r.outcome === 'created') made.push(weekEnding);
                     else if (r.outcome !== 'existed') failed.push(`${weekEnding}:${r.outcome}`);
                 } catch (err) {
@@ -567,7 +716,12 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             // change take effect at all: the whole horizon is pre-created, so without it
             // an invitation reaches only weeks that do not exist yet. Daily and idempotent — a run
             // with nothing to add costs one id-only read per open week.
-            await topUpOpenWindows(nowMs);
+            asked.push(...await topUpOpenWindows(nowMs));
+
+            // One accumulated notice per newly-asked member, then the deadline-morning reminder.
+            // Both are courtesies over writes that have already committed; neither can throw.
+            await notifyAsked(asked);
+            await sendInitialDeadlineReminders(nowMs);
         });
 
     /**
@@ -581,19 +735,25 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             snap = await db().collection(WINDOWS).get();
         } catch (err) {
             console.error('[topUpOpenWindows] could not list windows — standing down:', err);
-            return;
+            return [];
         }
         const summary = [];
+        /** @type {Array<{ milestones: any, names: string[] }>} who was newly asked, per window */
+        const asked = [];
         for (const d of snap.docs) {
             try {
                 const added = await addMissingParticipants(d.ref, d.data(), nowMs);
-                if (added.length) summary.push(`${d.id}+${added.length}`);
+                if (added.length) {
+                    summary.push(`${d.id}+${added.length}`);
+                    asked.push({ milestones: storedMilestones(d.data()), names: added });
+                }
             } catch (err) {
                 // One bad week must not abandon the rest; tomorrow's run retries this one.
                 console.error(`[topUpOpenWindows] ${d.id} failed:`, err);
             }
         }
         console.log(`[topUpOpenWindows] ${summary.length ? summary.join(', ') : 'nothing to add'}`);
+        return asked;
     }
 
     /**

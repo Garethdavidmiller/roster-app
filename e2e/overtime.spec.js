@@ -314,6 +314,27 @@ test.describe('member surface', () => {
         expect(await reads() - before, 'one tap, one roster read').toBe(1);
     });
 
+    test('the submit bar is pinned on screen from the top of the form (v21.47)', async ({ page }) => {
+        // The seven-day form is ~12 phone screens; the bar carries "N days still to answer" and the
+        // refusal that jumps to the first unanswered day, so off-screen it is neither progress nor a
+        // shortcut. The regression this pins is INVISIBLE to every other test: `position: sticky`
+        // inside an `overflow: hidden` ancestor silently lays out inline — nothing errors, the page
+        // just quietly returns to needing twelve screens of scrolling to find Submit. That is why
+        // the card's clip is `overflow: clip`, and why this asserts geometry rather than CSS text.
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-day')).toHaveCount(7);
+        await page.evaluate(() => window.scrollTo(0, 0));
+        const m = await page.evaluate(() => ({
+            barBottom: Math.round(document.querySelector('.ot-submit-bar').getBoundingClientRect().bottom),
+            day1Visible: document.querySelector('.ot-day').getBoundingClientRect().top < innerHeight,
+            vh: innerHeight,
+        }));
+        expect(m.day1Visible, 'the fixture must have the top of the form on screen').toBe(true);
+        expect(m.barBottom, 'the bar is pinned to the viewport, not twelve screens away').toBeLessThanOrEqual(m.vh);
+    });
+
     test('submitting an incomplete form refuses and names the day, rather than sitting disabled', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await stubOvertime(page, { windows: [openWindow()] });
@@ -790,6 +811,64 @@ test('and on a phone the day row is still stacked, where there is no room for an
     const head  = await page.locator('.ot-day').first().locator('.ot-day-head').boundingBox();
     const modes = await page.locator('.ot-day').first().locator('.ot-modes').boundingBox();
     expect(modes.y, 'the buttons sit below the day name').toBeGreaterThanOrEqual(head.y + head.height);
+});
+
+test('a single-revision head costs NO revision read, and a changed one still derives (v21.47)', async ({ page }) => {
+    // The workspace read the revisions subcollection for EVERY submission to answer "did this
+    // change since the initial deadline?" — the cost flagged as "before full launch". A head at
+    // revision 1 cannot have changed: its one revision IS the head by construction, so it is
+    // synthesised instead of fetched. Nothing is stored (the design record refuses stored
+    // derivations); only the fetch of what we already hold is skipped.
+    //
+    // The teeth bite twice, deliberately. The shared `revisions` seed below belongs to J. Sumaili
+    // (the two-revision head). If the skip regresses, T. Bibi's read comes back with SUMAILI's
+    // revisions — and derives a bogus "Changed after initial deadline" marker under Bibi's name —
+    // AND the read count goes to 5. Either alone could be argued with; together they can't.
+    await seedSession(page, 'H. Croft');
+    const D0 = '2026-08-30';
+    const rest = Object.fromEntries(weekDates(W.weekStart).map(d => [d, { mode: 'unavailable' }]));
+    // FINAL_OPEN at NOW (17 Aug): the initial deadline has passed, the final has not — the one
+    // phase where "changed since the initial deadline" can genuinely exist, because a change made
+    // BEFORE the initial deadline simply is the initial answer.
+    const initialAt = Date.parse('2026-08-11T11:00:00Z');
+    const before = initialAt - 86_400_000;                 // 10 Aug — the initial answers
+    await stubOvertime(page, { weeks: [
+        { ...W, initialDeadlineAt: initialAt, exists: true, state: 'created', canCreate: false,
+          expected: 2, received: 2, noResponse: 0 },
+    ] });
+    await page.addInitScript(({ D0, rest, before, after }) => {
+        window.__E2E = { ...(window.__E2E || {}), authUser: true, docsByPath: {
+            participants: [
+                { id: 'T. Bibi',    grade: 'CEA', rosterOrder: 2,  createdAt: before },
+                { id: 'J. Sumaili', grade: 'CEA', rosterOrder: 18, createdAt: before },
+            ],
+            submissions: [
+                { id: 'T. Bibi',    currentRevision: 1, firstAcceptedAt: before, updatedAt: before,
+                  days: { ...rest, [D0]: { mode: 'all_day' } } },
+                { id: 'J. Sumaili', currentRevision: 2, firstAcceptedAt: before, updatedAt: after,
+                  days: rest },
+            ],
+            revisions: [
+                { id: '1', revision: 1, acceptedAt: before, days: { ...rest, [D0]: { mode: 'all_day' } } },
+                { id: '2', revision: 2, acceptedAt: after,  days: rest },
+            ],
+        } };
+    }, { D0, rest, before, after: initialAt + 3_600_000 });   // 11 Aug 12:00 — after the cut-off
+    await page.goto('/overtime.html');
+
+    await expect(page.locator('#otWeekCard')).toBeVisible();
+    await expect(page.locator('#otWeekContent')).toContainText('T. Bibi');
+    await expect(page.locator('#otWeekContent')).toContainText('J. Sumaili');
+    // Sumaili's history still derives from the real read: day 0 moved from all_day to unavailable.
+    await expect(page.locator('#otWeekContent')).toContainText('Changed after initial deadline');
+    // …and exactly once. Two of them means Bibi was given Sumaili's revisions — the poisoned-read
+    // signature of a regressed skip.
+    expect(await page.locator('#otWeekContent').innerText()).not.toMatch(
+        /Changed after initial deadline[\s\S]*Changed after initial deadline/);
+    // The arithmetic: participants + submissions + Sumaili's revisions + the one roster read.
+    // Bibi's revisions are the read that must NOT happen; a regression reads 5.
+    expect(await page.evaluate(() => (window.__E2E || {}).docReads || 0),
+        'participants(1) + submissions(1) + revisions(1, Sumaili only) + roster(1)').toBe(4);
 });
 
 test.describe('the v20.75 review fixes, each pinned in a browser', () => {

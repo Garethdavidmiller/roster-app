@@ -1608,3 +1608,114 @@ describe('a member invited into the beta AFTER a window was created', () => {
             'and nothing was written behind the empty report');
     });
 });
+
+describe('push notices — targeted, accumulated, and never able to fail a write', () => {
+    // The notify seam records what production would hand to sendTargetedPush. `uidForName` is the
+    // account-resolution fake. Every EXCLUSION below must be proven by a member who would
+    // otherwise have been sent to — the first cut gave the submitted member no account, so
+    // reminding the submitted was invisible behind the uid filter, and the mutation that removed
+    // the submitted-check survived. H. Croft is the accountless one: not in UIDS, nothing else
+    // excludes him, so his absence from a send can only be the fail-closed skip.
+    const UIDS = { 'G. Miller': 'uid-gm', 'S. Silva': 'uid-ss', 'L. Springer': 'uid-ls' };
+    function notifySeam() {
+        const sends = [];
+        return {
+            sends,
+            notify: {
+                sendPush: async (payload, uids, tag) => { sends.push({ payload, uids, tag }); return uids.length; },
+                uidForName: async (name) => UIDS[name] ?? null,
+            },
+        };
+    }
+    const askedSends    = (sends) => sends.filter(s => s.payload.title.includes('form open'));
+    const reminderSends = (sends) => sends.filter(s => s.payload.title.includes('due today'));
+
+    test('creating a window tells its participants — through the design language, to uids only', async () => {
+        const { sends, notify } = notifySeam();
+        freeze(SERVER_NOW);
+        const { eps } = build({}, { notify, STAFF_SITE_URL: 'https://myb-roster.web.app' });
+        const r = await call(eps.createOvertimeWindow, req({ weekEnding: WEEK }, 'tok_member'));
+        unfreeze();
+        assert.equal(r.body.created, true);
+        assert.equal(askedSends(sends).length, 1, 'one window, one asked notice');
+        const s = askedSends(sends)[0];
+        // The restricted audience is the admin alone, and the notice reaches exactly that uid.
+        assert.deepEqual(s.uids, ['uid-gm']);
+        // The design language, not a hand-written literal: feature emoji leading, stable tag, a
+        // deep link the SW's allowlist will accept, and the LONDON deadline in the body.
+        assert.ok(s.payload.title.startsWith('⏱️ Overtime'), s.payload.title);
+        assert.equal(s.payload.tag, 'overtime');
+        assert.ok(s.payload.url.endsWith('/overtime.html'), s.payload.url);
+        assert.match(s.payload.body, /Answer by .+ 12:00/);
+        assert.ok(!s.payload.title.includes('…') && !s.payload.body.includes('…'),
+            'inside the truncation budgets — a clipped deadline is worse than none');
+    });
+
+    test('the scheduler asks ONE notice per member, however many windows one run creates', async () => {
+        // The bootstrap run creates the whole horizon at once. Per-window sends would buzz the same
+        // member once per week — the tag collapses the lock screen but not the buzzing — so the run
+        // accumulates and each member hears about their SOONEST new week only.
+        const { sends, notify } = notifySeam();
+        freeze(SERVER_NOW);
+        const { db, eps } = build({}, { notify });
+        await eps.autoCreateOvertimeWindows.run({});
+        unfreeze();
+        const made = [...db._store.keys()].filter(k => /^overtimeWindows\/[0-9-]+$/.test(k));
+        assert.ok(made.length >= 4, `the horizon bootstrap made several windows (${made.length})`);
+        assert.equal(askedSends(sends).length, 1, 'and they collapsed to one notice');
+        assert.deepEqual(askedSends(sends)[0].uids, ['uid-gm']);
+    });
+
+    test('the deadline-morning reminder reaches ONLY the silent, and stamps itself once', async () => {
+        // Four participants, four states, one target: G. Miller has said nothing (reminded),
+        // L. Springer submitted (nothing to be reminded of — and he HAS an account, so the only
+        // thing keeping him out is the submitted-check), S. Silva is withdrawn (no longer asked),
+        // H. Croft is silent but has no account (fail-closed skip). The morning is selected by
+        // reminderDue — the frozen clock sits five hours before the seeded window's noon deadline.
+        const { sends, notify } = notifySeam();
+        const seed = seededWindow({
+            [`overtimeWindows/${WEEK}/participants/L. Springer`]: {
+                memberName: 'L. Springer', grade: 'CEA', rosterOrder: 0, uid: null,
+            },
+            [`overtimeWindows/${WEEK}/participants/S. Silva`]: {
+                memberName: 'S. Silva', grade: 'CEA', rosterOrder: 5, uid: null, withdrawn: true,
+            },
+            [`overtimeWindows/${WEEK}/participants/H. Croft`]: {
+                memberName: 'H. Croft', grade: 'CEA', rosterOrder: 9, uid: null,
+            },
+            [`overtimeWindows/${WEEK}/submissions/L. Springer`]: {
+                currentRevision: 1, days: noDays(),
+                firstAcceptedAt: { toMillis: () => SERVER_NOW }, updatedAt: { toMillis: () => SERVER_NOW },
+            },
+        });
+        freeze(M.initialDeadlineAt - 5 * 3600_000);
+        const { db, eps } = build(seed, { notify });
+        await eps.autoCreateOvertimeWindows.run({});
+        assert.equal(reminderSends(sends).length, 1, 'one due window, one reminder');
+        const s = reminderSends(sends)[0];
+        assert.deepEqual(s.uids, ['uid-gm'],
+            'the submitted (uid-ls) and the withdrawn (uid-ss) are not reminded; the accountless (H. Croft) are skipped');
+        assert.match(s.payload.body, /closes at 12:00 today/);
+        assert.ok(db._store.get(`overtimeWindows/${WEEK}`).reminderSentAt, 'stamped after the attempt');
+
+        // The same morning again — a re-run, a second scheduler instance — sends nothing more.
+        await eps.autoCreateOvertimeWindows.run({});
+        unfreeze();
+        assert.equal(reminderSends(sends).length, 1, 'the stamp holds');
+    });
+
+    test('a push that throws costs a log line, never the window', async () => {
+        // The write this announces has already committed; a notice is a courtesy on top. The seam
+        // here throws on EVERY send, and the run must still create its windows and finish.
+        freeze(SERVER_NOW);
+        const { db, eps } = build({}, { notify: {
+            sendPush: async () => { throw new Error('push transport down'); },
+            uidForName: async () => 'uid-anything',
+        } });
+        const r = await call(eps.createOvertimeWindow, req({ weekEnding: WEEK }, 'tok_member'));
+        assert.equal(r.body.created, true, 'the manual create still succeeds');
+        await eps.autoCreateOvertimeWindows.run({});
+        unfreeze();
+        assert.ok(db._store.has(`overtimeWindows/${WEEK}`), 'and the scheduler still ran to completion');
+    });
+});

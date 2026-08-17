@@ -1001,6 +1001,10 @@ overtimeWindows/{weekEnding}                       the window. Doc id = the week
   policyVersion               int — which milestone rules produced the dates above
   audience                    "restricted" | "all" — resolved SERVER-side at creation, never sent
   createdAt / createdByName / createdByUid
+  reminderSentAt              Timestamp — set by the scheduler when the deadline-morning reminder
+                              was attempted (v21.47). Idempotency stamp only: it protects the ONE
+                              morning against a re-run, and once noon passes the phase moves and
+                              the question is closed. Server-written; no client reads it
 
   /participants/{memberName}  the FROZEN population. Written once, at creation, never rewritten
     memberName · grade · rosterOrder · createdAt
