@@ -179,8 +179,17 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
                     <strong>Final availability recorded.</strong>
                     This form is now closed. If your circumstances have changed, speak to a Manager.
                 </div>` : `
-                <div class="ot-feedback" aria-live="polite"></div>
-                <button type="button" class="btn-action btn-primary ot-submit">Submit availability</button>`}`;
+                <!-- STICKY (v21.47). The seven-day form runs to roughly twelve phone screens, and
+                     this bar used to sit inline at the very end — so the one line that answers
+                     "how much is left?" ("4 days still to answer") was invisible for the whole
+                     time a member was answering, and reaching Submit meant scrolling past
+                     everything. Sticky keeps it in view as live progress, and tapping it while
+                     incomplete already jumps to the first unanswered day (the refusal focuses it),
+                     so the bar is also the shortcut. Position lives in CSS; print unsticks it. -->
+                <div class="ot-submit-bar">
+                    <div class="ot-feedback" aria-live="polite"></div>
+                    <button type="button" class="btn-action btn-primary ot-submit">Submit availability</button>
+                </div>`}`;
     }
 
     /**

@@ -314,6 +314,27 @@ test.describe('member surface', () => {
         expect(await reads() - before, 'one tap, one roster read').toBe(1);
     });
 
+    test('the submit bar is pinned on screen from the top of the form (v21.47)', async ({ page }) => {
+        // The seven-day form is ~12 phone screens; the bar carries "N days still to answer" and the
+        // refusal that jumps to the first unanswered day, so off-screen it is neither progress nor a
+        // shortcut. The regression this pins is INVISIBLE to every other test: `position: sticky`
+        // inside an `overflow: hidden` ancestor silently lays out inline — nothing errors, the page
+        // just quietly returns to needing twelve screens of scrolling to find Submit. That is why
+        // the card's clip is `overflow: clip`, and why this asserts geometry rather than CSS text.
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-day')).toHaveCount(7);
+        await page.evaluate(() => window.scrollTo(0, 0));
+        const m = await page.evaluate(() => ({
+            barBottom: Math.round(document.querySelector('.ot-submit-bar').getBoundingClientRect().bottom),
+            day1Visible: document.querySelector('.ot-day').getBoundingClientRect().top < innerHeight,
+            vh: innerHeight,
+        }));
+        expect(m.day1Visible, 'the fixture must have the top of the form on screen').toBe(true);
+        expect(m.barBottom, 'the bar is pinned to the viewport, not twelve screens away').toBeLessThanOrEqual(m.vh);
+    });
+
     test('submitting an incomplete form refuses and names the day, rather than sitting disabled', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await stubOvertime(page, { windows: [openWindow()] });
@@ -790,6 +811,171 @@ test('and on a phone the day row is still stacked, where there is no room for an
     const head  = await page.locator('.ot-day').first().locator('.ot-day-head').boundingBox();
     const modes = await page.locator('.ot-day').first().locator('.ot-modes').boundingBox();
     expect(modes.y, 'the buttons sit below the day name').toBeGreaterThanOrEqual(head.y + head.height);
+});
+
+test('a single-revision head costs NO revision read, and a changed one still derives (v21.47)', async ({ page }) => {
+    // The workspace read the revisions subcollection for EVERY submission to answer "did this
+    // change since the initial deadline?" — the cost flagged as "before full launch". A head at
+    // revision 1 cannot have changed: its one revision IS the head by construction, so it is
+    // synthesised instead of fetched. Nothing is stored (the design record refuses stored
+    // derivations); only the fetch of what we already hold is skipped.
+    //
+    // The teeth bite twice, deliberately. The shared `revisions` seed below belongs to J. Sumaili
+    // (the two-revision head). If the skip regresses, T. Bibi's read comes back with SUMAILI's
+    // revisions — and derives a bogus "Changed after initial deadline" marker under Bibi's name —
+    // AND the read count goes to 5. Either alone could be argued with; together they can't.
+    await seedSession(page, 'H. Croft');
+    const D0 = '2026-08-30';
+    const rest = Object.fromEntries(weekDates(W.weekStart).map(d => [d, { mode: 'unavailable' }]));
+    // FINAL_OPEN at NOW (17 Aug): the initial deadline has passed, the final has not — the one
+    // phase where "changed since the initial deadline" can genuinely exist, because a change made
+    // BEFORE the initial deadline simply is the initial answer.
+    const initialAt = Date.parse('2026-08-11T11:00:00Z');
+    const before = initialAt - 86_400_000;                 // 10 Aug — the initial answers
+    await stubOvertime(page, { weeks: [
+        { ...W, initialDeadlineAt: initialAt, exists: true, state: 'created', canCreate: false,
+          expected: 2, received: 2, noResponse: 0 },
+    ] });
+    await page.addInitScript(({ D0, rest, before, after }) => {
+        window.__E2E = { ...(window.__E2E || {}), authUser: true, docsByPath: {
+            participants: [
+                { id: 'T. Bibi',    grade: 'CEA', rosterOrder: 2,  createdAt: before },
+                { id: 'J. Sumaili', grade: 'CEA', rosterOrder: 18, createdAt: before },
+            ],
+            submissions: [
+                { id: 'T. Bibi',    currentRevision: 1, firstAcceptedAt: before, updatedAt: before,
+                  days: { ...rest, [D0]: { mode: 'all_day' } } },
+                { id: 'J. Sumaili', currentRevision: 2, firstAcceptedAt: before, updatedAt: after,
+                  days: rest },
+            ],
+            revisions: [
+                { id: '1', revision: 1, acceptedAt: before, days: { ...rest, [D0]: { mode: 'all_day' } } },
+                { id: '2', revision: 2, acceptedAt: after,  days: rest },
+            ],
+        } };
+    }, { D0, rest, before, after: initialAt + 3_600_000 });   // 11 Aug 12:00 — after the cut-off
+    await page.goto('/overtime.html');
+
+    await expect(page.locator('#otWeekCard')).toBeVisible();
+    await expect(page.locator('#otWeekContent')).toContainText('T. Bibi');
+    await expect(page.locator('#otWeekContent')).toContainText('J. Sumaili');
+    // Sumaili's history still derives from the real read: day 0 moved from all_day to unavailable.
+    await expect(page.locator('#otWeekContent')).toContainText('Changed after initial deadline');
+    // …and exactly once. Two of them means Bibi was given Sumaili's revisions — the poisoned-read
+    // signature of a regressed skip.
+    expect(await page.locator('#otWeekContent').innerText()).not.toMatch(
+        /Changed after initial deadline[\s\S]*Changed after initial deadline/);
+    // The arithmetic: participants + submissions + Sumaili's revisions + the one roster read.
+    // Bibi's revisions are the read that must NOT happen; a regression reads 5.
+    expect(await page.evaluate(() => (window.__E2E || {}).docReads || 0),
+        'participants(1) + submissions(1) + revisions(1, Sumaili only) + roster(1)').toBe(4);
+});
+
+test.describe('freshness and exit guards (v21.48, external review)', () => {
+    // One created week with one single-revision submission, so a detail load costs exactly THREE
+    // collection reads (participants + submissions + roster — the v21.47 skip removes the revision
+    // read), which makes "did the page re-fetch?" a number rather than an inference.
+    const D0 = '2026-08-30';
+    const seedWorkspace = async (page) => {
+        await seedSession(page, 'H. Croft');
+        const rest = Object.fromEntries(weekDates(W.weekStart).map(d => [d, { mode: 'unavailable' }]));
+        const at = Date.parse('2026-08-16T08:00:00Z');
+        await stubOvertime(page, { weeks: [
+            { ...W, exists: true, state: 'created', canCreate: false,
+              expected: 1, received: 1, noResponse: 0 },
+        ] });
+        await page.addInitScript(({ D0, rest, at }) => {
+            window.__E2E = { ...(window.__E2E || {}), authUser: true, docsByPath: {
+                participants: [{ id: 'T. Bibi', grade: 'CEA', rosterOrder: 2, createdAt: at }],
+                submissions: [{ id: 'T. Bibi', currentRevision: 1, firstAcceptedAt: at,
+                    updatedAt: at, days: { ...rest, [D0]: { mode: 'all_day' } } }],
+            } };
+        }, { D0, rest, at });
+    };
+    const reads = (page) => page.evaluate(() => (window.__E2E || {}).docReads || 0);
+
+    test('Refresh re-reads the week and keeps the day lens', async ({ page }) => {
+        // The workspace is a one-shot snapshot and answers keep arriving up to the deadline, so
+        // without this button the only route to current data was leaving the week and coming back
+        // — which also threw away the day the reviewer was looking at. Both halves are asserted:
+        // the re-read (the read counter moves) and the lens surviving it (the same single panel).
+        await seedWorkspace(page);
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otWeekContent')).toContainText('T. Bibi');
+        const base = await reads(page);
+
+        // Narrow to one day. A pure repaint — the lens must not cost a read.
+        await page.locator(`.ot-glance-day[data-glance="${D0}"]`).click();
+        await expect(page.locator('.ot-day-panel[data-date]:not([hidden])')).toHaveCount(1);
+        expect(await reads(page), 'a lens change is a repaint, never a fetch').toBe(base);
+
+        await page.locator('.ot-refresh-btn').click();
+        // Polled: the roster read is only issued once the first two resolve, so the count settles
+        // a beat after the click. The final value is exact — more would mean a doubled handler.
+        await expect.poll(() => reads(page),
+            { message: 'Refresh must actually re-read (participants + submissions + roster)' })
+            .toBe(base + 3);
+        await page.waitForTimeout(100);   // let the repaint that follows the last read land
+        // The lens survived the round trip: still one panel, and it is the chosen day.
+        await expect(page.locator('.ot-day-panel[data-date]:not([hidden])')).toHaveCount(1);
+        await expect(page.locator('.ot-day-panel[data-date]:not([hidden])')).toHaveAttribute('data-date', D0);
+        await expect(page.locator(`.ot-glance-day[data-glance="${D0}"]`))
+            .toHaveAttribute('aria-pressed', 'true');
+    });
+
+    test('returning to a freshly-fetched tab does NOT buy a read', async ({ page }) => {
+        // The debounce half of the visibility refetch. The positive half (a genuinely stale tab
+        // re-reads) is not reachable from a spec — the timestamp lives in a closure and the
+        // debounce is a minute — so the guard pinned here is the one that protects Firestore:
+        // a reviewer flicking between apps must not generate a read per glance.
+        await seedWorkspace(page);
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otWeekContent')).toContainText('T. Bibi');
+        const base = await reads(page);
+        await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+        await page.waitForTimeout(250);
+        expect(await reads(page), 'a visibility flick inside the debounce must not re-read').toBe(base);
+    });
+
+    test('a dirty form arms the leave-page warning; a clean one does not', async ({ page }) => {
+        // The browser's own beforeunload dialog cannot be scripted, but its CONTRACT can: the
+        // handler must call preventDefault on a cancelable event exactly when unsent answers
+        // exist. Both directions matter — arming it while clean nags every navigation, and that
+        // teaches people to click through the one warning that is real.
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day').first().waitFor();
+        const armed = () => page.evaluate(() => {
+            const e = new Event('beforeunload', { cancelable: true });
+            window.dispatchEvent(e);
+            return e.defaultPrevented;
+        });
+        expect(await armed(), 'an untouched form must not warn on leave').toBe(false);
+        await page.locator('.ot-day').first().getByRole('radio', { name: 'Not available' }).click();
+        expect(await armed(), 'unsent answers must arm the warning').toBe(true);
+    });
+
+    test('for a pure reviewer, `ready` means the workspace — not a loading line', async ({ page }) => {
+        // The horizon auto-opens the week being planned, and until v21.48 it did so un-awaited: the
+        // `ready` mark landed while the detail reads were still in flight, so the App Speed card
+        // timed a "Loading availability…" line as a usable page. With every collection read held
+        // open for 400ms, an honest mark cannot land less than 400ms after DOMContentLoaded —
+        // and the un-awaited version lands almost on top of it.
+        await seedWorkspace(page);
+        await page.addInitScript(() => {
+            window.__E2E = { ...(window.__E2E || {}), docsDelayMs: 400 };
+        });
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otWeekContent')).toContainText('T. Bibi');
+        const t = await page.evaluate(() => ({
+            ready: performance.getEntriesByName('myb-page-ready')[0]?.startTime ?? null,
+            dcl:   performance.getEntriesByType('navigation')[0]?.domContentLoadedEventEnd ?? null,
+        }));
+        expect(t.ready, 'a reviewer load must still produce the mark').not.toBeNull();
+        expect(t.ready, 'the mark must wait for the workspace the reads were still building')
+            .toBeGreaterThan(t.dcl + 400);
+    });
 });
 
 test.describe('the v20.75 review fixes, each pinned in a browser', () => {

@@ -57,13 +57,21 @@ import {
  * @param {{ participants: any[], submissions: Map<string, any>,
  *   roster?: Record<string, Record<string, any>>, rosterKnown?: boolean }} data
  * @param {{ dates: string[], now: number, grade?: string, onGrade?: (g: string) => void,
+ *   day?: string, onDay?: (d: string) => void, onRefresh?: () => void,
  *   onAsk?: (memberName: string, ask: boolean) => void }} opts
  *   `grade` is the reviewer's standing choice, handed back in by the coordinator; `onGrade` is how
- *   it gets there. See below. `onAsk` is the only MUTATION this module can start: it hands the
- *   decision straight back out, because writing is the coordinator's job and this module is a pure
- *   render everywhere else — which is what makes it testable with a two-line fake DOM.
+ *   it gets there. See below. `day`/`onDay` are the same pair for the DAY lens, but with a narrower
+ *   lifetime: the coordinator hands the day back only across a SAME-WEEK re-render (a refresh must
+ *   not throw away the lens the reviewer is looking through), and resets it on a week switch,
+ *   because a day's values are this window's dates. `onRefresh`, when provided, renders a Refresh
+ *   control beside the freshness line — the data here is a one-shot snapshot, and without it the
+ *   only route to current answers was leaving the week and coming back. `onAsk` is the only
+ *   MUTATION this module can start: it hands the decision straight back out, because writing is
+ *   the coordinator's job and this module is a pure render everywhere else — which is what makes
+ *   it testable with a two-line fake DOM.
  */
-export function renderWeekDetail(host, win, data, { dates, now, grade: initialGrade = 'ALL', onGrade, onAsk }) {
+export function renderWeekDetail(host, win, data,
+    { dates, now, grade: initialGrade = 'ALL', onGrade, day: initialDay = 'ALL', onDay, onRefresh, onAsk }) {
     /**
      * The grade currently in view. `ALL` is not a grade — no participant can carry it as one.
      *
@@ -83,16 +91,32 @@ export function renderWeekDetail(host, win, data, { dates, now, grade: initialGr
      * clears and no test can reset.
      */
     let grade = initialGrade;
-    /** The day currently in view — `ALL`, or one of the window's dates. */
-    let day = 'ALL';
+    /**
+     * The day currently in view — `ALL`, or one of the window's dates. A handed-back day that is
+     * not one of THIS window's dates falls back to `ALL` rather than filtering every panel to a
+     * date the week does not contain — a coordinator bug upstream must degrade to the whole week,
+     * never to an empty one.
+     */
+    let day = (initialDay === 'ALL' || dates.includes(initialDay)) ? initialDay : 'ALL';
     paint();
 
     function paint() {
-        host.innerHTML = build(win, data, { dates, now, grade, day });
-        wireGlance(host, next => { day = next; paint(); });
+        host.innerHTML = build(win, data, { dates, now, grade, day, canRefresh: !!onRefresh });
+        wireGlance(host, next => { day = next; onDay?.(next); paint(); });
         wireGrades(host, next => { grade = next; onGrade?.(next); paint(); });
         wireAsk(host, onAsk);
+        wireRefresh(host, onRefresh);
     }
+}
+
+/**
+ * Wire the Refresh control. Same guard shape as the other wire fns: a host with no query surface
+ * (the unit tests' two-line fake) simply leaves the markup inert.
+ * @param {HTMLElement} host @param {(() => void) | undefined} onRefresh
+ */
+function wireRefresh(host, onRefresh) {
+    if (typeof host?.querySelector !== 'function' || !onRefresh) return;
+    host.querySelector('.ot-refresh-btn')?.addEventListener('click', () => onRefresh());
 }
 
 /**
@@ -154,9 +178,9 @@ const ADDED_LATER_TOLERANCE_MS = 60_000;
  * @param {any} win
  * @param {{ participants: any[], submissions: Map<string, any>,
  *   roster?: Record<string, Record<string, any>>, rosterKnown?: boolean }} data
- * @param {{ dates: string[], now: number, grade: string, day?: string }} state
+ * @param {{ dates: string[], now: number, grade: string, day?: string, canRefresh?: boolean }} state
  */
-function build(win, data, { dates, now, grade, day = 'ALL' }) {
+function build(win, data, { dates, now, grade, day = 'ALL', canRefresh = false }) {
     const { submissions } = data;
     // WITHDRAWN COMES OFF FIRST, before the grade filter and before anything is counted. A person
     // who has left is not somebody the week is short of an answer from, and leaving them in the
@@ -191,6 +215,14 @@ function build(win, data, { dates, now, grade, day = 'ALL' }) {
                 final deadline ${esc(deadlineLabel(win.finalDeadlineAt))}
             </div>
             <div class="ot-detail-counts">${esc(countsCopy(participants.length, received))}</div>
+            <!-- FRESHNESS, on screen and not only on paper. Everything below is a one-shot
+                 snapshot: it does not live-update, and answers keep arriving right up to the
+                 deadline. Without this line the page reads as current for as long as it is left
+                 open, and without the button the only route to current answers was leaving the
+                 week and coming back. The line reuses the print head's asAtLine so screen and
+                 paper cannot disagree about what "as at" means. -->
+            <div class="ot-detail-asat">${esc(asAtLine(now))}${canRefresh
+                ? ' <button type="button" class="ot-refresh-btn">Refresh</button>' : ''}</div>
             ${win.audience === 'restricted'
                 ? `<div class="ot-detail-audience">Beta audience · ${participants.length} expected `
                   + `${participants.length === 1 ? 'participant' : 'participants'}</div>`

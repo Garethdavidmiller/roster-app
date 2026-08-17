@@ -19,6 +19,7 @@ identity); the **emoji carries feature identity**.
 | Weekly Retail Circular | 📰 | Operations card + nav "Weekly Retail Circular" | `circular` | document |
 | Marylebone Newsletter | 🗞️ | Operations card + nav "Marylebone Newsletter" | `newsletter` | document |
 | Pay reminder | 💷 | Pay nav pill / paycalc | `pay-reminder` | event |
+| Overtime availability | ⏱️ | Overtime nav pill / page badge | `overtime` | event |
 | Password reset request | 🙋 | Operations "Password Reset Requests" card | `reset-request` | event |
 
 When the app gains a new notifying feature, add ONE row here and ONE entry to the
@@ -49,9 +50,20 @@ Because a document is republished regularly and the Huddle in particular is sent
 | | Title | Body |
 |---|-------|------|
 | Pay | `💷 Payday Friday — hours cutoff today` | `Open the Pay Calculator to estimate your 28 March pay.` |
+| Overtime asked | `⏱️ Overtime — availability form open` | `Tell the roster team when you can work. Answer by Tue 18 Aug · 12:00.` |
+| Overtime reminder | `⏱️ Overtime — answers due today` | `Availability for week ending Sat 5 Sep closes at 12:00 today.` |
 | Reset request | `🙋 Reset requests — 2 waiting` | `S. Silva asked for a reset. 1 other waiting.` |
 
-**The one notification that is NOT a broadcast.** Every other feature here goes to all subscribed
+**The Overtime pair is targeted too (v21.47).** Both notices go through `sendTargetedPush` to
+member uids resolved from the account email — the asked notice to whoever a window newly asked
+(one per member per scheduler run, naming their soonest deadline), the reminder only to
+participants who have submitted NOTHING on the deadline's morning. Never `fanOutPush`: during the
+restricted beta a broadcast would ping ~50 staff about a two-person pilot, and at full launch
+targeted-to-participants already reaches everyone eligible, so the reach scales itself with no code
+change. Deadlines are worded in LONDON time by the pure builders in `functions/overtime-core.js`
+(`askedNotice`/`reminderNotice`), never composed inline.
+
+**The one notification that is NOT a broadcast to all staff by design of its CONTENT.** Every other feature here goes to all subscribed
 staff; the reset request goes to the **admin's devices only** — "N. Surname is locked out" sent to
 50 people is a leak, not a notification. It is sent by `sendTargetedPush` (not `fanOutPush`), which
 filters `pushSubscriptions` by the `owner` uid and **fails closed at every step**: no target uids →

@@ -1053,3 +1053,67 @@ describe('weeksNeedingWindows — what the scheduler will create', () => {
         assert.deepEqual(C.weeksNeedingWindows(NOW, new Set(all), { maxRosterYear: 2030 }), []);
     });
 });
+
+describe('push notices — the words and the one morning, each wrong-able silently', () => {
+    // The builder that enforces the truncation budgets lives beside the other notification rules;
+    // requiring it here makes the budget assertion the REAL one rather than a re-implementation.
+    const { buildPushPayload } = require('./functions/roster-parse-helpers.js');
+    const M = C.deriveMilestones('2026-09-05');   // BST week — initial deadline Tue 18 Aug 12:00 London
+    const WINTER = C.deriveMilestones('2027-01-16');   // GMT week, so the label is exercised on both offsets
+
+    describe('reminderDue — the reminder fires on ONE morning, and only once', () => {
+        const sent = 0, never = 0;
+        test('due: inside 24 hours of an INITIAL_OPEN deadline, never sent', () => {
+            assert.equal(C.reminderDue(M, never, M.initialDeadlineAt - 7 * 3600_000), true);
+            assert.equal(C.reminderDue(M, never, M.initialDeadlineAt - C.REMINDER_LOOKAHEAD_MS), true,
+                'the boundary itself is due — the 05:00 run must not slip through a strict <');
+        });
+        test('not due: the morning BEFORE — 31 hours out at the previous 05:00 run', () => {
+            assert.equal(C.reminderDue(M, never, M.initialDeadlineAt - 31 * 3600_000), false);
+        });
+        test('not due: already stamped — the re-run and second-instance guard', () => {
+            assert.equal(C.reminderDue(M, M.initialDeadlineAt - 8 * 3600_000, M.initialDeadlineAt - 7 * 3600_000), false);
+        });
+        test('not due: the deadline has passed — the phase moved and the question is closed', () => {
+            assert.equal(C.reminderDue(M, sent, M.initialDeadlineAt + 60_000), false);
+        });
+        test('not due: an expired window, whatever its clock says', () => {
+            assert.equal(C.reminderDue({ ...M, retentionUntil: 1 }, 0, M.initialDeadlineAt - 3600_000), false);
+        });
+    });
+
+    describe('the labels say LONDON, in both halves of the year', () => {
+        test('a BST deadline renders as 12:00, not the server zone', () => {
+            // On a UTC server this instant is 11:00 — printing the server zone is the failure mode.
+            assert.equal(C.londonDeadlineLabel(M.initialDeadlineAt), 'Tue 18 Aug · 12:00');
+        });
+        test('a GMT deadline also renders 12:00 — noon London is the definition, not an offset', () => {
+            assert.match(C.londonDeadlineLabel(WINTER.initialDeadlineAt), / · 12:00$/);
+        });
+    });
+
+    describe('the two notices fit the design language without clipping', () => {
+        // A clipped deadline is worse than none: "Answer by Tue 18 Au…" reads as complete and says
+        // the wrong thing. So both notices are asserted THROUGH the real builder, whose ellipsis is
+        // the failure signature.
+        for (const [name, notice] of [
+            ['asked',    C.askedNotice(M)],
+            ['reminder', C.reminderNotice(M)],
+        ]) {
+            test(`${name}: inside the title and body budgets, unclipped`, () => {
+                const p = buildPushPayload({
+                    feature: 'overtime', headline: notice.headline, body: notice.body,
+                    url: 'https://myb-roster.web.app/overtime.html',
+                });
+                assert.ok(p.title.startsWith('⏱️ '), 'the feature emoji leads');
+                assert.ok(p.title.length <= 40, `title ${p.title.length} > 40: ${p.title}`);
+                assert.ok(!p.title.includes('…') && !p.body.includes('…'), `clipped: ${p.title} / ${p.body}`);
+                assert.equal(p.tag, 'overtime');
+            });
+        }
+        test('the reminder names the week and the time, from the same label the asked notice uses', () => {
+            assert.equal(C.reminderNotice(M).body, 'Availability for week ending Sat 5 Sep closes at 12:00 today.');
+            assert.match(C.askedNotice(M).body, /Answer by Tue 18 Aug · 12:00\.$/);
+        });
+    });
+});

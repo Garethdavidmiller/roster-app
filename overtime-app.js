@@ -45,6 +45,13 @@ import { CARD_TIPS } from './overtime-tips.js';
 import { renderWeekForm } from './overtime-form.js';
 import { renderWeekDetail as paintWeekDetail } from './overtime-manager.js';
 
+/**
+ * How recently the reviewer's week must have been fetched for a visibility return to skip the
+ * re-read. A minute: long enough that checking another app for ten seconds costs nothing, short
+ * enough that a phone coming out of a pocket mid-morning reads fresh.
+ */
+const DETAIL_REFRESH_DEBOUNCE_MS = 60_000;
+
 /** Coordinator body, invoked by overtime-boot.js. Exported so a test can import without running. */
 export function init() {
     // Tear down a lingering privileged Firebase identity whose local session has expired, so a
@@ -88,6 +95,15 @@ export function init() {
      * precisely the thing that made the filter unusable. Page-scoped, so a reload clears it.
      */
     let reviewGrade = 'ALL';
+    /**
+     * The DAY lens, held ONLY so a refresh of the SAME week keeps it. Unlike the grade it still
+     * resets on a week switch (selectWeek below): its values are one window's dates, and carrying
+     * one into another week would filter to a date that week does not contain — the distinction
+     * the grade/day split has drawn since v20.75.
+     */
+    let reviewDay = 'ALL';
+    /** When the selected week's detail last came back — what the visibility refresh debounces on. */
+    let detailFetchedAt = 0;
 
     // ── Nav + chrome, always, so an unauthorised visitor can leave ──────────────────────────────
 
@@ -214,6 +230,37 @@ export function init() {
 
         wireConfirmBar();
         wireDeadlineResync();
+
+        // ── Browser-level protection for a half-filled form (v21.48, external review) ───────────
+        //
+        // `confirmDiscard` guards every navigation THIS PAGE performs — another week, back to the
+        // list, a rebuilding resync. It cannot see a reload, the drawer's links, browser Back or a
+        // closed tab, all of which discarded six answered days silently. Best-effort native
+        // protection while the form is dirty: the browser shows its own generic warning. No
+        // handler removal is needed — a successful submit makes `isDirty()` false, which disarms
+        // it. Deliberately NOT a localStorage draft, for the reasons on `confirmDiscard`: a copy
+        // of somebody's availability outliving them on a shared station PC is worse than the loss
+        // this prevents. A mobile OS killing the PWA outright remains uncatchable, and persisting
+        // drafts to catch it is the same bad trade.
+        window.addEventListener('beforeunload', (e) => {
+            if (currentForm?.isDirty()) { e.preventDefault(); e.returnValue = ''; }
+        });
+
+        // ── The reviewer's week must not go quietly stale (v21.48, external review) ─────────────
+        //
+        // The workspace is a one-off snapshot, and the page states its age ("Availability as at…")
+        // without ever improving it: a reviewer who opened a week at 09:00 and looked again at
+        // 09:20 was reading 09:00 answers with no way to know. The realistic shape — as with the
+        // member's deadline resync above — is a pocketed phone or a backgrounded tab, so the
+        // trigger is the page BECOMING VISIBLE, debounced so a ten-second glance elsewhere does
+        // not buy a read. The Refresh button in the workspace covers the reviewer who never left.
+        // Deliberately not a Firestore listener yet: if real beta use shows the page held open
+        // through arriving submissions, listen to the heads then — the checklist carries it.
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden || !canReview || !selectedWeek) return;
+            if (Date.now() - detailFetchedAt < DETAIL_REFRESH_DEBOUNCE_MS) return;
+            renderWeekDetail(selectedWeek);
+        });
     }
 
     /**
@@ -600,7 +647,7 @@ export function init() {
             const created = weeks.filter((/** @type {any} */ w) => w.exists);
             const lead = created.find((/** @type {any} */ w) => w.state === 'created')
                 || created[created.length - 1];
-            if (lead) selectWeek(lead.weekEnding, { scroll: false });
+            if (lead) await selectWeek(lead.weekEnding, { scroll: false });
         }
     }
 
@@ -924,7 +971,12 @@ export function init() {
         document.querySelectorAll('[data-open]').forEach(b =>
             b.setAttribute('aria-pressed', String(b.getAttribute('data-open') === weekEnding)));
         if (scroll) card?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        renderWeekDetail(weekEnding);
+        // A week SWITCH resets the day lens (its values belong to the window being left); a
+        // refresh of the same week goes through renderWeekDetail directly and keeps it.
+        reviewDay = 'ALL';
+        // Returned so the auto-select in loadHorizon can await it: for a pure reviewer the page's
+        // `ready` mark must mean the workspace is usable, not that a loading line is on screen.
+        return renderWeekDetail(weekEnding);
     }
 
     /**
@@ -943,9 +995,12 @@ export function init() {
         // bug. Cheap to prevent; invisible when it happens.
         if (selectedWeek !== weekEnding) return;
         if (!data.ok) { renderError(host, () => renderWeekDetail(weekEnding)); return; }
+        detailFetchedAt = Date.now();
         paintWeekDetail(host, win, data, {
             dates, now: OTD.correctedNow(),
             grade: reviewGrade, onGrade: (g) => { reviewGrade = g; },
+            day: reviewDay, onDay: (d) => { reviewDay = d; },
+            onRefresh: () => renderWeekDetail(weekEnding),
             onAsk: (memberName, ask) => setAsking(weekEnding, memberName, ask),
         });
         const chip = el('otWeekChip');

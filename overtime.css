@@ -88,7 +88,14 @@ body {
     background: var(--surface);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-2);
+    /* `clip` after `hidden`, deliberately (v21.47): both clip children to the rounded corner, but
+       `hidden` also makes the card a scroll container, which silently turns any `position: sticky`
+       inside it into inline layout — measured, not theorised: the submit bar laid out at y=1418 in
+       a 727px viewport. `clip` clips without capturing sticky. A browser too old to parse `clip`
+       keeps `hidden` and the bar degrades to inline, which is exactly the pre-v21.47 page. The
+       same hidden→clip pair already guards admin's `.container` for overflow-x. */
     overflow: hidden;
+    overflow: clip;
     margin-bottom: 12px;
 }
 
@@ -835,12 +842,46 @@ body {
     color: var(--text-light);
 }
 
+/* ── The sticky submit bar (v21.47) ──────────────────────────────────────────
+   The seven-day form is ~12 phone screens tall, and the submit button carries the
+   one line that answers "how much is left?" ("4 days still to answer"). Inline at
+   the bottom, both were invisible for the whole time a member was answering.
+
+   STICKY, not fixed, deliberately: fixed would float over the horizon card and
+   the reviewer workspace when the member tabs away (the bar lives inside a card
+   body that merely hides), and would need the page's fixed-bar z-index ladder.
+   Sticky scopes itself to the form card — it pins while the card is on screen
+   and scrolls away with it, which is exactly the wanted behaviour, and it sits
+   UNDER any overlay for free. `bottom` clears the iOS home-indicator inset.
+
+   The white backdrop is opaque on purpose: day rows scroll beneath it, and a
+   translucent bar would show pill fragments through the button's rounded
+   corners. The negative margins let the backdrop bleed to the card's edges so
+   rows vanish at the bar, not at a floating island above it. */
+.ot-submit-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 5; /* above the day rows' focus rings; far below overlays and the confirm bar (60) */
+    background: var(--surface);
+    /* The card body pads --space-3 vertical / --space-4 horizontal (shared.css); bleed to its
+       edges on three sides so day rows vanish at the bar rather than at an island above it. */
+    margin: 0 calc(-1 * var(--space-4)) calc(-1 * var(--space-3));
+    padding: 2px var(--space-4) max(var(--space-2), env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border-light);
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg); /* match the card's own corner */
+}
+
 .ot-feedback {
     margin: var(--space-3) 0;
     font-size: var(--type-small);
     line-height: 1.5;
     min-height: 1em;
 }
+
+/* Inside the sticky bar an EMPTY feedback line is not a spacer — it is ~40px of permanent bar
+   height on every idle scroll. Collapse it until it has something to say; the `aria-live` region
+   itself stays in the DOM, which is what screen readers key on. */
+.ot-submit-bar .ot-feedback:empty { margin: 0; min-height: 0; }
 
 .ot-feedback--ok   { color: var(--success-text); }
 .ot-feedback--warn { color: var(--error-text); }
@@ -942,6 +983,43 @@ body {
 }
 
 .ot-detail-counts { font-weight: 700; color: var(--text-dark); }
+
+/* The freshness line + its Refresh control. Quiet by design: it is a receipt about the snapshot,
+   not a call to action, so it sits at the meta line's size and colour. The button is a small
+   bordered chip rather than a primary button — pressing it re-reads the week, which is routine,
+   and a loud control here would compete with the counts above it. */
+.ot-detail-asat {
+    margin-top: 2px;
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    line-height: 1.45;
+}
+
+/* The GRADE CHIP's recipe, not a fourth chip size — same padding, same scale, same weight, same
+   press and hover. The first cut invented its own (2px padding, --type-small, white-on-surface)
+   and measured 21px tall on mobile-chrome against the grade chip's 24px, which made the newest
+   control on the page also its smallest; and it filled with --surface, the CARD's own colour, when
+   a button is Layer 2 and belongs on white. Both are the mistake .ot-mode's comment above already
+   records: copying a look without its size. */
+.ot-refresh-btn {
+    margin-left: 6px;
+    padding: 4px 11px;
+    border: 1px solid var(--border-mid);
+    border-radius: var(--radius-pill);
+    background: white;
+    color: var(--text-dark);
+    font-family: var(--font-sans);
+    font-size: var(--type-badge);
+    font-weight: 700;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: background var(--dur-fast) var(--ease-standard),
+                transform var(--dur-fast) var(--ease-standard);
+}
+
+.ot-refresh-btn:active { transform: scale(var(--press-scale)); }
+.ot-refresh-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .ot-refresh-btn:hover { background: var(--bg-light); } }
 
 .ot-detail-audience {
     display: inline-block;
@@ -1323,8 +1401,11 @@ body {
         font-weight: 700;
         color: var(--text-dark);
     }
-    /* The chips themselves are a control, and a control is not a document. */
-    .ot-grades { display: none !important; }
+    /* The chips themselves are a control, and a control is not a document. The screen freshness
+       line goes with them: the print head already states "as at" once, and its Refresh button is
+       a control. */
+    .ot-grades,
+    .ot-detail-asat { display: none !important; }
 
     .ot-current-note { border: 1px solid #999; background: white !important; }
 

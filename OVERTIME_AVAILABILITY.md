@@ -590,11 +590,98 @@ Two, both stated in full in `ARCHITECTURE.md` → §3 and deliberately not re-ex
 
 ---
 
-## Deliberately not built
+## Push notices (v21.47) — targeted, and why that is the design rather than a limitation
 
-- **No reminder notifications.** The horizon is the guard against a missing window; nudging
-  non-responders is a later decision with its own design (see `.claude/rules/notifications.md` —
-  anything naming one person must use `sendTargetedPush`, never `fanOutPush`).
+The feature runs on deadlines, and until v21.47 nothing nudged anyone: a window opened silently
+overnight and the initial deadline passed silently at noon. A member who did not happen to open the
+app that week became a permanent **No response** — the record the reviewer's workspace treats as
+its most load-bearing distinction, manufactured by the absence of a reminder rather than by the
+person. Two notices close that, both built by the pure `askedNotice`/`reminderNotice` in
+`overtime-core.js` and both sent by `sendTargetedPush` to member uids resolved from the account
+email (the SAME derivation `setupRosterAuth` provisions with, so the two cannot disagree):
+
+- **Asked** — when a member joins a window's population, at creation or by the nightly top-up. ONE
+  notice per member per scheduler run however many weeks it put them into, naming their soonest
+  initial deadline: the tag collapses the lock screen, but each send still buzzes, and five buzzes
+  in five seconds about one page is not this app's register.
+- **Reminder** — the morning the initial deadline falls, ONLY to participants who have submitted
+  nothing (a withdrawn participant is no longer asked; somebody who answered has nothing to be
+  reminded of). `reminderDue`'s 24-hour lookahead selects exactly one 05:00 run per window, and the
+  server-written `reminderSentAt` stamp makes that morning idempotent.
+
+**There is deliberately no broadcast branch.** During the restricted beta a fan-out would ping ~50
+staff about a two-person pilot; at full launch, targeted-to-participants IS everyone eligible, so
+the reach widens with the audience automatically and no notification code changes at launch. A
+member with no Firebase account or no subscribed device is silently skipped — fail closed, per
+member — and no push can ever fail the write it announces.
+
+---
+
+## Full-launch checklist — everything that changes when the beta ends
+
+Consolidated here (v21.47) because these items previously lived across four documents and one being
+missed would ship a half-launched feature. Work through ALL of them; each names its home.
+
+1. **Widen the audience** — the one-word edit in `functions/overtime.js`'s `currentAudience`
+   (`EXC-003` above), plus `npm run generate:roster-members`.
+2. **Drop `CONFIG.OVERTIME_BETA`** from `roster-data.js` and regenerate — participation then follows
+   eligibility alone. The nav pill and page policy already gate on `canOpenOvertime`, which needs no
+   change (auth-policy.js keeps the reviewer/participant split).
+3. **Remove the beta banner** (`.ot-beta` in `overtime.html`) and the "restricted live beta" wording
+   in the page's tips (`overtime-tips.js`).
+4. **Arm the retention purge** — `purgeArmed` in `functions/index.js`, after reading a dry run
+   (`EXC-002`; evidence row `VAL-OT-001`, dated in `MAINTENANCE_CALENDAR.md`).
+5. **Re-check the reviewer workspace at scale** — the By-day view renders every participant under
+   every date; at ~50 staff that is ~350 rows under the ALL lens. Decide between defaulting the day
+   lens to the week's first date and collapsible day sections. (The empty-section invariant stands
+   either way: a hidden "No response" makes "nobody outstanding" look like a render failure.)
+6. **Finish the revision-read economics if needed** — v21.47 already skips the read for
+   single-revision heads (most members), so the remaining cost is one read per member who resubmitted.
+   If that ever matters at 50 members, lazy-load revisions on row expand; never store a derivation.
+7. **Notifications need nothing** — see above; targeted reach scales itself. Confirm the asked
+   notice's first full-roster morning in the Functions log (`[overtimeAsked]`) the day after launch.
+   Know the SHAPE of that morning before it happens: a notice costs one `getUserByEmail` per named
+   member plus one `pushSubscriptions` query per resolved uid, all issued in parallel — at ~50 that
+   is ~100 concurrent lookups in one scheduler run, against a targeted sender written for the one or
+   two admins a reset request reaches. It is well inside Firestore and Auth limits and needs no
+   change; it is recorded so a burst in the logs reads as expected rather than as a fault.
+
+### Evidence to gather during the beta — deferred by decision, not by omission
+
+An August 2026 external review proposed more than the P1s that shipped (targeted reminders and the
+N+1 removal at v21.47; Manager freshness, the leave-page guard and the honest `ready` milestone at
+v21.48). The rest was deferred because each needs evidence only real use produces — building them on
+a two-person beta means guessing. Watch for these signals and act on the item they belong to:
+
+- **Does anyone hold the Manager view open through arriving submissions?** If yes, replace the
+  Refresh button + visibility refetch with a Firestore listener on the submission heads. The v21.48
+  shape was chosen because a listener costs a read per arriving revision for every open workspace,
+  which the beta cannot justify.
+- **Do reviewers scroll past healthy Upcoming Weeks rows to reach the workspace?** If yes, collapse
+  created-and-quiet weeks to a single line. (Review #6.)
+- **Do members re-open a submitted form often?** If yes, compact the seven answered rows into a
+  summary with an Edit affordance — an owner call, and now proposed by two reviews independently.
+  (Review #5; also raised in the v21.41 review.)
+- **Does the participants list dominate the workspace at full roster?** Checklist item 5 already
+  carries the by-day scale decision; the review's collapse proposal (#7) is one of its options.
+- **Do custom availability windows get used, and are split shifts ever wanted?** Ask the beta
+  members directly before building multi-period days (#8) or an overlap warning (#9) — both change
+  the submission schema, which is the expensive kind of change.
+- **Is the printed call sheet used per-day or per-week?** Print currently emits the whole week;
+  a day-lens-aware print (#11) is worth it only if someone actually prints. (The grade lens IS
+  honoured on paper already.)
+- **Screen-reader use of the lens strips** — the aria-live tightening (#14) and sticky filter
+  strips (#13) wait for a real user report; both are cheap once a direction is known.
+
+Two review items are records rather than signals: the server-file split (#16) stays governed by the
+coordinator ratchet, and a member rename already has its recovery route (`uid` on the participant
+doc — "name-keying and the `uid` rename route" above), so no migration utility is built until a
+rename actually happens. One item was rejected outright: a push notice confirming a member's own
+submission would announce what the receipt on their screen already states.
+
+---
+
+## Deliberately not built
 - **The scheduled purge ships disarmed** — see `EXC-002` above.
 - **No override write-back.** Availability is a declaration, not a roster change; nothing here
   writes to `overrides`.

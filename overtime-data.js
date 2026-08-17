@@ -249,6 +249,30 @@ export async function loadWeekDetail(weekEnding, milestones, dates) {
         }));
 
         const withHistory = await Promise.all(heads.map(async (h) => {
+            // ── A SINGLE-REVISION HEAD NEEDS NO REVISION READ (v21.47) ──────────────────────────
+            //
+            // The revisions exist to answer "did this change since the initial deadline?" — and a
+            // head at revision 1 cannot have: its one revision IS the head, by construction. The
+            // server writes revision 1 with `days` = the head's days and `acceptedAt` =
+            // `firstAcceptedAt`, so synthesising it here is exact, not approximate — every field
+            // `deriveHistory` reads (initialRevision, lateInitial, changedSinceInitial,
+            // dayChangedAt) comes out identical to what the subcollection would have said.
+            //
+            // Most members submit once, so this removes most of the per-member reads the workspace
+            // was paying — the cost that was flagged as "before full launch". It is deliberately
+            // NOT a stored summary (the design record refuses those: a stored derivation is a
+            // second answer free to disagree with the history it summarises) — nothing is written,
+            // the same pure function runs, only the fetch of what we already hold is skipped.
+            //
+            // Guarded on a positive `firstAcceptedAt`: a head missing it (corrupt, or mid-write) is
+            // not a shape worth reasoning about from here, so it takes the real read below.
+            const first = toMillis(h.firstAcceptedAt);
+            if ((h.currentRevision ?? 0) === 1 && first > 0) {
+                return { ...h, history: deriveHistory(
+                    [{ revision: 1, days: h.days, acceptedAt: first }],
+                    h.days, milestones.initialDeadlineAt) };
+            }
+
             /** @type {any[]} */
             const revisions = [];
             try {
