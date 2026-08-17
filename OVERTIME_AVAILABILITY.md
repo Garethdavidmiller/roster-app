@@ -640,6 +640,11 @@ missed would ship a half-launched feature. Work through ALL of them; each names 
    If that ever matters at 50 members, lazy-load revisions on row expand; never store a derivation.
 7. **Notifications need nothing** — see above; targeted reach scales itself. Confirm the asked
    notice's first full-roster morning in the Functions log (`[overtimeAsked]`) the day after launch.
+   Know the SHAPE of that morning before it happens: a notice costs one `getUserByEmail` per named
+   member plus one `pushSubscriptions` query per resolved uid, all issued in parallel — at ~50 that
+   is ~100 concurrent lookups in one scheduler run, against a targeted sender written for the one or
+   two admins a reset request reaches. It is well inside Firestore and Auth limits and needs no
+   change; it is recorded so a burst in the logs reads as expected rather than as a fault.
 
 ### Evidence to gather during the beta — deferred by decision, not by omission
 

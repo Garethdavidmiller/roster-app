@@ -995,22 +995,31 @@ body {
     line-height: 1.45;
 }
 
+/* The GRADE CHIP's recipe, not a fourth chip size — same padding, same scale, same weight, same
+   press and hover. The first cut invented its own (2px padding, --type-small, white-on-surface)
+   and measured 21px tall on mobile-chrome against the grade chip's 24px, which made the newest
+   control on the page also its smallest; and it filled with --surface, the CARD's own colour, when
+   a button is Layer 2 and belongs on white. Both are the mistake .ot-mode's comment above already
+   records: copying a look without its size. */
 .ot-refresh-btn {
     margin-left: 6px;
-    padding: 2px 10px;
+    padding: 4px 11px;
     border: 1px solid var(--border-mid);
     border-radius: var(--radius-pill);
-    background: var(--surface);
+    background: white;
     color: var(--text-dark);
     font-family: var(--font-sans);
-    font-size: var(--type-small);
-    font-weight: 600;
+    font-size: var(--type-badge);
+    font-weight: 700;
     cursor: pointer;
-    transition: background var(--dur-fast) var(--ease-standard);
+    touch-action: manipulation;
+    transition: background var(--dur-fast) var(--ease-standard),
+                transform var(--dur-fast) var(--ease-standard);
 }
 
-.ot-refresh-btn:hover { background: var(--bg-light); }
+.ot-refresh-btn:active { transform: scale(var(--press-scale)); }
 .ot-refresh-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .ot-refresh-btn:hover { background: var(--bg-light); } }
 
 .ot-detail-audience {
     display: inline-block;
