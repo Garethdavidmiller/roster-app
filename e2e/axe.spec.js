@@ -266,6 +266,60 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    test('overtime — reviewer workspace (signed in)', async ({ page }) => {
+        // THE OTHER HALF OF THIS PAGE, and until v21.51 it was never scanned at all.
+        //
+        // "One rendered state per page" is the right rule almost everywhere, but this page carries
+        // two surfaces for two audiences, and the member's form is the one that shares its idioms
+        // with the rest of the app. Everything unique to the reviewer — the navy day-panel headers,
+        // the grade and glance strips, the answer chips, the counts — lived outside every gate.
+        // The colour-contrast failure that motivated this scan (a light-surface grey used on a navy
+        // header, 3.75:1) sat in a shipped release with a green a11y gate above it.
+        const NOW = Date.parse('2026-08-17T09:00:00Z');
+        const W = {
+            weekEnding: '2026-09-05', weekStart: '2026-08-30',
+            initialDeadlineAt: Date.parse('2026-08-18T11:00:00Z'), draftRosterDate: '2026-08-20',
+            finalDeadlineAt: Date.parse('2026-08-25T11:00:00Z'), finalRosterDate: '2026-08-27',
+            retentionUntil: Date.parse('2026-12-05T00:00:00Z'), policyVersion: 1,
+            audience: 'restricted',
+        };
+        const dates = Array.from({ length: 7 }, (_, i) =>
+            new Date(Date.UTC(2026, 7, 30 + i)).toISOString().slice(0, 10));
+        const rest = Object.fromEntries(dates.map(d => [d, { mode: 'unavailable' }]));
+        const at = Date.parse('2026-08-16T08:00:00Z');
+        await seedSession(page, 'H. Croft');
+        await page.addInitScript(({ rest, at, dates }) => {
+            window.__E2E = { ...(window.__E2E || {}), authUser: true, docsByPath: {
+                // TWO grades and a mixed answer set on purpose: it is what makes the grade strip,
+                // all three day sections and both answer tones render at once. A single-grade week
+                // draws no grade strip, and an all-answered week draws no "No response".
+                participants: [
+                    { id: 'T. Bibi', grade: 'CEA', rosterOrder: 2, createdAt: at },
+                    { id: 'J. Sumaili', grade: 'CES', rosterOrder: 18, createdAt: at }],
+                submissions: [{ id: 'T. Bibi', currentRevision: 1, firstAcceptedAt: at,
+                    updatedAt: at, days: { ...rest, [dates[0]]: { mode: 'all_day' } } }],
+            } };
+        }, { rest, at, dates });
+        await page.route('**/getMyOvertimeState', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, windows: [] }),
+        }));
+        await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, retained: [], planningWeeks: [
+                { ...W, exists: true, state: 'created', canCreate: false,
+                  expected: 2, received: 1, noResponse: 1 },
+                { ...W, weekEnding: '2026-09-12', exists: false, state: 'not-created', canCreate: true },
+            ] }),
+        }));
+        await page.goto('/overtime.html');
+        // Both the horizon and the week detail, so the scan covers the whole reviewer surface.
+        await expect(page.locator('#otWeekContent')).toContainText('T. Bibi');
+        await expect(page.locator('.ot-day-panel--muted')).not.toHaveCount(0);
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
     test('links (designer, signed in)', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await page.addInitScript(() => localStorage.setItem('myb_links_welcome_seen', '1'));

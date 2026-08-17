@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: August 2026 — v21.40 · Updated every 0.10 version*
+*Last updated: August 2026 — v21.50 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -1361,15 +1361,26 @@ feature deliberately does NOT do yet, so that a reader stops looking for them.
   a reviewer's whole query rather than drop one row. The deadline for actually deleting them is in
   MAINTENANCE_CALENDAR.md, which is where work with a date lives.
 
-- **No reminders.** Nothing tells a member their deadline is approaching, and nothing tells a
-  reviewer who is outstanding. The *Awaiting a form* list and the **No response** section are the
-  manual substitute, and they are why those sections must never merge into "not available". Spec
-  §14, deferred.
+- **~~No reminders.~~ The MEMBER half shipped at v21.47; the reviewer half has not.** Two targeted
+  push notices now go out on their own — *you have been asked* when a window starts asking somebody,
+  and *answers due today* on the morning of the initial deadline to participants who have submitted
+  nothing. Both are addressed to resolved member uids and never fan out. What has NOT changed is the
+  reviewer's side: nothing tells a clerk who is outstanding, so the *Awaiting a form* list and the
+  **No response** section are still the only answer to that question — which is still why they must
+  never merge into "not available". Operating detail: OPERATIONS_REFERENCE.md → "Nobody is asked
+  silently any more".
 
 - **~~The page does not re-read state while it sits open.~~ WIRED at v20.78.** `visibilitychange`
   now resyncs against the server when `shouldResyncClock` says a deadline is near, one read at a
   time. Recorded here rather than deleted because the entry said the opposite for ten releases, and
   a limitation that has been fixed is a worse doc than one that was never written.
+
+- **The reviewer's workspace is a SNAPSHOT, not a live feed (v21.48).** It states its own age, offers
+  a Refresh, and re-reads when the tab becomes visible (debounced to a minute) — but it does not
+  listen, so an answer arriving while a clerk watches the page does not appear on its own. That is a
+  cost decision, not an oversight: a Firestore listener costs a read per arriving revision for every
+  open workspace, which a two-person beta cannot justify. The signal that would change it is in
+  `OVERTIME_AVAILABILITY.md` → "evidence to gather during the beta".
 
 - **Restricted audience — TWO lists, not one (v20.76).** `currentAudience()` returns `'restricted'`,
   which selects eligible members holding the server-owned **admin** entitlement **or** named in

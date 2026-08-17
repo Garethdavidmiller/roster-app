@@ -1176,7 +1176,13 @@ body {
    purpose: it is a footnote to the counts above, not a fourth thing to read. It is also the only
    panel that renders CONDITIONALLY, so its presence is itself the signal. */
 .ot-day-panel--muted { opacity: 0.9; }
-.ot-day-panel--muted .ot-day-panel-head { color: var(--text-light); }
+/* MUTED MEANS DIMMER WHITE, NOT A LIGHT-SURFACE GREY (v21.51). This carried `--text-light` — a
+   token for muted text ON A CARD — over the navy header bar, which measured 3.75:1 against the
+   4.5:1 AA floor, and the panel's own 0.9 opacity made the rendered result worse again. It is the
+   only place on this page that puts anything but `white` on navy. The fix is the drawer's idiom:
+   muting on a dark surface is done with ALPHA, at values css-tokens.md records as AA-calibrated
+   (0.70 ≈ 7:1). Measured after the fix, opacity included: 7.6:1. */
+.ot-day-panel--muted .ot-day-panel-head { color: rgba(255, 255, 255, .72); }
 
 .ot-section-note {
     padding: 6px var(--space-3) 0;

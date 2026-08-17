@@ -45,12 +45,32 @@ import { getLoggedMember } from './paycalc-settings.js';
 
 /** The signed-in member's NAME — getLoggedMember returns the teamMembers object, or null. */
 const memberName = () => getLoggedMember()?.name || '';
+
 import { APP_VERSION } from './roster-data.js';
 import { confirmDialog } from './overlay.js';
 import {
     selectBackupKeys, summarise, buildBackup, validateBackup, rekeyEntries, backupFilename,
     applyRestore as applyStorageRestore,
 } from './paycalc-transfer.js';
+
+/**
+ * How long the `#payTransferCard` deep link keeps WATCHING for the page to move under it.
+ *
+ * Not a delay before acting — the corrections happen the moment the page grows (see the deep-link
+ * footer below); this is only when we stop listening. Watching costs nothing once the page has
+ * settled, because a settled page fires no resizes, so this is sized for the slowest device rather
+ * than the machine it was written on: growth was still arriving ~3s in on a desktop WebKit.
+ *
+ * ── "STOP WHEN THE PAGE GOES QUIET" WAS TRIED HERE, AND IT IS WORSE (v21.50) ────────────────────
+ *
+ * It is the obvious refinement — settling is a property of the page, so measure it from the last
+ * thing that moved rather than from a clock — and it FAILED a third of the time where this passed
+ * 12/12. The page does not grow continuously: it grows in BURSTS, and the gap between the first
+ * layout and the big one is ~670ms, longer than any quiet window short enough to be worth having.
+ * So the watch ended inside the gap, moments before the growth it existed for. Measured, not
+ * reasoned about — and recorded because it is a natural idea to have twice.
+ */
+const DEEP_LINK_WATCH_MS = 4000;
 
 /** Wire the card. Safe no-op when the page has no transfer card. */
 export function initTransferCard() {
@@ -264,23 +284,54 @@ export function initTransferCard() {
             document.getElementById('payTransferToggle')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         }
         card.scrollIntoView({ block: 'start' });
-        // Scrolling once is not enough: the calculator keeps laying out after this runs (the period
-        // band, the roster hint bar and the result card all resize), so the card drifts back down —
-        // measured landing at y=681 of an 844px viewport, with 605px of scroll still available.
-        // Re-scroll once things have settled, unless the member has started scrolling themselves;
-        // yanking the page under someone already reading is worse than landing low.
+
+        // ── THE PAGE IS NOT FINISHED WHEN THIS RUNS, AND THAT IS THE WHOLE PROBLEM ──────────────
+        //
+        // Measured on WebKit at 390×844: the document is ~2,230px tall when the line above runs and
+        // ~4,750px a second later — the period band, the roster hint bar and the result card all
+        // arrive late. So that scroll hits the bottom of a page too short to put the card at the
+        // top and leaves it at y=1578; only a LATER scroll can finish the job.
+        //
+        // Until v21.50 the later scroll was a single `setTimeout(…, 400)`, and a fixed delay is a
+        // RACE against a growth whose timing nothing controls: land after the growth and the card
+        // reaches y=45, land before it and the correction is a no-op against a page that has not
+        // grown yet — after which nothing tries again and the card sits at 1578 for good. Sampled
+        // every frame for three seconds, it lost that race about a third of the time in a real
+        // browser (and every time on CI's slower runner).
+        //
+        // So the correction follows the GROWTH instead of guessing when it will end. A
+        // ResizeObserver on <body> fires exactly when the layout that moves the card changes,
+        // however slow the device, and costs nothing on a page that has settled. Repeated
+        // corrections are free: scrolling to a card already at the top is a no-op.
         //
         // The cancel signal is a real GESTURE, not a scrollY delta. A delta guard looks obvious and
         // does not work here: growing content above the card makes the browser's own scroll
         // anchoring move scrollY, so the guard reads that as "the member scrolled" and suppresses
         // the very correction it exists to allow. (Measured — the delta version left it at y=681.)
+        // Yanking the page under someone already reading is worse than landing low, so the first
+        // gesture stops the corrections for good — as does the end of the watch window.
         let userMoved = false;
-        const mark = () => { userMoved = true; };
-        const opts = { passive: true, once: true };
-        ['wheel', 'touchstart', 'keydown'].forEach(e => window.addEventListener(e, mark, opts));
-        setTimeout(() => {
-            ['wheel', 'touchstart', 'keydown'].forEach(e => window.removeEventListener(e, mark));
-            if (!userMoved) card.scrollIntoView({ block: 'start' });
-        }, 400);
+        /** @type {ResizeObserver | null} */ let observer = null;
+        /** @type {any} */ let watch = null;
+        const gestures = ['wheel', 'touchstart', 'keydown'];
+        const stop = () => {
+            gestures.forEach(e => window.removeEventListener(e, mark));
+            observer?.disconnect();
+            observer = null;
+            clearTimeout(watch);
+        };
+        function mark() { userMoved = true; stop(); }
+        const correct = () => { if (!userMoved) card.scrollIntoView({ block: 'start' }); };
+
+        gestures.forEach(e => window.addEventListener(e, mark, { passive: true, once: true }));
+        watch = setTimeout(stop, DEEP_LINK_WATCH_MS);
+        if (typeof ResizeObserver === 'function') {
+            observer = new ResizeObserver(correct);
+            observer.observe(document.body);
+        } else {
+            // No observer: the pre-v21.50 single retry. It is what those devices already had, and
+            // it is still better than never correcting at all.
+            setTimeout(correct, 400);
+        }
     }
 }

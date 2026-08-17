@@ -2656,6 +2656,66 @@ test('no focusable field falls below 16px on a touch device @a11y', async ({ pag
     }
 });
 
+// ── Every control has a tap target, and the DRAWN box is not it (v21.53) ────────────────────────
+// The sibling of the sweep above, and found the same way: by measuring rather than reading.
+//
+// The app's collapse chevron — the way you open and close every card on five pages — had a real tap
+// region of 6×15px. Its neighbour 5px away, the Tips `?`, has carried a 44px `::before` since it was
+// written, so the pattern existed and one control simply never got it.
+//
+// This must probe with `elementFromPoint`, NOT `getBoundingClientRect`. A box measurement calls the
+// `?` a 20px failure (it is not — the pseudo-element makes it 44) and would have sent someone off to
+// "fix" a control that was already right, while an invisible expander is exactly what it cannot see.
+// Probing outward from the centre reports what a thumb actually finds.
+//
+// 24px is WCAG 2.2 SC 2.5.8 (Target Size Minimum, AA). Genuinely inline links inside a sentence are
+// exempt under that rule and are excluded here; a standalone control in an empty state is not one.
+test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
+    test.skip(info.project.name !== 'mobile-chrome', 'a thumb, not a mouse');
+    await page.setViewportSize({ width: 390, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
+
+    for (const url of APP_URLS) {
+        await page.goto(url);
+        await page.waitForTimeout(700);
+        await page.evaluate(() => document.querySelectorAll('.card-collapsible-body')
+            .forEach(el => el.classList.add('open')));
+        await page.waitForTimeout(250);
+        const bad = await page.evaluate(() => {
+            const reach = (el, dx, dy) => {
+                const r = el.getBoundingClientRect();
+                const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+                let n = 0;
+                for (let i = 1; i <= 26; i++) {
+                    const x = cx + dx * i, y = cy + dy * i;
+                    if (x < 0 || y < 0 || x > innerWidth || y > innerHeight) break;
+                    const hit = document.elementFromPoint(x, y);
+                    if (!hit || (hit !== el && !el.contains(hit))) break;
+                    n = i;
+                }
+                return n;
+            };
+            const out = [];
+            document.querySelectorAll('button, select, [role=button]').forEach(el => {
+                const r = el.getBoundingClientRect();
+                if (!r.width || !r.height) return;
+                if (getComputedStyle(el).visibility === 'hidden') return;
+                // Must be fully on screen to probe outward from, or the walk stops at the edge and
+                // reports a false failure for a control that is merely scrolled out of view.
+                if (r.top < 26 || r.top > innerHeight - 26) return;
+                const w = reach(el, -1, 0) + reach(el, 1, 0) + 1;
+                const h = reach(el, 0, -1) + reach(el, 0, 1) + 1;
+                if (w < 24 || h < 24) {
+                    out.push(`${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''} = ${w}x${h}`);
+                }
+            });
+            return [...new Set(out)];
+        });
+        expect(bad, `${url} has controls too small to tap reliably`).toEqual([]);
+    }
+});
+
 // ── The generator's numeric clauses stay in one piece on a phone (v19.65) ───────────────────────
 // Two of the five line-order objectives carry an inline number — "at most [3] weeks", "at least [4]
 // of 28". They were three loose flex children in a ~190px column, and on a COARSE pointer the box is
