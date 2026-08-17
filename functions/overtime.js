@@ -80,7 +80,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
     // the initial deadline's morning to participants who have said nothing at all.
     //
     // Every send is `sendTargetedPush` to resolved member uids; there is deliberately NO broadcast
-    // branch (during the beta a fan-out would ping ~50 staff about a two-person pilot, and at full
+    // branch (during the beta a fan-out would ping ~50 staff about a restricted beta, and at full
     // launch targeted-to-participants IS everyone eligible, so reach scales itself). The uid is
     // resolved from the member's account email — the SAME derivation `setupRosterAuth` provisions
     // accounts with, so the two cannot disagree — and a member with no account, or no subscribed

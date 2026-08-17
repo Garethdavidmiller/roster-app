@@ -51,14 +51,14 @@ Because a document is republished regularly and the Huddle in particular is sent
 |---|-------|------|
 | Pay | `💷 Payday Friday — hours cutoff today` | `Open the Pay Calculator to estimate your 28 March pay.` |
 | Overtime asked | `⏱️ Overtime — availability form open` | `Tell the roster team when you can work. Answer by Tue 18 Aug · 12:00.` |
-| Overtime reminder | `⏱️ Overtime — answers due today` | `Availability for week ending Sat 5 Sep closes at 12:00 today.` |
+| Overtime reminder | `⏱️ Overtime — answers due today` | `Initial answers for week ending Sat 5 Sep are due by 12:00 today.` |
 | Reset request | `🙋 Reset requests — 2 waiting` | `S. Silva asked for a reset. 1 other waiting.` |
 
 **The Overtime pair is targeted too (v21.47).** Both notices go through `sendTargetedPush` to
 member uids resolved from the account email — the asked notice to whoever a window newly asked
 (one per member per scheduler run, naming their soonest deadline), the reminder only to
 participants who have submitted NOTHING on the deadline's morning. Never `fanOutPush`: during the
-restricted beta a broadcast would ping ~50 staff about a two-person pilot, and at full launch
+restricted beta a broadcast would ping ~50 staff about a restricted beta, and at full launch
 targeted-to-participants already reaches everyone eligible, so the reach scales itself with no code
 change. Deadlines are worded in LONDON time by the pure builders in `functions/overtime-core.js`
 (`askedNotice`/`reminderNotice`), never composed inline.

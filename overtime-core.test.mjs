@@ -1112,8 +1112,41 @@ describe('push notices — the words and the one morning, each wrong-able silent
             });
         }
         test('the reminder names the week and the time, from the same label the asked notice uses', () => {
-            assert.equal(C.reminderNotice(M).body, 'Availability for week ending Sat 5 Sep closes at 12:00 today.');
+            assert.equal(C.reminderNotice(M).body,
+                'Initial answers for week ending Sat 5 Sep are due by 12:00 today.');
             assert.match(C.askedNotice(M).body, /Answer by Tue 18 Aug · 12:00\.$/);
+        });
+
+        // ── THE REMINDER MAY NOT SAY THE FORM CLOSES (v21.54, external review P1) ───────────────
+        //
+        // It did, for one release, and two tests asserted the wrong sentence word for word — which
+        // is the failure worth naming: coverage protected the implementation faithfully while the
+        // product claim underneath it was false. A string equality cannot tell you that; it only
+        // tells you nobody changed it by accident.
+        //
+        // Noon is the INITIAL deadline. `phaseFor` then returns FINAL_OPEN and `isOpenPhase` is
+        // still true, so a member may make a FIRST submission or amend one for another week. The
+        // error runs in the dangerous direction: it tells somebody who missed noon not to bother,
+        // manufacturing the permanent non-response the reminder exists to prevent.
+        //
+        // So this asserts the RULE, in both directions, against the phase machine rather than
+        // against a sentence: no closure language while the window is still open, and the time it
+        // names really is the initial deadline.
+        test('it never says the form CLOSES, because at that moment it does not', () => {
+            const { body, headline } = C.reminderNotice(M);
+            const justAfterNoon = M.initialDeadlineAt + 60_000;
+            assert.equal(C.phaseFor(M, justAfterNoon), 'FINAL_OPEN',
+                'the premise: the deadline the reminder names is NOT the end of the window');
+            assert.equal(C.isOpenPhase(C.phaseFor(M, justAfterNoon)), true,
+                'and the form still accepts answers after it');
+            for (const word of [/\bcloses?\b/i, /\bclosing\b/i, /\blast chance\b/i, /\bfinal\b/i]) {
+                assert.ok(!word.test(body), `reminder body claims closure: ${body}`);
+                assert.ok(!word.test(headline), `reminder headline claims closure: ${headline}`);
+            }
+            assert.match(body, /\bdue by\b/, 'it states a due time instead');
+            // The time it quotes is the INITIAL deadline, not the final one — naming the wrong
+            // deadline would be accurate about closure and wrong about the day.
+            assert.ok(body.includes(C.londonDeadlineLabel(M.initialDeadlineAt).split('·')[1].trim()));
         });
     });
 });

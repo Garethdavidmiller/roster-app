@@ -894,6 +894,67 @@ test.describe('freshness and exit guards (v21.48, external review)', () => {
     };
     const reads = (page) => page.evaluate(() => (window.__E2E || {}).docReads || 0);
 
+    test('a slow earlier read never paints over a faster later one (v21.54)', async ({ page }) => {
+        // THE GUARD THAT THE WEEK CHECK IS NOT. `selectedWeek !== weekEnding` compares the WEEK, so
+        // two reads of the same week both pass it — and since v21.48 there are three ways to start
+        // one (Refresh, the visibility refetch, a week press). Press Refresh, switch app, come
+        // back: two in flight, and if the first lands last the page paints the OLDER snapshot and
+        // stamps it with the NEWER "as at" time. A page that is behind is a nuisance; a page that
+        // is behind while saying it is current is the one thing this feature must never be.
+        //
+        // Built from the fixture's own levers: `docsByPath` and `docsDelayMs` are both read at CALL
+        // time, so read A captures the old rows and a long delay, and read B — started immediately
+        // after, with the delay dropped and the rows replaced — captures the new rows and returns
+        // first. That is exactly the interleaving, made deterministic.
+        await seedWorkspace(page);
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otWeekContent')).toContainText('T. Bibi');
+        const sunday = page.locator('.ot-day-panel[data-date="2026-08-30"]');
+        await expect(sunday).toContainText('Available');
+        // v1 is on screen: T. Bibi offered the Sunday, so they sit under Available.
+        await expect(sunday.locator('.ot-section').first()).toContainText('T. Bibi');
+
+        await page.evaluate(() => { window.__E2E.docsDelayMs = 1500; });
+        await page.locator('.ot-refresh-btn').click();                       // read A — slow, v1
+        await page.evaluate(({ at, dates }) => {
+            window.__E2E.docsDelayMs = 0;
+            // v2: the same member has withdrawn the Sunday offer. One observable difference, in
+            // the section a clerk reads first.
+            window.__E2E.docsByPath.submissions = [{
+                id: 'T. Bibi', currentRevision: 1, firstAcceptedAt: at, updatedAt: at,
+                days: Object.fromEntries(dates.map(d => [d, { mode: 'unavailable' }])),
+            }];
+        }, { at: Date.parse('2026-08-16T08:00:00Z'), dates: weekDates(W.weekStart) });
+        // Read B comes through the OTHER door — the horizon's own button for the same week.
+        // Deliberately not a second press of Refresh: that button disables itself on the first
+        // press, so re-pressing it starts nothing and the test would pass against code with no
+        // guard at all (measured — the mutation survived until this line changed). The reviewer's
+        // real second door is a week press, and it is one of three routes into the same read.
+        await page.locator('[data-open="2026-09-05"]').click();             // read B — fast, v2
+
+        // B lands first and paints: nobody is available on the Sunday any more.
+        await expect(sunday.locator('.ot-section').first()).toContainText('Nobody');
+        // Now A lands, carrying v1. It must be discarded.
+        await page.waitForTimeout(2200);
+        await expect(sunday.locator('.ot-section').first(),
+            'the superseded read repainted the older answer over the newer one').toContainText('Nobody');
+        await expect(sunday.locator('.ot-section').first()).not.toContainText('T. Bibi');
+    });
+
+    test('Refresh says it is working, so the second press is not invited', async ({ page }) => {
+        await seedWorkspace(page);
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otWeekContent')).toContainText('T. Bibi');
+        await page.evaluate(() => { window.__E2E.docsDelayMs = 900; });
+        const btn = page.locator('.ot-refresh-btn');
+        await btn.click();
+        await expect(btn).toBeDisabled();
+        await expect(btn).toHaveText(/Refreshing/);
+        // And it comes back by itself — the repaint replaces the button, so nothing has to reset it.
+        await expect(page.locator('.ot-refresh-btn')).toBeEnabled({ timeout: 5000 });
+        await expect(page.locator('.ot-refresh-btn')).toHaveText('Refresh');
+    });
+
     test('Refresh re-reads the week and keeps the day lens', async ({ page }) => {
         // The workspace is a one-shot snapshot and answers keep arriving up to the deadline, so
         // without this button the only route to current data was leaving the week and coming back

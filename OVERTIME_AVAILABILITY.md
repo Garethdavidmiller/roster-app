@@ -610,7 +610,7 @@ email (the SAME derivation `setupRosterAuth` provisions with, so the two cannot 
   server-written `reminderSentAt` stamp makes that morning idempotent.
 
 **There is deliberately no broadcast branch.** During the restricted beta a fan-out would ping ~50
-staff about a two-person pilot; at full launch, targeted-to-participants IS everyone eligible, so
+staff about a restricted beta; at full launch, targeted-to-participants IS everyone eligible, so
 the reach widens with the audience automatically and no notification code changes at launch. A
 member with no Firebase account or no subscribed device is silently skipped — fail closed, per
 member — and no push can ever fail the write it announces.
@@ -651,7 +651,7 @@ missed would ship a half-launched feature. Work through ALL of them; each names 
 An August 2026 external review proposed more than the P1s that shipped (targeted reminders and the
 N+1 removal at v21.47; Manager freshness, the leave-page guard and the honest `ready` milestone at
 v21.48). The rest was deferred because each needs evidence only real use produces — building them on
-a two-person beta means guessing. Watch for these signals and act on the item they belong to:
+a restricted beta means guessing. Watch for these signals and act on the item they belong to:
 
 - **Does anyone hold the Manager view open through arriving submissions?** If yes, replace the
   Refresh button + visibility refetch with a Firestore listener on the submission heads. The v21.48

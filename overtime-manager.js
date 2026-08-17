@@ -116,7 +116,18 @@ export function renderWeekDetail(host, win, data,
  */
 function wireRefresh(host, onRefresh) {
     if (typeof host?.querySelector !== 'function' || !onRefresh) return;
-    host.querySelector('.ot-refresh-btn')?.addEventListener('click', () => onRefresh());
+    const btn = /** @type {HTMLButtonElement|null} */ (host.querySelector('.ot-refresh-btn'));
+    btn?.addEventListener('click', () => {
+        // SAY IT IS WORKING, and stop a second press starting a second read. The coordinator's
+        // generation guard makes a doubled press harmless, but harmless is not the same as
+        // sensible: a control that looks idle while it works invites the press that needs the
+        // guard. Nothing resets this — every path out of a read repaints the whole workspace and
+        // replaces this button, and the newest read always paints even when older ones are
+        // discarded, so there is no state in which a disabled button survives.
+        btn.disabled = true;
+        btn.textContent = 'Refreshing…';
+        onRefresh();
+    });
 }
 
 /**

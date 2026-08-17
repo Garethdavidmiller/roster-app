@@ -771,7 +771,7 @@ const NOTIFICATION_FEATURES = {
     // Targeted-only (v21.47) — every send goes through sendTargetedPush to the members a window
     // actually ASKED (the asked notice) or the participants still silent on the deadline's morning
     // (the reminder). Never fanOutPush: during the restricted beta a broadcast would ping ~50 staff
-    // about a two-person pilot, and at full launch "targeted to participants" IS everyone eligible,
+    // about a restricted beta, and at full launch "targeted to participants" IS everyone eligible,
     // so the reach scales itself with no code change. ⏱️ is the Overtime nav pill / page badge.
     // Event grammar — headline + url come from the caller (overtime-core's pure notice builders).
     overtime:   { emoji: '⏱️', tag: 'overtime' },

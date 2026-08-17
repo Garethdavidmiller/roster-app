@@ -976,7 +976,21 @@ function reminderNotice(milestones) {
     const [, m, d] = milestones.weekEnding.split('-').map(Number);
     return {
         headline: 'Overtime — answers due today',
-        body: `Availability for week ending Sat ${d} ${MONTH_ABB_EN[m - 1]} closes at ${time} today.`,
+        // ── "DUE", NEVER "CLOSES" (v21.54, external review P1) ──────────────────────────────────
+        //
+        // This said the form "closes at 12:00 today" and that is FALSE: noon is the INITIAL
+        // deadline, after which `phaseFor` returns FINAL_OPEN and `isOpenPhase` is still true —
+        // the member can make a first submission or change one for another week. The member's own
+        // screen has always said it correctly, in two lines ("Answers due …" / "Changes close …"),
+        // so the push was contradicting the app it came from.
+        //
+        // The direction of the error is what makes it worth a release on its own: it tells
+        // somebody who has missed noon that there is no point answering, which manufactures
+        // exactly the permanent non-response the reminder exists to prevent.
+        //
+        // "Initial" carries the distinction inside the budget; spelling out the second deadline
+        // as well does not fit in 80 characters and belongs on the page, where it already is.
+        body: `Initial answers for week ending Sat ${d} ${MONTH_ABB_EN[m - 1]} are due by ${time} today.`,
     };
 }
 

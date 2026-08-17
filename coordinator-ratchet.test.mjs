@@ -103,7 +103,17 @@ const CAPS = {
     'roster-data.js':          1300,   // mostly data, not logic
     'admin-roster-upload.js':  1250,
     'nav-panel.js':            1250,
-    'overtime-app.js':         1200,   // the young one — this is the cap that matters most
+    'overtime-app.js':         1250,   // the young one — this is the cap that matters most
+    // 1200 → 1250 at v21.54, and this one is a RAISE rather than an extraction, which the note
+    // above says must be argued rather than assumed. The growth is the same-week read guard from
+    // the external review — a generation ticket around one `await`, so that a slow earlier read
+    // cannot paint beneath a faster later one's "as at" time — plus the paragraph explaining it.
+    // There is no "it must…" to lift out: the property is an ORDERING between two async calls in a
+    // coordinator, and what pins it is an e2e mutation test, not a Node one. The only genuine
+    // extraction candidate, the create/confirm bar, closes over six coordinator locals, so moving
+    // it would thread dependencies rather than separate subjects. Headroom is deliberately 44
+    // lines and not the usual 50–99: this file is under active development and the next raise
+    // should be visibly a THIRD one.
     // 1150 → 200 at v21.32. It was one edit from refusing, and the response was SPLIT: no rule was
     // in there to extract (the maths is in perf-stats/usage-stats/client-errors), just three
     // unrelated cards sharing a file. What is left is the shared helpers and nothing else — there

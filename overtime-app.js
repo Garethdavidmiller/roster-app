@@ -23,6 +23,17 @@
  * Firestore gives ordinary members nothing, and every endpoint re-checks the claim server-side.
  * Someone who types the URL sees a short "not available" panel because that is kinder than a blank
  * page — not because it stops them.
+ *
+ * ── WHICH READ IS LATEST, NOT MERELY WHICH WEEK IS SELECTED ─────────────────────────────────────
+ *
+ * `renderWeekDetail` guards on the selected WEEK, so two reads of the SAME week both satisfy it —
+ * and since v21.48 three things start one (Refresh, the visibility refetch, a week press). If the
+ * second returns first, the first lands after it and paints the OLDER snapshot beneath the NEWER
+ * "as at" time. Every other stale render is a page that is behind; this is a page that is behind
+ * while saying it is current, on the surface a clerk rings people from. Hence `detailGeneration`:
+ * a ticket per call, and only the newest may paint. Coalescing into one in-flight promise is
+ * worse — it would hand a Refresh press the answer to the read already running, which is the
+ * stale data the press exists to replace.
  */
 
 import { CONFIG } from './roster-data.js';
@@ -104,6 +115,11 @@ export function init() {
     let reviewDay = 'ALL';
     /** When the selected week's detail last came back — what the visibility refresh debounces on. */
     let detailFetchedAt = 0;
+    /**
+     * Ticket for the newest week-detail read. Only its holder may paint — see `renderWeekDetail`.
+     * Page-scoped like every other piece of reviewer state, so a reload starts clean.
+     */
+    let detailGeneration = 0;
 
     // ── Nav + chrome, always, so an unauthorised visitor can leave ──────────────────────────────
 
@@ -988,8 +1004,13 @@ export function init() {
         const win = horizonByWeek.get(weekEnding);
         if (!host || !win) return;
         const dates = weekDatesFrom(win.weekStart);
+        // A ticket per call — only the newest may paint. See "WHICH READ IS LATEST" in the header.
+        const generation = ++detailGeneration;
         const data = await OTD.loadWeekDetail(weekEnding,
             { initialDeadlineAt: win.initialDeadlineAt }, dates);
+        // Superseded by a later read of ANY week — including this one. Checked before the week
+        // guard because it is the stronger statement.
+        if (generation !== detailGeneration) return;
         // A stale-render guard: the reviewer may have picked another week while this read was in
         // flight, and painting the older answer over the newer selection is the classic late-read
         // bug. Cheap to prevent; invisible when it happens.
