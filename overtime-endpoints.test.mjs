@@ -1695,7 +1695,7 @@ describe('push notices — targeted, accumulated, and never able to fail a write
         const s = reminderSends(sends)[0];
         assert.deepEqual(s.uids, ['uid-gm'],
             'the submitted (uid-ls) and the withdrawn (uid-ss) are not reminded; the accountless (H. Croft) are skipped');
-        assert.match(s.payload.body, /closes at 12:00 today/);
+        assert.match(s.payload.body, /are due by 12:00 today/);
         assert.ok(db._store.get(`overtimeWindows/${WEEK}`).reminderSentAt, 'stamped after the attempt');
 
         // The same morning again — a re-run, a second scheduler instance — sends nothing more.

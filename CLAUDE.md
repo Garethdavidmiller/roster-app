@@ -546,7 +546,12 @@ npm run test:csp
 # Visual-regression baselines (Section B / F-VIS) — clock-pinned, Firebase-stubbed, fixed-member
 # screenshots of every key surface compared against committed PNGs in e2e/visual-baselines/.
 # Locks page composition (incl. the accepted desktop voids) against silent CSS/layout drift.
-# Opt-in, env-sensitive, NOT in npm test/CI. Regenerate: `npm run test:visual -- --update-snapshots=all` (`=all` is load-bearing — a bare `--update-snapshots` only rewrites baselines whose comparison FAILED, so a baseline that drifted inside the tolerance could never be refreshed). **Then `git status e2e/visual-baselines/` and revert anything you cannot explain** (v19.62): `=all` rewrites every baseline including the ones that PASSED, so a run intended to capture ONE change came back with FIVE modified — four of them sub-tolerance rendering noise that would have been committed as though reviewed. Reverting a file and re-running is the check: still passes ⇒ it was noise and does not belong in the diff:
+# Opt-in and env-sensitive, so it does not GATE anything — but since v21.54 it runs in branch CI as a
+# REPORT-ONLY job (`visual` in e2e.yml, `continue-on-error`) that always uploads its diffs. It cannot
+# fail a build on a renderer difference nobody can act on; what it buys is that a stale baseline shows
+# up as an artifact the week it happens instead of whenever somebody next remembers to run this. Two
+# were found stale in one day at v21.53. Same staged path the a11y gate took: watch the noise, and
+# promote to blocking only if the runner proves consistent. Regenerate: `npm run test:visual -- --update-snapshots=all` (`=all` is load-bearing — a bare `--update-snapshots` only rewrites baselines whose comparison FAILED, so a baseline that drifted inside the tolerance could never be refreshed). **Then `git status e2e/visual-baselines/` and revert anything you cannot explain** (v19.62): `=all` rewrites every baseline including the ones that PASSED, so a run intended to capture ONE change came back with FIVE modified — four of them sub-tolerance rendering noise that would have been committed as though reviewed. Reverting a file and re-running is the check: still passes ⇒ it was noise and does not belong in the diff:
 npm run test:visual
 
 # The smoke suite under Safari's engine. Runs in branch CI, not the deploy gate:

@@ -1379,7 +1379,7 @@ feature deliberately does NOT do yet, so that a reader stops looking for them.
   a Refresh, and re-reads when the tab becomes visible (debounced to a minute) — but it does not
   listen, so an answer arriving while a clerk watches the page does not appear on its own. That is a
   cost decision, not an oversight: a Firestore listener costs a read per arriving revision for every
-  open workspace, which a two-person beta cannot justify. The signal that would change it is in
+  open workspace, which a restricted beta cannot justify. The signal that would change it is in
   `OVERTIME_AVAILABILITY.md` → "evidence to gather during the beta".
 
 - **Restricted audience — TWO lists, not one (v20.76).** `currentAudience()` returns `'restricted'`,

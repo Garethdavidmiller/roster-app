@@ -195,3 +195,66 @@ jobs:
           name: playwright-report-csp
           path: playwright-report/
           retention-days: 7
+
+  # ── VISUAL BASELINES — REPORT-ONLY, ON PURPOSE (v21.54) ──────────────────────────────────────
+  #
+  # This job CANNOT fail the build (`continue-on-error`), and that is the whole design rather than
+  # a hedge. Pixel output depends on the renderer: the committed baselines were generated in the
+  # dev container, this runner installs its own browser on ubuntu-latest, and font hinting alone
+  # will differ. A blocking job on that footing would go red for reasons nobody can act on, and the
+  # reliable way to make a red build green is to stop believing it.
+  #
+  # WHAT IT IS FOR is the other half. The suite is opt-in, and twice in one day (v21.53) a baseline
+  # was found stale — `admin-mobile-390` had been wrong since 81a0ada, a deliberate spacing change
+  # that shipped without a re-baseline. A stale baseline is worse than none: it still looks like a
+  # reference, so the next real regression lands inside a diff that is already large and nobody can
+  # tell the new breakage from the old drift. The habit ("run it before merging a CSS change")
+  # failed twice, and a habit that needs remembering is the weakest control this repo has.
+  #
+  # So it runs on every branch and uploads its diff images. It converts "nobody remembered" into an
+  # artifact on the PR — which is detection, not enforcement, and detection is what was missing.
+  #
+  # THE PATH FORWARD is the one the accessibility gate already walked: it started opt-in with a
+  # documented baseline, was watched until it proved stable, and became blocking at v17.52. Watch
+  # this one's noise for a few weeks. If the runner's diffs are consistently empty, pin the browser
+  # image, regenerate the baselines on it and promote this to blocking. If they are consistently
+  # noisy, that is the answer too, and it stays report-only for good.
+  visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      # `|| true` as well as continue-on-error: the step's own exit code is what decides whether
+      # the upload below runs, and a diff we cannot see is the one thing this job must not produce.
+      - name: Compare against the committed visual baselines
+        run: npm run test:visual || true
+        env:
+          CI: true
+
+      # ALWAYS uploaded, pass or fail. On a clean run the artifact is near-empty and costs nothing;
+      # on a drifted one it carries the expected/actual/diff triple, which is the entire point.
+      - name: Upload visual diffs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: visual-diffs
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
