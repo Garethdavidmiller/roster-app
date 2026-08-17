@@ -641,6 +641,39 @@ missed would ship a half-launched feature. Work through ALL of them; each names 
 7. **Notifications need nothing** — see above; targeted reach scales itself. Confirm the asked
    notice's first full-roster morning in the Functions log (`[overtimeAsked]`) the day after launch.
 
+### Evidence to gather during the beta — deferred by decision, not by omission
+
+An August 2026 external review proposed more than the P1s that shipped (targeted reminders and the
+N+1 removal at v21.47; Manager freshness, the leave-page guard and the honest `ready` milestone at
+v21.48). The rest was deferred because each needs evidence only real use produces — building them on
+a two-person beta means guessing. Watch for these signals and act on the item they belong to:
+
+- **Does anyone hold the Manager view open through arriving submissions?** If yes, replace the
+  Refresh button + visibility refetch with a Firestore listener on the submission heads. The v21.48
+  shape was chosen because a listener costs a read per arriving revision for every open workspace,
+  which the beta cannot justify.
+- **Do reviewers scroll past healthy Upcoming Weeks rows to reach the workspace?** If yes, collapse
+  created-and-quiet weeks to a single line. (Review #6.)
+- **Do members re-open a submitted form often?** If yes, compact the seven answered rows into a
+  summary with an Edit affordance — an owner call, and now proposed by two reviews independently.
+  (Review #5; also raised in the v21.41 review.)
+- **Does the participants list dominate the workspace at full roster?** Checklist item 5 already
+  carries the by-day scale decision; the review's collapse proposal (#7) is one of its options.
+- **Do custom availability windows get used, and are split shifts ever wanted?** Ask the beta
+  members directly before building multi-period days (#8) or an overlap warning (#9) — both change
+  the submission schema, which is the expensive kind of change.
+- **Is the printed call sheet used per-day or per-week?** Print currently emits the whole week;
+  a day-lens-aware print (#11) is worth it only if someone actually prints. (The grade lens IS
+  honoured on paper already.)
+- **Screen-reader use of the lens strips** — the aria-live tightening (#14) and sticky filter
+  strips (#13) wait for a real user report; both are cheap once a direction is known.
+
+Two review items are records rather than signals: the server-file split (#16) stays governed by the
+coordinator ratchet, and a member rename already has its recovery route (`uid` on the participant
+doc — "name-keying and the `uid` rename route" above), so no migration utility is built until a
+rename actually happens. One item was rejected outright: a push notice confirming a member's own
+submission would announce what the receipt on their screen already states.
+
 ---
 
 ## Deliberately not built

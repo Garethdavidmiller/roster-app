@@ -984,6 +984,34 @@ body {
 
 .ot-detail-counts { font-weight: 700; color: var(--text-dark); }
 
+/* The freshness line + its Refresh control. Quiet by design: it is a receipt about the snapshot,
+   not a call to action, so it sits at the meta line's size and colour. The button is a small
+   bordered chip rather than a primary button — pressing it re-reads the week, which is routine,
+   and a loud control here would compete with the counts above it. */
+.ot-detail-asat {
+    margin-top: 2px;
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    line-height: 1.45;
+}
+
+.ot-refresh-btn {
+    margin-left: 6px;
+    padding: 2px 10px;
+    border: 1px solid var(--border-mid);
+    border-radius: var(--radius-pill);
+    background: var(--surface);
+    color: var(--text-dark);
+    font-family: var(--font-sans);
+    font-size: var(--type-small);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-standard);
+}
+
+.ot-refresh-btn:hover { background: var(--bg-light); }
+.ot-refresh-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+
 .ot-detail-audience {
     display: inline-block;
     margin-top: 6px;
@@ -1364,8 +1392,11 @@ body {
         font-weight: 700;
         color: var(--text-dark);
     }
-    /* The chips themselves are a control, and a control is not a document. */
-    .ot-grades { display: none !important; }
+    /* The chips themselves are a control, and a control is not a document. The screen freshness
+       line goes with them: the print head already states "as at" once, and its Refresh button is
+       a control. */
+    .ot-grades,
+    .ot-detail-asat { display: none !important; }
 
     .ot-current-note { border: 1px solid #999; background: white !important; }
 
