@@ -799,8 +799,13 @@ export function init() {
             text.innerHTML = `Open the availability form for <strong>${esc(weekLabel(weekEnding))}</strong>?<br>`
                 + `Roster week ${esc(weekSpan(w.weekStart, w.weekEnding))} · `
                 + `initial deadline ${esc(deadlineLabel(w.initialDeadlineAt))}<br>`
-                + `<strong>${w.audience === 'restricted' ? 'Beta audience' : 'All eligible staff'}</strong> · `
-                + `${w.expectedCount} expected ${w.expectedCount === 1 ? 'participant' : 'participants'}`;
+                + `<strong>${w.audience === 'restricted' ? 'Beta audience' : 'All eligible staff'}</strong>`
+                // Guarded because a deploy-window version skew (older function, newer client) would
+                // otherwise print the literal word "undefined" into a confirmation about creating
+                // a week — omitting the count is honest, inventing one is not (v21.59).
+                + (Number.isFinite(w.expectedCount)
+                    ? ` · ${w.expectedCount} expected ${w.expectedCount === 1 ? 'participant' : 'participants'}`
+                    : '');
         }
         armConfirmBar();
         showConfirmBar(bar);

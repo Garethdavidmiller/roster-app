@@ -241,33 +241,27 @@ body {
     color: var(--text-mid);
 }
 
-/* WHOSE answers these are (v21.57; restyled v21.58). The form is always "you", and on a shared
-   device "you" is whoever forgot to sign out — the submission lands on the SIGNED-IN member, so
-   the name belongs on the card, not behind the burger. The recipe is ADMIN'S locked member bar,
-   ported line for line from admin.css (owner request: one visual language for "who am I acting
-   as?" on both pages): navy bar, uppercase label, white field-styled select — disabled, because
-   there is genuinely nobody else to pick, but styled as a NORMAL display box (enabled sunken
-   fill, dark text, opacity 1), not the darker disabled grey, exactly as admin's #fieldMember
-   does for a self-service member. */
+/* WHOSE answers these are (v21.57; admin's locked member field since v21.58, restyled to the
+   IN-CARD variant at v21.59). The form is always "you", and on a shared device "you" is whoever
+   forgot to sign out — the submission lands on the SIGNED-IN member, so the name belongs on the
+   card, not behind the burger. First cut copied admin's page-level context bar VERBATIM — navy
+   wrapper included — but that bar earns its navy by sitting on the navy page background; inside a
+   light card it read as a bolted-on lozenge (owner: "looks very weird"). Admin's own in-card
+   member selectors (the AL and absence cards) are a plain label beside a field-styled select, so
+   that is the recipe now — same control, card-native chrome. The select stays disabled-but-
+   normal-looking (enabled sunken fill, dark text, opacity 1), exactly admin's #fieldMember
+   treatment: locked is not broken. */
 .member-context-bar {
     display: flex;
-}
-/* display:flex out-specifies the UA's [hidden] rule, so hidden must be restated or the bar
-   renders while every piece of code around it believes it is hidden (the app has hit this
-   three times; page-visibility-parity caught this one before it shipped). */
-.member-context-bar[hidden] { display: none; }
-.member-context-bar {
     align-items: center;
     gap: 12px;
-    background: var(--primary-blue);
-    border-radius: var(--radius-md);
-    padding: 6px 12px;
     margin: 0 0 var(--space-4);
 }
+.member-context-bar[hidden] { display: none; }
 .member-context-bar label {
     font-size: var(--type-small);
     font-weight: 700;
-    color: rgba(255, 255, 255, 0.65);
+    color: var(--text-light);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     white-space: nowrap;
@@ -277,7 +271,7 @@ body {
 }
 .member-context-bar select {
     flex: 1;
-    min-width: 0;   /* a long name must shrink, never push the bar past the card edge */
+    min-width: 0;   /* a long name must shrink, never push past the card edge */
     -webkit-appearance: none;
     appearance: none;
     background-color: white;
@@ -531,6 +525,21 @@ body {
    screen still needs 44px targets. This one changes no size at all — the pills
    keep their padding and just sit somewhere else — so a tablet gets it too. */
 @media (min-width: 1024px) {
+    /* The reviewer's panels keep a readable MEASURE. The answer chips are deliberately a column
+       down the right edge (see .ot-person-flags) — but at full desktop width that column sat
+       ~1100px from the names it answers for, and a column you cannot visually pair with its row
+       has stopped being a column. Capping the panel keeps the design and removes the void. The
+       glance chips and meta lines above stay full width: they are controls, and the prose-measure
+       rule (css-tokens.md) caps content, not controls. */
+    .ot-day-panel { max-width: 820px; }
+    /* …and the day-chip grid plus its microcopy take the SAME measure, or the chips float past
+       the right edge of the panels they filter — two widths for one reading column. */
+    .ot-glance, .ot-glance-note { max-width: 820px; }
+
+    /* The identity bar hugs its content instead of stretching a ~940px field around one name —
+       the proportions admin's own bar has in its desktop side column. */
+    .member-context-bar { max-width: 460px; }
+
     .ot-day {
         display: grid;
         /* 224px, measured — NOT the 240 this shipped with. The widest head the app can produce is
