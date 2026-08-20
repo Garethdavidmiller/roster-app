@@ -199,6 +199,17 @@ export function init() {
 
     function start() {
         wireNavPanel();
+        // WHOSE form this is. The member surface is always "you", and nothing on the card said who
+        // "you" was — the name lived only in the drawer footer, behind the burger. On a shared
+        // device that is a colleague's availability amended under their still-signed-in session,
+        // with nothing on screen to catch it (Admin never had this gap: acting-on-behalf is
+        // structural there, so every write surface leads with the Staff member dropdown). Filled
+        // here because start() re-runs on an in-place sign-in, so a changed identity repaints it.
+        const idLine = el('otMineIdentity');
+        if (idLine && currentUser) {
+            idLine.innerHTML = `Answering as <strong>${esc(currentUser)}</strong> — not you? Sign out from the ☰ menu.`;
+            idLine.hidden = false;
+        }
         openAboutLightbox = initAboutLightbox();
         initTipsLightbox(CARD_TIPS, { getIsAdmin: () => !!currentUser && CONFIG.ADMIN_NAMES.includes(currentUser) });
         // Per card, with its own ids — the shared helper takes them explicitly. A bare call is

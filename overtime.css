@@ -241,6 +241,17 @@ body {
     color: var(--text-mid);
 }
 
+/* WHOSE answers these are (v21.57). The form is always "you", and on a shared device "you" is
+   whoever forgot to sign out — the submission lands on the SIGNED-IN member, so the name belongs
+   on the card, not behind the burger. Admin never needed this line because acting-on-behalf is
+   structural there: the Staff member dropdown heads every write surface. */
+.ot-identity {
+    margin: 0 0 var(--space-4);
+    font-size: var(--type-small);
+    color: var(--text-mid);
+}
+.ot-identity strong { color: var(--primary-blue); }
+
 .ot-privacy {
     margin: var(--space-4) 0 0;
     padding-top: var(--space-3);
