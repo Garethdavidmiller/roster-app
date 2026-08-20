@@ -1676,11 +1676,13 @@ test.describe('the beta PARTICIPANT — a form of her own, and nothing of anybod
 
         await page.goto('/overtime.html');
         await expect(page.locator('.ot-day')).toHaveCount(7);
-        // The card NAMES whose answers these are (v21.57). The form is always "you", and on a
-        // shared device "you" is whoever forgot to sign out — the submission lands on the
-        // signed-in member, so the name must be on the card, not only in the drawer footer.
+        // The card NAMES whose answers these are (v21.57; admin's locked member bar since
+        // v21.58). The form is always "you", and on a shared device "you" is whoever forgot to
+        // sign out — the submission lands on the signed-in member, so the name must be on the
+        // card, not only in the drawer footer. Locked: a select with her name and no alternative.
         await expect(page.locator('#otMineIdentity')).toBeVisible();
-        await expect(page.locator('#otMineIdentity')).toContainText('Answering as T. Bibi');
+        await expect(page.locator('#otIdentityMember')).toBeDisabled();
+        await expect(page.locator('#otIdentityMember option')).toHaveText(['T. Bibi']);
         // No tab strip: a strip with one tab is a door to a room that is not there.
         await expect(page.locator('#otTabs')).toBeHidden();
         await expect(page.locator('#otAllPanel')).toBeHidden();

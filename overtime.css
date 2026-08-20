@@ -241,16 +241,63 @@ body {
     color: var(--text-mid);
 }
 
-/* WHOSE answers these are (v21.57). The form is always "you", and on a shared device "you" is
-   whoever forgot to sign out — the submission lands on the SIGNED-IN member, so the name belongs
-   on the card, not behind the burger. Admin never needed this line because acting-on-behalf is
-   structural there: the Staff member dropdown heads every write surface. */
-.ot-identity {
-    margin: 0 0 var(--space-4);
-    font-size: var(--type-small);
-    color: var(--text-mid);
+/* WHOSE answers these are (v21.57; restyled v21.58). The form is always "you", and on a shared
+   device "you" is whoever forgot to sign out — the submission lands on the SIGNED-IN member, so
+   the name belongs on the card, not behind the burger. The recipe is ADMIN'S locked member bar,
+   ported line for line from admin.css (owner request: one visual language for "who am I acting
+   as?" on both pages): navy bar, uppercase label, white field-styled select — disabled, because
+   there is genuinely nobody else to pick, but styled as a NORMAL display box (enabled sunken
+   fill, dark text, opacity 1), not the darker disabled grey, exactly as admin's #fieldMember
+   does for a self-service member. */
+.member-context-bar {
+    display: flex;
 }
-.ot-identity strong { color: var(--primary-blue); }
+/* display:flex out-specifies the UA's [hidden] rule, so hidden must be restated or the bar
+   renders while every piece of code around it believes it is hidden (the app has hit this
+   three times; page-visibility-parity caught this one before it shipped). */
+.member-context-bar[hidden] { display: none; }
+.member-context-bar {
+    align-items: center;
+    gap: 12px;
+    background: var(--primary-blue);
+    border-radius: var(--radius-md);
+    padding: 6px 12px;
+    margin: 0 0 var(--space-4);
+}
+.member-context-bar label {
+    font-size: var(--type-small);
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.65);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    -webkit-user-select: none;
+    user-select: none;
+}
+.member-context-bar select {
+    flex: 1;
+    min-width: 0;   /* a long name must shrink, never push the bar past the card edge */
+    -webkit-appearance: none;
+    appearance: none;
+    background-color: white;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23001e3c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 1em;
+    border: 1.5px solid var(--border-light);
+    color: var(--text-dark);
+    border-radius: var(--radius-xs);
+    padding: 4px 26px 4px 8px;
+    font-size: var(--type-medium);
+    font-weight: 600;
+}
+.member-context-bar select:disabled {
+    background-color: var(--field-bg);
+    color: var(--text-dark);
+    cursor: default;
+    opacity: 1;
+}
 
 .ot-privacy {
     margin: var(--space-4) 0 0;
