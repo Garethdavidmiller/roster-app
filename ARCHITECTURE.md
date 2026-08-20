@@ -69,6 +69,7 @@ live anchors:
 | `LATENCY_PLAN.md` | Phase 1 shipped | Holds the decision rule for phases 2–3 |
 | `LINKS_DEC2026_PLAN.md` | Live | Holds the links modules' release history |
 | `RANGERS_ROVERS_PLAN.md` | Shipped, 2 open claims | The open claims are `VAL` rows |
+| `BRASS_PLAN.md` | **Gated on owner answers** | The Part 2 payslip questions decide the design; nothing ships before them |
 | `ROADMAP_HISTORY.md` | Historical | **The archive.** Everything `ROADMAP.md` used to say about the past |
 | `A11Y_FINDINGS.md` | Live baseline | The axe triage the gate is measured against |
 

@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: August 2026 — v21.50 · Updated every 0.10 version*
+*Last updated: August 2026 — v21.60 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -679,7 +679,7 @@ Two push notices go out on their own, both **only to the people they concern** �
 
 | Notice | Who gets it | When |
 |---|---|---|
-| ⏱️ *Overtime — availability form open* | each member a window has just started asking | the run that adds them, naming their soonest deadline |
+| ⏱️ *Overtime — availability form open* | each member a window has just started asking | the run that adds them, naming their soonest deadline **still ahead** — a week opened late names the final deadline, never one already passed |
 | ⏱️ *Overtime — answers due today* | participants who have submitted **nothing** | the morning of the initial deadline |
 
 A member added to several weeks in one run gets **one** notice, not one per week. Somebody who has

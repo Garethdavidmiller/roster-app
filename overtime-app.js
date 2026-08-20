@@ -199,6 +199,21 @@ export function init() {
 
     function start() {
         wireNavPanel();
+        // WHOSE form this is. The member surface is always "you", and nothing on the card said who
+        // "you" was — the name lived only in the drawer footer, behind the burger. On a shared
+        // device that is a colleague's availability amended under their still-signed-in session,
+        // with nothing on screen to catch it. The surface is ADMIN'S OWN locked member bar
+        // (v21.58, owner request) — the same "Staff member" field a self-service member sees
+        // there, locked to the one name it can hold — so both pages answer "who am I acting as?"
+        // in one visual language. A real <select>, disabled: there is genuinely nobody else to
+        // pick. Filled here because start() re-runs on an in-place sign-in, so a changed
+        // identity repaints it — and REBUILT rather than appended, for exactly that path.
+        const idBar = el('otMineIdentity');
+        const idSel = /** @type {HTMLSelectElement|null} */ (el('otIdentityMember'));
+        if (idBar && idSel && currentUser) {
+            idSel.innerHTML = `<option>${esc(currentUser)}</option>`;
+            idBar.hidden = false;
+        }
         openAboutLightbox = initAboutLightbox();
         initTipsLightbox(CARD_TIPS, { getIsAdmin: () => !!currentUser && CONFIG.ADMIN_NAMES.includes(currentUser) });
         // Per card, with its own ids — the shared helper takes them explicitly. A bare call is
@@ -784,8 +799,13 @@ export function init() {
             text.innerHTML = `Open the availability form for <strong>${esc(weekLabel(weekEnding))}</strong>?<br>`
                 + `Roster week ${esc(weekSpan(w.weekStart, w.weekEnding))} · `
                 + `initial deadline ${esc(deadlineLabel(w.initialDeadlineAt))}<br>`
-                + `<strong>${w.audience === 'restricted' ? 'Beta audience' : 'All eligible staff'}</strong> · `
-                + `${w.expectedCount} expected ${w.expectedCount === 1 ? 'participant' : 'participants'}`;
+                + `<strong>${w.audience === 'restricted' ? 'Beta audience' : 'All eligible staff'}</strong>`
+                // Guarded because a deploy-window version skew (older function, newer client) would
+                // otherwise print the literal word "undefined" into a confirmation about creating
+                // a week — omitting the count is honest, inventing one is not (v21.59).
+                + (Number.isFinite(w.expectedCount)
+                    ? ` · ${w.expectedCount} expected ${w.expectedCount === 1 ? 'participant' : 'participants'}`
+                    : '');
         }
         armConfirmBar();
         showConfirmBar(bar);

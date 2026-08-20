@@ -119,6 +119,16 @@
                          relationship, each repeating "availability/overtime/roster". -->
                     <p class="ot-explainer">This doesn't book overtime — anything you're actually
                     given will appear on the released roster.</p>
+                    <!-- WHOSE answers these are — the one fact no other text on the card states
+                         (v21.57; restyled v21.58 to ADMIN'S OWN PATTERN, owner request). The same
+                         locked "Staff member" bar a self-service member sees on admin.html: a real
+                         select, disabled, styled to read as a display box — so the two pages answer
+                         "who am I acting as?" with one visual language. Filled by the coordinator;
+                         sits OUTSIDE the repainted content host so a refresh can never lose it. -->
+                    <div class="member-context-bar" id="otMineIdentity" hidden>
+                        <label for="otIdentityMember">Staff member</label>
+                        <select id="otIdentityMember" disabled></select>
+                    </div>
                     <div id="otMineContent" aria-live="polite"></div>
                     <!-- The identical phrasing to the ? panel's line — one fact, one sentence,
                          wherever it is stated. "Your submitted overtime availability" was the
