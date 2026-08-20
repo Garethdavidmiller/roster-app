@@ -52,7 +52,7 @@
  */
 
 import { getALEntitlement, getBaseShift, isSunday, parseISODate } from './roster-data.js';
-import { isRestShift } from './override-utils.js';
+import { isRestShift, isContractedWorkOverride, shouldReplaceOverride } from './override-utils.js';
 
 /**
  * Does a single date consume `member`'s entitlement if AL is recorded on it?
@@ -66,14 +66,32 @@ import { isRestShift } from './override-utils.js';
  *
  * @param {any} member the team-member object
  * @param {string} date ISO `YYYY-MM-DD`
+ * @param {Map<string, any>|null} [ovByDate] the overrides in play, keyed by date. Omit only where
+ *        there genuinely are none to hand — without it a swapped-in day reads as a rest day.
  * @returns {boolean}
  */
-export function consumesEntitlement(member, date) {
+export function consumesEntitlement(member, date, ovByDate = null) {
     if (!member || !date) return false;
     if (isSunday(date)) return false;
+
     // The day is (or is about to be) AL-overridden, so the question is what is UNDERNEATH it.
-    // This also settles leave dated before the member joined: `getBaseShift` returns 'RD' for every
-    // such date, so no separate start-date test belongs here (see the header).
+    const ov = ovByDate && typeof ovByDate.get === 'function' ? ovByDate.get(date) : null;
+    // An AL doc has already replaced whatever it covered, so `replacedType` is the only surviving
+    // record of it; any other override IS the thing underneath and answers directly.
+    // Type alone classifies a reconstructed override: no write path preserves the replaced VALUE,
+    // and it is not needed — every type whose value could matter has that value pinned by the
+    // rules (`correction` is always 'RD'), which is why isContractedWorkOverride classifies
+    // `correction` by type (v21.56 — the first cut read a `replacedValue` nothing ever wrote).
+    const under = ov && ov.type === 'annual_leave'
+        ? (ov.replacedType ? { type: ov.replacedType } : null)
+        : ov;
+    const contracted = isContractedWorkOverride(under);
+    if (contracted !== null) return contracted;
+
+    // No override information — the base roster decides, which is what this function did for every
+    // date before v21.55 and still does for every AL written before it. This also settles leave
+    // dated before the member joined: `getBaseShift` returns 'RD' for every such date, so no
+    // separate start-date test belongs here (see the header).
     return !isRestShift(getBaseShift(member, parseISODate(date)));
 }
 
@@ -82,7 +100,9 @@ export function consumesEntitlement(member, date) {
  *
  * @param {object} args
  * @param {Array<{memberName?:string, type?:string, date?:string}>} args.overrides every override the
- *        page holds — filtered here, so no caller has to remember which fields matter
+ *        page holds — filtered here, so no caller has to remember which fields matter. The AL docs
+ *        among them carry `replacedType`, which is how a swapped-in day is still recognised as
+ *        contracted work after the AL doc replaced the `shift` doc that said so.
  * @param {any} args.member the team-member OBJECT (needed for the base-shift lookup), not the name
  * @param {string|number} args.year calendar year
  * @param {Set<string>|null} [args.exclude] dates to leave out because the caller is re-accounting
@@ -94,12 +114,23 @@ export function countedAlDates({ overrides, member, year, exclude = null }) {
     const out = /** @type {Set<string>} */ (new Set());
     if (!member || !Array.isArray(overrides)) return out;
 
+    // ONE WINNER PER DATE, resolved across ALL of the member's overrides — not the AL docs alone
+    // (v21.56, external sweep). Duplicate docs for one date are a real population (two devices, an
+    // offline retry — the v16.23 lightbox fix names them), and the first cut last-write-wins'd over
+    // just the AL docs: an orphan AL beside a NEWER non-AL winner still counted, and which of two
+    // duplicate ALs answered depended on fetch iteration order. `shouldReplaceOverride` is the same
+    // resolution every other consumer applies, so this module can no longer disagree with them.
+    const winnerByDate = /** @type {Map<string, any>} */ (new Map());
     for (const o of overrides) {
-        if (!o || o.memberName !== member.name || o.type !== 'annual_leave') continue;
+        if (!o || o.memberName !== member.name) continue;
         if (!o.date || !o.date.startsWith(yearStr)) continue;
         if (exclude && exclude.has(o.date)) continue;
-        if (!consumesEntitlement(member, o.date)) continue;
-        out.add(o.date);
+        if (shouldReplaceOverride(winnerByDate.get(o.date), o)) winnerByDate.set(o.date, o);
+    }
+    for (const [date, winner] of winnerByDate) {
+        if (winner.type !== 'annual_leave') continue;
+        if (!consumesEntitlement(member, date, winnerByDate)) continue;
+        out.add(date);
     }
     return out;
 }

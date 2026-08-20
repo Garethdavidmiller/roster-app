@@ -81,6 +81,13 @@ export function init() {
     /** Whether the member's own load FAILED, as distinct from returning nothing. */
     let mineFailed = false;
 
+    /** Latest-read-wins ticket for the horizon card — the same guard `detailGeneration` gives the
+     *  week detail (v21.56). Three actions re-load the horizon (create, top-up, stop-asking), and
+     *  two in quick succession put two fetches in flight; the older one painting LAST showed
+     *  pre-action counts and, worse, repopulated `horizonByWeek` with the stale rows the next
+     *  detail read takes its milestones from. */
+    let horizonGeneration = 0;
+
     /** The week the Manager detail card is showing, if any. @type {string|null} */
     let selectedWeek = null;
     /** The planning rows from the last overview, keyed by week. @type {Map<string, any>} */
@@ -594,7 +601,9 @@ export function init() {
         const host = el('otHorizonContent');
         if (!host) return;
         renderLoading(host, 'Loading upcoming weeks…');
+        const generation = ++horizonGeneration;
         const r = await OTD.getOvertimeManagerOverview();
+        if (generation !== horizonGeneration) return;   // a newer load owns the card now
         if (!r.ok) { renderError(host); return; }
 
         const weeks = r.data.planningWeeks || [];
@@ -1001,8 +1010,19 @@ export function init() {
      */
     async function renderWeekDetail(weekEnding) {
         const host = el('otWeekContent');
+        if (!host) return;
         const win = horizonByWeek.get(weekEnding);
-        if (!host || !win) return;
+        if (!win) {
+            // The week has left the horizon (a rebuild after it crossed retention mid-session).
+            // A silent return here would strand whatever the card shows — including a disabled
+            // "Refreshing…" button, which wireRefresh promises can never survive — so say what
+            // happened and clear the selection instead (v21.56, external sweep).
+            selectedWeek = null;
+            host.innerHTML = '<div class="ot-state">That week is no longer available — pick a week above.</div>';
+            const chip = el('otWeekChip');
+            if (chip) chip.hidden = true;
+            return;
+        }
         const dates = weekDatesFrom(win.weekStart);
         // A ticket per call — only the newest may paint. See "WHICH READ IS LATEST" in the header.
         const generation = ++detailGeneration;

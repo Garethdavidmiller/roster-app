@@ -194,3 +194,126 @@ describe('the position a manager reads', () => {
         assert.equal(capChecksAgainst.size, WORKED.length, 'and both drop the rest days and the Sunday');
     });
 });
+
+/**
+ * ── THE SWAPPED DAY (v21.55) ────────────────────────────────────────────────────────────────────
+ *
+ * A swap moves a member's CONTRACTED day onto a date the rotating roster calls a rest day. The two
+ * halves of the app used to answer that differently — `isWorkingDate` (which decides what gets
+ * WRITTEN) reads the override, `consumesEntitlement` (which decides what it COSTS) read only the
+ * base roster — so booking leave on a swapped-in day wrote the AL and charged nothing. Free leave,
+ * silently, with the banner and the save path agreeing on the wrong figure because both asked the
+ * base roster.
+ *
+ * Two of these cases pull in OPPOSITE directions and that is the whole design: `shift` and `rdw`
+ * are indistinguishable to "is somebody at work?" and are opposites to "did this cost a day?".
+ * A fix that reused `WORKED_OVERRIDE_TYPES` would pass every test above and charge a member a day
+ * of annual leave for declining overtime.
+ */
+describe('the swapped day — a day the base roster gets wrong', () => {
+    // Deliberately NO replacedValue field: no write path has ever produced one and the rules
+    // would refuse it — a fixture carrying it certifies behaviour production data can never have
+    // (the v21.56 sweep found the first cut of these tests doing exactly that).
+    const withUnder = (date, replacedType) => new Map([[date, {
+        memberName: MEMBER.name, type: 'annual_leave', value: 'AL', date, replacedType,
+    }]]);
+
+    test('a swapped-IN day costs a day, though the base roster calls it rest', () => {
+        // The shipped bug: AL written, nothing charged.
+        assert.equal(consumesEntitlement(MEMBER, RESTED[0], withUnder(RESTED[0], 'shift')), true);
+    });
+
+    test('but OVERTIME on the same rest day still costs nothing', () => {
+        // The opposite direction, and the reason `rdw` is not in CONTRACTED_WORK_TYPES: declining
+        // overtime you volunteered for is not taking leave.
+        assert.equal(consumesEntitlement(MEMBER, RESTED[0], withUnder(RESTED[0], 'rdw')), false);
+    });
+
+    test('a swapped-OUT day costs nothing, though the base roster calls it worked', () => {
+        // From the TYPE alone — a correction's value is pinned to 'RD' by the rules, and no write
+        // path preserves the replaced VALUE, so the type must be enough or this rule is dead code.
+        assert.equal(
+            consumesEntitlement(MEMBER, WORKED[0], withUnder(WORKED[0], 'correction')), false);
+    });
+
+    test('leave recorded over an ABSENCE still costs a day on a working date', () => {
+        // `sick` says nothing about the contract, so it must answer "unknown" and let the base
+        // roster decide. Returning false for it would be this same bug in a new place.
+        assert.equal(consumesEntitlement(MEMBER, WORKED[0], withUnder(WORKED[0], 'sick')), true);
+    });
+
+    test('a re-save keeps the original context, so a day cannot stop costing on the second Save', () => {
+        // nextReplacedType inherits when the type is unchanged; this pins the read side of that.
+        assert.equal(consumesEntitlement(MEMBER, RESTED[0], withUnder(RESTED[0], 'shift')), true);
+        assert.equal(consumesEntitlement(MEMBER, RESTED[0], withUnder(RESTED[0], 'annual_leave')),
+            false, 'and an AL that lost its context falls back to the base roster, not to true');
+    });
+
+    test('EVERY AL written before v21.55 counts exactly as it did', () => {
+        // The fallback is what makes this shippable without a migration: no replacedType anywhere
+        // ⇒ the base roster decides ⇒ every existing balance is unchanged on the day it deploys.
+        const noInfo = (d) => new Map([[d, { memberName: MEMBER.name, type: 'annual_leave', value: 'AL', date: d }]]);
+        for (const d of WORKED) assert.equal(consumesEntitlement(MEMBER, d, noInfo(d)), true, d);
+        for (const d of RESTED) assert.equal(consumesEntitlement(MEMBER, d, noInfo(d)), false, d);
+        // …and with no map at all, which is how three of the four call sites used to ask.
+        assert.equal(consumesEntitlement(MEMBER, WORKED[0]), true);
+        assert.equal(consumesEntitlement(MEMBER, RESTED[0]), false);
+    });
+
+    test('countedAlDates reads replacedType off the AL documents themselves', () => {
+        const got = countedAlDates({
+            overrides: [
+                { ...al(RESTED[0]), replacedType: 'shift' },   // swapped in  → counts
+                { ...al(RESTED[1]), replacedType: 'rdw' },     // overtime    → does not
+                al(RESTED[2]),                                  // no context  → base says rest
+                al(WORKED[0]),                                  // plain working day
+            ],
+            member: MEMBER, year: 2026,
+        });
+        assert.deepEqual([...got].sort(), [RESTED[0], WORKED[0]].sort());
+    });
+});
+
+describe('the chain survives passing through an absence (v21.56)', () => {
+    test('swap → sick → AL still costs a day', () => {
+        // Two routine operations: the member swapped in, went off sick, and the day was later
+        // reclassified as leave. Recording `sick` as what the AL replaced would discard the
+        // `shift` underneath it — and `sick` carries no contract information, so the day fell
+        // back to the base roster and the leave went free.
+        const m = new Map([[RESTED[0], {
+            memberName: MEMBER.name, type: 'annual_leave', value: 'AL',
+            date: RESTED[0], replacedType: 'shift',
+        }]]);
+        assert.equal(consumesEntitlement(MEMBER, RESTED[0], m), true);
+    });
+});
+
+describe('one winner per date (v21.56)', () => {
+    test('an orphan AL beside a NEWER non-AL winner does not count', () => {
+        // Two-device / offline-retry duplicates are a real population (the v16.23 lightbox fix
+        // names them). The date's WINNER is the correction, so the day is not leave at all —
+        // counting the orphan made the banner disagree with the calendar lightbox, which resolves
+        // winners first.
+        const got = countedAlDates({
+            overrides: [
+                { memberName: MEMBER.name, type: 'annual_leave', value: 'AL', date: WORKED[0],
+                  source: 'manual', createdAt: new Date(2026, 0, 1) },
+                { memberName: MEMBER.name, type: 'correction', value: 'RD', date: WORKED[0],
+                  source: 'manual', createdAt: new Date(2026, 5, 1) },
+            ],
+            member: MEMBER, year: 2026,
+        });
+        assert.equal(got.size, 0);
+    });
+
+    test('of two duplicate AL docs, the NEWER answers — not fetch order', () => {
+        const older = { memberName: MEMBER.name, type: 'annual_leave', value: 'AL', date: RESTED[0],
+            source: 'manual', createdAt: new Date(2026, 0, 1) };                       // no context
+        const newer = { memberName: MEMBER.name, type: 'annual_leave', value: 'AL', date: RESTED[0],
+            source: 'manual', createdAt: new Date(2026, 5, 1), replacedType: 'shift' }; // swapped in
+        const a = countedAlDates({ overrides: [older, newer], member: MEMBER, year: 2026 });
+        const b = countedAlDates({ overrides: [newer, older], member: MEMBER, year: 2026 });
+        assert.equal(a.size, 1, 'the newer doc carries the swap, so the day costs');
+        assert.equal(b.size, 1, 'and the answer must not depend on iteration order');
+    });
+});

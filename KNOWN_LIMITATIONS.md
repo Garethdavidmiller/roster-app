@@ -1382,6 +1382,17 @@ feature deliberately does NOT do yet, so that a reader stops looking for them.
   open workspace, which a restricted beta cannot justify. The signal that would change it is in
   `OVERTIME_AVAILABILITY.md` → "evidence to gather during the beta".
 
+- **Deleting an AL doc destroys the swap evidence it carried (v21.56, external sweep).** An AL
+  written over a swapped-in day is the only surviving record of the swap (`replacedType` — the
+  `shift` doc itself was deleted by the booking). Cancelling that leave via Saved Changes or the
+  period delete removes the AL doc, and with it the record: the day reverts to base REST, and leave
+  re-booked on it later would charge nothing. Not coded around, deliberately: the same deletion
+  makes the calendar visibly WRONG (the member is contracted to work a day now showing Rest), so
+  the manager's natural next action — re-recording the shift — restores both the display and the
+  evidence in one step. Restoring it automatically is impossible anyway: the shift's TIME was never
+  preserved, only its type. If a cancelled-leave-on-swapped-day case ever recurs without the
+  re-record, that is the signal to store more than the type.
+
 - **Restricted audience — TWO lists, not one (v20.76).** `currentAudience()` returns `'restricted'`,
   which selects eligible members holding the server-owned **admin** entitlement **or** named in
   `overtimeBeta`. Reviewing and participating are different things: a manager reviews without

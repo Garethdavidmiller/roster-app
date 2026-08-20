@@ -161,6 +161,27 @@ describe('_saveOverrideBatches — stale-claim retry parity', () => {
         assert.equal(sets[0].data.value, '14:30-22:00');
     });
 
+    test('a replaced doc\'s type survives into replacedType — swap evidence is not destroyed (v21.56)', async () => {
+        // The import deletes the doc it replaces like every other write path, and it was the one
+        // path not stamping what it destroyed: a re-import resolving a DIFF/CONFLICT over a
+        // swapped-in day (a `shift` on a base rest day) erased the only evidence the member was
+        // contracted to work it, and leave booked there afterwards went free.
+        await _saveOverrideBatches(
+            [{ memberName: 'G. Miller', date: MON, value: '06:30-14:30', baseShift: 'RD',
+               replaceId: 'old1', replacedFrom: { type: 'rdw', replacedType: null } }], 'G. Miller');
+        const sets = _batchOps[0].filter(o => o.op === 'set');
+        assert.equal(sets[0].data.replacedType, 'rdw');
+        assert.equal(_batchOps[0].filter(o => o.op === 'delete').length, 1);
+    });
+
+    test('replacing nothing writes NO replacedType key — the rules refuse a null', async () => {
+        await _saveOverrideBatches(
+            [{ memberName: 'G. Miller', date: MON, value: '06:30-14:30', baseShift: 'RD',
+               replaceId: null, replacedFrom: null }], 'G. Miller');
+        const sets = _batchOps[0].filter(o => o.op === 'set');
+        assert.ok(!('replacedType' in sets[0].data));
+    });
+
     test('permission-denied once → force token refresh → batch REBUILT → success', async () => {
         let n = 0;
         _commitBehavior = () => { if (n++ === 0) throw _denied(); };   // first commit denied, second ok

@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { tsToMillis, shouldReplaceOverride, reconcileRangeIntoCache, isBeforeMemberStart, isRestShift, computePeriodDeleteIds,
          OTHER_FLAVOURS, OTHER_RDW_DEFAULT_MINS, isOtherValue, parseOtherValue, composeOtherValue, resolveOtherPay,
          isOverrideDisplaySuppressed, mergeBookedPeriods, resolveEffectiveShift, toOverrideRecord,
-         buildOverrideWrite, buildOverrideCacheRecord, collectOverrideRecords, SUNDAY_FORBIDDEN_TYPES, isForbiddenOnSunday, sundaySafeValue } from './override-utils.js';
+         buildOverrideWrite, buildOverrideCacheRecord, collectOverrideRecords, SUNDAY_FORBIDDEN_TYPES, isForbiddenOnSunday, sundaySafeValue,
+         CONTRACTED_WORK_TYPES, VOLUNTARY_WORK_TYPES, isContractedWorkOverride, nextReplacedType } from './override-utils.js';
 
 /** Build a fake Firestore QuerySnapshot from an array of {id, ...data} rows. */
 function fakeSnapshot(rows) {
@@ -878,5 +879,101 @@ describe('what may not be recorded on a Sunday', () => {
             assert.ok(scope.includes(`.pill-${t}`),
                 `no Sunday-disable for the ${t} pill — the declaration and the grid have drifted`);
         }
+    });
+});
+
+/**
+ * ── SWAP vs OVERTIME (v21.55) ───────────────────────────────────────────────────────────────────
+ *
+ * `WORKED_OVERRIDE_TYPES` answers "is somebody at work?" and for that `shift` and `rdw` are the
+ * same. For ANNUAL LEAVE they are opposites: a `shift` on a base rest day is a swap, so leave
+ * there spends a day; an `rdw` is overtime the member volunteered for, so it does not. These two
+ * sets must therefore stay DISJOINT — a type in both would be the bug, not a tidy-up.
+ */
+describe('contracted work vs volunteered work', () => {
+    it('the two sets are disjoint — no type can be both', () => {
+        for (const t of CONTRACTED_WORK_TYPES) {
+            assert.ok(!VOLUNTARY_WORK_TYPES.has(t), `${t} is in both sets`);
+        }
+    });
+
+    it('rdw is voluntary and shift is contracted — the distinction the whole rule rests on', () => {
+        assert.equal(isContractedWorkOverride({ type: 'shift', value: '07:00-15:00' }), true);
+        assert.equal(isContractedWorkOverride({ type: 'rdw',   value: '07:00-15:00' }), false);
+    });
+
+    it('a rest VALUE is not work whatever its type — the other half of a swap', () => {
+        assert.equal(isContractedWorkOverride({ type: 'correction', value: 'RD' }), false);
+        assert.equal(isContractedWorkOverride({ type: 'shift', value: 'OFF' }), false,
+            'the value is checked first, deliberately: it is the stronger statement');
+    });
+
+    it('a correction classifies from the TYPE alone — the value is pinned to RD by the rules', () => {
+        // This is the reconstructed-from-replacedType path, where no value exists: without the
+        // type-level answer, AL over a swapped-OUT day was charged the moment the correction doc
+        // was destroyed (v21.56 — the first cut read a replacedValue nothing has ever written).
+        assert.equal(isContractedWorkOverride({ type: 'correction' }), false);
+    });
+
+    it('an ABSENCE answers UNKNOWN, never false', () => {
+        // false would mean "not contracted", which would quietly stop leave over a sick day on an
+        // ordinary working date from costing anything. null sends the caller to the base roster.
+        assert.equal(isContractedWorkOverride({ type: 'sick', value: 'SICK' }), null);
+        assert.equal(isContractedWorkOverride({ type: 'annual_leave', value: 'AL' }), null);
+        assert.equal(isContractedWorkOverride(null), null);
+        assert.equal(isContractedWorkOverride({ value: 'RD' }), null, 'no type ⇒ no information');
+    });
+
+    it('the legacy types split the same way as the modern ones', () => {
+        assert.equal(isContractedWorkOverride({ type: 'swap',      value: '07:00-15:00' }), true);
+        assert.equal(isContractedWorkOverride({ type: 'allocated', value: '07:00-15:00' }), true);
+        assert.equal(isContractedWorkOverride({ type: 'overtime',  value: '07:00-15:00' }), false);
+    });
+});
+
+describe('nextReplacedType — what a write must remember about the doc it deletes', () => {
+    it('records the type it replaced', () => {
+        assert.equal(nextReplacedType({ type: 'shift' }, 'annual_leave'), 'shift');
+        assert.equal(nextReplacedType({ type: 'rdw' },   'annual_leave'), 'rdw');
+    });
+
+    it('INHERITS when the type is unchanged, so a re-save cannot erase the context', () => {
+        // Re-saving a range is ordinary. Writing 'annual_leave' as what an AL doc replaced would
+        // make a swapped-in day cost a day until somebody pressed Save twice, then stop.
+        assert.equal(
+            nextReplacedType({ type: 'annual_leave', replacedType: 'shift' }, 'annual_leave'),
+            'shift');
+    });
+
+    it('CHAINS THROUGH an absence on a type change — swap → sick → AL keeps the shift (v21.56)', () => {
+        // Reclassifying sickness as leave is routine; recording 'sick' as what the AL replaced
+        // would discard the shift underneath and the swapped day would go free.
+        assert.equal(nextReplacedType({ type: 'sick', replacedType: 'shift' }, 'annual_leave'), 'shift');
+        assert.equal(nextReplacedType({ type: 'annual_leave', replacedType: 'shift' }, 'sick'), 'shift');
+        // …but an INFORMATIVE type is itself the fact, and still wins over whatever it replaced:
+        // if the roster office corrected the day to rest, the day IS rest, whatever came before.
+        assert.equal(nextReplacedType({ type: 'correction', replacedType: 'shift' }, 'annual_leave'),
+            'correction');
+        assert.equal(nextReplacedType({ type: 'shift', replacedType: 'sick' }, 'annual_leave'), 'shift');
+    });
+
+    it('is null when there was nothing to replace, so the key is simply absent', () => {
+        // The Firestore rules validate replacedType only when present; null must not be written.
+        assert.equal(nextReplacedType(null, 'annual_leave'), null);
+        assert.equal(nextReplacedType({ type: 'annual_leave' }, 'annual_leave'), null);
+    });
+
+    it('the calendar cache record carries replacedType like every other mirror', () => {
+        assert.equal(toOverrideRecord({ value: 'AL', type: 'annual_leave', replacedType: 'shift' }).replacedType, 'shift');
+        assert.ok(!('replacedType' in toOverrideRecord({ value: 'AL', type: 'annual_leave' })),
+            'and absent stays absent — same key-presence convention as the write builders');
+    });
+
+    it('the builders omit the key entirely rather than writing a null', () => {
+        const base = { memberName: 'A. Member', date: '2026-09-09', type: 'annual_leave', value: 'AL', source: 'manual', changedBy: 'X' };
+        assert.ok(!('replacedType' in buildOverrideWrite({ ...base, replacedType: null }, new Date())));
+        assert.equal(buildOverrideWrite({ ...base, replacedType: 'shift' }, new Date()).replacedType, 'shift');
+        assert.ok(!('replacedType' in buildOverrideCacheRecord('id1', { ...base, replacedType: null }, new Date())));
+        assert.equal(buildOverrideCacheRecord('id1', { ...base, replacedType: 'shift' }, new Date()).replacedType, 'shift');
     });
 });

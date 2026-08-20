@@ -129,7 +129,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                     console.log(`[overtimeAsked] ${g.milestones.weekEnding} — no resolvable targets among ${g.names.length} member(s)`);
                     continue;
                 }
-                const n = OT.askedNotice(g.milestones);
+                const n = OT.askedNotice(g.milestones, Date.now());
                 const payload = buildPushPayload({
                     feature: 'overtime', headline: n.headline, body: n.body,
                     url: `${STAFF_SITE_URL}/overtime.html`,
@@ -185,8 +185,12 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                 await d.ref.update({ reminderSentAt: admin.firestore.FieldValue.serverTimestamp() });
                 console.log(`[overtimeReminder] ${d.id} — ${names.length} unanswered, ${uids.length} resolvable target(s)`);
             } catch (err) {
-                // One bad week must not abandon the rest; an unstamped week retries tomorrow only
-                // if its deadline is still ahead, which is exactly the right behaviour.
+                // One bad week must not abandon the rest. NOTE there is no retry to rely on
+                // (v21.56): `reminderDue` selects only the run inside 24h of noon — the deadline's
+                // own 05:00 — so a transient failure HERE silently loses that week's reminder for
+                // good. Accepted for the beta (the member surface still shows both deadlines, and
+                // the reminder is a courtesy, never the record); if a real morning is ever lost,
+                // widen `reminderDue`'s window before adding retry machinery here.
                 console.error(`[overtimeReminder] ${d.id} failed:`, err);
             }
         }

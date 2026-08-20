@@ -12,7 +12,7 @@
  */
 
 import { teamMembers, getBaseShift, formatISO, isSunday, MONTH_ABB, parseISODate } from './roster-data.js';
-import { isRestShift, shouldReplaceOverride, buildOverrideWrite, buildOverrideCacheRecord } from './override-utils.js';
+import { isRestShift, shouldReplaceOverride, buildOverrideWrite, buildOverrideCacheRecord, nextReplacedType } from './override-utils.js';
 import { db, collection, doc, serverTimestamp, writeBatch, auth, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 // The cache, what it knows, and the reads that fill it — see admin-override-store.js. Re-exported
 // below so admin-app.js and the tests keep one import site for the whole Change-a-Shift surface.
@@ -215,11 +215,18 @@ export async function executeSave(toSave, toDelete = []) {
 
             toDelete.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
 
+            // By ID, because that is all a staged row carries. Built once rather than per entry —
+            // a full-week save is seven lookups over the whole cache otherwise.
+            const byId = new Map(getAllOverrides().map(o => [o.id, o]));
             toSave.forEach(entry => {
+                // Read BEFORE the delete on the next line, which is what destroys it: on a swapped-in
+                // day this is the only record that the member was contracted to work it.
+                const replacedType = nextReplacedType(
+                    entry.existingId ? byId.get(entry.existingId) : null, entry.type);
                 if (entry.existingId) batch.delete(doc(db, COLLECTIONS.overrides, entry.existingId));
                 const { existingId: _, ...data } = entry;
                 const newRef = doc(collection(db, COLLECTIONS.overrides));
-                const fields = { ...data, source: 'manual', changedBy: _currentUser };
+                const fields = { ...data, source: 'manual', changedBy: _currentUser, replacedType };
                 batch.set(newRef, buildOverrideWrite(fields, serverTimestamp()));
                 docs.push(buildOverrideCacheRecord(newRef.id, fields, new Date()));
             });
@@ -460,9 +467,12 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
                 const batch  = writeBatch(db);
                 slice.forEach(op => {
                     const existing = ovByDate.get(op.date);
+                    // Read BEFORE the delete: this is the only record that a swapped-in day was
+                    // contracted work, and the delete below is what destroys it.
+                    const replacedType = nextReplacedType(existing, op.type);
                     if (existing) { batch.delete(doc(db, COLLECTIONS.overrides, existing.id)); delIds.add(existing.id); }
                     const newRef = doc(collection(db, COLLECTIONS.overrides));
-                    const fields = { memberName, date: op.date, type: op.type, value: op.value, note: '', source: 'manual', changedBy };
+                    const fields = { memberName, date: op.date, type: op.type, value: op.value, note: '', source: 'manual', changedBy, replacedType };
                     batch.set(newRef, buildOverrideWrite(fields, serverTimestamp()));
                     docs.push(buildOverrideCacheRecord(newRef.id, fields, new Date()));
                 });

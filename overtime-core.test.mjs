@@ -1117,6 +1117,30 @@ describe('push notices — the words and the one morning, each wrong-able silent
             assert.match(C.askedNotice(M).body, /Answer by Tue 18 Aug · 12:00\.$/);
         });
 
+        // ── THE ASKED NOTICE MAY NOT NAME A DEADLINE ALREADY BEHIND THE READER (v21.56) ─────────
+        //
+        // A window created after its initial deadline is a SUPPORTED path — the horizon's "first
+        // deadline has passed" row invites exactly that, because a late form beats no form. The
+        // notice used to interpolate the initial deadline unconditionally, telling everyone asked
+        // by a late-opened week to answer by a moment days in the past — the identical error
+        // direction the v21.54 reminder fix shipped for.
+        test('asked BEFORE the initial deadline names the initial deadline', () => {
+            assert.match(C.askedNotice(M, M.initialDeadlineAt - 60_000).body,
+                /Answer by Tue 18 Aug · 12:00\.$/);
+        });
+        test('asked AFTER the initial deadline names the FINAL deadline — a moment still ahead', () => {
+            const body = C.askedNotice(M, M.initialDeadlineAt + 60_000).body;
+            assert.match(body, /Answer by Tue 25 Aug · 12:00\.$/,
+                'the final deadline (a week later) is the one that can still be met');
+            assert.ok(!body.includes('18 Aug'), 'the passed deadline must not appear');
+        });
+        test('and it still fits the budgets in the late-created form', () => {
+            const n = C.askedNotice(M, M.initialDeadlineAt + 60_000);
+            const p = buildPushPayload({ feature: 'overtime', headline: n.headline, body: n.body,
+                url: 'https://myb-roster.web.app/overtime.html' });
+            assert.ok(!p.title.includes('…') && !p.body.includes('…'), `clipped: ${p.body}`);
+        });
+
         // ── THE REMINDER MAY NOT SAY THE FORM CLOSES (v21.54, external review P1) ───────────────
         //
         // It did, for one release, and two tests asserted the wrong sentence word for word — which

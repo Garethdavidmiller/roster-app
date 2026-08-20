@@ -6,7 +6,7 @@
 
 import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO, isSunday, parseISODate } from './roster-data.js';
 import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
-import { shouldReplaceOverride, isOtherValue, sundaySafeValue, parseOtherValue, buildOverrideWrite } from './override-utils.js';
+import { shouldReplaceOverride, isOtherValue, sundaySafeValue, parseOtherValue, buildOverrideWrite, nextReplacedType } from './override-utils.js';
 
 const RDW_PREFIX   = 'RDW|';
 const isRdwEncoded = /** @param {any} v */ v => typeof v === 'string' && v.startsWith(RDW_PREFIX);
@@ -129,7 +129,7 @@ export function manualShiftDisplay(s) {
  * refresh → retry once), matching every other Admin write path. The batch is rebuilt on each
  * attempt because a `WriteBatch` cannot be reused after a failed commit. Exported for tests.
  *
- * @param {Array<{memberName: string, date: string, value: string|null, baseShift: string, replaceId?: string, deleteOnly?: boolean}>} toWrite
+ * @param {Array<{memberName: string, date: string, value: string|null, baseShift: string, replaceId?: string, deleteOnly?: boolean, replacedFrom?: {type?: string, replacedType?: string|null}|null}>} toWrite
  * @param {string} currentUser  Logged-in member name, written to `changedBy`.
  * @returns {Promise<void>}  Rejects (after one retry) if the write is genuinely denied.
  */
@@ -143,7 +143,7 @@ export async function _saveOverrideBatches(toWrite, currentUser) {
         try {
         await writeWithClaimRetry(async () => {
             const batch = writeBatch(db);
-            for (const { memberName, date, value, baseShift, replaceId, deleteOnly } of chunk) {
+            for (const { memberName, date, value, baseShift, replaceId, deleteOnly, replacedFrom } of chunk) {
                 if (deleteOnly) {
                     // REMOVE_IMPORT — delete the stale import doc and write nothing.
                     if (replaceId) batch.delete(doc(db, COLLECTIONS.overrides, replaceId));
@@ -178,8 +178,13 @@ export async function _saveOverrideBatches(toWrite, currentUser) {
                 const ref = doc(collection(db, COLLECTIONS.overrides));
                 // source: 'roster_import' marks this as auto-applied, not hand-entered. buildOverrideWrite
                 // is the single source for the rules-required field set (shared with the two admin save paths).
+                // The import deletes the doc it replaces like every other write path, so it must
+                // preserve what that doc SAID the same way (v21.56) — without this, a re-import
+                // resolving a DIFF/CONFLICT over a swapped-in day destroyed the only evidence the
+                // member was contracted to work it, and leave booked there afterwards went free.
                 batch.set(ref, buildOverrideWrite(
-                    { memberName, date, type, value: savedValue, note: '', source: 'roster_import', changedBy: currentUser },
+                    { memberName, date, type, value: savedValue, note: '', source: 'roster_import', changedBy: currentUser,
+                      replacedType: nextReplacedType(replacedFrom, type) },
                     serverTimestamp()));
             }
             await batch.commit();
@@ -339,6 +344,8 @@ export function computeCellStates(parsedResult, existingOverrides) {
                     parsedShift, baseShift,
                     manualValue: existing?.value ?? null,
                     manualId:    existing?.id    ?? null,
+                    manualType:  existing?.type  ?? null,
+                    manualReplacedType: existing?.replacedType ?? null,
                     // Whether a MANUAL entry is at stake (v19.37). Picking a reading writes with
                     // replaceId, so it replaces whatever is stored — routine for a previous import,
                     // but for a hand-recorded entry it is the one thing this table otherwise
@@ -429,6 +436,7 @@ export function computeCellStates(parsedResult, existingOverrides) {
                 // showed an ordinary Early/Late badge and the admin couldn't tell RDW from a
                 // normal shift when resolving a CONFLICT (v16.19).
                 manualType:  existing?.type  ?? null,
+                manualReplacedType: existing?.replacedType ?? null,
                 manualId:    existing?.id    ?? null,
                 chosen:      (state === 'DIFF' || state === 'REMOVE_IMPORT') ? true : null,
                 // 'chosen' for DIFF / REMOVE_IMPORT = true (approved) or false (skipped)
@@ -670,7 +678,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 // Write the value the row DISPLAYED (displayShift — Sunday/rest-day-normalised):
                 // what the admin approved is what gets written. manualId = any existing override
                 // doc, to be replaced. (There is no per-cell edit UI — the review is approve/skip.)
-                toWrite.push({ memberName, date, value: state.displayShift ?? state.parsedShift, baseShift: state.baseShift, replaceId: state.manualId });
+                toWrite.push({ memberName, date, value: state.displayShift ?? state.parsedShift, baseShift: state.baseShift, replaceId: state.manualId, replacedFrom: state.manualId ? { type: state.manualType, replacedType: state.manualReplacedType } : null });
             }
             if (state.state === 'REMOVE_IMPORT' && state.chosen !== false) {
                 // A stale previous import whose day now matches base — delete it, write nothing
@@ -682,14 +690,14 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 // (v19.32). Writes the option's DISPLAY value — already through normaliseCellValue,
                 // so it carries the same Sunday / base-rest-day guards and the RDW| marker as any
                 // parsed value. Untouched rows keep chosen === null and are still never written.
-                toWrite.push({ memberName, date, value: state.options[state.chosen].display, baseShift: state.baseShift, replaceId: state.manualId });
+                toWrite.push({ memberName, date, value: state.options[state.chosen].display, baseShift: state.baseShift, replaceId: state.manualId, replacedFrom: state.manualId ? { type: state.manualType, replacedType: state.manualReplacedType } : null });
             }
             if (state.state === 'CONFLICT' && state.chosen === 'pdf') {
                 // Admin chose PDF over the existing manual entry — replace it, don't leave both
                 // docs for the same date. Write the row's DISPLAYED (normalised) value: a raw
                 // SICK on a base rest day would otherwise bypass the restSafe guard here and
                 // land as a rest-day absence doc the review had shown as "RD".
-                toWrite.push({ memberName, date, value: state.displayShift ?? state.parsedShift, baseShift: state.baseShift, replaceId: state.manualId });
+                toWrite.push({ memberName, date, value: state.displayShift ?? state.parsedShift, baseShift: state.baseShift, replaceId: state.manualId, replacedFrom: state.manualId ? { type: state.manualType, replacedType: state.manualReplacedType } : null });
             }
         }
 

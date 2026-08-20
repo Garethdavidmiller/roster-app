@@ -20,7 +20,7 @@ import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSess
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
-import { TYPES, PILL_TYPES, getAllOverrides, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, whenOverridesReady, isOverrideCacheLoaded, hasOverrideAuthorityFor, ensureMemberLoaded } from './admin-overrides.js';
+import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, whenOverridesReady, isOverrideCacheLoaded, hasOverrideAuthorityFor, ensureMemberLoaded } from './admin-overrides.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
 
@@ -928,8 +928,12 @@ export function init() {
                 // Both halves of the projection must apply the SAME rule, or a rest day already on
                 // record is free while the identical day being booked now is not — a confirm bar
                 // for leave the member is not spending.
+                // The map is what makes a SWAPPED-IN day cost a day: its `shift` override is
+                // still on record at this point (the AL that replaces it has not been written
+                // yet), and without it the base roster would report a rest day and charge nothing.
+                const ovByDate = buildMemberDateMap(memberName);
                 const newALDates = [...new Set(alInBatch.map(e => e.date)
-                    .filter(d => d.startsWith(yearStr) && consumesEntitlement(member, d)))];
+                    .filter(d => d.startsWith(yearStr) && consumesEntitlement(member, d, ovByDate)))];
                 const overage = projectAnnualLeaveOverage({ name: memberName, year: yearStr, existingALDates, newALDates, entitlement });
                 if (overage) {
                     showALConfirm(overage.headline, overage.detail, toSave, toDelete);

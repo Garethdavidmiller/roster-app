@@ -175,7 +175,8 @@ service cloud.firestore {
         // fields is still enforced by the `is string` checks below — a missing field is
         // null, and `null is string` is false.)
         request.resource.data.keys().hasOnly(
-          ['date', 'memberName', 'type', 'value', 'note', 'source', 'createdAt', 'changedBy']
+          ['date', 'memberName', 'type', 'value', 'note', 'source', 'createdAt', 'changedBy',
+           'replacedType']
         ) &&
         request.resource.data.date is string &&
         request.resource.data.date.size() == 10 &&
@@ -224,6 +225,26 @@ service cloud.firestore {
         // manual/AL/sick paths — validate its type when present without requiring it.
         request.resource.data.createdAt is timestamp &&
         (!request.resource.data.keys().hasAny(['changedBy']) || (request.resource.data.changedBy is string && request.resource.data.changedBy.size() <= 100)) &&
+        // ── replacedType — OPTIONAL, and the only surviving record of a swapped day ─────────
+        //
+        // A write is delete-then-set, so recording annual leave DESTROYS the override that said
+        // what the day was. On a swapped-in day (a `shift` sitting on a base rest day) that
+        // deleted doc was the only evidence the member was contracted to work it, and without it
+        // the entitlement check falls back to the base roster, sees a rest day and charges
+        // nothing — the leave is free. So the write carries forward what it replaced.
+        //
+        // Constrained to the same type vocabulary as `type` itself: it names an override that
+        // existed, so anything outside that set is meaningless. Absent on most docs (nothing was
+        // replaced) and on every doc written before v21.55, which is why it is validated only
+        // when present — the readers treat its absence as "ask the base roster", i.e. exactly the
+        // behaviour every existing document already has.
+        (!request.resource.data.keys().hasAny(['replacedType']) || (
+          request.resource.data.replacedType in [
+            'spare_shift', 'shift', 'rdw',
+            'annual_leave', 'correction', 'sick', 'other',
+            'allocated', 'overtime', 'swap'
+          ]
+        )) &&
         // ── Per-member write isolation (B3, STRICT form) ──────────────────────────────────
         // A staff member may write only their OWN override (token.name == the doc's memberName).
         // Two load-bearing bypasses: ADMIN writes for everyone (AL/sick on behalf + every
