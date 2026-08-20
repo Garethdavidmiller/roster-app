@@ -194,3 +194,77 @@ describe('the position a manager reads', () => {
         assert.equal(capChecksAgainst.size, WORKED.length, 'and both drop the rest days and the Sunday');
     });
 });
+
+/**
+ * ── THE SWAPPED DAY (v21.55) ────────────────────────────────────────────────────────────────────
+ *
+ * A swap moves a member's CONTRACTED day onto a date the rotating roster calls a rest day. The two
+ * halves of the app used to answer that differently — `isWorkingDate` (which decides what gets
+ * WRITTEN) reads the override, `consumesEntitlement` (which decides what it COSTS) read only the
+ * base roster — so booking leave on a swapped-in day wrote the AL and charged nothing. Free leave,
+ * silently, with the banner and the save path agreeing on the wrong figure because both asked the
+ * base roster.
+ *
+ * Two of these cases pull in OPPOSITE directions and that is the whole design: `shift` and `rdw`
+ * are indistinguishable to "is somebody at work?" and are opposites to "did this cost a day?".
+ * A fix that reused `WORKED_OVERRIDE_TYPES` would pass every test above and charge a member a day
+ * of annual leave for declining overtime.
+ */
+describe('the swapped day — a day the base roster gets wrong', () => {
+    const withUnder = (date, replacedType, replacedValue) => new Map([[date, {
+        memberName: MEMBER.name, type: 'annual_leave', value: 'AL', date, replacedType, replacedValue,
+    }]]);
+
+    test('a swapped-IN day costs a day, though the base roster calls it rest', () => {
+        // The shipped bug: AL written, nothing charged.
+        assert.equal(consumesEntitlement(MEMBER, RESTED[0], withUnder(RESTED[0], 'shift')), true);
+    });
+
+    test('but OVERTIME on the same rest day still costs nothing', () => {
+        // The opposite direction, and the reason `rdw` is not in CONTRACTED_WORK_TYPES: declining
+        // overtime you volunteered for is not taking leave.
+        assert.equal(consumesEntitlement(MEMBER, RESTED[0], withUnder(RESTED[0], 'rdw')), false);
+    });
+
+    test('a swapped-OUT day costs nothing, though the base roster calls it worked', () => {
+        assert.equal(
+            consumesEntitlement(MEMBER, WORKED[0], withUnder(WORKED[0], 'correction', 'RD')), false);
+    });
+
+    test('leave recorded over an ABSENCE still costs a day on a working date', () => {
+        // `sick` says nothing about the contract, so it must answer "unknown" and let the base
+        // roster decide. Returning false for it would be this same bug in a new place.
+        assert.equal(consumesEntitlement(MEMBER, WORKED[0], withUnder(WORKED[0], 'sick')), true);
+    });
+
+    test('a re-save keeps the original context, so a day cannot stop costing on the second Save', () => {
+        // nextReplacedType inherits when the type is unchanged; this pins the read side of that.
+        assert.equal(consumesEntitlement(MEMBER, RESTED[0], withUnder(RESTED[0], 'shift')), true);
+        assert.equal(consumesEntitlement(MEMBER, RESTED[0], withUnder(RESTED[0], 'annual_leave')),
+            false, 'and an AL that lost its context falls back to the base roster, not to true');
+    });
+
+    test('EVERY AL written before v21.55 counts exactly as it did', () => {
+        // The fallback is what makes this shippable without a migration: no replacedType anywhere
+        // ⇒ the base roster decides ⇒ every existing balance is unchanged on the day it deploys.
+        const noInfo = (d) => new Map([[d, { memberName: MEMBER.name, type: 'annual_leave', value: 'AL', date: d }]]);
+        for (const d of WORKED) assert.equal(consumesEntitlement(MEMBER, d, noInfo(d)), true, d);
+        for (const d of RESTED) assert.equal(consumesEntitlement(MEMBER, d, noInfo(d)), false, d);
+        // …and with no map at all, which is how three of the four call sites used to ask.
+        assert.equal(consumesEntitlement(MEMBER, WORKED[0]), true);
+        assert.equal(consumesEntitlement(MEMBER, RESTED[0]), false);
+    });
+
+    test('countedAlDates reads replacedType off the AL documents themselves', () => {
+        const got = countedAlDates({
+            overrides: [
+                { ...al(RESTED[0]), replacedType: 'shift' },   // swapped in  → counts
+                { ...al(RESTED[1]), replacedType: 'rdw' },     // overtime    → does not
+                al(RESTED[2]),                                  // no context  → base says rest
+                al(WORKED[0]),                                  // plain working day
+            ],
+            member: MEMBER, year: 2026,
+        });
+        assert.deepEqual([...got].sort(), [RESTED[0], WORKED[0]].sort());
+    });
+});

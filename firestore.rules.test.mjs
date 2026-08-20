@@ -358,6 +358,37 @@ describe('overrides', () => {
 // `name` mirrors the memberName); managerDb carries manager:true; adminDb carries admin:true;
 // staffDb carries NO claim (models the legacy/anonymous session — DENIED under B3 strict).
 // ─────────────────────────────────────────────────────────────────────────────
+describe('overrides — replacedType (v21.55)', () => {
+    // The field exists because a write is delete-then-set: recording annual leave DESTROYS the
+    // override that said what the day was, and on a swapped-in day that doc was the only evidence
+    // the member was contracted to work it. These pin the SERVER side of the client rule in
+    // override-utils.js — the client decides what to send, the rules decide what may land.
+    const WITH = (replacedType) => ({ ...VALID_OVERRIDE(), replacedType });
+
+    test('a valid replacedType is accepted', async () => {
+        await assertSucceeds(setDoc(doc(adminDb(), 'overrides', uid()), WITH('shift')));
+    });
+    test('a legacy type is accepted — those docs are still in the data', async () => {
+        await assertSucceeds(setDoc(doc(adminDb(), 'overrides', uid()), WITH('swap')));
+    });
+    test('the field stays OPTIONAL — most writes replace nothing', async () => {
+        await assertSucceeds(setDoc(doc(adminDb(), 'overrides', uid()), VALID_OVERRIDE()));
+    });
+    test('an unknown value is REFUSED — it names an override that could never have existed', async () => {
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), WITH('not_a_type')));
+    });
+    test('a non-string is REFUSED', async () => {
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), WITH(7)));
+    });
+    test('null is REFUSED, which is why the builders omit the key instead', async () => {
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), WITH(null)));
+    });
+    test('a member may still only stamp it on their OWN override', async () => {
+        await assertFails(setDoc(doc(namedDb('S. Boyle'), 'overrides', uid()),
+            { ...WITH('shift'), memberName: 'G. Miller' }));
+    });
+});
+
 describe('overrides — per-member isolation (STRICT, B3)', () => {
     const OWN = (name) => ({ ...VALID_OVERRIDE(), memberName: name });
 

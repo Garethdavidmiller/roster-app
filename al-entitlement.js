@@ -52,7 +52,7 @@
  */
 
 import { getALEntitlement, getBaseShift, isSunday, parseISODate } from './roster-data.js';
-import { isRestShift } from './override-utils.js';
+import { isRestShift, isContractedWorkOverride } from './override-utils.js';
 
 /**
  * Does a single date consume `member`'s entitlement if AL is recorded on it?
@@ -66,14 +66,28 @@ import { isRestShift } from './override-utils.js';
  *
  * @param {any} member the team-member object
  * @param {string} date ISO `YYYY-MM-DD`
+ * @param {Map<string, any>|null} [ovByDate] the overrides in play, keyed by date. Omit only where
+ *        there genuinely are none to hand — without it a swapped-in day reads as a rest day.
  * @returns {boolean}
  */
-export function consumesEntitlement(member, date) {
+export function consumesEntitlement(member, date, ovByDate = null) {
     if (!member || !date) return false;
     if (isSunday(date)) return false;
+
     // The day is (or is about to be) AL-overridden, so the question is what is UNDERNEATH it.
-    // This also settles leave dated before the member joined: `getBaseShift` returns 'RD' for every
-    // such date, so no separate start-date test belongs here (see the header).
+    const ov = ovByDate && typeof ovByDate.get === 'function' ? ovByDate.get(date) : null;
+    // An AL doc has already replaced whatever it covered, so `replacedType` is the only surviving
+    // record of it; any other override IS the thing underneath and answers directly.
+    const under = ov && ov.type === 'annual_leave'
+        ? (ov.replacedType ? { type: ov.replacedType, value: ov.replacedValue } : null)
+        : ov;
+    const contracted = isContractedWorkOverride(under);
+    if (contracted !== null) return contracted;
+
+    // No override information — the base roster decides, which is what this function did for every
+    // date before v21.55 and still does for every AL written before it. This also settles leave
+    // dated before the member joined: `getBaseShift` returns 'RD' for every such date, so no
+    // separate start-date test belongs here (see the header).
     return !isRestShift(getBaseShift(member, parseISODate(date)));
 }
 
@@ -82,7 +96,9 @@ export function consumesEntitlement(member, date) {
  *
  * @param {object} args
  * @param {Array<{memberName?:string, type?:string, date?:string}>} args.overrides every override the
- *        page holds — filtered here, so no caller has to remember which fields matter
+ *        page holds — filtered here, so no caller has to remember which fields matter. The AL docs
+ *        among them carry `replacedType`, which is how a swapped-in day is still recognised as
+ *        contracted work after the AL doc replaced the `shift` doc that said so.
  * @param {any} args.member the team-member OBJECT (needed for the base-shift lookup), not the name
  * @param {string|number} args.year calendar year
  * @param {Set<string>|null} [args.exclude] dates to leave out because the caller is re-accounting
@@ -94,12 +110,19 @@ export function countedAlDates({ overrides, member, year, exclude = null }) {
     const out = /** @type {Set<string>} */ (new Set());
     if (!member || !Array.isArray(overrides)) return out;
 
+    // Keyed by date so `consumesEntitlement` can read the AL doc's own `replacedType`. Built from
+    // the AL docs alone: any other override for the date has, by definition, been superseded by the
+    // AL doc, so feeding it here would answer about a day that no longer exists.
+    const alByDate = /** @type {Map<string, any>} */ (new Map());
     for (const o of overrides) {
         if (!o || o.memberName !== member.name || o.type !== 'annual_leave') continue;
         if (!o.date || !o.date.startsWith(yearStr)) continue;
         if (exclude && exclude.has(o.date)) continue;
-        if (!consumesEntitlement(member, o.date)) continue;
-        out.add(o.date);
+        alByDate.set(o.date, o);
+    }
+    for (const [date] of alByDate) {
+        if (!consumesEntitlement(member, date, alByDate)) continue;
+        out.add(date);
     }
     return out;
 }

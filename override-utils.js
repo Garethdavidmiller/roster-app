@@ -12,6 +12,56 @@ export function isRestShift(shift) {
 }
 
 /**
+ * The override types that put CONTRACTED work on a day — the ones that move a member's obligation
+ * onto it, as opposed to the ones they volunteered for.
+ *
+ * ── WHY `rdw` IS DELIBERATELY ABSENT, AND WHY THAT IS THE WHOLE POINT ───────────────────────────
+ *
+ * `WORKED_OVERRIDE_TYPES` (admin-shift-types.js) answers a different question — "is somebody at
+ * work that day?" — and for that, `rdw` and `shift` are the same. For ANNUAL LEAVE they are
+ * opposites, and nothing in the app used to say so:
+ *
+ *   · `shift` on a base rest day is a SWAP. The member moved their contracted day onto it, so
+ *     taking leave there spends a day of entitlement exactly like any other working day.
+ *   · `rdw` on a base rest day is VOLUNTARY OVERTIME. The contract is unchanged; a member who
+ *     then cannot work it has not taken leave, they have simply not done the overtime.
+ *
+ * Reusing `WORKED_OVERRIDE_TYPES` here would charge a member a day of annual leave for declining
+ * overtime, which is why this is its own set rather than a filter over that one. The legacy pair
+ * splits the same way: `swap`/`allocated` are contracted, `overtime` is not.
+ */
+export const CONTRACTED_WORK_TYPES = new Set([
+    'shift', 'spare_shift', 'other',
+    'allocated', 'swap',              // legacy, still in data — contracted, like `shift`
+]);
+
+/** Work a member VOLUNTEERED for. Declining it is not leave. (`overtime` is the legacy `rdw`.) */
+export const VOLUNTARY_WORK_TYPES = new Set(['rdw', 'overtime']);
+
+/**
+ * Was the member CONTRACTED to work the day this override describes?
+ *
+ * Answers from the override alone, so it is the one place the swap-vs-overtime distinction lives.
+ * A rest-valued override (`correction`/RD — the other half of a swap) is not work whatever its
+ * type, which is checked first because it is the stronger statement.
+ *
+ * @param {{type?:string, value?:string}|null|undefined} ov
+ * @returns {boolean|null} true/false, or null when `ov` carries no usable information — the caller
+ *          must then fall back to the base roster rather than treat "unknown" as "no".
+ */
+export function isContractedWorkOverride(ov) {
+    if (!ov || !ov.type) return null;
+    if (isRestShift(ov.value || '')) return false;          // correction/RD — the other half of a swap
+    if (CONTRACTED_WORK_TYPES.has(ov.type)) return true;
+    if (VOLUNTARY_WORK_TYPES.has(ov.type)) return false;
+    // `sick`, `annual_leave` and anything unrecognised describe an ABSENCE, not a contract. They
+    // say nothing about whether the member was due to work, so they must answer "unknown" and let
+    // the base roster decide. Returning false here would be the same bug in a new place: leave
+    // recorded over an absence on an ordinary working day would silently stop costing a day.
+    return null;
+}
+
+/**
  * Display-suppression rule (CLAUDE.md "Sundays are non-contracted", layer 5) — SINGLE SOURCE for the
  * calendar renderer, Team Week View, and month legend so they can never disagree. True when an
  * override must NOT replace the base shift on the calendar: a `sick` override on a rest-day base OR
@@ -164,7 +214,7 @@ export function collectOverrideRecords(snapshot) {
  * editing all three, and a miss = a silent `permission-denied` on ONE path only. `createdAt` is
  * INJECTED (the caller passes `serverTimestamp()`) so this module stays Firebase-free. `note` defaults
  * to '' (the rules require it present). Extra fields on the input are dropped — the shape is enforced.
- * @param {{memberName:string, date:string, type:string, value:any, note?:string, source:string, changedBy:string}} f
+ * @param {{memberName:string, date:string, type:string, value:any, note?:string, source:string, changedBy:string, replacedType?:string|null}} f
  * @param {*} createdAt  a Firestore serverTimestamp() sentinel for the write
  * @returns {{memberName:string, date:string, type:string, value:any, note:string, source:string, createdAt:*, changedBy:string}}
  */
@@ -176,6 +226,9 @@ export function buildOverrideWrite(f, createdAt) {
         value:      f.value,
         note:       f.note ?? '',
         source:     f.source,
+        // Only when there IS one — the Firestore rules use hasOnly + `is string`, so writing the
+        // key as null would be rejected outright rather than treated as absent.
+        ...(f.replacedType ? { replacedType: f.replacedType } : {}),
         createdAt,
         changedBy:  f.changedBy,
     };
@@ -187,7 +240,7 @@ export function buildOverrideWrite(f, createdAt) {
  * new doc `id`, and with a real `Date` for `createdAt` (so `tsToMillis` ranks a just-saved override
  * correctly — see the v16.23 fix). Single source so no write path can drift its mirror.
  * @param {string} id  the new Firestore doc id
- * @param {{memberName:string, date:string, type:string, value:any, note?:string, source:string}} f
+ * @param {{memberName:string, date:string, type:string, value:any, note?:string, source:string, replacedType?:string|null}} f
  * @param {Date} createdAt  `new Date()` — the optimistic local timestamp
  * @returns {{id:string, memberName:string, date:string, type:string, value:any, note:string, source:string, createdAt:Date}}
  */
@@ -200,8 +253,41 @@ export function buildOverrideCacheRecord(id, f, createdAt) {
         value:      f.value,
         note:       f.note ?? '',
         source:     f.source,
+        // Only when there IS one — the Firestore rules use hasOnly + `is string`, so writing the
+        // key as null would be rejected outright rather than treated as absent.
+        ...(f.replacedType ? { replacedType: f.replacedType } : {}),
         createdAt,
     };
+}
+
+/**
+ * What `replacedType` a new override should carry, given the one it is about to delete.
+ *
+ * ── WHY THIS IS STORED AT ALL, WHEN THIS REPO PREFERS TO DERIVE ─────────────────────────────────
+ *
+ * A write is `batch.delete(existing)` then `batch.set(new)`, so recording annual leave on a day
+ * DESTROYS the override that said what the day was. For a swapped-in day — a `shift` sitting on a
+ * base rest day — that deleted doc was the only record that the member was contracted to work it,
+ * and without it `consumesEntitlement` falls back to the base roster, sees a rest day, and charges
+ * nothing. The member gets the leave free. Nothing anywhere else can recover the fact, which is
+ * why it is stored rather than derived: it is a FACT being preserved, not a summary of one.
+ *
+ * ── THE INHERIT RULE IS THE PART THAT IS EASY TO GET WRONG ──────────────────────────────────────
+ *
+ * Re-saving the same booking is ordinary (an admin adjusts one day of a range and saves the lot),
+ * and the second write replaces an AL doc with another AL doc. Recording `annual_leave` as what it
+ * replaced would erase the original context on the second save — so the day would cost a day of
+ * leave until somebody pressed Save twice, and then quietly stop. Same type in, same type out ⇒
+ * carry the original forward.
+ *
+ * @param {{type?:string, replacedType?:string}|null|undefined} existing the doc being deleted
+ * @param {string} newType the type being written
+ * @returns {string|null}
+ */
+export function nextReplacedType(existing, newType) {
+    if (!existing || !existing.type) return null;
+    if (existing.type === newType) return existing.replacedType || null;
+    return existing.type;
 }
 
 /**

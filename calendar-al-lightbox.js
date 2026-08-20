@@ -148,7 +148,7 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
         // rest-day test — so a member's own balance here could differ from the figure the Admin
         // banner and the save-time cap were working from.
         if (ov.type === 'annual_leave' && date && date.startsWith(yearStr)
-            && consumesEntitlement(member, date)) {
+            && consumesEntitlement(member, date, byDate)) {
           if (date <= todayStr) taken++; else booked++;
         }
       }
