@@ -8,7 +8,7 @@
 
 import { getALEntitlement, getBaseShift, escapeHtml, projectAnnualLeaveOverage, parseISODate } from './roster-data.js';
 import { getAllOverrides, isWorkingDate, buildMemberDateMap } from './admin-overrides.js';
-import { countedAlDates } from './al-entitlement.js';
+import { countedAlDates, consumesEntitlement } from './al-entitlement.js';
 import { createRangeBookingSection } from './admin-range-booking.js';
 
 const esc = escapeHtml;
@@ -80,7 +80,12 @@ export function initALSection({
             // already in this set is not double-counted toward the cap: the shared helper excludes
             // overlap from the new dates.
             const existingALDates = countedAlDates({ overrides: getAllOverrides(), member: memberObj, year: yearStr });
-            const newALDates = workingDates.filter(d => d.startsWith(yearStr));   // isWorkingDate already excluded Sundays
+            // consumesEntitlement, not just isWorkingDate (v21.56): an rdw day inside the range is
+            // WRITTEN (it is a worked day) but will not COST a day (declining overtime is not
+            // leave), so counting it here raised a confirm bar for leave the member is not
+            // spending — and disagreed with the week-grid check, which already asks this rule.
+            const newALDates = workingDates.filter(d =>
+                d.startsWith(yearStr) && consumesEntitlement(memberObj, d, memberOvByDate));
             const overage = projectAnnualLeaveOverage({ name: member, year: yearStr, existingALDates, newALDates, entitlement });
             if (overage) {
                 showALConfirm(overage.headline, overage.detail, null); // null = AL booking path (not week editor)

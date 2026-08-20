@@ -908,6 +908,13 @@ describe('contracted work vs volunteered work', () => {
             'the value is checked first, deliberately: it is the stronger statement');
     });
 
+    it('a correction classifies from the TYPE alone — the value is pinned to RD by the rules', () => {
+        // This is the reconstructed-from-replacedType path, where no value exists: without the
+        // type-level answer, AL over a swapped-OUT day was charged the moment the correction doc
+        // was destroyed (v21.56 — the first cut read a replacedValue nothing has ever written).
+        assert.equal(isContractedWorkOverride({ type: 'correction' }), false);
+    });
+
     it('an ABSENCE answers UNKNOWN, never false', () => {
         // false would mean "not contracted", which would quietly stop leave over a sick day on an
         // ordinary working date from costing anything. null sends the caller to the base roster.
@@ -938,10 +945,28 @@ describe('nextReplacedType — what a write must remember about the doc it delet
             'shift');
     });
 
+    it('CHAINS THROUGH an absence on a type change — swap → sick → AL keeps the shift (v21.56)', () => {
+        // Reclassifying sickness as leave is routine; recording 'sick' as what the AL replaced
+        // would discard the shift underneath and the swapped day would go free.
+        assert.equal(nextReplacedType({ type: 'sick', replacedType: 'shift' }, 'annual_leave'), 'shift');
+        assert.equal(nextReplacedType({ type: 'annual_leave', replacedType: 'shift' }, 'sick'), 'shift');
+        // …but an INFORMATIVE type is itself the fact, and still wins over whatever it replaced:
+        // if the roster office corrected the day to rest, the day IS rest, whatever came before.
+        assert.equal(nextReplacedType({ type: 'correction', replacedType: 'shift' }, 'annual_leave'),
+            'correction');
+        assert.equal(nextReplacedType({ type: 'shift', replacedType: 'sick' }, 'annual_leave'), 'shift');
+    });
+
     it('is null when there was nothing to replace, so the key is simply absent', () => {
         // The Firestore rules validate replacedType only when present; null must not be written.
         assert.equal(nextReplacedType(null, 'annual_leave'), null);
         assert.equal(nextReplacedType({ type: 'annual_leave' }, 'annual_leave'), null);
+    });
+
+    it('the calendar cache record carries replacedType like every other mirror', () => {
+        assert.equal(toOverrideRecord({ value: 'AL', type: 'annual_leave', replacedType: 'shift' }).replacedType, 'shift');
+        assert.ok(!('replacedType' in toOverrideRecord({ value: 'AL', type: 'annual_leave' })),
+            'and absent stays absent — same key-presence convention as the write builders');
     });
 
     it('the builders omit the key entirely rather than writing a null', () => {

@@ -211,8 +211,11 @@ describe('the position a manager reads', () => {
  * of annual leave for declining overtime.
  */
 describe('the swapped day — a day the base roster gets wrong', () => {
-    const withUnder = (date, replacedType, replacedValue) => new Map([[date, {
-        memberName: MEMBER.name, type: 'annual_leave', value: 'AL', date, replacedType, replacedValue,
+    // Deliberately NO replacedValue field: no write path has ever produced one and the rules
+    // would refuse it — a fixture carrying it certifies behaviour production data can never have
+    // (the v21.56 sweep found the first cut of these tests doing exactly that).
+    const withUnder = (date, replacedType) => new Map([[date, {
+        memberName: MEMBER.name, type: 'annual_leave', value: 'AL', date, replacedType,
     }]]);
 
     test('a swapped-IN day costs a day, though the base roster calls it rest', () => {
@@ -227,8 +230,10 @@ describe('the swapped day — a day the base roster gets wrong', () => {
     });
 
     test('a swapped-OUT day costs nothing, though the base roster calls it worked', () => {
+        // From the TYPE alone — a correction's value is pinned to 'RD' by the rules, and no write
+        // path preserves the replaced VALUE, so the type must be enough or this rule is dead code.
         assert.equal(
-            consumesEntitlement(MEMBER, WORKED[0], withUnder(WORKED[0], 'correction', 'RD')), false);
+            consumesEntitlement(MEMBER, WORKED[0], withUnder(WORKED[0], 'correction')), false);
     });
 
     test('leave recorded over an ABSENCE still costs a day on a working date', () => {
@@ -266,5 +271,49 @@ describe('the swapped day — a day the base roster gets wrong', () => {
             member: MEMBER, year: 2026,
         });
         assert.deepEqual([...got].sort(), [RESTED[0], WORKED[0]].sort());
+    });
+});
+
+describe('the chain survives passing through an absence (v21.56)', () => {
+    test('swap → sick → AL still costs a day', () => {
+        // Two routine operations: the member swapped in, went off sick, and the day was later
+        // reclassified as leave. Recording `sick` as what the AL replaced would discard the
+        // `shift` underneath it — and `sick` carries no contract information, so the day fell
+        // back to the base roster and the leave went free.
+        const m = new Map([[RESTED[0], {
+            memberName: MEMBER.name, type: 'annual_leave', value: 'AL',
+            date: RESTED[0], replacedType: 'shift',
+        }]]);
+        assert.equal(consumesEntitlement(MEMBER, RESTED[0], m), true);
+    });
+});
+
+describe('one winner per date (v21.56)', () => {
+    test('an orphan AL beside a NEWER non-AL winner does not count', () => {
+        // Two-device / offline-retry duplicates are a real population (the v16.23 lightbox fix
+        // names them). The date's WINNER is the correction, so the day is not leave at all —
+        // counting the orphan made the banner disagree with the calendar lightbox, which resolves
+        // winners first.
+        const got = countedAlDates({
+            overrides: [
+                { memberName: MEMBER.name, type: 'annual_leave', value: 'AL', date: WORKED[0],
+                  source: 'manual', createdAt: new Date(2026, 0, 1) },
+                { memberName: MEMBER.name, type: 'correction', value: 'RD', date: WORKED[0],
+                  source: 'manual', createdAt: new Date(2026, 5, 1) },
+            ],
+            member: MEMBER, year: 2026,
+        });
+        assert.equal(got.size, 0);
+    });
+
+    test('of two duplicate AL docs, the NEWER answers — not fetch order', () => {
+        const older = { memberName: MEMBER.name, type: 'annual_leave', value: 'AL', date: RESTED[0],
+            source: 'manual', createdAt: new Date(2026, 0, 1) };                       // no context
+        const newer = { memberName: MEMBER.name, type: 'annual_leave', value: 'AL', date: RESTED[0],
+            source: 'manual', createdAt: new Date(2026, 5, 1), replacedType: 'shift' }; // swapped in
+        const a = countedAlDates({ overrides: [older, newer], member: MEMBER, year: 2026 });
+        const b = countedAlDates({ overrides: [newer, older], member: MEMBER, year: 2026 });
+        assert.equal(a.size, 1, 'the newer doc carries the swap, so the day costs');
+        assert.equal(b.size, 1, 'and the answer must not depend on iteration order');
     });
 });

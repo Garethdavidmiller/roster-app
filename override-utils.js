@@ -51,7 +51,13 @@ export const VOLUNTARY_WORK_TYPES = new Set(['rdw', 'overtime']);
  */
 export function isContractedWorkOverride(ov) {
     if (!ov || !ov.type) return null;
-    if (isRestShift(ov.value || '')) return false;          // correction/RD — the other half of a swap
+    if (isRestShift(ov.value || '')) return false;          // a rest VALUE is not work whatever its type
+    // A `correction` is classifiable by TYPE ALONE: its value is pinned to 'RD' by both TYPES'
+    // fixedValue and the Firestore rules, so the type implies rest even when the value is absent —
+    // which it always is when the override is being reconstructed from a `replacedType` (v21.56:
+    // the first cut read a `replacedValue` that no write path has ever produced, so a swapped-OUT
+    // day's AL was charged the moment the correction doc was destroyed).
+    if (ov.type === 'correction') return false;
     if (CONTRACTED_WORK_TYPES.has(ov.type)) return true;
     if (VOLUNTARY_WORK_TYPES.has(ov.type)) return false;
     // `sick`, `annual_leave` and anything unrecognised describe an ABSENCE, not a contract. They
@@ -178,6 +184,11 @@ export function toOverrideRecord(data) {
         type:      data.type      || '',
         source:    data.source    || null,
         createdAt: data.createdAt || null,
+        // Carried so the calendar cache holds the SAME shape of a doc as the admin cache (v21.56).
+        // Nothing on the calendar reads it today (the AL lightbox does its own raw getDocs), but
+        // two mirrors holding different shapes of one document is how a future consumer re-opens
+        // the swapped-day bug silently — same key-presence convention as the write builders.
+        ...(data.replacedType ? { replacedType: data.replacedType } : {}),
     };
 }
 
@@ -280,13 +291,23 @@ export function buildOverrideCacheRecord(id, f, createdAt) {
  * leave until somebody pressed Save twice, and then quietly stop. Same type in, same type out ⇒
  * carry the original forward.
  *
- * @param {{type?:string, replacedType?:string}|null|undefined} existing the doc being deleted
+ * @param {{type?:string, replacedType?:string|null}|null|undefined} existing the doc being deleted
  * @param {string} newType the type being written
  * @returns {string|null}
  */
 export function nextReplacedType(existing, newType) {
     if (!existing || !existing.type) return null;
     if (existing.type === newType) return existing.replacedType || null;
+    // CHAIN THROUGH AN ABSENCE (v21.56, external sweep). A type change used to record
+    // `existing.type` unconditionally — but when the doc being deleted is itself an absence
+    // carrying a chain (swap → sick → AL is two routine operations), recording `sick` DISCARDS the
+    // `shift` underneath it, and `sick` is precisely a type `isContractedWorkOverride` calls "no
+    // information", so the re-derived day fell back to the base roster and the leave went free.
+    // An absence carries no contract information of its own, so what IT replaced is the fact worth
+    // keeping; an informative type (`shift`, `rdw`, `correction`…) IS the fact and still wins.
+    if (existing.replacedType && isContractedWorkOverride({ type: existing.type }) === null) {
+        return existing.replacedType;
+    }
     return existing.type;
 }
 

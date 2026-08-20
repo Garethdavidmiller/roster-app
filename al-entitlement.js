@@ -52,7 +52,7 @@
  */
 
 import { getALEntitlement, getBaseShift, isSunday, parseISODate } from './roster-data.js';
-import { isRestShift, isContractedWorkOverride } from './override-utils.js';
+import { isRestShift, isContractedWorkOverride, shouldReplaceOverride } from './override-utils.js';
 
 /**
  * Does a single date consume `member`'s entitlement if AL is recorded on it?
@@ -78,8 +78,12 @@ export function consumesEntitlement(member, date, ovByDate = null) {
     const ov = ovByDate && typeof ovByDate.get === 'function' ? ovByDate.get(date) : null;
     // An AL doc has already replaced whatever it covered, so `replacedType` is the only surviving
     // record of it; any other override IS the thing underneath and answers directly.
+    // Type alone classifies a reconstructed override: no write path preserves the replaced VALUE,
+    // and it is not needed — every type whose value could matter has that value pinned by the
+    // rules (`correction` is always 'RD'), which is why isContractedWorkOverride classifies
+    // `correction` by type (v21.56 — the first cut read a `replacedValue` nothing ever wrote).
     const under = ov && ov.type === 'annual_leave'
-        ? (ov.replacedType ? { type: ov.replacedType, value: ov.replacedValue } : null)
+        ? (ov.replacedType ? { type: ov.replacedType } : null)
         : ov;
     const contracted = isContractedWorkOverride(under);
     if (contracted !== null) return contracted;
@@ -110,18 +114,22 @@ export function countedAlDates({ overrides, member, year, exclude = null }) {
     const out = /** @type {Set<string>} */ (new Set());
     if (!member || !Array.isArray(overrides)) return out;
 
-    // Keyed by date so `consumesEntitlement` can read the AL doc's own `replacedType`. Built from
-    // the AL docs alone: any other override for the date has, by definition, been superseded by the
-    // AL doc, so feeding it here would answer about a day that no longer exists.
-    const alByDate = /** @type {Map<string, any>} */ (new Map());
+    // ONE WINNER PER DATE, resolved across ALL of the member's overrides — not the AL docs alone
+    // (v21.56, external sweep). Duplicate docs for one date are a real population (two devices, an
+    // offline retry — the v16.23 lightbox fix names them), and the first cut last-write-wins'd over
+    // just the AL docs: an orphan AL beside a NEWER non-AL winner still counted, and which of two
+    // duplicate ALs answered depended on fetch iteration order. `shouldReplaceOverride` is the same
+    // resolution every other consumer applies, so this module can no longer disagree with them.
+    const winnerByDate = /** @type {Map<string, any>} */ (new Map());
     for (const o of overrides) {
-        if (!o || o.memberName !== member.name || o.type !== 'annual_leave') continue;
+        if (!o || o.memberName !== member.name) continue;
         if (!o.date || !o.date.startsWith(yearStr)) continue;
         if (exclude && exclude.has(o.date)) continue;
-        alByDate.set(o.date, o);
+        if (shouldReplaceOverride(winnerByDate.get(o.date), o)) winnerByDate.set(o.date, o);
     }
-    for (const [date] of alByDate) {
-        if (!consumesEntitlement(member, date, alByDate)) continue;
+    for (const [date, winner] of winnerByDate) {
+        if (winner.type !== 'annual_leave') continue;
+        if (!consumesEntitlement(member, date, winnerByDate)) continue;
         out.add(date);
     }
     return out;

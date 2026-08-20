@@ -951,13 +951,27 @@ function londonDeadlineLabel(ms) {
  * not this app's register. The body names the SOONEST deadline, which is the one that can be
  * missed.
  *
- * @param {{ initialDeadlineAt: number }} soonest milestones of the earliest newly-asked week
+ * ── THE DEADLINE NAMED MUST BE ONE THAT IS STILL AHEAD (v21.56, external sweep) ─────────────────
+ *
+ * A window created AFTER its initial deadline is a supported path — the horizon's "first deadline
+ * has passed" row exists to invite exactly that, because a late form beats no form. The notice
+ * used to name `initialDeadlineAt` unconditionally, so everyone asked by a late-created week was
+ * told to answer by a moment already days in the past — the same error direction as the v21.54
+ * reminder fix: it tells somebody the thing is over when the form is in fact open until the FINAL
+ * deadline. So when `nowMs` is past the initial deadline, the body names the final one instead.
+ *
+ * @param {{ initialDeadlineAt: number, finalDeadlineAt: number }} soonest milestones of the
+ *        earliest newly-asked week
+ * @param {number} nowMs the server's clock at send time
  * @returns {{ headline: string, body: string }}
  */
-function askedNotice(soonest) {
+function askedNotice(soonest, nowMs) {
+    const deadline = (typeof nowMs === 'number' && nowMs >= soonest.initialDeadlineAt)
+        ? soonest.finalDeadlineAt
+        : soonest.initialDeadlineAt;
     return {
         headline: 'Overtime — availability form open',
-        body: `Tell the roster team when you can work. Answer by ${londonDeadlineLabel(soonest.initialDeadlineAt)}.`,
+        body: `Tell the roster team when you can work. Answer by ${londonDeadlineLabel(deadline)}.`,
     };
 }
 
