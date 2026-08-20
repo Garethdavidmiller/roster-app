@@ -332,6 +332,11 @@ export function deadlineLines(phase, initialDeadlineAt, finalDeadlineAt) {
 export function declaredAgo(ms, nowMs) {
     if (!ms || !nowMs || ms > nowMs) return null;
     const days = Math.floor((nowMs - ms) / 86_400_000);
+    // Retention deletes a window ~13 weeks after its Saturday, so no REAL declaration can be much
+    // past 100 days old — an age beyond that is a corrupt or missing timestamp wearing a number
+    // ("20682 days ago", from an epoch-zero milli value, is what surfaced this in a render). The
+    // line qualifies an answer; better absent than absurd (v21.60).
+    if (days > 120) return null;
     if (days === 0) return 'today';
     if (days === 1) return 'yesterday';
     return `${days} days ago`;

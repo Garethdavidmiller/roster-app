@@ -791,6 +791,16 @@ describe('how old a declaration is', () => {
         assert.equal(declaredAgo(daysBefore(19), NOW), '19 days ago');
     });
 
+    test('an age no real declaration can have is a corrupt timestamp, and renders nothing', () => {
+        // Retention deletes a window ~13 weeks after its Saturday, so nothing real is much past
+        // 100 days. An epoch-zero millisecond value produced "20682 days ago" in a render — a
+        // number wearing certainty about data that is broken. Absent beats absurd (v21.60).
+        assert.equal(declaredAgo(1, NOW), null);
+        assert.equal(declaredAgo(daysBefore(121), NOW), null);
+        assert.equal(declaredAgo(daysBefore(100), NOW), '100 days ago',
+            'inside the retention horizon the count still renders');
+    });
+
     test('nothing to date renders nothing, not "unknown"', () => {
         // The caller omits the element entirely. An "unknown" would be a statement about the
         // declaration where there is none to make.
