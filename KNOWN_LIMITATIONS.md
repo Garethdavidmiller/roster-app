@@ -634,33 +634,29 @@ are architecture/App-Check territory or inherent platform behaviour, not bugs to
   `connect-src` `firebasestorage.googleapis.com` entry is redundant under the `*.googleapis.com`
   wildcard but kept for explicit readability (harmless; the hygiene test tolerates it).
 
-### AL booked over a REST DAY THAT WAS BEING WORKED spends a day that later counts as none (found v21.46) — inherent to the data
+### ~~AL booked over a REST DAY THAT WAS BEING WORKED spends a day that later counts as none~~ (found v21.46) — **FIXED at v21.55 (`replacedType`)**
 
-Verified against the real modules, not reasoned about: for a member whose base shift on a date is a
-rest day, with an **RDW override** on that date (the overtime they had agreed to work), booking annual
-leave over it gives two different answers to the same question —
+Kept, struck through, because this section said "not being fixed now" for nine releases and then the
+fix shipped — deleting it would leave the next reader of an old checkout or diff with half the story,
+and the DIAGNOSIS below is still the reason the fix took the shape it did.
 
-| | |
-|---|---|
-| consumes a day **when booked** — `isWorkingDate` sees the RDW and says the day is worked | **true** |
-| consumes a day **once saved** — `consumesEntitlement` sees the base rest day | **false** |
+The problem, as found: for a member whose base shift on a date is a rest day, with a worked override
+on that date, booking annual leave over it gave two different answers — the confirm bar counted the
+day (`isWorkingDate` saw the override), every later count did not (`consumesEntitlement` saw only the
+base rest day). The root cause was the data model, not either calculation: an override is one
+document per member per date, so the moment AL replaces the worked override, **the evidence that the
+day was going to be worked no longer existed**.
 
-So the confirm bar counts the day, and every later count — the AL banner, the member's own calendar
-balance, the next save's cap check — does not. The balance drifts upward by one day each time it
-happens, and a member could eventually book past their entitlement with no confirm bar.
-
-**It is not a coding mistake and the unification at v21.46 did not cause it.** `admin-al.js` has
-paired these two halves since it was written, and its comment already names the fallback: *"here the
-day is AL-overridden, so we test the BASE shift underneath it."* That is the whole problem — an
-override is one document per member per date, so the moment AL replaces the RDW, **the evidence that
-the day was going to be worked no longer exists**. The base roster is all that is left to ask, and the
-base roster says rest day.
-
-**Why it is not being fixed now:** any fix is a data-model change — the AL write would have to record
-what it replaced (a `replacedType`, or keeping the superseded override), and then four read paths
-would have to consult it. That is a real feature, not a patch, for a case that needs an RDW override
-on the exact date being booked as leave. Recorded here so the next person to see a balance that looks
-one day generous has the explanation rather than a mystery.
+**The fix (v21.55–56) is exactly the data-model change this section once declined:** every override
+write now stamps `replacedType` — the type of the document it replaced — via `nextReplacedType`
+(`override-utils.js`), which inherits on a re-save and chains THROUGH absences, so swap → sick → AL
+still remembers the `shift`. `consumesEntitlement` (`al-entitlement.js`) consults it through
+`isContractedWorkOverride`: a replaced **contracted** shift (`shift`) charges a day, a replaced
+voluntary **RDW deliberately does not**. Pre-v21.55 documents lack the field and fall back to the
+base roster — the old behaviour, so no migration. What genuinely remains open is narrower and lives
+in the Overtime/AL section below: *deleting* the AL doc still destroys the swap evidence it carried,
+because only the TYPE was preserved, never the time (see "Deleting an AL doc destroys the swap
+evidence it carried", v21.56).
 
 ### The App Speed card's "First appears" cannot mean the roster (v20.80) — inherent
 

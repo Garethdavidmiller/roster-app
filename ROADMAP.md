@@ -174,6 +174,35 @@ that are **not** valid on Chiltern, and states plainly that it is **not an exhau
 absence is out of scope, not invalidity. It carried an approximate national product count until
 v20.10; that went, because pinning a changing figure dates the page and buys the reader nothing.
 
+### Overtime full launch — the three things the beta must answer first
+**Status:** Watching the restricted beta · **Owner:** Gareth (the launch decision) · **Trigger:** each item names its own, below
+
+The feature is live for a restricted beta (`CONFIG.OVERTIME_BETA` + the reviewers) and the design
+record is `OVERTIME_AVAILABILITY.md`. Three items were flagged in the Aug 2026 external review of
+v21.53 as *pre-full-launch* considerations rather than defects — recorded here so the launch
+decision is made against them rather than rediscovering them:
+
+- **Revision-2+ history reads off the Manager's first render.** v21.53 already removed the
+  revision read for anyone at revision 1 (most people, most weeks), but every reviser still costs a
+  subcollection read that is awaited before the workspace paints. **Trigger:** a measured slow
+  Manager load with real full-team data — not the theory. The shape if it fires: render current
+  availability from the heads first, enrich the change/freshness markers afterwards.
+- **A reminder audit row for the Manager, and retry on a failed send.** `reminderSentAt` and the
+  function logs record what the scheduler did, but no Manager surface says "Reminder attempted
+  Mon 11:00 · 4 outstanding · 3 devices targeted" — so a broken push setup would leave a Manager
+  assuming everyone was reminded. And the send itself gets **one scheduled attempt**: the daily
+  scheduler is eligible only in the 24 hours before the initial deadline, and `reminderSentAt`
+  stamps the ATTEMPT, so a transient push failure has no automatic second try. Both are fine
+  during a beta the admin is watching; at full launch, if reminders become operationally relied
+  on, add one restrained status row and make the stamp record success rather than attempt (or run
+  the check more than once on the deadline morning). **Trigger:** full launch, if reminders
+  matter operationally by then.
+- **A second reminder before the FINAL deadline — a decision, not a feature.** Today the only
+  reminder is on the initial deadline's morning. If the beta shows people missing the initial
+  Tuesday and *still* not submitting despite the extra week, a final-Monday reminder is justified;
+  if not, fewer notifications is better and the answer is no. **Trigger:** observed repeat
+  non-response in real beta weeks.
+
 ### Address migration campaign
 **Status:** Planned, sequenced after the password work · **Owner:** Gareth · **Trigger:** password migration substantially complete
 
