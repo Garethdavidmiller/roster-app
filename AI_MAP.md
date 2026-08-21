@@ -51,6 +51,7 @@ proposing it.
 | Calendar initial 3-month fetch + sync chip — initInitialFetch | `calendar-initial-fetch.js` |
 | Calendar keyboard nav + hover tooltip — initCalendarKeyboard, initCalendarTooltip | `calendar-keyboard.js` |
 | Calendar override cache — rosterOverridesCache, fetchOverridesForRange, ensureOverridesCached, getShiftTypesInMonth | `calendar-overrides.js` |
+| The Calendar page's one-time notices — wiring for pw-own-2026 + backpay-2026 | `calendar-notices.js` |
 | Calendar member selection — getSelectedMemberIndex, getCurrentMember, populateTeamMemberDropdown, validateTeamMembers | `calendar-member.js` |
 | Calendar rendering — buildCalendarContainer, createCalendarHeader, createDayCell, getSwipeDirection | `calendar-renderer.js` |
 | Huddle viewer overlay, _triggerAutoOpen, hashchange, subscription | `calendar-huddle-viewer.js` |
@@ -387,6 +388,12 @@ Every RULE Overtime Availability has, and no I/O at all — no Firebase, no HTTP
 **The no-op check comes before the conflict check, and that order is the feature.** An identical retry succeeds *even with a stale `ifRevision`*, because that is the timeout path: the first attempt committed, its response was lost, and the client retries with the baseline it last confirmed. Reversing the two turns every timeout retry into a 409 — telling somebody their availability was rejected at the exact moment it is saved, correct, and already what they wanted.
 
 **Nothing here ever manufactures an answer.** No response is unknown, never "not available": `normaliseDays` refuses a short week instead of filling it, and `deriveHistory` reports `lateInitial: false` when nothing was submitted at all, because no submission is not a late submission.
+
+### `calendar-notices.js`
+The Calendar page's one-time notices, in one place (v21.61 — split from calendar-app.js when the second live notice took the coordinator over its ratchet cap; a notice is a self-contained unit that arrives and expires routinely, and each was growing the coordinator by ~50 lines of non-coordination wiring).
+- `initCalendarNotices()` — wires every one-time notice index.html carries. Called once from calendar-app.js at module scope. Currently: `pw-own-2026` (the set-your-own-password nudge — CTA + snooze, expiry `CONFIG.PASSWORD_NOTICE_DAYS`, DONE key shared with settings-app.js via storage-keys.js) and `backpay-2026` (the 28 Aug 2026 award-payslip reminder — ONE-SHOT, no snooze, hard clock cutoff Thu 27 Aug 2026 23:00 rather than a day count, self-retires silently past it).
+- Both open through `openNoticeIfClear` (never `open()` — v19.53) behind `calendarAccessReady` + a 1,500ms defer past the Huddle auto-open. Whichever notice opens first wins the load; the other stays unflagged and returns next load.
+- Imports `CONFIG` (roster-data), `lsGet`/`lsSet` (ls), `NOTICE_PW_OWN_DONE` (storage-keys), `archiveNotice`/`isNoticeExpired` (nav-panel), `createLightbox`/`openNoticeIfClear` (overlay), `calendarAccessReady` (calendar-access). Imported by `calendar-app.js` only. The notice HTML stays in index.html; the rules table stays in CLAUDE.md ("Current notices").
 
 ### `calendar-member.js`
 Team member selection for `index.html` — extracted from `calendar-app.js` at v13.82.

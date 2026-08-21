@@ -65,6 +65,7 @@
     <link rel="modulepreload" href="./calendar-access.js">
     <link rel="modulepreload" href="./calendar-access-core.js">
     <link rel="modulepreload" href="./calendar-al-lightbox.js">
+    <link rel="modulepreload" href="./calendar-notices.js">
     <link rel="modulepreload" href="./calendar-app.js">
     <link rel="modulepreload" href="./calendar-data-state.js">
     <link rel="modulepreload" href="./calendar-doc-viewer.js">
@@ -168,6 +169,19 @@
          never meet that overlay at all. Its real ask is "sign in", with setting a password as the
          reason to. Wording has to stay true for someone who has ALREADY set one: the calendar has
          no named session, so it cannot read `passwordStatus` and genuinely does not know. -->
+    <div id="bpNoticeLb" class="lb-overlay" role="dialog" aria-label="Back pay arrives 28 August" aria-modal="true">
+        <div id="bpNoticeContent" class="lb-content notice-lb-content">
+            <button id="bpNoticeClose" class="lb-close" type="button" aria-label="Close">✕</button>
+            <div class="notice-badge notice-badge--pay">💷 Pay</div>
+            <div class="lightbox-app-name">Back pay arrives 28 August</div>
+            <div class="notice-date">Posted 21 Aug 2026</div>
+            <p class="notice-body">The 28 August payslip brings the new pay rates, plus back pay to April. To see what your back pay should be, either check your payslips since April are entered correctly — or let the <strong>Year to Date Figures</strong> and <strong>Pay Rise Back Pay</strong> cards estimate it from less.</p>
+            <p class="notice-body">Enter this month's hours too — that is what makes the estimate of this month's pay reliable.</p>
+            <a href="./paycalc.html" id="bpNoticeGo" class="notice-cta">Open the Pay Calculator &rarr;</a>
+            <button id="bpNoticeLater" class="notice-later" type="button">Not now</button>
+        </div>
+    </div>
+
     <div id="pwNoticeLb" class="lb-overlay" role="dialog" aria-label="Set your own password" aria-modal="true">
         <div id="pwNoticeContent" class="lb-content notice-lb-content">
             <button id="pwNoticeClose" class="lb-close" type="button" aria-label="Close">✕</button>
