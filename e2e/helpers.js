@@ -51,6 +51,7 @@ export function seedSession(page, name = 'G. Miller') {
             expiry: Date.now() + 90 * 24 * 60 * 60 * 1000,   // arbitrary future — NOT SESSION_MS
         }));
         localStorage.setItem('myb_notice_pw_own_2026_done', '1');
+        localStorage.setItem('myb_notice_backpay_2026_done', '1');
     }, name);
 }
 
@@ -113,6 +114,7 @@ export function seedMember(page, name = 'G. Miller') {
     return page.addInitScript((n) => {
         localStorage.setItem('myb_roster_selected_member', n);
         localStorage.setItem('myb_notice_pw_own_2026_done', '1');
+        localStorage.setItem('myb_notice_backpay_2026_done', '1');
     }, name);
 }
 
@@ -298,6 +300,7 @@ export function seedMemberSession(page, name = 'G. Miller') {
         localStorage.setItem('myb_roster_selected_member', n);
         // Same pw-notice suppression as seedMember, same reason — see the note there.
         localStorage.setItem('myb_notice_pw_own_2026_done', '1');
+        localStorage.setItem('myb_notice_backpay_2026_done', '1');
         window.__E2E = Object.assign(window.__E2E || {}, { authUser: true });
     }, name);
 }
