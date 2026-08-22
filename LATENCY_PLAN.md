@@ -63,6 +63,48 @@ than the ones above it by construction — the same property the card already st
 
 ---
 
+## First reading — 22 Aug 2026 (owner screenshots of the live card; PROVISIONAL, month incomplete)
+
+Recorded against the decision rule above so the numbers and the verdict sit next to the rule that
+produced them. **Read from the deployed Operations card, not from this repo** — the analytics are
+admin-only, so screenshots are the record. A full-month confirmation read is due after **31 Aug**;
+act then, not now.
+
+**The boot stages exonerate the code.** Waking up 9% over ½s (989 opens) · Loading code 11%
+(1,052) · Getting ready 0% (1,114). The SW, the module graph and the no-bundler trade are all fast
+in the field — Phase 4's trigger did not fire.
+
+**The ladder, cumulative (Calendar, 1,619 opens this month):**
+
+| Rung | over 1s | jump | opens |
+|---|---|---|---|
+| page start → **Recognised** | 56% | **+56 ← the wall** | 494 |
+| → Unlocked | 62% | +6 | 497 |
+| → Shifts shown | 71% | +9 | 863 |
+| → **Confirmed** | 100% | **+29** | 458 |
+
+**Verdict per the rule: Phase 3 first** — the dominant gap is `page start → Recognised`, i.e.
+restoring the saved sign-in, and everything downstream inherits it (the access decision and the
+cache paint are cheap once identity exists). **Phase 2 second**, against the Confirmed row: the
+authoritative three-months × all-members read finished inside a second on **zero** loads, which is
+the plan's own prediction confirmed rather than news — it shapes the sync chip's lifetime, not what
+the member feels.
+
+Three cautions attached to the verdict:
+
+- **Loading code is fast, so the Recognised delay is not parsing.** Some of it is Firebase's own
+  restore work — IndexedDB read, token refresh over the network (4G-like loads run 18% over 1s vs
+  11% not-reported, which smells of network). Phase 3 removes Firestore from auth's path but may
+  not buy the whole 56 points; the prove-it-on-one-page step exists precisely to find out.
+- **Row populations differ by construction** (the caveat above): viewer/PIN loads never reach
+  Recognised, and Confirmed only counts loads that stayed open for it.
+- **This ladder and the "asked for my password every time" complaints (Aug 2026) are very likely
+  one phenomenon.** A restore tail slow enough to blow the 6.5s access budget puts the sign-in card
+  up until `watchForLateNamedIdentity` withdraws it. Phase 3 is therefore also the treatment for
+  the complaint's transient-flash arm.
+
+---
+
 ## Phase 2 — the Calendar data path
 
 **Trigger:** the ladder shows the gap at Unlocked → Shifts shown, or Shifts shown → Confirmed.
