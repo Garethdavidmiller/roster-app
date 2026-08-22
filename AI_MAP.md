@@ -5,43 +5,53 @@
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
 
-## This file's SIZE — measured v21.18, RE-MEASURED v21.63, and the trigger has now FIRED
+## This file's SIZE — measured v21.18, re-measured v21.63, and the re-measurement CORRECTED ITSELF
 
-⚠️ **This section used to read "not a duplication problem — do not re-open it". Re-measuring is what
-it asked for, and the answer changed.** It closed with: *"If the verbatim or 7-gram figures above
-climb materially, the duplication is real and the sweep is the right response. Re-measure before
-proposing it."* They climbed by roughly 4×.
+The v21.18 section said "not a duplication problem — do not re-open it", and closed with the right
+instruction: *"If the verbatim or 7-gram figures above climb materially, the duplication is real and
+the sweep is the right response. Re-measure before proposing it."*
 
-| Measure | v21.18 | v21.63 |
-|---|---|---|
-| Sentences that are VERBATIM a module sentence | 0.4% (5 of 1,271) | **1.7%** (36 of 2,136) |
-| Sentences sharing a 7-word run with the module | 10.4% | **31–39%** |
-| Version references | ~536 | **600** |
-| Size | ~335k chars | **377k chars** |
+**Re-measured at v21.62, the 7-gram figure had gone 10.4% → 31–40%, so the sweep was proposed and
+run. Doing it showed the METRIC was wrong, not the file.**
 
-*(The range on the 7-gram figure is method: 31% comparing each entry against its OWN module, 39%
-against all modules. Both are 3–4× the v21.18 reading, so the direction is not a methodology
-artefact.)*
+| Measure | v21.18 | v21.63 | What it means |
+|---|---|---|---|
+| VERBATIM a module sentence | 0.4% | **1.8%** | real, and small |
+| Shares a **7-word** run | 10.4% | **40.2%** | **screening metric — it over-reports** |
+| Shares a **14-word** run | *(not measured)* | **9.0%** | real copied content |
 
-**What was right at v21.18 and stays right.** The 55% "word-set overlap" figure the original
-proposal was built on was measuring shared **vocabulary**, not duplicated content, and reporting it
-as duplication was an error. And the v20.11 cost argument still does not transfer: CLAUDE.md is
-loaded into **every** session, this file is read **on demand** by a session that has already decided
-it needs the map. Size alone is not the complaint.
+**Why the 7-gram misleads here, demonstrated on the worst-flagged entry.** `links-adjacency.js`
+scored 51% on 7-grams. At 14 words it is **16%**, with four verbatim sentences out of forty-nine.
+The rest was shared *vocabulary* — an entry about line ordering and the module that does line
+ordering both say "the spare spread is charged", because there is no other way to say it. That is
+the same error the v21.18 section identified in the 55% word-set figure, made again one level up.
+A short entry inflates it further: one shared sentence out of two reads as 50%.
 
-**What has changed is the duplication itself.** The clearest cases are the SHORT entries, not the
-long ones: `calendar-state.js` and `calendar-swipe.js` each say what their own module header says,
-reworded, and CLAUDE.md's tree says it a third time. The long entries mostly still earn their place
-— measured, changelog prose is only ~5% of the file, so the v21.18 finding that this is not a
-changelog holds.
+**So the v21.18 conclusion substantially STANDS — about 91% of this file says something the modules
+do not** — and the honest version of its rule is: **screen with the 7-gram, judge with the 14-gram
+and a read.** Do not open a sweep on the screening number alone; that is what happened here.
 
-**So the sweep, when someone does it, is TARGETED and not a v20.11-style pass:** collapse the short
-entries that merely restate a header, trim the pasted `export {}` block in the `firebase-client.js`
-entry, and leave the dense reasoning alone. **Move, never delete** — the rule that pass was careful
-about ("moved into the module header first, and verified there") is the one that matters most here,
-because ~95% of this file is still reasoning that exists nowhere else.
+**What the sweep did find, and it was not duplication — it was COMPLETENESS:**
 
-**And the same re-measurement rule applies to this table.** It is a dated reading, not a fact.
+- **70 exports with no mention anywhere in this file** (8.6%), all documented at v21.63. Every one
+  was an *added* export, because `githooks/pre-commit` computed only REMOVED ones — the asymmetry
+  was the cause, and the hook now checks both directions.
+- **Two modules with no entry at all**, including `functions/calendar-viewer-auth.js` — the server
+  half of the staff-PIN gate, while the client half carried a long entry.
+- **Four drifted signatures**, `initNavPanel`'s missing `canOpenOvertime` among them: a permission
+  flag invisible in the document that routes people to the module.
+- **Three entries that genuinely were near-copies** of their module headers (`links-import.js`,
+  `links-limits.js`, `guide-back.js`) — collapsed to routing, reasoning verified present at the
+  target first. `links-limits.js` was a *third* copy: `.claude/rules/links-design.md` carried ~140
+  lines of the same argument until the same release.
+
+The file grew slightly as a result, and that is the correct direction: a map is judged by whether
+you can find things in it, not by its length. The v20.11 cost argument still does not transfer —
+CLAUDE.md is loaded into **every** session; this is read on demand by a session that already knows
+it needs the map.
+
+**This table is a dated reading, not a fact.** Re-measure before acting on it — and read the entry
+before deleting anything, because the number alone has now been wrong once.
 
 ---
 
@@ -129,11 +139,18 @@ The single source of truth for all roster data.
 - `teamMembers` array — names, roles, roster types, start dates
 - `getBaseShift(member, date)` — **always use this, never read roster.data directly**
 - `getBankHolidays(year)` — algorithmic UK bank holiday list
+- `isChristmasRD(date)` — Dec 25 **and 26** force to RD. **`CALENDAR_DATA.md` invariant 8 names this function and it was missing from this map until v21.63.** It must run BEFORE Firestore overrides are applied, so Dec 26 can then be overridden to RDW; never reorder that. `isChristmasDay(date)` is the narrower Dec-25-only test.
+- `isBankHoliday(date)` · `isEasterSunday(date)` · `computeEaster(year)` — the BH calendar behind pay and the calendar badges; `getSpecialDayBadges(date)` is the display face of them.
+- `getShiftKind(timeStr, member)` / `getShiftClass(timeStr)` — the Early/Late/Night classification and its CSS class. `getShiftKind` honours a member's `permanentShift`, which is why the two are not interchangeable. `isEarlyShift` / `isNightShift` are the direct predicates.
+- `isWorkedShift(shift)` — false for RD/OFF/SPARE/AL/SICK, true for everything else **including RDW**.
+- `getRosterForMember(member, date)` — the roster descriptor for a date, `rosterChanges` applied.
+- `TEAM_GRADES` (`['CEA','CES','Dispatcher']`) — the grade grouping the login dropdown and Team View order by. `TIME_RE` / `SHIFT_TIME_REGEX` — the `HH:MM` and `HH:MM-HH:MM` validators. `validateRosterPatterns()` — a load-time self-check that console.errors every malformed roster entry.
 - `getPaydaysAndCutoffs(year)`, `isPayday()`, `isCutoffDate()`, `paydayForCutoff(cutoffIso)` (the ISO payday paired with a cutoff, or null — single source for the calendar's payday-cell navigation)
 - `parseSmartFloat(str)` — number parse that strips iOS smart hyphens/curly quotes first; single source for paycalc `numVal()` and the HPP rate read in `paycalc-hpp.js`
 - `resolveMemberRoster(member, date)` — applies `rosterChanges` (latest `from` ≤ date wins); the basis for `getBaseShift`/`getWeekNumberForDate`. Never special-case rosterType at a call site — go through this.
 - `getWeekNumberForDate(date, member)` · `getALEntitlement(member, year, overrides = [])` (the third param feeds the dispatcher BH-lieu count) · `projectAnnualLeaveOverage({ name, year, existingALDates, newALDates, entitlement })` (over-entitlement headline/detail, or null) · `getMembersForGrade(grade)` · `isSunday(dateStr)`
 - `avatarInitials(name)` / `avatarHue(name)` — initials + stable per-name colour for the nav-panel footer badge (called directly in `nav-panel.js`; no fetch/storage)
+- `isSameDay(a, b)` — calendar-day equality ignoring clock time.
 - `escapeHtml(s)` / `formatISO(date)` / `isValidEmail(s)` — shared string/date/validation utilities used app-wide
 - `isChilternWorkEmail(s)` — true only for a valid email on the `CONFIG.WORK_EMAIL_DOMAIN` (`chilternrailways.co.uk`) domain; the client-side mirror of the staffContact firestore.rules domain check (v14.97). Used by settings/operations/admin work-email save paths
 - `CONFIG` (incl. `ADMIN_NAMES`, `LINKS_DESIGNERS`, `MIN_YEAR`/`MAX_YEAR`, payday anchors) and the re-exported raw roster arrays from `roster-cycle-data.js`. (`MILLER_ACTUALS` was moved OUT to `test-fixtures/miller-actuals.js` at v14.68 — privacy; see ARCHITECTURE_PLAN.md → MILLER_ACTUALS.)
@@ -145,12 +162,13 @@ Coordinator for `index.html`. Delegates state, swipe, rendering, override cache,
 - `renderCalendar()` — calls `buildCalendarContainer` + `ensureOverridesCached`; shows stale-member banner via `takeStaleMemberName()`
 - `updateLegend()` — shows/hides Spare/RDW/AL/Sick/Night/Christmas/Easter legend items
 - AL + day-detail lightboxes DELEGATED to `calendar-al-lightbox.js` (`initCalendarLightboxes()` — `loadALStats` lives there); month-jump picker, About lightbox wiring stay here
-- Sync chip state machine + initial 3-month Firestore fetch DELEGATED to `calendar-initial-fetch.js` (`initInitialFetch({ isTeamViewMode, renderCalendar })`)
+- Sync chip state machine + initial 3-month Firestore fetch DELEGATED to `calendar-initial-fetch.js` (`initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamView, authReady, onAccessLost })`)
 - Team Week View toggle, notification prompt, keyboard shortcuts, SW registration
 - Calls `initSwipeHandler()`, `initHuddleViewer()`
 
 ### `calendar-state.js`
 Display month/year state for `index.html` — extracted from `calendar-app.js` at v13.83.
+- `addMonths(y, m, delta)` — the clamped month arithmetic shared by `changeDisplay` and `calendar-swipe`'s adjacent-panel build. One copy, so the MIN/MAX_YEAR clamp cannot diverge between the state mutation and the panel preview.
 - `getDisplayMonth()` / `getDisplayYear()` — current display position getters
 - `setDisplayMonth(m)` / `setDisplayYear(y)` — direct setters (used by today-button and month-jump picker)
 - `changeDisplay(delta)` — pure state change with boundary clamping; no DOM side-effects
@@ -159,7 +177,8 @@ Display month/year state for `index.html` — extracted from `calendar-app.js` a
 
 ### `calendar-swipe.js`
 Pointer Events swipe carousel for `index.html` — extracted from `calendar-app.js` at v13.83.
-- `initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, updateLegend, navigateToPaycalc, openDayDetail })` — wires all pointer events on `#calendarDisplay`
+- `isSwipeGestureActive()` — **background re-renders must wait on this.** `renderCalendar` wipes `#calendarDisplay`, which detaches the carousel panels mid-gesture; the initial-fetch resolution and a deferred member apply both defer until it returns false.
+- `initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, updateLegend, updateNavButtonState, navigateToPaycalc, openDayDetail, onRetryMonth })` — wires all pointer events on `#calendarDisplay`
 - `isSwipeCooldown()` — returns true while a swipe animation is in flight; coordinator uses this to suppress button clicks
 - Adjacent panels built in `pointerdown` (not `pointermove`) to avoid mid-swipe jank; setPointerCapture deferred to `pointermove` (iOS Safari fix)
 - RAF-throttled transform writes; haptic feedback on threshold cross
@@ -244,6 +263,7 @@ Firestore override cache for `index.html` — extracted from `calendar-app.js` a
 - `monthKey(year, month)` — `"YYYY-MM"` key string for the `fetchedMonths` Set
 - `_initialFetchInProgress` — exported live binding; coordinator reads it to skip competing fetches during the initial 3-month load
 - `setInitialFetchInProgress(v)`, `addFetchedMonths(keys)`, `clearFetchedMonth(key)` — setters called by `calendar-initial-fetch.js` (the initial 3-month fetch module). `clearFetchedMonth` also re-arms the failure repaint: it is the "start again" signal, and a month being given a fresh attempt has to be allowed to report the outcome of it
+- `hasOverrideAccess()` / `setOverrideAccessLostHandler(fn)` — the gate's read side, and the coordinator-injected callback fired when a read comes back `permission-denied`. Both are INJECTED rather than imported for the same reason the gate is: this module must not depend on the access layer it exists to back up.
 - `setOverrideAccess(granted)` — the gate. **A grant is a FRESH START (v20.41):** granting clears `fetchedMonths` and `_failureRepainted`. It has to, because a re-grant follows a re-lock — months claimed under the old session were still claimed under the new one, so every `ensureOverridesCached` no-opped and a re-unlocked Calendar never read anything again. With its knowledge forgotten at the same moment, that was a permanent "Checking this month" and a Try again that could not win. Revoking viewer tokens is a documented step of rotating the PIN, so this is the ordinary path. Revoking deliberately does NOT clear: a shut gate reads nothing regardless, and clearing there would let anything running in between re-claim months against it
 
 ### `calendar-data-state.js`
@@ -264,7 +284,13 @@ What the Calendar KNOWS about a month's overrides, and what it is therefore allo
 
 ### `overtime-app.js` / `overtime-boot.js` / `overtime-data.js` / `overtime-format.js` / `overtime-tips.js`
 The Overtime availability page. `overtime-app.js` is the coordinator (body exported as `init()`, invoked by the boot shim); `overtime-data.js` owns every server call and the corrected clock; `isWithdrawn` and `withdrawnLine` live in `overtime-format.js` because the reviewer's browser reads participant documents directly, and the server holds a second copy of the first — pinned by `overtime-parity.test.mjs`, which asserts BOTH the parity and the outcome, since two copies that drift the same way agree perfectly and are both wrong; `overtime-format.js` is pure words and time arithmetic; `overtime-tips.js` is `?`-panel data. Server side: `functions/overtime.js` + `functions/overtime-core.js`. Feature design: `OVERTIME_AVAILABILITY.md`.
+- `correctedNow()` — the server-corrected clock. Only meaningful after `getMyOvertimeState` has returned, since that return is what sets the offset; there is deliberately no exported "is it ready" flag, because one that is structurally always true is worse than none.
 
+
+**`overtime-format.js` — the pure exports** (words, and the clock they are worded against). Added to this map at v21.63; the section had run on prose alone, so eleven of its exports were unroutable:
+- **Dates and labels:** `shortDate` / `longDate` (an ISO day, two lengths) · `weekLabel(weekEnding)` · `weekSpan(weekStart)` · `deadlineLabel` — all formatted through `Intl` in **Europe/London**, never the device's zone, so a phone left on holiday time still shows the deadline staff are held to.
+- **The copy layer:** `phaseCopy` (where the week stands, in the MEMBER's terms — see the naming rule below) · `rowStateCopy(state)` · `countsCopy(expected, …)` — **the one line where "no response" could collapse into "not available", which is why `overtime-format.test.mjs` pins it** · `weekSummary` (counts rather than enumerates: seven answers do not fit a phone row).
+- **Clock and lifecycle:** `DEADLINE_SYNC_WINDOW_MS` — how near a deadline the page re-syncs against the server rather than trusting its own clock (`shouldResyncClock`) · `canRestoreNow(withdrawnAtMs)` — whether a withdrawn participant may still be restored, cited by `OVERTIME_AVAILABILITY.md`.
 **One page, both surfaces.** A member's own form and the reviewer workspace are the same subject seen from two sides, so they share a page and a tab strip — and the strip is drawn only once BOTH are known to exist, never from the CONFIG role guess, so a reviewer with no form of their own is not shown a tab that leads nowhere.
 
 **The planning horizon is the point of the page.** A weekly-window system has one catastrophic failure and it happens before any document exists: nobody creates the window, so no participants exist, so nobody is outstanding, so no reminder can fire — and an empty page is indistinguishable from "no overtime needed". `overtime-app.js` therefore renders the horizon's week rows from the CALENDAR rather than from Firestore, keeps a missed week's row until its Saturday passes, and puts the count of weeks WITHOUT a form on the collapsed card's chip (a chip reading "6" would be reassuring and say nothing).
@@ -279,6 +305,7 @@ The Overtime availability page. `overtime-app.js` is the coordinator (body expor
 
 ### `overtime-form.js` / `overtime-roster.js`
 The member's side of the Overtime page. `overtime-form.js` renders one week's seven-day form and owns the submit lifecycle; `overtime-roster.js` supplies the roster context each day is answered against.
+- `loadRosterContext(...)` — one member's duties across a window (the reviewer's unfiltered twin is `loadRosterForMembers`). **There is no `cached` state here on purpose**: unlike the calendar, this page can do nothing useful with possibly-stale context, because the options it generates get SUBMITTED.
 
 **No default answer, ever.** There is no pre-selected mode and no copy-from-last-week. Submit refuses on press — with the first unanswered day named and focused — rather than sitting disabled, because a disabled button explains nothing and this one has something specific to say. A default would be an answer the member did not give, about their own life, stored under their name.
 
@@ -329,20 +356,15 @@ The member's side of the Overtime page. `overtime-form.js` renders one week's se
 **The chosen option must LOOK chosen, and that is tested by measuring pixels.** These six became a radio group at v20.61 (`aria-checked`) while the CSS went on styling `[aria-pressed="true"]`, so for several releases pressing an option changed nothing visible — and every behavioural test still passed, because the attribute, the stored answer and the answered-day marker were all correct. `e2e/overtime.spec.js` now reads the computed `background-color` of a chosen pill against an unchosen one, which is the only form of the assertion that survives the NEXT reason it might break (a renamed attribute, a deleted rule, a lost specificity fight). Same reasoning as the 16px focusable-field sweep.
 
 ### `links-import.js`
-Turning somebody ELSE's roster proposal into a design the workspace can hold — the pure half; the panel is in `links-app.js`. Tested by `links-import.test.mjs`.
-
-**It exists because proposals do not arrive as designs.** They arrive as a photograph of a handwritten sheet, a Word table, or a column out of a Dec 2026 simplifier spreadsheet, and the only route in was 168 taps — enough friction that a colleague's idea never gets compared against anything. That is what this removes: not typing effort, but proposals nobody assesses.
-
-**It is a TRUST BOUNDARY and that is the whole job**, modelled on `paycalc-transfer.js`'s `validateBackup`. Pasted text is a claim about data, and it becomes either a design or a refusal — **never a half-design**. An unreadable cell is refused by week and day rather than defaulted to a rest day: an import that "succeeds" four duties light reads as a lighter week, and the hours panel then reports a comfortable average for a week nobody proposed. A row of the wrong width is refused rather than realigned (guessing which column is missing is guessing at somebody's rest days), and a duplicate or out-of-range week number is refused rather than resolved.
-
-**Warnings are not errors.** A refusal means the text does not describe a design; a warning means it does, and here is what had to be decided — a short rotation, or `NA` read as a rest day because the app has one non-worked state and a Marylebone sheet uses `NA` for a non-contracted Sunday. The caller shows them BEFORE the save: a decision reported after the write is a notification, not a choice.
-
-**It computes no hours, no coverage and no verdict.** The design goes into the workspace and the workspace's own panels assess it exactly as they assess a generated one — an importer that scored its own input would compete with `runDesignChecks`, and the first time they disagreed nobody would know which to believe.
-
-- `parseCell` / `parseGrid` / `parseDesignImport` / `summariseImport` / `MAX_IMPORT_NAME`
+Turning somebody ELSE's roster proposal into a design the workspace can hold — the pure half; the panel is in `links-app.js`.
+- `parseCell` / `parseGrid` / `parseDesignImport` / `summariseImport` / `MAX_IMPORT_NAME`.
+- **It is a TRUST BOUNDARY**, modelled on `paycalc-transfer.js`'s `validateBackup`: pasted text is a CLAIM about a design, and it becomes a design or a refusal, **never a half-design**. An unreadable cell is refused BY NAME rather than defaulted to a rest day — an import that "succeeds" four duties light reads as a lighter week, and every panel downstream then reports confidently about it.
+- **It computes no hours, no coverage and no verdict** — the workspace's own panels assess what it produces.
+- Why the feature exists at all (proposals arrive as a photograph, a Word table or a spreadsheet column, and the only route in was 168 taps), and the warning-vs-refusal distinction, are argued in the module header. Tested by `links-import.test.mjs`.
 
 ### `overtime-manager.js`
 The reviewer's workspace for one selected week: the By day / Awaiting views, rendered from data handed in. It performs **no reads** — the entry above is right that `overtime-data.js` owns every server call, and this one said the opposite until v21.49, which is two answers to one question inside a single document. What is true, and belongs to `loadWeekDetail` in that module, is that the REVIEWER's browser reads the window tree from Firestore directly where the member's never does: the rules give `admin`/`manager` read across the tree, and this is the surface that benefits. This module imports `overtime-format.js` and nothing else, which is what keeps it testable against a two-line fake DOM.
+- `renderWeekDetail(...)` — the module's single export: the reviewer's whole workspace for one selected week, rendered from data the coordinator hands it.
 
 **Three sections per date, and they must never merge.** Available · Not available · No response. The third is under constant pressure to be folded into the second, because they look alike in a list and a shorter list is tidier — but they are opposites: one person said no, the other said nothing, and a clerk who cannot tell them apart cannot know who is worth a phone call. An EMPTY section still renders its heading, so "nobody outstanding" never looks like a section that failed to draw.
 
@@ -498,6 +520,7 @@ Shared **in-place** sign-in overlay for every protected page (v14.45). Replaces 
 
 ### `sw-register.js`
 Shared service worker registration + update lifecycle (v12.28). All seven app pages import this instead of duplicating the register/activate/reload pattern.
+- `_resetForTest()` — clears the module's one-shot install/claim guards. Test seam only.
 - `registerServiceWorker({ beforeReload, bfcache })` — registers `./service-worker.js`, activates any waiting worker immediately, sets up an hourly update-check via `visibilitychange`. On `controllerchange`, calls `beforeReload()` if provided, otherwise `window.location.reload()`. `bfcache: true` adds `pagehide`/`pageshow` handlers (used by `calendar-app.js` only).
 - **First-install guard (v16.09, corrected v16.88):** `suppressNextClaim` is computed before registering — `!existing && !navigator.serviceWorker.controller`, i.e. no prior registration AND no controller — and the controllerchange fired by the first install's `clients.claim()` is swallowed, because the page was just loaded from the network so it already IS the newest version. **Both halves matter:** keying on the controller ALONE (as this described until v21.17) misclassifies a hard-reloaded page, which also has a null controller while its registration and active SW still exist — there the next claim is a genuine update and must reload. The listener is attached BEFORE `register()` so a very fast first-install claim cannot fire in the microtask gap and leave the flag unconsumed for the next real update to eat. Pre-v16.09 this reloaded every brand-new device (the old `registration.waiting && controller` guard only suppressed the redundant SKIP_WAITING *message*, not the reload — the SW self-activates via install-time `skipWaiting()` regardless).
 - **No `{once:true}` (v16.09):** the controllerchange listener stays armed so a `beforeReload` that declines (links' `confirm()` → Cancel) still receives the NEXT update's event; the default path double-reload is guarded by a `reloadFired` flag instead. Tested by `sw-register.test.mjs` (test:hygiene).
@@ -684,7 +707,7 @@ Coordinator for `operations.html` (admin-only, v10.99).
 - **Page-access via the policy layer (ARCHITECTURE_PLAN.md Phase 4a, v14.61):** the access gate routes through `requirePage({ status: currentUser ? 'named' : 'signedOut', member }, 'operations')` from `auth-policy.js` — `login` → overlay, `forbidden` → redirect to `admin.html`, `allow` → proceed — and the B1 enforcement decides via `requirePage(getAuthSnapshot(), 'operations') === 'login'`. **First coordinator to consume the new store + policy.** Behaviour-preserving (the local-derived snapshot keeps today's optimistic render; the existing e2e passes unchanged). Optimistic admin reads (4b, v14.62) wrap the admin-gated read cards in `withClaimRetry()` (force token refresh + retry once on stale-claim `permission-denied`; the shared firebase-client helper — was the byte-identical local `adminReadWithRetry`, consolidated v17.08).
 - Session guard (legacy description): reads the shared `myb_admin_session` localStorage key via `getSession()` from `session.js`; the redirect/login decision is the `requirePage` outcome above
 - Calls `ensureFirebaseSession(name)` from `session.js` to re-establish Firebase Auth on page load
-- Calls `initHuddleUpload()`, `initRosterUpload()`, `initAuthSetup()`, `initNavPanel({ isAdmin: true })`, and the three reporting cards `initErrorLog()`/`initUsageCard()`/`initPageSpeedCard()` (imported from `operations-reports.js` since v17.46 — was inline)
+- Calls `initHuddleUpload()`, `initRosterUpload()`, `initAuthSetup()`, `initNavPanel({ isAdmin: true, canOpenOvertime, … })`, and the three reporting cards `initErrorLog()`/`initUsageCard()`/`initPageSpeedCard()` (imported from `operations-reports.js` since v17.46 — was inline)
 - **Account status card** `initAccountStatus()` (v18.63; **merged with the former Work Email Progress card v18.65**) — the single per-member account-admin table. Joins `getAllStaffContacts` + `getAllPasswordStatus` (both admin-only reads, under `withClaimRetry`), a grade filter (All / CEA / CES / Dispatcher / Management), a two-count summary ("N/M have a work email · N/M set their own password"), and one stacked block per member: **work email** (address + inline Set/Edit/Remove via `saveStaffContact`/`deleteStaffContact`) and **password** posture (🔑 Own password / Surname default). A **Reset** button shows ONLY for a migrated member (a surname-default account has nothing to reset to); it opens a `confirmDialog` then calls `resetMemberPassword(name, { revoke: true })` (admin break-glass → surname default + refresh-token revoke), then re-reads status and re-renders (Reset then drops off). "Migrated" = `passwordSetAt` present AND `≥ resetAt`. Fails to `_cardLoadError` with a retry. Reuses the `email-*` form/filter CSS + the `acct-*` row CSS.
 - Owns icon lightbox, tips lightbox, and collapsible card wiring for the operations cards
 
@@ -710,7 +733,7 @@ Coordinator for `links.html` — the link-design workspace (designer-only; see `
 - Only export is `init()` (Phase 4a.2) — early-return access gate (designer via `requirePage`, else redirect), no top-level throw.
 - Owns: the multi-design Firestore collection (`linkDesigns`) load/save (atomic `runTransaction` save + offline getDoc fallback, `writeWithClaimRetry`, the v17.18 `baselineUnknown` guard), the design picker (new/duplicate/rename/delete), delegated grid clicks + paint mode, compare mode, the generator UI, the unsaved-changes guards (beforeunload + capture-phase nav-link guard + logo/ops-link confirms), and the first-visit notice (`#linksWelcomeLb`, rewritten v19.51 on a 14-day window and a new `myb_links_welcome_seen` key; the header beta chip was removed v19.50).
 - All pure design maths is imported from `links-design.js` — never duplicated back here.
-- The two read-only analysis panels (Coverage heat map + Design quality checks) are rendered by `links-analysis.js`, wired via `initLinksAnalysis({ getDesign: () => design })`.
+- The two read-only analysis panels (Coverage heat map + Design quality checks) are rendered by `links-analysis.js`, wired via `initLinksAnalysis({ getDesign, getBaseline, isComparing })`.
 - Compare mode is `links-compare.js`, wired via `const compare = initLinksCompare({ getDesigns, getActiveDesignId, getDesign, renderDesignPicker, renderGrid, renderBrushBar, dearmBrush, emptyPattern, isUnfilledPattern, shiftLabel })`. It OWNS `compareMode`/`compareDesignId` — the coordinator only calls `compare.isCompareMode()`/`getCompareId()` (reads) or `resetCompare()` (delete/select/generator-apply) or `renderCompare()`.
 
 ### `links-analysis.js`
@@ -726,6 +749,7 @@ Compare mode on `links.html` — two saved designs side by side with a gold-outl
 
 ### `links-design.js`
 Pure link-design maths (no DOM, no Firebase; tested by `links-design.test.mjs`).
+- `lineTotals(design)` — the grid's per-line columns and the days-worked average. **Its divisor is the WORKING lines, not the whole rotation** — unlike the hours average printed beside it, which divides by the rotation; two averages, two denominators, deliberately.
 - `classifyShift(shift)` / `normaliseCustomShift(raw)` (rejects night starts 21:00–03:59 AND a wrapping end — CEAs don't work nights) / `startMinutes` / `endMinutes` / `endMinutesAbs` / `dayClass(d)`
 - `calcCoverage(patterns, totalPos = ROTATING_LINES)` / `calcHourlyCoverage(patterns, totalPos = ROTATING_LINES)` — per-day and hour-by-hour on-duty counts for the Coverage heat map
 - `generateLink({ slots, spareLines = 0, lines = ROTATING_LINES, settled = true })` → `{ patterns, mode, waves, reason }` — the slot-based generator (the only way to create a new design); `generatePatterns(opts)` is the patterns-only wrapper keeping the old signature. **The parameter is `spareLines` and the default construction is SETTLED WEEKS** — this line said `spare` and "rotating-window" until v19.65, contradicting the bullet below it in its own entry (v19.58 made spare a count of whole lines; v19.59 changed the default)
@@ -758,6 +782,7 @@ Does a generator target table pay the contract, and the words the card states it
 **An unreadable time is counted whether or not it CONTRIBUTES (v21.31, found by this extraction).** The gate bails on any unreadable time before it looks at the counts, so a garbled time on a row asking for nobody still makes Generate refuse. The old rule counted only rows that would have contributed, so that table showed a red tick, a vague "Xh under the contract" note, and nothing at all about the row causing it.
 
 ### `links-design-doc.js`
+- `lastSavedLabel(ts)` — the line under the Save button. A bare time made a three-day-old save read as this afternoon, so it states the DAY once the save is not today.
 
 The **SHAPE of a link design** — in memory and in Firestore — and every conversion between the two (v19.94). Pure; tested by `links-design-doc.test.mjs`.
 
@@ -814,6 +839,7 @@ The table the generator **starts from** when a design has none (v21.00). Pure da
 
 Saved SETS of generator targets (v21.04) — named snapshots of the target table, shared between the designers in Firestore (`linkTargetSets`), because the ask they exist for — owner: *"I want others to be able to mess about but not lose my shift times set"* — cannot be satisfied per-device: a localStorage set is invisible to the colleagues it is meant to survive. Pure; the caller injects `serverTimestamp()`.
 
+- `MAX_SET_NAME` / `MAX_SET_SLOTS` — the bounds `targetSetFromDoc` refuses past. `describeSetState(...)` — **what the row SAYS and what it OFFERS**, two questions whose collapse into one is every defect this feature has had: before it, "Save changes" was a leap of faith, because nothing on screen told you whether the table WAS the set or your own work about to overwrite it.
 - `targetSetFromDoc(id, data)` → a set or **null, never a half-set** — the `parseDesignImport` trust boundary arriving from Firestore instead of a paste: a corrupt row refuses the whole document, because a set that loads three rows light is a lighter week every panel then reports confidently about. A set without `createdBy` is refused too — that field is the key the whole feature turns on.
 - `targetSetPayload(table, createdBy, updatedBy, now)` — fresh copies throughout (the generator edits its table in place). On create the caller passes their own name as `createdBy`; on overwrite the EXISTING owner, unchanged.
 - `canOverwriteTargetSet(set, userName, isAdmin)` — creator or admin, nobody else. **The client copy of the server rule, and it exists for the button, not the security**: it decides whether "Save changes" is offered, because a Save that permission-denies after the tap is worse than one that says up front whose set this is. The rule the app relies on is the same statement in `firestore.rules` — creator-or-admin on update/delete, `createdBy` pinned to the writer's own `name` claim on create and immutable on update, so ownership can be neither forged nor transferred. If the two drift, the server wins and the button merely mis-labels what will happen; `firestore.rules.test.mjs` asserts the server side of every case the module test asserts client-side.
@@ -822,15 +848,12 @@ Saved SETS of generator targets (v21.04) — named snapshots of the target table
 - Tested by `links-target-sets.test.mjs`; rules by `firestore.rules.test.mjs`; wiring by the three `links sets:` e2e cases — which sign in as **M. Robson, a designer who is not the admin**, because the first draft used G. Miller and found Save correctly ENABLED on a colleague's set: the admin override is real, and an ownership feature has to be tested from a seat with no override.
 
 ### `links-limits.js`
-The HARD limits — the ones a design either meets or cannot be run (v19.80, owner). Pure; tested by `links-limits.test.mjs`.
-- `MAX_CONSECUTIVE_WORKED_DAYS` (13 — **Chiltern's roster limit**, carried in company policy; its origin is the working-hours standard the industry adopted after the **Hidden report** into the Clapham Junction crash, 1988, which was itself withdrawn in 2007: see the tense note below) / `assessHardLimits(patterns, lines)` → `{ checks, breaches, assessable }`
-- **Why it is a separate module from `links-fatigue.js`.** That module's governing rule is that it reports factors PRESENT and **never passes or fails a design**, because the ORR is explicit its p3 factors are not prescriptive limits — hence amber and never red, `standing` counted apart from `present`, "an aid to a conversation, not a fatigue risk assessment". A hard limit is the opposite kind of statement. So the separation is **structural, not a label**: different module, different function, a count that is never added to the fatigue tally, its own section ABOVE the ORR factors, `.check-bad` red on a breach (the class the fatigue half is forbidden from using), and it renders whether it passes or fails. Put a hard limit into `assessFatigue`'s `results` array and within a release it is being tallied into "3 present · 2 standing", wearing an amber left edge, and collapsing into the quiet-rows disclosure when it passes — none of which would look wrong on screen. Two tests assert the separation directly.
-- **The answer is the WORST CASE, and that is what makes it a hard-limit check rather than a description.** A spare week is four duties whose placement the roster clerk chooses week by week, so if any placement reaches 14 the LINK PERMITS a breach — it does not matter that it usually works out.
-- **It fails to `unknown`, never to `ok`.** `toSequence` fills a missing line with RD, so an empty design produces a full-length sequence of rest days and a longest run of 0, which reads as a comfortable pass. "No breach found" about a design with nothing in it is the most dangerous sentence this file could produce.
-- **A passing hard-limit check still renders.** The fatigue panel hides `clear` rows behind a disclosure — right for 24 advisory factors, wrong here: the printed sheet goes to the assessing manager, and "the limit was checked and met" must be visible on it.
-- **WHOSE limit, and in which TENSE** (v19.96, external review P1). It is Chiltern's, carried in company policy; its origin is the working-hours standard the industry adopted after Hidden, and **that standard was withdrawn in 2007** — the ORR now expects a risk-based fatigue management system and RAIB describes the Hidden limits as historic and superseded. So the row cites Hidden as an ORIGIN, never as a current requirement. From v19.90 to v19.95 the section was headed "Industry limits · Hidden report — must be met", which is the one failure mode a citation is supposed to prevent: a manager who goes and checks it finds a nineteen-year-old withdrawn standard, and is then entitled to discount the rest of the sheet. Two new tests pin the tense (a row naming Hidden must mark it historic; nothing may claim the limit is industry-wide today) and one pins the RENDERED heading, which made the strongest claim on the page and had no test at all. **The exact policy citation — title, clause, staff group, effective date — is still outstanding.**
-- Live rosters: main **9**, bilingual **8**, both within the limit. Those read 15 and 14 before v19.79, i.e. the tool reported a breach on the roster people are actually working; pinned by a test.
-- **`POLICY_SOURCE_CONFIRMED` — the evidence state, and every visible string derives from it** (v20.08, external review P1). The policy that carries the 13 has never been produced: title, clause, staff group, effective date. That is ROADMAP.md class **C** (the owner's account of practice) and the gate requires A or B for anything rendered to a manager as *must be met* — which is exactly what the panel said, over a row printing "It cannot be run as drawn." in red. The number, the separate module, the red and the render-when-passing are unchanged; only the CLAIM was demoted. Unconfirmed, the heading reads `Configured Chiltern limit — policy source outstanding`, `basis` carries "citation outstanding", and the breach prose reports the measurement plus *confirm the policy before treating that as a decision*. The flag is the single home of that judgement precisely because the four attributions above were each corrected by editing prose in two or three files and each left a copy behind; tests in `links-limits.test.mjs` and `links-analysis.test.mjs` read the flag and fail in **both** directions, so the day the citation arrives is a test failure rather than a forgotten edit. To close it: put the reference in `CONFIRMED_BASIS`, flip the flag, run `npm test`.
+The HARD limits — the ones a design either meets or cannot be run (v19.80, owner). Pure; tested by `links-limits.test.mjs`. **A separate module from `links-fatigue.js` on purpose**: a hard limit is the opposite kind of statement from an advisory factor, so the separation is structural — own function, own count, own section, red on a breach, and it renders when PASSING too.
+- `MAX_CONSECUTIVE_WORKED_DAYS` (13) · `POLICY_SOURCE_CONFIRMED` · `assessHardLimits(design)`.
+- **`POLICY_SOURCE_CONFIRMED` is the one switch every visible string derives from** (v20.08). While it is `false` the limit renders as provisional wherever it appears; flipping it once a controlled Chiltern source exists changes every surface at once, and nothing hardcodes a status. `ROADMAP.md` → Evidence class is the gate that requires this; `VALIDATION_REGISTER.md` and `KNOWN_LIMITATIONS.md` track the outstanding citation.
+- **It answers the WORST CASE and fails to `unknown`, never to `ok`** — `toSequence` fills a missing line with RD, so an empty design must not read as compliant.
+- **The attribution history, the "13 consecutive days" vs "13 shifts in 14 days" distinction, and the withdrawn-2007 provenance are in the module header** — the one place they now live, after `.claude/rules/links-design.md` carried ~140 lines of the same argument until v21.63.
+- Live rosters for reference: main **9**, bilingual **8** — both within the limit.
 
 ### `links-fatigue.js`
 The ORR good-practice **fatigue factors** (Dec 2021 guide, p3 — 24 factors; **the panel renders 23** — a discrepancy recorded in `KNOWN_LIMITATIONS.md` → Links, unresolved because settling it needs the ORR p3 list itself) assessed against a link design (v19.46; `LINKS_DEC2026_PLAN.md` package 2). Pure — no DOM, no Firebase.
@@ -1058,6 +1081,7 @@ Staff Firebase Auth account setup (admin only).
 
 ### `admin-roster-upload.js`
 The Weekly Roster Upload pipeline.
+- `isZeroLengthRange(s, e)` — equal start/end is the one range shape always wrong here: every duration helper reads `end <= start` as an overnight wrap, so a zero-length range prices as TWENTY-FOUR HOURS.
 - `initRosterUpload(opts)` — called by `operations-app.js` after session guard passes
 - `computeCellStates(parsedResult, existingOverrides)` — classifies each day: MATCH / DIFF / CONFLICT / COVERED / REMOVE_IMPORT / UNREADABLE. **Module-scope + EXPORTED (v16.37)** so the state machine is unit-testable (`admin-roster-upload.test.mjs`), like its sibling `shiftValueToOverrideType`.
 - `renderReviewTable()` — per-person card list. Presentation reworked v15.52: a plain-language **outcome summary** ("what Save will do" — updated / cleared / needs-your-choice / couldn't-read) above the list; each change row carries a **Save tick** (was a Save/Skip toggle button) + an action tag (Update / Clear old / Your choice / Not saved); conflicts are an inline **Keep yours / Use new roster** choice (was Manual / PDF) with no separate top conflict banner; the Save button shows a live count. State machine + `chosen` model unchanged.
@@ -1132,6 +1156,7 @@ Grade/contracted-hours helpers and settings persistence for `paycalc.html` (v13.
 
 ### `paycalc-roster-hint.js`
 Roster-assist hint bar UI, fill logic, and snap persistence for `paycalc.html` (v13.81).
+- `HM_PAIRS` — the hour/minute field pairs the hint bar fills, declared once so the fill and the clear iterate the same list.
 - `updateRosterHint()` — re-renders the hint bar based on current suggestion state
 - `updateJoinerNotice(p)` — shows/hides the pro-rata joiner banner for joining periods
 - `toggleRosterDays()` — expands/collapses the day-level breakdown in the hint bar
@@ -1190,6 +1215,7 @@ Back-pay lump sum calculator for `paycalc.html` (v13.81).
 
 ### `paycalc-format.js`
 Pure date/currency formatters + time-input helpers shared by `paycalc-app.js` and `paycalc-backpay.js` (v14.06; time helpers added v17.74 / Section G). No DOM, no Firebase. Tested by `paycalc-format.test.mjs`.
+- `fdList(dates, cap = 4)` — a run of dates as prose, truncated past `cap`.
 - `fd(d)` — formats a Date as "1 Apr 26" (day + short month + 2-digit year)
 - `fdShort(d)` — formats a Date as "1 Apr" (day + short month only)
 - `fdLong(d)` — formats a Date as "1 Apr 2026" (day + short month + full year) — the payday / joined-on / printed-on long form; de-duplicated from ~8 inline `toLocaleDateString` copies across `paycalc-app`/`-backpay`/`-periods`/`-roster-hint` (v18.30). Same no-timeZone rationale as `fd`
@@ -1201,6 +1227,7 @@ Pure date/currency formatters + time-input helpers shared by `paycalc-app.js` an
 The two PURE HTML builders for the pay-result card, extracted from `calculate()` in `paycalc-app.js` (v18.30, review item 20). `calculate()` used to interleave DOM reads, pay maths, and result-markup string-building; the markup now lives here, written + unit-testable independent of those phases. No DOM, no Firebase — only dependency is `fmt` from `paycalc-format.js`. Output is byte-identical to the old inline templates (a mechanical extraction, not a redesign). Each builder takes a plain params object whose field names match the caller's locals, so `paycalc-app.js`'s call site is a shorthand object literal. Tested by `paycalc-breakdown.test.mjs`.
 - `fmtHrsMins(h)` — decimal hours → "Nh"/"Nh Mm" (the per-row hours label; was the inline `fh` in `calculate()`)
 - `buildSummaryRows(d)` — the `#summary` estimate rows: Regular/Total pay → back pay → HPP → pension → tax → NI → Student Loan (`d.slLines`, pre-rendered) → estimated take-home
+- `buildActualCheck(actual, estimated)` — the payslip-vs-estimate reconciliation line. `buildProvChips(d)` — the provisional-figure chips (`''` when there are none). Both pure, both cited by `.claude/rules/paycalc.md`.
 - `buildBreakdownRows(d)` — the `#bdBody` full breakdown: one row per pay component present (Mon–Fri + London always; premiums/OT/RDW/training/adjustment/notes/extras guarded on > 0)
 
 ### `paycalc-form-data.js`
@@ -1260,6 +1287,7 @@ Pure data module — help/tooltip text for the pay calculator (v11.40).
 - No DOM, no Firebase — safe to import anywhere
 
 ### `paycalc-migrations.js`
+- `hppIncKey(ty)` — the per-tax-year opt-in flag ('1' = the member ticked "add my HPP to the January take-home").
 - `ytdSrcKey(ty)` — per-tax-year SOURCE payslip of the Year to Date figures (internal period num); anchors the cumulative tax method to source+1 (v17.98)
 localStorage key constants and data migration logic for the pay calculator (v11.40).
 - `SK` — object of top-level localStorage key strings, rebuilt in place when the namespace changes
@@ -1303,6 +1331,11 @@ Pure functions only — no DOM, no Firebase, no localStorage.
   tyLabel)` — the one shared predicate for "period paid before its award", used by `getRateForPeriod`
   and `saveSettings`'s persist guard, and by the back-pay accrual to cap arrears at the award date.
 - `computeGross()`, `computeTax()`, `computeNI()`, `computeSL()`
+- `PENSION_STEPS` — the per-era employee pension defaults, newest-first, each era's payslip provenance in a comment beside it. **Cited in six other documents and absent from this map until v21.63**, which is exactly the gap this file exists to close. `getPensionForPeriod(grade, payday)` resolves a payday to its era — the figure `VAL-PAY-003` is about.
+- `calcBandedTax(taxable, bands, scale = 1)` — the shared band walker; `scale` multiplies every band top, which is how cumulative PAYE prices period N. `getThresholds(yearLabel)` → that year's `{tax, scottishTax, ni, sl, londonAllow}` table.
+- `calcProRateFactor(startDate, periodStart, periodCutoff)` → 0–1 — the joiner fraction of a period (1 = full, 0 = not yet started); cited by `.claude/rules/roster-data.md` for new starters.
+- `HPP_FRACTION` = 4/52 — the Holiday Pay Premium multiplier, confirmed by Chiltern payroll.
+- `RATE_125` / `RATE_150` / `RATE_300` — the overtime multipliers, declared once so a rate is never a literal at a call site.
 - `getTaxYearForOffset(offset)` / `taxYearForPeriod(p)` — the TAX_YEARS entry for a P48-relative offset, or (the nullable variant, v17.22) for a period object with the `TAX_YEARS[0]` fallback. `taxYearForPeriod` single-sources the `p ? getTaxYearForOffset(p.num - 48) : TAX_YEARS[0]` idiom (the `- 48` anchor + null fallback) that recurred across the coordinator, HPP, back-pay, and settings modules.
 - `capHours({effContr,satHrs,bhHrs})` — the Saturday/BH-vs-contracted cap cascade, single-sourced (was inline in computeGross/_varPayForPeriod/_accrueBackPayPeriod).
 - Edit here for: rate changes, tax year rollover, NI threshold changes, a new annual pay award
@@ -1329,6 +1362,10 @@ Single Firestore initialisation point — import `db` and Firestore helpers from
 - `uploadHuddle(date, file, uploadedBy, htmlContent = null)` — transactional manual-upload path (mirrors the Cloud Function ingest + circular/newsletter `_uploadDoc`): verifies the file signature, then writes a **versioned** Storage object `huddles/{date}-{uploadId}.{ext}`, records its path in the `storagePath` field, writes the `huddles/{date}` Firestore doc, then deletes the previous object only after the commit (rolls the new object back on failure) so a re-upload never orphans the old file. `htmlContent` is the converted HTML for DOCX uploads (null for PDFs). Browser delete requires the admin-delete `/huddles` Storage rule (v14.29). Age-based pruning is handled server-side by `pruneOldHuddles()` (3-month), not here.
 - `subscribeToLatestHuddle(onData, onError)` — real-time `onSnapshot` listener; returns an unsubscribe function. Used by `calendar-huddle-viewer.js` (initialised from `calendar-app.js`) to keep the Huddle viewer content live without a page refresh. Logs a `console.warn` if a huddle document is missing its `storageUrl` (data integrity signal).
 - `savePushSubscription` / `deletePushSubscription` — Web Push subscription management. `deletePushSubscription` guards against empty endpoint (no-ops silently).
+- `authBootstrap()` / `currentUserAfterBoot(timeoutMs)` — the ONE shared boot restore (v21.29). `authBootstrap` awaits the first auth emission, applies persistence by whether the restored user is the viewer, and memoises; `currentUserAfterBoot` is the bounded wait every caller with a deadline of its own uses, so three `onAuthStateChanged` subscriptions with three separate ceilings became one. `LATENCY_PLAN.md` Phase 1 cites it; it was absent from this map until v21.63.
+- `restoreMemberPersistence()` / `setViewerPersistence()` — the two halves of the persistence decision above, exported so `session.js` can re-arm the member chain AFTER shedding a viewer. **`setViewerPersistence` REJECTS rather than falling back**: every available fallback is longer-lived than session-only, so a quiet degrade would turn a shared-PC boundary into a permanent one. `AUTH_AND_SESSIONS.md` invariant 8.
+- `signInWithCustomToken` — re-exported for the staff-PIN exchange (`calendar-access.js` mints through `unlockCalendarViewer`); cited by `PASSWORD_PLAN.md`.
+- `recordOriginUse({ countVisit, installed })` — the per-address migration counters (`analytics/origins`). **Two independent dedup gates**, never one: an account already counted this window that has just opened the INSTALLED app must still be counted as installed, or the metric freezes on whichever mode somebody used first — which is the entire question it exists to answer.
 - `auth`, `authReady`, `signInWithEmailAndPassword`, `createUserWithEmailAndPassword`, `signInAnonymously`, `signOut`, `onAuthStateChanged`, `updatePassword`, `reauthenticateWithCredential`, `EmailAuthProvider`, `nameToEmail`, `normaliseSurname` — Firebase Auth (`normaliseSurname` is the shared surname→password derivation that `getSurname()` in `session.js` delegates to; `updatePassword`/`reauthenticateWithCredential`/`EmailAuthProvider` back the self-service password change, v18.63). **`authReady` is the boot-persistence decision, and it is VIEWER-AWARE (v21.21):** it resolves the restored user first (free — `setPersistence` already queues behind the SDK init, which IS the restore) and only then applies persistence: the shared Calendar viewer (`isViewerUser`, imported from `calendar-access-core.js` — the ONE copy of that predicate) re-asserts **session-only** persistence, everyone else gets the member chain (IndexedDB → localStorage → sessionStorage). It applied the member chain unconditionally until v21.21, and because `setPersistence` MIGRATES the current user between stores, ONE ordinary reload of an unlocked Calendar moved the shared viewer into IndexedDB — where it survived the browser closing, so the next person at a shared PC got the roster with no PIN. Proven and fixed in a real Chromium against the Auth emulator (`experiments/viewer-persistence-proof/`); the re-assert doubles as the SELF-HEAL for already-leaked machines (it migrates the viewer back out of IndexedDB, so it dies at that browser's next close). Shape pinned by `calendar-viewer-parity.test.mjs` Contract C — no unit or e2e test can see this property, because it only exists across a genuine browser exit
 - `getPasswordStatus(memberName)` / `savePasswordSetAt(memberName)` / `getAllPasswordStatus()` / `reauthenticateWithPassword(memberName, typed)` / `setOwnPassword(memberName, newPassword)` / `resetMemberPassword(memberName, {revoke})` — `passwordStatus` collection + password change/reset (v18.63, PASSWORD_PLAN.md Track C). `getPasswordStatus`/`savePasswordSetAt` are owner-scoped (Settings → Password); `getAllPasswordStatus` is the admin-only all-docs read for the Operations Account-status card; `reauthenticateWithPassword` re-authenticates the current user by trying `credentialCandidatesFor` (so a member on the surname default can confirm with their surname); `setOwnPassword` calls `updatePassword` then stamps `passwordSetAt` — the stamp is best-effort and returns `{ statusRecorded }`, NEVER rejecting on a stamp-only failure (the password already changed; rejecting would mis-report "password change failed" and strand the user on a now-invalid old password); `resetMemberPassword` POSTs to the admin-only `resetMemberPassword` Cloud Function with the caller's ID token (server resets the member to their surname default, optionally revokes their refresh tokens, and stamps `resetAt`)
 - `withClaimRetry(fn)` (renamed from `writeWithClaimRetry` v17.08; the old name is kept as a back-compat alias for the write call sites) — runs a Firestore thunk (READ or WRITE) and, on a stale-claim `permission-denied` with a live user, force-refreshes the ID token (`getIdToken(true)`) once and retries once (SECURITY_RELEASE_PLAN.md → B3 hardening, v15.18). A write thunk must rebuild its batch each call (a `WriteBatch` can't be re-committed). Used by `recordRangeOverrides`/`executeSave`/`_saveOverrideBatches`/`links-app.js` (writes) and by `operations-app.js`'s four admin-gated read cards (v17.08 — was the byte-identical local `adminReadWithRetry`).
@@ -1346,7 +1383,7 @@ Single Firestore initialisation point — import `db` and Firestore helpers from
 ### `fetch-timeout.js`
 
 The bound on every call the app makes to a Cloud Function (v20.52, external review). Exports
-`fetchWithTimeout(url, options, timeoutMs)`, `isFetchTimeout(err)`, `FETCH_TIMEOUT_CODE` and
+`fetchWithTimeout(url, options, timeoutMs)`, `isFetchTimeout(err)`, `FETCH_TIMEOUT_CODE`, `isFetchAborted(err)` / `FETCH_ABORTED_CODE` — the last pair distinguishes OUR timeout from somebody ELSE'S abort (a navigation, a caller's own controller), because getting that backwards is what tells an admin a write "may still have gone through" after a request that never left — and
 `DEFAULT_FETCH_TIMEOUT_MS`.
 
 Five client calls reached Functions through a bare `fetch()` with no bound. A stalled transport
@@ -1396,6 +1433,7 @@ Pure date-bucketing + aggregation for the usage analytics — no DOM, no Firebas
 
 ### `perf-reporter.js`
 Anonymous page-load latency recorder (Project 0 instrumentation, v14.89; FCP + admin-exclusion v14.95) — the performance analogue of `usage-reporter.js`. `recordPageLatency(page, identity?)`: reads the browser's `PerformanceNavigationTiming` entry, buckets `responseEnd` (metric `ttfb`) and `domContentLoadedEventEnd` (metric `domReady`), **plus First Contentful Paint (metric `fcp`, from the Paint Timing API — when the page first "appears", via `getEntriesByType('paint')` with a `PerformanceObserver` fallback for a late paint)**, and writes an anonymous bucketed counter via `firebase-client.recordPerfSample` for each. **Boot phases (v20.33):** the same call also records the three phase spans (`swBoot`/`sdkLoad`/`appBoot`) — split by the pure `perf-stats.bootPhases` from the nav entry + the `myb-sdk-ready` performance mark — under the same page/mode/conn dimensions. Reads non-identifying env dimensions (PWA display mode, connection class). **When `identity` is an admin (the developer), nothing is recorded** — but the one-shot login marker is still consumed so it can't mis-time a later load. Called once per page from each coordinator at the same point as `recordUsage()`/`initErrorReporter()` (so the write satisfies `request.auth != null`). Imports `CONFIG` from `roster-data.js`. Fire-and-forget — never throws, never blocks. **No member identity and no raw millisecond value is ever stored** — only coarse buckets.
+- `PAGE_READY_MARK` — the performance-mark name `markPageReady` writes and the reporter reads; shared so the producer and consumer cannot drift.
 - **The START LADDER (v21.29, external latency review) — four cumulative milestones, so the card can
   say WHERE a slow start went.** `markMilestone(id)` writes a mark for `authBoot` (the shared boot
   restore settled), `access` (Calendar access granted) and `rosterLive` (a CONFIRMED roster on
@@ -1451,6 +1489,7 @@ Pure latency maths for the perf pipeline — no DOM, no Firebase, no timing read
 
 ### `auth-identity.js`
 Pure account-identity helpers extracted from `firebase-client.js` (v16.50) so they're unit-testable — firebase-client can't be imported in a Node test (it statically imports the Firebase SDK from the gstatic CDN). No imports of its own. `normaliseSurname(fullName)` — the shared surname→Firebase-Auth derivation (everything after the first word, lowercased, non-alpha stripped; the ≥6-char password padding is applied elsewhere) that `getSurname()` in `session.js` delegates to; `nameToEmail(fullName)` — the synthetic account email `initial.surname@myb-roster.local` (IDENTITY-CRITICAL: a silent regression could collapse two members onto one account). `firebase-client.js` re-exports both so existing importers (session.js) are unaffected. A deliberate duplicate of the surname core lives in `functions/roster-parse-helpers.js` (CommonJS can't import a browser ES module); `surname-parity.test.mjs` reads THIS file for its source-equivalence check. **Chosen-password support (v18.63, PASSWORD_PLAN.md):** `surnamePassword(fullName)` — the full surname *default password* (normaliseSurname padded to ≥6 chars), the single source both `session.js` and the sign-in candidate ladder use; `credentialCandidatesFor(fullName, typed)` — the ordered list of passwords sign-in should try: the raw typed value first, and (only when the typed value normalises to exactly the member's surname) the surname default as a fallback, so a member still on the default can type their surname in any case/spacing and a member with a self-set password isn't offered the surname when they typed something else. `isPasswordMigrated(status)` — the single, unit-tested predicate for "has this member set their own password?" (migrated ⇔ `passwordSetAt` present AND ≥ any admin `resetAt`; duck-types Firestore Timestamps' `.toMillis()`), used by the Operations Account-status table and the Settings status chip/nudge (previously duplicated inline in both, a drift risk). `isCredentialRejection(code)` (+ `CREDENTIAL_REJECTION_CODES`) — the single predicate for "is this Firebase error a DEFINITIVE credential rejection (vs a transient network/rate-limit/provider failure)?", so a candidate ladder only tries the next password on a real rejection and STOPS on a transient error. Shared by the sign-in ladder (`session.js`) AND the Settings reauth (`firebase-client.js reauthenticateWithPassword`) — previously the classifier lived privately in session.js while reauth retried on every error (the v18.77 review fix). Pure, no I/O. Tested by `auth-identity.test.mjs`.
+- `MIN_PASSWORD_LENGTH` — the floor for a self-set password (above Firebase's own 6), declared once so the Settings validator and the sign-in ladder cannot disagree.
 
 ### `storage-utils.js`
 Pure Storage helpers extracted from `firebase-client.js` (v16.32) so they're unit-testable — firebase-client can't be imported in a Node test because it statically imports the Firebase SDK from the gstatic CDN. No imports of its own. `isSafeStorageUrl(url)` — the download-URL allowlist (a SECURITY control: HTTPS + a firebasestorage/GCS host under one of THIS project's buckets, trailing-slash-anchored so a look-alike bucket can't match) guarding every Huddle/Circular/Newsletter open button; `isDocxUpload(file)` — upload file-type detect (extension OR the docx MIME, matching the accept predicates); `officeViewerUrl(storageUrl)` (v16.45) — wraps a download URL in Microsoft's Office Online full-page viewer (`view.aspx`) so a Word (.docx) circular/newsletter OPENS and renders with images instead of downloading (a browser can't display a raw .docx); `sixMonthCutoffISO(now)` (v16.50) — the month-underflow-safe "YYYY-MM-DD" retention cutoff 6 months before `now`, clamping a month-end day the target month lacks (31 Aug → 28 Feb, not 3 Mar) so `_pruneOldDocs` can't prematurely delete circulars/newsletters. `legacyDocPath(collection, dateId, fileType?)` (v20.55) — the pre-v13.99 fixed Storage path, the ONE rule for both places that decide which old object to DELETE (the upload engine's cleanup and `_pruneOldDocs` each hand-wrote it, one with `??` and one with `||`, which disagree on `fileType: ''`); `versionedDocPath(collection, date, uploadId, fileType)` (v20.55) — the v13.99 versioned upload path; a test pins that it stays under the `{collection}/{date}` prefix the server-side huddle prune sweeps by; `uploadMimeType(fileType)` (v20.55) — the explicit upload Content-Type (Android mis-reports .docx as zip/octet-stream). `firebase-client.js` re-exports `isSafeStorageUrl` + `officeViewerUrl` so existing importers are unaffected and uses the rest internally. Tested by `storage-utils.test.mjs`.
@@ -1474,7 +1513,7 @@ Pure stale-claim self-heal runner — no DOM, no Firebase. Imported by `firebase
 
 ### `nav-panel.js`
 Shared slide-out navigation panel — imported by all seven app pages.
-- `initNavPanel({ currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, onLogoClick })` — injects overlay + drawer HTML, wires burger button, manages open/close. `memberName` displays in footer; `onSignOut` callback wires the Sign out button (omit both to hide footer).
+- `initNavPanel({ currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, canOpenOvertime, onLogoClick, usageIdentity, authReady, onLockCalendar })`  — **`canOpenOvertime` was missing from this signature until v21.63**, and it is the one that decides whether a beta participant is offered the Overtime pill at all, so a permission flag was invisible in the doc that routes people here — injects overlay + drawer HTML, wires burger button, manages open/close. `memberName` displays in footer; `onSignOut` callback wires the Sign out button (omit both to hide footer).
   - **Double-init guard:** checks `burger.dataset.navPanelInit` at the top — returns early if already initialised. Safe to call on every page render.
 - `resetNavPanel()` (v15.19) — tears down an initialised panel (removes injected DOM, clone-replaces the burger to drop its listeners, clears the guard + module state) so a later `initNavPanel()` rebuilds it with a fresh identity. Used on admin's in-place B1-teardown path, where the drawer was optimistically wired with a stale identity before the session was cleared and re-entered as a different user.
   - `isAdmin: true` enables the Operations pill (hidden from non-admins). `isLinksDesigner: true` enables the Links pill.
@@ -1508,9 +1547,10 @@ Shared Web Push module — single source of truth for the VAPID key and subscrip
 Override priority, member-start, and shift-classification helpers — shared by `calendar-app.js`, `calendar-team-view.js`, and admin modules.
 - `tsToMillis(ts)` — converts Firestore Timestamp or `{seconds}` object to milliseconds
 - `shouldReplaceOverride(existing, incoming)` — priority logic: manual beats import; newer wins within same class
-- `reconcileRangeIntoCache(cache, records, startStr, endStr)` (v16.96) — the **authoritative** date-range refresh driven by `fetchOverridesForRange` in calendar-overrides.js (which BOTH the calendar month fetch and — via the shared `ensureOverridesCached` — the Team view now go through; the Team view's old independent per-week caller was retired v18.76 to end a two-authoritative-reconcilers eviction race). A range query is the single source of truth for its dates, so it rebuilds each in-range key's winner from the SNAPSHOT RECORDS ALONE (deduped by `shouldReplaceOverride`), evicts in-range keys the snapshot omits (genuine deletes), and stores each fresh winner — never merging against the possibly-stale cache. Returns whether any in-range slot's DISPLAY changed (added/removed/type/value/note). Replaced `foldOverrideIntoCache` (v16.96): the per-doc merge kept a deleted higher-priority manual alive when only a lower-priority import remained (the import couldn't out-rank the cached manual, yet the key was "seen" so the deletion pass skipped it — the v16.95 review's Finding #1). Pure; tested by `override-utils.test.mjs`.
+- `reconcileRangeIntoCache(cache, records, startStr, endStr)` (v16.96) — the **authoritative** date-range refresh driven by `fetchOverridesForRange` in calendar-overrides.js (which BOTH the calendar month fetch and — via the shared `ensureOverridesCached` — the Team view now go through; the Team view's old independent per-week caller was retired v18.76 to end a two-authoritative-reconcilers eviction race). A range query is the single source of truth for its dates, so it rebuilds each in-range key's winner from the SNAPSHOT RECORDS ALONE (deduped by `OVERRIDES_QUERY_CAP` — the bound on a single Firestore override query — and `shouldReplaceOverride`), evicts in-range keys the snapshot omits (genuine deletes), and stores each fresh winner — never merging against the possibly-stale cache. Returns whether any in-range slot's DISPLAY changed (added/removed/type/value/note). Replaced `foldOverrideIntoCache` (v16.96): the per-doc merge kept a deleted higher-priority manual alive when only a lower-priority import remained (the import couldn't out-rank the cached manual, yet the key was "seen" so the deletion pass skipped it — the v16.95 review's Finding #1). Pure; tested by `override-utils.test.mjs`.
 - `collectOverrideRecords(snapshot)` (v17.13) — the SINGLE collector that turns a Firestore range-query snapshot into `reconcileRangeIntoCache`'s `records` array (validate `memberName`/`date`/`value`, map through `toOverrideRecord`). Used by `fetchOverridesForRange` (calendar-overrides.js) — the one Firestore reader that now feeds `rosterOverridesCache` for both the calendar and (via `ensureOverridesCached`) the Team view. Malformed docs are skipped and only the doc **id** is logged (never the doc body — it can carry a member name / free-text note). Tested by `override-utils.test.mjs`.
 - `isBeforeMemberStart(member, date)` — returns true if `date` is before the member's `startDate`; used to suppress overrides before a member joined. Always call this — never inline the date comparison.
+- `isForbiddenOnSunday(type)` / `sundaySafeValue(value)` — the read side of `SUNDAY_FORBIDDEN_TYPES`. `sundaySafeValue` returns its input unchanged when it is fine, so a caller may use it unconditionally; the roster IMPORT normalises through it rather than refusing, because a PDF is a statement about the past.
 - `isRestShift(shift)` — returns true if the shift is `'RD'` or `'OFF'`. Use everywhere instead of repeating the two-value check. Imported by `admin-al.js`, `admin-sick.js`, `admin-overrides.js`, `admin-app.js`.
 - `CONTRACTED_WORK_TYPES` / `VOLUNTARY_WORK_TYPES` / `isContractedWorkOverride(ov)` (v21.55) — **was the member CONTRACTED to work this day?**, answered from the override alone. Three-valued: `true` for `shift`/`spare_shift`/`other` (and legacy `allocated`/`swap`), `false` for a rest VALUE, for the `correction` TYPE itself (its value is pinned to 'RD' by the rules, so the type alone implies rest — load-bearing on the replacedType path, where no value survives; v21.56) and for `rdw`/`overtime`, and **`null` for `sick`/`annual_leave`/anything unrecognised**, which describe an absence and say nothing about the contract, so the caller must ask the base roster instead. **`rdw` being absent from the contracted set is the entire point** and is why this is not a filter over `WORKED_OVERRIDE_TYPES`: that set answers "is somebody at work?", for which `shift` and `rdw` are the same, whereas for annual leave they are opposites — a swap moved the member's obligation onto the day, overtime they volunteered for did not, and charging a day of leave for declining overtime would be the same bug from the other end. Tested by `override-utils.test.mjs`.
 - `nextReplacedType(existing, newType)` (v21.55) — what `replacedType` a new override should carry, given the one it is about to delete. Recording AL is delete-then-set, so it destroys the override that said what the day was; this preserves the type. **It INHERITS when the type is unchanged**, because re-saving a range replaces an AL doc with another AL doc — writing `annual_leave` as what it replaced would make a swapped-in day cost a day until somebody pressed Save twice and then quietly stop. **And it CHAINS THROUGH an absence on a type change (v21.56)**: swap → sick → AL is two routine operations, and recording `sick` — a type that carries no contract information — would discard the `shift` beneath it, so when the doc being deleted is an uninformative type carrying a chain, what IT replaced is inherited instead; an informative type (`shift`, `correction`…) is itself the fact and still wins. Now stamped by ALL THREE write paths — executeSave, recordRangeOverrides, and (v21.56) the roster import's `_saveOverrideBatches`, which was the one path destroying evidence unstamped. Returns `null` when there was nothing to replace, and `buildOverrideWrite`/`buildOverrideCacheRecord` then omit the key entirely (the Firestore rules validate it only when present, so a null would be rejected outright). Tested by `override-utils.test.mjs`.
@@ -1541,10 +1581,10 @@ Shared print button handler for `guide.html` and `paycalc-guide.html` (extracted
 - No modules; plain script with `defer`
 
 ### `guide-back.js`
-Shared back-arrow retarget for all five guide pages (v18.84) — a classic `defer` script, no exports.
-- Reads the `?from=<page>` hint `nav-panel.js` appends when it opens a guide, and rewrites that guide's `.btn-back` `href` + `aria-label` to point at the page you actually came from
-- **Why:** each guide's `←` is a hardcoded destination (`guide`/`railcard`/`fip` → the calendar, `paycalc-guide` → the pay calculator). Harmless while guides opened in a new tab; since v18.81 they navigate in the SAME tab, so opening the Railcard Guide from Admin and tapping `←` landed you on the Calendar. The browser/hardware Back was always right — only the visible arrow was wrong, and in an installed iOS PWA that arrow is the only back control
-- `from` is looked up in a `DESTINATIONS` **allowlist** of the app's own pages (never used as a raw URL), so a crafted value can't turn the arrow into an off-site link; an absent/unknown `from` (direct visit, bookmark, shared link) leaves the authored href untouched
+Shared back-arrow retarget for all five guide pages (v18.84) — a classic `defer` script, **no exports**.
+- Reads the `?from=<page>` hint `nav-panel.js` appends when it opens a guide, and rewrites that guide's `.btn-back` `href` + `aria-label` to point at the page you actually came from.
+- `from` is resolved through a `DESTINATIONS` **allowlist** of the app's own pages and never used as a raw URL, so a crafted value cannot turn the arrow into an off-site link; an unknown or absent `from` leaves the authored href untouched.
+- **Why the arrow needed retargeting at all** — the same-tab navigation change at v18.81, and why the hardware Back button was never the problem — is in the module header.
 
 ### `ls.js`
 Safe localStorage wrappers for all app pages (iOS Safari private mode compatibility).
@@ -1661,6 +1701,16 @@ unit-tested in `roster-parse-helpers.js`. Returns:
 - `resetMemberPassword` (v18.63, PASSWORD_PLAN Track C) — admin-only break-glass: verifies the caller's admin claim, resets a member's Firebase Auth password to their surname default (`nameToPassword`), optionally revokes their refresh tokens (`revoke`, default true), and stamps `passwordStatus.resetAt` (Admin SDK, bypasses rules); a stamp failure is a PARTIAL success (`stamped:false`), never a false "nothing changed". CORS-restricted to `ADMIN_FUNCTION_ORIGINS`
 - `requestPasswordReset` (v18.93–97) — the app's ONLY public unauthenticated endpoint: records a locked-out member's request (doc id = member name, so the collection is roster-bounded), transactional throttle, server-side kill switch, and the time-boxed `sendTargetedPush` admin notice with global coalescing
 - `getSignInStats` (v18.96) — admin-only exact unique-account sign-in read from Firebase Auth `lastSignInTime`, allowlisted to the server-owned roster; returns four integers, no identity
+
+### `functions/calendar-viewer-auth.js`
+The PURE server-side rules behind the staff Calendar PIN (v20.12) — CommonJS, split out of `index.js` so the security-relevant decisions are testable untangled from `req`/`res`. **Absent from this map until v21.63**: the client half (`calendar-access.js`) carried a long entry while the endpoint that mints the token had none.
+- `isValidPinShape` · `pinMatches(a, b)` · `sourceKeyFor` / `clientIpOf` · `throttleDecision` / `recordFailure` / `isThrottleStateStale` · `CALENDAR_VIEWER_UID` · `PIN_LENGTH` · `DEFAULT_THROTTLE` · `GLOBAL_SOURCE_KEY` / `GLOBAL_THROTTLE`.
+- **Two properties govern every edit here, and the module header argues both:** the PIN is never learnt, stored, logged or returned (so there is no "which digit was wrong" and no input echo), and the throttle numbers are sized against a real tension rather than a template — 10,000 combinations on one side, the whole station behind ONE corporate NAT address on the other. Read `DEFAULT_THROTTLE`'s comment before changing a number in either direction.
+- Only FAILURES are recorded, so a correct PIN costs no storage, no latency, and cannot be used to count usage. Tested by `calendar-viewer-auth.test.mjs`; the uid/claim agreement across browser ESM, CommonJS and `firestore.rules` is pinned by `calendar-viewer-parity.test.mjs`.
+
+### `functions/push.js`
+The web-push TRANSPORT (v20.52, extracted from `index.js`): lazy `web-push` require, one-per-instance VAPID setup, `fanOutPush` (everyone) and `sendTargetedPush` (named uids). Owns how a payload reaches a phone; never what it says or when — that is `buildPushPayload` in `roster-parse-helpers.js`. **`sendTargetedPush` fails CLOSED at every step** — no target uids → send nothing; a subscription doc with no `owner` → skipped, never assumed; no matches → log and stop. There is deliberately **no fall-back-to-everyone branch**, because the notification that needs it is "N. Surname is locked out".
+
 
 ### `functions/roster-parse-helpers.js`
 Pure helper functions — no Firebase, no HTTP, no secrets. Fully testable with Node's built-in test runner.

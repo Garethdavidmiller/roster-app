@@ -221,6 +221,57 @@ const OWNED_COUNTS = [
 const LIVE_DOCS = ['./CLAUDE.md', './AI_MAP.md', './ROADMAP.md', './KNOWN_LIMITATIONS.md',
     './OPERATIONS_REFERENCE.md', './.claude/rules/links-design.md', './.claude/rules/css-tokens.md'];
 
+// ── CONTRACT 1c: AI_MAP KNOWS every export — the other direction of 1b ─────────────────────────
+//
+// 1b catches a doc naming a symbol the code does not have. This catches the opposite and commoner
+// failure: code gaining an export the map never hears about. At v21.62 that was **70 exports, 8.6%
+// of the surface**, and the distribution was the tell — not one documented export had been deleted,
+// so the gap was not carelessness, it was structural. `githooks/pre-commit` computed only REMOVED
+// exports, so ADDING one — the common case — passed cleanly every time. The hook now checks both
+// directions; this is the backstop for anything that lands without passing through it.
+//
+// The bar is deliberately LOW: a mention anywhere in AI_MAP.md, not a well-formed entry. A stricter
+// test would need to know what a good description looks like, would argue with judgement calls, and
+// would be waived. "Can a reader find this name in the map at all?" is mechanical and is the
+// question that actually failed.
+//
+// EXEMPT are the test seams and internal markers that a map SHOULD not carry — each named, so the
+// list stays a decision rather than a drift.
+const EXPORT_COVERAGE_EXEMPT = new Set([
+    '_resetForTest',            // sw-register.js — test seam
+    '_triggerAutoOpen',         // calendar-huddle-viewer.js — test seam
+    '_setSelectPeriod',         // paycalc-periods.js — test seam
+    '_hasStagedEdits',          // admin-week-editor.js — test seam
+    '_saveOverrideBatches',     // admin-roster-upload.js — internal, documented by behaviour
+]);
+test('every root export is findable in AI_MAP', () => {
+    const files = readdirSync(new URL('.', import.meta.url))
+        .filter(f => /\.js$/.test(f) && !f.includes('.test.') && f !== 'service-worker.js');
+    const missing = [];
+    for (const f of files) {
+        const src = read('./' + f);
+        const names = new Set();
+        for (const m of src.matchAll(/^export\s+(?:async\s+)?(?:function\*?|const|let|var|class)\s+([A-Za-z0-9_$]+)/gm))
+            names.add(m[1]);
+        for (const m of src.matchAll(/^export\s*\{([^}]*)\}/gm))
+            for (const part of m[1].split(',')) {
+                const seg = part.trim();
+                if (!seg || seg.startsWith('//')) continue;
+                const as = seg.match(/\bas\s+([A-Za-z0-9_$]+)/);
+                const name = as ? as[1] : seg.split(/\s+/)[0];
+                if (name && name !== 'default' && /^[A-Za-z_$]/.test(name)) names.add(name);
+            }
+        for (const n of names) {
+            if (EXPORT_COVERAGE_EXEMPT.has(n)) continue;
+            if (!AI_MAP.includes(n)) missing.push(`${f}: ${n}`);
+        }
+    }
+    assert.deepEqual(missing, [],
+        `these exports exist and AI_MAP.md has never heard of them:\n  ${missing.join('\n  ')}\n\n`
+        + 'Add each to its module\'s entry. If a symbol is genuinely internal (a test seam), name it\n'
+        + 'in EXPORT_COVERAGE_EXEMPT with the reason, so the exclusion is a decision and not a gap.');
+});
+
 // ── CONTRACT 1b: no live doc NAMES a symbol the code does not have ─────────────────────────────
 //
 // The v21.17 documentation review found six defects and every one was the same shape: a name or a

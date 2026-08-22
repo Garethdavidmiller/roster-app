@@ -1,7 +1,7 @@
 /**
  * guide-back.js — points a guide's ← back arrow at the page you actually came FROM (v18.84).
  *
- * Loaded as a CLASSIC script by all four guide pages (the guides have no module graph and no
+ * Loaded as a CLASSIC script by all five guide pages (the guides have no module graph and no
  * shared.css — see .claude/rules/guide-pages.md). No exports; it runs once on load.
  *
  * Why: each guide's ← is a hardcoded destination (guide/railcard/fip → the calendar,
