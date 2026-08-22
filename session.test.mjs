@@ -125,7 +125,15 @@ const { getAuthSnapshot, _resetAuthStateForTest } = await import('./auth-state.j
 // It clears `currentUser` too, because the mock now SETS it on emission — as the real SDK does,
 // and as reading ground truth afterwards requires. Without that, a restored identity survived into
 // the next test and answered its fast path.
-beforeEach(() => { _resetBootRestore(); mockAuth.currentUser = null; });
+beforeEach(() => {
+    _resetBootRestore();
+    mockAuth.currentUser = null;
+    // The no-surname-default memory (v21.62) is DESIGNED to persist across page loads, which makes
+    // it exactly the kind of state that leaks between tests: an implicit-rejection test would
+    // silently empty the candidate ladder for every later implicit sign-in in the file. Cleared
+    // here rather than per-describe so a new sign-in test can never inherit it by forgetting to.
+    for (const k of [...store.keys()]) if (k.startsWith('myb_auth_nodefault_')) store.delete(k);
+});
 
 /** Wait until the sign-in mock has actually been ENTERED `n` times.
  *
@@ -572,6 +580,75 @@ describe('ensureFirebaseSession identity tracking', () => {
         assert.equal(_signOutCalled, true, 'the other member’s session must be signed out first');
         assert.equal(getFirebaseIdentity(), 'named');
         assert.ok(ok);
+    });
+});
+
+// ── the no-surname-default memory (v21.62) ────────────────────────────────────
+// Every implicit re-establishment used to fire the derived surname unconditionally — for a
+// MIGRATED member a GUARANTEED wrong-password, once per locked load, from every device, all of it
+// through the station's ONE NAT address. Firebase's abuse protection throttles by IP as well as by
+// account, so enough of those and a member's CORRECT typed password starts bouncing with
+// `auth/too-many-requests` — which staff experience as "the app keeps asking and won't take my
+// password". The tests are organised by the two ways the memory could be WRONG: firing when it
+// cannot succeed (the defect it exists to stop), and suppressing an attempt that COULD succeed
+// (a stale flag after provisioning or an admin reset — which is why user-not-found never sets it
+// and a surname success always clears it).
+describe('the no-surname-default memory (v21.62)', () => {
+    const FLAG = 'myb_auth_nodefault_G. Miller';
+    beforeEach(() => {
+        _existingUser   = null;
+        _signInBehavior = 'ok';
+        _createBehavior = 'ok';
+        _anonBehavior   = 'ok';
+        _signInCalls    = 0;
+        _anonCalled     = false;
+        CONFIG.ENFORCE_NAMED_SESSION = false;
+    });
+
+    test('a rejected implicit surname is remembered, and the next implicit attempt fires NOTHING', async () => {
+        _signInBehavior = 'auth/invalid-credential';
+        assert.equal(await ensureFirebaseSession('G. Miller'), false);
+        assert.equal(_signInCalls, 1, 'the first attempt is genuine — the device cannot know yet');
+        assert.equal(store.get(FLAG), '1', 'the rejection was not remembered');
+
+        // The next locked load on this device: same doomed candidate, so no request at all.
+        assert.equal(await ensureFirebaseSession('G. Miller'), false);
+        assert.equal(_signInCalls, 1, 'the doomed surname attempt was repeated');
+        assert.equal(getFirebaseIdentity(), 'none');
+        assert.equal(_anonCalled, false, 'an empty ladder must resolve as a definitive rejection, never anonymous');
+    });
+
+    test('user-not-found does NOT set it — provisioning would make the surname valid', async () => {
+        CONFIG.ENFORCE_NAMED_SESSION = true;   // suppress the createUser self-heal; rejection is definitive
+        _signInBehavior = 'auth/user-not-found';
+        assert.equal(await ensureFirebaseSession('G. Miller'), false);
+        assert.ok(!store.has(FLAG), 'an unprovisioned account was remembered as migrated');
+        // And the attempt genuinely repeats — after Set up accounts runs, this is the recovery.
+        assert.equal(await ensureFirebaseSession('G. Miller'), false);
+        assert.equal(_signInCalls, 2, 'the implicit attempt was suppressed with no flag set');
+    });
+
+    test('a sign-in that SUCCEEDS with the surname clears it — the admin-reset recovery costs one typed login', async () => {
+        store.set(FLAG, '1');   // this device believes the member is migrated…
+        // …but the admin has since reset the account to the default, and the member types their
+        // surname at the overlay (which is what the reset flow tells them to do).
+        const ok = await ensureFirebaseSession('G. Miller', undefined, 'miller');
+        assert.equal(ok, true);
+        assert.ok(!store.has(FLAG), 'the memory outlived the surname default becoming valid again');
+        // The silent recovery is re-armed: the next implicit attempt fires and succeeds.
+        _signInCalls = 0;
+        mockAuth.currentUser = null;
+        assert.equal(await ensureFirebaseSession('G. Miller'), true);
+        assert.equal(_signInCalls, 1, 'the implicit attempt stayed suppressed after the surname worked');
+    });
+
+    test('a typed password is NEVER gated by it — and a custom-password success does not clear it', async () => {
+        store.set(FLAG, '1');
+        const ok = await ensureFirebaseSession('G. Miller', undefined, 'Str0ng!pass');
+        assert.equal(ok, true);
+        assert.equal(_signInCalls, 1, 'the typed attempt was suppressed — the flag may only gate implicit ones');
+        assert.equal(store.get(FLAG), '1',
+            'a custom-password success cleared the memory — the surname is still wrong for this account');
     });
 });
 

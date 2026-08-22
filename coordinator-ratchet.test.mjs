@@ -121,6 +121,14 @@ const CAPS = {
     // it as a cycle, so operations-app.js imports each card from its own file.
     'operations-reports.js':    200,
     'service-worker.js':       1000,
+    // Crossed 900 at v21.62 (measured 910), when the silent re-establishment moved from behind the
+    // member card to behind the boot skeleton — the growth is the boot ORDERING and the argument
+    // for it, which is this module's one subject: what to show while access is being decided. The
+    // RULES the file consults already live in calendar-access-core.js (pure, tested); what remains
+    // is the gate's stagecraft, and a Node test cannot hold an ordering between paints. If this
+    // grows again, the candidate to extract is the panel-building trio (lock card / member card /
+    // skeleton) as a presentation module — they share only `_panel` and the host lookup.
+    'calendar-access.js':      1000,
 };
 
 describe('an already-large module may not get larger', () => {

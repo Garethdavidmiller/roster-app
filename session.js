@@ -262,6 +262,32 @@ export function primeAuth() {
 }
 
 /**
+ * Device-local memory that a member's account does NOT accept the surname default (v21.62).
+ *
+ * Every implicit re-establishment — a page load with a live session but no Firebase identity —
+ * used to fire the derived surname at Firebase unconditionally. For a MIGRATED member that is a
+ * GUARANTEED wrong-password, once per locked load, from every affected device: pure cost, and two
+ * real harms. First, the actionable "enter your password" state waits behind a round trip that can
+ * only fail. Second — and the reason this is a flag rather than a tidy-up — Firebase's abuse
+ * protection throttles by IP as well as by account, and the whole station sits behind ONE corporate
+ * NAT address (the same fact `calendar-viewer-auth.js` sizes its throttles against): enough doomed
+ * attempts from enough migrated members' devices and the throttle starts rejecting CORRECT typed
+ * passwords with `auth/too-many-requests`, which reads to staff as "the app keeps asking and won't
+ * take my password".
+ *
+ * The flag is set only on a wrong-password-class rejection of the SURNAME candidate — never on
+ * `auth/user-not-found`, where the account simply doesn't exist yet and a later provisioning would
+ * make the surname valid. It is cleared the moment any sign-in SUCCEEDS with the surname (the
+ * admin break-glass reset returns an account to the default, and the member's next typed surname
+ * both signs them in and re-arms the silent recovery). A stale flag therefore costs exactly one
+ * typed sign-in, ever. Typed passwords are NEVER gated by it — it suppresses only the implicit,
+ * nothing-typed attempt that cannot succeed.
+ */
+const _NO_DEFAULT_PREFIX = 'myb_auth_nodefault_';
+/** @param {string} name @returns {string} */
+const _noDefaultKey = (name) => _NO_DEFAULT_PREFIX + name;
+
+/**
  * Guarantee a live Firebase Auth session for a logged-in member.
  *
  * Firestore Security Rules require `request.auth != null` for every write.
@@ -384,7 +410,11 @@ export async function ensureFirebaseSession(name, _gen, password) {
     // an un-migrated member; a migrated member fails cleanly here → 'none' → overlay re-shown).
     const candidates = password != null
         ? credentialCandidatesFor(name, password)
-        : (surnamePassword(name) ? [surnamePassword(name)] : []);
+        // Implicit path: skip the surname when this device has already seen it definitively
+        // rejected for this name (see `_noDefaultKey`) — the attempt cannot succeed, and firing it
+        // anyway is what compounds the station-NAT rate limit. Empty candidates fall through to
+        // the definitive-rejection branch below, exactly as a no-surname name always has.
+        : (surnamePassword(name) && !lsGet(_noDefaultKey(name)) ? [surnamePassword(name)] : []);
     let   lastError;
     let   nonCredentialStop = false;   // true → we stopped on a NON-credential error (network etc.)
 
@@ -392,11 +422,21 @@ export async function ensureFirebaseSession(name, _gen, password) {
         if (!fresh()) return commit('none', false);
         try {
             await signInWithEmailAndPassword(auth, email, candidate);
+            // The surname default WORKED — the account is on it (or back on it, after an admin
+            // reset), so the silent recovery must be re-armed for this device.
+            if (candidate === surnamePassword(name)) lsDel(_noDefaultKey(name));
             return commit('named', true);
         } catch (e) {
             const _e = /** @type {any} */ (e);
             lastError = _e.code;
             console.warn('[Auth] signIn failed:', _e.code, 'for', email);
+            // The surname default was definitively REJECTED for an account that exists — a migrated
+            // member. Remember it, so later implicit attempts stop repeating a doomed request (see
+            // `_noDefaultKey`). Never on user-not-found: provisioning would make the surname valid.
+            if (candidate === surnamePassword(name)
+                && _isCredentialRejection(_e.code) && _e.code !== 'auth/user-not-found') {
+                lsSet(_noDefaultKey(name), '1');
+            }
             // Self-heal a missing account by creating it — UNLESS the B1 named-session requirement
             // is on (accounts are provisioned server-side then; dead code under the current
             // flag=true). Always seeds the CANONICAL surname password, never a typed custom value.
@@ -404,6 +444,7 @@ export async function ensureFirebaseSession(name, _gen, password) {
                 try {
                     await createUserWithEmailAndPassword(auth, email, surnamePassword(name));
                     console.warn('[Auth] Created Firebase Auth account for', name);
+                    lsDel(_noDefaultKey(name));   // freshly seeded WITH the surname — silent recovery valid
                     return commit('named', true);
                 } catch (createErr) {
                     const _ce = /** @type {any} */ (createErr);
