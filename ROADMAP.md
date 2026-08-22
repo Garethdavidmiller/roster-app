@@ -91,7 +91,9 @@ authoritative; it now carries latest-safe dates worked backwards from the timeta
 ### Track E — the authentication decision
 **Status:** Blocked on an owner decision · **Owner:** Gareth · **Design:** `AUTH_PLAN.md` · **Status of record:** `SECURITY_RELEASE_PLAN.md`
 
-E0 and E1 have shipped; **E2 is the first phase that changes what is actually protected.** The
+E0 and E1 have shipped. **E2 was SUPERSEDED, not built** — the staff PIN did its job at v20.12, and
+the canonical table says "do not build it"; this line named E2 as the next boundary until v21.63,
+two lines below its own "status of record" pointer. The
 decision is the security/privacy bar, and it should be taken with the E3 measurement criteria
 **pre-registered** — AUTH_PLAN §6 now requires the thresholds to be written down before telemetry
 starts, precisely so they cannot be chosen after seeing the numbers.

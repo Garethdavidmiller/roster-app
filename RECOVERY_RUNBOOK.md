@@ -38,9 +38,9 @@ of a single record — *not* a full database restore. Reach for a full restore l
 | Firebase project ID | `myb-roster` |
 | Region | `europe-west2` (London) |
 | Firestore database | `(default)` |
-| Firestore collections | `overrides`, `huddles`, `circulars`, `newsletters`, `staffContact`, `passwordStatus`, `pushSubscriptions`, `clientErrors`, `analytics`, `linkDesigns` |
+| Firestore collections | `overrides`, `huddles`, `circulars`, `newsletters`, `staffContact`, `passwordStatus`, `pushSubscriptions`, `clientErrors`, `analytics`, `linkDesigns`, `linkTargetSets`, `resetRequests`, `viewerAttempts`, `overtimeWindows` (a TREE — `participants`/`submissions`/`revisions` subcollections; an export that takes the parent alone restores an empty week). **The four after `linkDesigns` were missing from this row until v21.63**, which meant a backup scoped from it omitted the whole Overtime feature and the locked-out-member queue. The authority is `firestore.rules` — every top-level `match` is a collection to scope |
 | Storage paths | `huddles/…`, `circulars/…`, `newsletters/…` |
-| Cloud Functions (europe-west2) | `ingestHuddle`, `parseRosterPDF`, `setupRosterAuth`, `resetMemberPassword` (+ the `onHuddleCreated`/`onCircularCreated`/`onNewsletterCreated`/`sendPayReminderNotification` push triggers) |
+| Cloud Functions (europe-west2) | **Do not keep a second list here.** `functions-surface.test.mjs` pins the whole deploy surface in CI and is the only copy that cannot fall behind — read it. (This row named 8 of the 18 until v21.63; playbook E was written against that short list, so a rollback scoped from it would have missed every Overtime endpoint, the PIN exchange and the reset queue.) |
 | Live site (primary) | `https://myb-roster.web.app` (Firebase Hosting) |
 | Live site (mirror) | `https://garethdavidmiller.github.io/roster-app/` (GitHub Pages, built from `main`) |
 | Deploy mechanism | GitHub Actions via Workload Identity Federation → `github-deploy@myb-roster.iam.gserviceaccount.com`. Workflows: `deploy-functions.yml`, `deploy-hosting.yml`, `deploy-rules.yml` |
@@ -162,12 +162,18 @@ Do these three safe things once so they're not new under pressure:
 
 **Symptom:** a design in the Links workspace is gone or scrambled.
 
-- `linkDesigns` docs are `{ name, patterns, updatedAt, updatedBy }`.
-- **Regenerate:** the auto-generator can rebuild a full 28-line rotation design from scratch
-  — often faster than restoring.
-- **Restore the old content:** with PITR on, export a pre-corruption snapshot and read the
-  `patterns` field, then paste it back by editing the design (or re-create the doc).
-- Low urgency: Links is a design workspace used by two designers, not a staff-facing record.
+- `linkDesigns` docs are `{ name, patterns, window, updatedAt, updatedBy }` — the shape is
+  `docPayload` in `links-design-doc.js`, which exists precisely so nobody hand-builds a sixth copy
+  of it. **`window` is load-bearing and this playbook omitted it until v21.63.** A design restored
+  without its window comes back wearing the app default, the heat map then measures its gaps
+  against a span nobody chose, and the next save writes that default over the moved boundary the
+  design was built to test — which is the v19.55 bug, reintroduced by the recovery procedure.
+- **Regenerate:** the auto-generator can rebuild a full rotation from scratch — often faster than
+  restoring. (Do not write the line count down here; `ROTATING_LINES` owns it.)
+- **Restore the old content:** with PITR on, export a pre-corruption snapshot and restore
+  **`patterns` AND `window` together**, then paste back by editing the design (or re-create the doc).
+- Low urgency: Links is a design workspace used by the members of `CONFIG.LINKS_DESIGNERS`, not a
+  staff-facing record.
 
 ### D. A Circular / Newsletter / Huddle won't open or has the wrong metadata
 
@@ -340,7 +346,7 @@ steps below are three separate pushes rather than one:
 
 | Brake | Where | Ships as | Released at |
 |---|---|---|---|
-| `CONFIG.CALENDAR_PIN_ACCESS` | `roster-data.js` | `false` — Calendar behaves exactly as pre-v20.12 | step 3 — released v20.46, **ROLLED BACK v20.50 the same morning** (see step 3's note) |
+| `CONFIG.CALENDAR_PIN_ACCESS` | `roster-data.js` | **RELEASED — `true` and live since v20.51.** (It shipped `false`, was released at v20.46, rolled back at v20.50 the same morning, and re-released at v20.51 once the cause was found to be a GCP IAM gap rather than app code. This row said "ships as `false` … ROLLED BACK" until v21.63, which read as though the soak had never restarted — an argument for postponing step 4 on false grounds.) | step 3 — **DONE**, soaking since v20.51 |
 | `allow read;` hold line | `firestore.rules` overrides block | present — collection still public | step 4 — still on (the soak) |
 
 The hold line is declared a second time as `OVERRIDES_READ_HELD_OPEN` in `firestore.rules.test.mjs`,
@@ -397,14 +403,20 @@ stops the hold outliving the rollout: it cannot be forgotten quietly, only remov
    >
    > **What the soak is actually for, and it is not what it sounds like.** It is not about proving
    > the PIN works — that was step 2b, by hand, on 10 Aug. It is about *how many devices are still
-   > running a pre-v20.46 client*, because those are the ones this step breaks for one load. Every
-   > day converts more of them, and only opening the app converts one.
+   > running a client that reads overrides ANONYMOUSLY*, because those are the ones this step breaks
+   > for one load. Every day converts more of them, and only opening the app converts one.
+   >
+   > **The cutover version is v20.51, NOT v20.46** (corrected v21.63). v20.46 released the flag and
+   > **v20.50 turned it back off**, so a device sitting on v20.46–v20.50 is in the at-risk population
+   > exactly like a pre-v20.46 one. Reading it as "pre-v20.46" undercounts the devices this step
+   > breaks, which is the wrong direction for a go/no-go number to be wrong in.
    >
    > **Pre-flight, in this order:**
    > 1. **Operations → App Speed → "Why some are slower" → by version.** The share of real loads
-   >    still on a pre-v20.46 client. This is the number that decides go/no-go; a trickle is fine.
-   >    (Versions roll up into ranges, so `v20.40–v20.49` straddles the cutover — read the older
-   >    ranges, which are unambiguous.)
+   >    still on a **pre-v20.51** client. This is the number that decides go/no-go; a trickle is fine.
+   >    (Versions roll up into ranges, so BOTH `v20.40–v20.49` and `v20.50–v20.59` straddle the
+   >    cutover. Neither settles it alone — treat the whole of the first as at-risk, and read the
+   >    second as mostly-converted but not provably so.)
    > 2. **Operations → Usage → calendar page views**, last 7 days vs. the same window before 10 Aug.
    >    A successful unlock records usage and a failed one records nothing, so a material drop means
    >    unlocks are failing. **This is the only soak signal there is** — a locked Calendar has no

@@ -116,8 +116,13 @@ adding the feature. Full rationale: OPERATIONS_REFERENCE.md → "Huddle notifica
 - Circular / Newsletter → `#circular` / `#newsletter` (opens the in-app document viewer,
   `calendar-doc-viewer.js`, used on notification taps).
 - Reset request → `operations.html#reset-requests` (opens the queue card and scrolls to it —
-  `DEEP_LINK_CARDS` in `operations-app.js`; Operations has nine collapsed cards, so landing on the
-  page alone would still leave the admin hunting for the one the notification was about).
+  `DEEP_LINK_CARDS` in `operations-app.js`; Operations is a page of collapsed cards, so landing on
+  it alone would still leave the admin hunting for the one the notification was about).
+- Overtime → `overtime.html` (both the asked notice and the deadline reminder). **Added to this
+  list at v21.63** — `overtime.html` had been in `SAFE_NOTIFICATION_PAGES` since the feature
+  shipped, so the code was right and the prose was one row short. A reader auditing the allowlist
+  against this list found an unexplained fifth entry, which is the wrong way round for a security
+  allowlist to be checked.
 
 ## The builder (single source of truth)
 

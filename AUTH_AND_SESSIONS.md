@@ -37,7 +37,7 @@ track status is `SECURITY_RELEASE_PLAN.md`. Design lives in `PASSWORD_PLAN.md` (
 | 11 | **The forced-password overlay fails OPEN, both before and after showing.** A mandatory overlay that cannot be satisfied is a lockout. | `password-force.js` |
 | 12 | **Identity derivation exists twice and may not drift.** `normaliseSurname` and `nameToEmail` are duplicated across the ESM/CommonJS boundary; a drifted email provisions an account that does not exist while "Set up accounts" reports success. | `auth-identity.js` · `functions/roster-parse-helpers.js` · `surname-parity.test.mjs` |
 | 13 | **`initErrorReporter()` needs an auth context.** Called bare, every write is silently rejected by the rules — so the error log looks healthy because it is broken. Three canonical call sites. | CLAUDE.md → architecture decisions |
-| 14 | **Overtime has two audiences, and reviewing is not participating.** `isOvertimeReviewer` (admin/manager) sees everyone's declarations; a beta participant answers only for themselves. Never widen the first to make the nav pill work. | `overtime-core.js` · `roster-data.js` |
+| 14 | **Overtime has two audiences, and reviewing is not participating.** `isOvertimeReviewer` (admin/manager) sees everyone's declarations; a beta participant answers only for themselves. Never widen the first to make the nav pill work. | `auth-policy.js` (`isOvertimeReviewer`/`canOpenOvertime`) · `roster-data.js` |
 
 ---
 

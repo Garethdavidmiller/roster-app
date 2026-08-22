@@ -9,7 +9,7 @@ ARIA, duplicate ids). It does not replace a manual screen-reader pass.
 
 ## Current status — ✅ GREEN + BLOCKING (v17.52)
 
-All 10 pages pass on both projects (Desktop Chrome + Pixel 5). **Both findings are resolved**
+Every page the spec drives passes on both projects (Desktop Chrome + Pixel 5). **Both findings are resolved**
 (`nested-interactive` v17.50, `color-contrast` v17.51–52), so the gate is now part of
 `npm run test:e2e` — a new WCAG A/AA violation fails the suite. `npm run test:a11y` runs it
 standalone (chromium). One documented per-page exclusion remains (calendar `.other-month`; see #2).
@@ -63,13 +63,13 @@ consistent convention** (shift badges wrap the glyph in `aria-hidden`; every emo
 so the CSS `::before` markers are correctly decorative). **No P1 (control-unusable) findings.**
 
 Fixed this pass:
-- **P2 (real correctness gain):** the "Change a Shift" per-day badge (`admin-overrides.js`
+- **P2 (real correctness gain):** the "Change a Shift" per-day badge (`admin-week-editor.js`
   `renderWeekGrid`) conveyed Bank Holiday / Payday / Cut-off by emoji + `title` only — `title`
   isn't reliably announced (esp. mobile SR), and the meaning wasn't in the row's visible text.
   Now `role="img" aria-label="<title>"`.
 - **P3 convention gaps** (emoji duplicated visible text but wasn't hidden — brought back in line
   with the app's own pattern): nav-drawer link + guide builders (`nav-panel.js`); paycalc card
-  sub-headings (`.h-title` ×8); admin `.al-booked-title` ×2; `admin-overrides.js` overwrite-badge
+  sub-headings (`.h-title` ×8); admin `.al-booked-title` ×2; `admin-week-editor.js` overwrite-badge
   ⚠ + the Spare 📋 flavour button; index.html action buttons (🖨️ Print, 📖 guide, 🐛 Report a bug,
   💷 View pay estimate, 🔔 notify).
 

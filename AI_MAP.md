@@ -5,36 +5,43 @@
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
 
-## This file's SIZE is not a duplication problem — measured v21.18, do not re-open it
+## This file's SIZE — measured v21.18, RE-MEASURED v21.63, and the trigger has now FIRED
 
-It is ~335k characters with ~536 version references, and the obvious reading is that it has become
-what CLAUDE.md's file tree had become before the v20.11 pass: a changelog restating what the module
-headers already say. **That reading was proposed, measured, and is wrong**, and it is recorded here
-because the next person to notice the size will reach for it too.
+⚠️ **This section used to read "not a duplication problem — do not re-open it". Re-measuring is what
+it asked for, and the answer changed.** It closed with: *"If the verbatim or 7-gram figures above
+climb materially, the duplication is real and the sweep is the right response. Re-measure before
+proposing it."* They climbed by roughly 4×.
 
-| Measure | AI_MAP vs the modules it describes |
-|---|---|
-| Word-set overlap with the module's own header | **55%** |
-| Sentences that are VERBATIM a header sentence | **0.4%** (5 of 1,271) |
-| Sentences sharing a substantial 7-word run with anything in the module | **10.4%** |
+| Measure | v21.18 | v21.63 |
+|---|---|---|
+| Sentences that are VERBATIM a module sentence | 0.4% (5 of 1,271) | **1.7%** (36 of 2,136) |
+| Sentences sharing a 7-word run with the module | 10.4% | **31–39%** |
+| Version references | ~536 | **600** |
+| Size | ~335k chars | **377k chars** |
 
-The 55% is the misleading one, and it is the figure the proposal was built on. It measures shared
-**vocabulary** — a doc about `calendar-overrides.js` and that module's own header both say "override",
-"cache", "month", "authoritative", because they are about the same thing. It is not a measure of
-duplicated content, and reporting it as one was an error.
+*(The range on the 7-gram figure is method: 31% comparing each entry against its OWN module, 39%
+against all modules. Both are 3–4× the v21.18 reading, so the direction is not a methodology
+artefact.)*
 
-Nearly ninety per cent of this file says something the modules do not. So a v20.11-style sweep here
-would not be removing duplication; it would be **deleting reasoning that exists nowhere else** — the
-one outcome that pass was careful to avoid ("moved into the module header first, and verified there").
+**What was right at v21.18 and stays right.** The 55% "word-set overlap" figure the original
+proposal was built on was measuring shared **vocabulary**, not duplicated content, and reporting it
+as duplication was an error. And the v20.11 cost argument still does not transfer: CLAUDE.md is
+loaded into **every** session, this file is read **on demand** by a session that has already decided
+it needs the map. Size alone is not the complaint.
 
-The other half of the v20.11 argument does not transfer either. That pass was driven by CLAUDE.md
-being loaded into **every** session, so its bulk was paid whether or not it was relevant. This file
-is read **on demand**, by a session that has already decided it needs the map. A large, detailed,
-on-demand module map that does not duplicate the code is a good module map.
+**What has changed is the duplication itself.** The clearest cases are the SHORT entries, not the
+long ones: `calendar-state.js` and `calendar-swipe.js` each say what their own module header says,
+reworded, and CLAUDE.md's tree says it a third time. The long entries mostly still earn their place
+— measured, changelog prose is only ~5% of the file, so the v21.18 finding that this is not a
+changelog holds.
 
-**What would change the answer:** a measurement, not an impression. If the verbatim or 7-gram figures
-above climb materially, the duplication is real and the sweep is the right response. Re-measure before
-proposing it.
+**So the sweep, when someone does it, is TARGETED and not a v20.11-style pass:** collapse the short
+entries that merely restate a header, trim the pasted `export {}` block in the `firebase-client.js`
+entry, and leave the dense reasoning alone. **Move, never delete** — the rule that pass was careful
+about ("moved into the module header first, and verified there") is the one that matters most here,
+because ~95% of this file is still reasoning that exists nowhere else.
+
+**And the same re-measurement rule applies to this table.** It is a dated reading, not a fact.
 
 ---
 
@@ -645,6 +652,8 @@ Shared auth/session module — canonical source for session logic (v11.40).
 - `primeAuth()` — **login latency pre-warm (v14.80).** Called once when the login overlay mounts. Kicks off `authReady` + the first `onAuthStateChanged` restore in the background and caches that promise; `ensureFirebaseSession` consumes it **once** instead of starting the restore itself, so the IndexedDB restore overlaps the user's typing and the sign-in click pays only for the network sign-in. Best-effort, idempotent, side-effect-free — on failure or when not primed (e.g. tests) `ensureFirebaseSession` does a fresh restore, so there is **no** behaviour or security change, only latency overlap.
 - `getFirebaseIdentity()` → `'named' | 'anonymous' | 'none'` · `firebaseSessionIsNamed()` → boolean · `getFirebaseAuthError()` → error code. **B0** (SECURITY_RELEASE_PLAN.md): expose whether `ensureFirebaseSession` established the member's own named account or only the anonymous fallback. `firebaseSessionIsNamed()` is the signal per-member write isolation (B2) will depend on — the anonymous fallback satisfies `request.auth != null` today but carries no `name` claim. **Observability only — no behaviour change in B0.** (v14.39)
 - `ensureNamedSession(name, opts?)` → `Promise<boolean>` · `isTransientAuthError(code)` → boolean. **B1.2** (v14.41; now ENABLED, v14.98): the write pages call `ensureNamedSession` instead of `ensureFirebaseSession`. `opts` accepts `{ retries?, delayMs?, password? }` — the `password` (v18.63) is threaded to both `ensureFirebaseSession` attempts so the typed-password candidate ladder is used. With `CONFIG.ENFORCE_NAMED_SESSION` **on** (the current state), a failed named sign-in is retried a couple of times only for transient (connectivity) errors, then returns whether the member's own named session is active — admin/settings re-show the login overlay, operations/links clear + redirect to admin, paycalc soft-logs (never blocks). Flipping the flag **off** makes it return `ensureFirebaseSession`'s result unchanged (anonymous fallback counts) — identical-to-legacy behaviour, the kill-switch. See SECURITY_RELEASE_PLAN.md → "Appendix: B1 detailed scope".
+- `shedCalendarViewer()` — drop a shared staff-PIN viewer BEFORE a member sign-in restores the long-lived persistence chain. **The ORDER is the security property**, not tidiness: `setPersistence` migrates the CURRENT user between stores, so restoring the member chain first would move the shared viewer into IndexedDB, where it survives the browser closing (proven both ways in `experiments/viewer-persistence-proof/`). It THROWS rather than warning when it cannot confirm the viewer is gone, and `ensureFirebaseSession` converts that to a clean failed sign-in. `AUTH_AND_SESSIONS.md` invariant 8. Undocumented here until v21.63.
+- `AUTH_RESTORE_TIMEOUT_MS` — the bound on waiting for the first auth emission.
 - `refreshClaimsIfStale(epoch)` — the B3 CLAIM_EPOCH sweep: force-refreshes the Firebase ID token once per device when `CONFIG.CLAIM_EPOCH` exceeds the device's stored `myb_claim_epoch`, so newly-set custom claims reach every active session. Covered by `session.test.mjs`.
 - `reconcileExpiredIdentity()` → `Promise<void>` (v17.00, Finding #9) — the coordinated post-`authReady` teardown for a Firebase identity that OUTLIVED its local session: `getSession()` clears only localStorage on passive expiry, so a lingering NAMED/admin/manager/designer identity keeps real Firestore write privileges. If the restored user is NAMED but `getSession()` is null, it signs out; anonymous identities and any valid local session are left alone. Login-safe: snapshots `_authGen` and stands down if a login/logout started meanwhile. **Resolves the restored user first** (`auth.currentUser || restoreFirstAuthUser()`, v17.19) — `authReady` only sets persistence, so reading `currentUser` alone would MISS a cold restore. Called by the calendar's `calendarAuthReady` (before the anon bootstrap) AND, as of v17.19 (item 7), by **all six protected coordinators** (admin/settings/operations/links/paycalc/overtime) at init — so a direct deep-link to a protected page tears the identity down immediately, not only on the next calendar open/login. Covered by `session.test.mjs` (incl. cold-restoration tests).
 - `restoreFirstAuthUser()` → `Promise<any>` (exported v17.22) — resolves the first `onAuthStateChanged` emission (the IndexedDB session restore) once. Shared by `ensureFirebaseSession`, `reconcileExpiredIdentity`, `primeAuth`, and `admin-auth.js` (which previously hand-rolled its own copy — a divergence that once let a cold-restore fix miss it). Callers wanting the fast path use `auth.currentUser || await restoreFirstAuthUser()`.
@@ -667,7 +676,7 @@ The auth STORE — `ARCHITECTURE_PLAN.md` Track 1, **Phase 2** (v14.59). Holds t
 ### `auth-policy.js`
 The page-AUTHORISATION layer — `ARCHITECTURE_PLAN.md` Track 1, **Phase 3** (v14.60). Authentication ("who are you?") is the store; this answers the separate "is this identity allowed on THIS page?". **CLIENT UX only — Firestore Rules + Functions claim checks are the real boundary** (the role check here, name ∈ CONFIG.ADMIN_NAMES/MANAGER_NAMES/LINKS_DESIGNERS, is an optimisation, never enforcement).
 - `PAGE_POLICIES` — declarative per-page map, grounded in the coordinators' actual gates: operations = admin-only (managers redirected), links = designer-only, admin/settings = any named user (the admin/manager split gates ACTIONS not page access), paycalc = soft (never blocked), calendar = public/anonymous, guides = open. `DECISIONS` — the frozen list of the five valid decision strings.
-- `requirePageAuth(snapshot, policy, roles)` → `{ decision, reason }` — PURE. Decisions: `allow` / `soft-allow` (paycalc local-first) / `login` (terminal no-named: signedOut/anonymous/error) / `forbidden` (named but wrong role) / `pending` (initialising/resolving/degraded — degraded grants no authority but is retryable, so "pending" not "login"). `rolesFor(member)` derives role flags from CONFIG; `requirePage(snapshot, page)` is the coordinator convenience (fails CLOSED on an unknown page). The read-vs-write distinction is an ACTION-level concern for a later phase (the policy keys can grow `page→page.action` without touching the reducer). NOW CONSUMED by the 5 write coordinators (the `requirePage` access gate, active when `ENFORCE_NAMED_SESSION` is on). Covered by `auth-policy.test.mjs`.
+- `requirePageAuth(snapshot, policy, roles)` → `{ decision, reason }` — PURE. Decisions: `allow` / `soft-allow` (paycalc local-first) / `login` (terminal no-named: signedOut/anonymous/error) / `forbidden` (named but wrong role) / `pending` (initialising/resolving/degraded — degraded grants no authority but is retryable, so "pending" not "login"). `rolesFor(member)` derives role flags from CONFIG; `requirePage(snapshot, page)` is the coordinator convenience (fails CLOSED on an unknown page). **`isOvertimeReviewer(member)`** (admin ‖ manager) and **`canOpenOvertime(member)`** (reviewer ‖ `CONFIG.OVERTIME_BETA`) are the Overtime permission pair — undocumented here until v21.63, which is how a security-shaped predicate went unrouted for a release. **Keep them separate and never widen the first to make the nav pill work**: everything deciding who may see COLLEAGUES' declarations reads `isOvertimeReviewer`, and a beta invitation must not drift into meaning that (`AUTH_AND_SESSIONS.md` invariant 14). The read-vs-write distinction is an ACTION-level concern for a later phase (the policy keys can grow `page→page.action` without touching the reducer). NOW CONSUMED by the 5 write coordinators (the `requirePage` access gate, active when `ENFORCE_NAMED_SESSION` is on). Covered by `auth-policy.test.mjs`.
 
 ### `operations-app.js`
 Coordinator for `operations.html` (admin-only, v10.99).
@@ -939,7 +948,7 @@ Annual Leave Booking section (extracted v9.93; thin config wrapper over `admin-r
 
 ### `al-entitlement.js`
 Which annual-leave days consume entitlement, and where that leaves a member (v21.46). Pure — no DOM, no Firebase, so it loads in Node.
-- `countedAlDates({ overrides, member, year, exclude })` → `Set<string>` — the AL dates that spend entitlement. Two rules: **a Sunday never counts** (uncontracted for every grade — the read-side face of `SUNDAY_FORBIDDEN_TYPES`, so a legacy document cannot spend a day the write paths would refuse) and **a day whose BASE shift is a rest day never counts** (a member does not spend leave on a day they were not working — this also settles leave dated before a member joined, since `getBaseShift` returns `'RD'` for those, so a separate start-date test would be dead code). `exclude` drops the dates a batch is about to overwrite or delete, so they are not counted twice.
+- `countedAlDates({ overrides, member, year, exclude })` → `Set<string>` — the AL dates that spend entitlement. Two rules: **a Sunday never counts** (uncontracted for every grade — the read-side face of `SUNDAY_FORBIDDEN_TYPES`, so a legacy document cannot spend a day the write paths would refuse) and — **only after the override underneath has been asked** — a day whose BASE shift is a rest day never counts (a member does not spend leave on a day they were not working; it also settles leave dated before a member joined, since `getBaseShift` returns `'RD'` for those, so a separate start-date test would be dead code). **The override step is not optional and this entry omitted it until v21.63:** since v21.55 a contracted `shift` sitting on a base rest day — a SWAP — does consume entitlement, read through `replacedType` when an AL doc has already replaced it (`isContractedWorkOverride`, `override-utils.js`), while a voluntary `rdw` deliberately does not. `exclude` drops the dates a batch is about to overwrite or delete, so they are not counted twice.
 - `consumesEntitlement(member, date, ovByDate?)` — the single-date predicate the other two are built on, exported because BOTH halves of the overage projection must ask it: `projectAnnualLeaveOverage` adds new days to existing ones, so filtering only the existing set makes a rest day already on record free while the identical day being booked now is not. **`ovByDate` is what makes a SWAPPED day right (v21.55).** The app used to book AL by one rule (`isWorkingDate`, override-aware) and charge for it by another (the base roster alone), so a swapped-in day — a `shift` on a base rest day — wrote the leave and cost nothing. It now reads the override for the date through `isContractedWorkOverride`; on an AL document that means its `replacedType`, since the AL has already destroyed the doc it covered. **With no override information it falls back to the base shift**, which is what every AL written before v21.55 gets, so no balance changes on deploy and no migration is required.
 - `alPosition({ overrides, member, year, todayStr })` → `{ entitlement, taken, booked, remaining }` — the AL banner's figures. Split at `todayStr`: on or before today is TAKEN, after is BOOKED; both consume entitlement. `remaining` may be **negative** — an over-booked member is a real state the banner renders as "N over limit". The date is a parameter rather than a clock read, which is what makes the boundary testable.
 - **Why it exists:** the set feeding `projectAnnualLeaveOverage` was hand-built at FOUR call sites — the AL banner, the week-grid save's cap check, `admin-al.js`'s pre-save check, and the calendar's own AL lightbox — in three different combinations of the rules, because each was fixed where its own bug was reported. So the app answered one question four ways and could contradict itself: the banner showed fewer days remaining than the save path would act on, and a member's calendar balance was a fourth answer. All four now call this.
