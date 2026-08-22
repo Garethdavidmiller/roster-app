@@ -515,7 +515,6 @@ describe('initCalendarAccess', () => {
         sessionValue = { name: 'G. Miller' };
         const type = await initCalendarAccess({ onGranted: () => {} });
         assert.equal(type, 'none');
-        await new Promise(r => setTimeout(r, 0));   // let the silent attempt settle
         const html = lastPanelHtml();
         assert.ok(!html.includes('id="calLockPin"'), 'a member was shown the PIN field');
         assert.equal(document.getElementById('calLockWho')?.textContent, 'Calendar · G. Miller',
@@ -523,6 +522,12 @@ describe('initCalendarAccess', () => {
         assert.ok(html.includes('calLockPinInstead'), 'the PIN was not left reachable underneath');
         assert.ok(ops.some(o => o === 'ensureNamedSession:G. Miller'),
             `the silent re-establishment was never attempted: ${JSON.stringify(ops)}`);
+        // v21.62: by the time the card exists, silence has already failed — so it renders in its
+        // final, ACTIONABLE state. The old two-state card held a disabled "Signing you in…" button
+        // for the length of a round trip that, for a migrated member, could only fail.
+        assert.ok(html.includes('Sign in →'), 'the card is not immediately actionable');
+        assert.ok(!html.includes('Signing you in'), 'the disabled limbo state is back');
+        assert.ok(!html.includes('disabled'), 'the sign-in button is disabled on arrival');
     });
 
     test('"Use the staff PIN instead" SIGNS THE MEMBER OUT — it is not a panel swap (v21.23)', async () => {
@@ -554,19 +559,27 @@ describe('initCalendarAccess', () => {
         assert.equal(sessionValue, null, 'the local session was not actually dropped');
     });
 
-    test('the silent re-establishment GRANTS when it works — nothing is typed', async () => {
+    test('the silent re-establishment GRANTS when it works — and NO sign-in surface is ever shown', async () => {
         // `ensureNamedSession` with no password tries only the surname default, so for anyone who has
         // not chosen their own password this is a complete recovery with no interaction at all.
+        //
+        // ── AND SINCE v21.62, WITH NOTHING SHOWN AT ALL ─────────────────────────────────────────
+        // The attempt used to run behind the member card's disabled "Signing you in…" state, so
+        // every recovering member SAW a sign-in screen flash — which, with the start ladder showing
+        // 56% of restores over a second, was a routine experience and the substance of the "keeps
+        // asking for my password" complaints. It now runs behind the boot skeleton: the card is
+        // built only when silence fails, so a recovery shows a skeleton that fills in, nothing more.
         sessionValue = { name: 'G. Miller' };
         silentReauthSucceeds = true;
         let started = 0;
         const type = await initCalendarAccess({ onGranted: () => { started++; } });
-        assert.equal(type, 'none', 'the BOOT decision is still none — the grant comes after it');
-        await new Promise(r => setTimeout(r, 0));
+        assert.equal(type, 'named', 'a recovery completed during boot reports as the boot decision');
         assert.equal(getAccessType(), 'named');
         assert.equal(started, 1);
-        assert.equal(lastPanelHtml().includes('cal-lock-card'), true);   // it WAS built...
-        assert.equal(_panelIsDown(), true, 'the card was left up after the grant');
+        assert.ok(!lastPanelHtml().includes('cal-lock-card'),
+            'a sign-in card was built for a member whose recovery needed nothing typed');
+        assert.ok(lastPanelHtml().includes('cal-boot-grid'), 'the waiting happened behind the skeleton');
+        assert.equal(_panelIsDown(), true, 'the skeleton was left up after the grant');
     });
 
     test('a silent re-auth that reports success but lands ANONYMOUS grants nothing', async () => {
@@ -577,8 +590,9 @@ describe('initCalendarAccess', () => {
         silentReauthSucceeds = true;
         silentReauthUser = { uid: 'anon', isAnonymous: true };
         await initCalendarAccess({ onGranted: () => {} });
-        await new Promise(r => setTimeout(r, 0));
         assert.equal(getAccessType(), 'none');
+        assert.ok(lastPanelHtml().includes('cal-lock-card'),
+            'no sign-in card followed the refused anonymous recovery');
         assert.equal(_panelIsDown(), false, 'the card came down on an anonymous identity');
     });
 

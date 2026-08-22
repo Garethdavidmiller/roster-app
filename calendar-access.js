@@ -415,6 +415,14 @@ function hideLockPanel() {
  *  it, short enough that nobody stares at nothing. */
 const SKELETON_AFTER_MS = 400;
 
+/** How long the member's silent re-establishment may keep the skeleton up before the sign-in card
+ *  goes up anyway (v21.62 — see the boot path). The bound exists for the HANGING attempt, not the
+ *  failing one: a wrong-password rejection resolves in well under a second and shows the card at
+ *  once, so this only decides how long a stalled network holds the skeleton over a card the member
+ *  will probably need. Shorter than `trySilentReauth`'s own 8s ceiling on purpose — the attempt
+ *  keeps running behind the card and a late success still grants. */
+const SILENT_BEFORE_CARD_MS = 4000;
+
 /**
  * Say "working", while the access decision is still outstanding.
  *
@@ -629,11 +637,13 @@ function showLockPanel() {
  * capability — unlocking would leave them viewing the Calendar as an anonymous viewer with their own
  * name still in the drawer, and the first thing they tried to do on Admin would fail.
  *
- * So the ONE thing this screen does is get their own identity back. It tries silently first (see
- * `trySilentReauth` — for anyone still on the surname default that succeeds with nothing shown but a
- * flicker of the disabled button), and falls back to the app's real sign-in overlay. The PIN is
- * still reachable underneath, because a shared PC where somebody left a session behind is a real
- * situation and stranding the next person would be worse than an unnecessary link.
+ * So the ONE thing this screen does is get their own identity back, through the app's real sign-in
+ * overlay. The SILENT attempt no longer lives here (v21.62): the boot path runs `trySilentReauth`
+ * behind the skeleton BEFORE this card exists, so by the time it is built, silence has already
+ * failed (or is hanging past its defer bound) and the card renders immediately actionable — no
+ * disabled "Signing you in…" limbo state. The PIN is still reachable underneath, because a shared
+ * PC where somebody left a session behind is a real situation and stranding the next person would
+ * be worse than an unnecessary link.
  *
  * @param {string} name
  */
@@ -659,20 +669,19 @@ function showMemberPanel(name) {
             <img src="./icon-192.png" alt="" loading="eager">
             <div class="login-app-name">Marylebone Roster</div>
             <div class="login-subtitle" id="calLockWho">Calendar</div>
-            <p class="login-hint" id="calLockWhy" role="status" aria-live="polite">This device needs to sign you in again before it can show your roster.</p>
-            <button id="calLockSubmit" type="button" disabled>Signing you in…</button>
+            <p class="login-hint" id="calLockWhy" role="status" aria-live="polite">This device needs to sign you in again before it can show your roster. Enter your password to see it.</p>
+            <button id="calLockSubmit" type="button">Sign in →</button>
             <button class="login-back cal-lock-alt" id="calLockPinInstead" type="button">Use the staff PIN instead</button>
         </div>`;
     host.appendChild(panel);
     _panel = panel;
 
-    // NOTE: the explanation IS the live region. A .login-error box was tried here and looked exactly
+    // NOTE: the explanation keeps its `role="status"` live region even though the card now renders
+    // in its final state (v21.62 — the waiting the two-state version represented happens behind the
+    // skeleton before this card exists). A .login-error box was tried here once and looked exactly
     // like a disabled text field sitting above the button — on a card whose whole job is "sign in",
-    // a faux input is the one thing it must not appear to have. One sentence that rewrites itself
-    // carries both states and announces the change. (Kept out of the template literal above:
-    // backticks inside it are a syntax error, which is how this went out broken once already.)
+    // a faux input is the one thing it must not appear to have.
     const who    = /** @type {HTMLElement} */ (panel.querySelector('#calLockWho'));
-    const why    = /** @type {HTMLElement} */ (panel.querySelector('#calLockWhy'));
     const submit = /** @type {HTMLButtonElement} */ (panel.querySelector('#calLockSubmit'));
     const pinAlt = /** @type {HTMLButtonElement} */ (panel.querySelector('#calLockPinInstead'));
 
@@ -708,20 +717,6 @@ function showMemberPanel(name) {
     pinAlt.addEventListener('click', () => {
         clearSession();
         window.location.reload();
-    });
-
-    // The silent attempt. It runs AFTER the panel is on screen deliberately: awaiting it first would
-    // hold the page blank for the length of a round trip, and this state is already the slow path.
-    trySilentReauth(name).then(ok => {
-        // The recovery routes can BOTH fire: a successful silent re-auth returns true and emits the
-        // auth state `watchForLateNamedIdentity` is listening for. Granting twice is not harmless —
-        // `_onEveryGrant` rebuilds the override gate — so whichever arrives second stands down. The
-        // check and the call are synchronous, which is what makes that safe.
-        if (ok) { if (_accessType === 'none') grant('named'); return; }   // grant() removes the panel
-        if (!_panel || _panel !== panel) return;   // superseded (the PIN card, or a late grant)
-        submit.disabled = false;
-        submit.textContent = 'Sign in →';
-        why.textContent = 'Enter your password to see your roster.';
     });
 }
 
@@ -873,7 +868,43 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null }) {
     //     a shared code. See `showMemberPanel`.
     watchForLateNamedIdentity();
     const held = getSession();
-    if (held?.name) showMemberPanel(held.name);
-    else showLockPanel();
+    if (!held?.name) { showLockPanel(); return 'none'; }
+
+    // ── THE SILENT ATTEMPT RUNS BEHIND THE SKELETON, NOT BEHIND A SIGN-IN CARD (v21.62) ────────
+    //
+    // It used to run behind the member card's disabled "Signing you in…" state — so every member
+    // whose identity restore merely missed the boot budget SAW A SIGN-IN SCREEN, even on the loads
+    // that recovered themselves moments later. The first live month of the start ladder showed 56%
+    // of Calendar opens taking over a second just to restore the identity (LATENCY_PLAN.md → First
+    // reading), which made that flash a routine experience rather than an edge case — and it is
+    // what staff meant by "the app keeps asking for my password". Behind the skeleton, the loads
+    // that recover (a slow restore, a surname-default member) never show a sign-in surface at all.
+    //
+    // The card is DEFERRED, not withheld: it appears the moment silence definitively fails (a
+    // wrong-password rejection returns in well under a second — and instantly for a member this
+    // device already knows is migrated, see session.js `_noDefaultKey`), or at the defer bound if
+    // the attempt is merely hanging — whichever is first. And when it appears it is immediately
+    // actionable, because the waiting it used to represent has already happened.
+    // Put the skeleton up NOW unless it already is — the timer may not have fired when the decision
+    // was quick, and whatever else `_panel` might hold is stale for this boot. `showBootSkeleton`
+    // replaces rather than stacks, and its `hideLockPanel` disarms the pending timer.
+    if (_panel?.id !== 'calendarBooting') showBootSkeleton();
+    const silent = trySilentReauth(held.name);
+    /** @type {any} */ let deferTimer = null;
+    const ok = await Promise.race([
+        // `finally` clears the defer timer whenever the attempt settles — before the bound (the
+        // normal case, where the pending timer would otherwise just linger) or after it (harmless:
+        // resolving a settled promise is a no-op).
+        silent.finally(() => { if (deferTimer) { clearTimeout(deferTimer); deferTimer = null; } }),
+        new Promise(resolve => { deferTimer = setTimeout(() => resolve(null), SILENT_BEFORE_CARD_MS); }),
+    ]);
+    // The late-identity watcher may have granted while we waited — granting twice is not harmless
+    // (`_onEveryGrant` rebuilds the override gate), so whichever route arrives second stands down.
+    if (_accessType !== 'none') return _accessType;
+    if (ok) { grant('named'); return 'named'; }
+    showMemberPanel(held.name);
+    // `null` means the attempt is still in flight past the defer bound. A late success is still a
+    // success: honour it exactly the way the watcher honours a late restore.
+    if (ok === null) silent.then(late => { if (late && _accessType === 'none') grant('named'); });
     return 'none';
 }
