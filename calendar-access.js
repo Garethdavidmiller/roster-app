@@ -891,13 +891,23 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null }) {
     if (_panel?.id !== 'calendarBooting') showBootSkeleton();
     const silent = trySilentReauth(held.name);
     /** @type {any} */ let deferTimer = null;
+    // ── THE WAIT MAY NOT BE ABLE TO STRAND THE MEMBER (v21.63, self-review) ─────────────────────
+    //
+    // Before v21.62 the silent attempt was DETACHED — `showMemberPanel` fired it and returned — so
+    // nothing it did could stop the card appearing. Moving it onto the await path to hide the flash
+    // gave away that property: `trySilentReauth` catches everything today, so this cannot reject in
+    // practice, but if a later edit let one through, `initCalendarAccess` would reject, no card
+    // would be built, and the member would sit on the skeleton until `splash-watchdog` fired at 20s.
+    // Restored by catching here rather than by trusting a function three screens away to keep a
+    // promise it never advertised. `false` is the safe answer: it shows the sign-in card, which is
+    // the recoverable state.
     const ok = await Promise.race([
         // `finally` clears the defer timer whenever the attempt settles — before the bound (the
         // normal case, where the pending timer would otherwise just linger) or after it (harmless:
         // resolving a settled promise is a no-op).
         silent.finally(() => { if (deferTimer) { clearTimeout(deferTimer); deferTimer = null; } }),
         new Promise(resolve => { deferTimer = setTimeout(() => resolve(null), SILENT_BEFORE_CARD_MS); }),
-    ]);
+    ]).catch(() => false);
     // The late-identity watcher may have granted while we waited — granting twice is not harmless
     // (`_onEveryGrant` rebuilds the override gate), so whichever route arrives second stands down.
     if (_accessType !== 'none') return _accessType;
