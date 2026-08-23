@@ -1672,16 +1672,29 @@ body.lb-open #stickyTotal { display: none !important; }
     .nav-panel-pill--settings:hover { background: var(--nav-raised-strong); }
 }
 
-/* "You are here" indicator — the current page's pill is inert and shows a dot */
+/* "You are here" — the current page's pill is inert, ringed, and carries a dot.
+   The dot is ABSOLUTELY POSITIONED (v21.74). It used to be an ordinary `::before`, which in a flex
+   pill is a flex ITEM: it took the 8px gap plus its own 6px margin and pushed the emoji and label
+   ~23px to the right — on the one pill in the row that differs. That broke the alignment the base
+   rule two hundred lines up exists to create ("left alignment puts every pill's text on the SAME x
+   as the Today rows underneath, so the whole drawer reads down one edge"), and it broke it on
+   whichever page you happened to be on, so the drawer never looked the same twice.
+   Out of flow, it marks without moving anything; the ring stays as the redundant, colour-blind-safe
+   half of the signal, and `aria-current` (set in nav-panel.js) is what actually carries it. */
 .nav-panel-pill--current {
+    position: relative;
     cursor: default;
     pointer-events: none;
     box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.6);
 }
 .nav-panel-pill--current::before {
     content: "●";
-    font-size: 9px;
-    margin-right: 6px;
+    position: absolute;
+    left: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 8px;
+    line-height: 1;
     opacity: 0.85;
 }
 
