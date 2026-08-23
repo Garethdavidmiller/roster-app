@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: August 2026 — v21.60 · Updated every 0.10 version*
+*Last updated: August 2026 — v21.70 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -864,6 +864,18 @@ month-1/cumulative paths all have cases.
 releases and was still being read as a live defect at the v20.32 audit. That is the failure mode
 this file has to guard against: an old finding is indistinguishable from a current one, so a stale
 entry costs more here than a missing one.
+
+### ~~The pension default assumed everybody is in the scheme~~ — CLOSED v21.64
+
+**Closed (v21.64).** A member who has withdrawn from the RPS could not set her pension to £0: the
+zero held on the payslip she typed it into and reverted to the scheme rate on every other, because
+four sites resolved "what should this payslip's pension be?" through `getPensionDefault()` and
+being IN the scheme was assumed rather than asked. Her take-home was understated by the whole
+contribution, and her tax and NI with it (the sacrifice comes off gross before both). `SK.pensionOptOut`
+(member-level, a separate flag from the amount) is now read by that one function, so the field
+default, `calculate()`'s fallback, the HPP estimate and the year summary all inherit the answer.
+It changes the DEFAULT and never a stored figure — payslips from when she WAS contributing keep
+their own amount. Design + the reason it is a flag rather than a magic £0: `.claude/rules/paycalc.md`.
 
 ### ~~Pension default is frozen onto a period once it is touched~~ — CLOSED v18.43
 

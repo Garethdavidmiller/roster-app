@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: August 2026 — v21.60 · Updated every 0.10 version*
+*Last updated: August 2026 — v21.70 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
