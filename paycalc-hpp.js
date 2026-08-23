@@ -475,7 +475,7 @@ export function calcHPP() {
       // with the Year to Date card's "4 of 4 paid" frame (v18.51 — owner's screenshot review).
       const _upcoming = pCount - hoursRes.paidCount;
       const _countPhrase = _upcoming > 0
-        ? `${hoursRes.paidCount} paid + ${_upcoming} upcoming payslips entered`
+        ? `${hoursRes.paidCount} paid and ${_upcoming} upcoming ${hoursRes.paidCount + _upcoming === 1 ? 'payslip' : 'payslips'} entered`
         : `${pCount} of ${_total} payslip${_total !== 1 ? 's' : ''} entered`;
       basisEl.textContent = usingActuals
         ? `All ${pCount} payslips of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · from your payslips · due January ${ty.hppPaidJan}`

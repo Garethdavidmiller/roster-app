@@ -316,7 +316,7 @@ export function init() {
       const periods = getPeriods();
       const p       = periods.find(/** @param {any} x */ x => x.num === pNum);
       if (!p) return;
-      const cutStr  = fdShort(p.cutoff);
+
 
       // Prev / Next button states — over the VISIBLE periods (a new starter is clamped to their join
       // year), so the button state matches what prevPeriod/nextPeriod can actually navigate to.
@@ -346,17 +346,16 @@ export function init() {
       // reads "Paid 31 Jul 2026 · P20" (date-first identity), so the meta row carries only what the
       // select doesn't — the shift-date range and the tax year. The gold P-badge stays (the docs'
       // payslip cross-check).
-      /** @type {HTMLElement} */ (document.getElementById('pmRange')).textContent   = `${startStr} – ${cutLongStr}`;
+      // LABELLED (v21.69). This read as a bare "26 Jul – 22 Aug 2026" — the reader had to know
+      // it meant the shift window, and because nothing said so, the same cut-off date was
+      // restated inside three separate hours-row descriptions. Naming it here retires all three.
+      /** @type {HTMLElement} */ (document.getElementById('pmRange')).textContent   = `Hours worked ${startStr} – ${cutLongStr}`;
       /** @type {HTMLElement} */ (document.getElementById('pmSub')).textContent     = `Tax year ${ty.label}`;
       /** @type {HTMLElement} */ (document.getElementById('periodBadge')).textContent = `P${payslipPeriodNum(p)}`;
-      /** @type {HTMLElement} */ (document.getElementById('netPeriod')).textContent   = `Paid ${fd(p.payday)}`;
-
-      // Cut-off date in the three row descriptions — JS writes ONLY the date spans; the prose
-      // lives once in the HTML (v18.46 — sweep item 12: it used to exist in both, a drift hazard).
-      for (const _cid of ['cutoffOt', 'cutoffRdw', 'cutoffSun']) {
-        const _el = document.getElementById(_cid);
-        if (_el) _el.textContent = cutStr;
-      }
+      // fdLong, not fd (v21.69): the payslip picker directly above this reads "Paid 28 Aug 2026 ·
+      // P24" while the hero read "Paid 28 Aug 26" — two formats for one date, a foot apart, and the
+      // 2-digit one on the single most-read line of the page.
+      /** @type {HTMLElement} */ (document.getElementById('netPeriod')).textContent   = `Paid ${fdLong(p.payday)}`;
 
       const boxing = hasBoxingDay(p);
       /** @type {HTMLElement} */ (document.getElementById('boxingBanner')).classList.toggle('visible', boxing);
