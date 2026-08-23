@@ -763,7 +763,14 @@ export function calcBackPay() {
       noticeEl.textContent = '⚠️ This lump sum is taxed in the period it is paid. Select a period above to see a specific warning. If it pushes your income over a tax band threshold that month, you may receive less than the gross figure shown.';
     }
     if (_basicOnly.length) {
-      noticeEl.innerHTML += ` No hours are saved for ${fdList(_basicOnly)} — ${_basicOnly.length > 1 ? 'those payslips were' : 'that payslip was'} counted at the basic-rate arrears only, so any overtime or weekend arrears ${_basicOnly.length > 1 ? 'they' : 'it'} carried are missing. Fill ${_basicOnly.length > 1 ? 'them' : 'it'} in on the calculator for the full figure.`;
+      // ITS OWN PARAGRAPH (v21.70). This used to be appended after a leading space onto the tax
+      // warning, making one ~65-word block out of two unrelated facts: how the lump is TAXED
+      // (nothing you can act on) and which payslips are MISSING HOURS (something you can, and the
+      // only actionable sentence on the card). Run together, the second was read as a tail of the
+      // first. Two blocks, action last — and the plural agreement is per clause, not per sentence,
+      // so a single missing payslip does not read as a list of one.
+      const _many = _basicOnly.length > 1;
+      noticeEl.innerHTML += `<span class="bp-notice-sep">No hours are saved for ${fdList(_basicOnly)} — ${_many ? 'those payslips were' : 'that payslip was'} counted at the basic-rate arrears only, so any overtime or weekend arrears ${_many ? 'they' : 'it'} carried are missing. Fill ${_many ? 'them' : 'it'} in on the calculator for the full figure.</span>`;
     }
 
     rowsEl.innerHTML = rows;
