@@ -1418,7 +1418,10 @@
     cursor: pointer; touch-action: manipulation;
     transition: background var(--dur-med), transform var(--dur-fast) var(--ease-standard);
   }
-  .fill-roster-btn:active { transform: scale(var(--press-scale)); }
+  .fill-roster-btn:active:not(:disabled) { transform: scale(var(--press-scale)); }
+  /* Nothing fillable (v21.67): the button states it and refuses — an enabled no-op control is
+     indistinguishable from a broken one, which is exactly how it got reported. */
+  .fill-roster-btn:disabled { opacity: 0.45; cursor: default; }
   @media (hover: hover) and (pointer: fine) {
     .fill-roster-btn:hover { background: var(--primary-blue-dark); }
   }

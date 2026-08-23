@@ -387,3 +387,39 @@ test('paycalc: the pension opt-out holds across payslips and reloads', async ({ 
     await expect(page.locator('#pensionAmt')).toBeEnabled();
     expect(errors, 'Uncaught JS exceptions on the pension opt-out').toHaveLength(0);
 });
+
+// ── THE FILL BUTTON TELLS THE TRUTH (v21.67) ─────────────────────────────────────────────────────
+//
+// "Replace with calendar values doesn't work" survived two fixes aimed at the tap because the
+// button's FEEDBACK could not distinguish working from not: "✓ Filled" was shown unconditionally,
+// the fill deliberately covers special-rate categories only (never standard weekday hours), and a
+// failed shift-changes fetch silently fell back to base-only counts. These assert the honest
+// states: a real fill NAMES what it filled, and a payslip with nothing fillable shows no card at
+// all (the pre-existing model, pinned here so a regression can't leave an enabled no-op button).
+test('paycalc: the calendar fill names what it filled', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#rosterHintBar')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#fillFromRosterBtn')).toBeEnabled();
+    await page.locator('#fillFromRosterBtn').click();
+    // The toast must name the categories it wrote — an unnamed "✓ Filled" is how a member
+    // expecting weekday hours reads a working button as broken.
+    await expect(page.locator('#rosterHintText')).toContainText(/✓ Filled .*(Saturday|Sunday|RDW|Overtime|Bank holiday)/);
+    expect(errors, 'Uncaught JS exceptions on calendar fill').toHaveLength(0);
+});
+
+test('paycalc: a payslip with nothing fillable shows no roster card (never an enabled no-op button)', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    // C. Reen's fixed line is Mon–Fri only; her P16 2026 window carries no bank holiday, so every
+    // special-rate count is zero — getRosterSuggestion returns null and the card must hide.
+    await page.clock.setFixedTime(new Date('2026-06-20T09:00:00Z'));
+    await seedSession(page, 'C. Reen');
+    await seedMember(page, 'C. Reen');
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#periodSelect')).toBeVisible();
+    await expect(page.locator('#rosterHintBar')).toBeHidden();
+    expect(errors, 'Uncaught JS exceptions on the empty roster card').toHaveLength(0);
+});

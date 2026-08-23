@@ -13,7 +13,7 @@
 
 import { getPeriods, currentPeriodNum } from './paycalc-periods.js';
 import { getLoggedMember, getEffectiveContr, getContr } from './paycalc-settings.js';
-import { getRosterSuggestion, getOverridesFetchState } from './paycalc-roster-suggestions.js';
+import { getRosterSuggestion, getOverridesFetchState, fetchOverridesForPeriod } from './paycalc-roster-suggestions.js';
 import { escapeHtml } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
 import { pcPrefix } from './paycalc-migrations.js';
@@ -270,14 +270,21 @@ export function updateRosterHint() {
       : 'Calendar (base pattern only) — recorded shift changes not yet loaded. Special-rate hours only; standard contracted hours are already included in basic pay.';
   }
 
-  const fillBtn = document.getElementById('fillFromRosterBtn');
+  const fillBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('fillFromRosterBtn'));
   if (fillBtn) {
+    // Nothing fillable → the button says so and refuses, instead of sitting enabled over an
+    // empty list and doing nothing when tapped (v21.67). An enabled control that no-ops is
+    // indistinguishable from a broken one — which is how it was reported.
+    const fillable = ['sat', 'sun', 'bh', 'bhOt', 'ot', 'rdw', 'box'].some(cat =>
+      (s[cat + 'H'] || 0) > 0 || (s[cat + 'M'] || 0) > 0);
     const hasEntries = ['sat', 'sun', 'bh', 'bhOt', 'ot', 'rdw', 'box'].some(cat => {
       const h = /** @type {HTMLInputElement} */ (document.getElementById(cat + 'H'))?.value.trim() ?? '';
       const m = /** @type {HTMLInputElement} */ (document.getElementById(cat + 'M'))?.value.trim() ?? '';
       return h !== '' || m !== '';
     });
-    fillBtn.textContent = hasEntries ? 'Replace with calendar values' : 'Fill from calendar';
+    fillBtn.disabled = !fillable;
+    fillBtn.textContent = !fillable ? 'Nothing to fill this payslip'
+      : hasEntries ? 'Replace with calendar values' : 'Fill from calendar';
   }
 
   const daysToggle = document.getElementById('rosterDaysToggle');
@@ -333,7 +340,12 @@ export function clearRosterSuggestedAll() {
  * @param {boolean} [force]
  */
 export function _applyRosterSuggestion(s, force = false) {
-  for (const { hId, mId } of HM_PAIRS) {
+  // Count what was actually WRITTEN (v21.67). The caller's feedback used to be unconditional —
+  // "✓ Filled" after a tap that wrote nothing is the difference between a member reporting
+  // "nothing to fill this payslip" (true, diagnosable) and "the button doesn't work" (what got
+  // reported, undiagnosable, and it outlived two fixes aimed at the tap itself).
+  const written = [];
+  for (const { hId, mId, cat } of HM_PAIRS) {
     const hVal = s[hId], mVal = s[mId];
     if (force) {
       const elH = /** @type {HTMLInputElement} */ (document.getElementById(hId));
@@ -346,12 +358,20 @@ export function _applyRosterSuggestion(s, force = false) {
       elM.value = mVal ?? '';
       elH.classList.add('roster-suggested');
       elM.classList.add('roster-suggested');
+      written.push(cat);
     } else {
       _suggestIfBlank(hId, mId, hVal, mVal);
     }
   }
   _saveRosterSnap(currentPeriodNum(), s);
+  return written;
 }
+
+/** Staff-facing names for the fill categories, for the fill feedback line. */
+const _CAT_LABELS = /** @type {Record<string,string>} */ ({
+  sat: 'Saturday', sun: 'Sunday', bh: 'Bank holiday', bhOt: 'BH overtime',
+  ot: 'Overtime', rdw: 'RDW', box: 'Boxing Day',
+});
 
 /**
  * Fills only the named category's hours from the current roster suggestion.
@@ -395,19 +415,41 @@ export function fillCategoryFromRoster(cat, autosave) {
  * Fills ALL categories from the current roster suggestion, overwriting existing values.
  * @param {Function} autosave - Coordinator autosave callback.
  */
-export function fillFromRoster(autosave) {
+export async function fillFromRoster(autosave) {
   const p = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
   if (!p) return;
-  const s = getRosterSuggestion(p, getLoggedMember());
+  const member = getLoggedMember();
+  // Second chance for the shift-changes fetch (v21.67): on a phone with poor signal the
+  // period-change fetch can fail silently, leaving base-only counts — and a member whose special
+  // shifts exist as RECORDED CHANGES then gets a fill that misses exactly the hours they wanted.
+  // The tap is an explicit "give me the calendar", so it is the right moment to try once more;
+  // a failure falls through to base-only, which is what would have happened anyway.
+  if (getOverridesFetchState() !== 'loaded' && member?.name) {
+    try { await fetchOverridesForPeriod(p, member.name); } catch { /* base-only fallback */ }
+  }
+  const s = getRosterSuggestion(p, member);
   if (!s) return;
-  _applyRosterSuggestion(s, true);
+  const written = _applyRosterSuggestion(s, true);
   autosave();
   // Refresh row states (✓ matched) before the confirmation text swap below.
   updateRosterHint();
   const hint = document.getElementById('rosterHintText');
   if (hint) {
     const prev = hint.textContent;
-    hint.textContent = '✓ Filled — tap "Clear all entries" to undo';
-    setTimeout(() => { hint.textContent = prev; }, 3000);
+    // The feedback states what HAPPENED, not what was attempted (v21.67): a tap that wrote
+    // nothing used to say "✓ Filled", which turned a payslip with no special-rate shifts into
+    // a bug report the tap fixes could never close.
+    // NAME what was filled (v21.67): the fill deliberately covers special-rate hours only —
+    // standard contracted hours are already in basic pay — and a member expecting the whole
+    // timesheet reads an unnamed "✓ Filled" as the button not working. Naming the categories
+    // makes the policy visible at the exact moment of the confusion.
+    const _names = written.map(c => _CAT_LABELS[c] ?? c);
+    const _what = _names.length > 3 ? `${written.length} categories` : _names.join(' + ');
+    hint.textContent = written.length > 0
+      ? `✓ Filled ${_what} — tap "Clear all entries" to undo`
+      : (getOverridesFetchState() === 'loaded'
+          ? 'Nothing to fill — no special-rate shifts on this payslip'
+          : 'Nothing to fill — and recorded shift changes could not be loaded (check signal)');
+    setTimeout(() => { hint.textContent = prev; }, 4000);
   }
 }
