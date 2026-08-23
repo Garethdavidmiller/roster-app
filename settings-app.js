@@ -25,7 +25,7 @@ import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce, withTimeout, settleOrTimeout } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
-import { recordPageLatency } from './perf-reporter.js';
+import { recordPageLatency, markPageReady } from './perf-reporter.js';
 
 /**
  * Phase 4a.2 (ARCHITECTURE_PLAN.md): the coordinator body is an exported init() invoked by
@@ -96,6 +96,10 @@ export function init() {
     } else {
         initAuthorised();
     }
+    // Usable from here (v21.71) — either the cards are wired (initAuthorised) or the sign-in
+    // overlay is up, and BOTH are a page the member can act on. Marking only the signed-in branch
+    // would silently exclude every first visit, which is the slowest one there is.
+    markPageReady();
     registerServiceWorker();
     sessionReady.then(() => { initErrorReporter(); recordUsage('settings', currentUser); recordPageLatency('settings', currentUser); });
     // Forced set-password overlay (PASSWORD_PLAN.md Phase 2) — fire-and-forget, never on the login
