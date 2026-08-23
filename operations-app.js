@@ -311,10 +311,20 @@ export function init() {
             const nameEl = document.createElement('span');
             nameEl.className = 'acct-name';
             nameEl.textContent = m.name;
+            // The NAME is what identifies the row, and at 375px it was the element being cut
+            // ("C. Francisco-C…", "R. Forrester-Bla…") while a chip reading the same fifteen
+            // characters on all 51 rows kept its full width (v21.72). The title restores the whole
+            // name to a long-press/hover; the chip below gives back the space that caused it.
+            nameEl.title = m.name;
             const mig = migrated(m.name);
             const pwEl = document.createElement('span');
             pwEl.className = 'acct-pw' + (mig ? '' : ' acct-pw--warn');
-            pwEl.textContent = mig ? '✓ Own password' : 'Surname default';
+            // "Default", not "Surname default": the word repeated verbatim down every unmigrated
+            // row and the card's own key explains what the default IS. The full wording stays in
+            // the `?` panel and in the title here, so nothing is lost from the one place a reader
+            // goes when they do not know the term.
+            pwEl.title = mig ? 'Has set their own password' : 'Still on the surname default password';
+            pwEl.textContent = mig ? '✓ Own' : 'Default';
             head.append(nameEl, pwEl);
             const resetBtn = document.createElement('button');
             resetBtn.type = 'button';
@@ -575,7 +585,12 @@ export function init() {
             content.removeAttribute('aria-busy');
             if (chip) chip.textContent = requests.length ? String(requests.length) : '';
             if (!requests.length) {
-                content.innerHTML = '<p class="auth-desc">No outstanding requests.</p>';
+                // Same treatment as the Error Log's empty state (v21.72): both cards report that
+                // nothing needs the admin's attention, and they said so in two different voices —
+                // a green ✓ there, plain grey here. On a page of ten cards an admin scans for
+                // trouble, "all clear" has to look the same wherever it appears, or the quieter
+                // one reads as "not loaded yet".
+                content.innerHTML = '<p class="email-count-done">✓ No outstanding requests.</p>';
                 return;
             }
             // Auto-open when there IS something to action — an outstanding request is time-sensitive
