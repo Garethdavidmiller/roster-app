@@ -832,6 +832,11 @@
       background: var(--bg-faint); border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
       margin-top: 10px;
     }
+    /* Second paragraph inside the back-pay notice (v21.70) — the actionable "missing hours" fact,
+       separated from the tax warning it used to run on from. `display:block` + margin rather than
+       a second element, so the notice keeps its single gold rule down the left. */
+    .bp-notice-sep { display: block; margin-top: 7px; }
+
     /* Estimate banner — shown while the award year's rates are unconfirmed (offered, awaiting acceptance) */
     /* Gold boxed-notice family (matches .settings-notice / .joiner-notice / #resultRateNotice) —
        was the file's only srgb color-mix + literal radius/odd padding (v18.07 consistency audit). */
