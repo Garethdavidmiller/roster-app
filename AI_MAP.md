@@ -1164,7 +1164,7 @@ Roster-assist hint bar UI, fill logic, and snap persistence for `paycalc.html` (
 - `toggleRosterDays()` — expands/collapses the day-level breakdown in the hint bar
 - `fillFromRoster(autosave)` — fills all blank hour fields from the current suggestion; calls `autosave()` then `updateRosterHint()`
 - `fillCategoryFromRoster(cat, autosave)` — fills one category (sat/bh/sun/rdw/box) from suggestion; calls `autosave()` then `updateRosterHint()`
-- `_applyRosterSuggestion(s, force)` — internal: applies a suggestion object to form fields
+- `_applyRosterSuggestion(s, force, {clearZeros})` — applies a suggestion object to form fields; returns `{written, cleared}` category lists for the honest fill feedback (v21.67). `clearZeros` (v21.68): on an explicit Replace with FULLY-LOADED calendar data, a zero category clears a non-empty field — zero is the calendar's answer (a shift removed in admin), not an absence of information. Never set in the base-only state, where the missing record might be exactly the hours on screen; never set on the non-force path (the late-fetch re-apply)
 - `clearRosterSuggestedAll()` — removes all `roster-suggested` CSS highlights
 - `_restoreRosterSuggested(pNum)` — restores highlight state from snap on period load
 - `snapKey(pNum)` — localStorage key for the snap of suggestion state for a period; exported so coordinator's `clearPeriod()` can call `lsDel(snapKey(pNum))`

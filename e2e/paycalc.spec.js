@@ -387,3 +387,87 @@ test('paycalc: the pension opt-out holds across payslips and reloads', async ({ 
     await expect(page.locator('#pensionAmt')).toBeEnabled();
     expect(errors, 'Uncaught JS exceptions on the pension opt-out').toHaveLength(0);
 });
+
+// ── THE FILL BUTTON TELLS THE TRUTH (v21.67) ─────────────────────────────────────────────────────
+//
+// "Replace with calendar values doesn't work" survived two fixes aimed at the tap because the
+// button's FEEDBACK could not distinguish working from not: "✓ Filled" was shown unconditionally,
+// the fill deliberately covers special-rate categories only (never standard weekday hours), and a
+// failed shift-changes fetch silently fell back to base-only counts. These assert the honest
+// states: a real fill NAMES what it filled, and a payslip with nothing fillable shows no card at
+// all (the pre-existing model, pinned here so a regression can't leave an enabled no-op button).
+test('paycalc: the calendar fill names what it filled', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#rosterHintBar')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#fillFromRosterBtn')).toBeEnabled();
+    await page.locator('#fillFromRosterBtn').click();
+    // The toast must name the categories it wrote — an unnamed "✓ Filled" is how a member
+    // expecting weekday hours reads a working button as broken.
+    await expect(page.locator('#rosterHintText')).toContainText(/✓ Filled .*(Saturday|Sunday|RDW|Overtime|Bank holiday)/);
+    expect(errors, 'Uncaught JS exceptions on calendar fill').toHaveLength(0);
+});
+
+test('paycalc: a payslip with nothing fillable shows no roster card (never an enabled no-op button)', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    // C. Reen's fixed line is Mon–Fri only; her P16 2026 window carries no bank holiday, so every
+    // special-rate count is zero — getRosterSuggestion returns null and the card must hide.
+    await page.clock.setFixedTime(new Date('2026-06-20T09:00:00Z'));
+    await seedSession(page, 'C. Reen');
+    await seedMember(page, 'C. Reen');
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#periodSelect')).toBeVisible();
+    await expect(page.locator('#rosterHintBar')).toBeHidden();
+    expect(errors, 'Uncaught JS exceptions on the empty roster card').toHaveLength(0);
+});
+
+// ── REPLACE CAN GO DOWN TO NOTHING — AND ONLY ON COMPLETE DATA (v21.68) ──────────────────────────
+//
+// The member-reported case that outlived three releases: a bank holiday shift removed in admin,
+// stale hours still in the field, and Replace refusing to touch them — the zero-skip guard meant
+// replace could overwrite values with values but never with nothing, so she "had to do it
+// manually" while the phantom premium hours overstated the estimate. The pair below pins both
+// directions: zero clears WHEN the calendar data is complete, and never when it is not — clearing
+// on base-only counts could wipe real hours whose recorded changes simply failed to load.
+test('paycalc: Replace clears stale hours the calendar no longer shows', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#rosterHintBar')).toBeVisible({ timeout: 10000 });
+    // Her scenario shape: hours in a category the calendar has NOTHING for, left behind after an
+    // admin removal. Overtime stands in for her bank holiday — the BH row only renders in periods
+    // containing one, while overtime is always visible and only ever comes from recorded changes,
+    // so the stub's empty Firestore guarantees the zero + 'loaded' combination the clear needs.
+    // The code path is category-agnostic.
+    await page.locator('#otH').fill('7');
+    await page.locator('#fillFromRosterBtn').click();
+    await expect(page.locator('#rosterHintText')).toContainText(/cleared Overtime/);
+    await expect(page.locator('#otH')).toHaveValue('');
+    expect(errors, 'Uncaught JS exceptions clearing stale hours').toHaveLength(0);
+});
+
+test('paycalc: Replace never clears on incomplete calendar data (base-only)', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    // Every collection read rejects → the shift-changes fetch fails → 'base-only'. The missing
+    // record might be exactly the hours on screen, so replace must leave them.
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = /** @type {any} */ (window).__E2E || {};
+        /** @type {any} */ (window).__E2E.failGetDocs = true;
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#rosterHintBar')).toBeVisible({ timeout: 10000 });
+    await page.locator('#otH').fill('7');
+    await page.locator('#fillFromRosterBtn').click();
+    // Give the (failing) tap-time fetch retry a beat, then confirm the hours survived.
+    await page.waitForTimeout(600);
+    await expect(page.locator('#otH')).toHaveValue('7');
+    expect(errors, 'Uncaught JS exceptions on base-only replace').toHaveLength(0);
+});
