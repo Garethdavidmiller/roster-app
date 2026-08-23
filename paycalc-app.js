@@ -1550,13 +1550,33 @@ export function init() {
         });
       }, { threshold: 0, rootMargin: '-8px 0px 0px 0px' });
       obs.observe(netDisplay);
-      // Hide the sticky bar while the iOS soft keyboard is up, otherwise it covers
-      // the field the user is typing into. visualViewport shrinks when the keyboard
-      // appears; a >150px drop is a reliable keyboard signal.
+      // PIN the sticky bar to the top of the iOS soft keyboard (v21.65 — was hide, and the hide
+      // WAS the staff-reported "pay total is slow to update on iOS"). iOS anchors position:fixed
+      // to the LAYOUT viewport, which the keyboard does not shrink — a fixed-bottom bar sits
+      // behind the keyboard while typing. v16.19 answered that by hiding the bar (`display:none`)
+      // until a focusout timer + the dismiss animation brought it back, which meant the one
+      // moment the live figure matters most — while entering hours — iOS showed nothing, then
+      // "updated" half a second after the keyboard went down. Android resizes the viewport, so
+      // the same bar rides above the keyboard and updates per keystroke; this gives iOS the same
+      // behaviour by translating the bar up by the visual-viewport gap (glued on vv resize AND
+      // scroll — iOS pans the visual viewport while the keyboard is open). The maths was never
+      // slow; the figure was invisible. Needs real-iOS verification, like the code it replaces.
       if (window.visualViewport) {
         const _vv = window.visualViewport;
         let _inputFocused = false;
         let _baseVVH = _vv.height;
+        const _pinSticky = () => {
+          const keyboardUp = window.matchMedia('(pointer: coarse)').matches
+              && _inputFocused && (_baseVVH - _vv.height) > 120;
+          stickyBar.classList.toggle('keyboard-up', keyboardUp);
+          // The desktop rule centres the bar with translateX(-50%); an iPad soft keyboard can
+          // satisfy both, so compose rather than replace — a bare translateY would throw the
+          // bar to the left edge for exactly that user.
+          const _centred = window.matchMedia('(min-width: 1024px)').matches ? 'translateX(-50%) ' : '';
+          stickyBar.style.transform = keyboardUp
+            ? `${_centred}translateY(-${Math.max(0, window.innerHeight - _vv.height - _vv.offsetTop)}px)`
+            : '';
+        };
 
         document.addEventListener('focusin', e => {
           _inputFocused = /^(INPUT|TEXTAREA|SELECT)$/.test(/** @type {Element} */ (e.target).tagName);
@@ -1576,21 +1596,17 @@ export function init() {
           // verification: visualViewport keyboard behaviour can't be reproduced in headless/e2e.)
           setTimeout(() => {
             if (!_inputFocused) {
-              stickyBar.classList.remove('keyboard-up');
               _baseVVH = _vv.height;
+              _pinSticky();
             }
           }, 300);
         });
 
-        _vv.addEventListener('resize', () => {
-          // Touch devices only (checked at event time): this heuristic detects the SOFT
-          // keyboard. On desktop (v16.12 — the bar runs there too) a >120px window-height
-          // shrink with an input focused (window resize, docked DevTools) is not a
-          // keyboard and must not hide the bar.
-          const keyboardUp = window.matchMedia('(pointer: coarse)').matches
-              && _inputFocused && (_baseVVH - _vv.height) > 120;
-          stickyBar.classList.toggle('keyboard-up', keyboardUp);
-        }, { passive: true });
+        // Touch devices only (checked inside _pinSticky): the >120px shrink heuristic detects
+        // the SOFT keyboard. On desktop (v16.12 — the bar runs there too) a window resize or
+        // docked DevTools with an input focused is not a keyboard and must not move the bar.
+        _vv.addEventListener('resize', _pinSticky, { passive: true });
+        _vv.addEventListener('scroll', _pinSticky, { passive: true });
       }
       stickyBar.addEventListener('click', () =>
         resultCard.scrollIntoView({ behavior: 'smooth', block: 'start' })

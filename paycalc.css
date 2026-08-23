@@ -1323,8 +1323,12 @@
     font-variant-numeric: tabular-nums;
     font-feature-settings: 'tnum' 1;
   }
-  /* iOS soft keyboard hides the sticky bar (driven by visualViewport listener in paycalc.js) */
-  #stickyTotal.keyboard-up { display: none !important; }
+  /* iOS soft keyboard: the bar is PINNED above the keyboard (v21.65 — was display:none, which is
+     what staff reported as "the total is slow to update": the figure was hidden for the whole
+     typing session). The translateY glue lives in paycalc-app.js (_pinSticky, visualViewport);
+     this class only swaps the padding — the safe-area inset is UNDER the keyboard, and keeping
+     it while pinned made the bar a home-indicator taller than it is anywhere else. */
+  #stickyTotal.keyboard-up { padding-bottom: 10px; }
   /* Desktop (v16.12): the bar runs here too. Since v16.67 the result card is a STATIC card at
      the top of the col-3 sidebar (.pc-side — the sticky rail was retired); the bar is the
      backstop once the £ figure scrolls out of view. Capped and centred to the content band so
