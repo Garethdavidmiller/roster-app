@@ -339,21 +339,36 @@ export function clearRosterSuggestedAll() {
  * @param {any} s
  * @param {boolean} [force]
  */
-export function _applyRosterSuggestion(s, force = false) {
+export function _applyRosterSuggestion(s, force = false, { clearZeros = false } = {}) {
   // Count what was actually WRITTEN (v21.67). The caller's feedback used to be unconditional —
   // "✓ Filled" after a tap that wrote nothing is the difference between a member reporting
   // "nothing to fill this payslip" (true, diagnosable) and "the button doesn't work" (what got
   // reported, undiagnosable, and it outlived two fixes aimed at the tap itself).
-  const written = [];
+  const written = [], cleared = [];
   for (const { hId, mId, cat } of HM_PAIRS) {
     const hVal = s[hId], mVal = s[mId];
     if (force) {
       const elH = /** @type {HTMLInputElement} */ (document.getElementById(hId));
       const elM = /** @type {HTMLInputElement} */ (document.getElementById(mId));
       if (!elH || !elM) continue;
-      // Skip categories the engine reports as zero (undetected) — even on a force replace,
-      // a gold "0" would misrepresent "no info" as a confirmed none. Matches _suggestIfBlank.
-      if ((hVal == null || hVal === 0) && (mVal == null || mVal === 0)) continue;
+      // A zero category is TWO different answers, and conflating them was the reported bug
+      // (v21.68): "the engine knows nothing" (never write — a gold 0 would dress no-information
+      // up as a confirmed none) versus "the calendar says NONE" (a shift removed in admin). A
+      // member whose bank holiday was taken off the roster pressed Replace and her stale 7h
+      // stayed — the one direction replace could not go was down to nothing, so she "had to do
+      // it manually", and the phantom premium hours overstated the estimate until she did.
+      // On an explicit Replace with FULLY-LOADED calendar data, zero IS the calendar's answer:
+      // clear the field. clearZeros is the caller's assertion the data is complete — never set
+      // in the base-only state, where the missing record might be exactly the hours on screen.
+      if ((hVal == null || hVal === 0) && (mVal == null || mVal === 0)) {
+        if (clearZeros && (elH.value.trim() !== '' || elM.value.trim() !== '')) {
+          elH.value = ''; elM.value = '';
+          elH.classList.remove('roster-suggested');
+          elM.classList.remove('roster-suggested');
+          cleared.push(cat);
+        }
+        continue;
+      }
       elH.value = hVal ?? '';
       elM.value = mVal ?? '';
       elH.classList.add('roster-suggested');
@@ -364,7 +379,7 @@ export function _applyRosterSuggestion(s, force = false) {
     }
   }
   _saveRosterSnap(currentPeriodNum(), s);
-  return written;
+  return { written, cleared };
 }
 
 /** Staff-facing names for the fill categories, for the fill feedback line. */
@@ -429,7 +444,10 @@ export async function fillFromRoster(autosave) {
   }
   const s = getRosterSuggestion(p, member);
   if (!s) return;
-  const written = _applyRosterSuggestion(s, true);
+  // clearZeros only when the calendar data is COMPLETE: clearing on base-only counts could
+  // wipe real hours whose recorded changes simply failed to load (the inverse of the bug).
+  const { written, cleared } = _applyRosterSuggestion(s, true,
+    { clearZeros: getOverridesFetchState() === 'loaded' });
   autosave();
   // Refresh row states (✓ matched) before the confirmation text swap below.
   updateRosterHint();
@@ -445,11 +463,14 @@ export async function fillFromRoster(autosave) {
     // makes the policy visible at the exact moment of the confusion.
     const _names = written.map(c => _CAT_LABELS[c] ?? c);
     const _what = _names.length > 3 ? `${written.length} categories` : _names.join(' + ');
+    const _gone = cleared.map(c => _CAT_LABELS[c] ?? c).join(' + ');
     hint.textContent = written.length > 0
-      ? `✓ Filled ${_what} — tap "Clear all entries" to undo`
-      : (getOverridesFetchState() === 'loaded'
-          ? 'Nothing to fill — no special-rate shifts on this payslip'
-          : 'Nothing to fill — and recorded shift changes could not be loaded (check signal)');
+      ? `✓ Filled ${_what}${cleared.length ? ` + cleared ${_gone}` : ''} — tap "Clear all entries" to undo`
+      : cleared.length > 0
+        ? `✓ Cleared ${_gone} — your calendar shows none`
+        : (getOverridesFetchState() === 'loaded'
+            ? 'Nothing to fill — no special-rate shifts on this payslip'
+            : 'Nothing to fill — and recorded shift changes could not be loaded (check signal)');
     setTimeout(() => { hint.textContent = prev; }, 4000);
   }
 }
