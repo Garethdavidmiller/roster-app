@@ -352,3 +352,40 @@ test("a pill's GATE and the page policy's ROLE agree — in both directions", ()
         'these pills are hidden from people the page would ADMIT, so the feature is reachable only '
         + 'by typing its URL: ' + hidden.join(', '));
 });
+
+test('every app page marks itself USABLE, so the App Speed figure covers all of them', () => {
+    /*
+     * `markPageReady()` stamps the "usable" milestone the App Speed card reports — the moment the
+     * page's own content is on screen, which is the only one of the three timings that describes
+     * what a member waits for (the other two, "appears" and "code loaded", are the browser's).
+     *
+     * It is recorded ONLY by pages that call it, and until v21.71 two never did: paycalc and
+     * settings. The card discloses the smaller total honestly, so nothing read as broken — but the
+     * omission was the worst possible shape. The pay calculator does the MOST work before it is
+     * usable (restore the saved hours, resolve the period, calculate), so the page most likely to
+     * feel slow was the one page absent from the measurement of slowness. A staff report of "the
+     * calculator is laggy" had no figure that could confirm or deny it.
+     *
+     * Asserted per COORDINATOR rather than per page, because that is where the call belongs and
+     * where a new page would forget it. The import is checked too: a call with no import is a
+     * ReferenceError at run time, which on the calendar's path would take the whole boot down.
+     */
+    const coordinators = readdirSync(new URL('.', import.meta.url))
+        .filter(f => f.endsWith('-app.js'))
+        .sort();
+    assert.ok(coordinators.length >= 7, `expected every page coordinator, found ${coordinators.length}`);
+
+    /** @type {string[]} */
+    const missing = [];
+    for (const file of coordinators) {
+        const src = read(`./${file}`);
+        // Comments are stripped first: several coordinators DISCUSS markPageReady in prose next to
+        // the call, so a bare substring match would pass on a file that only mentions it.
+        const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+        const calls    = /markPageReady\s*\(\s*\)/.test(code);
+        const imported = /import\s*\{[^}]*\bmarkPageReady\b[^}]*\}\s*from\s*'\.\/perf-reporter\.js'/.test(code);
+        if (!calls) missing.push(`${file} never calls markPageReady()`);
+        else if (!imported) missing.push(`${file} calls markPageReady() without importing it`);
+    }
+    assert.deepEqual(missing, [], `App Speed "usable" is blind on these pages:\n  ${missing.join('\n  ')}`);
+});

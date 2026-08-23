@@ -61,7 +61,7 @@ async function initPageSpeedCard() {
     };
     /** A toned verdict banner: big % "quick" + plain sentence + a sub line.
      *  @param {{tone:'good'|'ok'|'bad'|'none'|'thin', text:string}} verdict
-     *  @param {{pctQuick:number}} overall @param {number} total @param {string} unit
+     *  @param {{pctQuick:number, pctOk:number, pctSlow:number}} overall @param {number} total @param {string} unit
      *  @param {string} [windowLabel] - "this month" / "last month", for the sub line */
     const verdictBanner = (verdict, overall, total, unit, windowLabel = 'this month') => {
         const div = document.createElement('div');
@@ -74,8 +74,16 @@ async function initPageSpeedCard() {
         // three more words rather than as a mark. The marker earns its place on the breakdown rows
         // and the per-page table, where the label beside it is `--text-dark` and there is no
         // sentence; it does not earn it here.
+        // ALL THREE BANDS, not just the headline one (v21.71). The big number is `pctQuick` — the
+        // share within a second — while the banner's COLOUR is driven by `pctSlow` crossing 20%.
+        // Two different measures, and the reader was given only one of them in words: a red panel
+        // over "32%" reads as "32% bad" when it means "32% good, and separately a fifth over three
+        // seconds". Measured on a real reader — the author of this card's own review misread it
+        // exactly that way from the source. Naming the split removes the ambiguity at the point it
+        // arises, which no legend further up the card can do once it has scrolled away.
         const sub = total
-            ? `${overall.pctQuick}% within a second · ${total.toLocaleString('en-GB')} ${unit} ${windowLabel}`
+            ? `${overall.pctQuick}% within a second · ${overall.pctOk}% 1–3s · ${overall.pctSlow}% over 3s`
+              + ` · ${total.toLocaleString('en-GB')} ${unit} ${windowLabel}`
             : (windowLabel === 'this month'
                 ? 'Fills in as staff use the app over the coming days.'
                 : 'No data recorded last month.');
@@ -408,14 +416,22 @@ async function initPageSpeedCard() {
             body.appendChild(noteLine('Three moments when a page opens — when something first appears, when the app’s code has loaded, and when the page is actually usable.'));
             body.appendChild(subMilestone('✨', 'First appears'));
             body.appendChild(verdictBanner(perfVerdict(w.fcp.overall, 'fcp'), w.fcp.overall, w.fcp.total, 'page opens', windowLabel));
+            if (w.fcp.total) body.appendChild(overallBar(w.fcp.overall));
             body.appendChild(subMilestone('📦', 'Code loaded'));
             body.appendChild(verdictBanner(perfVerdict(w.pages.overall, 'pages'), w.pages.overall, w.pages.total, 'page opens', windowLabel));
+            if (w.pages.total) body.appendChild(overallBar(w.pages.overall));
             // The one an admin should read as "how fast is the app". The two above are stages of
             // getting there and neither is the answer: "appears" is the splash painting, and "code
             // loaded" fires while the Calendar can still be blank — it waits on the access decision,
             // which is asynchronous and happens after DOMContentLoaded (v20.80).
             body.appendChild(subMilestone('✅', 'Usable'));
             body.appendChild(verdictBanner(perfVerdict(w.ready.overall, 'ready'), w.ready.overall, w.ready.total, 'page opens', windowLabel));
+            // The bar belongs under EVERY headline, not only the login one it started on (v21.71):
+            // the three page milestones are the numbers a reader compares, and a proportion is far
+            // easier to compare as a shape than as a percentage read against a legend that is by
+            // now several screens up. It also shows the middle band, which no number on the panel
+            // states — the 1-to-3-second majority was invisible.
+            if (w.ready.total) body.appendChild(overallBar(w.ready.overall));
             body.appendChild(noteLine('“Usable” is counted only on pages that report it, so its total is smaller than the two above — it is not a sign of fewer opens.'));
 
             if (w.fcp.total || w.pages.total || w.ready.total) {

@@ -54,7 +54,7 @@ import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
-import { recordPageLatency } from './perf-reporter.js';
+import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import { SK, periodKey, hppEstKey, hppActualKey, hppIncKey, ytdSrcKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
 import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
 import { fd, fdShort, fdLong, fdList, fmt, decimalToHM } from './paycalc-format.js';
@@ -1400,6 +1400,15 @@ export function init() {
     // the button is correctly hidden on the initial load (not shown as if off-default).
     _defaultPeriodNum = buildPeriodSelect();
     onPeriodChange();
+    // THE PAGE IS USABLE FROM HERE (v21.71). onPeriodChange restores the viewed payslip's saved
+    // hours and runs calculate(), so this is the first moment the result card holds a real figure
+    // rather than a placeholder — which is what a member means by the calculator being ready.
+    //
+    // It was absent until now, and this page of all of them: the App Speed card's "usable"
+    // milestone is recorded only by pages that call this, so the page doing the MOST work before
+    // it is usable (restore, resolve the period, calculate) was the one contributing nothing to
+    // the figure. Anything felt as "the calculator is slow" was invisible in the measurement.
+    markPageReady();
 
     // Back-pay at init: onPeriodChange() above already synced the card to the opening period's award
     // year (restore its saved blob, else prefill its default) via _syncBackPayForViewedYear — so the

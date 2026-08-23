@@ -3385,3 +3385,27 @@ test('links window: generating the FIRST design reveals the window editor', asyn
     expect(spareDays.filter(n => n === 7).length,
         'the seeded spare weeks must survive to the rendered grid').toBe(4);
 });
+
+// ── THE "USABLE" MILESTONE ACTUALLY FIRES (v21.71) ───────────────────────────────────────────────
+//
+// page-contract-parity asserts every coordinator CALLS markPageReady and imports it. That is a
+// static check, and a call sitting in a branch nothing reaches would satisfy it while recording
+// nothing — which is precisely the state paycalc and settings were in before v21.71 (no call at
+// all), and the reason the App Speed card's "usable" figure covered five pages while reading as
+// though it covered seven.
+//
+// NOTE for anyone extending this: do NOT add `page.clock.setFixedTime` here. Playwright's clock
+// stub suppresses `performance.mark`, so the marks list comes back empty and this test fails on a
+// perfectly working app — measured while writing it.
+for (const [pageFile, ready] of [['paycalc.html', '#periodSelect'], ['settings.html', 'h2']]) {
+    test(`${pageFile} stamps the page-usable mark at run time`, async ({ page }) => {
+        await seedSession(page);
+        await seedMember(page);
+        await page.goto('/' + pageFile);
+        await expect(page.locator(ready).first()).toBeVisible();
+        await expect.poll(
+            () => page.evaluate(() => performance.getEntriesByName('myb-page-ready').length),
+            { message: `${pageFile} never stamped myb-page-ready — App Speed "usable" is blind here` },
+        ).toBeGreaterThan(0);
+    });
+}
