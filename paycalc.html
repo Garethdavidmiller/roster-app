@@ -190,7 +190,7 @@
           <input type="checkbox" id="pensionOptOutCheck">
           <label for="pensionOptOutCheck">I'm <strong>not in the pension scheme</strong></label>
         </div>
-        <div class="field-hint">Tick this if you have opted out of or withdrawn from the RPS. Every payslip then assumes no pension deduction, so you don't have to set it each time. Payslips from when you <em>were</em> contributing keep the amount already saved against them.</div>
+        <div class="field-hint">Tick this if you have opted out of or withdrawn from the RPS — every payslip then assumes no pension deduction. Payslips from when you <em>were</em> contributing keep their own amount.</div>
       </div>
 
       <div class="field">
@@ -202,7 +202,7 @@
           <option value="plan4">Plan 4 (Scotland)</option>
           <option value="plan5">Plan 5</option>
         </select>
-        <div class="field-hint">Only select a plan if student loan deductions appear on your payslip. If you repay by direct debit, leave as None. A plan applies to <strong>every</strong> payslip — for any payslip where it <em>wasn't</em> deducted, tick <strong>"Student loan was not deducted this period"</strong> under Hours → Unusual deductions or corrections.</div>
+        <div class="field-hint">Pick a plan only if a student loan deduction shows on your payslip. Repaying by direct debit? Leave as None. A plan then applies to every payslip — if one didn't deduct it, say so under Hours → Unusual deductions or corrections.</div>
       </div>
 
       <div class="field">
@@ -371,6 +371,10 @@
       </div>
 
       <!-- ── REST DAY WORKING ── -->
+      <!-- No per-category cut-off here (v21.69). It was printed in all three row descriptions
+           below — three identical dates re-read on every visit — while the period band above the
+           card already showed that exact range, merely unlabelled. Labelling it there states the
+           fact once, in the place that owns period dates. -->
       <div class="sec-hd">Overtime &amp; Rest Day Working</div>
 
       <!-- Overtime -->
@@ -380,7 +384,7 @@
           <span class="rate-badge badge-ot" id="badge-ot">1.25×  ·  £26.86/hr</span>
           <!-- Prose lives here ONLY (v18.46 — sweep item 12): JS fills just the cut-off date span,
                so the copy can't drift between HTML and a JS duplicate (it used to exist in both). -->
-          <div class="h-sub">Extra hours on top of a rostered shift (cut-off: <span id="cutoffOt">–</span>). Shows as "Overtime 1.25" on your payslip.</div>
+          <div class="h-sub">Extra hours on top of a rostered shift. Shows as "Overtime 1.25" on your payslip.</div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -402,7 +406,7 @@
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">💼</span> Rest Day Working</div>
           <span class="rate-badge badge-rdw" id="badge-rdw">1.25×  ·  £26.86/hr</span>
-          <div class="h-sub">Came in on a rest day, or worked a Saturday that wasn't in your roster (cut-off: <span id="cutoffRdw">–</span>). Shows as "RDW 1.25" on your payslip.</div>
+          <div class="h-sub">Came in on a rest day, or worked a Saturday that wasn't in your roster. Shows as "RDW 1.25" on your payslip.</div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -424,7 +428,7 @@
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">☀️</span> Sunday Working</div>
           <span class="rate-badge badge-sun" id="badge-sun">1.5×  ·  £32.24/hr</span>
-          <div class="h-sub">Any hours you worked on a Sunday (cut-off: <span id="cutoffSun">–</span>). Shows as "RDW Sun 1.5" on your payslip.</div>
+          <div class="h-sub">Any hours you worked on a Sunday. Shows as "RDW Sun 1.5" on your payslip.</div>
         </div>
         <div>
           <div class="hhmm-wrap">
