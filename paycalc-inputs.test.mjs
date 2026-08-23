@@ -1,9 +1,9 @@
 // Tests for paycalc-inputs.js — the DOM-pure form-field readers + live decimal hint extracted
 // from paycalc-app.js (v18.60, review item 10). No module mocks: the helpers read a global
 // `document`, so we install a minimal fake DOM. Part of test:hygiene.
-import { test } from 'node:test';
+import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { numVal, numValOr, intVal, hhmmDec, clampMins, _decHintEl, decPreview } from './paycalc-inputs.js';
+import { numVal, numValOr, intVal, hhmmDec, clampMins, _decHintEl, decPreview, wireIosTap } from './paycalc-inputs.js';
 
 // ── Minimal fake DOM ───────────────────────────────────────────────────────────
 class FakeEl {
@@ -113,4 +113,79 @@ test('decPreview writes the hh/mm hint for a decimal and hides it for a whole nu
   h.value = '8';           // no decimal point → hint hidden
   decPreview('h');
   assert.equal(hint.hidden, true);
+});
+
+// ── wireIosTap (v21.66) ──────────────────────────────────────────────────────────────────────────
+//
+// Organised by the two ways this wiring can be wrong, both of which shipped or nearly shipped:
+// the tap NOT firing (the original iOS defect — click cancelled by the keyboard dismissal, so
+// "Replace with calendar values" silently did nothing), and firing when it MUST NOT — twice for
+// one tap (touchend + the synthesised click), or on a scroll flick that happens to end on a
+// full-width destructive button. A suite asserting only "the action runs" would pass on exactly
+// the unguarded touchend implementation these guards exist to prevent.
+describe('wireIosTap — guarded touch/click wiring', () => {
+    /** Minimal event-capable element. */
+    function fakeEl() {
+        const listeners = {};
+        return {
+            addEventListener: (type, fn) => { (listeners[type] ??= []).push(fn); },
+            fire: (type, e) => (listeners[type] ?? []).forEach(fn => fn(e)),
+        };
+    }
+    const touch = (x, y) => ({ clientX: x, clientY: y });
+    const touchEv = (...touches) => ({ touches, preventDefault: mock.fn() });
+
+    test('a mouse click fires the action exactly once, with the event', () => {
+        const el = fakeEl();
+        const calls = [];
+        wireIosTap(/** @type {any} */ (el), e => calls.push(e));
+        const ev = { type: 'click' };
+        el.fire('click', ev);
+        assert.equal(calls.length, 1);
+        assert.equal(calls[0], ev);
+    });
+
+    test('a clean tap fires ONCE from touchend, suppresses the synthesised click, and swallows one anyway sent', () => {
+        const el = fakeEl();
+        let calls = 0;
+        wireIosTap(/** @type {any} */ (el), () => { calls++; });
+        el.fire('touchstart', touchEv(touch(10, 10)));
+        const end = touchEv();
+        el.fire('touchend', end);
+        assert.equal(calls, 1, 'touchend runs the action — the path iOS cannot cancel');
+        assert.equal(end.preventDefault.mock.callCount(), 1, 'the synthesised click is suppressed at source');
+        el.fire('click', {});   // a browser that synthesises one anyway
+        assert.equal(calls, 1, 'the synthesised click must not run the action a second time');
+        el.fire('click', {});   // a LATER real click (new gesture) must still work
+        assert.equal(calls, 2);
+    });
+
+    test('a scroll flick that ends on the element does NOT fire — destructive buttons are wide', () => {
+        const el = fakeEl();
+        let calls = 0;
+        wireIosTap(/** @type {any} */ (el), () => { calls++; });
+        el.fire('touchstart', touchEv(touch(10, 100)));
+        el.fire('touchmove', touchEv(touch(10, 60)));   // 40px — a scroll, not a tap
+        el.fire('touchend', touchEv());
+        assert.equal(calls, 0);
+    });
+
+    test('finger jitter within the slop still counts as a tap', () => {
+        const el = fakeEl();
+        let calls = 0;
+        wireIosTap(/** @type {any} */ (el), () => { calls++; });
+        el.fire('touchstart', touchEv(touch(10, 100)));
+        el.fire('touchmove', touchEv(touch(14, 95)));   // 5px — nobody's finger is a stylus
+        el.fire('touchend', touchEv());
+        assert.equal(calls, 1);
+    });
+
+    test('a multi-finger gesture is never a tap', () => {
+        const el = fakeEl();
+        let calls = 0;
+        wireIosTap(/** @type {any} */ (el), () => { calls++; });
+        el.fire('touchstart', touchEv(touch(10, 10), touch(50, 50)));
+        el.fire('touchend', touchEv());
+        assert.equal(calls, 0);
+    });
 });

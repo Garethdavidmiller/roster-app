@@ -58,7 +58,7 @@ import { recordPageLatency } from './perf-reporter.js';
 import { SK, periodKey, hppEstKey, hppActualKey, hppIncKey, ytdSrcKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
 import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
 import { fd, fdShort, fdLong, fdList, fmt, decimalToHM } from './paycalc-format.js';
-import { numVal, numValOr, hhmmDec, clampMins, _decHintEl, decPreview } from './paycalc-inputs.js';
+import { numVal, numValOr, hhmmDec, clampMins, _decHintEl, decPreview, wireIosTap } from './paycalc-inputs.js';
 import { emptyPeriodData, readFormData, writeFormData } from './paycalc-form-data.js';
 import { initTransferCard } from './paycalc-transfer-card.js';
 import { buildSummaryRows, buildBreakdownRows, buildActualCheck, buildProvChips } from './paycalc-breakdown.js';
@@ -1619,12 +1619,19 @@ export function init() {
       });
     })();
 
-    // Roster fill — "Fill blank fields" button + per-category "Fill →" buttons
+    // Roster fill — "Fill blank fields" button + per-category "Fill →" buttons.
+    // wireIosTap, not a bare click listener (v21.66): tapped with the soft keyboard up — the
+    // normal state on a form you type hours into — iOS cancels the click when the keyboard
+    // dismisses, so "Replace with calendar values" silently did nothing (staff-reported as
+    // "doesn't always work on iOS"). Same measured failure as the ± sign button below, which
+    // now shares the one guarded implementation.
     const _fillBtn = document.getElementById('fillFromRosterBtn');
-    if (_fillBtn) _fillBtn.addEventListener('click', () => fillFromRoster(autosave));
+    if (_fillBtn) wireIosTap(_fillBtn, () => fillFromRoster(autosave));
 
-    // Per-category fill buttons are dynamically rendered inside #rosterRows — use delegation
-    document.getElementById('rosterRows')?.addEventListener('click', e => {
+    // Per-category fill buttons are dynamically rendered inside #rosterRows — delegation on the
+    // container (which survives re-renders), through the same iOS tap guard.
+    const _rosterRows = document.getElementById('rosterRows');
+    if (_rosterRows) wireIosTap(_rosterRows, e => {
       const _eTarget = /** @type {Element} */ (e.target);
       const catBtn = _eTarget.closest('[data-cat]');
       if (catBtn) { fillCategoryFromRoster(/** @type {HTMLElement} */ (catBtn).dataset.cat || '', autosave); return; }
@@ -1632,7 +1639,7 @@ export function init() {
         const el = document.getElementById('otH');
         if (el) { el.focus(); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
       }
-    });
+    });   // (closes the wireIosTap action)
 
     // Remove roster-suggested highlight and refresh comparison state as user edits hours
     document.querySelectorAll(HM_PAIRS.flatMap(p => ['#' + p.hId, '#' + p.mId]).join(',')).forEach(el => {
@@ -1750,12 +1757,11 @@ export function init() {
         updateAdjSign();
         autosave();
       }
+      // The shared guarded implementation (paycalc-inputs.js, v21.66) — this button is where the
+      // cancelled-click failure was first measured; the movement gate it gains is a strict
+      // improvement (a scroll flick ending here no longer toggles the sign).
       const btn = /** @type {HTMLElement} */ (document.getElementById('adjSignBtn'));
-      let touchFired = false;
-      // passive:false is required so preventDefault() actually suppresses the
-      // synthesised click — iOS treats touchend as passive by default.
-      btn.addEventListener('touchend', (e) => { e.preventDefault(); touchFired = true; toggleAdjSign(); }, { passive: false });
-      btn.addEventListener('click', () => { if (touchFired) { touchFired = false; return; } toggleAdjSign(); });
+      wireIosTap(btn, toggleAdjSign);
     })();
 
     // Payslip card inputs
