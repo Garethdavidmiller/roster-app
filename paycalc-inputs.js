@@ -95,3 +95,51 @@ export function decPreview(hId) {
     if (hint) hint.hidden = true;
   }
 }
+
+/**
+ * Wire an element so its action fires on iOS even when tapping it dismisses the soft keyboard.
+ *
+ * THE FAILURE THIS EXISTS FOR (measured on the ± sign button, re-reported v21.66 on the roster
+ * fill controls): tapping a button while a number input is focused makes iOS dismiss the keyboard
+ * first, and the viewport shift that follows cancels the touch-to-click synthesis — `click` never
+ * fires. To the member the button "doesn't always work": it works whenever the keyboard happens to
+ * be down, and swallows the tap whenever it is up, which on a form you type hours into is most of
+ * the time. `touchend` fires BEFORE the dismissal, so the action runs from there on touch devices,
+ * with `click` kept for mouse/keyboard/assistive tech.
+ *
+ * Two guards, both load-bearing:
+ *  - `preventDefault()` on the touchend (registered passive:false — iOS defaults touchend to
+ *    passive) suppresses the synthesised click on the taps where it WOULD have fired, so the
+ *    action can never run twice; `touchFired` covers browsers that synthesise one anyway.
+ *  - A movement gate: the ± button shipped without one and its targets are tiny, but the fill
+ *    controls are full-width rows a scroll flick can begin and END on — and "Replace with calendar
+ *    values" is destructive. A touch that moved more than the slop, or was ever multi-finger, is a
+ *    scroll, not a tap, and must fall through to the browser (which will not send a click either).
+ *
+ * @param {HTMLElement} el
+ * @param {(e: Event) => void} action  Receives the triggering event (touchend or click), so
+ *   delegated callers can read `e.target`.
+ */
+export function wireIosTap(el, action) {
+  const SLOP = 12;
+  let sx = 0, sy = 0, moved = false, touchFired = false;
+  el.addEventListener('touchstart', (e) => {
+    const te = /** @type {TouchEvent} */ (e);
+    if (te.touches.length !== 1) { moved = true; return; }
+    moved = false; sx = te.touches[0].clientX; sy = te.touches[0].clientY;
+  }, { passive: true });
+  el.addEventListener('touchmove', (e) => {
+    const t = /** @type {TouchEvent} */ (e).touches[0];
+    if (!t || Math.abs(t.clientX - sx) > SLOP || Math.abs(t.clientY - sy) > SLOP) moved = true;
+  }, { passive: true });
+  el.addEventListener('touchend', (e) => {
+    if (moved) return;
+    e.preventDefault();
+    touchFired = true;
+    action(e);
+  }, { passive: false });
+  el.addEventListener('click', (e) => {
+    if (touchFired) { touchFired = false; return; }
+    action(e);
+  });
+}

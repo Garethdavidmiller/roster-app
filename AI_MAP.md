@@ -1249,6 +1249,7 @@ The DOM-pure form-field input helpers extracted from `paycalc-app.js`'s `init()`
 - `clampMins(mId)` — clamp an out-of-range minutes field into [0, 59], rewriting ONLY when out of range (preserves a typed "05")
 - `_decHintEl(hId, make)` — find (or lazily create when `make`) the `.hhmm-dec-hint` element under an hours field's `.hhmm-wrap`; null when the markup is absent
 - `decPreview(hId)` — write the live "= Nh Mm" hint while a decimal is being typed, hide it for a whole number
+- `wireIosTap(el, action)` — guarded touch/click wiring for a control that is tapped while the soft keyboard is up (v21.66). iOS cancels the synthesised click when the tap dismisses the keyboard, so a bare click listener "doesn't always work" — measured first on the ± sign button, re-reported on the roster fill controls. Fires from `touchend` (the path iOS cannot cancel), suppresses/swallows the synthesised click so the action never runs twice, and gates on movement so a scroll flick ending on a full-width destructive button ("Replace with calendar values") is never a tap. Three call sites in paycalc-app.js: the fill button, the `#rosterRows` delegation, the ± sign button
 
 ### `paycalc-backpay-state.js`
 
