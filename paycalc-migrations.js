@@ -60,9 +60,9 @@ export function pcPrefix() { return `myb_pc_${_nsSeg}`; }
 
 /** Per-member storage keys. Rebuilt in place (object mutated, binding kept) whenever
  *  the namespace changes, so every module that imported SK sees the new key names. */
-/** @type {{ rate:string, rates:string, code:string, sl:string, pgLoan:string, slPaidOff:string, pension:string, setup:string, ytdPay:string, ytdTax:string, grade:string }} */
+/** @type {{ rate:string, rates:string, code:string, sl:string, pgLoan:string, slPaidOff:string, pension:string, pensionOptOut:string, setup:string, ytdPay:string, ytdTax:string, grade:string }} */
 export const SK = {
-    rate: '', rates: '', code: '', sl: '', pgLoan: '', slPaidOff: '', pension: '', setup: '', ytdPay: '', ytdTax: '', grade: '',
+    rate: '', rates: '', code: '', sl: '', pgLoan: '', slPaidOff: '', pension: '', pensionOptOut: '', setup: '', ytdPay: '', ytdTax: '', grade: '',
 };
 
 /** Recompute the SK key strings from the active namespace. */
@@ -75,6 +75,16 @@ function _rebuildSK() {
     SK.pgLoan  = `${p}pg_loan`; // separate Postgraduate Loan flag ('1' | absent) — repayable ALONGSIDE a plan
     SK.slPaidOff = `${p}sl_paid_off`; // loan fully repaid: p.num of the FIRST payslip with no deduction ('' = still repaying). Once-ever fact → member-level, not per-tax-year (v18.41)
     SK.pension = `${p}pension`;
+    // NOT in the pension scheme at all (opted out / withdrawn from the RPS): '1' | absent.
+    // A SEPARATE flag from the amount, deliberately. `SK.pension` is an amount, and every
+    // amount this app stores has one reading — "how much", never "whether". Overloading £0 to
+    // mean "not a member" would collide with the round trip's existing rule that a value equal
+    // to the period default stores as null and re-heals to future defaults: an opted-out member's
+    // 0 IS the default, so it would erase itself. The flag answers the different question, and
+    // `getPensionDefault` reads it (paycalc-settings.js) so every downstream site — the field
+    // default, calculate()'s fallback, the HPP estimate and the year summary — inherits it from
+    // the one place they already agree on. Member-level, so a shared device keeps them separate.
+    SK.pensionOptOut = `${p}pension_optout`;
     SK.setup   = `${p}setup`;
     SK.ytdPay  = `${p}ytd_pay`;
     SK.ytdTax  = `${p}ytd_tax`;

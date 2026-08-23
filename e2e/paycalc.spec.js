@@ -342,3 +342,48 @@ test('paycalc: a restore onto storage that refuses writes changes nothing', asyn
     expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_p16'))).toBe('STALE-VALUE');
     expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_surplus'))).toBe('SHOULD-SURVIVE');
 });
+
+// ── NOT IN THE PENSION SCHEME (v21.64) ───────────────────────────────────────────────────────────
+//
+// The reported defect was invisible on the payslip the member was looking at. She typed £0, it held,
+// and it reverted on every OTHER payslip — because a payslip with no saved figure falls back to the
+// scheme default, and "is she in the scheme?" was never a question the app asked. So the assertion
+// that matters is not that the tick box sets £0; it is that £0 SURVIVES the two things that used to
+// undo it — switching payslip, and reloading. A unit test cannot see either: both are the
+// coordinator's load order (loadSettings runs, then onPeriodChange overwrites what it just wrote).
+test('paycalc: the pension opt-out holds across payslips and reloads', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page);
+    await seedMember(page);
+    await page.goto('/paycalc.html');
+
+    const amt = page.locator('#pensionAmt');
+    await expect(amt).toBeVisible();
+    const schemeFigure = await amt.inputValue();
+    expect(schemeFigure, 'a member in the scheme starts on a real contribution').not.toBe('0.00');
+
+    await page.locator('#pensionOptOutCheck').check();
+    await expect(amt).toHaveValue('0.00');
+    // Disabled, not merely zeroed: an editable field showing a figure that cannot be changed invites
+    // the member to "correct" it and wonder why it will not stick.
+    await expect(amt).toBeDisabled();
+
+    // The old bug reappeared exactly here — a payslip with nothing saved against it.
+    const sel = page.locator('#periodSelect');
+    const values = await sel.locator('option').evaluateAll(os => os.map(o => o.value));
+    await sel.selectOption(values[0]);
+    await expect(amt).toHaveValue('0.00');
+    await sel.selectOption(values[Math.min(3, values.length - 1)]);
+    await expect(amt).toHaveValue('0.00');
+
+    await page.reload();
+    await expect(page.locator('#pensionOptOutCheck')).toBeChecked();
+    await expect(page.locator('#pensionAmt')).toHaveValue('0.00');
+
+    // Reversible: rejoining the scheme must put the real figure back, not leave a frozen £0 that
+    // would then be saved as a deliberate opt-out on the next keystroke.
+    await page.locator('#pensionOptOutCheck').uncheck();
+    await expect(page.locator('#pensionAmt')).toHaveValue(schemeFigure);
+    await expect(page.locator('#pensionAmt')).toBeEnabled();
+    expect(errors, 'Uncaught JS exceptions on the pension opt-out').toHaveLength(0);
+});

@@ -35,6 +35,7 @@ import {
 } from './paycalc-periods.js';
 import {
   getGrade, getEffectiveContr, getLoggedMember, getProRateFactor, getPensionDefault,
+  applyPensionOptOutUI,
   updateRateForPeriod, updateYtdForTaxYear, settingsKey, setSettingsCardOpen,
   saveSettings, confirmSettings, loadSettings, getStoredRateForYear,
 } from './paycalc-settings.js';
@@ -1684,6 +1685,19 @@ export function init() {
     // pensionAmt: save global default AND lock pension to current period immediately.
     // autosave() calls calculate() internally, so no separate calculate() call needed.
     /** @type {HTMLElement} */ (document.getElementById('pensionAmt')).addEventListener('input',  () => { saveSettings(); autosave(); });
+    // Out of the pension scheme. saveSettings() persists the flag FIRST, so the autosave that
+    // follows re-reads the period default through it — the field, this payslip's saved figure and
+    // the take-home all move together on the tick rather than waiting for a reload.
+    document.getElementById('pensionOptOutCheck')?.addEventListener('change', () => {
+      saveSettings();
+      applyPensionOptOutUI();
+      const _optP = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
+      const _pa = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionAmt'));
+      // Un-ticking must put the scheme figure back; the field is showing a £0.00 that is no longer
+      // anybody's default, and leaving it would silently persist as a real opt-out on the next save.
+      if (_pa && !_pa.disabled) _pa.value = _periodDefaultPension(_optP).toFixed(2);
+      autosave();
+    });
 
     // Per-period overrides
     /** @type {HTMLElement} */ (document.getElementById('slSkipCheck')).addEventListener('change', autosave);

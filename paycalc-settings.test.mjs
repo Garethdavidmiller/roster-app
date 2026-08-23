@@ -57,7 +57,7 @@ mock.module('./paycalc-roster-suggestions.js', {
 });
 
 const { SK } = await import('./paycalc-migrations.js');
-const { getStoredRateForYear, getPensionDefault } = await import('./paycalc-settings.js');
+const { getStoredRateForYear, getPensionDefault, isPensionOptedOut } = await import('./paycalc-settings.js');
 const { awardRatesFor, getPensionForPeriod, GRADES } = await import('./paycalc-calc.js');
 
 // getGrade() reads SK.grade from (mocked) localStorage and CACHES on first call — so pin the grade
@@ -86,5 +86,47 @@ describe('getPensionDefault — delegates to getPensionForPeriod for a dated per
     test('no payday → the grade flat pension default', () => {
         assert.equal(getPensionDefault({}), GRADES.cea.pension);
         assert.equal(getPensionDefault(null), GRADES.cea.pension);
+    });
+});
+
+// ── OUT OF THE PENSION SCHEME (v21.64) ───────────────────────────────────────────────────────────
+//
+// Organised by what a wrong answer COSTS, not by function. Both directions are money, and only one
+// of them is visible: answering "the scheme rate" for somebody who has withdrawn understates her
+// take-home by the whole contribution on every payslip she has not hand-edited, and it does so
+// silently — the figure looks exactly like everyone else's. Answering "£0" for somebody still IN
+// the scheme is the opposite error and would be spotted the same day, because the take-home would
+// be too high by the same £147.
+//
+// These assert through `getPensionDefault` deliberately. It is the one function the field default,
+// calculate()'s fallback, the HPP estimate and the year summary all consult, so a case that passes
+// here is a case those four cannot disagree about.
+describe('getPensionDefault — a member who is not in the pension scheme', () => {
+    test('opted out → £0 for EVERY period, including a historic pension era', () => {
+        _ls.set(SK.pensionOptOut, '1');
+        assert.equal(getPensionDefault({ payday: new Date(2025, 6, 1) }), 0);
+        assert.equal(getPensionDefault({ payday: new Date(2026, 7, 28) }), 0);
+        assert.equal(getPensionDefault({}), 0);
+        assert.equal(getPensionDefault(null), 0);
+        assert.equal(getPensionDefault(), 0);
+    });
+    test('un-ticking restores the scheme default — the flag is the ONLY thing that changed', () => {
+        _ls.set(SK.pensionOptOut, '');
+        const payday = new Date(2025, 6, 1);
+        assert.equal(getPensionDefault({ payday }), getPensionForPeriod('cea', payday));
+        assert.equal(getPensionDefault({}), GRADES.cea.pension);
+    });
+    test('only the exact stored flag counts — a stray value must not opt anybody out by accident', () => {
+        // The write path stores '1' or ''. Anything else reaching this key (an older build, a hand
+        // edit, a half-finished migration) must fail SAFE: still in the scheme, still deducting.
+        // The unsafe direction is the one that silently stops a real deduction.
+        for (const junk of ['0', 'false', 'true', 'yes', ' 1', '1 ', 'null']) {
+            _ls.set(SK.pensionOptOut, junk);
+            assert.equal(isPensionOptedOut(), false, `"${junk}" must not read as opted out`);
+            assert.equal(getPensionDefault({}), GRADES.cea.pension);
+        }
+        _ls.delete(SK.pensionOptOut);
+        assert.equal(isPensionOptedOut(), false);
+        assert.equal(getPensionDefault({}), GRADES.cea.pension);
     });
 });

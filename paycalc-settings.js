@@ -69,10 +69,45 @@ export function getProRateFactor(p) {
   return calcProRateFactor(getLoggedMember()?.startDate, p.start, p.cutoff);
 }
 
+/** Is this member OUT of the pension scheme entirely (opted out / withdrawn from the RPS)?
+ *  Member-level, so a shared device answers per person. @returns {boolean} */
+export function isPensionOptedOut() {
+  return lsGet(SK.pensionOptOut) === '1';
+}
+
+/** Reflect the out-of-scheme choice in the amount field: an amount nobody pays is not editable,
+ *  and a field that stays live while reading £0.00 invites the member to "fix" it and wonder why it
+ *  will not hold. Disabled rather than hidden — the figure is still the answer to "what came off my
+ *  pay?", and hiding it would make the deduction unexplained rather than explained as nil. */
+export function applyPensionOptOutUI() {
+  const out = isPensionOptedOut();
+  const amt = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionAmt'));
+  if (amt) {
+    amt.disabled = out;
+    if (out) amt.value = '0.00';
+  }
+  document.getElementById('pensionAmt')?.closest('.pfx')?.classList.toggle('is-disabled', out);
+}
+
 /** Full-period pension default for the current grade, period-aware.
- *  Pass a period object to get the correct rate for that payday (handles cut-overs). */
+ *  Pass a period object to get the correct rate for that payday (handles cut-overs).
+ *
+ *  THE OPT-OUT IS APPLIED HERE, and here only (v21.64). Four sites ask what a payslip's pension
+ *  should be when the member has not typed one — the field default and calculate()'s fallback (via
+ *  `_periodDefaultPension`, paycalc-app.js), the HPP non-premium estimate (paycalc-hpp.js) and the
+ *  year summary (paycalc-year-summary.js) — and before this they all answered "the scheme rate",
+ *  because being in the scheme was assumed rather than asked. A member who has withdrawn had no way
+ *  to say so: her £0 held on the payslip she typed it into and reverted to £147.36 on every other,
+ *  which understated her take-home by the whole contribution and mis-stated her tax and NI with it
+ *  (the sacrifice comes off gross before both). Answering it in this one function is what makes the
+ *  four agree; answering it in four would be four chances to drift.
+ *
+ *  It changes the DEFAULT, never a stored figure. A payslip from when she WAS contributing keeps the
+ *  amount saved against it — that history is true and must not be rewritten by a decision made later.
+ */
 /** @param {any} [pObj] */
 export function getPensionDefault(pObj) {
+  if (isPensionOptedOut()) return 0;
   const g = getGrade();
   const grade = g && GRADES[g] ? g : 'cea';
   if (pObj?.payday) return getPensionForPeriod(grade, pObj.payday);
@@ -171,6 +206,10 @@ export function saveSettings() {
   // repaying. The select may not exist in old cached HTML — guard rather than throw.
   const _slPaidOffEl = /** @type {HTMLSelectElement|null} */ (document.getElementById('slPaidOffFrom'));
   if (_slPaidOffEl) lsSet(SK.slPaidOff, _slPaidOffEl.value);
+  // Out of the scheme entirely — saved BEFORE the amount below, because getPensionDefault()
+  // reads this flag and the amount's own fallback must see the state the member just chose.
+  const _optOut = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionOptOutCheck'));
+  lsSet(SK.pensionOptOut, _optOut?.checked ? '1' : '');
   // On a joining period the pension field shows the pro-rated amount.
   // Always write the full-period default to SK.pension so future full periods
   // don't inherit the pro-rated value as their default.
@@ -200,8 +239,12 @@ export function confirmSettings(calculate) {
       // Blank field → null (loadPeriodData re-applies the period default), NOT 0. Coercing blank to
       // 0 here persisted a permanent £0 pension for the period — the same overstatement the
       // readFormData/calculate null convention closes. A typed "0" is a genuine opt-out and is kept.
+      // Out of the scheme → null, NOT an explicit 0. Null means "use the period default", which
+      // for an opted-out member already IS 0 — and it keeps healing, so if she ever rejoins, the
+      // periods she never typed a figure into follow the scheme again instead of being frozen at
+      // a £0 nobody can see the reason for. Mirrors readFormData's self-heal for the same reason.
       const _pRaw = /** @type {HTMLInputElement} */ (document.getElementById('pensionAmt')).value.trim();
-      d.pension = _pRaw === '' ? null : (parseFloat(_pRaw) || 0);
+      d.pension = (isPensionOptedOut() || _pRaw === '') ? null : (parseFloat(_pRaw) || 0);
       lsSet(periodKey(pNum), JSON.stringify(d));
     } catch {}
   }
@@ -274,7 +317,13 @@ export function loadSettings() {
     lsSet(SK.grade, grade);
     invalidateGrade();
   }
-  /** @type {HTMLInputElement} */ (document.getElementById('pensionAmt')).value = pension ?? getPensionDefault();
+  // Out-of-scheme flag first: getPensionDefault() below consults it, and the field must not show
+  // a scheme amount to somebody the app already knows is not in the scheme.
+  const _optOutEl = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionOptOutCheck'));
+  if (_optOutEl) _optOutEl.checked = isPensionOptedOut();
+  /** @type {HTMLInputElement} */ (document.getElementById('pensionAmt')).value =
+    isPensionOptedOut() ? '0.00' : (pension ?? getPensionDefault());
+  applyPensionOptOutUI();
   // Settings card starts closed in HTML. Open it only for first-time users.
   if (!done) {
     setSettingsCardOpen(true);

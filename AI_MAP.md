@@ -1144,11 +1144,13 @@ Grade/contracted-hours helpers and settings persistence for `paycalc.html` (v13.
 - `getGrade()` / `getContr()` — grade key and contracted hours from localStorage; result cached in `_gradeCache`
 - `getLoggedMember()` — returns the logged-in member's `teamMembers` entry or null
 - `getEffectiveContr(p)` / `getProRateFactor(p)` — pro-rated helpers (full period if `noProRate`)
-- `getPensionDefault(pObj)` — period-aware pension default for the current grade
+- `getPensionDefault(pObj)` — period-aware pension default for the current grade, **and the one place the out-of-scheme answer is given** (v21.64): it returns 0 when `isPensionOptedOut()`, so the field default, `calculate()`'s fallback, the HPP non-premium estimate and the year summary inherit it from the function they already share rather than each asking separately
+- `isPensionOptedOut()` — is this member out of the RPS entirely (opted out / withdrawn)? Reads `SK.pensionOptOut`, member-level. A SEPARATE flag from the amount: overloading £0 to mean "not a member" collides with the round trip's rule that a value equal to the period default stores as null, so an opted-out member's 0 would erase itself
+- `applyPensionOptOutUI()` — reflect that choice in `#pensionAmt` (disabled, £0.00). Disabled rather than hidden: the figure still answers "what came off my pay?", and hiding it makes the deduction unexplained rather than explained as nil
 - `updateRateForPeriod(ty, p)` / `updateYtdForTaxYear(ty)` — load the period-aware rate (pre-award periods get the old rate) and YTD figures into form fields; called from coordinator's `onPeriodChange`. The rate field is **read-only** (grade-fixed, v17.87) with a "· pre-rise/current rate" label + `#rateStepNote` explaining the step
 - `getStoredRateForYear(ty)` — the hourly rate for a tax year. Since v17.87 the rate is FIXED BY GRADE and no longer user-editable/stored, so this derives it purely from `AWARD_RATES` (the year's confirmed settled rate) → grade default (no localStorage). Used by `updateRateForPeriod`, the prior-year HPP estimate, and back-pay prefill. `saveSettings` persists NO rate now (removed the stale-saved-rate bug class); Grade + Tax Code + Pension are the editable settings
 - `settingsKey(ty)` — per-tax-year localStorage key for the confirmed flag
-- `saveSettings()` — persists all settings fields; does not set confirmed flag
+- `saveSettings()` — persists all settings fields; does not set confirmed flag. Writes `SK.pensionOptOut` BEFORE the amount, because `getPensionDefault()` consults it and the amount's own fallback must see the state just chosen
 - `confirmSettings(calculate)` — saves, marks confirmed, collapses card; calls `calculate` callback (passed by coordinator to avoid circular dep)
 - `setSettingsCardOpen(open)` — programmatic open/close keeping `aria-expanded` in sync
 - `loadSettings()` — loads persisted settings into form on page init
