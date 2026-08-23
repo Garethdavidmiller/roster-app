@@ -361,7 +361,7 @@ export function _applyRosterSuggestion(s, force = false, { clearZeros = false } 
       // clear the field. clearZeros is the caller's assertion the data is complete — never set
       // in the base-only state, where the missing record might be exactly the hours on screen.
       if ((hVal == null || hVal === 0) && (mVal == null || mVal === 0)) {
-        if (clearZeros && (elH.value.trim() !== '' || elM.value.trim() !== '')) {
+        if (clearZeros && CLEARABLE_CATS.has(cat) && (elH.value.trim() !== '' || elM.value.trim() !== '')) {
           elH.value = ''; elM.value = '';
           elH.classList.remove('roster-suggested');
           elM.classList.remove('roster-suggested');
@@ -381,6 +381,24 @@ export function _applyRosterSuggestion(s, force = false, { clearZeros = false } 
   _saveRosterSnap(currentPeriodNum(), s);
   return { written, cleared };
 }
+
+/**
+ * Categories whose ABSENCE the calendar can actually assert — and therefore the only ones an
+ * explicit Replace may CLEAR (v21.73, regression fix).
+ *
+ * Saturday, Sunday, bank holiday and Boxing Day are resolved from the ROSTER: if you are not
+ * rostered that day, zero is a fact about your week, and a stale figure left over from a shift
+ * since removed in admin is exactly the case v21.68 was written for.
+ *
+ * Overtime, RDW and bank-holiday overtime are the opposite. They exist ONLY where a shift change
+ * was recorded, so zero means "nothing on record" and never "you worked none" — and the row is not
+ * even rendered at zero, so there is nothing on screen warning the figure is at risk. v21.68 made
+ * Replace clear those too: a member who typed 3h45m of overtime from their own notes lost it, at
+ * time-and-a-quarter, to a button whose whole promise is that the calendar knows better. Failing to
+ * clear costs a manual deletion the member can see; clearing wrongly destroys real money quietly,
+ * and the two are not close enough to trade.
+ */
+const CLEARABLE_CATS = new Set(['sat', 'sun', 'bh', 'box']);
 
 /** Staff-facing names for the fill categories, for the fill feedback line. */
 const _CAT_LABELS = /** @type {Record<string,string>} */ ({
