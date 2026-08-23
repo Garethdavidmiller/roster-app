@@ -85,6 +85,14 @@ the whole of v20. A number written beside the list it describes is a second copy
 | `links-seed.js` | the generator's TARGET SEED — read the real roster, produce the starting targets (v19.92) |
 | `links-design-doc.js` | the SHAPE of a design in memory and in Firestore, and every conversion between (v19.94) |
 | `links-target-hours.js` | does a target table pay the contract, and the words the card says so in (v21.31) |
+| `links-import.js` | somebody ELSE's proposal → a design, or a refusal — the TRUST BOUNDARY (invariant 6) |
+| `links-target-sets.js` | named, shared SNAPSHOTS of the generator targets, and who may overwrite one (invariant 9) |
+| `links-default-targets.js` | the table the generator STARTS from — designed against the Dec 2026 service, not measured from today's roster |
+
+> **Three of those rows were missing until v21.63**, and two of them own numbered invariants in the
+> table above — so the invariants list and the module list disagreed inside one document. That is
+> precisely the failure this file names two paragraphs up ("the table IS the count"), committed
+> against the table that says it.
 
 ## Access control
 
@@ -339,144 +347,28 @@ Renders plain-English traffic-light rows (completeness first); updates live on e
 
 ### Hard limits vs advisory factors — and why the module is no longer called "legal" (v19.91)
 
-`links-limits.js` (`assessHardLimits` → `HardLimitCheck[]`) renders in its own section **above** the
-ORR factors, in red on a breach, and **whether it passes or fails** — the printed sheet goes to the
-assessing manager, so "checked and met" has to be on it.
+**The reasoning for all of this now lives in `links-limits.js`'s own header** (moved there v21.63),
+beside the code it governs, where it cannot drift from it. That header owns: why a hard limit is a
+structurally different statement from an advisory factor and therefore a separate module; the
+withdrawn-2007 Hidden report and the four attributions this limit has carried since v19.80; the
+"13 consecutive days" vs "13 shifts in 14 days" distinction; and `POLICY_SOURCE_CONFIRMED` as the
+one switch that flips every rendered claim at once.
 
-**The 13-consecutive-day limit is CHILTERN's, carried in company policy** (owner, Aug 2026). Its
-ORIGIN is the working-hours standard the industry adopted after the **Hidden report** into the
-Clapham Junction crash of 12 December 1988.
+What stays here, because it is what a designer needs before opening anything:
 
-**And that industry standard was WITHDRAWN in 2007** (v19.96, external review P1). The ORR's current
-fatigue guidance says the post-Clapham limits were based heavily on what was operationally
-achievable at the time rather than on fatigue science, that the group standard carrying them was
-withdrawn, and that it now expects duty holders to run a risk-based fatigue management system and
-set their own company standards. RAIB's London Bridge report says the same — historic, superseded,
-retained only where an individual operator chooses to keep them alongside legal requirements and
-local agreements.
+- **A hard limit either is or is not met** — own function, own count, own section, red on a breach,
+  and it renders when PASSING too. An advisory factor reports presence and never passes or fails a
+  design (invariant 2 in the table at the top of this file).
+- **The limit's evidence class is C, and the sheet says so.** Until a controlled Chiltern source is
+  cited, `POLICY_SOURCE_CONFIRMED` stays `false` and every surface that states the limit carries the
+  provisional wording with it. `ROADMAP.md` → Evidence class explains why that gate exists;
+  `VALIDATION_REGISTER.md` and `KNOWN_LIMITATIONS.md` track the outstanding citation.
+- **Never hardcode a status** — the v19.48 regression that put a green tick beneath the amber
+  finding it duplicated came from exactly that.
 
-Chiltern is such an operator, which is what makes the row defensible: **a company limit with a named
-historic origin**. What it is NOT is "the current industry limit" — the claim the panel made from
-v19.90 to v19.95 under the heading "Industry limits · Hidden report — must be met". That is the one
-failure mode a citation is meant to prevent. A manager who takes the invitation and goes to check it
-finds a nineteen-year-old withdrawn standard, and is then entitled to discount every other number on
-the sheet.
-
-Four attributions now, each corrected in turn:
-
-| | Said | Wrong because |
-|---|---|---|
-| v19.80 | "the UK railway legal maximum" | unsubstantiable; printed "cannot be run" in red |
-| v19.85 | "Chiltern company limit" | true and safe, but understated the provenance |
-| v19.90 | "Hidden report", industry limit | right source, **wrong tense** — presented as current |
-| v19.96 | Chiltern policy, Hidden origin | whose limit it is, and where the number came from |
-
-**The tense is now pinned by tests, in FOUR places**, because the v19.90 wording passed every
-assertion that existed: it named a real, dated, checkable document. `links-limits.test.mjs` requires
-a row naming Hidden to also mark it historic, and forbids any row claiming the limit is
-industry-wide today. `links-analysis.test.mjs` pins the **rendered section heading** — which made
-the strongest claim on the page, is written as a separate hardcoded string in a different file from
-the `basis` it is supposed to agree with, and had no test at all.
-
-**And the fourth was added at v20.00, after the v19.96 sweep turned out to have missed a copy.**
-A `.check-sub` on the "Longest run" row — in `links-analysis.js` itself, two rows above the corrected
-one — still read *"The Hidden limit is 13."* Neither existing guard could see it, for a reason worth
-stating rather than patching around: **both were scoped to where the claim had last been found.**
-One reads the objects `assessHardLimits` returns; the other walks sections whose heading claims
-something must be met. The stray copy was a plain advisory row making no such claim, so it sat
-outside both. The new guard is scoped to the **whole rendered panel**: anywhere the sheet says
-"Hidden" the sentence must mark the standard historic, and the 13 may never be attributed to Hidden
-as though Hidden still imposed it. Measured limit, recorded in the test: the unit is a sentence, so
-one marker satisfies every mention inside it — what it catches is a mention with no marker anywhere
-near it, which is what a stray second copy looks like.
-
-**"13 consecutive days" vs the historic "13 shifts in 14 days."** The historic formulation is the
-rolling one; this module measures the longest consecutive run. For a one-duty-per-day roster the two
-are equivalent in both directions (a maximum run of 13 forces a rest day into every 14-day window;
-14 consecutive worked days is 14 shifts in 14 days), and Marylebone CEAs work at most one duty a
-day. It is written down because it is an ASSUMPTION, not an identity, and it would fail silently.
-
-**Anything else rendered as "must be met" needs evidence too, and that is now enforced generically**
-(v19.97, external review recommendation 5). `links-analysis.test.mjs` requires every section heading
-claiming a limit must be met to name whose requirement it is, and every row under it to carry a
-source. It is applied to what the panel RENDERS, not to the one section that exists — the three
-limits in the table below are already computed and waiting to be promoted, and each could otherwise
-land as a bare number in red on a manager's sheet.
-
-⚠️ **The exact policy citation is still OUTSTANDING** — title, clause, which staff group it covers,
-and its effective/review date. See KNOWN_LIMITATIONS.md → Links.
-
-### And until it arrives, the sheet says so — `POLICY_SOURCE_CONFIRMED` (v20.08, external review P1)
-
-The fifth correction, and the first one that is not about the wording. ROADMAP.md's evidence gate:
-*anything rendered to a manager as "must be met" requires class A or B*. This limit is class **C** —
-the owner's account of practice — and the panel said "must be met" over a row printing *"It cannot
-be run as drawn."* in red. The app was breaking its own rule in the loudest place it has.
-
-**What changed is the CLAIM, not the check.** The number, the separate module, the section above the
-ORR factors, the red on a breach and the render-when-passing are all untouched — demoting any of
-those would be answering a sourcing problem with a safety one. What the sheet now says is what is
-actually known:
-
-| | Unconfirmed (today) | Confirmed |
-|---|---|---|
-| Heading | `Configured Chiltern limit — policy source outstanding` | `Chiltern roster policy — must be met` |
-| Prose on a breach | reaches N, above the 13 configured here — *confirm the policy before treating that as a decision* | …*It cannot be run as drawn.* |
-| `basis` | `Chiltern roster policy, citation outstanding — …` | `Chiltern roster policy — …` |
-
-**`POLICY_SOURCE_CONFIRMED` in `links-limits.js` is the one home of that judgement, and every string
-above is DERIVED from it.** That is the structural half, and it is the lesson of the four
-attributions in the table earlier: each was corrected by editing prose in two or three files, and
-each left a copy behind somewhere nobody was looking. Tests in `links-limits.test.mjs` and
-`links-analysis.test.mjs` read the same flag and fail in **both** directions — flag false with the
-heading asserting, and flag true with the heading still hedging — so **the day the citation arrives
-is a test failure, not an edit somebody has to remember**. Closing it is: put the reference in
-`CONFIRMED_BASIS`, flip the flag, run `npm test`.
-
-`data-claim="limit"` on the section head is the tests' anchor. The guard has been re-anchored twice
-now — position (broke when a section was added above it, v20.04) and then the phrase "must be met"
-(which stopped existing at v20.08, because that phrase was the finding) — and both times the anchor
-was the thing under test. A declared marker is not.
-
-**THE OTHER LIMITS IN THAT FAMILY ARE NOT IMPLEMENTED YET, AND THE APP ALREADY COMPUTES THEM.**
-This is the most useful thing to know about this section. The post-Clapham set was a family — a
-maximum turn of duty, a minimum rest between turns, a weekly ceiling, and the 13 consecutive days —
-and only the last is rendered as a hard limit. The others are measured today but shown as *advisory ORR factors*:
-
-| Limit in the Hidden family | Already computed by | Currently rendered as |
-|---|---|---|
-| Max consecutive days (13) | `assessHardLimits` | **hard limit** ✅ |
-| Min rest between turns | `runDesignChecks().turnarounds` (`MIN_REST_MINUTES`, 12h) | FF13, advisory amber |
-| Max length of a turn | `dutyMinutes` (FF5 threshold, 12h) | FF5, advisory amber |
-| Max hours in a rolling week | `maxHoursInAny7Days` | MRSF row at 55h, advisory amber |
-
-Promoting them is a rendering change plus the confirmed figures — the maths exists. **Do not do it
-from recall.** The whole reason this section is three paragraphs long is that a number was once put
-on a sheet for an assessing manager with nothing behind it, and it took an external review to unwind.
-Get the figures from the policy document, then move the rows and let `links-limits.test.mjs`'s
-evidence contract check the citations. Note the weekly row would need its basis deciding too: 55h is
-the MRSF's threshold, which is a different source from Hidden's.
-
-**The module was renamed from `links-legal.js` at v19.91** (external review): the visible wording had
-been corrected but `LegalCheck` / `assessLegalLimits` / "legal check" comments survived, and a module
-called "legal" invites the next maintainer to put the stronger claim back into the UI. The names are
-now `links-limits.js` / `assessHardLimits` / `HardLimitCheck`.
-
-**And the rest of that terminology went at v19.96** — the rename had left "legal ceiling" / "legal
-check" / "a LEGAL ceiling on the UK railway" in test prose, CSS comments, e2e variable names and
-four documents including this one. That matters more than tidiness for exactly the reason the rename
-happened: someone grepping the codebase would have found a dozen assertions that the rule is legal,
-and reasonably restored the stronger UI wording. The words that remain here are quoted history, and
-are labelled as such. The word "legal" survives elsewhere in the repo in unrelated senses (legal
-characters in a key, an override that is legal on a Sunday) — those are correct and stay.
-
-**Every hard limit must cite evidence, and that is enforced generically** — not just for the one
-limit that exists today. `links-limits.test.mjs` asserts, in every state, that each check's `basis`
-is present, names a SOURCE rather than a person or a placeholder (`owner, Aug 2026` is the literal
-string the rule rejects — it was the real value until v19.90), carries a date or a document noun,
-and that the title quotes the number it was measured against. The lesson behind that generality: all
-three attributions were fixed by editing strings, and every test passed each time, because the suite
-described the limit rather than the standard it had to meet.
+> This section ran to ~140 lines and was a near paragraph-for-paragraph copy of the module header —
+> the single largest duplication in the docs at v21.62, and the mechanism CLAUDE.md names as being
+> "behind every stale doc claim this repo has had to correct".
 
 ### Fatigue factors — ORR good practice, p3 (v19.46)
 

@@ -94,9 +94,17 @@ test('a doc that says "`symbol` in `file.js`" is right about the file', () => {
     // Deliberately narrow: only the "`sym` in `file.js`" shape, which is unambiguous and mechanical.
     // A looser match would pull in prose that mentions a symbol near a filename for other reasons,
     // acquire an exemption list, and stop guarding.
+    //
+    // WIDENED BY THREE WORDS (v21.63), because the narrowness had a hole exactly the width of a
+    // noun. CLAUDE.md said "`_staleMemberName` FLAG in `calendar-app.js`" — the symbol is in
+    // `calendar-member.js`, and the single word "flag" between the symbol and `in` was enough for
+    // this pattern to skip it. That is the third instance of this defect class (after
+    // CONDITIONAL_ROWS and PILL_TYPES), and the first the guard was live for and missed. Allowing
+    // up to three intervening words was measured over both docs before landing: it adds exactly one
+    // new match — the defect itself — and no false positives.
     const claims = [];
     for (const doc of ['./CLAUDE.md', './AI_MAP.md']) {
-        for (const m of read(doc).matchAll(/`([A-Za-z_$][\w$]*)`\s*(?:\([^)]*\)\s*)?in\s+`([\w.-]+\.(?:js|mjs))`/g))
+        for (const m of read(doc).matchAll(/`([A-Za-z_$][\w$]*)`\s*(?:\([^)]*\)\s*)?(?:[a-z]+\s+){0,3}in\s+`([\w.-]+\.(?:js|mjs))`/g))
             claims.push({ doc, sym: m[1], file: m[2] });
     }
     assert.ok(claims.length >= 20, `expected many routing claims, found ${claims.length}`);
@@ -212,6 +220,57 @@ const OWNED_COUNTS = [
 /** The docs a staff member or a session actually reads. Plans record history and are exempt. */
 const LIVE_DOCS = ['./CLAUDE.md', './AI_MAP.md', './ROADMAP.md', './KNOWN_LIMITATIONS.md',
     './OPERATIONS_REFERENCE.md', './.claude/rules/links-design.md', './.claude/rules/css-tokens.md'];
+
+// ── CONTRACT 1c: AI_MAP KNOWS every export — the other direction of 1b ─────────────────────────
+//
+// 1b catches a doc naming a symbol the code does not have. This catches the opposite and commoner
+// failure: code gaining an export the map never hears about. At v21.62 that was **70 exports, 8.6%
+// of the surface**, and the distribution was the tell — not one documented export had been deleted,
+// so the gap was not carelessness, it was structural. `githooks/pre-commit` computed only REMOVED
+// exports, so ADDING one — the common case — passed cleanly every time. The hook now checks both
+// directions; this is the backstop for anything that lands without passing through it.
+//
+// The bar is deliberately LOW: a mention anywhere in AI_MAP.md, not a well-formed entry. A stricter
+// test would need to know what a good description looks like, would argue with judgement calls, and
+// would be waived. "Can a reader find this name in the map at all?" is mechanical and is the
+// question that actually failed.
+//
+// EXEMPT are the test seams and internal markers that a map SHOULD not carry — each named, so the
+// list stays a decision rather than a drift.
+const EXPORT_COVERAGE_EXEMPT = new Set([
+    '_resetForTest',            // sw-register.js — test seam
+    '_triggerAutoOpen',         // calendar-huddle-viewer.js — test seam
+    '_setSelectPeriod',         // paycalc-periods.js — test seam
+    '_hasStagedEdits',          // admin-week-editor.js — test seam
+    '_saveOverrideBatches',     // admin-roster-upload.js — internal, documented by behaviour
+]);
+test('every root export is findable in AI_MAP', () => {
+    const files = readdirSync(new URL('.', import.meta.url))
+        .filter(f => /\.js$/.test(f) && !f.includes('.test.') && f !== 'service-worker.js');
+    const missing = [];
+    for (const f of files) {
+        const src = read('./' + f);
+        const names = new Set();
+        for (const m of src.matchAll(/^export\s+(?:async\s+)?(?:function\*?|const|let|var|class)\s+([A-Za-z0-9_$]+)/gm))
+            names.add(m[1]);
+        for (const m of src.matchAll(/^export\s*\{([^}]*)\}/gm))
+            for (const part of m[1].split(',')) {
+                const seg = part.trim();
+                if (!seg || seg.startsWith('//')) continue;
+                const as = seg.match(/\bas\s+([A-Za-z0-9_$]+)/);
+                const name = as ? as[1] : seg.split(/\s+/)[0];
+                if (name && name !== 'default' && /^[A-Za-z_$]/.test(name)) names.add(name);
+            }
+        for (const n of names) {
+            if (EXPORT_COVERAGE_EXEMPT.has(n)) continue;
+            if (!AI_MAP.includes(n)) missing.push(`${f}: ${n}`);
+        }
+    }
+    assert.deepEqual(missing, [],
+        `these exports exist and AI_MAP.md has never heard of them:\n  ${missing.join('\n  ')}\n\n`
+        + 'Add each to its module\'s entry. If a symbol is genuinely internal (a test seam), name it\n'
+        + 'in EXPORT_COVERAGE_EXEMPT with the reason, so the exclusion is a decision and not a gap.');
+});
 
 // ── CONTRACT 1b: no live doc NAMES a symbol the code does not have ─────────────────────────────
 //
@@ -564,6 +623,87 @@ test('the CLAUDE.md file tree stays a routing table', () => {
         `the tree carries ${stamps} version references — it was 208 before v20.11, which is a ` +
         'changelog living in a routing table, loaded into every session. Release history belongs ' +
         'in git and the plan docs.');
+});
+
+// ── CONTRACT 3b: the ARCHITECTURE TABLE is held to the tree's own limits ───────────────────────
+//
+// The v20.11 sweep proved the "routing, not changelog" rule works, then guarded ONLY the tree — and
+// the pressure went next door. Measured at v21.62: the tree was 44% of CLAUDE.md and carried 89
+// version references under a cap of 90; the architecture table, a quarter of its size, carried 96
+// under no cap at all, with rows of 5,100 and 3,379 characters — three and two times the limit the
+// tree enforces on itself, in the same always-loaded file, at the same cost per session.
+//
+// The 5,100-char row was the tell: it restated EIGHT invariants that `CALENDAR_DATA.md` (3/4/11/12)
+// and `AUTH_AND_SESSIONS.md` (7–10) were written to own, both of which open by saying other
+// documents must link here rather than repeat. A contract nobody routes to is a contract that gets
+// restated, and a restatement is what drifts.
+//
+// Same two limits as CONTRACT 3, for the same reason. A row may stay long enough to state a
+// decision; past ~1,600 characters it has stopped being a decision and become a retrospective, and
+// the argument belongs in the module header where an editor is already looking.
+test('the CLAUDE.md architecture table states decisions, not retrospectives', () => {
+    const lines = CLAUDE.split('\n');
+    const start = lines.findIndex(l => l.includes('Architecture decisions — never change'));
+    assert.ok(start > 0, 'the architecture table was not found — this test is checking nothing');
+    const end = lines.findIndex((l, i) => i > start + 3 && l.startsWith('## '));
+    const rows = lines.slice(start, end).filter(l => l.startsWith('|'));
+    assert.ok(rows.length > 40, `expected the full table, found ${rows.length} rows`);
+
+    const tooLong = rows
+        .filter(l => l.length > 1600)
+        .map(l => `${(l.split('|')[1] || '').replace(/\*/g, '').trim().slice(0, 60)} (${l.length} chars)`);
+    assert.deepEqual(tooLong, [],
+        'these rows have stopped stating a decision and become design retrospectives. Move the\n' +
+        'reasoning into the module header (that is what the v20.11 tree sweep did) and leave the\n' +
+        'rule:\n  ' + tooLong.join('\n  '));
+
+    const stamps = (rows.join('\n').match(/v\d+\.\d+/g) || []).length;
+    assert.ok(stamps < 105,
+        `the architecture table carries ${stamps} version references. A handful date a decision; ` +
+        'this many is a changelog living in a rules table, loaded into every session. Release ' +
+        'history belongs in git and the plan docs.');
+});
+
+// ── CONTRACT 3c: the repo-derived counts are COUNTED, never written down ────────────────────────
+//
+// `OWNED_COUNTS` guards counts a CONSTANT owns. These are different: nobody declares them anywhere,
+// they grow silently with the repo, and the one place they appear is the "when a build step earns
+// its keep" row — whose entire purpose is to hold the threshold for the bundler decision.
+//
+// At v21.62 every figure in that row was wrong: 5 boot shims (6), "~35" preload entries (47 and
+// 52), "~110" precache (162), "~70" `@ts-check` files (124), "~70" modules (127). Two were out by
+// ~80%, and every one understated the cost — i.e. all in the direction that makes the no-build
+// trade look cheaper than it is. A threshold row nobody re-measures decays toward the day it was
+// written, and that is exactly the row where being wrong changes an architectural decision.
+//
+// So the row now states no figures and this test derives them. If a future reader wants the
+// numbers, the assertion message below prints them, current.
+test('no doc writes down a repo-derived count that grows with the repo', () => {
+    const root = readdirSync(new URL('.', import.meta.url));
+    const js = root.filter(f => /\.js$/.test(f) && !f.includes('.test.'));
+    const sw = read('./service-worker.js');
+    const listLen = (name) => {
+        const block = (sw.match(new RegExp(`${name} = \\[([\\s\\S]*?)\\];`)) || ['', ''])[1];
+        return (block.match(/"\.\//g) || []).length;
+    };
+    const actual = {
+        bootShims:  root.filter(f => /-boot\.js$/.test(f)).length,
+        precache:   ['CORE_ASSETS', 'SUPPLEMENTARY_ASSETS', 'FONT_ASSETS', 'ICON_ASSETS']
+            .reduce((n, name) => n + listLen(name), 0),
+        modules:    js.length,
+        tsChecked:  js.filter(f => read('./' + f).includes('@ts-check')).length,
+    };
+    // Guard the guard: a derivation that silently returned 0 would make this test vacuous.
+    for (const [k, v] of Object.entries(actual)) assert.ok(v > 0, `${k} derived as ${v} — the counter is broken`);
+
+    // The build-threshold row may describe the COST, but may not state its SIZE.
+    const row = CLAUDE.split('\n').find(l => l.includes('When a build step earns its keep')) || '';
+    assert.ok(row, 'the build-threshold row was not found — this test is checking nothing');
+    const figures = row.match(/[~]?\d{2,4}(?=[- ]?(?:entry|entries|files?|modules?|shims?|KB))/g) || [];
+    assert.deepEqual(figures, [],
+        `the build-threshold row states ${figures.join(', ')} — these grow with the repo and were ` +
+        'all wrong at v21.62. Let this test derive them instead. Current values: ' +
+        JSON.stringify(actual));
 });
 
 // ── CONTRACT 5: the register IDs resolve, and the index knows every document ────────────────────

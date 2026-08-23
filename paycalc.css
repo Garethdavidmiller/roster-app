@@ -625,6 +625,19 @@
       content: "🔒"; position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
       font-size: var(--type-small); opacity: .5; pointer-events: none;
     }
+    /* Not in the pension scheme (v21.64): the amount is nil BY DECISION, not left blank, so the
+       field reads as a settled value rather than an empty one waiting to be filled — same faint
+       fill and default cursor as the read-only rate above. No lock glyph: this state is undone by
+       the tick box directly beneath it, which the lock (used where nothing on screen can unlock the
+       field) would contradict. `:disabled` also keeps it out of the Tab order, which is correct —
+       there is nothing to type. */
+    .pfx.is-disabled input, #pensionAmt:disabled {
+      background: var(--bg-faint); color: var(--text-muted); font-weight: 700;
+      cursor: default; border-color: var(--border-light); -webkit-text-fill-color: var(--text-muted);
+      opacity: 1;   /* iOS Safari fades a disabled input to ~0.4 and the figure stops being legible */
+    }
+    .pfx.is-disabled .pfx-sym { color: var(--text-muted); }
+
     .adj-sign-btn {
       width: 44px; height: 44px; flex-shrink: 0;
       border: 2px solid var(--border-mid); border-radius: var(--radius-sm);

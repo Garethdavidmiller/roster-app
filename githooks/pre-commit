@@ -41,11 +41,21 @@ if command -v node >/dev/null 2>&1; then
   fi
 fi
 
-# Export-drift same-commit check — if a staged JS module removes or renames an
-# exported symbol (its documented API shrank vs HEAD), AI_MAP.md must be updated
+# Export-drift same-commit check — if a staged JS module CHANGES its exported
+# surface (adds, removes or renames a symbol) vs HEAD, AI_MAP.md must be updated
 # in the SAME commit. Generalises the module add/remove rule at the top of this
 # hook to cover changed exports (the gap that let applyHuddleButtonState linger
 # in the docs after v12.57).
+#
+# ⚠ IT USED TO CHECK ONLY REMOVALS, AND THAT WAS THE WHOLE BUG (v21.63). The hook was
+# written in response to a REMOVAL, so it computed `removed` and stopped — an export
+# ADDED without documentation passed cleanly, every time. Audited at v21.62: 73 of 847
+# root exports (8.6%) had ZERO mention anywhere in AI_MAP.md, and every single defect
+# pointed the same way — nothing documented had been deleted, so the asymmetry was not
+# luck, it was this line. `auth-policy.js`'s `canOpenOvertime`/`isOvertimeReviewer` (the
+# Overtime permission gates) and ten of `paycalc-calc.js`'s pay constants were among
+# them. Adding to a documented API is the COMMON case; leaving it unchecked meant the
+# gate fired on the rare direction and slept through the frequent one.
 if command -v node >/dev/null 2>&1; then
   node - << 'NODEEOF'
 const { execSync } = require('child_process');
@@ -85,16 +95,44 @@ for (const f of jsFiles) {
     if (head == null) continue;                  // new file — covered by the module-listing check
     const now = sh(`git show :"${f}"`);
     if (now == null) continue;
-    const removed = [...exportsOf(head)].filter(n => !exportsOf(now).has(n));
-    if (removed.length) offenders.push(`${f}: ${removed.join(', ')}`);
+    const before = exportsOf(head), after = exportsOf(now);
+    const removed = [...before].filter(n => !after.has(n));
+    const added   = [...after].filter(n => !before.has(n));
+    // BOTH directions (v21.63). A rename shows up as one of each, which is what the old
+    // removal-only check was really catching; a plain addition showed up as neither.
+    const changes = [
+        ...removed.map(n => `-${n}`),
+        ...added.map(n => `+${n}`),
+    ];
+    if (changes.length) offenders.push({ f, changes, names: [...removed, ...added] });
 }
 
 if (offenders.length && !aiMapStaged) {
-    for (const o of offenders) process.stderr.write(`  export-drift: removed/renamed export(s) in ${o}\n`);
-    process.stderr.write('\n  A removed or renamed export changes the module documented API.\n');
+    for (const o of offenders) process.stderr.write(`  export-drift: changed export(s) in ${o.f}: ${o.changes.join(', ')}\n`);
+    process.stderr.write('\n  An added, removed or renamed export changes the module documented API.\n');
     process.stderr.write('  Update AI_MAP.md (and CLAUDE.md if its file-structure line names the export)\n');
-    process.stderr.write('  in the SAME commit, then re-commit. (Staging AI_MAP.md satisfies this check.)\n');
+    process.stderr.write('  in the SAME commit, then re-commit.\n');
     process.exit(1);
+}
+
+// …and STAGING AI_MAP.md is not the same as DOCUMENTING the change (v21.63). The old gate
+// was satisfied by any AI_MAP edit at all, which is how commit 07f28d9 shipped three new
+// `override-utils.js` exports with an AI_MAP diff that touched only an unrelated heading.
+// Require the staged AI_MAP diff to at least MENTION the module or one of the changed
+// symbols. Deliberately a mention and not a section-diff: cheap, no false positives worth
+// the noise, and it closes the "edited something else entirely" hole.
+if (offenders.length) {
+    const aiDiff = sh('git diff --cached -U0 -- AI_MAP.md') || '';
+    const unmentioned = offenders.filter(o =>
+        !aiDiff.includes(o.f) && !o.names.some(n => aiDiff.includes(n)));
+    if (unmentioned.length) {
+        for (const o of unmentioned) {
+            process.stderr.write(`  export-drift: AI_MAP.md is staged but never mentions ${o.f} or ${o.changes.join(', ')}\n`);
+        }
+        process.stderr.write('\n  Staging AI_MAP.md is not the same as documenting the change.\n');
+        process.stderr.write('  Update the entry for the module whose exports changed.\n');
+        process.exit(1);
+    }
 }
 NODEEOF
   if [ $? -ne 0 ]; then exit 1; fi

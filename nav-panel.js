@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * nav-panel.js — Slide-out navigation panel, shared by all six app pages.
+ * nav-panel.js — Slide-out navigation panel, shared by all seven app pages.
  *
  * Injects overlay + drawer HTML into document.body, then wires the burger
  * button (#navMenuBtn). Uses the same history.pushState / popstate pattern
@@ -14,6 +14,36 @@
  * The footer also hosts a push-notification bell toggle (🔔/🔕) when the device
  * supports Web Push. All push logic lives in notif.js — this file only renders
  * and refreshes the bell.
+ *
+ * ── THREE ZONES, ONE IDIOM EACH (v20.06) ────────────────────────────────────────────────────────
+ *
+ * Moved here from CLAUDE.md's architecture table (v21.63), which is the always-loaded file and was
+ * carrying the whole argument. The drawer had grown FIVE competing treatments for one list of
+ * destinations, which is what "cluttered" turned out to mean — measured, it was not dense; there
+ * was ~130px of dead space. Now: **pills** = go to a page · **Today** = the documents you open on
+ * a shift · **Reference** = look something up.
+ *
+ * Three consequences that look like taste and are not:
+ *
+ *   · **Settings is a PILL, not a pinned link.** It is a page. Rendering it as an Information-style
+ *     row is what forced the drawer's fourth zone in the first place.
+ *   · **Pills are one per row, full width — that is ARITHMETIC.** The drawer is 260px, so a 2-col
+ *     grid gives 110px while "📅 Calendar" needs 135 and "⚙️ Settings" 118. Content-width flex
+ *     cannot pair Calendar with anything either (135 + the smallest, 86, blows the 220px budget),
+ *     which is what left an orphan row at every permission count.
+ *   · **Reference is EXPANDED by default** — collapsed at v20.06, reopened at v20.09 (owner). The
+ *     fold measurement was real and was not the whole question: a collapsed section is one you have
+ *     to know is there, and the guides are exactly what a reader does not know to look for.
+ *     Re-measured signed-in, expanded costs 194px of drawer scroll at 360×640 and NOTHING at
+ *     390×844. To collapse it again, flip `aria-expanded` and re-add `hidden` on the list — and
+ *     change nothing else, because of the next paragraph.
+ *
+ * **`aria-expanded` is the ONLY state** (v20.09). The arrow's rotation and the count chip's
+ * visibility are both CSS-keyed to it. There used to be an `.open` class as well, and expanding by
+ * default is what exposed the drift: the initial markup carried `aria-expanded="true"` with no
+ * `.open`, so the arrow pointed down over an open section and stayed inverted for good — the
+ * handler only ever toggles from wherever it started. The count chip is the COLLAPSED-state
+ * affordance and is hidden by CSS while expanded, where the rows are the count.
  */
 
 import { notifSupported, peekNotifState, enableNotifications, disableNotifications } from './notif.js';

@@ -414,7 +414,7 @@ than the purity gain.
 - **paycalc pay badges deliberately borrow the roster's shift colours** — Saturday wears Early
   orange, Sunday wears Late blue, and the Bank-Holiday badge wears the AL teal. The rate-chip
   labels carry the meaning; the colours tie the pay categories to the roster's visual language.
-- **`--purple` = Spare shift AND the Links page identity** — Links is visible to two designers
+- **`--purple` = Spare shift AND the Links page identity** — Links is visible to the members of `CONFIG.LINKS_DESIGNERS`
   only, so the pairing is effectively never co-visible for ordinary staff.
 - **`--blue-sky` = Late shift AND assorted admin accents** (source pill, overwrite-active) — same
   rationale: labelled, low co-visibility.

@@ -31,7 +31,7 @@ SECURITY_RELEASE_PLAN.md for status"; it may not restate the stage.
 | **C2 — email verification/reset** | Deferred | — | Needs an email relay that does not exist | Relay available and owner wants it |
 | **D — App Check** | Deferred, not started | **D1** — monitor mode | Owner decision | Legitimate traffic characterised over a real window before any enforcement |
 | **E — full-app auth** | E0 ✓ v19.00 · E1 ✓ v19.01 · **the READ closure is BUILT (v20.12) and its client is LIVE in soak (v20.46)** — the Calendar asks for a named session or the staff PIN, but the `overrides` read rule still carries its `allow read;` hold line, so the read actually closes at RECOVERY_RUNBOOK step 4 (after the soak) | **E3** — INDIVIDUAL authentication, if it is ever required. E2 was superseded, not built: it would have required merely *any* session, which an anonymous sign-in satisfies | Owner decision, most likely forced externally by a Chiltern IT requirement that each person authenticates | Owner approval + rollback rehearsed + **E3 criteria pre-registered before telemetry starts** |
-| **Deferred residual** | Held on purpose. The CALENDAR's anonymous bootstrap is gone (v20.12); `signInAnonymously` remains only as `session.js`'s soft fallback | Retire the anonymous fallback + `ENFORCE_NAMED_SESSION` kill-switch | — | Track B soak complete and Track E decided |
+| **Deferred residual** | Held on purpose. The CALENDAR's anonymous bootstrap is gone in EFFECT (v20.12), but the call site is not: `calendar-access.js` still calls `signInAnonymously` under the `CALENDAR_PIN_ACCESS === false` rollback path, and `session.js` keeps its soft fallback. Both are in scope when this is retired — the removal checklist below omitted the first until v21.63 | Retire the anonymous fallback + `ENFORCE_NAMED_SESSION` kill-switch | — | Track B soak complete and Track E decided |
 
 **Two things this table is deliberately explicit about**, because both were previously implied and
 misread: **E1 is client preparation, not protection** — the boundary moves at the READ RULE, which
@@ -169,7 +169,9 @@ Three design points that flow from this and still govern any future rule change:
   surname default to set their own password at their NEXT SIGN-IN, on all five authenticated pages,
   behind the `CONFIG.FORCE_PASSWORD_SET` kill switch. No forced sign-out — sessions cap at 60 days (30 until v20.47)
   absolute (the 7-day idle cutoff was removed at v20.41) and an expired session forces a real typed login, so coverage completes itself
-  inside 30 days and staggers naturally. Shows only for a `named` identity, and fails open on any
+  inside 60 days and staggers naturally. (This said 30 until v21.63 — the v20.47 doubling was
+  applied to the parenthetical above it and not to the conclusion drawn from it, which halved the
+  stated horizon for the C5 gate in the document that owns that gate.) Shows only for a `named` identity, and fails open on any
   failure it cannot recover from: a mandatory overlay that cannot be satisfied is a lockout, not a
   control. Pure roster-viewers who never sign in anywhere are NOT reached — that needs Track E. This
   makes the C5 ≥90% gate reachable for the first time.
@@ -179,7 +181,7 @@ Three design points that flow from this and still govern any future rule change:
   default via **Operations → Account status → Reset** (the admin-only `resetMemberPassword` Cloud
   Function, refresh-token revoke); migration is tracked in the `passwordStatus` collection
   (`passwordSetAt`/`resetAt`) and surfaced as the Operations Account-status table + a Settings status
-  chip/nudge. Still to come: **Phase 2** (a forced set-your-password overlay to drive migration) and
+  chip/nudge. ~~Still to come: **Phase 2**~~ — **SHIPPED v18.92** (`password-force.js`, `CONFIG.FORCE_PASSWORD_SET`). This bullet contradicted the one fourteen lines above it until v21.63 and
   **Phase 3 / C5** (retire the surname default — gated on ≥90% migrated, irreversible). Email
   self-service reset (C2) remains deferred until a mail relay exists.
 - **Ordering within C:** verification (C2) → reset path (C4) → self-service change (C3, needs B0) →
@@ -261,7 +263,7 @@ Three design points that flow from this and still govern any future rule change:
   un-attested write path entirely. **If tightened before App Check:** add a key-count cap to the
   `activeAccounts` + `perf_` create/update conditions and a matching `assertFails`. (v17.43 audit.)
 
-### Track E — full-app authentication — E0+E1 SHIPPED · **the READ is CLOSED (v20.12)** · individual auth UNDECIDED
+### Track E — full-app authentication — E0+E1 SHIPPED · the read closure is **BUILT AND IN SOAK, NOT YET CLOSED** (`EXC-001`) · individual auth UNDECIDED
 
 > **📄 `AUTH_PLAN.md` is the authoritative DESIGN doc for this track** (what "behind authentication" can
 > and cannot mean here, the per-phase build detail, the offline grace-mode answer, what to measure, the
@@ -269,22 +271,35 @@ Three design points that flow from this and still govern any future rule change:
 > `PASSWORD_PLAN.md` relates to Track C. Keep each to its half — the v19.00 sweep found these two files
 > already contradicting each other once (the "≈ zero cost" claim below, since corrected).
 
-> **Status: the READ is closed; INDIVIDUAL authentication is undecided** (updated v20.12 — this
-> blockquote read "undecided, may or may not ever be built" and "the deliberate public-calendar design
-> stands" until then, which is now false in its first clause and false in its second).
+> **Status: the read closure is BUILT and SOAKING, and is NOT yet in force; INDIVIDUAL
+> authentication is undecided.** (Corrected v21.63 — this blockquote said "the READ is closed" from
+> v20.12, which was true of the CLIENT and false of the boundary. See the correction note below: it
+> is the same defect this file was created to prevent, committed inside the file that owns status.)
 >
-> The roster data no longer sits behind a public URL: `overrides` reads require a member `name` claim
-> or the shared staff-PIN `calendarViewer` capability (v20.12). What is still a *considered option,
-> not a committed plan* is putting the whole app behind an INDIVIDUAL login. The most likely trigger
-> for that remains **external**: if the app becomes (or is being assessed as) official Chiltern
-> infrastructure, **Chiltern IT may require** each person to authenticate rather than a station to
-> share a code. Until such a requirement lands (or the owner independently decides), the staff-PIN
-> design stands and E3/E4/E5 are dormant.
+> The tightened rule is written, tested and deployed — `overrides` reads require a member `name`
+> claim or the shared staff-PIN `calendarViewer` capability — but a bare `allow read;` still sits
+> ABOVE it in `firestore.rules`, and Firestore ORs every matching allow rule, so **override data is
+> as public today as it was before v20.12**. The rules file says so in capitals at the line itself.
+> The boundary moves when that line is deleted and rules are deployed on their own, after the client
+> has soaked: RECOVERY_RUNBOOK.md → "The Calendar PIN" step 4. Tracked as **`EXC-001`**.
+>
+> What is separately a *considered option, not a committed plan* is putting the whole app behind an
+> INDIVIDUAL login. The most likely trigger for that remains **external**: if the app becomes (or is
+> being assessed as) official Chiltern infrastructure, **Chiltern IT may require** each person to
+> authenticate rather than a station to share a code. Until such a requirement lands (or the owner
+> independently decides), the staff-PIN design stands and E3/E4/E5 are dormant.
 
-**⚠️ THE PARAGRAPH BELOW DESCRIBED THE WORLD UNTIL v20.12 AND NO LONGER DOES.** The external
-review's **"public absence/AL data"** finding is CLOSED: `overrides` reads now require a member
-`name` claim or the shared staff-PIN `calendarViewer` capability, and the calendar's anonymous
-bootstrap is gone. What is NOT closed is *individual* authentication — the PIN is one code for the
+**⚠️ A CORRECTION WORTH KEEPING, BECAUSE IT IS THIS FILE'S OWN FAILURE MODE (v21.63).** From v20.12
+to v21.62 this section stated the external review's **"public absence/AL data"** finding was CLOSED.
+It was not, and the canonical table at the top of this file said so correctly the whole time —
+"BUILT … and its client is LIVE in soak … the read actually closes at RECOVERY_RUNBOOK step 4".
+`ARCHITECTURE.md` (`EXC-001`), `CLAUDE.md` and `firestore.rules` itself all agreed with the table;
+only Track E's own prose disagreed, which is the worst possible place for it, because a reviewer
+opening this section is asking exactly that question. **The rule this file states — every other
+document owns design, this table owns status — applies to this file's prose too.** Status belongs in
+the table; a section that restates it can drift from it, and did, for eleven releases.
+
+What is genuinely NOT closed either way is *individual* authentication — the PIN is one code for the
 whole station. See `AUTH_PLAN.md` → E2 for how a server-validated shared credential answered the
 decision gate in a way the phase list did not contain, and for the list of what it deliberately
 leaves open. The `huddles`/`circulars`/`newsletters` reads stay OPEN by design (notification taps

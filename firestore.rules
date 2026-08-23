@@ -709,9 +709,11 @@ service cloud.firestore {
       // Page popularity lives in analytics/pv_<YYYY-MM> ({ month, counts{} }); active-
       // account counts live in analytics/activeAccounts ({ months{}, daily{} }). Uniqueness
       // is deduped client-side (usage-reporter.js) so the server only ever sees "+1".
-      // Read is admin-only. Any authenticated session may increment — including the
-      // calendar's anonymous Firebase session (request.auth != null after signInAnonymously),
-      // which is why writes are not gated on a name/admin claim. The SHAPE is validated:
+      // Read is admin-only. Any authenticated session may increment — a member's named session,
+      // or the shared staff-PIN viewer — which is why writes are not gated on a name/admin claim.
+      // (This said "including the calendar's anonymous Firebase session" until v21.63; that
+      // bootstrap was removed at v20.12 and now runs only under the CALENDAR_PIN_ACCESS=false
+      // rollback path, so it must not be cited as the reason the rule is loose.) The SHAPE is validated:
       // pv_ docs are pinned to a pv_YYYY-MM id with month == the id suffix, counts keys are
       // limited to the six known page ids, and each count value must be an int; activeAccounts
       // is pinned to that id with months/daily maps. Firestore rules still can't enforce

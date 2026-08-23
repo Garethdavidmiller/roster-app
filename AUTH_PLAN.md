@@ -23,16 +23,21 @@ that reads uniformly confident invites someone to start at the wrong end:
 | E5 | **Under-analysed.** The claim-tier work the B-track proved necessary has not been done for reads. |
 | §5 documents (E6) | **A sketch.** The Office-viewer dependency invalidates the cheapest option. |
 
-**Status: the READ is closed (v20.12); INDIVIDUAL authentication is still undecided.** `overrides`
-reads require a member `name` claim or the shared staff-PIN `calendarViewer` capability — see E2
-below, which records how that superseded the phase as designed and what it does NOT close.
+**Status: the read closure is BUILT and SOAKING, not yet in force; INDIVIDUAL authentication is
+still undecided.** The tightened rule is written, tested and deployed — `overrides` reads require a
+member `name` claim or the shared staff-PIN `calendarViewer` capability — but a bare `allow read;`
+still sits above it in `firestore.rules`, so the collection is public today (`EXC-001`; §2 below is
+correct and this header was not, until v21.63). See E2 below, which records how the staff PIN
+superseded the phase as designed and what it does NOT close.
 **E0 shipped v19.00** (search engines excluded) and **E1 shipped
 v19.01** (the cache-first, auth-aware client preparation) — both were deliberately chosen as the two
 phases needing no decision. **The first real security boundary was E2's job, and the staff PIN did it
 instead (v20.12)** — see E2 below. Nothing beyond that is committed. The most likely trigger is
 external: if the app
 becomes, or is assessed as, official Chiltern infrastructure, IT may require the roster data to sit
-behind authentication rather than a public URL. Until then the deliberate public-calendar design stands.
+behind authentication rather than a public URL. Until then the staff-PIN design stands. (This sentence read "the deliberate public-calendar design
+stands" until v21.63 — a clause SECURITY_RELEASE_PLAN.md had already recorded as false in its own
+copy and corrected there, leaving the two files disagreeing.)
 
 ---
 

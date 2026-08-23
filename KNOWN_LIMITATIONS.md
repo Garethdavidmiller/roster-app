@@ -219,16 +219,21 @@ is the right order of preference — an unreadable Calendar is obvious, whereas 
 base roster without overrides shows somebody a shift they are not working. See RECOVERY_RUNBOOK.md.
 
 
-**Re-reviewed July 2026 (A2 / F-SEC-2) — decision stands, leave-as-is.** Note for future
-reviewers: the calendar now *does* establish an anonymous session (added v13.78 for error/usage
-reporting), so the v12.05 "anon-session workaround adds complexity" objection is now moot and an
-`allow read: if request.auth != null` gate would be near-free. It was **still declined** because
-the security value remains marginal — the v12.05 finding holds: an anonymous token is as freely
-obtainable as the app obtains it, so the gate only blocks a fully-token-less REST read, not a
-determined reader — and it carries real breakage risk (every override reader across calendar /
-paycalc / team-view / day-detail must read strictly after its session resolves, incl. cold/offline
-cases). The only *real* fix is the named-session gate, which the owner has declined for daily-UX
-reasons. Do not re-propose the anon-gate as a "quick win"; it is not one.
+**Re-reviewed July 2026 (A2 / F-SEC-2) — decision stands, and its PREMISE has since inverted
+(corrected v21.63).** This paragraph told future reviewers "the calendar now *does* establish an
+anonymous session (added v13.78), so an `allow read: if request.auth != null` gate would be
+near-free". **That is no longer true and must not be acted on**: the Calendar's anonymous bootstrap
+was REMOVED at v20.12, and `calendar-app.js` explicitly forbids restoring it ("Do not re-add it 'so
+telemetry keeps working'"). `signInAnonymously` now runs on the Calendar only under the
+`CONFIG.CALENDAR_PIN_ACCESS === false` rollback path, and that flag is on.
+
+The conclusion survives the inversion, by a stronger route. An `auth != null` gate was declined
+because its value is marginal — an anonymous token is as freely obtainable as the app obtains it,
+so it blocks only a token-less REST read — and **now it would be actively wrong**: with no anonymous
+bootstrap, `request.auth != null` would re-admit exactly the population v20.12 closed out
+(`AUTH_AND_SESSIONS.md` invariant 9: *ask for a claim, never for a session*). The real gate is the
+`name`/`calendarViewer` rule, which is written and deployed and waiting behind `EXC-001`. Do not
+re-propose the anon-gate as a "quick win" — it never was one, and it is now the wrong shape.
 
 **The "read strictly after its session resolves" risk — found v19.00, ADDRESSED v19.01–19.10 (E1).** The
 paragraph above is right and `SECURITY_RELEASE_PLAN.md` → Track E was wrong to call the anon-gate
@@ -614,7 +619,9 @@ are architecture/App-Check territory or inherent platform behaviour, not bugs to
 
 - **Analytics dynamic-map value integrity.** `analytics/activeAccounts` and `analytics/perf_<month>`
   hold date-keyed maps whose *values* Firestore rules cannot iterate/type-check, so an authenticated
-  (incl. anonymous calendar) session could write junk/forged counts. The rules already validate
+  session could write junk/forged counts (this said "incl. anonymous calendar" until v21.63 — the
+  Calendar's anonymous bootstrap went at v20.12, so the writer is now a named or viewer session).
+  The rules already validate
   SHAPE + block key-removal (the destructive wipe); per-value integrity is **App Check territory**
   (see below) on non-sensitive, admin-only aggregate counts. The `pv_` counts *are* int-checked.
 - **A late-resolving sign-in can briefly strand a privileged Firebase identity.** A
@@ -1261,7 +1268,7 @@ never contingent on the beta label, and dropping it does not make any of them go
   footer totals clip the same way. The sticky save row takes **146px of an 844px viewport (17%)**
   and the brush bar **239px**.
   **Accepted rather than fixed**, on three grounds: the workspace's own first-visit notice says
-  *"Best used on a desktop or tablet; the 28-column grid is tight on a phone"*; a tablet at ≥768px
+  *"Best used on a desktop or tablet; the grid is tight on a phone"*; a tablet at ≥768px
   gets the working desktop layout, so this is phone-only; and the plan explicitly defers redesigning
   the target table until package 4, so rebuilding it for mobile now means doing it twice. The real
   fix is a `max-height` and therefore a nested scrollbox around the primary creation path — a UX
@@ -1270,27 +1277,30 @@ never contingent on the beta label, and dropping it does not make any of them go
   arrow-key press inside a focused `<select>`, so keyboard-only editing of a shift
   cell commits on the first arrow instead of on Enter. Chrome/Safari (all staff
   devices) behave correctly. Escape cancels cleanly in all browsers.
-- **Coverage heat map counts pattern positions, not a named headcount.** All 28
-  positions are counted, including any line not yet designed. Staff names were removed
+- **Coverage heat map counts pattern positions, not a named headcount.** Every position in the
+  rotation is counted, including any line not yet designed. Staff names were removed
   at v12.39 — the design is patterns-only — so there is no distinction between named
   and unnamed positions. The heat map colour scale is relative to the week's own peak,
   so a lightly staffed day naturally shows cooler colours.
-- **All 28 lines rotate and must be filled (v12.42).** Two earlier models were both
+- **EVERY line rotates and must be filled (v12.42).** Two earlier models were both
   dropped: "lines 23–27 are vacant placeholders" (`VACANT_FROM`, removed v12.41) and
-  "line 28 is C. Reen's fixed link" (`FIXED_POS` + a separator row + non-editable
+  "the last line is C. Reen's fixed link" (`FIXED_POS` + a separator row + non-editable
   cells, removed v12.42). In a rotating link everyone passes through every line, so an
   all-rest line is an *unfinished* line, not a vacancy — the link can't be authorised
-  then re-cut each time a post is filled. The link is designed as a full 28 so it
+  then re-cut each time a post is filled. The link is designed as a full rotation so it
   survives staff changes; C. Reen's adjusted fixed shifts are handled as overrides on
   the base roster, not in this designer. A Design-checks row and amber grid marker
-  (`.row-unfilled`) flag any unfilled line until it is designed. **The auto-generator
-  is the only way to create a new design (v12.43)** — it reads Mon–Fri/Sat/Sun
-  headcount targets and produces a complete 28-line rotation in one step.
-- **The 28-line structure is hardcoded by design.** `ROTATING_LINES` reflects the agreed
-  link concept — deliberately not derived from roster data. If the link concept changes
-  (e.g. more lines), the constant changes with it. Since **v19.38 it is declared once**, in
+  (`.row-unfilled`) flag any unfilled line until it is designed. The auto-generator
+  reads Mon–Fri/Sat/Sun headcount targets and produces a complete rotation in one step;
+  it is **no longer the only way in** — "Start with a blank grid" (`#linksEmptyNew`) and
+  the importer (`links-import.js`) both create a design without it.
+- **The rotation LENGTH is hardcoded by design.** `ROTATING_LINES` reflects the agreed
+  link concept — deliberately not derived from roster data. If the link concept changes,
+  the constant changes with it. Since **v19.38 it is declared once**, in
   `links-design.js`, and imported: it was previously a literal in three files kept in step
-  by a comment.
+  by a comment. **Do not write the number down here** — it was 28, then 22, then 24, and
+  four entries in this section were still saying 28 at v21.62 while two others said 24;
+  `links-rotation-parity.test.mjs` fails on a literal in prose for exactly that reason.
 - **Save concurrency is warn-on-conflict, not merge.** Two designers saving at
   once get a confirm naming who saved last; the whole document is still replaced.
   A field-level merge is not worth the complexity for a small design tool. Declining the
@@ -1614,20 +1624,22 @@ they are latent, owner-territory, or within a documented tolerance. Each is real
   suppression length (`> 30 days`, strict) equals the window length, so a single account active only at
   the day-30 boundary can contribute 0 for that span. Never over-counts; matches the documented
   "usage trend, not exact headcount" tolerance.
-- **A manually-entered Sunday worked shift is stored as `type:'shift'`, not `'rdw'` (LOW, display-only).**
-  The admin week-grid keeps the Shift pill enabled on Sundays; picking it stores `shift` where the
-  roster-import path promotes Sunday times to `rdw`. **Pay is identical** (the suggestion engine buckets
-  any Sunday-worked minutes at 1.5× regardless); only the calendar badge differs (Early/Late vs 💼 RDW).
-  A data-model/display change on a deliberate admin action — owner decision before altering.
+- **~~A manually-entered Sunday worked shift is stored as `type:'shift'`, not `'rdw'`~~ — FIXED; the
+  Shift pill is DISABLED on Sunday rows** (`admin-week-editor.js`, and layer 6 of the Sunday rule in
+  CLAUDE.md). Struck through rather than deleted because this entry was wrong in a way worth naming:
+  it called the gap "display-only", and the code comment that closed it says the opposite — a Sunday
+  saved as `shift` rendered as an ordinary worked badge and **the pay calculator's Sunday-overtime
+  pre-fill missed it, under-counting pay**. An entry that under-rates its own severity is how a real
+  defect stays parked as an accepted limitation.
 - **Roster-import save path has no equal-start/end guard (VERY LOW).** The two manual authoring paths
   reject `s === e` (validates 0 h but pays 24 h via overnight-wrap); `_saveOverrideBatches` does not.
   Implausible from a real roster PDF and visible in the review table before any write.
-- **Applying the *estimated* 2026/27 award rate overstates pre-award (Apr–Jul 2026) periods (LOW,
-  conditional).** The pending 2026/27 award has no `londonAllowFrom`, so there is no mid-year step:
-  clicking "apply estimated rate" prices *all* 2026/27 periods at the estimate, ~£105/period high for
-  the pre-payment months, and the back-pay card also counts those arrears. Behind an opt-in,
-  explicitly-*estimated* action; self-corrects once the confirmed award's payment date is set on the
-  tax year. No clean fix until the award lands.
+- **~~Applying the *estimated* 2026/27 award rate overstates pre-award (Apr–Jul 2026) periods~~ —
+  CLOSED, and it self-corrected exactly as written.** The entry said "no clean fix until the award
+  lands"; the award landed, `londonAllowFrom` is set to 28 Aug 2026 on the 2026/27 row
+  (`paycalc-calc.js`), and the `rateUnconfirmed` flag that gates the whole estimated-rate path is
+  gone — so the mechanism cannot fire. It sat here contradicting this file's own "2026/27 pay
+  rates — ✅ CONFIRMED AND SHIPPED" section 840 lines above it.
 - **`nameToEmail` collision surface (LOW, theoretical).** Distinct display-name spellings that differ
   only in separators/case collapse to one account email (`"A. Mc Donald"` = `"A. McDonald"`). Not
   exploitable on the current roster; a hygiene hazard for a future compound-surname starter typed two
