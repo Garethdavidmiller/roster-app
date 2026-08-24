@@ -3409,3 +3409,28 @@ for (const [pageFile, ready] of [['paycalc.html', '#periodSelect'], ['settings.h
         ).toBeGreaterThan(0);
     });
 }
+
+test('operations: no account-status name is truncated at phone width', async ({ page }) => {
+    /*
+     * The NAME is what identifies a row on a 51-row list, and at 375px it was the element being
+     * cut — "C. Francisco-C…", "R. Forrester-Bla…", "L. Atrakimavici…" — while a chip reading the
+     * same fifteen characters ("Surname default") on every unmigrated row kept its full width
+     * (v21.72). Truncating the one unique thing to make room for the one identical thing is
+     * exactly backwards, and no behavioural test could see it: every assertion about this card
+     * passed throughout, because the DOM text was always complete. Only the pixels were wrong.
+     *
+     * `scrollWidth > clientWidth` is the ellipsis itself, asked of the real rendered row.
+     */
+    await page.setViewportSize({ width: 375, height: 2000 });
+    await seedSession(page);
+    await seedMember(page);
+    await page.goto('/operations.html');
+    await expect(page.locator('#accountStatusCard')).toBeVisible({ timeout: 10000 });
+    await page.evaluate(() => /** @type {HTMLElement|null} */ (
+        document.querySelector('#accountStatusCard .card-header-toggle'))?.click());
+    await expect(page.locator('.acct-name').first()).toBeVisible();
+    const clipped = await page.evaluate(() => [...document.querySelectorAll('.acct-name')]
+        .filter(el => el.scrollWidth > el.clientWidth + 1)
+        .map(el => el.textContent));
+    expect(clipped, 'account names clipped at 375px — the row cannot be identified').toEqual([]);
+});

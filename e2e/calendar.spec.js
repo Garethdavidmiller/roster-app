@@ -433,3 +433,37 @@ test('calendar: the password notice stays away once dismissed for good', async (
     await page.waitForTimeout(2200);                    // past the 1500ms deferred open
     await expect(page.locator('#pwNoticeLb.visible')).toBeHidden();
 });
+
+test('nav drawer: every pill label starts on the same x, including the current page', async ({ page }) => {
+    /*
+     * The pill rule's own comment states the intent: "left alignment puts every pill's text on the
+     * SAME x as the Today rows underneath, so the whole drawer reads down one edge." The
+     * "you are here" dot broke it (v21.74). As an ordinary `::before` in a flex pill it is a flex
+     * ITEM — it took the 8px gap plus a 6px margin and pushed the emoji and label 19px right,
+     * measured. Only on the current page's pill, so the drawer looked different on every page and
+     * the same on none, and no assertion in the suite could see it: the DOM was identical either
+     * way, and the dot is exactly the sort of 8px detail a screenshot review skims past.
+     *
+     * Measured through a Range over the pill's own text node — the padding box never moved, so a
+     * bounding-rect check on the pill would pass on the broken layout.
+     */
+    await seedSession(page);
+    await seedMember(page);
+    await page.goto('/operations.html');   // a page whose pill is IN the row, so a current pill exists
+    await page.locator('#navMenuBtn').click();
+    await expect(page.locator('.nav-panel-pill').first()).toBeVisible();
+
+    const xs = await page.evaluate(() => [...document.querySelectorAll('.nav-panel-pill')].map(p => {
+        const tn = [...p.childNodes].find(n => n.nodeType === 3 && n.textContent.trim());
+        if (!tn) return null;
+        const r = document.createRange();
+        r.selectNodeContents(tn);
+        return { label: p.textContent.trim().slice(0, 14), left: Math.round(r.getBoundingClientRect().left) };
+    }).filter(Boolean));
+
+    expect(xs.length, 'no pills found — the drawer did not render').toBeGreaterThan(3);
+    // Exactly one current pill, or the test is measuring a row with nothing to misalign.
+    expect(await page.locator('.nav-panel-pill--current').count()).toBe(1);
+    const lefts = [...new Set(xs.map(p => p.left))];
+    expect(lefts, `pill labels start at different x: ${JSON.stringify(xs)}`).toHaveLength(1);
+});

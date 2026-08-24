@@ -439,15 +439,20 @@ test('paycalc: Replace clears stale hours the calendar no longer shows', async (
     await seedMember(page);
     await page.goto('/paycalc.html');
     await expect(page.locator('#rosterHintBar')).toBeVisible({ timeout: 10000 });
-    // Her scenario shape: hours in a category the calendar has NOTHING for, left behind after an
-    // admin removal. Overtime stands in for her bank holiday — the BH row only renders in periods
-    // containing one, while overtime is always visible and only ever comes from recorded changes,
-    // so the stub's empty Firestore guarantees the zero + 'loaded' combination the clear needs.
-    // The code path is category-agnostic.
-    await page.locator('#otH').fill('7');
+    // Her scenario: hours left behind in a category the calendar now says none for, after the shift
+    // was removed in admin. Bank holiday is ROSTER-derived, which is what makes its zero assertable
+    // (see CLEARABLE_CATS in paycalc-roster-hint.js).
+    //
+    // Period 56 is chosen, not incidental: it CONTAINS a bank holiday (so the BH input renders —
+    // it is a conditional row, and outside such a period the field is hidden and unfillable) while
+    // the member is not rostered on it (so the count is zero). That pair is what this test needs
+    // and most periods do not have it.
+    await page.locator('#periodSelect').selectOption('56');
+    await expect(page.locator('#bhH')).toBeVisible();
+    await page.locator('#bhH').fill('7');
     await page.locator('#fillFromRosterBtn').click();
-    await expect(page.locator('#rosterHintText')).toContainText(/cleared Overtime/);
-    await expect(page.locator('#otH')).toHaveValue('');
+    await expect(page.locator('#rosterHintText')).toContainText(/cleared Bank holiday/);
+    await expect(page.locator('#bhH')).toHaveValue('');
     expect(errors, 'Uncaught JS exceptions clearing stale hours').toHaveLength(0);
 });
 
@@ -464,10 +469,43 @@ test('paycalc: Replace never clears on incomplete calendar data (base-only)', as
     });
     await page.goto('/paycalc.html');
     await expect(page.locator('#rosterHintBar')).toBeVisible({ timeout: 10000 });
-    await page.locator('#otH').fill('7');
+    // Same period 56 as the test above, and for the same reason — a visible BH field with a zero
+    // count. Here the difference is that the calendar data never arrived.
+    await page.locator('#periodSelect').selectOption('56');
+    await expect(page.locator('#bhH')).toBeVisible();
+    await page.locator('#bhH').fill('7');
     await page.locator('#fillFromRosterBtn').click();
     // Give the (failing) tap-time fetch retry a beat, then confirm the hours survived.
     await page.waitForTimeout(600);
-    await expect(page.locator('#otH')).toHaveValue('7');
+    await expect(page.locator('#bhH')).toHaveValue('7');
     expect(errors, 'Uncaught JS exceptions on base-only replace').toHaveLength(0);
+});
+
+// THE REGRESSION v21.68 SHIPPED AND v21.73 CLOSED. Giving Replace the power to clear made it able
+// to destroy money: overtime, RDW and bank-holiday overtime exist ONLY where a shift change was
+// recorded, so the calendar reading zero means "nothing on record", never "you worked none" — and
+// at zero the row is not rendered at all, so nothing on screen warns the figure is at risk. A
+// member who typed overtime from their own notes lost it, at time-and-a-quarter, to a button whose
+// whole promise is that the calendar knows better. The two directions are not symmetrical: failing
+// to clear costs a manual deletion the member can see; clearing wrongly is silent.
+test('paycalc: Replace never clears hours the calendar only learns about second-hand', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page);
+    await seedMember(page);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#rosterHintBar')).toBeVisible({ timeout: 10000 });
+
+    // Typed from the member's own records. The stub Firestore holds no overrides, so every
+    // override-only category reads zero AND the fetch state is 'loaded' — the exact combination
+    // that made the old code delete them.
+    await page.locator('#otH').fill('3');
+    await page.locator('#otM').fill('45');
+    await page.locator('#rdwH').fill('8');
+    await page.locator('#fillFromRosterBtn').click();
+    await expect(page.locator('#rosterHintText')).toContainText(/✓ Filled/);   // the fill DID run
+    await expect(page.locator('#otH')).toHaveValue('3');
+    await expect(page.locator('#otM')).toHaveValue('45');
+    await expect(page.locator('#rdwH')).toHaveValue('8');
+    await expect(page.locator('#rosterHintText')).not.toContainText(/cleared Overtime|cleared RDW/);
+    expect(errors, 'Uncaught JS exceptions').toHaveLength(0);
 });
