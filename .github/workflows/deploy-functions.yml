@@ -63,7 +63,7 @@ jobs:
         run: npm ci
         working-directory: functions
 
-      - name: Run functions tests (parser helpers + deploy-surface pin)
+      - name: Run functions tests (parser helpers, deploy-surface pin, overtime + auth endpoints)
         run: npm run test:functions
 
       # The browser (auth-identity.js) and functions (roster-parse-helpers.js) each hold a
