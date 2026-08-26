@@ -1727,6 +1727,17 @@ export function init() {
       // Un-ticking must put the scheme figure back; the field is showing a £0.00 that is no longer
       // anybody's default, and leaving it would silently persist as a real opt-out on the next save.
       if (_pa && !_pa.disabled) _pa.value = _periodDefaultPension(_optP).toFixed(2);
+      // SAVED TWICE, deliberately (v21.77). `saveSettings` copies the pension FIELD into the
+      // member-level default, and the call above ran while the field still held the OLD state's
+      // figure — it has to, because the field can only be rebuilt once the flag is on record. So
+      // the first call persists the flag against a stale amount and this one persists the amount.
+      // Without it, un-ticking left `SK.pension` at '0.00' while the box read "in the scheme" —
+      // a stored default flatly contradicting the choice beside it. Nothing shows that today
+      // (`loadSettings` paints the field from it and `onPeriodChange` immediately repaints from
+      // the period default, which is grade-derived), so this is a consistency fix and not a
+      // money one — but SK.pension is what a pay-data backup carries to a new device, and the
+      // next thing to read it as "her default" would inherit a zero nobody chose.
+      saveSettings();
       autosave();
     });
 
