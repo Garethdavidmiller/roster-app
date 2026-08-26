@@ -36,7 +36,7 @@ jobs:
           # Canonical check command (lint + tests) lives in package.json.
           npm run check
 
-  # ── CLOUD FUNCTIONS, ON THE RUNTIME THEY ACTUALLY RUN ON (v21.83) ──────────────────────────────
+  # ── CLOUD FUNCTIONS, ON THE RUNTIME THEY ACTUALLY RUN ON (v21.82) ──────────────────────────────
   #
   # `npm run check` above does NOT include test:functions — that command needs functions/node_modules
   # (firebase-admin, firebase-functions), which the root install does not provide. So until this job

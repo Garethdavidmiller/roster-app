@@ -532,7 +532,7 @@ npm run test:hygiene  # the no-emulator, no-mock suites — the authoritative li
 npm run test:parse    # module-parse (--experimental-vm-modules)
 npm run test:unit     # all --experimental-test-module-mocks tests
 npm run test:functions # Cloud Functions tests (roster-parse-helpers.test.mjs + functions-surface.test.mjs, which requires functions/index.js and pins the deploy surface, + overtime-endpoints.test.mjs) — not part of npm test (needs functions/node_modules)
-                       # GATES EVERY BRANCH AND PR since v21.83, as the `functions` job in e2e.yml, ON NODE 22 — the runtime
+                       # GATES EVERY BRANCH AND PR since v21.82, as the `functions` job in e2e.yml, ON NODE 22 — the runtime
                        # functions/package.json declares. Until then it ran ONLY in deploy-functions.yml, which fires on a push
                        # to main: a Functions regression could not fail a PR, and was caught after the merge with the deploy
                        # blocked (production safe, wrong end of the merge). That job stays on Node 20 for firebase-tools auth,

@@ -446,7 +446,20 @@ test('nav drawer: every pill label starts on the same x, including the current p
      *
      * Measured through a Range over the pill's own text node — the padding box never moved, so a
      * bounding-rect check on the pill would pass on the broken layout.
+     *
+     * RELATIVE TO EACH PILL, AND WITH A TOLERANCE (v21.82). This compared absolute x across pills
+     * and was exactly equal on Chromium, so it read as a clean assertion — but it failed
+     * intermittently on Mobile Safari, and the same commit passed one run and failed the next.
+     * The reported numbers say why: the whole drawer was still SLIDING (left −184 then −163 on the
+     * retry), so the rects were being read mid-transition at fractional offsets, and a Range rect
+     * measures GLYPH INK rather than the text origin — the 📅 in the Calendar pill reported 2px
+     * left of every other pill's emoji, on both attempts, while all the others agreed exactly.
+     *
+     * Both problems disappear by asking the question the bug actually poses: how far into ITS OWN
+     * pill does each label start? That is immune to where the drawer has slid to, and the defect
+     * it guards moved a label 19px — so a 3px tolerance for emoji ink leaves it every tooth it had.
      */
+    const INK_TOLERANCE_PX = 3;
     await seedSession(page);
     await seedMember(page);
     await page.goto('/operations.html');   // a page whose pill is IN the row, so a current pill exists
@@ -458,12 +471,16 @@ test('nav drawer: every pill label starts on the same x, including the current p
         if (!tn) return null;
         const r = document.createRange();
         r.selectNodeContents(tn);
-        return { label: p.textContent.trim().slice(0, 14), left: Math.round(r.getBoundingClientRect().left) };
+        return {
+            label: p.textContent.trim().slice(0, 14),
+            inset: Math.round(r.getBoundingClientRect().left - p.getBoundingClientRect().left),
+        };
     }).filter(Boolean));
 
     expect(xs.length, 'no pills found — the drawer did not render').toBeGreaterThan(3);
     // Exactly one current pill, or the test is measuring a row with nothing to misalign.
     expect(await page.locator('.nav-panel-pill--current').count()).toBe(1);
-    const lefts = [...new Set(xs.map(p => p.left))];
-    expect(lefts, `pill labels start at different x: ${JSON.stringify(xs)}`).toHaveLength(1);
+    const insets = xs.map(p => p.inset);
+    const spread = Math.max(...insets) - Math.min(...insets);
+    expect(spread, `pill labels start at different x: ${JSON.stringify(xs)}`).toBeLessThanOrEqual(INK_TOLERANCE_PX);
 });
