@@ -209,6 +209,13 @@ describe('the position a manager reads', () => {
  * are indistinguishable to "is somebody at work?" and are opposites to "did this cost a day?".
  * A fix that reused `WORKED_OVERRIDE_TYPES` would pass every test above and charge a member a day
  * of annual leave for declining overtime.
+ *
+ * CONFIRMED BY THE OWNER, 26 Aug 2026 (VAL-AL-001 — an inference until then, and the reason this
+ * block existed on reasoning rather than policy). The operational answer is NARROWER than the rule
+ * these tests pin: leave reaches a rest day only where a member SWAPPED working days and then books
+ * the swapped-in day off. The `rdw` case below therefore guards a path the roster office does not
+ * use — and is kept anyway, because without it the day falls through to the base roster, which
+ * calls it rest and would charge for declining overtime.
  */
 describe('the swapped day — a day the base roster gets wrong', () => {
     // Deliberately NO replacedValue field: no write path has ever produced one and the rules
@@ -225,7 +232,8 @@ describe('the swapped day — a day the base roster gets wrong', () => {
 
     test('but OVERTIME on the same rest day still costs nothing', () => {
         // The opposite direction, and the reason `rdw` is not in CONTRACTED_WORK_TYPES: declining
-        // overtime you volunteered for is not taking leave.
+        // overtime you volunteered for is not taking leave. Owner-confirmed as a path that does not
+        // arise in practice (see the block header) — which makes this a guard, not a workflow.
         assert.equal(consumesEntitlement(MEMBER, RESTED[0], withUnder(RESTED[0], 'rdw')), false);
     });
 
