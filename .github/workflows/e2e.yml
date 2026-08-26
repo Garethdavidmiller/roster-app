@@ -36,6 +36,47 @@ jobs:
           # Canonical check command (lint + tests) lives in package.json.
           npm run check
 
+  # ── CLOUD FUNCTIONS, ON THE RUNTIME THEY ACTUALLY RUN ON (v21.82) ──────────────────────────────
+  #
+  # `npm run check` above does NOT include test:functions — that command needs functions/node_modules
+  # (firebase-admin, firebase-functions), which the root install does not provide. So until this job
+  # existed the Functions tests ran in exactly one place: deploy-functions.yml, which triggers on a
+  # push to main. A Functions regression therefore could not fail a PR. It was caught after merge,
+  # with the deploy blocked — production safe, but the wrong end of the merge, and the opposite of
+  # how every other suite here is gated. Found by external review, 26 Aug 2026.
+  #
+  # NODE 22, deliberately, and NOT the '20' every other job here pins. 22 is the deployed runtime
+  # (functions/package.json `engines`). deploy-functions.yml runs on 20 for a specific and separate
+  # reason — firebase-tools failed to authenticate on 22 — and that choice is about the deploy TOOL,
+  # not the code under test. Left as it was, it meant the handlers were only ever tested on a
+  # version they never run on. This job is where that is corrected; do not "align" it back to 20.
+  functions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      # BEFORE the tests: functions-surface.test.mjs require()s functions/index.js to pin the deploy
+      # surface, and that pulls firebase-admin/firebase-functions from functions/node_modules. With
+      # the install after, the pin fails on every CI run while passing on any machine that has ever
+      # installed — the classic works-here gap. Same ordering as deploy-functions.yml, same reason.
+      - name: Install function dependencies
+        run: npm ci
+        working-directory: functions
+
+      - name: Run functions tests (parser helpers, deploy-surface pin, overtime endpoints)
+        run: npm run test:functions
+
   # E2E smoke suite — real headless Chromium, Firebase SDK stubbed at the network
   # layer (e2e/fixtures.js) so the suite never depends on the gstatic CDN. Catches
   # blank-page failures (SyntaxError, missing import, broken module graph) that every

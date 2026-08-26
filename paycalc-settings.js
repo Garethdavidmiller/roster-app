@@ -19,8 +19,8 @@ import { teamMembers } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
 import { fdShort, fdLong } from './paycalc-format.js';
 import {
-  parsePensionTimeline, serialisePensionTimeline, isOptedOutAt, withPensionChange,
-  optOutStartsAt, hasAnyPensionChange, migrateLegacyOptOut,
+  parsePensionTimeline, serialisePensionTimeline, isOptedOutAt,
+  withOptOutStartAt, withRejoinAt, optOutStartsAt, migrateLegacyOptOut,
 } from './paycalc-pension.js';
 
 // ── GRADE CACHE ───────────────────────────────────────────────────────────────
@@ -175,17 +175,24 @@ export function buildPensionFromSelect(timeline) {
     o.textContent = `Paid ${fdLong(p.payday)} · P${payslipPeriodNum(p)}`;
     group?.appendChild(o);
   }
+  // WHAT THE SELECT IS SET TO IS WHAT `saveSettings` ACTS ON, so it carries both answers (v21.80):
+  // while the box is TICKED it names where the spell begins, and while it is UNTICKED it names the
+  // payslip the member is looking at — which is how the hint beneath it has told her to record a
+  // rejoin since v21.78 ("untick the box while viewing the first payslip that has a deduction
+  // again"). Setting it to the spell's own start on an untick, as the first cut did, made every
+  // untick erase the spell rather than end it.
+  //
   // `currentPeriodNum()` READS THE PERIOD SELECT, which does not exist yet when loadSettings runs
   // at boot — it returns 0 there. Falling through to today's payslip keeps the control meaningful
   // on that first paint instead of leaving it on a value no option carries.
-  const start = optOutStartsAt(timeline);
+  const checked = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionOptOutCheck'))?.checked;
+  const start   = checked ? optOutStartsAt(timeline) : null;
   sel.value = String(start ?? (currentPeriodNum() || todaysPeriodNum()));
-  // Shown while she is out of the scheme, and KEPT once any change is on record — a rejoin has to
-  // name the payslip it starts on, and with the control hidden the moment the tick comes off there
-  // is nowhere to say it. Hidden only for the member who has never left, who should not be asked
-  // to date something that did not happen.
-  field?.classList.toggle('hidden', !hasAnyPensionChange(timeline)
-      && !(/** @type {HTMLInputElement|null} */ (document.getElementById('pensionOptOutCheck'))?.checked));
+  // Shown only while she is out of the scheme: it asks one question ("not in the scheme from which
+  // payslip?") and that question has no answer once she is back in. A rejoin is dated by the
+  // payslip on screen, not by this control, so leaving it up afterwards would put a label that is
+  // no longer true in front of a value nothing reads.
+  field?.classList.toggle('hidden', !checked);
 }
 
 /**
@@ -211,7 +218,9 @@ export function periodDefaultPension(p) {
  *
  * ORDER MATTERS in the tick handler, twice. The date control is BUILT before the save, so a first
  * tick has a payslip to date itself from (`saveSettings` reads that control, and an unbuilt one
- * holds nothing). And `saveSettings` runs a SECOND time at the end, after the field has been
+ * holds nothing) — and, since v21.80, so that an UN-tick is dated to the payslip on screen rather
+ * than to the spell's own start, which is what turned every rejoin into an erasure. And
+ * `saveSettings` runs a SECOND time at the end, after the field has been
  * rebuilt: the first call persists the change while the field still shows the old state's figure,
  * so without the second, un-ticking left the member-level default at '0.00' behind a box reading
  * "in the scheme" — which a pay-data backup then carries to her next device (v21.77).
@@ -237,7 +246,10 @@ export function wirePensionControls({ autosave }) {
   });
 
   // Moving the boundary re-prices both sides of it, so the field, the lock and the estimate are
-  // all repainted — not merely recalculated.
+  // all repainted — not merely recalculated. `saveSettings` MOVES the spell's start rather than
+  // recording a second change at the new payslip: re-picking a later one would otherwise be
+  // swallowed by the earlier change still standing in front of it, leaving the select reading one
+  // payslip and every figure using another until the next reload quietly put it back.
   document.getElementById('pensionOptOutFrom')?.addEventListener('change', () => {
     saveSettings();
     const p = _viewed();
@@ -370,16 +382,22 @@ export function saveSettings() {
   // the amount's own fallback must see the state the member just chose.
   //
   // A CHANGE DATED TO A PAYSLIP, not a global flag (v21.78): the `from` select carries the payslip
-  // the spell begins at, and `withPensionChange` collapses a re-statement of the current state to
-  // nothing, so the repeated saves this function gets (every keystroke in the pension field lands
-  // here) can not accumulate entries. With no select rendered — old cached HTML — the change dates
-  // from the payslip being viewed today, which is the reading the control defaults to anyway.
+  // to act on. With no select rendered — old cached HTML — that is the payslip being viewed, which
+  // is the reading the control defaults to anyway.
+  //
+  // TICKED and UNTICKED are two different edits, not one boolean written twice (v21.80). Ticked
+  // MOVES the current spell's start, so re-picking a LATER payslip corrects it instead of being
+  // swallowed by the earlier change still standing in front of it. Unticked ENDS the spell at the
+  // payslip on screen — the rejoin. Both are idempotent, which they have to be: every keystroke in
+  // the pension field lands here, and a re-statement of the state already recorded must add
+  // nothing.
   const _optOut = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionOptOutCheck'));
   if (_optOut) {
     const _fromEl = /** @type {HTMLSelectElement|null} */ (document.getElementById('pensionOptOutFrom'));
     const _fromNum = parseInt(_fromEl?.value ?? '', 10);
     const _from = Number.isFinite(_fromNum) ? _fromNum : currentPeriodNum();
-    savePensionTimeline(withPensionChange(getPensionTimeline(), _from, !!_optOut.checked));
+    const _tl = getPensionTimeline();
+    savePensionTimeline(_optOut.checked ? withOptOutStartAt(_tl, _from) : withRejoinAt(_tl, _from));
   }
   // On a joining period the pension field shows the pro-rated amount.
   // Always write the full-period default to SK.pension so future full periods

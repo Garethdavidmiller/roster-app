@@ -21,7 +21,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     parsePensionTimeline, serialisePensionTimeline, isOptedOutAt, withPensionChange,
-    optOutStartsAt, hasAnyPensionChange, migrateLegacyOptOut,
+    withOptOutStartAt, withRejoinAt, optOutStartsAt, migrateLegacyOptOut,
 } from './paycalc-pension.js';
 
 describe('rewriting history — the direction that overstates take-home', () => {
@@ -96,9 +96,8 @@ describe('losing the change — the direction that keeps charging her', () => {
     });
 
     test('un-ticking while already contributing leaves an empty timeline, not a false record', () => {
-        const tl = withPensionChange([], 56, false);
-        assert.deepEqual(tl, [], 'a change to the state you were already in is not a change');
-        assert.equal(hasAnyPensionChange(tl), false);
+        assert.deepEqual(withPensionChange([], 56, false), [], 'a change to the state you were already in is not a change');
+        assert.deepEqual(withRejoinAt([], 56), [], 'and there is no spell to end');
     });
 
     test('a later change is kept, not silently dropped by an earlier correction', () => {
@@ -115,7 +114,6 @@ describe('losing the change — the direction that keeps charging her', () => {
         let rejoined = withPensionChange([], 56, true);
         rejoined = withPensionChange(rejoined, 95, false);
         assert.equal(optOutStartsAt(rejoined), null, 'she is back in — there is no current spell');
-        assert.equal(hasAnyPensionChange(rejoined), true, '...but the control must stay reachable');
     });
 });
 
@@ -175,5 +173,76 @@ describe('migrating the v21.64 boolean', () => {
         // Fails towards CONTRIBUTING — the state that alters no stored figure. A migration that
         // guessed a payslip number here would impose a £0 on whatever it happened to pick.
         assert.deepEqual(migrateLegacyOptOut(true, null), []);
+    });
+});
+
+// ── THE TWO EDITS THE SETTINGS CARD ACTUALLY MAKES (v21.80) ──────────────────────────────────────
+//
+// `withPensionChange` records a change AT a payslip. The card does not do that — it MOVES the start
+// of a spell, or ENDS one — and wiring the raw primitive to both controls produced two silent
+// failures, in opposite directions and both invisible on screen:
+//
+//   · Re-picking a LATER payslip did nothing at all. The earlier "out" change still stood in front
+//     of it, so the select read one payslip and every figure went on using another, until a reload
+//     put the select back and the disagreement disappeared without ever being seen.
+//   · Un-ticking ERASED the spell instead of ending it — dated, as the handler did, to the spell's
+//     own start. So the rejoin the module exists to make expressible was unreachable from the page
+//     that instructs the member to record one.
+describe('moving the start of a spell', () => {
+    test('re-picking a LATER payslip moves the start forward', () => {
+        const tl = withOptOutStartAt([{ from: 40, out: true }], 50);
+        assert.deepEqual(tl, [{ from: 50, out: true }]);
+        assert.equal(isOptedOutAt(tl, 45), false, 'the payslips she has taken back are contributing again');
+        assert.equal(isOptedOutAt(tl, 50), true);
+    });
+
+    test('re-picking an EARLIER payslip moves it back', () => {
+        assert.deepEqual(withOptOutStartAt([{ from: 40, out: true }], 30), [{ from: 30, out: true }]);
+    });
+
+    test('re-picking the same payslip changes nothing', () => {
+        // Every keystroke in the pension field re-states the pair, so this runs constantly.
+        assert.deepEqual(withOptOutStartAt([{ from: 40, out: true }], 40), [{ from: 40, out: true }]);
+    });
+
+    test('a spell that has already ENDED is left alone — this is a new one', () => {
+        const tl = withOptOutStartAt([{ from: 40, out: true }, { from: 50, out: false }], 60);
+        assert.deepEqual(tl, [{ from: 40, out: true }, { from: 50, out: false }, { from: 60, out: true }]);
+        assert.equal(isOptedOutAt(tl, 45), true,  'the first spell is history and stays');
+        assert.equal(isOptedOutAt(tl, 55), false);
+        assert.equal(isOptedOutAt(tl, 60), true);
+    });
+});
+
+describe('ending a spell — the rejoin', () => {
+    test('un-ticking on a LATER payslip records the rejoin there', () => {
+        const tl = withRejoinAt([{ from: 40, out: true }], 50);
+        assert.deepEqual(tl, [{ from: 40, out: true }, { from: 50, out: false }]);
+        assert.equal(isOptedOutAt(tl, 45), true,  'the months she was out keep their £0');
+        assert.equal(isOptedOutAt(tl, 50), false);
+    });
+
+    test('un-ticking on the payslip she ticked on ERASES it — the mistake she just made', () => {
+        assert.deepEqual(withRejoinAt([{ from: 40, out: true }], 40), []);
+    });
+
+    test('un-ticking while viewing an EARLIER payslip erases too, rather than doing nothing', () => {
+        // A rejoin before the spell began is not a statement anyone can act on, and the alternative
+        // — leave the timeline as it is — springs the tick back on the next load with no
+        // explanation, which is the shape of every silent disagreement in this file.
+        assert.deepEqual(withRejoinAt([{ from: 40, out: true }], 35), []);
+    });
+
+    test('erasing removes only the CURRENT spell, never the history behind it', () => {
+        const tl = withRejoinAt([{ from: 20, out: true }, { from: 30, out: false }, { from: 40, out: true }], 40);
+        assert.deepEqual(tl, [{ from: 20, out: true }, { from: 30, out: false }]);
+        assert.equal(isOptedOutAt(tl, 25), true, 'the earlier spell is still on record');
+        assert.equal(isOptedOutAt(tl, 45), false);
+    });
+
+    test('un-ticking when she is already contributing records nothing', () => {
+        const already = [{ from: 40, out: true }, { from: 50, out: false }];
+        assert.deepEqual(withRejoinAt(already, 60), already);
+        assert.deepEqual(withRejoinAt([], 60), []);
     });
 });
