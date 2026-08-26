@@ -72,6 +72,7 @@
   <link rel="modulepreload" href="./paycalc-app.js">
   <link rel="modulepreload" href="./paycalc-backpay.js">
     <link rel="modulepreload" href="./paycalc-backpay-state.js">
+    <link rel="modulepreload" href="./paycalc-pension.js">
   <link rel="modulepreload" href="./paycalc-breakdown.js">
   <link rel="modulepreload" href="./paycalc-calc.js">
   <link rel="modulepreload" href="./paycalc-format.js">
@@ -121,6 +122,19 @@
   <div class="setup-banner hidden" id="setupBanner">
     <h2 id="setupBannerTitle">👋 Estimate your take-home</h2>
     <p id="setupBannerBody">We've filled in the usual defaults — <strong>check your grade and tax code</strong> in ⚙️ Your Settings below, then tap <strong>Save settings</strong>. You can add your hours with <strong>Fill from calendar</strong>.</p>
+  </div>
+
+  <!-- ── A ROLE THIS CALCULATOR HAS NO CONFIRMED RATES FOR (v21.78) ────────────────────────────
+       Every consumer of the grade falls back to CEA when no grade is stored, so a Dispatcher (ten
+       of them) or a manager could open this page and be handed a polished, plausible, wrong
+       take-home figure with nothing saying it did not apply to them. An explicit refusal is worth
+       more than a confident answer: the numbers are not merely unverified for these roles, they
+       are somebody else's. Shown INSTEAD of the calculator, not above it — a banner over a working
+       form is an invitation to use the form. -->
+  <div class="setup-banner hidden" id="unsupportedGradeBanner">
+    <h2 id="unsupportedGradeTitle">Pay Calculator isn't available for your role yet</h2>
+    <p>It only models <strong>CEA</strong> and <strong>CES</strong> pay. Other roles need confirmed rates and contract terms before they can be added, and guessing them would give you a figure that looks right and isn't. If you'd like yours added, ask the admin.</p>
+    <p>Everything else in the app works as normal — use the ☰ menu to go back to your roster.</p>
   </div>
 
   <!-- PRIVACY NOTE: always visible -->
@@ -190,7 +204,18 @@
           <input type="checkbox" id="pensionOptOutCheck">
           <label for="pensionOptOutCheck">I'm <strong>not in the pension scheme</strong></label>
         </div>
-        <div class="field-hint">Tick this if you have opted out of or withdrawn from the RPS — every payslip then assumes no pension deduction. Payslips from when you <em>were</em> contributing keep their own amount.</div>
+        <div class="field-hint">Tick this if you have opted out of or withdrawn from the RPS.</div>
+        <!-- The DATE is the whole control (v21.78). As a bare tick this said "every payslip then
+             assumes no pension deduction", which was true and was the bug: payslips from before
+             she left were rewritten too, because a payslip whose pension matches the expected
+             amount stores nothing of its own and takes the default. Naming the first payslip with
+             no deduction — the same question, and the same shape of answer, as the student-loan
+             cutover directly below — leaves earlier payslips exactly as they were. -->
+        <div class="field hidden" id="pensionOptOutField">
+          <label for="pensionOptOutFrom">Not in the scheme from which payslip?</label>
+          <select id="pensionOptOutFrom"></select>
+          <div class="field-hint">Pick the <strong>first payslip with no pension deduction</strong>. Earlier payslips keep theirs, so they still match what you were paid. If you later <strong>rejoin</strong> the scheme, untick the box while viewing the first payslip that has a deduction again.</div>
+        </div>
       </div>
 
       <div class="field">

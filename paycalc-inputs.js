@@ -110,7 +110,15 @@ export function decPreview(hId) {
  * Two guards, both load-bearing:
  *  - `preventDefault()` on the touchend (registered passive:false — iOS defaults touchend to
  *    passive) suppresses the synthesised click on the taps where it WOULD have fired, so the
- *    action can never run twice; `touchFired` covers browsers that synthesise one anyway.
+ *    action can never run twice; a TIME WINDOW covers browsers that synthesise one anyway.
+ *
+ *    The window replaces a sticky boolean (v21.78, external review). The old flag was set on
+ *    touchend and cleared by the click it expected — but the whole reason `preventDefault()` is
+ *    there is that the click often never arrives, and then the flag stayed set for ever and
+ *    swallowed the next genuine activation: a mouse click or a keyboard Enter on a hybrid device,
+ *    once, silently. The existing tests all fired the synthetic click, so they exercised the
+ *    branch the implementation was NOT written for. A synthesised click follows its touch within
+ *    a few hundred milliseconds; anything later is a new gesture and must always work.
  *  - A movement gate: the ± button shipped without one and its targets are tiny, but the fill
  *    controls are full-width rows a scroll flick can begin and END on — and "Replace with calendar
  *    values" is destructive. A touch that moved more than the slop, or was ever multi-finger, is a
@@ -122,7 +130,11 @@ export function decPreview(hId) {
  */
 export function wireIosTap(el, action) {
   const SLOP = 12;
-  let sx = 0, sy = 0, moved = false, touchFired = false;
+  /** How long a synthesised click may trail its touch. Generous — the cost of being too long is a
+   *  deliberate second activation within the window being dropped (a double-tap, which nothing
+   *  here does); the cost of being too short is running the action twice on one tap. */
+  const CLICK_ECHO_MS = 700;
+  let sx = 0, sy = 0, moved = false, lastTouchActivation = 0;
   // A DISABLED CONTROL MUST NOT ACT — on any path (v21.77). The browser suppresses `click` on a
   // disabled button for us, which is the whole reason the disabled state is trusted elsewhere; it
   // does NOT suppress touch events, which are dispatched to the hit target regardless. So the
@@ -144,11 +156,13 @@ export function wireIosTap(el, action) {
   el.addEventListener('touchend', (e) => {
     if (moved || inert()) return;
     e.preventDefault();
-    touchFired = true;
+    lastTouchActivation = Date.now();
     action(e);
   }, { passive: false });
   el.addEventListener('click', (e) => {
-    if (touchFired) { touchFired = false; return; }
+    // Only an echo of the touch we just handled is suppressed. A click arriving later is a real
+    // one — from a mouse, a keyboard, or assistive tech — and always runs.
+    if (Date.now() - lastTouchActivation < CLICK_ECHO_MS) { lastTouchActivation = 0; return; }
     if (inert()) return;
     action(e);
   });

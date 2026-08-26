@@ -60,9 +60,9 @@ export function pcPrefix() { return `myb_pc_${_nsSeg}`; }
 
 /** Per-member storage keys. Rebuilt in place (object mutated, binding kept) whenever
  *  the namespace changes, so every module that imported SK sees the new key names. */
-/** @type {{ rate:string, rates:string, code:string, sl:string, pgLoan:string, slPaidOff:string, pension:string, pensionOptOut:string, setup:string, ytdPay:string, ytdTax:string, grade:string }} */
+/** @type {{ rate:string, rates:string, code:string, sl:string, pgLoan:string, slPaidOff:string, pension:string, pensionOptOut:string, pensionTimeline:string, setup:string, ytdPay:string, ytdTax:string, grade:string }} */
 export const SK = {
-    rate: '', rates: '', code: '', sl: '', pgLoan: '', slPaidOff: '', pension: '', pensionOptOut: '', setup: '', ytdPay: '', ytdTax: '', grade: '',
+    rate: '', rates: '', code: '', sl: '', pgLoan: '', slPaidOff: '', pension: '', pensionOptOut: '', pensionTimeline: '', setup: '', ytdPay: '', ytdTax: '', grade: '',
 };
 
 /** Recompute the SK key strings from the active namespace. */
@@ -84,7 +84,16 @@ function _rebuildSK() {
     // `getPensionDefault` reads it (paycalc-settings.js) so every downstream site — the field
     // default, calculate()'s fallback, the HPP estimate and the year summary — inherits it from
     // the one place they already agree on. Member-level, so a shared device keeps them separate.
+    // RETIRED at v21.78 but still DECLARED: the v21.64-v21.77 boolean. Nothing writes it any
+    // more; `loadSettings` reads it once to build a timeline and then never again (the timeline
+    // key's mere existence ends the migration). Left in place so a device that has it can still
+    // be migrated — deleting the declaration would strand the one member who set it.
     SK.pensionOptOut = `${p}pension_optout`;
+    // WHEN the member was in the pension scheme, as a list of changes — see paycalc-pension.js.
+    // A timeline rather than a flag because the flag rewrote history: it made the pension default
+    // £0 for every payslip that has ever existed, and a period whose pension equals the default
+    // stores `null`, so most historical payslips had nothing of their own to defend them.
+    SK.pensionTimeline = `${p}pension_timeline`;
     SK.setup   = `${p}setup`;
     SK.ytdPay  = `${p}ytd_pay`;
     SK.ytdTax  = `${p}ytd_tax`;

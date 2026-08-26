@@ -35,7 +35,7 @@ import {
 } from './paycalc-periods.js';
 import {
   getGrade, getEffectiveContr, getLoggedMember, getProRateFactor, getPensionDefault,
-  applyPensionOptOutUI,
+  applyPensionOptOutUI, wirePensionControls, gradeForRole, periodDefaultPension,
   updateRateForPeriod, updateYtdForTaxYear, settingsKey, setSettingsCardOpen,
   saveSettings, confirmSettings, loadSettings, getStoredRateForYear,
 } from './paycalc-settings.js';
@@ -70,6 +70,33 @@ import { buildSummaryRows, buildBreakdownRows, buildActualCheck, buildProvChips 
  * throwing, and importing this module no longer auto-runs it (testability). Body
  * unchanged otherwise — same statements, same order, one indent level in.
  */
+/**
+ * Withhold the calculator from a role it has no confirmed rates for, and say why (v21.78).
+ * Rationale: AI_MAP → `gradeForRole`. Two things an editor here needs — it WITHHOLDS rather than
+ * captioning (the page's whole output is one confident £ figure, and a member told "this may not
+ * apply" and handed one will use it), and it still wires the drawer, so it is a refusal with a way
+ * out rather than a dead end.
+ * @param {any} member the signed-in teamMembers entry
+ */
+function _showUnsupportedRole(member) {
+    // A BODY CLASS, never the `hidden` attribute: `.pc-work`/`.pc-side` are `display: contents` on
+    // mobile and `flex` on desktop, both of which out-specify `hidden`'s UA rule, so the
+    // calculator would render in full while this code believed it was gone. See paycalc.css.
+    document.body.classList.add('role-unsupported');
+    document.getElementById('unsupportedGradeBanner')?.classList.remove('hidden');
+    initNavPanel({
+        currentPage: 'paycalc',
+        memberName:  member?.name || null,
+        isAdmin:         ROSTER_CONFIG.ADMIN_NAMES.includes(member?.name ?? ''),
+        isLinksDesigner: ROSTER_CONFIG.LINKS_DESIGNERS.includes(member?.name ?? ''),
+        canOpenOvertime: canOpenOvertime(member?.name ?? ''),
+        onSignOut: () => { clearSession(); window.location.href = './'; },
+    });
+    registerServiceWorker();
+    markPageReady();
+    recordUsage('paycalc', member?.name || null);
+}
+
 export function init() {
     // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
     // direct deep-link to this page can't keep an old credential live (review item 7 / Finding #9).
@@ -113,6 +140,16 @@ export function init() {
     // normal already-signed-in load (no overlay present).
     dismissLoginOverlay();
 
+    // A ROLE WITH NO CONFIRMED RATES REFUSES RATHER THAN GUESSING (v21.78, external review): the
+    // grade lookup treats "no grade stored" as CEA at every consumer, so ten Dispatchers and seven
+    // manager accounts were being handed a polished estimate at somebody else's rate. Before every
+    // other init step, so nothing can render a figure first. Why: AI_MAP → `gradeForRole`.
+    const _roleMember = getLoggedMember();
+    if (_roleMember && !gradeForRole(_roleMember.role)) {
+      _showUnsupportedRole(_roleMember);
+      return;
+    }
+
     // Period helpers, grade helpers, settings, roster hint, HPP, back-pay all imported above.
     // SK, periodKey, hppEstKey, hppActualKey imported from paycalc-migrations.js
 
@@ -146,19 +183,6 @@ export function init() {
     let _periodLoadWasCorrupt = false;
 
     // periodKey (and SK, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey) imported from paycalc-migrations.js
-
-    /**
-     * This period's DEFAULT pension as the £ number the field would show: the period-aware scheme
-     * default (PENSION_STEPS via getPensionDefault) × the joining-period pro-rate, rounded to 2dp.
-     * The ONE source for a comparison/write that was hand-rolled at six sites (v18.46 — sweep
-     * item 9). No period → the bare current default.
-     * @param {any} [p] @returns {number}
-     */
-    function _periodDefaultPension(p) {
-      return p
-        ? parseFloat((getPensionDefault(p) * getProRateFactor(p)).toFixed(2))
-        : (parseFloat(String(getPensionDefault())) || 0);
-    }
 
     // ── PERIOD DATA ROUND TRIP — extracted to paycalc-form-data.js (v19.11) ─────────
     // emptyPeriodData / readFormData / writeFormData moved out so the round trip that four
@@ -523,6 +547,10 @@ export function init() {
 
       // Load saved data for this period
       loadPeriodData(p.num);
+      // The pension LOCK follows the viewed payslip (v21.78) — a member who left the scheme in
+      // August is still contributing on her July one. AFTER loadPeriodData deliberately: that
+      // paints the value, and this may only override it where the timeline says there was none.
+      applyPensionOptOutUI(p);
 
       // Sync the back-pay card to the newly-viewed period's award year (v17.86 per-year viewing) —
       // ALWAYS, not only when the card is open, so the banner + take-home reflect whichever payslip
@@ -551,7 +579,7 @@ export function init() {
       const _autoP = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
       const d    = readFormData({
         adjNegative: _adjNegative,
-        periodDefaultPension: _autoP ? _periodDefaultPension(_autoP) : null,
+        periodDefaultPension: _autoP ? periodDefaultPension(_autoP) : null,
       });
       try {
         lsSet(periodKey(pNum), JSON.stringify(d));
@@ -580,7 +608,7 @@ export function init() {
       const _pObj = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
       if (d.pension == null && _pObj) {
         const pa = /** @type {HTMLInputElement | null} */ (document.getElementById('pensionAmt'));
-        if (pa) pa.value = _periodDefaultPension(_pObj).toFixed(2);
+        if (pa) pa.value = periodDefaultPension(_pObj).toFixed(2);
       }
       updateAdjSign();
       // Auto-expand "more options" if this period has extras saved. Route through _setDisclosure so
@@ -612,7 +640,7 @@ export function init() {
         }
         if (d) {
           const _pObj = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
-          const _hasCustomPension = d.pension != null && Math.abs(d.pension - _periodDefaultPension(_pObj)) > 0.005;
+          const _hasCustomPension = d.pension != null && Math.abs(d.pension - periodDefaultPension(_pObj)) > 0.005;
           if (!isDataEmpty(d) || _hasCustomPension) {
             el.textContent = '✓ Entries saved for this period';
             el.className   = 'save-status saved';
@@ -680,7 +708,7 @@ export function init() {
       const _clearP = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
       if (_clearP) {
         const _pa = /** @type {HTMLInputElement | null} */ (document.getElementById('pensionAmt'));
-        if (_pa) _pa.value = _periodDefaultPension(_clearP).toFixed(2);
+        if (_pa) _pa.value = periodDefaultPension(_clearP).toFixed(2);
       }
       _adjNegative = false;
       updateAdjSign();
@@ -855,7 +883,7 @@ export function init() {
       const _pRaw      = _pField && _pField.value.trim() !== '' ? parseSmartFloatOrNull(_pField.value) : null;
       const pension    = _pRaw != null
           ? Math.max(0, _pRaw)
-          : _periodDefaultPension(_curP);
+          : periodDefaultPension(_curP);
       const pensionWarn = document.getElementById('pensionWarn');
       if (pensionWarn) pensionWarn.classList.toggle('show', pension > grossWithBp && pension > 0);
       const sacGross   = Math.max(0, grossWithBp - pension);
@@ -1679,7 +1707,7 @@ export function init() {
       // The hourly rate is grade-fixed + read-only (v17.87) — refresh the period-aware rate for the
       // newly-selected grade (never a typed value); updateRateForPeriod also updates its pre/post label.
       if (_gP) updateRateForPeriod(taxYearForPeriod(_gP), _gP);
-      if (_pa && penUntouched) _pa.value = _periodDefaultPension(_gP).toFixed(2);
+      if (_pa && penUntouched) _pa.value = periodDefaultPension(_gP).toFixed(2);
       // Recompute the back-pay card for the NEW grade (review finding): its saved blob was built with
       // the old grade's award rates, and without this the stale lump persisted in read-only boxes with
       // no repair path. calcBackPay re-enforces the authoritative AWARD_RATES for the current grade
@@ -1716,30 +1744,11 @@ export function init() {
     // pensionAmt: save global default AND lock pension to current period immediately.
     // autosave() calls calculate() internally, so no separate calculate() call needed.
     /** @type {HTMLElement} */ (document.getElementById('pensionAmt')).addEventListener('input',  () => { saveSettings(); autosave(); });
-    // Out of the pension scheme. saveSettings() persists the flag FIRST, so the autosave that
-    // follows re-reads the period default through it — the field, this payslip's saved figure and
-    // the take-home all move together on the tick rather than waiting for a reload.
-    document.getElementById('pensionOptOutCheck')?.addEventListener('change', () => {
-      saveSettings();
-      applyPensionOptOutUI();
-      const _optP = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
-      const _pa = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionAmt'));
-      // Un-ticking must put the scheme figure back; the field is showing a £0.00 that is no longer
-      // anybody's default, and leaving it would silently persist as a real opt-out on the next save.
-      if (_pa && !_pa.disabled) _pa.value = _periodDefaultPension(_optP).toFixed(2);
-      // SAVED TWICE, deliberately (v21.77). `saveSettings` copies the pension FIELD into the
-      // member-level default, and the call above ran while the field still held the OLD state's
-      // figure — it has to, because the field can only be rebuilt once the flag is on record. So
-      // the first call persists the flag against a stale amount and this one persists the amount.
-      // Without it, un-ticking left `SK.pension` at '0.00' while the box read "in the scheme" —
-      // a stored default flatly contradicting the choice beside it. Nothing shows that today
-      // (`loadSettings` paints the field from it and `onPeriodChange` immediately repaints from
-      // the period default, which is grade-derived), so this is a consistency fix and not a
-      // money one — but SK.pension is what a pay-data backup carries to a new device, and the
-      // next thing to read it as "her default" would inherit a zero nobody chose.
-      saveSettings();
-      autosave();
-    });
+    // The pension card's two controls are wired by the module that owns the card's rules
+    // (v21.78) — the coordinator supplies only what it alone knows: this payslip's default, and
+    // how to persist it. Keeping the wiring beside `buildPensionFromSelect`/`applyPensionOptOutUI`
+    // is what stops the tick, the date and the field falling out of step with one another.
+    wirePensionControls({ autosave });
 
     // Per-period overrides
     /** @type {HTMLElement} */ (document.getElementById('slSkipCheck')).addEventListener('change', autosave);
@@ -1951,6 +1960,11 @@ export function init() {
     stampPaycalcPrintLine();
     window.addEventListener('beforeprint', stampPaycalcPrintLine);
 
+    // A LITERAL options object at every initNavPanel call, on purpose (v21.78). This was briefly
+    // factored into a shared `_navConfig()` — page-contract-parity refused it at once, and rightly:
+    // it brace-matches the options of each call to prove a role-gated pill is passed its gate from
+    // EVERY page, and an indirected config is invisible to that. The duplication with
+    // `_showUnsupportedRole` is the price of a guard that can still see what it is guarding.
     const _paycalcMember = getLoggedMember();
     initNavPanel({
         // Drawer Circular/Newsletter read waits for the session (AUTH_PLAN.md → E1).

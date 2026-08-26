@@ -31,6 +31,8 @@ thing you are about to break. Each states WHAT must hold; the WHY is below, or i
 | 9 | **Sunday-on-BH: Sunday wins (`dow===0` before `isBH`). BH + RDW is additive.** | `paycalc-calc.js` |
 | 10 | **`validateBackup` is the trust boundary, and restore is a REPLACE, never a merge.** A backup is a file from somewhere; these are pay figures, not approximations. | `paycalc-transfer.js` |
 | 11 | **The roster-assist never infers an ambiguous category** (swap shifts, rest-day weekday overrides) — and **viewing a period never persists it**. | `paycalc-roster-suggestions.js` · `paycalc-app.js` |
+| 12 | **A pension opt-out is DATED.** It applies from the payslip the member named onwards and never earlier — a period storing `null` takes the period default, so a timeless flag rewrites history (measured: £115.92 onto one 2025/26 take-home). An empty or unreadable timeline means CONTRIBUTING. | `paycalc-pension.js` |
+| 13 | **A role with no confirmed rates gets no figure at all**, rather than a caption over somebody else's. | `paycalc-settings.js` → `gradeForRole` |
 
 Unverified assumptions behind these figures — including the back-pay accrual and the 28 Aug 2026
 award step — are in `VALIDATION_REGISTER.md`, not here.
@@ -60,18 +62,31 @@ year's `AWARD_RATES.rate`, add the following year with `pre` = this rate, and se
 
 **HPP amount source — three modes (v18.32; 'ytd' reworked v18.34 to read the Year to Date card).** The current-year HPP figure can come from: `'hours'` (default — the per-payslip `calcHPP` estimator), `'ytd'` (a **rough estimate derived from the Year to Date Figures card's Taxable Pay** — no input of its own), or `'exact'` (a figure the member types into `#hppExactAmt`). `_hppMode()` reads the radio; `calcHPP` branches on it, **writing the resulting figure to `hppEstKey(ty)` in every mode** — so the January take-home add and prior-year rollover (both read `hppEstKey` via `resolveHppForPeriod`) are unchanged, and the opt-in include-tick still gates it. State is **per tax year** (`hppModeKey(ty)`): `saveHppState`/`restoreHppState` persist mode + the exact input; the coordinator restores in `onPeriodChange` BEFORE `loadPeriodData`'s `calculate()` runs. **'ytd' (v18.34):** staff kept expecting the Year to Date card to feed HPP; the v18.32 separate "extra pay" input clashed with it, so 'ytd' now reads `#ytdPay` (Taxable Pay) directly — Taxable Pay is ALL pay, so `_expectedNonPremiumYtd(ty)` subtracts expected basic + London − pension over the covered periods (to the `ytdSrcKey` source, else `todaysPeriodNum`) and `hppFromYtdTaxable` takes 7.69% of what's left. **`_expectedNonPremiumYtd` pro-rates ALL non-premium components by `getProRateFactor(p)` (v18.55 — K. Jedlinski joiner review):** basic already carried the factor via `getEffectiveContr`, but London + pension were at FULL value — so for a mid-year joiner every pre-start period (factor 0) added ~£129 of phantom "London − pension" pay and the joining period double-counted, biasing this rough estimate LOW (~£255 baseline error → ~£20 HPP for a 2-pre-start-period joiner). Now mirrors `calculate()` (London ×`_proRateFactor`, pension ×`getProRateFactor`) and the real payslip. Locked by a joiner ytd-mode e2e in `e2e/paycalc.spec.js`. Deliberately labelled **rough** (hours mode is more accurate). Editing the YTD card re-runs `calculate()` → `calcHPP`, so HPP auto-updates from it. `hppFromYtdTaxable` is pure + unit-tested. **Per-radio figures (v18.40 — review item 4):** each amount-source radio shows its CURRENT £ on the right (`.hpp-mode-amt` spans, written by `_updateModeAmounts` on every `calcHPP` run) so the choice is informed, not blind — the hours estimate is now computed in EVERY mode by the side-effect-free `_hoursEstimate` (extracted from `calcHPP`; NO persistence — only the active mode writes `hppEstKey`). "≈" marks the two estimates; the member's own figure shows plain; a source with nothing to offer shows nothing. **Empty paydays are NAMED (v18.42 — review item 2):** the HPP partial hint, the year-so-far block, and the back-pay compute notice each list the PAID payslips still missing hours (`fdList` in `paycalc-format.js` — capped at 4 + "and N more", pure + tested; a future payslip is never "missing"). **Pre-employment payslips are EXCLUDED (v18.54 — max-effort-review fix):** the HPP window (`_hoursEstimate`) and the back-pay `_basicOnly` list both skip a period ENTIRELY before a mid-year joiner's start via `getProRateFactor(p) === 0` (which is 0 only for a fully-pre-start period; it returns 1 for `noProRate` secondment returns and no-`startDate` long-servers, so it never over-reaches). Before this, a joiner was told "Not entered yet: 10 Apr, 8 May…" and shown an inflated "N of 13" denominator for payslips predating their employment (contradicting the new-starter clamp's "from this year onwards" philosophy). The £ is unchanged — those periods contribute £0 either way; only the count/list. Locked by the joiner e2e in `e2e/paycalc.spec.js`. HPP's all-paid-entered state says "You're up to date"; back-pay's wording notes those payslips accrued basic-rate arrears only. **The HPP basis splits paid vs upcoming (v18.51):** when entered periods include FUTURE payslips (calendar-filled ahead of time) the count reads "N paid + M upcoming payslips entered" (`paidCount` in `_hoursEstimate`) — a bare "11 of 13 entered" hid that most hadn't been paid yet and clashed with the Year to Date card's "N of N paid" frame. **The prior-year confirm input is GATED (v18.51 — mirrors the back-pay manual gate):** `#priorHppActualInput` is disabled until the January payslip carrying the premium exists (first January payday of the due year has passed), with an "Unlocks when your January ⟨year⟩ payslip arrives" hint — EXCEPT when a stored actual already exists, which always keeps the input enabled (the repair path: a wrong figure must never be locked in). Its placeholder is an example figure ("e.g. 1,843.01"), never the zero-like "0.00".
 
-**Not in the pension scheme (v21.64).** A member who has opted out of or withdrawn from the RPS ticks
-`#pensionOptOutCheck` in Settings; `SK.pensionOptOut` is member-level, and `getPensionDefault()` returns
-0 when it is set. That single function is the whole mechanism — the field default and `calculate()`'s
-fallback (via `_periodDefaultPension`), the HPP non-premium estimate and the year summary all route
-through it, and before this they all answered "the scheme rate" because being IN the scheme was assumed
-rather than asked. The member's £0 then held only on the payslip she typed it into and reverted on every
-other, understating take-home by the whole contribution and mis-stating tax and NI with it. **The flag
-changes the DEFAULT, never a stored figure**: payslips from when she WAS contributing keep the amount
-saved against them, because that history is true. It is a separate flag from the amount deliberately —
-`readFormData`'s self-heal stores a value equal to the period default as null, so an opted-out member's
-£0 IS the default and would erase itself if £0 were made to carry the meaning. Reversible: un-ticking
-restores the scheme figure rather than freezing a £0 nobody can explain.
+**Not in the pension scheme — a TIMELINE, not a flag (v21.64; corrected v21.78).** A member who has
+opted out of or withdrawn from the RPS ticks `#pensionOptOutCheck` in Settings **and names the first
+payslip with no deduction** (`#pensionOptOutFrom`, the same shape as the student-loan cutover below
+it). `SK.pensionTimeline` holds the changes; `paycalc-pension.js` holds the rules;
+`getPensionDefault(pObj)` returns 0 only from the payslip named onwards. That single function is the
+whole mechanism — the field default and `calculate()`'s fallback (via `periodDefaultPension`), the
+HPP non-premium estimate and the year summary all route through it.
+
+**Why it is dated.** v21.64 shipped it as one boolean, and the shape was the money bug: `readFormData`
+stores `null` when the pension equals the period default (so the period keeps healing as the app
+learns the real historic rates), and the boolean made that default £0 for **every payslip there has
+ever been**. Found by external review, then reproduced — a 2025/26 payslip's deduction went
+£160.78 → £0.00 and its take-home rose **£115.92**. The Settings hint's promise, "payslips from when
+you *were* contributing keep their own amount", held only for the rare payslip carrying an
+explicitly-typed non-default figure. *A timeline rather than one date* because auto-enrolment
+re-enrols opted-out staff about every three years, so a rejoin is expected: a single "opted out from"
+field would produce the same bug in reverse the day she came back. Invariant 12 below; rules and
+their reasoning in `paycalc-pension.js`.
+
+**A grade this app has no confirmed rates for REFUSES (v21.78).** `gradeForRole(role)` returns null
+for anything but CEA/CES, and `paycalc-app.js` then withholds the calculator behind a card naming the
+gap. Before this, `getGrade()` returned `''` for a role with no stored grade and every consumer fell
+back to `GRADES.cea`, so the ten Dispatchers and seven manager accounts could open the page and be
+handed a complete, polished estimate at somebody else's rate. **Do not invent Dispatcher values** —
+the rates and contractual terms are not on record.
 
 `saveSettings` guards the pension default on joining periods — writes `getPensionDefault(curP)` (full rate), not the field value (pro-rated). Without this guard, saving Settings on the joining period corrupts the default for subsequent periods.
 

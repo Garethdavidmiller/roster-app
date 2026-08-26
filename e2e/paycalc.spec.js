@@ -368,13 +368,19 @@ test('paycalc: the pension opt-out holds across payslips and reloads', async ({ 
     // the member to "correct" it and wonder why it will not stick.
     await expect(amt).toBeDisabled();
 
-    // The old bug reappeared exactly here — a payslip with nothing saved against it.
+    // The v21.64 bug reappeared exactly here — a payslip with nothing saved against it, which
+    // silently took the default. It must still hold for payslips AT OR AFTER the one she named
+    // (v21.78); the payslips before it are the subject of the next test, and asserting 0.00 on
+    // those is what this test used to do and what the external review correctly called a defect.
     const sel = page.locator('#periodSelect');
     const values = await sel.locator('option').evaluateAll(os => os.map(o => o.value));
-    await sel.selectOption(values[0]);
-    await expect(amt).toHaveValue('0.00');
-    await sel.selectOption(values[Math.min(3, values.length - 1)]);
-    await expect(amt).toHaveValue('0.00');
+    const from = Number(await page.locator('#pensionOptOutFrom').inputValue());
+    const after = values.filter(v => Number(v) >= from);
+    expect(after.length, 'the fixture must offer a payslip at or after the opt-out').toBeGreaterThan(0);
+    for (const v of after.slice(0, 3)) {
+        await sel.selectOption(v);
+        await expect(amt).toHaveValue('0.00');
+    }
 
     await page.reload();
     await expect(page.locator('#pensionOptOutCheck')).toBeChecked();
@@ -402,6 +408,137 @@ test('paycalc: the pension opt-out holds across payslips and reloads', async ({ 
     expect(stored, 'the member-level pension default must not be left at the opted-out zero').not.toBe('0.00');
     expect(errors, 'Uncaught JS exceptions on the pension opt-out').toHaveLength(0);
 });
+
+// ── AND IT MUST NOT REACH BACKWARDS (v21.78) ─────────────────────────────────────────────────────
+//
+// The defect external review found in the v21.64 opt-out, reproduced here before it was fixed: a
+// 2025/26 payslip with real hours went from a £160.78 pension deduction to £0.00, and its take-home
+// rose by £115.92, because the member ticked a box in August 2026.
+//
+// The mechanism is two good designs colliding. A period whose pension equals the expected amount
+// stores `null` and re-reads the default, so it keeps healing as the app learns the real historic
+// rates — and the opt-out made that default £0 for every payslip there has ever been. So the
+// Settings hint's promise, "payslips from when you WERE contributing keep their own amount", held
+// only for the rare payslip carrying an explicitly-typed non-default figure.
+//
+// This is an e2e and not a unit test on purpose: the rules are unit-tested in
+// paycalc-pension.test.mjs, but the collision lives in the coordinator's load order — settings
+// paint, then period restore, then calculate — and only a browser runs all three.
+test('paycalc: leaving the pension scheme does not rewrite earlier payslips', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+
+    const values = await page.locator('#periodSelect option').evaluateAll(os => os.map(o => o.value));
+    const oldest = values[0];
+    const today  = values[values.length - 1];
+
+    // A historical payslip with hours entered, while she was contributing. Nothing types a pension
+    // figure — which is the point: the period stores `pension: null` and takes the default.
+    await page.locator('#periodSelect').selectOption(oldest);
+    await page.locator('#otH').fill('4');
+    await expect(page.locator('#pensionAmt')).not.toHaveValue('0.00');
+    const wasPension = await page.locator('#pensionAmt').inputValue();
+    const wasNet     = await page.locator('#netDisplay').textContent();
+    expect(await page.evaluate(k => JSON.parse(localStorage.getItem(k)).pension, `myb_pc_gmiller_p${oldest}`))
+        .toBe(null);   // the self-heal that left it undefended
+
+    // She leaves the scheme, today.
+    await page.locator('#periodSelect').selectOption(today);
+    await page.locator('#pensionOptOutCheck').check();
+    await expect(page.locator('#pensionAmt')).toHaveValue('0.00');
+    // The date is the control, and it must be visible and dated — a tick with no date is the bug.
+    await expect(page.locator('#pensionOptOutField')).toBeVisible();
+    await expect(page.locator('#pensionOptOutFrom')).toHaveValue(today);
+
+    // Back to the historical payslip: unchanged, and still editable.
+    await page.locator('#periodSelect').selectOption(oldest);
+    await expect(page.locator('#pensionAmt')).toHaveValue(wasPension);
+    await expect(page.locator('#pensionAmt')).toBeEnabled();
+    expect(await page.locator('#netDisplay').textContent()).toBe(wasNet);
+
+    // And it survives a reload — the timeline is what persists, not a boolean.
+    await page.reload();
+    await page.locator('#periodSelect').selectOption(oldest);
+    await expect(page.locator('#pensionAmt')).toHaveValue(wasPension);
+    await page.locator('#periodSelect').selectOption(today);
+    await expect(page.locator('#pensionAmt')).toHaveValue('0.00');
+    expect(errors, 'Uncaught JS exceptions on the pension timeline').toHaveLength(0);
+});
+
+// The device that already carries the retired boolean. It records no date, so the migration dates
+// it to the first payslip of the current tax year — and the property that makes that safe is
+// directional: it can only move a payslip from a wrongly-imposed £0 back to the scheme default,
+// never the reverse. Earlier tax years, which the flag was silently rewriting, come back in full.
+test('paycalc: a device holding the old opt-out flag has its earlier years given back', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_gmiller_pension_optout', '1');   // as v21.64–v21.77 wrote it
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+
+    // The tick is still on — she did leave the scheme, and the app must not forget that.
+    await expect(page.locator('#pensionOptOutCheck')).toBeChecked();
+    // ...but it now has a date, and the control that holds it is on screen to be corrected.
+    await expect(page.locator('#pensionOptOutField')).toBeVisible();
+    const stored = await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_pension_timeline'));
+    expect(stored, 'the migration must persist, not recompute on every load').toBeTruthy();
+
+    // A prior-tax-year payslip is contributing again.
+    const values = await page.locator('#periodSelect option').evaluateAll(os => os.map(o => o.value));
+    await page.locator('#periodSelect').selectOption(values[0]);
+    await expect(page.locator('#pensionAmt')).not.toHaveValue('0.00');
+    expect(errors, 'Uncaught JS exceptions migrating the pension flag').toHaveLength(0);
+});
+
+// ── A ROLE WITH NO CONFIRMED RATES GETS NO FIGURE (v21.78) ───────────────────────────────────────
+//
+// The grade lookup treated "no grade stored" as CEA at every consumer, so the ten Dispatchers and
+// the seven manager accounts could open this page and be handed a complete, polished take-home
+// estimate computed at somebody else's rate. Nothing on screen said so, and nothing failed.
+//
+// Both directions are asserted, and the second matters as much as the first: a guard that refuses
+// the people it should serve is a worse bug than the one it replaces.
+test('paycalc: a Dispatcher is told the calculator does not cover their pay, and shown no figure', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page, 'D. Minto');
+    await page.goto('/paycalc.html');
+
+    await expect(page.locator('#unsupportedGradeBanner')).toBeVisible();
+    // It names the two roles it DOES model and why the others are missing — "we haven't got the
+    // rates" is the truth, and it tells a Dispatcher whether it is worth asking for. A bare "not
+    // supported" reads as a decision rather than a gap.
+    await expect(page.locator('#unsupportedGradeBanner')).toContainText('CEA');
+    await expect(page.locator('#unsupportedGradeBanner')).toContainText('confirmed rates');
+    // WITHHELD, not captioned — the form's whole output is one confident £ figure, and a member
+    // told "this may not apply" and then handed one will use it.
+    await expect(page.locator('.pc-work')).toBeHidden();
+    await expect(page.locator('.pc-side')).toBeHidden();
+    // ...and it is a refusal with a way out, not a dead end.
+    await expect(page.locator('#navMenuBtn')).toBeVisible();
+    expect(errors, 'Uncaught JS exceptions on the unsupported-role gate').toHaveLength(0);
+});
+
+for (const [name, role] of [['G. Miller', 'CEA'], ['F. Mohamed', 'CES']]) {
+    test(`paycalc: a ${role} is unaffected by the unsupported-role gate`, async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await seedSession(page, name);
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#unsupportedGradeBanner')).toBeHidden();
+        await expect(page.locator('.pc-work')).toBeVisible();
+        // A real figure, not the "£–" placeholder — the calculator ran.
+        await expect(page.locator('#netDisplay')).toContainText('£');
+        await expect(page.locator('#netDisplay')).not.toHaveText('£–');
+        expect(errors, `Uncaught JS exceptions for ${role}`).toHaveLength(0);
+    });
+}
 
 // ── THE FILL BUTTON TELLS THE TRUTH (v21.67) ─────────────────────────────────────────────────────
 //

@@ -102,31 +102,64 @@ describe('getPensionDefault — delegates to getPensionForPeriod for a dated per
 // calculate()'s fallback, the HPP estimate and the year summary all consult, so a case that passes
 // here is a case those four cannot disagree about.
 describe('getPensionDefault — a member who is not in the pension scheme', () => {
-    test('opted out → £0 for EVERY period, including a historic pension era', () => {
-        _ls.set(SK.pensionOptOut, '1');
-        assert.equal(getPensionDefault({ payday: new Date(2025, 6, 1) }), 0);
-        assert.equal(getPensionDefault({ payday: new Date(2026, 7, 28) }), 0);
-        assert.equal(getPensionDefault({}), 0);
-        assert.equal(getPensionDefault(null), 0);
-        assert.equal(getPensionDefault(), 0);
-    });
-    test('un-ticking restores the scheme default — the flag is the ONLY thing that changed', () => {
-        _ls.set(SK.pensionOptOut, '');
+    // ⚠️ THIS BLOCK USED TO ASSERT THE DEFECT. Until v21.78 its first case read "opted out → £0 for
+    // EVERY period, including a historic pension era", which is precisely what external review
+    // found and what was then reproduced in a browser: a 2025/26 payslip's deduction went
+    // £160.78 → £0.00 and its take-home rose £115.92 because the member ticked a box in August
+    // 2026. The test passed throughout, because it had encoded the behaviour rather than the
+    // requirement. Left recorded here: a test can only defend the question it was asked.
+    const OUT_FROM = 56;
+    const optedOutFrom = (/** @type {number} */ p) =>
+        _ls.set(SK.pensionTimeline, JSON.stringify([{ from: p, out: true }]));
+
+    test('a payslip BEFORE she left keeps the scheme default for its own era', () => {
+        optedOutFrom(OUT_FROM);
         const payday = new Date(2025, 6, 1);
-        assert.equal(getPensionDefault({ payday }), getPensionForPeriod('cea', payday));
+        assert.equal(getPensionDefault({ num: OUT_FROM - 1, payday }), getPensionForPeriod('cea', payday));
+        assert.equal(getPensionDefault({ num: 1, payday }), getPensionForPeriod('cea', payday));
+    });
+
+    test('the payslip she named, and every one after it, is £0', () => {
+        optedOutFrom(OUT_FROM);
+        assert.equal(getPensionDefault({ num: OUT_FROM, payday: new Date(2026, 7, 28) }), 0);
+        assert.equal(getPensionDefault({ num: OUT_FROM + 9, payday: new Date(2026, 7, 28) }), 0);
+    });
+
+    test('with no payslip in hand the answer is the scheme default, not £0', () => {
+        // Reached on the field paint before a period is resolved. Answering "out" because the
+        // newest change says so would be the retroactive bug in miniature.
+        optedOutFrom(OUT_FROM);
+        assert.equal(getPensionDefault({}), GRADES.cea.pension);
+        assert.equal(getPensionDefault(null), GRADES.cea.pension);
+        assert.equal(getPensionDefault(), GRADES.cea.pension);
+    });
+
+    test('rejoining restores the scheme WITHOUT restoring it to the months she was out', () => {
+        _ls.set(SK.pensionTimeline, JSON.stringify([
+            { from: OUT_FROM, out: true }, { from: 95, out: false },
+        ]));
+        const payday = new Date(2026, 7, 28);
+        assert.equal(getPensionDefault({ num: OUT_FROM, payday }), 0);
+        assert.equal(getPensionDefault({ num: 94, payday }), 0);
+        assert.equal(getPensionDefault({ num: 95, payday }), getPensionForPeriod('cea', payday));
+    });
+
+    test('no timeline restores the scheme default — nothing else changed', () => {
+        _ls.delete(SK.pensionTimeline);
+        const payday = new Date(2025, 6, 1);
+        assert.equal(getPensionDefault({ num: 60, payday }), getPensionForPeriod('cea', payday));
         assert.equal(getPensionDefault({}), GRADES.cea.pension);
     });
-    test('only the exact stored flag counts — a stray value must not opt anybody out by accident', () => {
-        // The write path stores '1' or ''. Anything else reaching this key (an older build, a hand
-        // edit, a half-finished migration) must fail SAFE: still in the scheme, still deducting.
-        // The unsafe direction is the one that silently stops a real deduction.
-        for (const junk of ['0', 'false', 'true', 'yes', ' 1', '1 ', 'null']) {
-            _ls.set(SK.pensionOptOut, junk);
-            assert.equal(isPensionOptedOut(), false, `"${junk}" must not read as opted out`);
-            assert.equal(getPensionDefault({}), GRADES.cea.pension);
+
+    test('a timeline that will not parse fails SAFE — still in the scheme, still deducting', () => {
+        // The unsafe direction is the one that silently stops a real deduction, so anything this
+        // cannot read whole must land on "contributing". Parsing itself is covered case-by-case in
+        // paycalc-pension.test.mjs; this asserts the CONSUMER inherits that answer.
+        for (const junk of ['1', 'true', '{}', '[{"from":56}]', '[{"from":"56","out":true}]', 'null']) {
+            _ls.set(SK.pensionTimeline, junk);
+            assert.equal(isPensionOptedOut({ num: 60 }), false, `"${junk}" must not read as opted out`);
+            assert.equal(getPensionDefault({ num: 60 }), GRADES.cea.pension);
         }
-        _ls.delete(SK.pensionOptOut);
-        assert.equal(isPensionOptedOut(), false);
-        assert.equal(getPensionDefault({}), GRADES.cea.pension);
+        _ls.delete(SK.pensionTimeline);
     });
 });
