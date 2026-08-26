@@ -36,6 +36,9 @@ let _failNextGetDocs = 0;
 /** @type {null | { promise: Promise<any>, resolve: (rows: any[]) => void }} */
 let _getDocsGate = null;
 
+/** Every payload handed to `batch.set()`, in order — what production would actually write. */
+const _batchWrites = [];
+
 // Every id the mock `doc()` has handed out, newest last. A save's batch takes the most recent, so a
 // test can resolve a late read with the SAME document the write created — which is the whole point:
 // the defect is one Firestore id appearing twice, not two different rows landing on one date.
@@ -89,7 +92,11 @@ mock.module('./firebase-client.js', {
         writeBatch:      () => {
             let committed = false;
             return {
-                set: () => {}, delete: () => {},
+                // RECORDED, not discarded (v21.83). `set: () => {}` threw away the only evidence of
+                // what a save actually writes, so every assertion here could only reach the summary
+                // the function RETURNS — and a field dropped from the payload was invisible. That is
+                // how `replacedType` came to be stamped by code nothing checked.
+                set: (_ref, data) => { _batchWrites.push(data); }, delete: () => {},
                 commit: async () => {
                     if (committed) throw new Error('WriteBatch reused after commit()');
                     committed = true;
@@ -193,6 +200,54 @@ describe('cache-load-failure guard (Finding #2)', () => {
             'G. Miller being loaded says nothing about S. Silva',
         );
         auth.currentUser = null;
+    });
+});
+
+// ── WHAT A SAVE ACTUALLY WRITES (v21.83) ────────────────────────────────────────────────────────
+//
+// `replacedType` is the only surviving record that a day was contracted work before annual leave
+// covered it: a save is delete-then-set, so recording AL over a SWAPPED-IN shift destroys the
+// document that said the member was due to work it. Without the stamp, `consumesEntitlement` falls
+// back to the base roster, sees a rest day, and charges the member nothing — the leave is free.
+//
+// The rule is unit-tested in override-utils (nextReplacedType) and al-entitlement (what the stamp
+// then means). What was NOT tested is that `recordRangeOverrides` puts it in the payload: deleting
+// that line left 183 unit tests and 24 entitlement tests green, measured in the wiring audit of
+// 26 Aug 2026. The test harness itself was part of the reason — the mock batch discarded what it
+// was handed, so nothing here could see a payload at all.
+describe('recordRangeOverrides — the payload, not the summary', () => {
+    beforeEach(() => { _batchWrites.length = 0; });
+
+    test('annual leave over a SWAPPED-IN shift records what it replaced', async () => {
+        setAllOverrides([{ id: 'ov-swap', memberName: 'G. Miller', date: '2026-06-15', type: 'shift', value: '09:00-17:00' }]);
+        auth.currentUser = /** @type {any} */ ({ uid: 'admin' });
+        await recordRangeOverrides({
+            type: 'annual_leave', value: 'AL', memberName: 'G. Miller',
+            dates: ['2026-06-15'], changedBy: 'G. Miller',
+        });
+        auth.currentUser = null;
+
+        const written = _batchWrites.find(w => w.date === '2026-06-15');
+        assert.ok(written, 'the save must write the day');
+        assert.equal(written.type, 'annual_leave');
+        assert.equal(written.replacedType, 'shift',
+            'without this the day reads as a rest day and the leave costs nothing');
+    });
+
+    test('annual leave over an ORDINARY working day records no replacement', async () => {
+        // The other direction: a stamp invented where nothing was replaced would make a plain
+        // rest-day booking look like a swap, and charge entitlement for a day nobody was due to
+        // work. Absent is the honest answer, and it is what every pre-v21.55 document carries.
+        setAllOverrides([]);
+        auth.currentUser = /** @type {any} */ ({ uid: 'admin' });
+        await recordRangeOverrides({
+            type: 'annual_leave', value: 'AL', memberName: 'G. Miller',
+            dates: ['2026-06-16'], changedBy: 'G. Miller',
+        });
+        auth.currentUser = null;
+
+        const written = _batchWrites.find(w => w.date === '2026-06-16');
+        if (written) assert.equal(written.replacedType ?? null, null);
     });
 });
 

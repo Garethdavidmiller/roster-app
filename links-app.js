@@ -2414,11 +2414,32 @@ export function init() {
             // actually taken (≤1px residual) or the frame budget runs out. Self-terminating the
             // moment the button is where it was pressed, so it cannot fight a user who scrolls
             // later; bounded so a stuck overlay lock cannot loop it forever.
+            //
+            // TWO BUDGETS, NOT ONE (v21.83). The loop used a single 120-frame budget and SPENT it
+            // while waiting for the dialog's unlock — so on a machine slow enough for the unlock to
+            // take longer than 120 frames, the budget ran out before the loop had done any work at
+            // all, and it gave up silently leaving the presser stranded ~1,100px down the page. It
+            // failed exactly that way on a loaded CI runner (measured: 1112px, after the whole
+            // 10-second assertion window), and a budget Android is the same machine — which is the
+            // device this app is written for. Waiting and working now have separate bounds, and
+            // both are measured in TIME rather than frames, because what has to be bounded is how
+            // long a stuck overlay can hold this open, and a frame is not a fixed amount of that.
+            //
+            // NOT DIRECTLY GUARDED, and worth saying so. The e2e above passes on the shipped shape
+            // as well, because on an idle machine the unlock takes ~30 frames and nothing is ever
+            // starved. A simulation was tried — holding the lock class on past the old budget — and
+            // dropped: adding it mid-flight moves the scroll by itself, so the test measured the
+            // harness. The honest position is that this is reasoned from a real CI failure and
+            // covered only in its normal path.
             if (_btnEl && _btnViewTop !== undefined) {
-                let _frames = 0;
+                const _waitUntil = performance.now() + 3000;   // the unlock is not ours to hurry
+                const _workUntil = performance.now() + 5000;   // ...and then this much to converge
                 const _reanchor = () => {
-                    if (++_frames > 120) return;
-                    if (document.body.classList.contains('lb-open')) { requestAnimationFrame(_reanchor); return; }
+                    if (document.body.classList.contains('lb-open')) {
+                        if (performance.now() > _waitUntil) return;
+                        requestAnimationFrame(_reanchor); return;
+                    }
+                    if (performance.now() > _workUntil) return;
                     const shift = _btnEl.getBoundingClientRect().top - /** @type {number} */ (_btnViewTop);
                     if (Math.abs(shift) <= 1) return;
                     window.scrollBy(0, shift);
