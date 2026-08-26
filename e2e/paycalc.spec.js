@@ -469,6 +469,70 @@ test('paycalc: leaving the pension scheme does not rewrite earlier payslips', as
     expect(errors, 'Uncaught JS exceptions on the pension timeline').toHaveLength(0);
 });
 
+// ── THE TWO EDITS THE CARD MAKES, IN A BROWSER (v21.80) ──────────────────────────────────────────
+//
+// The rules are unit-tested in paycalc-pension.test.mjs; what is tested HERE is the wiring, which
+// is where both defects were. Each was silent on screen and each corrected itself out of sight on
+// the next reload, which is the only reason neither showed up in a manual pass:
+//
+//   · Re-picking a LATER payslip did nothing. The control read one payslip and the figures used
+//     another, until a reload put the control back.
+//   · Un-ticking ERASED the spell rather than ending it, so the rejoin the hint under the control
+//     instructs ("untick the box while viewing the first payslip that has a deduction again") gave
+//     back the pension on every payslip she had been out for.
+test('paycalc: the opt-out date can be corrected forward, and un-ticking records a rejoin', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+
+    const values = await page.locator('#periodSelect option').evaluateAll(os => os.map(o => o.value));
+    expect(values.length, 'the fixture must offer several payslips').toBeGreaterThan(4);
+    const early = values[values.length - 4];
+    const mid   = values[values.length - 3];
+    const later = values[values.length - 2];
+    const last  = values[values.length - 1];
+
+    // She leaves the scheme — dated, by default, to the payslip she is looking at.
+    await page.locator('#periodSelect').selectOption(early);
+    const schemeFigure = await page.locator('#pensionAmt').inputValue();
+    expect(schemeFigure).not.toBe('0.00');
+    await page.locator('#pensionOptOutCheck').check();
+    await expect(page.locator('#pensionOptOutFrom')).toHaveValue(early);
+    await expect(page.locator('#pensionAmt')).toHaveValue('0.00');
+
+    // ...then corrects it FORWARD: it was actually two payslips later.
+    await page.locator('#pensionOptOutFrom').selectOption(later);
+    await page.locator('#periodSelect').selectOption(mid);
+    await expect(page.locator('#pensionAmt'), 'a payslip she has taken back is contributing again').toHaveValue(schemeFigure);
+    await expect(page.locator('#pensionAmt')).toBeEnabled();
+    await page.locator('#periodSelect').selectOption(later);
+    await expect(page.locator('#pensionAmt')).toHaveValue('0.00');
+
+    // The correction is what persists — not the payslip she first picked.
+    await page.reload();
+    await expect(page.locator('#pensionOptOutCheck')).toBeChecked();
+    await expect(page.locator('#pensionOptOutFrom')).toHaveValue(later);
+
+    // She rejoins, and records it the way the hint tells her to: untick while viewing the first
+    // payslip that has a deduction again.
+    await page.locator('#periodSelect').selectOption(last);
+    await page.locator('#pensionOptOutCheck').uncheck();
+    await expect(page.locator('#pensionAmt')).toHaveValue(schemeFigure);
+    await expect(page.locator('#pensionOptOutField'), 'the question has no answer once she is back in').toBeHidden();
+
+    // The spell she was out for MUST survive the rejoin — erasing it was the defect.
+    await page.reload();
+    await expect(page.locator('#pensionOptOutCheck')).not.toBeChecked();
+    await page.locator('#periodSelect').selectOption(later);
+    await expect(page.locator('#pensionAmt'), 'the months she was out keep their zero').toHaveValue('0.00');
+    await page.locator('#periodSelect').selectOption(last);
+    await expect(page.locator('#pensionAmt')).toHaveValue(schemeFigure);
+    expect(errors, 'Uncaught JS exceptions correcting the pension timeline').toHaveLength(0);
+});
+
 // The device that already carries the retired boolean. It records no date, so the migration dates
 // it to the first payslip of the current tax year — and the property that makes that safe is
 // directional: it can only move a payslip from a wrongly-imposed £0 back to the scheme default,

@@ -148,6 +148,49 @@ export function withPensionChange(timeline, pNum, out) {
 }
 
 /**
+ * MOVE the current out-of-scheme spell's start — or begin one where there is none (v21.80).
+ *
+ * `withPensionChange` records a change AT a payslip, which is the wrong primitive for the control
+ * that names when a spell began: moving the date BACKWARDS worked (the old start is then redundant
+ * and collapses away), while moving it FORWARDS silently did nothing — the earlier "out" change
+ * still stood in front of it, so the select read one payslip and the figures went on using another.
+ * The member is not recording a second event; she is correcting where the one she recorded starts.
+ *
+ * A spell that has already ENDED is left alone — the timeline's final state being "contributing"
+ * means this is a NEW spell, not a correction to the last one.
+ *
+ * @param {PensionChange[]} timeline @param {number} pNum @returns {PensionChange[]}
+ */
+export function withOptOutStartAt(timeline, pNum) {
+    const start = optOutStartsAt(timeline);
+    const base  = start == null ? timeline : timeline.filter(c => c.from !== start);
+    return withPensionChange(base, pNum, true);
+}
+
+/**
+ * END the current out-of-scheme spell at `pNum` — the member is back in the scheme from that
+ * payslip onwards (v21.80).
+ *
+ * This is the "untick the box while viewing the first payslip that has a deduction again" that the
+ * Settings hint has instructed since v21.78 and that nothing implemented: the tick handler dated
+ * the untick to the spell's own START, so every untick erased the spell instead of ending it, and
+ * the rejoin this whole module exists to make expressible was unreachable from the page.
+ *
+ * Naming the start payslip (or an earlier one) still ERASES, deliberately — "I left at P40 and was
+ * back by P40" is a member undoing a tick she should not have made, which is the commoner action
+ * and the one the flow falls into naturally, since she is still looking at the payslip she ticked
+ * on. Already contributing → nothing to end, and nothing recorded.
+ *
+ * @param {PensionChange[]} timeline @param {number} pNum @returns {PensionChange[]}
+ */
+export function withRejoinAt(timeline, pNum) {
+    const start = optOutStartsAt(timeline);
+    if (start == null) return timeline;
+    if (typeof pNum !== 'number' || pNum <= start) return timeline.filter(c => c.from !== start);
+    return withPensionChange(timeline, pNum, false);
+}
+
+/**
  * The payslip the member's CURRENT out-of-scheme spell began at, or null when the timeline's
  * final state is "contributing".
  *
@@ -160,18 +203,6 @@ export function withPensionChange(timeline, pNum, out) {
 export function optOutStartsAt(timeline) {
     const last = timeline[timeline.length - 1];
     return last && last.out ? last.from : null;
-}
-
-/**
- * Has the member ever recorded a pension change? Drives whether the "from which payslip?" control
- * is worth showing — a member who has never left the scheme should not be asked to date something
- * that did not happen, but one who HAS must keep the control after un-ticking, or a rejoin has
- * nowhere to say which payslip it started on.
- *
- * @param {PensionChange[]} timeline @returns {boolean}
- */
-export function hasAnyPensionChange(timeline) {
-    return timeline.length > 0;
 }
 
 /**

@@ -437,6 +437,14 @@ export function _awardBackdateDate(awardTy) {
  * a few pounds on one period a year and is stated as an estimate; inventing a weekly split from
  * period totals would look more precise and be less true.
  *
+ * It also MULTIPLIES with a joiner's pro-rate rather than taking the longer of the two. Both are
+ * suffixes of the same period — employment starts mid-period and runs to the end, and so does the
+ * award window — so the exact answer is the shorter suffix, not the product, and the product
+ * under-counts. It is left as a product because reaching `min` from here means unpicking the
+ * pro-rate already baked into `effContr`, and no member can currently hit it: the earliest start
+ * date on the roster is 20 Apr 2026, well clear of the one period a year where the two overlap.
+ * Fix it properly if a March joiner ever appears, and not before.
+ *
  * @param {{start?: Date, cutoff?: Date}} p a period from getPeriods()
  * @param {Date|null} backdatedFrom
  * @param {number} [periodDays]
