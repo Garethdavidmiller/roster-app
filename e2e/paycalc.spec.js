@@ -469,6 +469,42 @@ test('paycalc: leaving the pension scheme does not rewrite earlier payslips', as
     expect(errors, 'Uncaught JS exceptions on the pension timeline').toHaveLength(0);
 });
 
+// ── THE BACK-PAY LUMP, AS THE PAGE ACTUALLY SHOWS IT (v21.82) ────────────────────────────────────
+//
+// The award window fix (v21.79, VAL-PAY-001) was documented in six places and guarded in none.
+// `awardWindowFactor` is unit-tested, and `_accrueBackPayPeriod` is unit-tested to honour the
+// factor it is handed — but nothing checked that `calcBackPay` HANDS it one. Deleting that single
+// line restores the whole defect, the app goes 19% high again, and every one of those tests stays
+// green. Verified by doing exactly that before writing this.
+//
+// So the guard has to be the figure on screen. With NO hours entered the lump is basic + London
+// only, which makes it exactly derivable and independent of anything the member did:
+//
+//   rate  £20.74 → £21.49  = £0.75  × 140 contracted hours = £105.00 a period
+//   London £276.16 → £286.10 = £9.94                       = £114.94 a period
+//   five periods in the window, the first (paid 10 Apr, shifts 8 Mar – 4 Apr) at 4/28:
+//   4 × £114.94 + 4/28 × £114.94 = £476.18
+//
+// Without the window factor that first period counts whole — £574.70, £98.52 too much. The clock is
+// pinned because the window's size depends on today: `calcBackPay` caps the accrual at today's
+// payslip, so an unpinned run would quietly test a different number of periods each month.
+test('paycalc: the back-pay lump scales the first period of the award window', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-08-20T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+
+    // The card computes whether or not it is open (v16.00) — the banner and take-home depend on it —
+    // so the assertion does not need to expand anything. The hero £ is what the member reads.
+    await expect(page.locator('#backPayTotalAmt')).toHaveText('£476.18');
+    await expect(page.locator('#backPayTotalBasis')).toHaveText('5 periods backdated at the rates on record');
+    // Compute mode, or the figure above came from a typed one and proves nothing.
+    await expect(page.locator('#bpModeCompute')).toBeChecked();
+    expect(errors, 'Uncaught JS exceptions on the back-pay card').toHaveLength(0);
+});
+
 // ── THE TWO EDITS THE CARD MAKES, IN A BROWSER (v21.80) ──────────────────────────────────────────
 //
 // The rules are unit-tested in paycalc-pension.test.mjs; what is tested HERE is the wiring, which

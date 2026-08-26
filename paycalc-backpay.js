@@ -783,6 +783,9 @@ export function calcBackPay() {
         // Only the FIRST period in the window is ever a fraction: its shift weeks run back into
         // March, and the award is backdated to 1 April (v21.79 — VAL-PAY-001, settled against the
         // real payslip). Every later period returns 1.
+        // DELETE THIS LINE AND THE DEFECT RETURNS IN SILENCE: the accrual falls back to its
+        // `== null ? 1` default with every unit test still green. Guarded by the rendered £ in
+        // e2e/paycalc.spec.js ("...scales the first period of the award window").
         windowFactor:  awardWindowFactor(p, _backdateDate),
         peer:          d.peer || 0,
         rateDiff, londonDiff,
