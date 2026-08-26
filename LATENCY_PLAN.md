@@ -168,3 +168,34 @@ If the ladder's rows come back uniformly quick, phases 2 and 3 are not worth the
 plan should be closed rather than worked through out of momentum. Record that outcome here if it
 happens — a plan that was measured and dropped is more useful to the next reader than one that
 quietly stopped.
+
+## Links workspace — measured 24 Aug 2026
+
+Asked whether the links designer could be made faster. Measured before changing anything, on a
+throttled phone (4× CPU, 40ms RTT, 4 Mbps):
+
+| | |
+|---|---|
+| Modules in the static graph | **46** (~1.1 MB) — the largest of the seven pages |
+| Grid visible | ~3.5 s |
+| Module discovery rounds | **8–9** — the graph is four levels deep, and each level costs a round trip |
+| Transfer share | ~1.1 MB at 4 Mbps ≈ **2.2 s**, the dominant cost |
+
+**Shipped (v21.75): `modulepreload`.** Collapses discovery to 1–2 rounds and saves ~100 ms of
+DOMContentLoaded, repeatable across three runs on the real page. Cheap, no behaviour change, and
+the list is CI-checked against the real graph rather than hand-maintained.
+
+**NOT shipped: lazy-loading the interaction-only modules.** The first estimate was 122 KB and it
+was wrong — checked against the code, most of that set is on the boot path: the generator
+populates its target table during `initGenerator()`, `loadTargetSets()` runs at init, compare
+wires its handlers in the init body, and `isDeleted` runs inside `loadDesigns()`. The genuinely
+deferrable remainder is **~53 KB** (`links-import.js`, `links-adjacency.js`) ≈ 100 ms on a cold
+load only, and it costs making two synchronous paths async — one of them `checkImport()`, which
+sits on a documented trust boundary whose whole design is "refuse rather than half-load". Adding
+a module-fetch failure mode there buys ~100 ms for three designers on first visit. Deferred as a
+poor trade, recorded here so it is not re-derived from scratch.
+
+**What was NOT measured:** the warm service-worker path. These figures come from Playwright, which
+blocks the SW, so they describe a first visit or the load after a version bump — the case that
+matters most given release frequency, but not the steady state. A returning designer with a warm
+cache is faster than 3.5 s by an amount nobody has measured.
