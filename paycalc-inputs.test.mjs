@@ -180,6 +180,39 @@ describe('wireIosTap — guarded touch/click wiring', () => {
         assert.equal(calls, 1);
     });
 
+    // A THIRD way to be wrong, found in the v21.77 regression check: firing when the control is
+    // DISABLED. The browser suppresses `click` on a disabled button, which is why every other
+    // control on the page can trust `disabled` — it does not suppress touch events, so the
+    // touchend route added for iOS walked straight past it. The result would have been a
+    // greyed-out button that works on a phone and not on a desktop.
+    test('a disabled control does not act — on either path', () => {
+        const el = fakeEl();
+        let calls = 0;
+        wireIosTap(/** @type {any} */ (el), () => { calls++; });
+        el.disabled = true;
+        el.fire('touchstart', touchEv(touch(10, 10)));
+        el.fire('touchend', touchEv());
+        assert.equal(calls, 0, 'touchend must respect disabled, since the browser will not');
+        el.fire('click', {});
+        assert.equal(calls, 0);
+        // Checked at EVENT time, not wiring time: consumers toggle `disabled` while the page runs.
+        el.disabled = false;
+        el.fire('touchstart', touchEv(touch(10, 10)));
+        el.fire('touchend', touchEv());
+        assert.equal(calls, 1, 're-enabling must restore the control without re-wiring it');
+    });
+
+    test('aria-disabled is honoured too — not every inert control is a <button>', () => {
+        const el = fakeEl();
+        el.getAttribute = (/** @type {string} */ n) => (n === 'aria-disabled' ? 'true' : null);
+        let calls = 0;
+        wireIosTap(/** @type {any} */ (el), () => { calls++; });
+        el.fire('touchstart', touchEv(touch(10, 10)));
+        el.fire('touchend', touchEv());
+        el.fire('click', {});
+        assert.equal(calls, 0);
+    });
+
     test('a multi-finger gesture is never a tap', () => {
         const el = fakeEl();
         let calls = 0;

@@ -199,3 +199,55 @@ poor trade, recorded here so it is not re-derived from scratch.
 blocks the SW, so they describe a first visit or the load after a version bump — the case that
 matters most given release frequency, but not the steady state. A returning designer with a warm
 cache is faster than 3.5 s by an amount nobody has measured.
+
+## The four pages without preload hints — measured 26 Aug 2026
+
+Asked for a latency review of the rest of the app. Measured every page's static graph, then the
+runtime under 4× CPU / 40 ms RTT / 4 Mbps, then a controlled three-arm A/B against generated copies.
+
+**The finding.** ES modules are discovered in a waterfall — parse a file, *then* fetch its imports —
+and the Firebase SDK sits five levels down (`page → *-boot.js → *-app.js → … → firebase-client.js →
+gstatic`). On the four pages that carried no `modulepreload` at all, the SDK did not start
+downloading until:
+
+| Page | SDK download begins |
+|---|---|
+| admin | 1 807 ms |
+| operations | 1 563 ms |
+| settings | 1 402 ms |
+| overtime | 2 363 ms |
+
+against **~85 ms** on index/paycalc/links. `preconnect` was already on all seven pages, so DNS and
+TLS were warm — the connection was sitting idle waiting to be told what to ask for.
+
+**The A/B (admin, three repeats each, ±20 ms reproducible):**
+
+| Arm | SDK starts | DOMContentLoaded | Discovery rounds |
+|---|---|---|---|
+| unchanged | 1 807 ms | 14 290 ms | 10–11 |
+| **3 gstatic tags only** | **86 ms** | **12 626 ms** | 10 |
+| full local graph (44 tags) | 84 ms | 12 567 ms | 1 |
+
+Two results, and the second is why v21.76 is three tags and not forty-four:
+
+1. **DOMContentLoaded tracks the SDK one-for-one.** In every arm DCL landed within milliseconds of
+   the SDK finishing, and the delta held identically at 1× and 4× CPU — so this is a discovery
+   problem, not a compute one. (The ~12.5 s floor is the harness's stubbed SDK; it cancels between
+   arms.)
+2. **Preloading the local graph adds ~60 ms on top.** It collapses 10 discovery rounds to 1, which
+   looks dramatic, but the last local module still landed at the same 2.6 s: the test server is
+   HTTP/1.1, so the requests queue instead of waterfalling. Real Hosting is HTTP/2 and would do
+   better than that by an amount **not measured here** — which is the point. Three fixed tags name
+   one immutable URL each and cannot fall behind a graph; a local list is the hand-maintained cost
+   the build-step threshold in CLAUDE.md is about. The measured evidence did not justify paying it.
+
+**Also checked and already right:** every page preloads `inter-latin.woff2` with `font-display:
+swap`, and every page preconnects to gstatic, Firestore, identitytoolkit and securetoken.
+
+**Noted, not acted on:** `firebase-client.js` statically imports `summarisePerf` from
+`perf-stats.js`, so all seven pages carry that module (~32 KB raw) for read-side code only the
+Operations App Speed card runs. Splitting the write side out would save ~24 KB on six pages — real,
+but SW-cached after the first visit, and small beside the 1.7 s above.
+
+**Same caveat as the links section:** Playwright blocks the service worker, so these are first-visit
+or post-version-bump numbers, not the steady state.

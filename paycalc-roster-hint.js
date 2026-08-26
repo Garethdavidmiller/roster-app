@@ -275,15 +275,36 @@ export function updateRosterHint() {
     // Nothing fillable → the button says so and refuses, instead of sitting enabled over an
     // empty list and doing nothing when tapped (v21.67). An enabled control that no-ops is
     // indistinguishable from a broken one — which is how it was reported.
-    const fillable = ['sat', 'sun', 'bh', 'bhOt', 'ot', 'rdw', 'box'].some(cat =>
-      (s[cat + 'H'] || 0) > 0 || (s[cat + 'M'] || 0) > 0);
-    const hasEntries = ['sat', 'sun', 'bh', 'bhOt', 'ot', 'rdw', 'box'].some(cat => {
+    //
+    // But "nothing to fill" is not the same as "nothing to DO", and reading it as such disabled
+    // the button in the two states it is most needed (v21.77):
+    //
+    //   1. There is something to CLEAR. The reported case was a bank holiday taken off the roster
+    //      leaving a stale 7h — the calendar's answer is zero for every category, so `fillable` is
+    //      false, so the button that exists to remove it was greyed out and she still "had to do
+    //      it manually". v21.68 fixed the clearing and v21.67 locked the door in front of it, in
+    //      the same day's work and the same reported scenario.
+    //   2. The recorded shift changes have NOT loaded. Then zero is not the calendar's answer, it
+    //      is the absence of one — and a disabled "Nothing to fill this payslip" states a fact the
+    //      app has not established. It also makes the tap-retries-the-fetch recovery unreachable
+    //      in exactly the state that recovery was written for.
+    //
+    // So: refuse only when the data is complete AND there is nothing to write AND nothing to remove.
+    const _loaded = getOverridesFetchState() === 'loaded';
+    const _entered = (/** @type {string} */ cat) => {
       const h = /** @type {HTMLInputElement} */ (document.getElementById(cat + 'H'))?.value.trim() ?? '';
       const m = /** @type {HTMLInputElement} */ (document.getElementById(cat + 'M'))?.value.trim() ?? '';
       return h !== '' || m !== '';
-    });
-    fillBtn.disabled = !fillable;
-    fillBtn.textContent = !fillable ? 'Nothing to fill this payslip'
+    };
+    const _zeroInCalendar = (/** @type {string} */ cat) =>
+      !((s[cat + 'H'] || 0) > 0 || (s[cat + 'M'] || 0) > 0);
+    const fillable = ['sat', 'sun', 'bh', 'bhOt', 'ot', 'rdw', 'box'].some(cat => !_zeroInCalendar(cat));
+    // Only the categories a Replace may actually clear count as work to do — the same set the
+    // clear itself is scoped to, so the button can never promise a removal that will not happen.
+    const clearable = _loaded && [...CLEARABLE_CATS].some(cat => _entered(cat) && _zeroInCalendar(cat));
+    const hasEntries = ['sat', 'sun', 'bh', 'bhOt', 'ot', 'rdw', 'box'].some(_entered);
+    fillBtn.disabled = _loaded && !fillable && !clearable;
+    fillBtn.textContent = fillBtn.disabled ? 'Nothing to fill this payslip'
       : hasEntries ? 'Replace with calendar values' : 'Fill from calendar';
   }
 

@@ -385,6 +385,21 @@ test('paycalc: the pension opt-out holds across payslips and reloads', async ({ 
     await page.locator('#pensionOptOutCheck').uncheck();
     await expect(page.locator('#pensionAmt')).toHaveValue(schemeFigure);
     await expect(page.locator('#pensionAmt')).toBeEnabled();
+
+    // ...AND THE STORED DEFAULT MUST AGREE WITH THE BOX (v21.77). Un-ticking left the member-level
+    // default at '0.00' while the box read "in the scheme": the settings save runs before the field
+    // is rebuilt, and copies whatever the field is showing at the time. The visible field is fine
+    // either way — `onPeriodChange` repaints it from the grade-derived period default a moment
+    // after load — which is exactly why the three assertions above still passed with the defect
+    // present, and why the assertion that finds it has to read storage. Not a money error today;
+    // a stored figure contradicting the choice beside it, which a pay-data backup would carry to
+    // the member's next device.
+    await page.reload();
+    await expect(page.locator('#pensionOptOutCheck')).not.toBeChecked();
+    await expect(page.locator('#pensionAmt')).toHaveValue(schemeFigure);
+    await expect(page.locator('#pensionAmt')).toBeEnabled();
+    const stored = await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_pension'));
+    expect(stored, 'the member-level pension default must not be left at the opted-out zero').not.toBe('0.00');
     expect(errors, 'Uncaught JS exceptions on the pension opt-out').toHaveLength(0);
 });
 
@@ -474,6 +489,12 @@ test('paycalc: Replace never clears on incomplete calendar data (base-only)', as
     await page.locator('#periodSelect').selectOption('56');
     await expect(page.locator('#bhH')).toBeVisible();
     await page.locator('#bhH').fill('7');
+    // ...and the button must still be OFFERED here (v21.77). With the recorded changes missing,
+    // "Nothing to fill this payslip" would state a fact the app has not established — and a
+    // disabled button makes the tap-retries-the-fetch recovery unreachable in the one state it
+    // was written for.
+    await expect(page.locator('#fillFromRosterBtn')).toBeEnabled();
+    await expect(page.locator('#fillFromRosterBtn')).not.toHaveText('Nothing to fill this payslip');
     await page.locator('#fillFromRosterBtn').click();
     // Give the (failing) tap-time fetch retry a beat, then confirm the hours survived.
     await page.waitForTimeout(600);

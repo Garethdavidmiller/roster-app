@@ -123,6 +123,15 @@ export function decPreview(hId) {
 export function wireIosTap(el, action) {
   const SLOP = 12;
   let sx = 0, sy = 0, moved = false, touchFired = false;
+  // A DISABLED CONTROL MUST NOT ACT — on any path (v21.77). The browser suppresses `click` on a
+  // disabled button for us, which is the whole reason the disabled state is trusted elsewhere; it
+  // does NOT suppress touch events, which are dispatched to the hit target regardless. So the
+  // `touchend` route added here to survive the iOS keyboard-dismiss also walked straight past
+  // `disabled`, and a greyed-out button would have fired on a phone and not on a desktop — the
+  // hardest kind of report to believe. Checked at EVENT time, not wiring time: every consumer of
+  // this helper toggles `disabled` while the page is open.
+  const inert = () => /** @type {any} */ (el).disabled === true
+      || el.getAttribute?.('aria-disabled') === 'true';
   el.addEventListener('touchstart', (e) => {
     const te = /** @type {TouchEvent} */ (e);
     if (te.touches.length !== 1) { moved = true; return; }
@@ -133,13 +142,14 @@ export function wireIosTap(el, action) {
     if (!t || Math.abs(t.clientX - sx) > SLOP || Math.abs(t.clientY - sy) > SLOP) moved = true;
   }, { passive: true });
   el.addEventListener('touchend', (e) => {
-    if (moved) return;
+    if (moved || inert()) return;
     e.preventDefault();
     touchFired = true;
     action(e);
   }, { passive: false });
   el.addEventListener('click', (e) => {
     if (touchFired) { touchFired = false; return; }
+    if (inert()) return;
     action(e);
   });
 }
