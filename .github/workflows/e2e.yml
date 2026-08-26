@@ -91,7 +91,16 @@ jobs:
   # failure that had production four releases behind on 14 Aug 2026.
   webkit:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 20 → 35 (v21.78). This job runs the whole smoke suite twice — desktop WebKit and Mobile
+    # Safari — on top of a `--with-deps` browser install, and it had grown to 19m33s against a
+    # 20-minute cap: green, and one minute from not being. It was CANCELLED at 20m15s the first
+    # time a branch push and its PR ran concurrently and competed for runners. A cancelled job
+    # reads exactly like a failed one on the PR, which is the worst outcome for a check that is
+    # deliberately NOT the deploy gate — it teaches you to ignore a red WebKit. The headroom is
+    # generous on purpose: the cap is there to stop a hung job burning a runner for six hours,
+    # not to police the suite's length. If it ever approaches 35 minutes, split the two engine
+    # projects into separate jobs rather than raising this again.
+    timeout-minutes: 35
     permissions:
       contents: read
     steps:

@@ -180,6 +180,42 @@ describe('wireIosTap — guarded touch/click wiring', () => {
         assert.equal(calls, 1);
     });
 
+    // THE BRANCH THE IMPLEMENTATION WAS WRITTEN FOR, AND THE ONE NOTHING TESTED (v21.78, external
+    // review). `preventDefault()` exists precisely because the synthesised click often never
+    // arrives — and the old duplicate guard was a boolean that only that click could clear. When it
+    // did not arrive the flag stayed set for ever, and the next genuine activation (a mouse click,
+    // or Enter on a hybrid device) was swallowed once, silently. Every existing case above fires
+    // the synthetic click, so they all passed on the defect.
+    test('a touch with NO synthetic click does not swallow the next genuine click', () => {
+        mock.timers.enable({ apis: ['Date'] });
+        try {
+            const el = fakeEl();
+            let calls = 0;
+            wireIosTap(/** @type {any} */ (el), () => { calls++; });
+            el.fire('touchstart', touchEv(touch(10, 10)));
+            el.fire('touchend', touchEv());
+            assert.equal(calls, 1);
+            // No click follows — iOS cancelled it, which is the whole reason this helper exists.
+            mock.timers.tick(5000);
+            el.fire('click', {});
+            assert.equal(calls, 2, 'a later real click must always work');
+        } finally { mock.timers.reset(); }
+    });
+
+    test('the echo of a tap is still suppressed when it does arrive', () => {
+        mock.timers.enable({ apis: ['Date'] });
+        try {
+            const el = fakeEl();
+            let calls = 0;
+            wireIosTap(/** @type {any} */ (el), () => { calls++; });
+            el.fire('touchstart', touchEv(touch(10, 10)));
+            el.fire('touchend', touchEv());
+            mock.timers.tick(120);          // a synthesised click trails its touch closely
+            el.fire('click', {});
+            assert.equal(calls, 1, 'one tap is one action');
+        } finally { mock.timers.reset(); }
+    });
+
     // A THIRD way to be wrong, found in the v21.77 regression check: firing when the control is
     // DISABLED. The browser suppresses `click` on a disabled button, which is why every other
     // control on the page can trust `disabled` — it does not suppress touch events, so the

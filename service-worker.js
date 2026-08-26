@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '21.77';
+const APP_VERSION = '21.78';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -134,7 +134,7 @@ const NETWORK_FIRST_FILES = [
     'paycalc.html', 'paycalc-app.js', 'paycalc-boot.js', 'paycalc-calc.js',
     'paycalc-help.js', 'paycalc-migrations.js',
     'paycalc-periods.js', 'paycalc-settings.js',
-    'paycalc-roster-hint.js', 'paycalc-hpp.js', 'paycalc-hpp-schedule.js', 'paycalc-backpay.js', 'paycalc-backpay-state.js', 'paycalc-year-summary.js',
+    'paycalc-roster-hint.js', 'paycalc-hpp.js', 'paycalc-hpp-schedule.js', 'paycalc-backpay.js', 'paycalc-backpay-state.js', 'paycalc-pension.js', 'paycalc-year-summary.js',
     'paycalc-format.js', 'paycalc-breakdown.js', 'paycalc-inputs.js', 'paycalc-form-data.js', 'paycalc-transfer.js', 'paycalc-transfer-card.js', 'paycalc-roster-suggestions.js', 'paycalc-lightboxes.js', 'paycalc-guide.html',
     'fip.html', 'guide.html',
     'railcard-guide.html', 'rangers-guide.html',
@@ -274,6 +274,7 @@ const CORE_ASSETS = [
     "./paycalc-hpp-schedule.js",
     "./paycalc-backpay.js",
     "./paycalc-backpay-state.js",
+    "./paycalc-pension.js",
     "./paycalc-year-summary.js",
     "./paycalc-format.js",
     "./paycalc-breakdown.js",

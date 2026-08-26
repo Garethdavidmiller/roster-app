@@ -1635,3 +1635,18 @@
 .pt-status--ok   { color: var(--success-text); }
 .pt-status--warn { color: var(--error-red); }
 .pt-status:empty { display: none; }
+
+  /* ── A ROLE THIS CALCULATOR HAS NO CONFIRMED RATES FOR (v21.78) ────────────────────────────────
+     Set on <body> by paycalc-app.js when the signed-in member's role has no grade on record. The
+     two-part selector is deliberate: `.pc-work` and `.pc-side` carry `display: contents` on mobile
+     and `display: flex` on desktop, so anything at single-class specificity — including the
+     `hidden` attribute's UA rule — loses to them and leaves a fully-rendered calculator behind a
+     banner saying it does not apply. `body.role-unsupported .pc-work` outranks both without
+     needing !important. */
+  body.role-unsupported .pc-work,
+  body.role-unsupported .pc-side,
+  body.role-unsupported #setupBanner,
+  body.role-unsupported .privacy-note-standalone,
+  body.role-unsupported #stickyTotal,
+  body.role-unsupported .guide-footer-link,
+  body.role-unsupported .disclaimer { display: none; }
