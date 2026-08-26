@@ -104,17 +104,25 @@ export const SCOTTISH_TAX_BY_YEAR = {
 // two-value pensionPre/pensionFrom pair was generalised to the table at v18.43 — review item 8).
 /** @type {Record<string, any>} */
 export const GRADES = {
-  cea: { label: 'CEA — £21.49/hr', rate: 21.49, contr: 140, pension: 147.36 },
-  ces: { label: 'CES — £22.60/hr', rate: 22.60, contr: 140, pension: 147.36 },
+  cea: { label: 'CEA — £21.49/hr', rate: 21.49, contr: 140, pension: 151.86 },
+  ces: { label: 'CES — £22.60/hr', rate: 22.60, contr: 140, pension: 151.86 },
 };
 
 // ── Pension (Smart RPS CR Scheme) default per payslip era ──────────────────────
-// The pension contribution steps on specific PAYSLIPS (RPS reviews — separate from the pay award).
+// The pension contribution steps on specific PAYSLIPS — an RPS review, or a pay award (see below).
 // Newest first; each entry applies to paydays ON/AFTER its `from` (the final null-from entry is the
 // floor). Shared by both grades — the recorded values are payslip-confirmed for CEA (G. Miller);
-// no CES payslip history is on record, so CES uses the same table (same £147.36 today).
+// no CES payslip history is on record, so CES uses the same table (same £151.86 today).
 // (v18.43 — review item 8; the pension counterpart of getRateForPeriod/getLondonAllowanceForPeriod.)
 //
+// ⚠️ A PAY AWARD MOVES THIS TOO (v21.79). The contribution is a proportion of pensionable pay, so
+// it steps on the award payslip as well as on an RPS review — which is why the newest entry shares
+// its date with `londonAllowFrom`. That was not anticipated: the table was written as "RPS reviews,
+// SEPARATE from the pay award", and the 28 Aug 2026 payslip stepped it while the app went on
+// defaulting to the pre-award figure. Whenever a new award lands, read the "Smart RPS CR Scheme"
+// line off that payslip and add a step here — MAINTENANCE_CALENDAR.md carries it as a checklist row.
+//
+//  £151.86  from the 28 Aug 2026 payslip — payslip-confirmed (P24 as printed; the 3.6% award payslip)
 //  £147.36  from the  8 May 2026 payslip — payslip-confirmed (P51)
 //  £154.77  from the 29 Aug 2025 payslip — payslip-confirmed
 //  £156.29  on   the  1 Aug 2025 payslip — DERIVED, not read from a payslip: reconstructed from
@@ -124,6 +132,7 @@ export const GRADES = {
 //  £160.78  up to the 4 Jul 2025 payslip — payslip-confirmed (9 May 2025)
 /** @type {Array<{ from: Date|null, amount: number }>} */
 export const PENSION_STEPS = [
+  { from: new Date(2026, 7, 28), amount: 151.86 },
   { from: new Date(2026, 4, 8),  amount: 147.36 },
   { from: new Date(2025, 7, 29), amount: 154.77 },
   { from: new Date(2025, 7, 1),  amount: 156.29 },

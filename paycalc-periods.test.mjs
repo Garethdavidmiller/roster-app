@@ -97,7 +97,8 @@ const {
     settingsKey, getContr, getEffectiveContr, getProRateFactor,
 } = await import('./paycalc-settings.js');
 
-const { _bpAwardTaxYear, raiseByPercent, _accrueBackPayPeriod, paidInPeriodNum, bpStoryHtml } = await import('./paycalc-backpay.js');
+const { _bpAwardTaxYear, raiseByPercent, _accrueBackPayPeriod, paidInPeriodNum, bpStoryHtml,
+        awardWindowFactor, _awardBackdateDate } = await import('./paycalc-backpay.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -597,6 +598,69 @@ describe('raiseByPercent', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // paycalc-backpay.js — _accrueBackPayPeriod (pure per-period back-pay arithmetic)
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// THE AWARD WINDOW — the first period is a FRACTION (v21.79, VAL-PAY-001 settled)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// The defect these pin was found by comparing the card against a real payslip rather than by any
+// test: the app estimated £977.69 where payroll paid £821.68, 19% high. A period is 28 days of
+// SHIFTS paid six days after its cut-off, so the first period of a tax year covers work done
+// largely in MARCH — and the award is backdated to 1 April. The accrual counted that period whole.
+//
+// The London Allowance is what makes this checkable to the penny, and it is the reason these cases
+// lead with it: its uplift is a flat per-period amount with no hours in it, so it isolates the
+// WINDOW from the hours, the caps and the multipliers. Everything else in the lump is entangled
+// with what the member happened to work.
+describe('awardWindowFactor — how much of a period the award actually covers', () => {
+    // The REAL 2026/27 grid, from getPeriods(): p50 paid 10 Apr covers shifts 8 Mar – 4 Apr, and
+    // p51 paid 8 May covers 5 Apr – 2 May. Written out rather than derived so the case still
+    // describes a concrete payslip if the anchor ever moves.
+    const APRIL_1  = _awardBackdateDate({ label: '2026/27' });
+    const P50 = { start: new Date(2026, 2, 8, 12), cutoff: new Date(2026, 3, 4, 12) };
+    const P51 = { start: new Date(2026, 3, 5, 12), cutoff: new Date(2026, 4, 2, 12) };
+    const P49 = { start: new Date(2026, 1, 8, 12), cutoff: new Date(2026, 2, 7, 12) };
+
+    test('the backdate is 1 April of the award year, at noon', () => {
+        // Noon because every period date is noon: a midnight date would make the day count off by
+        // a fraction across the March DST change, which is the exact period this is used on.
+        assert.equal(APRIL_1.getFullYear(), 2026);
+        assert.equal(APRIL_1.getMonth(), 3);
+        assert.equal(APRIL_1.getDate(), 1);
+        assert.equal(APRIL_1.getHours(), 12);
+    });
+
+    test('the FIRST period counts only its days on or after 1 April', () => {
+        // 1–4 April inclusive = 4 days of 28. This is the whole defect in one number.
+        assert.equal(awardWindowFactor(P50, APRIL_1, 28), 4 / 28);
+    });
+
+    test('...and that number reproduces the real payslip exactly', () => {
+        // The London arrears inside the 28 Aug 2026 payslip's £327.28 line are £41.18 — that line
+        // carries the new £286.10 rate plus the arrears, with no separate itemisation. Four whole
+        // periods plus this fraction, at the £9.94 uplift:
+        const uplift = 286.10 - 276.16;
+        const total  = (4 + awardWindowFactor(P50, APRIL_1, 28)) * uplift;
+        assert.equal(Math.round(total * 100) / 100, 41.18);
+    });
+
+    test('every LATER period counts whole — the fraction is a one-off, not a taper', () => {
+        assert.equal(awardWindowFactor(P51, APRIL_1, 28), 1);
+    });
+
+    test('a period wholly before the award counts nothing', () => {
+        assert.equal(awardWindowFactor(P49, APRIL_1, 28), 0);
+    });
+
+    test('no backdate in hand changes nothing', () => {
+        // Fails towards the OLD behaviour on purpose: a malformed tax-year label must not silently
+        // zero somebody's entire lump, which is what a 0 default would do.
+        assert.equal(awardWindowFactor(P50, null, 28), 1);
+        assert.equal(awardWindowFactor(null, APRIL_1, 28), 1);
+        assert.equal(_awardBackdateDate({ label: 'nonsense' }), null);
+        assert.equal(awardWindowFactor(P50, _awardBackdateDate({}), 28), 1);
+    });
+});
+
 describe('_accrueBackPayPeriod', () => {
     // Real 2025/26 CEA award figures: rate £20.06 → £20.74, London £267.08 → £276.16.
     const RATE_DIFF   = 20.74 - 20.06;   // 0.68/hr
@@ -618,6 +682,20 @@ describe('_accrueBackPayPeriod', () => {
         const premium = 8 * RATE_DIFF * 1.25 + 8 * RATE_DIFF * 1.5 + 8 * RATE_DIFF * 3;
         approx(backPay, 140 * RATE_DIFF + premium + LONDON_DIFF, 'backPay');
         approx(varPay, premium, 'varPay = premiums only (excludes London — London does not accrue HPP)');
+    });
+
+    test('windowFactor scales the WHOLE period — premiums included — and defaults to 1', () => {
+        // Premiums are scaled too, deliberately. Payroll paid the part-week's premiums in full, but
+        // hours here are stored per PERIOD with nothing finer to apportion, so this approximates by
+        // a few pounds on one period a year rather than inventing a weekly split from period
+        // totals. The default of 1 is what makes every existing case above still describe the
+        // ordinary period.
+        const hours = { rdwHrs: 8, sunHrs: 8 };
+        const full = _accrueBackPayPeriod({ ...base, hours });
+        const part = _accrueBackPayPeriod({ ...base, hours, windowFactor: 4 / 28 });
+        approx(part.backPay, full.backPay * (4 / 28), 'backPay scales');
+        approx(part.varPay,  full.varPay  * (4 / 28), 'varPay scales with it, so HPP cannot inherit the old figure');
+        approx(_accrueBackPayPeriod({ ...base, hours }).backPay, full.backPay, 'omitted → unchanged');
     });
 
     test('Saturday hours cap at contracted; BH caps at the remaining normal hours', () => {
