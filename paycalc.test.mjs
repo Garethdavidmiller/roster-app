@@ -32,7 +32,10 @@ describe('constants', () => {
   test('GRADES.cea has correct rate and contracted hours', () => {
     assert.equal(GRADES.cea.rate, 21.49); // current (2026/27) settled rate — 3.6% award from 28 Aug 2026
     assert.equal(GRADES.cea.contr, 140);
-    assert.equal(GRADES.cea.pension, 147.36);
+    // £151.86 from the 28 Aug 2026 payslip (v21.79) — the award moved the pension too, because the
+    // contribution is a proportion of pensionable pay. Payslip-confirmed; PENSION_STEPS holds the
+    // per-era history and this is only the current default.
+    assert.equal(GRADES.cea.pension, 151.86);
   });
 
   test('TAX_YEARS has 2025/26 and 2026/27 entries', () => {
