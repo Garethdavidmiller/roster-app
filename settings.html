@@ -29,6 +29,20 @@
   <!-- Firebase Auth endpoints — overlap TLS with HTML parse so the first sign-in / token restore isn't cold. -->
   <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://securetoken.googleapis.com" crossorigin>
+  <!-- ── The Firebase SDK, fetched from the moment the HTML is parsed (v21.76) ──────────────
+       ES modules are discovered in a WATERFALL: the browser parses a file, THEN fetches its
+       imports. The SDK sits five levels down (boot → app → … → firebase-client → gstatic), so
+       without this hint it does not START downloading for 1.4-2.4s — measured on this page and
+       the three others that lacked it, against ~85ms on the pages that carry the hints. Nothing
+       on the page can finish before the SDK does, so DOMContentLoaded moves with it, one for one.
+       The preconnects above only warm DNS/TLS; the connection then sits idle waiting to be told
+       what to ask for. Deliberately the THREE SDK modules and NOT this page's local graph: the
+       local list would be one hand-maintained entry per module (the cost CLAUDE.md's build-step
+       threshold names), and it measured a further 60ms. modulepreload only fetches and compiles
+       — execution order is unchanged. Version parity with firebase-client.js: sw-asset-check. -->
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js" crossorigin>
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js" crossorigin>
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js" crossorigin>
   <link rel="stylesheet" href="./shared.css">
   <link rel="stylesheet" href="./settings.css">
 </head>

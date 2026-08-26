@@ -587,47 +587,72 @@ for (const [page, entry] of PRELOAD_PAGES) {
     });
 }
 
-for (const [page] of PRELOAD_PAGES) {
-  test(`${page} gstatic Firebase preloads match the SDK version in firebase-client.js`, () => {
+/** Every served APP page (the guides load no modules and no SDK). Read from the filesystem
+ *  rather than listed, so a page added later joins these checks by existing — the same reason
+ *  page-contract-parity.test.mjs enumerates rather than lists. */
+const GUIDE_PAGES = new Set([
+    'guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'fip.html', 'rangers-guide.html',
+]);
+const APP_PAGES = readdirSync(ROOT)
+    .filter(f => f.endsWith('.html') && !GUIDE_PAGES.has(f))
+    .sort();
+
+/** The ONE pinned SDK version firebase-client.js imports. */
+function pinnedSdkVersion() {
     const client = readFileSync(join(ROOT, 'firebase-client.js'), 'utf8');
     const versions = new Set(
         [...client.matchAll(/gstatic\.com\/firebasejs\/([\d.]+)\//g)].map(x => x[1])
     );
     assert.equal(versions.size, 1, `firebase-client.js references multiple SDK versions: ${[...versions].join(', ')}`);
-    const version = [...versions][0];
+    return [...versions][0];
+}
 
+// ── EVERY app page must preload the Firebase SDK (v21.76) ──────────────────────────────────────
+//
+// This was checked per page, by three near-identical copies covering index/paycalc/links, so the
+// four pages that carry SDK hints alone would have joined none of them — a page can now only opt
+// out of the check by not existing. The measurement that made the hints mandatory: modules are
+// discovered in a WATERFALL, the SDK sits five levels down, and a page without the hint does not
+// START fetching it for 1.4-2.4s. Nothing on the page can finish before the SDK does, so
+// DOMContentLoaded moves with it, one for one.
+for (const page of APP_PAGES) {
+  test(`${page} preloads the gstatic Firebase SDK at the version firebase-client.js pins`, () => {
+    const version = pinnedSdkVersion();
     const html = readFileSync(join(ROOT, page), 'utf8');
     const preloadedSdk = [...html.matchAll(
         /<link rel="modulepreload" href="https:\/\/www\.gstatic\.com\/firebasejs\/([\d.]+)\/(firebase-[a-z]+)\.js" crossorigin>/g
     )];
 
-    // Every gstatic preload must be at the pinned version, and the core SDK modules the page
-    // needs on its critical path must all be preloaded.
     for (const [, v, mod] of preloadedSdk) {
         assert.equal(v, version, `${page} preloads ${mod} at ${v} but firebase-client.js uses ${version}`);
     }
     const preloadedMods = new Set(preloadedSdk.map(x => x[2]));
     for (const mod of requiredGstaticModules()) {
-        assert.ok(preloadedMods.has(mod), `${page} is missing a modulepreload for ${mod}.js (firebase-client.js imports it statically)`);
+        assert.ok(preloadedMods.has(mod),
+            `${page} is missing a modulepreload for ${mod}.js (firebase-client.js imports it statically). ` +
+            `Without it the SDK is not discovered until the module chain reaches firebase-client.js.`);
     }
   });
 }
 
-// The pages that deliberately carry NO preload hints — asserted so a stray or hand-written one
-// fails CI rather than rotting unnoticed, and so the claim in CLAUDE.md stays true.
+// The pages that deliberately carry no LOCAL preload list — asserted so a stray or hand-written one
+// fails CI rather than rotting unnoticed, and so the claim in CLAUDE.md stays true. The three fixed
+// gstatic tags above are a different thing and are REQUIRED on every page: they name one immutable
+// URL each and cannot fall behind the graph, which is the whole objection to a local list.
 //
 // links.html LEFT this list at v21.75. The original reasoning was that only the deepest graphs
 // earn the hints, and links was assumed shallow; it is now the deepest of the seven (46 modules,
-// ~1.1 MB), and measured on a throttled phone it was spending 8–9 sequential discovery rounds
+// ~1.1 MB), and measured on a throttled phone it was spending 8-9 sequential discovery rounds
 // getting there. It is in PRELOAD_PAGES above instead, where the exhaustive graph check applies —
 // which is the important half: an unguarded hand-maintained list is worse than none, because it
 // silently stops covering the module it was written for.
-test('admin/operations/settings.html carry NO modulepreload hints (per CLAUDE.md)', () => {
-    for (const page of ['admin.html', 'operations.html', 'settings.html']) {
+test('admin/operations/settings/overtime.html carry NO local modulepreload hints (per CLAUDE.md)', () => {
+    for (const page of ['admin.html', 'operations.html', 'settings.html', 'overtime.html']) {
         const html = readFileSync(join(ROOT, page), 'utf8');
-        const count = [...html.matchAll(/<link rel="modulepreload"/g)].length;
-        assert.equal(count, 0,
-            `${page} has ${count} <link rel="modulepreload"> hint(s); CLAUDE.md says these pages deliberately have none. ` +
+        const local = [...html.matchAll(/<link rel="modulepreload" href="\.\/([^"]+)"/g)].map(x => x[1]);
+        assert.deepEqual(local, [],
+            `${page} has ${local.length} LOCAL <link rel="modulepreload"> hint(s): ${local.join(', ')}. ` +
+            `CLAUDE.md says these pages deliberately carry none. ` +
             `Either remove them, or add the page to PRELOAD_PAGES so its list is checked against the real graph.`);
     }
 });
@@ -668,26 +693,6 @@ test('index.html modulepreload hints match the calendar\'s real transitive modul
         `  Add a <link rel="modulepreload"> for: ${missing.join(', ') || '(none)'}\n` +
         `  Remove the stale preload for:        ${stale.join(', ') || '(none)'}`
     );
-});
-
-test('index.html gstatic Firebase preloads match the SDK version in firebase-client.js', () => {
-    const client = readFileSync(join(ROOT, 'firebase-client.js'), 'utf8');
-    const versions = new Set(
-        [...client.matchAll(/gstatic\.com\/firebasejs\/([\d.]+)\//g)].map(x => x[1])
-    );
-    const version = [...versions][0];
-
-    const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
-    const preloadedSdk = [...html.matchAll(
-        /<link rel="modulepreload" href="https:\/\/www\.gstatic\.com\/firebasejs\/([\d.]+)\/(firebase-[a-z]+)\.js" crossorigin>/g
-    )];
-    for (const [, v, mod] of preloadedSdk) {
-        assert.equal(v, version, `index.html preloads ${mod} at ${v} but firebase-client.js uses ${version}`);
-    }
-    const preloadedMods = new Set(preloadedSdk.map(x => x[2]));
-    for (const mod of requiredGstaticModules()) {
-        assert.ok(preloadedMods.has(mod), `index.html is missing a modulepreload for ${mod}.js (firebase-client.js imports it statically)`);
-    }
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
