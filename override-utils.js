@@ -35,7 +35,14 @@ export const CONTRACTED_WORK_TYPES = new Set([
     'allocated', 'swap',              // legacy, still in data — contracted, like `shift`
 ]);
 
-/** Work a member VOLUNTEERED for. Declining it is not leave. (`overtime` is the legacy `rdw`.) */
+/** Work a member VOLUNTEERED for. Declining it is not leave. (`overtime` is the legacy `rdw`.)
+ *
+ *  CONFIRMED BY THE OWNER, 26 Aug 2026 (VAL-AL-001, previously an inference). The operational
+ *  answer is narrower than the rule: annual leave reaches a rest day ONLY where a member has
+ *  SWAPPED working days and then books the swapped-in day off — which is `shift`, and is charged
+ *  above. Agreeing RDW and later booking it as leave is not a thing the roster office records. So
+ *  this branch guards a path that does not arise in practice, and is kept because the alternative
+ *  is falling through to the base roster, which would charge a day for declining overtime. */
 export const VOLUNTARY_WORK_TYPES = new Set(['rdw', 'overtime']);
 
 /**
