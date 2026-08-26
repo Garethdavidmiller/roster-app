@@ -263,7 +263,7 @@ Three design points that flow from this and still govern any future rule change:
   un-attested write path entirely. **If tightened before App Check:** add a key-count cap to the
   `activeAccounts` + `perf_` create/update conditions and a matching `assertFails`. (v17.43 audit.)
 
-### Track E — full-app authentication — E0+E1 SHIPPED · the read closure is **BUILT AND IN SOAK, NOT YET CLOSED** (`EXC-001`) · individual auth UNDECIDED
+### Track E — full-app authentication — E0+E1 SHIPPED · the read closure is **CLOSED (26 Aug 2026)** · individual auth UNDECIDED
 
 > **📄 `AUTH_PLAN.md` is the authoritative DESIGN doc for this track** (what "behind authentication" can
 > and cannot mean here, the per-phase build detail, the offline grace-mode answer, what to measure, the
@@ -277,11 +277,12 @@ Three design points that flow from this and still govern any future rule change:
 > is the same defect this file was created to prevent, committed inside the file that owns status.)
 >
 > The tightened rule is written, tested and deployed — `overrides` reads require a member `name`
-> claim or the shared staff-PIN `calendarViewer` capability — but a bare `allow read;` still sits
-> ABOVE it in `firestore.rules`, and Firestore ORs every matching allow rule, so **override data is
-> as public today as it was before v20.12**. The rules file says so in capitals at the line itself.
-> The boundary moves when that line is deleted and rules are deployed on their own, after the client
-> has soaked: RECOVERY_RUNBOOK.md → "The Calendar PIN" step 4. Tracked as **`EXC-001`**.
+> claim, `admin`, or the shared staff-PIN `calendarViewer` capability. The bare `allow read;` that
+> sat ABOVE it — and which, because Firestore ORs every matching allow rule, kept override data as
+> public as it had been before v20.12 — was **deleted on 26 Aug 2026 (v21.78)**, in its own push,
+> after the client had soaked since v20.51. RECOVERY_RUNBOOK.md → "The Calendar PIN" step 4 records
+> the go/no-go. **The external review's "public absence/AL data" finding is now genuinely closed** —
+> which is worth stating plainly, given the correction below.
 >
 > What is separately a *considered option, not a committed plan* is putting the whole app behind an
 > INDIVIDUAL login. The most likely trigger for that remains **external**: if the app becomes (or is
@@ -293,7 +294,7 @@ Three design points that flow from this and still govern any future rule change:
 to v21.62 this section stated the external review's **"public absence/AL data"** finding was CLOSED.
 It was not, and the canonical table at the top of this file said so correctly the whole time —
 "BUILT … and its client is LIVE in soak … the read actually closes at RECOVERY_RUNBOOK step 4".
-`ARCHITECTURE.md` (`EXC-001`), `CLAUDE.md` and `firestore.rules` itself all agreed with the table;
+`ARCHITECTURE.md`, `CLAUDE.md` and `firestore.rules` itself all agreed with the table;
 only Track E's own prose disagreed, which is the worst possible place for it, because a reviewer
 opening this section is asking exactly that question. **The rule this file states — every other
 document owns design, this table owns status — applies to this file's prose too.** Status belongs in

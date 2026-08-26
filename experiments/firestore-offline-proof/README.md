@@ -49,7 +49,7 @@ about the code that ships.
 `match /{document=**} { allow read: if true; }` below the tightened `overrides` rule. Firestore
 **ORs** every matching allow, so the catch-all silently re-granted the read: the server was still
 readable, and every "the cache still works" result underneath it was measuring a permissive
-database. This is precisely the `allow read;` hold-line trap that the production rules carry a
+database. This is precisely the `allow read;` hold-line trap that the production rules carried a
 warning block about — reproduced by accident, which is its own small confirmation that the hold
 really does neutralise the rule beneath it. `run.mjs` now asserts the server read comes back
 `permission-denied` **before** believing anything else, and aborts if it does not.

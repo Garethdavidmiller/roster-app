@@ -23,12 +23,12 @@ that reads uniformly confident invites someone to start at the wrong end:
 | E5 | **Under-analysed.** The claim-tier work the B-track proved necessary has not been done for reads. |
 | §5 documents (E6) | **A sketch.** The Office-viewer dependency invalidates the cheapest option. |
 
-**Status: the read closure is BUILT and SOAKING, not yet in force; INDIVIDUAL authentication is
-still undecided.** The tightened rule is written, tested and deployed — `overrides` reads require a
-member `name` claim or the shared staff-PIN `calendarViewer` capability — but a bare `allow read;`
-still sits above it in `firestore.rules`, so the collection is public today (`EXC-001`; §2 below is
-correct and this header was not, until v21.63). See E2 below, which records how the staff PIN
-superseded the phase as designed and what it does NOT close.
+**Status: the read closure is IN FORCE since 26 Aug 2026; INDIVIDUAL authentication is still
+undecided.** `overrides` reads require a member `name` claim, `admin`, or the shared staff-PIN
+`calendarViewer` capability, and the `allow read;` line that sat above them is gone. See E2 below,
+which records how the staff PIN superseded the phase as designed and what it does NOT close — in
+particular that a device which unlocked earlier still holds what it cached, because rules are
+evaluated server-side and a local cache hit never reaches one.
 **E0 shipped v19.00** (search engines excluded) and **E1 shipped
 v19.01** (the cache-first, auth-aware client preparation) — both were deliberately chosen as the two
 phases needing no decision. **The first real security boundary was E2's job, and the staff PIN did it
@@ -429,7 +429,7 @@ cannot open is worse than no notification. Either the send becomes conditional o
 it, or the friction is accepted and stated. Do not leave it to be discovered by the first person who
 taps.
 
-**Ordering.** Nothing here starts before the PIN has finished soaking and the `overrides` hold line is
+**Ordering.** The PIN has soaked and the `overrides` hold line is
 removed (RECOVERY_RUNBOOK step 4). The roster is the more sensitive surface — it carries annual leave,
 absence and individual shifts — and it is worth being explicit that closing it first was the right
 order, not an accident of what was easy.

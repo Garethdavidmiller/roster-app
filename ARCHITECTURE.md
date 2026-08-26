@@ -112,9 +112,14 @@ closure is not an exception, it is the design, and belongs in a contract instead
 **When this table is empty, the documented architecture and the deployed architecture have
 converged.** That is the only thing it is for.
 
+**A closed row is DELETED, not struck through** — and its ID goes with it, since every citation
+elsewhere must resolve to a live row (`doc-parity.test.mjs`). The first exception to close was the
+publicly-readable `overrides` collection, on **26 Aug 2026**; its history lives in git and in
+`RECOVERY_RUNBOOK.md` → "The Calendar PIN". A table that keeps its dead rows stops answering the one
+question it exists for, which is what is true right now.
+
 | ID | Exception | Where | Closes when |
 |---|---|---|---|
-| **EXC-001** | **`overrides` is still publicly readable.** The `name`-claim rule is written, tested and deployed — but an `allow read;` line sits above it and Firestore permissions are additive, so the permissive line wins. The client-side gate shipped first deliberately, so a rules tightening cannot strand a device mid-rollout. | `firestore.rules` → `overrides` | The PIN has had a real soak and the hold line is deleted in its own push — `RECOVERY_RUNBOOK.md` → "The Calendar PIN" step 4 |
 | **EXC-002** | **The Overtime retention purge is disarmed.** It runs daily, walks every expired window and logs what it would delete. It deletes nothing. Expired data therefore persists, contrary to what the retention design says happens to it. | `functions/index.js` (`purgeArmed: false`) | One logged run is read after **21 Nov 2026** — `MAINTENANCE_CALENDAR.md`, and `VAL-OT-001` |
 | **EXC-003** | **Overtime is a restricted beta.** Reviewing is open to admin/manager; participating is limited to a named list. The audience ladder is server-owned, so widening it is a one-word edit plus `npm run generate:roster-members`. | `CONFIG.OVERTIME_BETA` · `functions/roster-members.json` | Full launch — both lists drop away and participation alone decides |
 | **EXC-004** | **The Links bin never empties.** Soft-deleted designs are hidden and restorable; automatic expiry was suspended at v19.86 because no client-side age check survives a fast device clock. The retention constant is dormant and no surface promises a countdown. | `links-deletion.js` (`SOFT_DELETE_RETENTION_DAYS`) | A server-side purge is built, or the bin is accepted as permanent — `KNOWN_LIMITATIONS.md` |

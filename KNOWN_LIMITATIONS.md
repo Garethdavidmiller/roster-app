@@ -97,14 +97,20 @@ NOW, take it seriously: the flake excuse has been spent.
 > **`SECURITY_RELEASE_PLAN.md`**. The entries below remain the authoritative *post-mortems and
 > rationale*; that file is the *ordering* that keeps a fix from re-creating the v10.94 outage.
 
-### Override data is publicly readable — FIX BUILT at v20.12, IN SOAK since v20.46 (staff PIN access)
-> ⚠️ **STILL OPEN AS DEPLOYED (re-checked v20.46).** The client brake is released —
-> `CONFIG.CALENDAR_PIN_ACCESS` is `true` since v20.46, so the Calendar now asks for a named session
-> or the staff PIN — but the `overrides` read rule still carries its `allow read;` hold line, so
-> **override data remains readable by anyone who queries Firestore directly**. The PIN card is
-> friction, not protection, until step 4 tightens the rules. This entry closes when that second
-> brake is released — its own push, nothing else in it (RECOVERY_RUNBOOK.md → "The Calendar PIN",
-> step 4).
+### Override data is publicly readable — CLOSED 26 Aug 2026 (staff PIN access)
+> ✅ **CLOSED.** Both brakes are off: `CONFIG.CALENDAR_PIN_ACCESS` has been `true` since v20.51, and
+> the `allow read;` hold line on the `overrides` read rule was deleted at v21.78. Reads now require a
+> `name` claim, `admin`, or the `calendarViewer` capability, and the SERVER refuses anything else —
+> so the PIN card is protection now, not friction in front of an open collection. The exposure had
+> stood since the app's first Firestore write.
+>
+> **Two things that did NOT change with it.** A device that unlocked before the tightening still
+> holds every override it cached — Firestore evaluates rules server-side, so a local cache hit never
+> reaches one, which is why `calendar-overrides.js` refuses those reads separately and why tightening
+> the rule alone would have looked secure and leaked (measured: `experiments/firestore-offline-proof/`).
+> And `CALENDAR_PIN_ACCESS: false` is **no longer a rollback** — the rollback is reverting the step-4
+> rules push. Kept here rather than deleted because the entry records an exposure that was real for
+> years, and the two caveats outlive the fix.
 >
 > **⛔ INCIDENT, 10 Aug 2026 — step 3 was taken and ROLLED BACK the same morning.** The flag went
 > `true` at v20.46 and back to `false` at v20.50, roughly two hours later, because **a correct PIN
@@ -232,8 +238,8 @@ because its value is marginal — an anonymous token is as freely obtainable as 
 so it blocks only a token-less REST read — and **now it would be actively wrong**: with no anonymous
 bootstrap, `request.auth != null` would re-admit exactly the population v20.12 closed out
 (`AUTH_AND_SESSIONS.md` invariant 9: *ask for a claim, never for a session*). The real gate is the
-`name`/`calendarViewer` rule, which is written and deployed and waiting behind `EXC-001`. Do not
-re-propose the anon-gate as a "quick win" — it never was one, and it is now the wrong shape.
+`name`/`calendarViewer` rule, which has been the ONLY rule on `overrides` reads since 26 Aug 2026.
+Do not re-propose the anon-gate as a "quick win" — it never was one, and it is now the wrong shape.
 
 **The "read strictly after its session resolves" risk — found v19.00, ADDRESSED v19.01–19.10 (E1).** The
 paragraph above is right and `SECURITY_RELEASE_PLAN.md` → Track E was wrong to call the anon-gate
