@@ -127,8 +127,11 @@ describe('overrides', () => {
     // it is set to `false` while the hold line is still there — so the two cannot silently
     // disagree in EITHER direction, which a skip or a deletion would allow.
     //
-    // TO ENFORCE: set this to false in the same commit that removes the `allow read;` line.
-    const OVERRIDES_READ_HELD_OPEN = true;
+    // ENFORCED 26 Aug 2026, in the same commit that removed the `allow read;` line. These cases
+    // now assert what the rule has always SAID: unauthenticated reads are denied. Until today they
+    // asserted the opposite, on purpose — a test that passed BECAUSE the collection was public,
+    // which is the only honest way to pin a hold line while it is deliberately in place.
+    const OVERRIDES_READ_HELD_OPEN = false;
     const readWhileHeld = OVERRIDES_READ_HELD_OPEN ? assertSucceeds : assertFails;
 
     test('UNAUTHENTICATED cannot read the collection', async () => {

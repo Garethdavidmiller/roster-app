@@ -144,23 +144,22 @@ service cloud.firestore {
       // LISTEN does not evict them either. So closing this rule protects the roster on devices that
       // have not already seen it, and does nothing at all about devices that have.
       //
-      // ⚠️⚠️ TEMPORARY HOLD (v20.16) — THE `allow read;` LINE BELOW KEEPS THIS COLLECTION PUBLIC.
-      //
-      // Firestore ORs every matching allow rule, so while that line is present the tightened rule
-      // beneath it decides nothing and override data is as public as it was before v20.12.
-      //
-      // It is here because all three deploy workflows fire in PARALLEL from one push to main, with
-      // no ordering between them. Merging the tightened rule alongside the client would collapse
-      // steps 2, 3 and 4 of the rollout into one moment — the exact thing RECOVERY_RUNBOOK.md →
-      // "The Calendar PIN" says never to do, because a rules deploy that lands before the hosting
-      // deploy shows every staff phone the BASE ROSTER under a "Couldn't update" chip: a roster
+      // ENFORCED 26 Aug 2026 (v20.16 → today). The `allow read;` hold line that sat here is gone,
+      // and with it the last route to override data without a credential. The hold existed so the
+      // client gate could ship first and soak — the three deploy workflows fire in parallel from
+      // one push, so shipping both together would have let a rules deploy land before the hosting
+      // one and show every staff phone the BASE ROSTER under a "Couldn't update" chip: a roster
       // that is wrong rather than obviously broken.
       //
-      // TO ENFORCE: delete this comment block and the `allow read;` line, set
-      // `OVERRIDES_READ_HELD_OPEN = false` in firestore.rules.test.mjs (the two are checked against
-      // each other in both directions, so they cannot silently disagree), and deploy rules ON THEIR
-      // OWN — after the client carrying `CALENDAR_PIN_ACCESS: true` has soaked in production.
-      allow read;
+      // Closed on the runbook's own criteria (RECOVERY_RUNBOOK.md → "The Calendar PIN" step 4):
+      // the App Speed version breakdown showed most real loads had moved off the pre-v20.51
+      // client, and page views were broadly level with July, which is the signal that unlocks are
+      // NOT silently failing — a locked Calendar has no identity, so a failed PIN exchange never
+      // reaches the Error Log and silence there proves nothing.
+      //
+      // FROM HERE, `CALENDAR_PIN_ACCESS: false` IS NO LONGER A ROLLBACK. The server denies these
+      // reads whatever the client asks for, so the rollback is reverting this change and
+      // redeploying rules — a two-minute path, but a different one from the flag flip.
       allow read: if request.auth != null && (
         'name' in request.auth.token ||
         request.auth.token.admin == true ||
