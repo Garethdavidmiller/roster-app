@@ -142,10 +142,30 @@ The user may navigate away before closing. `archiveNotice()` fires in `onOpen` t
 
 **Target-page permanent dismiss:** On the page the CTA links to, call `lsSet('myb_notice_[id]_done', '1')` when the user completes the action (e.g. after saving their email, after submitting the form). Without this, the notice re-shows after the 1-day snooze indefinitely — `DONE_KEY` is never set by the notice IIFE itself.
 
+## Audience — decide this FIRST (v21.81)
+
+Notices on **`index.html`** live in `calendar-notices.js` and open through
+`_openWhenAudienceAllows(lb, audience)`, never a bare `calendarAccessReady.then(...)`. That promise
+resolves when Calendar access is GRANTED and says nothing about **whose** it is — so before this
+rule existed, every Calendar notice also opened on the PIN-unlocked station PC, including one asking
+the reader to check their own payslips were entered correctly.
+
+| Audience | Who sees it | Use for |
+|----------|-------------|---------|
+| `'members'` | a signed-in member on this device (**the default**) | anything about pay, settings, an account, or "your" anything |
+| `'everyone'` | including a PIN-unlocked viewer | a notice whose readers are specifically people who have **not** signed in |
+
+The rule itself is the pure `noticeAudienceAllows(audience, accessType)` in
+`calendar-access-core.js`. An unrecognised audience is treated as `'members'`. A refused notice is
+left **unflagged** — not marked seen — so it arrives when that device is next signed in.
+
+Notices on other pages need no audience: those pages already require a session.
+
 ## Rules
 
 | Rule | Value |
 |------|-------|
+| Audience (index.html) | `'members'` unless the notice exists to reach people who have not signed in — see above |
 | `archiveNotice()` timing | `onClose` for close-only notices · `onOpen` for notices with a navigation CTA |
 | Snooze on close (×, backdrop, Escape, "Not now") | 7 days |
 | Snooze on CTA navigation | 1 day |
@@ -166,6 +186,9 @@ Add a row to the "Current notices" table in `CLAUDE.md`:
 | ID | Page | Title | Badge | Posted | Expiry | Dismiss mechanism |
 |----|------|-------|-------|--------|--------|-------------------|
 | `[id]` | `[page].html` | [Title] | [Badge] | [D Mon YYYY] | [28/90] days | One-time; `[DONE_KEY]` set on close |
+
+For an `index.html` notice, say which audience it declared — the note above that table lists the
+current `'everyone'` ones, and a second entry there should be a deliberate decision, not a default.
 
 ## Monthly cleanup — run on the 1st of each month
 

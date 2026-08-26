@@ -76,6 +76,22 @@ export function clearPwNoticeFlag(page) {
 }
 
 /**
+ * Undo the suppression for BOTH live notices, for a spec whose subject is which notices open at all
+ * (v21.81 — the audience gate). Same ordering rule as `clearPwNoticeFlag`: call it AFTER the
+ * seeders, because later init scripts run last.
+ *
+ * PASS THE ONE KEY YOU MEAN unless you want both. With two notices live only one can be on screen:
+ * whichever reaches `openNoticeIfClear` first wins, the loser stays closed and unflagged, and a
+ * spec asserting on the loser fails for a reason that has nothing to do with what it is testing.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {string[]} [keys] the done-flags to remove; defaults to every live notice
+ */
+export function clearNoticeFlags(page, keys = ['myb_notice_pw_own_2026_done', 'myb_notice_backpay_2026_done']) {
+    return page.addInitScript(ks => ks.forEach(k => localStorage.removeItem(k)), keys);
+}
+
+/**
  * Seed a session that does NOT come back after the page reloads itself.
  *
  * ── WHY THIS EXISTS (v21.27) ────────────────────────────────────────────────────────────────────

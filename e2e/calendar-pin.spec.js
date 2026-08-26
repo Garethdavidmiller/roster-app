@@ -14,7 +14,7 @@
  *     the pages actually consult it on a viewer session is a wiring question.
  */
 import { test, expect } from './fixtures.js';
-import { seedMember, seedMemberSession, seedSession, seedSessionOnce, stubPinExchange, enterPin, collectFatalErrors } from './helpers.js';
+import { seedMember, seedMemberSession, seedSession, seedSessionOnce, stubPinExchange, enterPin, collectFatalErrors, seedViewerAccess, clearNoticeFlags } from './helpers.js';
 import { disableCalendarPin, enableCalendarPin } from './fixtures.js';
 
 // The shipped default is OFF while the feature is deployed dark (v20.17), so every test here that
@@ -597,4 +597,72 @@ test('switched OFF: a signed-in member is unaffected', async ({ page }) => {
     await page.locator('#navMenuBtn').click();
     await expect(page.locator('#navPanelMember')).toHaveText('G. Miller');
     await expect(page.locator('#navSignOutBtn')).toBeVisible();
+});
+
+// ── WHO THE NOTICES ARE ADDRESSED TO (v21.81) ───────────────────────────────────────────────────
+//
+// Reported by the owner the day the PIN went live: the one-time notices were opening on the station
+// PC. They waited on `calendarAccessReady`, which is the moment access is GRANTED and says nothing
+// about whose it is — so a notice asking the reader to check their own payslips were entered
+// correctly appeared on a machine that is deliberately unattributable and holds nobody's payslips.
+//
+// The rule is unit-tested in calendar-access-core.test.mjs. What is tested HERE is the wiring, and
+// only a browser can answer it: whether a real page open on a viewer session actually withholds the
+// notice, and — the half that is easy to get backwards — whether the notice written FOR people who
+// have not signed in still opens on exactly that session.
+test.describe('one-time notices and the PIN unlock', () => {
+    // Before the back-pay notice's hard 27 Aug 23:00 cutoff, or it silently retires and these would
+    // pass by testing nothing. Pinned rather than removed with the notice: what is under test is the
+    // audience gate, and the next members-only notice inherits it.
+    const BEFORE_CUTOFF = new Date('2026-08-24T09:00:00Z');
+    // The notices open 1500ms after access is granted. Proving an ABSENCE means waiting past that,
+    // and the first test below is what makes this number credible rather than hopeful: it shows a
+    // permitted notice is already on screen by then, on the same session, through the same path.
+    const PAST_THE_DEFER = 2500;
+
+    // ONE flag per test, deliberately. With both notices live only one can be on screen —
+    // `openNoticeIfClear`, v19.53 — so a test that clears both and asserts the members-only notice
+    // is absent passes whether the gate refused it or it merely lost the race to the other one.
+    // That is not a hypothetical: it is what the first version of this block did, and a mutation
+    // declaring the back-pay notice `'everyone'` — the exact reported bug — sailed through it.
+    test('a PIN unlock still gets the notice written FOR people who have not signed in', async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await page.clock.setFixedTime(BEFORE_CUTOFF);
+        await seedViewerAccess(page);
+        await seedMember(page);            // a chosen member is a DISPLAY choice, not a session
+        await clearNoticeFlags(page, ['myb_notice_pw_own_2026_done']);
+        await page.goto('/');
+        await expect(page.locator('.month-year')).toBeVisible();
+        await expect(page.locator('#pwNoticeLb'), "'everyone' must survive the audience default").toHaveClass(/open/);
+        expect(errors, 'Uncaught JS exceptions on a viewer calendar').toHaveLength(0);
+    });
+
+    test('...and NOT the one that asks about your own payslips', async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await page.clock.setFixedTime(BEFORE_CUTOFF);
+        await seedViewerAccess(page);
+        await seedMember(page);
+        await clearNoticeFlags(page, ['myb_notice_backpay_2026_done']);
+        await page.goto('/');
+        await expect(page.locator('.month-year')).toBeVisible();
+        await page.waitForTimeout(PAST_THE_DEFER);
+        await expect(page.locator('#bpNoticeLb')).not.toHaveClass(/open/);
+        // ...and NOT flagged seen, or it would never arrive on the day that device signs in.
+        const flagged = await page.evaluate(() => localStorage.getItem('myb_notice_backpay_2026_done'));
+        expect(flagged, 'a suppressed notice must be left untouched, not marked seen').toBeNull();
+        expect(errors, 'Uncaught JS exceptions on a viewer calendar').toHaveLength(0);
+    });
+
+    test('a signed-in member on the same device does get it', async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await page.clock.setFixedTime(BEFORE_CUTOFF);
+        await seedSession(page);
+        await seedMemberSession(page);
+        await seedMember(page);
+        await clearNoticeFlags(page, ['myb_notice_backpay_2026_done']);
+        await page.goto('/');
+        await expect(page.locator('.month-year')).toBeVisible();
+        await expect(page.locator('#bpNoticeLb'), 'the same notice the station PC was refused').toHaveClass(/open/);
+        expect(errors, 'Uncaught JS exceptions on a member calendar').toHaveLength(0);
+    });
 });

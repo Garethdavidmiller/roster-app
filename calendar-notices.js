@@ -15,6 +15,14 @@
  * one Escape flagged the buried one seen for good — v19.53); and it waits for
  * `calendarAccessReady` (on a locked Calendar it would cover the staff-PIN card, the one control
  * on the page — v20.12).
+ *
+ * AND EVERY NOTICE DECLARES AN AUDIENCE (v21.81). `calendarAccessReady` resolves the moment access
+ * is granted and says nothing about WHOSE it is, so both notices were opening on a PIN-unlocked
+ * station PC — one asking the reader to check their own payslips. The rule is
+ * `noticeAudienceAllows` in calendar-access-core.js, where it is pure and tested; the default is
+ * `'members'`, and `'everyone'` is for a notice whose audience is specifically people who have not
+ * signed in. Open through `_openWhenAudienceAllows` rather than wiring the check per notice, so a
+ * notice added later cannot quietly skip it.
  */
 
 import { CONFIG } from './roster-data.js';
@@ -22,7 +30,30 @@ import { lsGet, lsSet } from './ls.js';
 import { NOTICE_PW_OWN_DONE } from './storage-keys.js';
 import { archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { createLightbox, openNoticeIfClear } from './overlay.js';
-import { calendarAccessReady } from './calendar-access.js';
+import { calendarAccessReady, getAccessType } from './calendar-access.js';
+import { noticeAudienceAllows } from './calendar-access-core.js';
+
+/**
+ * Open a notice once access is decided AND this device is one of its audience.
+ *
+ * The audience check has to be HERE, after `calendarAccessReady`, because that is the first moment
+ * the access type exists — at wiring time every device looks the same. A device outside the
+ * audience is left completely untouched: not opened, and NOT flagged seen, so the notice arrives
+ * intact the next time that device is signed in.
+ *
+ * The 1500ms defer is the skill's, and load-bearing for a different reason: it keeps a notice off
+ * the Huddle viewer's auto-open. `openNoticeIfClear` is the v19.53 rule — with two overlays up, one
+ * Escape ran both onClose callbacks and flagged the buried one seen for good.
+ *
+ * @param {{ open: () => void }} lb
+ * @param {'members'|'everyone'} audience
+ */
+function _openWhenAudienceAllows(lb, audience) {
+    calendarAccessReady.then(() => {
+        if (!noticeAudienceAllows(audience, getAccessType())) return;
+        setTimeout(() => openNoticeIfClear(lb), 1500);
+    });
+}
 
 /** Wire every one-time notice this page carries. Called once from calendar-app.js. */
 export function initCalendarNotices() {
@@ -88,13 +119,12 @@ export function initCalendarNotices() {
         document.getElementById('pwNoticeGo')?.addEventListener('click', () => _snoozeFor(1));
         document.getElementById('pwNoticeLater')?.addEventListener('click', () => lb.close());
 
-        // Deferred so it cannot land on top of the Huddle viewer's auto-open, and opened through
-        // `openNoticeIfClear` rather than `open()` — with two overlays up, one Escape ran both onClose
-        // callbacks and flagged the buried one seen for good (v19.53).
-        // Behind `calendarAccessReady` (v20.12): on a locked Calendar this would open over the staff-PIN
-        // card, covering the one control on the page. It is a nudge about signing in, which is the
-        // second thing somebody needs, not the first.
-        calendarAccessReady.then(() => setTimeout(() => openNoticeIfClear(lb), 1500));
+        // 'everyone' — the ONE notice that must survive the audience default (v21.81). Its readers
+        // are the members who never sign in, and since v20.12 those members reach the Calendar
+        // through the staff PIN, so `'members'` would hide it from precisely the people it was
+        // written for. That is the same trap as the skill template's `if (!getSession()) return`,
+        // which this notice also does not carry, for the same reason.
+        _openWhenAudienceAllows(lb, 'everyone');
     }());
 
     // ── One-shot notice: back pay arrives on the 28 Aug 2026 payslip (v21.61) ───────────────────────
@@ -144,9 +174,11 @@ export function initCalendarNotices() {
         document.getElementById('bpNoticeGo')?.addEventListener('click', () => lsSet(DONE_KEY, '1'));
         document.getElementById('bpNoticeLater')?.addEventListener('click', () => lb.close());
 
-        // Same discipline as the notice above: deferred past the Huddle auto-open, gated behind the
-        // access decision, and opened through openNoticeIfClear — if the password notice got there
-        // first this one stays unflagged and simply returns next load (v19.53).
-        calendarAccessReady.then(() => setTimeout(() => openNoticeIfClear(lb), 1500));
+        // 'members' — the default, and this notice is why it is the default (v21.81). It asks the
+        // reader to check their own payslips are entered and to open the Pay Calculator, which is
+        // per-device, per-member data: on the shared station PC it addresses nobody and offers a
+        // calculator holding somebody else's figures. A signed-in member gets it; a PIN unlock does
+        // not, and is not flagged seen, so it still arrives when that device signs in.
+        _openWhenAudienceAllows(lb, 'members');
     }());
 }

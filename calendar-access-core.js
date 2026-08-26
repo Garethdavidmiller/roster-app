@@ -64,6 +64,39 @@ export function isViewerUser(user) {
 }
 
 /**
+ * May a one-time notice OPEN, given the access this browser holds? (v21.81)
+ *
+ * A PIN unlock is a STATION, not a person. It is deliberately unattributable — one code for the
+ * whole place — so a notice written in the second person is addressed to nobody in particular, and
+ * a notice asking the reader to go and check their own payslips is addressed to a machine that
+ * holds no payslips. Until now every notice opened on `calendarAccessReady` alone, which is the
+ * moment access is granted and says nothing about WHOSE it is.
+ *
+ * So each notice declares its audience, and the DEFAULT is the narrow one:
+ *
+ *   · `'members'` — a signed-in member on this device (`named`). Anything about your pay, your
+ *     settings or your account belongs here.
+ *   · `'everyone'` — including a PIN-unlocked viewer. For a notice whose whole point is to reach
+ *     people who have NOT signed in, which is a real audience: `pw-own-2026` asks exactly them to
+ *     sign in, and signing in is what removes the PIN.
+ *
+ * An unrecognised audience is treated as `'members'`, deliberately: the cost of failing closed is a
+ * notice that does not appear and is noticed in testing, and the cost of failing open is station
+ * pay copy on a shared screen.
+ *
+ * A suppressed notice must be left UNFLAGGED by its caller — not marked seen — so it arrives when
+ * the same device is next signed in.
+ *
+ * @param {string} audience  as declared by the notice
+ * @param {'named'|'viewer'|'open'|'none'} accessType  getAccessType()
+ * @returns {boolean}
+ */
+export function noticeAudienceAllows(audience, accessType) {
+    if (audience === 'everyone') return true;
+    return accessType === 'named';
+}
+
+/**
  * Decide what kind of Calendar access this browser has RIGHT NOW.
  *
  * @param {object} input

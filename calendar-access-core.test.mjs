@@ -19,7 +19,7 @@ import assert from 'node:assert/strict';
 import {
     CALENDAR_VIEWER_UID, CALENDAR_VIEWER_CLAIM, PIN_LENGTH,
     isViewerUser, decideAccess, normalisePin, isCompletePin,
-    classifyUnlockFailure, attemptBackoffMs,
+    classifyUnlockFailure, attemptBackoffMs, noticeAudienceAllows,
 } from './calendar-access-core.js';
 
 const member  = { uid: 'abc123', isAnonymous: false };
@@ -224,6 +224,42 @@ describe('the constants are the contract', () => {
         // member rule by construction and every other test here would still pass.
         for (const role of ['name', 'admin', 'manager', 'linksDesigner']) {
             assert.notEqual(CALENDAR_VIEWER_CLAIM, role);
+        }
+    });
+});
+
+// ── WHO A NOTICE IS ADDRESSED TO (v21.81) ────────────────────────────────────────────────────────
+//
+// Reported by the owner the day the PIN went live: the Calendar's one-time notices were opening on
+// the station PC, because they waited only for `calendarAccessReady` — the moment access is
+// GRANTED, which says nothing about whose it is. One of the two asks the reader to go and check
+// their own payslips are entered correctly, on a machine that is deliberately unattributable.
+//
+// The two failure directions are not symmetrical, which is why the default is the narrow one:
+// showing a members-only notice on a shared screen is a fact stated to nobody, while hiding an
+// 'everyone' notice takes away the only route the app has to the members who never sign in.
+describe('which devices a notice is addressed to', () => {
+    test('a members-only notice reaches a signed-in member and nobody else', () => {
+        assert.equal(noticeAudienceAllows('members', 'named'), true);
+        assert.equal(noticeAudienceAllows('members', 'viewer'), false, 'the station PC — the reported case');
+        assert.equal(noticeAudienceAllows('members', 'open'), false, 'PIN access switched off is still no identity');
+        assert.equal(noticeAudienceAllows('members', 'none'), false);
+    });
+
+    test("an 'everyone' notice reaches the PIN unlock too — that is what it is for", () => {
+        // `pw-own-2026` asks the members who never sign in to sign in, and since v20.12 those
+        // members reach the Calendar through the PIN. Answering false here would hide it from its
+        // entire audience while leaving every test about it passing.
+        assert.equal(noticeAudienceAllows('everyone', 'viewer'), true);
+        assert.equal(noticeAudienceAllows('everyone', 'named'), true);
+        assert.equal(noticeAudienceAllows('everyone', 'open'), true);
+    });
+
+    test('an audience nobody recognises is treated as members-only', () => {
+        // Fails towards the direction whose cost is visible: a notice that does not appear gets
+        // noticed, station pay copy on a shared screen does not.
+        for (const audience of ['member', 'Everyone', 'staff', '', undefined, null]) {
+            assert.equal(noticeAudienceAllows(/** @type {any} */ (audience), 'viewer'), false);
         }
     });
 });
