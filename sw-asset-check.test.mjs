@@ -553,29 +553,42 @@ function requiredGstaticModules() {
         .map(x => x[1]);
 }
 
-test('paycalc.html modulepreload hints match its real transitive module graph', () => {
-    const html = readFileSync(join(ROOT, 'paycalc.html'), 'utf8');
+/** Pages that declare modulepreload hints, and the boot entry each one's graph starts from.
+ *  index.html is excluded: its hints are a hand-picked SUBSET (the critical path), not the whole
+ *  graph, so the exhaustive comparison below would report every unlisted module as missing.
+ *  links.html joined at v21.75 — as the workspace grew it overtook paycalc as the deepest graph
+ *  in the app, which is the only reason the other pages go without. */
+const PRELOAD_PAGES = [
+    ['paycalc.html', 'paycalc-boot.js'],
+    ['links.html',   'links-boot.js'],
+];
 
-    // The local module graph paycalc actually loads (entry script handles boot itself).
-    const graph = staticLocalGraph('paycalc-boot.js');
-    graph.delete('paycalc-boot.js');
-    const expected = [...graph].filter(f => f.endsWith('.js')).sort();
+for (const [page, entry] of PRELOAD_PAGES) {
+    test(`${page} modulepreload hints match its real transitive module graph`, () => {
+        const html = readFileSync(join(ROOT, page), 'utf8');
 
-    // The local modules paycalc.html declares as preloads.
-    const preloaded = [...html.matchAll(/<link rel="modulepreload" href="\.\/([^"]+)"/g)]
-        .map(x => x[1]).sort();
+        // The local module graph the page actually loads (entry script handles boot itself).
+        const graph = staticLocalGraph(entry);
+        graph.delete(entry);
+        const expected = [...graph].filter(f => f.endsWith('.js')).sort();
 
-    const missing = expected.filter(f => !preloaded.includes(f));
-    const stale   = preloaded.filter(f => !expected.includes(f));
-    assert.deepEqual(
-        { missing, stale }, { missing: [], stale: [] },
-        'paycalc.html modulepreload list is out of sync with paycalc-boot.js\'s static graph.\n' +
-        `  Add a <link rel="modulepreload"> for: ${missing.join(', ') || '(none)'}\n` +
-        `  Remove the stale preload for:        ${stale.join(', ') || '(none)'}`
-    );
-});
+        // The local modules the page declares as preloads.
+        const preloaded = [...html.matchAll(/<link rel="modulepreload" href="\.\/([^"]+)"/g)]
+            .map(x => x[1]).sort();
 
-test('paycalc.html gstatic Firebase preloads match the SDK version in firebase-client.js', () => {
+        const missing = expected.filter(f => !preloaded.includes(f));
+        const stale   = preloaded.filter(f => !expected.includes(f));
+        assert.deepEqual(
+            { missing, stale }, { missing: [], stale: [] },
+            `${page} modulepreload list is out of sync with ${entry}'s static graph.\n` +
+            `  Add a <link rel="modulepreload"> for: ${missing.join(', ') || '(none)'}\n` +
+            `  Remove the stale preload for:        ${stale.join(', ') || '(none)'}`
+        );
+    });
+}
+
+for (const [page] of PRELOAD_PAGES) {
+  test(`${page} gstatic Firebase preloads match the SDK version in firebase-client.js`, () => {
     const client = readFileSync(join(ROOT, 'firebase-client.js'), 'utf8');
     const versions = new Set(
         [...client.matchAll(/gstatic\.com\/firebasejs\/([\d.]+)\//g)].map(x => x[1])
@@ -583,33 +596,39 @@ test('paycalc.html gstatic Firebase preloads match the SDK version in firebase-c
     assert.equal(versions.size, 1, `firebase-client.js references multiple SDK versions: ${[...versions].join(', ')}`);
     const version = [...versions][0];
 
-    const html = readFileSync(join(ROOT, 'paycalc.html'), 'utf8');
+    const html = readFileSync(join(ROOT, page), 'utf8');
     const preloadedSdk = [...html.matchAll(
         /<link rel="modulepreload" href="https:\/\/www\.gstatic\.com\/firebasejs\/([\d.]+)\/(firebase-[a-z]+)\.js" crossorigin>/g
     )];
 
-    // Every gstatic preload must be at the pinned version, and the three core SDK
-    // modules paycalc needs on the critical path must all be preloaded.
+    // Every gstatic preload must be at the pinned version, and the core SDK modules the page
+    // needs on its critical path must all be preloaded.
     for (const [, v, mod] of preloadedSdk) {
-        assert.equal(v, version, `paycalc.html preloads ${mod} at ${v} but firebase-client.js uses ${version}`);
+        assert.equal(v, version, `${page} preloads ${mod} at ${v} but firebase-client.js uses ${version}`);
     }
     const preloadedMods = new Set(preloadedSdk.map(x => x[2]));
     for (const mod of requiredGstaticModules()) {
-        assert.ok(preloadedMods.has(mod), `paycalc.html is missing a modulepreload for ${mod}.js (firebase-client.js imports it statically)`);
+        assert.ok(preloadedMods.has(mod), `${page} is missing a modulepreload for ${mod}.js (firebase-client.js imports it statically)`);
     }
-});
+  });
+}
 
-// CLAUDE.md states admin/operations/settings/links "deliberately have none [no modulepreloads],
-// all CI-locked by sw-asset-check.test.mjs". Only index.html + paycalc.html were actually guarded,
-// so that claim was previously unenforced. This makes it true: assert the four shallow-graph pages
-// carry ZERO modulepreload links, so a stray/wrong one added later fails CI (and the doc stays honest).
-test('admin/operations/settings/links.html carry NO modulepreload hints (per CLAUDE.md)', () => {
-    for (const page of ['admin.html', 'operations.html', 'settings.html', 'links.html']) {
+// The pages that deliberately carry NO preload hints — asserted so a stray or hand-written one
+// fails CI rather than rotting unnoticed, and so the claim in CLAUDE.md stays true.
+//
+// links.html LEFT this list at v21.75. The original reasoning was that only the deepest graphs
+// earn the hints, and links was assumed shallow; it is now the deepest of the seven (46 modules,
+// ~1.1 MB), and measured on a throttled phone it was spending 8–9 sequential discovery rounds
+// getting there. It is in PRELOAD_PAGES above instead, where the exhaustive graph check applies —
+// which is the important half: an unguarded hand-maintained list is worse than none, because it
+// silently stops covering the module it was written for.
+test('admin/operations/settings.html carry NO modulepreload hints (per CLAUDE.md)', () => {
+    for (const page of ['admin.html', 'operations.html', 'settings.html']) {
         const html = readFileSync(join(ROOT, page), 'utf8');
         const count = [...html.matchAll(/<link rel="modulepreload"/g)].length;
         assert.equal(count, 0,
             `${page} has ${count} <link rel="modulepreload"> hint(s); CLAUDE.md says these pages deliberately have none. ` +
-            `Either remove them or update CLAUDE.md + add them to a per-page graph check like paycalc's.`);
+            `Either remove them, or add the page to PRELOAD_PAGES so its list is checked against the real graph.`);
     }
 });
 
