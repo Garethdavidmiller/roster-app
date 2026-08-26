@@ -32,24 +32,12 @@ track status is `SECURITY_RELEASE_PLAN.md`. Design lives in `PASSWORD_PLAN.md` (
 | 6 | **Client page-authorisation is UX only.** `requirePageAuth` decides what to SHOW. The rules are the boundary. A decision here is never a security control. | `auth-policy.js` |
 | 7 | **The Calendar viewer holds no identity claims.** Not `name`, not `admin`, not `manager`, not `linksDesigner` — each asserted by name, because a capability that quietly grew one would look like a working sign-in. | `functions/calendar-viewer-auth.js` · `calendar-viewer-parity.test.mjs` |
 | 8 | **The viewer's persistence is session-only, and boot must not migrate it.** `setPersistence` moves the *current user* between stores, so signing the viewer out has to happen BEFORE restoring the member chain. | `calendar-access.js` · `firebase-client.js` (`authReady`) |
-| 9 | **Anonymous grants nothing.** A rule written `request.auth != null` re-admits every visitor, because the Calendar used to sign them all in. Ask for a claim, never for a session. **⚠️ TARGET, not yet literally true of `overrides` reads — see `EXC-001`.** | `firestore.rules` |
+| 9 | **Anonymous grants nothing.** A rule written `request.auth != null` re-admits every visitor, because the Calendar used to sign them all in. Ask for a claim, never for a session. True of `overrides` reads since 26 Aug 2026, when the `allow read;` hold line was deleted. | `firestore.rules` |
 | 10 | **The PIN is never compared on the client, and never enters the repository.** A client-side check turns a 10,000-space secret into an offline brute force; a committed copy makes rotation the only remedy. | `calendar-access-core.js` · `calendar-viewer-parity.test.mjs` |
 | 11 | **The forced-password overlay fails OPEN, both before and after showing.** A mandatory overlay that cannot be satisfied is a lockout. | `password-force.js` |
 | 12 | **Identity derivation exists twice and may not drift.** `normaliseSurname` and `nameToEmail` are duplicated across the ESM/CommonJS boundary; a drifted email provisions an account that does not exist while "Set up accounts" reports success. | `auth-identity.js` · `functions/roster-parse-helpers.js` · `surname-parity.test.mjs` |
 | 13 | **`initErrorReporter()` needs an auth context.** Called bare, every write is silently rejected by the rules — so the error log looks healthy because it is broken. Three canonical call sites. | CLAUDE.md → architecture decisions |
 | 14 | **Overtime has two audiences, and reviewing is not participating.** `isOvertimeReviewer` (admin/manager) sees everyone's declarations; a beta participant answers only for themselves. Never widen the first to make the nav pill work. | `auth-policy.js` (`isOvertimeReviewer`/`canOpenOvertime`) · `roster-data.js` |
-
----
-
-## Known temporary exceptions
-
-**`EXC-001` — `overrides` is still publicly readable.** Invariant 9 above is the TARGET; it is not yet
-literally true of `overrides` reads. The full statement, the reason the sequencing is deliberate and
-the closure condition live in **`ARCHITECTURE.md` → §3**, and are not repeated here.
-
-Row 9 carries a warning so nobody reads the invariant and assumes the rules are already closed.
-**When `EXC-001` closes, delete that warning and this section** — a documented exception that outlives
-the exception is the same defect one step later.
 
 ---
 

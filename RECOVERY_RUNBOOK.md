@@ -347,11 +347,14 @@ steps below are three separate pushes rather than one:
 | Brake | Where | Ships as | Released at |
 |---|---|---|---|
 | `CONFIG.CALENDAR_PIN_ACCESS` | `roster-data.js` | **RELEASED — `true` and live since v20.51.** (It shipped `false`, was released at v20.46, rolled back at v20.50 the same morning, and re-released at v20.51 once the cause was found to be a GCP IAM gap rather than app code. This row said "ships as `false` … ROLLED BACK" until v21.63, which read as though the soak had never restarted — an argument for postponing step 4 on false grounds.) | step 3 — **DONE**, soaking since v20.51 |
-| `allow read;` hold line | `firestore.rules` overrides block | present — collection still public | step 4 — still on (the soak) |
+| `allow read;` hold line | `firestore.rules` overrides block | **RELEASED — deleted 26 Aug 2026 (v21.78).** `overrides` reads now require a `name` claim, `admin`, or the `calendarViewer` capability; a request with none is refused by the SERVER | step 4 — **DONE** |
 
-The hold line is declared a second time as `OVERRIDES_READ_HELD_OPEN` in `firestore.rules.test.mjs`,
+The hold line was declared a second time as `OVERRIDES_READ_HELD_OPEN` in `firestore.rules.test.mjs`,
 and `calendar-viewer-parity.test.mjs` fails if the two disagree in either direction. That is what
-stops the hold outliving the rollout: it cannot be forgotten quietly, only removed deliberately.
+stopped the hold outliving the rollout: it could not be forgotten quietly, only removed deliberately.
+**Both brakes are now off. The rollback is no longer a flag flip** — it is reverting the step-4 rules
+push and redeploying, which is a two-minute path but a different one, and every step below is kept
+as the record of how the release ran rather than as work still to do.
 
 1. **Secret — BEFORE the merge, not after.** `firebase functions:secrets:set CALENDAR_VIEWER_PIN`.
    This is not merely "nothing works without it": `firebase deploy --only functions` resolves the
@@ -397,9 +400,22 @@ stops the hold outliving the rollout: it cannot be forgotten quietly, only remov
    the reads are denied by the server whatever the client asks for. After step 4 the rollback is
    step 4's own revert.
 
-   > **SCHEDULED: Monday 24 Aug 2026** (owner, 14 Aug — "let it soak another week then close the
-   > hold"). Set for the Monday rather than the Friday: it is more soak, not less, and a tightening
-   > whose rollback has just become a rules deploy is a poor thing to ship into a weekend.
+   > **DONE — 26 Aug 2026** (scheduled for Mon 24 Aug; shipped two days later). The go/no-go was
+   > taken on the pre-flight below: the App Speed version breakdown showed most real loads had moved
+   > off the pre-v20.51 client, and page views were broadly level with July. `deploy-rules.yml`
+   > succeeded at 16:38. **Step 5 is the remaining work** — production verification in a fresh
+   > private window.
+   >
+   > **Two things the pre-flight asked for that the Operations cards cannot actually produce**, and
+   > which cost time on the day: item 1 wants the share of loads on a pre-v20.51 client, but the App
+   > Speed card aggregates the WHOLE MONTH, so early-August loads on old versions are counted for
+   > ever and the figure is systematically pessimistic about how stale devices are TODAY. Item 2
+   > wants calendar page views over a 7-day window against a pre-10-Aug baseline, but page
+   > popularity is stored per MONTH (`analytics/pv_<YYYY-MM>`) with no daily bucket — only the
+   > active-account counter has one. Both were answered by proxy: "most have moved off", and
+   > "overall views broadly level with July", which detects the failure mode (a collapse in opens)
+   > even though it is not the window as written. If this sequence is ever run again, either add a
+   > daily page-view bucket first or write the pre-flight against what the cards actually hold.
    >
    > **What the soak is actually for, and it is not what it sounds like.** It is not about proving
    > the PIN works — that was step 2b, by hand, on 10 Aug. It is about *how many devices are still
