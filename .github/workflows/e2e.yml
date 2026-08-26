@@ -89,18 +89,30 @@ jobs:
   # It runs HERE and not in deploy-hosting.yml on purpose: a second engine in the deploy gate would
   # double the critical path and let a WebKit-only flake keep staff on a stale version, which is the
   # failure that had production four releases behind on 14 Aug 2026.
+  # ── ONE JOB PER ENGINE (v21.80) ────────────────────────────────────────────────────────────────
+  #
+  # This was a single job running the whole smoke suite TWICE — desktop WebKit, then Mobile Safari —
+  # sequentially, and it had become the thing every merge waited on: 18m48s of test time on the last
+  # run, against five sibling jobs that finish in one to seven minutes. It was also cancelled at
+  # 20m15s earlier the same day when a branch push and its PR competed for runners, and a cancelled
+  # job reads exactly like a failed one.
+  #
+  # The matrix runs the two engines as separate jobs in parallel, so the wall clock is one engine
+  # (~9 minutes) rather than both. `fail-fast: false` because the whole point is which ENGINE broke:
+  # cancelling Mobile Safari the moment desktop fails would throw away the more interesting half.
+  #
+  # v21.78 had raised the single job's cap 20 → 35 and left a note to split it "if it ever
+  # approaches 35 minutes". Waiting for that would have been the wrong trigger — the cap was never
+  # the problem, the wall clock was.
   webkit:
     runs-on: ubuntu-latest
-    # 20 → 35 (v21.78). This job runs the whole smoke suite twice — desktop WebKit and Mobile
-    # Safari — on top of a `--with-deps` browser install, and it had grown to 19m33s against a
-    # 20-minute cap: green, and one minute from not being. It was CANCELLED at 20m15s the first
-    # time a branch push and its PR ran concurrently and competed for runners. A cancelled job
-    # reads exactly like a failed one on the PR, which is the worst outcome for a check that is
-    # deliberately NOT the deploy gate — it teaches you to ignore a red WebKit. The headroom is
-    # generous on purpose: the cap is there to stop a hung job burning a runner for six hours,
-    # not to police the suite's length. If it ever approaches 35 minutes, split the two engine
-    # projects into separate jobs rather than raising this again.
-    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [webkit, mobile-safari]
+    # Each job now carries ONE engine, so half the work — 20 is generous. The cap exists to stop a
+    # hung job burning a runner for six hours, not to police the suite's length.
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -121,7 +133,7 @@ jobs:
         run: npx playwright install --with-deps webkit
 
       - name: Run the smoke suite under WebKit
-        run: npm run test:webkit
+        run: npm run test:webkit -- --project=${{ matrix.project }}
         env:
           CI: true
 
@@ -129,7 +141,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: playwright-report-webkit
+          name: playwright-report-webkit-${{ matrix.project }}
           path: playwright-report/
           retention-days: 7
 
