@@ -74,7 +74,7 @@ jobs:
         run: npm ci
         working-directory: functions
 
-      - name: Run functions tests (parser helpers, deploy-surface pin, overtime endpoints)
+      - name: Run functions tests (parser helpers, deploy-surface pin, overtime + auth endpoints)
         run: npm run test:functions
 
   # E2E smoke suite — real headless Chromium, Firebase SDK stubbed at the network

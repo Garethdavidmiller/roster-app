@@ -18,6 +18,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { countedAlDates, alPosition, consumesEntitlement } from './al-entitlement.js';
 import { teamMembers, getBaseShift, parseISODate, formatISO, isSunday } from './roster-data.js';
 import { isRestShift } from './override-utils.js';
@@ -324,4 +325,34 @@ describe('one winner per date (v21.56)', () => {
         assert.equal(a.size, 1, 'the newer doc carries the swap, so the day costs');
         assert.equal(b.size, 1, 'and the answer must not depend on iteration order');
     });
+});
+
+// ── THE CALL SITES (v21.83) ─────────────────────────────────────────────────────────────────────
+//
+// Everything above tests the RULE. The wiring audit of 26 Aug 2026 found the rule can be perfect
+// and the answer still wrong: changing `admin-al.js` to hand `countedAlDates` an EMPTY override map
+// left 57 unit tests and 8 admin e2es green, and silently restores the v21.55 defect — a member who
+// swapped in a working day and then books it off gets the leave free, because with no overrides in
+// hand the day reads as a rest day.
+//
+// A static guard rather than a behavioural one, deliberately, and its limits are the point: it
+// cannot prove the map is CORRECT, only that each site still asks for it. That is exactly the
+// defect shape though — an argument dropped in a refactor — and the alternative on offer was
+// nothing at all. The write path's own stamp is covered behaviourally in admin-overrides.test.mjs.
+describe('the entitlement count is asked for with the overrides in hand', () => {
+    const SITES = ['admin-al.js', 'admin-app.js'];
+
+    for (const file of SITES) {
+        test(`${file} passes the override cache into countedAlDates`, () => {
+            const src = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8');
+            const calls = src.split('countedAlDates(').slice(1);
+            assert.ok(calls.length > 0, `${file} is listed here because it calls countedAlDates — it no longer does`);
+            for (const [i, call] of calls.entries()) {
+                // The argument object, up to its closing brace — enough to see what was handed over.
+                const args = call.slice(0, call.indexOf('})') + 1);
+                assert.match(args, /overrides:\s*getAllOverrides\(\)/,
+                    `${file} call ${i + 1} must pass the override cache; without it a swapped-in day reads as a rest day and the leave costs nothing`);
+            }
+        });
+    }
 });
