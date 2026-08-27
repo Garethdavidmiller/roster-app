@@ -7,6 +7,14 @@ accessibility coverage — closing the gap the v17.45 audit flagged. Run it with
 It is a **floor**: axe catches the machine-checkable ~third of real issues (labels, names, contrast,
 ARIA, duplicate ids). It does not replace a manual screen-reader pass.
 
+**Open items: one, and it is not a finding.** Every finding recorded below is fixed (the last,
+transient status glyphs, at v21.85). What has never been done is a **manual screen-reader pass** —
+somebody driving the app with VoiceOver or TalkBack and listening to it. That is the only way to
+reach the two-thirds axe cannot: reading ORDER, whether announcements arrive at a useful moment,
+whether a live region interrupts something the user was in the middle of, and whether the app is
+usable by ear at all. It needs a person and a device, not a test run, which is why it is stated here
+as outstanding rather than tracked as a defect.
+
 ## Current status — ✅ GREEN + BLOCKING (v17.52)
 
 Every page the spec drives passes on both projects (Desktop Chrome + Pixel 5). **Both findings are resolved**
@@ -73,10 +81,42 @@ Fixed this pass:
   ⚠ + the Spare 📋 flavour button; index.html action buttons (🖨️ Print, 📖 guide, 🐛 Report a bug,
   💷 View pay estimate, 🔔 notify).
 
-These are aria-tree-only changes (glyphs still render — visual baselines byte-identical). **Deferred
-(P3, low return):** the ~dozens of transient status strings that prefix `textContent` with ✓/⚠/✗/ℹ️
-in `aria-live` regions — the glyph arguably reinforces the status, and hiding it needs a span
-restructure at each site; best done later via one shared `setStatus(el, glyph, text)` helper.
+These are aria-tree-only changes (glyphs still render — visual baselines byte-identical).
+
+### Transient status glyphs — ✅ FIXED (v21.85)
+
+*Deferred at v17.75 as "P3, low return": the ~dozens of transient status strings that prefix
+`textContent` with ✓/⚠/✗/ℹ️ in `aria-live` regions — "the glyph arguably reinforces the status, and
+hiding it needs a span restructure at each site; best done later via one shared helper."*
+
+The helper is `status-text.js`. `setStatus(el, '✓ Settings saved')` puts the glyph in an
+`aria-hidden` span, so the announcement is the sentence and nothing else. The glyph is split OFF the
+message rather than passed separately (`setStatus(el, glyph, text)`, as originally sketched)
+precisely because of the cost noted above: a signature requiring every caller that composes its
+message — counts, names, dates, i.e. most of them — to be taken apart first is a migration that gets
+done to half the sites, and half-done is worse here than not started, since the sites left behind
+look identical in the source.
+
+Converted: **26 call sites** across ten modules, three `innerHTML` templates that carry markup of
+their own (wrapped by hand), and **two static `role="alert"` regions in `paycalc.html`** —
+`#pensionWarn` and `#satWarn`, which had been there since before the gate existed and which every
+automated pass read straight past, because they are correct HTML with the glyph as real text.
+
+**Buttons are deliberately excluded.** `✓ Resolve` is a stable accessible NAME, matched by
+`getByRole('button', { name })` and announced once on focus rather than interrupting a reader
+mid-sentence. Different problem, different risk; if it is taken on later it should be its own pass
+with its own test surface, not folded into this one.
+
+Two page modules turned out to have their own local functions called `setStatus`, both writing to
+live regions (`login-overlay.js`, `paycalc-lightboxes.js`). Both now delegate to the shared helper
+and are named for their surface.
+
+**Why this needed its own guard.** Nothing else in the repo can see this rule: rendering is
+byte-identical so the visual baselines pass, `textContent` reads back unchanged so every e2e
+assertion passes, and axe has no rule for "a decorative glyph that was not hidden" — that is a
+judgement about meaning, which is why it sat here as prose for eight months instead of failing a
+build. `status-glyph-parity.test.mjs` enforces it in the three shapes it can break (markup,
+`textContent`, `innerHTML`), plus that the helper is imported wherever it is called.
 
 ## Known pre-existing (not gate-caught, low priority)
 

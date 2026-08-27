@@ -427,10 +427,11 @@ const RESET_REQUESTS_ENABLED = true;
  *    "send to everyone".
  *  · uid → their own push subscriptions (sendTargetedPush).
  *
- * The headline states the queue DEPTH, so read `resetRequests` AFTER the write. `.select()` fetches
- * document ids with no field data — the collection is bounded by the roster (doc id = member name), so
- * this is a ~50-doc metadata read, not a scan. If the count read fails, fall back to 1: a notification
- * naming the member with a possibly-low count still does its job, where no notification does not.
+ * The headline states the queue DEPTH, so read `resetRequests` AFTER the write. `.select('notifiedAt')`
+ * fetches document ids plus that one field — the collection is bounded by the roster (doc id = member
+ * name), so this is a ~50-doc metadata read, not a scan. If the count read fails, fall back to 1: a
+ * notification naming the member with a possibly-low count still does its job, where no notification
+ * does not.
  *
  * @param {string} member                  who asked (from the server-owned roster)
  * @param {string[]} adminNames            roster-members.json roles.admin
@@ -449,18 +450,18 @@ async function notifyAdminOfResetRequest(member, adminNames, vapidPrivate) {
     }
     if (uids.length === 0) return;   // sendTargetedPush would refuse anyway; skip the VAPID setup
 
-    // One read serves both the queue depth AND the coalescing decision. `requestedAt` is the only
+    // One read serves both the queue depth AND the coalescing decision. `notifiedAt` is the only
     // field fetched — still a metadata-scale read over a collection bounded by the roster.
     let pending = 1;
-    /** @type {Array<number|null>} requestedAt of every row EXCEPT this member's */
+    /** @type {Array<number|null>} notifiedAt of every row EXCEPT this member's */
     let otherStamps = [];
     try {
-        const snap = await admin.firestore().collection('resetRequests').select('requestedAt').get();
+        const snap = await admin.firestore().collection('resetRequests').select('notifiedAt').get();
         pending = snap.size || 1;
         otherStamps = snap.docs
             .filter(d => d.id !== member)
             .map(d => {
-                const t = d.data().requestedAt;
+                const t = d.data().notifiedAt;
                 return t && typeof t.toMillis === 'function' ? t.toMillis() : null;
             });
     } catch (e) {
@@ -471,14 +472,18 @@ async function notifyAdminOfResetRequest(member, adminNames, vapidPrivate) {
     // nothing about a caller walking the public roster and filing one request per name, which used to
     // produce one push each. Fifty buzzes is both the nuisance and the reason a real request would
     // then be ignored. One push per window, carrying the queue depth, says more with less.
+    //
+    // The window is measured from other rows' `notifiedAt` — pushes that were actually accepted —
+    // not their `requestedAt`. v21.85 (external review): the old criterion let a FAILED first push
+    // silence a second member's real request for the rest of the window. See shouldNotifyAdmin.
     if (!shouldNotifyAdmin(otherStamps, Date.now(), ADMIN_NOTIFY_COALESCE_MS)) {
-        console.log('[requestPasswordReset] notification coalesced — admin alerted recently; pending:', pending);
+        console.log('[requestPasswordReset] notification coalesced — a push was accepted inside the window; pending:', pending);
         return;
     }
 
     setupWebPush(vapidPrivate, VAPID_PUBLIC_KEY);
     const { headline, body } = buildResetRequestNotice(member, pending);
-    await sendTargetedPush(
+    const accepted = await sendTargetedPush(
         buildPushPayload({
             feature: 'resetRequest',
             headline,
@@ -488,6 +493,23 @@ async function notifyAdminOfResetRequest(member, adminNames, vapidPrivate) {
         uids,
         '[reset-request]',
     );
+
+    // Record that the admin was REACHED, which is what the next request's coalescing decision needs
+    // to know. Nothing is stamped when no subscription accepted the message, so the next member in
+    // the window rings the phone instead of inheriting a silence. Wrapped: failing to write the
+    // stamp only costs a duplicate notification later, and the push has already gone.
+    if (accepted > 0) {
+        try {
+            await admin.firestore().collection('resetRequests').doc(member).set(
+                { notifiedAt: admin.firestore.FieldValue.serverTimestamp() },
+                { merge: true },
+            );
+        } catch (e) {
+            console.warn('[requestPasswordReset] could not stamp notifiedAt for', member, e && e.code);
+        }
+    } else {
+        console.warn('[requestPasswordReset] nothing accepted the push for', member, '— not stamping notifiedAt');
+    }
 }
 
 const requestPasswordReset = onRequest(

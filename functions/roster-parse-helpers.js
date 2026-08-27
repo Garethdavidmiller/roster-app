@@ -1025,29 +1025,44 @@ function shouldRecordResetRequest(lastRequestedAtMs, nowMs, throttleMs) {
  * collection is bounded by construction — but the notifications are not, and a phone buzzing fifty
  * times is both the annoyance and the reason a real request would then be ignored.
  *
- * So: push only when no OTHER request was recorded inside the coalescing window. During a burst the
- * admin gets ONE notification, and because the feature shares a single notification tag carrying the
- * queue depth, that one is a live summary of the whole queue rather than a fragment of it. A genuine
- * second request later in the day is well outside the window and still pushes.
+ * So: push only when no OTHER row records a notification that was actually SENT inside the window.
+ * During a burst the admin gets ONE notification, and because the feature shares a single tag
+ * carrying the queue depth, that one is a live summary of the whole queue rather than a fragment of
+ * it. A genuine second request later in the day is well outside the window and still pushes.
  *
- * Deliberately derived from data we ALREADY hold (the other rows' timestamps) rather than a new
+ * ── WHY THE TIMESTAMPS ARE `notifiedAt` AND NOT `requestedAt` (v21.85, external review) ──────────
+ * This used to read the other rows' `requestedAt`, i.e. it treated *another request arrived
+ * recently* as *the admin was told recently*. Those are not the same claim, and the gap is a real
+ * one: if the first request's push failed — a transient push-service error, or an admin whose only
+ * subscription predates the `owner` stamp and is therefore skipped — then the SECOND member inside
+ * the window was silenced by a notification that never happened. Nothing was lost (the row is the
+ * doorbell and the Operations card is authoritative), but the phone stayed quiet for the whole
+ * window, and the log line claimed the opposite.
+ *
+ * `notifiedAt` is written only after `sendTargetedPush` reports a subscription ACCEPTED the message,
+ * so the suppression now rests on evidence rather than on a proxy. Burst protection is unchanged —
+ * the first send stamps and the rest coalesce behind it — and the case where NO send succeeds now
+ * keeps trying, which is what "fail open" was always supposed to mean here.
+ *
+ * Still derived from data we already hold, on a collection no client can write, rather than a new
  * "last notified" document: no extra collection, no extra rules surface, and nothing a client could
  * write to suppress the admin's notifications.
  *
- * Fails OPEN — an unreadable timestamp notifies rather than stays silent, because a missed doorbell
- * is worse than a duplicate one.
+ * Fails OPEN — an absent or unreadable timestamp notifies rather than stays silent, because a missed
+ * doorbell is worse than a duplicate one. Rows written before v21.85 carry no `notifiedAt` at all,
+ * so the transition itself fails open by construction.
  *
- * @param {Array<number|null|undefined>} otherRequestedAtMs  requestedAt of every OTHER pending row
+ * @param {Array<number|null|undefined>} otherNotifiedAtMs  notifiedAt of every OTHER pending row
  * @param {number} nowMs
  * @param {number} windowMs
  * @returns {boolean} true → send the push
  */
-function shouldNotifyAdmin(otherRequestedAtMs, nowMs, windowMs) {
-    for (const raw of Array.isArray(otherRequestedAtMs) ? otherRequestedAtMs : []) {
+function shouldNotifyAdmin(otherNotifiedAtMs, nowMs, windowMs) {
+    for (const raw of Array.isArray(otherNotifiedAtMs) ? otherNotifiedAtMs : []) {
         const t = Number(raw);
-        if (!Number.isFinite(t) || t <= 0) continue;          // unreadable → not evidence of a recent push
+        if (!Number.isFinite(t) || t <= 0) continue;          // never notified (or junk) → not evidence
         if (t > nowMs) continue;                              // clock skew → ignore, never suppress
-        if (nowMs - t < windowMs) return false;               // someone else just triggered one
+        if (nowMs - t < windowMs) return false;               // the admin WAS reached, just now
     }
     return true;
 }

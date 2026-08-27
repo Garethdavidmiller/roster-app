@@ -129,6 +129,15 @@ const CAPS = {
     // grows again, the candidate to extract is the panel-building trio (lock card / member card /
     // skeleton) as a presentation module — they share only `_panel` and the host lookup.
     'calendar-access.js':      1000,
+    // Crossed 900 at v21.85 on a ONE-LINE import — `setStatus`, so the four back-pay notices stop
+    // announcing their leading glyph. It had been sitting at exactly 900 since v21.82, when the
+    // response to the same pressure was to trim a comment of my own rather than raise the ceiling;
+    // there is nothing left to trim that a reader would not miss. Headroom is 49 lines and not the
+    // usual 50–99 deliberately: nothing in this file has grown for a reason of its own in three
+    // releases, so the next raise should have to argue for itself. The extraction candidate is
+    // `bpStoryHtml` — a pure HTML builder with no coordinator state, and the same shape as the
+    // split that produced paycalc-breakdown.js.
+    'paycalc-backpay.js':       949,
 };
 
 describe('an already-large module may not get larger', () => {

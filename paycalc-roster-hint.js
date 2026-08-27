@@ -19,6 +19,7 @@ import { lsGet, lsSet } from './ls.js';
 import { pcPrefix } from './paycalc-migrations.js';
 import { fdLong } from './paycalc-format.js';
 
+import { setStatus } from './status-text.js';
 // The seven special-rate categories and their hour/minute field ids — the ONE source for the
 // pairing that was hand-duplicated across _restoreRosterSuggested / _applyRosterSuggestion /
 // fillCategoryFromRoster here and the two field lists in paycalc-app.js. A suggestion/snapshot
@@ -189,10 +190,10 @@ export function updateRosterHint() {
   const badge = document.getElementById('rosterStateBadge');
   if (badge) {
     if (getOverridesFetchState() === 'loaded') {
-      badge.textContent  = '✓ Includes recorded changes';
+      setStatus(badge, '✓ Includes recorded changes');
       badge.className    = 'roster-state-badge loaded';
     } else if (getOverridesFetchState() === 'base-only') {
-      badge.textContent  = '⚠ Scheduled only';
+      setStatus(badge, '⚠ Scheduled only');
       badge.className    = 'roster-state-badge base-only';
     } else {
       badge.textContent  = '';

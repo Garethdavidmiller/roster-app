@@ -421,7 +421,7 @@ Every RULE Overtime Availability has, and no I/O at all — no Firebase, no HTTP
 
 ### `calendar-notices.js`
 The Calendar page's one-time notices, in one place (v21.61 — split from calendar-app.js when the second live notice took the coordinator over its ratchet cap; a notice is a self-contained unit that arrives and expires routinely, and each was growing the coordinator by ~50 lines of non-coordination wiring).
-- `initCalendarNotices()` — wires every one-time notice index.html carries. Called once from calendar-app.js at module scope. Currently: `sign-in-2026` (the set-your-own-password nudge — CTA + snooze, expiry `CONFIG.PASSWORD_NOTICE_DAYS`, DONE key shared with settings-app.js via storage-keys.js) and `backpay-2026` (the 28 Aug 2026 award-payslip reminder — ONE-SHOT, no snooze, hard clock cutoff Thu 27 Aug 2026 23:00 rather than a day count, self-retires silently past it).
+- `initCalendarNotices()` — wires every one-time notice index.html carries. Called once from calendar-app.js at module scope. Currently: `sign-in-2026` (audience `'signed-out'` — it asks somebody using the staff PIN to sign in once and skip the code; CTA + snooze, expiry `CONFIG.SIGN_IN_NOTICE_DAYS`, and NO cross-page retirement write: signing in puts the reader outside its audience by itself, which is why `NOTICE_PW_OWN_DONE` and settings-app.js's write to it both went at v21.84) and `backpay-2026` (the 28 Aug 2026 award-payslip reminder — ONE-SHOT, no snooze, hard clock cutoff Thu 27 Aug 2026 23:00 rather than a day count, self-retires silently past it).
 - Both open through `openNoticeIfClear` (never `open()` — v19.53) behind `calendarAccessReady` + a 1,500ms defer past the Huddle auto-open. Whichever notice opens first wins the load; the other stays unflagged and returns next load.
 - Imports `CONFIG` (roster-data), `lsGet`/`lsSet` (ls), `archiveNotice`/`isNoticeExpired` (nav-panel), `createLightbox`/`openNoticeIfClear` (overlay), `calendarAccessReady` (calendar-access). Imported by `calendar-app.js` only. The notice HTML stays in index.html; the rules table stays in CLAUDE.md ("Current notices").
 
@@ -1618,7 +1618,40 @@ Safe localStorage wrappers for all app pages (iOS Safari private mode compatibil
 Single source for the CROSS-FILE localStorage key names (v16.81) — a shared key must have ONE spelling.
 - `SELECTED_MEMBER` (`myb_roster_selected_member`) + `SELECTED_MEMBER_LEGACY` (`adminLastMember`, the pre-rename alias still read as a fallback) — shared by `calendar-member.js` and `admin-app.js`
 - `VIEWED_MONTH` / `VIEWED_YEAR` — shared by `calendar-state.js` and `admin-app.js` (the "open calendar on the month I was editing" hand-off)
+- `PW_FORCE_PENDING_PREFIX` — the one-shot login marker `password-force.js` reads
 - Per-module and paycalc-namespaced keys deliberately stay local to their modules — only keys read by MORE THAN ONE file live here.
+- `NOTICE_PW_OWN_DONE` was REMOVED at v21.84. It existed so settings-app.js could retire a
+  Calendar notice; the replacement notice's `'signed-out'` audience ended the coupling rather
+  than rehousing it, so the key had no second reader left.
+
+### `status-text.js`
+The leading GLYPH on a transient status message, and who hears it (v21.85). About fifty status
+lines lead with `✓`/`⚠`/`✗`/`↻`; most land in an `aria-live` region, and a screen reader announces
+the glyph along with the sentence — "warning" or "check mark" in front of a message that already
+says what happened. The last open finding in A11Y_FINDINGS.md, deferred there with a reason ("hiding
+it needs a span restructure at each site; best done later via one shared helper").
+- `STATUS_GLYPHS` — the CLOSED vocabulary, longest-first so `⚠️` (U+26A0 U+FE0F) is matched before
+  the bare `⚠` it starts with. Today the space rule below catches that on its own, so the ordering
+  is belt-and-braces; it is pinned structurally by `status-text.test.mjs` because the space rule
+  could reasonably be relaxed by someone who has no idea it is holding this up.
+- `splitStatusGlyph(text)` → `{ glyph, rest }` — pure. Only a glyph followed by a SPACE is
+  decoration: a message that is JUST the glyph, or one running into a word, is carrying meaning on
+  its own and is left alone.
+- `setStatus(el, text)` — writes the message with the glyph inside an `aria-hidden` span. Built from
+  nodes, never an `innerHTML` template: `rest` routinely carries a member name or an error message.
+  A missing `el` is a no-op.
+
+**`el.textContent` still reads back the string that was passed in**, because a text node inside a
+child span is still text content. That is what let 26 call sites migrate without touching a single
+assertion, and it is the thing to know before rewriting this. Rendering is byte-identical, so the
+visual baselines cannot confirm the module is wired in either — `status-glyph-parity.test.mjs` is
+what does that.
+
+**Buttons are out of scope.** `✓ Resolve` is a stable accessible NAME, matched by
+`getByRole('button', { name })` and announced once on focus rather than interrupting a reader.
+Different problem, different risk, decided separately. Two page modules also had LOCAL functions
+called `setStatus` (`login-overlay.js`, `paycalc-lightboxes.js`); both now delegate here and are
+named for their surface (`setLoginStatus`, `setActualsStatus`).
 
 ### `firestore.rules`
 Server-side Firestore security rules — deployed via `firebase deploy --only firestore:rules`.

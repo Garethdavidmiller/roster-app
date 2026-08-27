@@ -53,6 +53,7 @@
   <link rel="modulepreload" href="./calendar-access-core.js">
   <link rel="modulepreload" href="./password-force.js">
   <link rel="modulepreload" href="./storage-keys.js">
+  <link rel="modulepreload" href="./status-text.js">
   <link rel="modulepreload" href="./auth-identity.js">
   <link rel="modulepreload" href="./auth-policy.js">
   <link rel="modulepreload" href="./auth-state-core.js">
@@ -199,7 +200,7 @@
           <input type="text" id="pensionAmt" value="147.36" inputmode="decimal" autocomplete="off" enterkeyhint="done">
         </div>
         <div class="field-hint">Your payslip calls this "Smart RPS CR Scheme". <strong>Saved per payslip</strong> — change it here and past payslips keep their own amount.</div>
-        <div id="pensionWarn" class="val-warn" role="alert" aria-live="polite">⚠ Pension exceeds gross pay — check the amount</div>
+        <div id="pensionWarn" class="val-warn" role="alert" aria-live="polite"><span aria-hidden="true">⚠</span> Pension exceeds gross pay — check the amount</div>
         <div class="toggle-row">
           <input type="checkbox" id="pensionOptOutCheck">
           <label for="pensionOptOutCheck">I'm <strong>not in the pension scheme</strong></label>
@@ -334,7 +335,7 @@
           <div class="h-title"><span aria-hidden="true">🗓️</span> Rostered Saturday</div>
           <span class="rate-badge badge-sat" id="badge-sat">1.25×  ·  £26.86/hr</span>
           <div class="h-sub">A Saturday that was in your regular roster. If you weren't scheduled to work that Saturday, use Rest Day Working instead. Shows as "Ord Basic Pay @1.25" on your payslip.</div>
-          <div class="val-warn" id="satWarn" role="alert">⚠ You've entered more Saturday hours than your roster allows — check the total</div>
+          <div class="val-warn" id="satWarn" role="alert"><span aria-hidden="true">⚠</span> You've entered more Saturday hours than your roster allows — check the total</div>
         </div>
         <div>
           <div class="hhmm-wrap">

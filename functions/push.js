@@ -99,7 +99,10 @@ function setupWebPush(vapidPrivate, vapidPublic) {
  * @param {object} payload            JSON-stringified for the push body — title, body, url, tag
  * @param {string[]} ownerUids        Firebase Auth uids allowed to receive this
  * @param {string} logTag             Short string for console log lines
- * @returns {Promise<number>}         How many sends were attempted
+ * @returns {Promise<number>}         How many subscriptions ACCEPTED the push. Zero is the reliable
+ *                                    direction: it means nobody was reached, and a caller may act on
+ *                                    that. A non-zero count means the push service took the message,
+ *                                    not that a phone displayed it.
  */
 async function sendTargetedPush(payload, ownerUids, logTag) {
     const uids = Array.from(new Set((ownerUids || []).filter(u => typeof u === 'string' && u)));
@@ -123,10 +126,18 @@ async function sendTargetedPush(payload, ownerUids, logTag) {
     }
 
     const payloadStr = JSON.stringify(payload);
+    // ACCEPTED, not attempted (v21.85, external review). A caller that records "the admin has been
+    // told" needs to know a push actually left, and `docs.length` says only that we tried: a
+    // transient 500 from the push service, or an endpoint whose keys have rotated, counted exactly
+    // the same as a delivered notice. It is still not a READ receipt — the push service accepting a
+    // message is not the phone showing it — so 0 is the trustworthy half of this number: it means
+    // nobody was reached, and a caller may rely on that direction.
+    let accepted = 0;
     await Promise.allSettled(docs.map(async docSnap => {
         const { endpoint, keys } = docSnap.data();
         try {
             await getWebPush().sendNotification({ endpoint, keys }, payloadStr);
+            accepted += 1;
         } catch (err) {
             if (shouldDeleteSubscription(err.statusCode)) {
                 await docSnap.ref.delete();
@@ -136,8 +147,8 @@ async function sendTargetedPush(payload, ownerUids, logTag) {
             }
         }
     }));
-    console.log(`${logTag} Targeted send complete — attempted ${docs.length} subscription(s)`);
-    return docs.length;
+    console.log(`${logTag} Targeted send complete — ${accepted} of ${docs.length} subscription(s) accepted`);
+    return accepted;
 }
 
 async function fanOutPush(payload, logTag) {

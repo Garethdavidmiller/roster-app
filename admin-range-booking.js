@@ -17,6 +17,7 @@ import { teamMembers } from './roster-data.js';
 import { recordRangeOverrides, formatDisplay, buildMemberDateMap, isWorkingDate } from './admin-overrides.js';
 import { buildRangePicker, getDateRange } from './admin-rangepicker.js';
 
+import { setStatus } from './status-text.js';
 /**
  * Wire one date-range booking section (AL or sick).
  *
@@ -150,7 +151,7 @@ export function createRangeBookingSection(cfg) {
 
             if (!workingCount) {
                 feedbackEl.className = 'feedback error';
-                feedbackEl.textContent = '⚠ No working days in that range — nothing to record.';
+                setStatus(feedbackEl, '⚠ No working days in that range — nothing to record.');
                 feedbackEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 return;
             }

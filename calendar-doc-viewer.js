@@ -145,14 +145,14 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
             const msg = document.createElement('p');
             msg.className = 'doc-viewer-empty';
             msg.textContent = "Couldn't load this document.";
-            const again = document.createElement('button');
-            again.type = 'button';
-            again.className = 'doc-open-btn';
-            again.textContent = '↻ Try again';
-            again.addEventListener('click', () => openDoc(key));
+            const againBtn = document.createElement('button');
+            againBtn.type = 'button';
+            againBtn.className = 'doc-open-btn';
+            againBtn.textContent = '↻ Try again';
+            againBtn.addEventListener('click', () => openDoc(key));
             bodyEl.appendChild(msg);
-            bodyEl.appendChild(again);
-            again.focus();
+            bodyEl.appendChild(againBtn);
+            againBtn.focus();
         }
     }
 

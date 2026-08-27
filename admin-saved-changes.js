@@ -28,6 +28,7 @@ import { db, doc, deleteDoc, writeBatch, writeWithClaimRetry, COLLECTIONS } from
 import { TYPES } from './admin-shift-types.js';
 import { getAllOverrides, removeFromCache, isTruncated, coversAllStaff, OVERRIDES_QUERY_CAP, loadOverrides } from './admin-override-store.js';
 
+import { setStatus } from './status-text.js';
 // ── INJECTED ──────────────────────────────────────────────────────────────────
 let _currentIsAdmin   = false;
 let _currentIsManager = false;
@@ -253,7 +254,7 @@ async function _handleDelete(e) {
         if (fieldMember?.value && fieldDate?.value && !_hasStagedEdits()) renderWeekGrid();
         if (deleted && listFeedback) {
             const typeMeta = TYPES[deleted.type];
-            listFeedback.textContent = `✓ Deleted: ${deleted.memberName} — ${formatDisplay(deleted.date)} (${typeMeta ? typeMeta.label : deleted.type})`;
+            setStatus(listFeedback, `✓ Deleted: ${deleted.memberName} — ${formatDisplay(deleted.date)} (${typeMeta ? typeMeta.label : deleted.type})`);
             listFeedback.className = 'list-feedback success';
             setTimeout(() => { listFeedback.className = 'list-feedback'; }, 6000);
         }
@@ -330,7 +331,7 @@ function _initOverridesTable() {
                 // Preserve unsaved staged week-grid edits across a bulk delete (v16.82) — see _handleDelete.
                 if (fieldMember?.value && fieldDate?.value && !_hasStagedEdits()) renderWeekGrid();
                 if (listFeedback) {
-                    listFeedback.textContent = `✓ Deleted ${ids.length} saved change${ids.length !== 1 ? 's' : ''}`;
+                    setStatus(listFeedback, `✓ Deleted ${ids.length} saved change${ids.length !== 1 ? 's' : ''}`);
                     listFeedback.className = 'list-feedback success';
                     setTimeout(() => { listFeedback.className = 'list-feedback'; }, 6000);
                 }

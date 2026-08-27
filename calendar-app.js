@@ -40,6 +40,7 @@ import { initCalendarLightboxes } from './calendar-al-lightbox.js';
 import { initInitialFetch } from './calendar-initial-fetch.js';
 import { initCalendarTooltip, initCalendarKeyboard } from './calendar-keyboard.js';
 
+import { setStatus } from './status-text.js';
 // ── THE CALENDAR ACCESS BOOTSTRAP (v20.12) ──────────────────────────────────────────────────────
 //
 // This replaced an unconditional `signInAnonymously` fallback. That existed because `overrides` was
@@ -711,7 +712,7 @@ try {
             allErrors.forEach(error => console.error('  - ' + error));
             const banner = document.getElementById('errorBanner');
             if (banner) {
-                banner.textContent = '⚠️ Some roster details couldn\'t load — please tell the admin.';
+                setStatus(banner, '⚠️ Some roster details couldn\'t load — please tell the admin.');
                 banner.classList.add('visible');
             }
         }
@@ -996,7 +997,7 @@ try {
     if (splashEl) splashEl.remove();
     const banner = document.getElementById('errorBanner');
     if (banner) {
-        banner.textContent = '⚠️ Couldn\'t start the calendar — please refresh the page.';
+        setStatus(banner, '⚠️ Couldn\'t start the calendar — please refresh the page.');
         banner.classList.add('visible');
     }
 }
