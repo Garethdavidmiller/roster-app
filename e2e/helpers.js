@@ -500,6 +500,10 @@ export async function clickInView(locator) {
  */
 export async function clickDialogConfirm(page, selector = '.dialog-btn-confirm') {
     const btn = page.locator(selector).first();
+    // A COUNT IS A SNAPSHOT, and at some call sites the dialog is genuinely optional — the links
+    // order-switch test only gets one when there is something to confirm. Under load the count and
+    // the click straddle that: count sees a dialog mid-open, it never finishes arriving, and a
+    // committed click then burns the whole test timeout waiting for an element that is not coming.
     if (!await btn.count()) return false;
     // The lifecycle adds `.open` on the frame after `.visible`, so its presence means the fade has
     // begun; the geometry check below is what says it has finished.
@@ -523,6 +527,15 @@ export async function clickDialogConfirm(page, selector = '.dialog-btn-confirm')
     // outcome: every caller asserts on what the dialog's action did — the status line, the written
     // payload, the reordered grid — so a click that lands on nothing still fails the test it was
     // called from. Verified by stubbing the Apply handler so no dialog opens at all: still red.
-    await btn.click({ force: true });
+    // BOUNDED, and the bound is what distinguishes the two cases. If the button has gone by the
+    // time we press, there was no dialog to confirm and the caller's own assertion decides whether
+    // that is a problem. If it is still sitting there and refuses the click, that is a stuck dialog
+    // and it should fail loudly, which is why this rethrows rather than swallowing.
+    try {
+        await btn.click({ force: true, timeout: 8000 });
+    } catch (err) {
+        if (await btn.count()) throw err;
+        return false;
+    }
     return true;
 }
