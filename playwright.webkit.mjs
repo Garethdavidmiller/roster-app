@@ -48,6 +48,30 @@
  * The DEPLOY gate keeps its single-shot rule unchanged — that reasoning (an automatic retry hands a
  * genuinely intermittent product bug a second chance to reach staff) is about a gate that ships to
  * production, which this is not.
+ *
+ * ── RUNNING IT LOCALLY: THE BROWSER IS NOT THERE UNTIL YOU PUT IT THERE (v21.85) ────────────────
+ *
+ * The dev container ships CHROMIUM only (`PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`), and the
+ * environment notes say not to run `playwright install` — which is correct advice ABOUT CHROMIUM,
+ * since re-fetching a browser that is already there wastes minutes and can pull a revision the
+ * pinned `@playwright/test` does not match. It is easy to read as a blanket prohibition. It is not
+ * one, and reading it that way cost a session: `npm run test:webkit` was reported as impossible
+ * here and a change went to CI as the first thing to see it under this engine.
+ *
+ * Two commands, in this order, and it works:
+ *
+ *     npx playwright install webkit          # the browser binary
+ *     npx playwright install-deps webkit     # ~20 system libs — apt, so it needs root
+ *
+ * The FIRST alone is not enough and fails in a misleading way: the download succeeds, then the
+ * launch dies listing missing shared objects (gstreamer, libwoff2, libenchant, libmanette…). That
+ * reads like "unsupported" rather than "one more command", which is the trap.
+ *
+ * Measured after doing it: **719 passed, 0 failed, 13.2 minutes** for both projects on this
+ * container. So it is slow enough to be worth backgrounding and fast enough that there is no
+ * excuse for shipping a CSS or layout change without it. Do not add these commands to a script or
+ * a hook — they are a one-off per container, and a suite that silently apt-installs is a suite
+ * nobody can reason about.
  */
 import base from './playwright.config.mjs';
 import { devices } from '@playwright/test';

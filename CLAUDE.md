@@ -587,7 +587,12 @@ npm run test:csp
 # promote to blocking only if the runner proves consistent. Regenerate: `npm run test:visual -- --update-snapshots=all` (`=all` is load-bearing — a bare `--update-snapshots` only rewrites baselines whose comparison FAILED, so a baseline that drifted inside the tolerance could never be refreshed). **Then `git status e2e/visual-baselines/` and revert anything you cannot explain** (v19.62): `=all` rewrites every baseline including the ones that PASSED, so a run intended to capture ONE change came back with FIVE modified — four of them sub-tolerance rendering noise that would have been committed as though reviewed. Reverting a file and re-running is the check: still passes ⇒ it was noise and does not belong in the diff:
 npm run test:visual
 
-# The smoke suite under Safari's engine. Runs in branch CI, not the deploy gate:
+# The smoke suite under Safari's engine. Runs in branch CI, not the deploy gate. **The browser is
+# NOT in a fresh dev container** — `npx playwright install webkit && npx playwright install-deps
+# webkit` (the second is apt, so it needs root; without it the launch dies listing missing shared
+# objects and reads like "unsupported"). Measured after that: 719 passed in 13.2 min. The standing
+# "do not run playwright install" advice is about CHROMIUM, which IS pre-installed — reading it as
+# a blanket ban is what left a CSS-adjacent release to meet this engine for the first time on CI:
 npm run test:webkit
 
 # Offline-behaviour proof (e2e/offline.spec.js under playwright.offline.mjs) — SW/offline-first paths
