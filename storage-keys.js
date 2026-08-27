@@ -36,16 +36,17 @@ export const VIEWED_YEAR  = 'myb_roster_year';
  *  load, which is the v14.77 "Fix 4" defect the work-email check's identical marker exists to stop. */
 export const PW_FORCE_PENDING_PREFIX = 'myb_pw_force_pending_';
 
-/**
- * The calendar's `pw-own-2026` notice, retired permanently on this device once the member has
- * their own password — PASSWORD_PLAN.md Track C, notice added v19.89.
+/*
+ * `NOTICE_PW_OWN_DONE` lived here until v21.84, and its removal is the point rather than tidying.
  *
- * CROSS-FILE, and the reason is the v19.89 review finding it exists to fix. The notice IIFE lives in
- * `calendar-app.js`; what retires it lives in `settings-app.js`, which is the only page that can
- * actually read `passwordStatus`. Two files spelling the same 28-character string by hand is the
- * exact hazard this module's header describes — and a typo here does not error, it just means a
- * member who has already done what the notice asks keeps being asked for the rest of the window.
+ * It was cross-file because `settings-app.js` reached across to retire a notice that lives on the
+ * Calendar — the only page that can read `passwordStatus` silencing a notice on a page that cannot.
+ * The replacement notice is addressed to the SIGNED-OUT (`calendar-access-core.js` →
+ * `noticeAudienceAllows`), so it stops being shown the moment a member has a session, with nothing
+ * to write and nothing for a second page to keep in step. The coupling went away rather than
+ * getting a better home.
  *
- * The SNOOZE key stays local to the notice: only the IIFE reads or writes it.
+ * Devices still hold the old `myb_notice_pw_own_2026_done` string. It is an inert orphan: nothing
+ * reads it, and unlike the paycalc device flags (see RETIRED_DEVICE_KEYS) no code path
+ * reclassifies an unknown notice key as anything.
  */
-export const NOTICE_PW_OWN_DONE = 'myb_notice_pw_own_2026_done';

@@ -27,7 +27,6 @@
 
 import { CONFIG } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
-import { NOTICE_PW_OWN_DONE } from './storage-keys.js';
 import { archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { createLightbox, openNoticeIfClear } from './overlay.js';
 import { calendarAccessReady, getAccessType } from './calendar-access.js';
@@ -46,7 +45,7 @@ import { noticeAudienceAllows } from './calendar-access-core.js';
  * Escape ran both onClose callbacks and flagged the buried one seen for good.
  *
  * @param {{ open: () => void }} lb
- * @param {'members'|'everyone'} audience
+ * @param {'members'|'signed-out'|'everyone'} audience
  */
 function _openWhenAudienceAllows(lb, audience) {
     calendarAccessReady.then(() => {
@@ -61,70 +60,68 @@ export function initCalendarNotices() {
     // snoozed, expired), and as plain blocks those returns leave THIS function — so the first
     // notice already dismissed silenced every notice after it. Caught by a render check the same
     // hour it was written; the wrapper is the scope those returns need.
-    // ── One-time notice: set your own password (v19.89, PASSWORD_PLAN.md Track C) ────────────────────
+    // ── One-time notice: sign in once and skip the station code (v21.84) ────────────────────────
     //
-    // WHO THIS IS FOR, because it is not who you would assume. `password-force.js` already COMPELS any
-    // member still on the surname default to choose their own at their next sign-in, and sessions cap at
-    // 60 days, so everyone who signs in is handled without a notice. The people it cannot reach are the
-    // ones who only ever read the roster and so never sign in anywhere — CLAUDE.md records exactly that
-    // as an accepted gap. This notice exists for them, on the one page they do open.
+    // REPLACES `pw-own-2026`, which asked the same people to do the same thing for a reason that has
+    // since been handled elsewhere. `password-force.js` compels a chosen password at the next
+    // sign-in of anybody still on the surname default, so for a member who signs in the old notice
+    // was telling them about a step the app was about to make them take anyway. What is NOT handled
+    // elsewhere is the thing the staff PIN introduced on 26 Aug: a member reading the roster on
+    // their own phone now re-enters the code every browser session, and nothing told them that
+    // signing in once ends that. KNOWN_LIMITATIONS.md named the old notice as the nudge for exactly
+    // this group; this is that nudge, saying what it actually means.
     //
-    // So its real ask is "sign in"; setting a password is the reason to. That is also why it does NOT
-    // carry the skill template's `if (!getSession()) return` guard — copying that in would hide the
-    // notice from its entire target audience, which is everyone WITHOUT a session.
+    // The password ask has not been lost, it has moved down the funnel: sign in → forced password
+    // set. That is a better order than the notice ever managed, because it ends in the app doing it
+    // rather than the member remembering to.
     //
-    // It must also stay true for someone who has ALREADY set their own password: the calendar holds no
-    // named session, so it cannot read `passwordStatus` and genuinely does not know. Hence "everyone
-    // started with…" rather than "your password is…".
+    // AUDIENCE 'signed-out', which is the whole design. Telling somebody who has signed in to sign
+    // in is noise, and because the audience is re-checked on every load the notice retires ITSELF
+    // the moment they do — no done-flag, and no retirement write in settings-app.js to keep in step
+    // (the old notice needed one, and it was a real coupling between two pages).
+    //
+    // A NEW ID and a NEW key, deliberately: every member who dismissed `pw-own-2026` would
+    // otherwise never see this, and they are its audience. Same reasoning as the v19.51
+    // links-beta → links-workspace replacement.
     (function () {
-        const NOTICE_ID   = 'pw-own-2026';
-        const NOTICE_DATE = '6 Aug 2026';
-        // The DONE key is shared with settings-app.js, which is the only page that can read
-        // `passwordStatus` and therefore the only one that can know the notice has been satisfied — so
-        // it is declared once in storage-keys.js rather than spelled out in both files (v19.91).
-        const DONE_KEY    = NOTICE_PW_OWN_DONE;
-        const SNOOZE_KEY  = 'myb_notice_pw_own_2026_snooze';
+        const NOTICE_ID   = 'sign-in-2026';
+        const NOTICE_DATE = '27 Aug 2026';
+        const DONE_KEY    = 'myb_notice_sign_in_2026_done';
+        const SNOOZE_KEY  = 'myb_notice_sign_in_2026_snooze';
 
-        const overlay = document.getElementById('pwNoticeLb');
+        const overlay = document.getElementById('signInNoticeLb');
         if (!overlay) return;
         if (lsGet(DONE_KEY)) return;
         const snooze = lsGet(SNOOZE_KEY);
         if (snooze && Date.now() < new Date(snooze).getTime()) return;
-        // Longer than the 28-day default: this is a migration that runs until C5 retires the surname
-        // default (gated on ~90% migrated), not an announcement whose news value decays. The window is a
-        // configurable BACKSTOP with a review date — see CONFIG.PASSWORD_NOTICE_DAYS for why it must not
-        // be hardwired here, and what to do when it comes round.
-        if (isNoticeExpired(NOTICE_DATE, CONFIG.PASSWORD_NOTICE_DAYS)) { lsSet(DONE_KEY, '1'); return; }
+        // The same long window the password notice used, and for the same reason: this is a standing
+        // situation rather than an announcement whose news value decays. See CONFIG.SIGN_IN_NOTICE_DAYS.
+        if (isNoticeExpired(NOTICE_DATE, CONFIG.SIGN_IN_NOTICE_DAYS)) { lsSet(DONE_KEY, '1'); return; }
 
         const _snoozeFor = (/** @type {number} */ days) =>
             lsSet(SNOOZE_KEY, new Date(Date.now() + days * 86_400_000).toISOString());
 
         const lb = createLightbox({
             overlay,
-            content:  /** @type {HTMLElement} */ (document.getElementById('pwNoticeContent')),
-            closeBtn: /** @type {HTMLElement} */ (document.getElementById('pwNoticeClose')),
-            // Archive on OPEN, not on close: this notice has a CTA, so the member may navigate away to
-            // Settings and never fire `onClose`. `archiveNotice` is idempotent.
+            content:  /** @type {HTMLElement} */ (document.getElementById('signInNoticeContent')),
+            closeBtn: /** @type {HTMLElement} */ (document.getElementById('signInNoticeClose')),
+            // Archive on OPEN, not on close: there is a CTA, so the reader may navigate away to sign
+            // in and never fire `onClose`. `archiveNotice` is idempotent.
             onOpen() {
                 archiveNotice({
-                    id: NOTICE_ID, title: 'Set your own password', section: 'Settings',
+                    id: NOTICE_ID, title: 'Sign in once and skip the code', section: 'Calendar',
                     date: NOTICE_DATE,
-                    body: 'Everyone started with their surname as their password, which anyone who knows your name can guess. '
-                        + 'Set your own in Settings → Password. You will be asked to sign in first if it has been a while.',
+                    body: 'Viewing the roster with the station code means entering it again every time the browser closes. '
+                        + 'Signing in with your own name lasts 60 days on that device, and sets your own password at the same time.',
                 });
             },
             onClose() { _snoozeFor(7); },
         });
 
-        document.getElementById('pwNoticeGo')?.addEventListener('click', () => _snoozeFor(1));
-        document.getElementById('pwNoticeLater')?.addEventListener('click', () => lb.close());
+        document.getElementById('signInNoticeGo')?.addEventListener('click', () => _snoozeFor(1));
+        document.getElementById('signInNoticeLater')?.addEventListener('click', () => lb.close());
 
-        // 'everyone' — the ONE notice that must survive the audience default (v21.81). Its readers
-        // are the members who never sign in, and since v20.12 those members reach the Calendar
-        // through the staff PIN, so `'members'` would hide it from precisely the people it was
-        // written for. That is the same trap as the skill template's `if (!getSession()) return`,
-        // which this notice also does not carry, for the same reason.
-        _openWhenAudienceAllows(lb, 'everyone');
+        _openWhenAudienceAllows(lb, 'signed-out');
     }());
 
     // ── One-shot notice: back pay arrives on the 28 Aug 2026 payslip (v21.61) ───────────────────────

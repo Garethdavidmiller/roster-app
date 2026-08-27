@@ -221,7 +221,7 @@ roster-app/
 ├── calendar-access-core.js ← the PURE rules behind it (no DOM, no Firebase, so it loads in Node): `CALENDAR_VIEWER_UID`/`CALENDAR_VIEWER_CLAIM`, `isViewerUser`, `decideAccess`, PIN input shaping, `classifyUnlockFailure`, `attemptBackoffMs`, and `noticeAudienceAllows` — who a one-time notice is addressed to, since a PIN unlock is a STATION and not a person (v21.81). **The PIN is never compared here or in any client file** — a client-side check turns a 10,000-space secret into an offline brute force. `session.js` imports `isViewerUser` from here rather than keeping a second copy. Tested by calendar-access-core.test.mjs
 ├── calendar-data-state.js  ← what the Calendar KNOWS about a month's overrides, and what it may therefore SHOW: `noteKnowledge`, `forget`, `knowledgeOf`, `worstKnowledge`, `decideDisplay`. Pure — no DOM, no Firebase, no imports. **Cache absence is not evidence that no override exists**, which is the whole module; the four states and why none of them collapses into another are argued in the header. Tested by calendar-data-state.test.mjs
 ├── calendar-overrides.js   ← Firestore override cache for index.html (fetch/ensure range, getShiftTypesInMonth) + `fetchOverridesForRangeFromCache` (v19.01 — the local-cache, no-network, no-auth read that phase 1 of the calendar's two-phase load paints from; merges ADDITIVELY, never evicts) — the GATE (`setOverrideAccess`, whose grant is a fresh start: it clears the month claims, or a re-unlocked Calendar can never read again) — the WRITE ORDERING (`_monthOwner` + `_monthSlices`, v20.44: a late superseded read may not evict what a newer one loaded; ordering the render without ordering the write was half a fix) — and, since v20.40, the RECORDER: `ensureOverridesCached` notes each month authoritative/error, and a failed month now repaints ONCE (see `_failureRepainted` — the render↔fetch loop it guards is invisible from either end)
-├── calendar-notices.js     ← the Calendar page's one-time notices (`initCalendarNotices` — pw-own-2026 + backpay-2026), split from calendar-app.js when the second live notice took the coordinator over its ratchet cap. A notice is a self-contained unit that arrives and expires routinely, so /new-notice additions for index.html land here, not in the coordinator. The three shipped-bug rules it restates: open via `openNoticeIfClear`, never `open()`; wait for `calendarAccessReady`; and declare an AUDIENCE, because that promise says access was granted and not whose it is — every notice was opening on the PIN-unlocked station PC (v21.81). Open through `_openWhenAudienceAllows` so a notice added later cannot skip the check
+├── calendar-notices.js     ← the Calendar page's one-time notices (`initCalendarNotices` — sign-in-2026 + backpay-2026), split from calendar-app.js when the second live notice took the coordinator over its ratchet cap. A notice is a self-contained unit that arrives and expires routinely, so /new-notice additions for index.html land here, not in the coordinator. The three shipped-bug rules it restates: open via `openNoticeIfClear`, never `open()`; wait for `calendarAccessReady`; and declare an AUDIENCE, because that promise says access was granted and not whose it is — every notice was opening on the PIN-unlocked station PC (v21.81). Open through `_openWhenAudienceAllows` so a notice added later cannot skip the check
 ├── calendar-member.js      ← team member selection for index.html (dropdown, current member, stale-name handling)
 ├── calendar-renderer.js    ← calendar cell/grid building for index.html
 ├── calendar-huddle-viewer.js    ← Huddle viewer overlay: initHuddleViewer, _triggerAutoOpen, hashchange
@@ -305,7 +305,7 @@ roster-app/
 ├── client-errors.js        ← the pure RULES of the client error log, for BOTH sides of it: `shouldReport` (v19.20 — the capture-side noise filters, extracted from error-reporter.js because that module imports the gstatic SDK and so can't load in Node) + the read-side ordering/retention (isResolvedErrorExpired, expiredResolvedIds, orderClientErrors, capUnresolvedErrors — the over-fetch→shown+truncated split, extracted from getClientErrors). The filters had shipped UNTESTED from v13.31 to v19.19, which is backwards for this code specifically: too narrow only leaves visible noise, but too broad silently swallows real errors and the Error Log looks healthy BECAUSE it is broken
 ├── claim-retry.js          ← pure stale-claim self-heal runner (runWithClaimRetry, isClaimRetryable) extracted from firebase-client.js so the security-critical write retry (permission-denied/storage-unauthorized → force token refresh → retry once → preserve original error) is unit-testable in Node. firebase-client's withClaimRetry/_uploadBytesWithClaimRetry inject the Firebase auth deps. Tested by claim-retry.test.mjs
 ├── ls.js                   ← iOS-safe localStorage wrappers: lsGet, lsSet, lsDel, lsKeys
-├── storage-keys.js         ← single source for the CROSS-FILE localStorage keys (SELECTED_MEMBER + legacy alias, VIEWED_MONTH/YEAR, PW_FORCE_PENDING_PREFIX, and — v19.91 — `NOTICE_PW_OWN_DONE`, the `pw-own-2026` retirement flag written by settings-app.js and read by calendar-app.js); shared so a cross-file key has ONE spelling (v16.81). Per-module + paycalc-namespaced keys stay local.
+├── storage-keys.js         ← single source for the CROSS-FILE localStorage keys (SELECTED_MEMBER + legacy alias, VIEWED_MONTH/YEAR, PW_FORCE_PENDING_PREFIX); shared so a cross-file key has ONE spelling (v16.81). `NOTICE_PW_OWN_DONE` was removed at v21.84 and the module says why: Settings reached across to retire a Calendar notice, and the replacement's `'signed-out'` audience ended the coupling rather than rehousing it. Per-module + paycalc-namespaced keys stay local.
 ├── index.css / admin.css / paycalc.css / operations.css / settings.css ← page-specific CSS
 ├── overtime.html           ← Overtime availability: one page carrying BOTH surfaces (a member's own form and the reviewer workspace), because they are the same subject seen from two sides and a second page would double every contract. Reviewer-only during the restricted live beta
 ├── overtime.css            ← CSS for overtime.html. One visual idea — the WEEK ROW — because every action on this page, member or manager, is per-week
@@ -693,11 +693,13 @@ Full HTML template, JS patterns (close-only and CTA+snooze), rules table, and mo
 
 **Current notices** (keep this table current — monthly cleanup removes entries older than 180 days):
 
-> **Every notice declares an AUDIENCE** (v21.81) — `'members'` (a signed-in member; the default, and
-> where anything about pay, settings or an account belongs) or `'everyone'` (including a PIN-unlocked
-> viewer, for a notice whose readers are specifically people who have NOT signed in). The rule is
-> `noticeAudienceAllows` in `calendar-access-core.js`; a refused notice is left unflagged, so it
-> arrives when that device next signs in. Below, `pw-own-2026` is the only `'everyone'` one.
+> **Every notice declares an AUDIENCE** (v21.81, third value v21.84) — `'members'` (a signed-in
+> member; the default, and where anything about pay, settings or an account belongs), `'signed-out'`
+> (only where nobody is signed in on this device — a PIN unlock; for a notice about signing in, which
+> then retires ITSELF the moment they do, since the audience is re-checked every load), or
+> `'everyone'` (both; rarely right). The rule is `noticeAudienceAllows` in `calendar-access-core.js`;
+> a refused notice is left unflagged, so it arrives when that device's position changes. Below,
+> `sign-in-2026` is the only `'signed-out'` one and nothing is `'everyone'`.
 
 > **The Status column is load-bearing — keep it accurate** (added v19.51). A notice goes INERT the
 > moment `isNoticeExpired` fires: the IIFE marks it seen and returns *without showing it*, so on any
@@ -715,7 +717,7 @@ Full HTML template, JS patterns (close-only and CTA+snooze), rules table, and mo
 | `ytd_2627` | `paycalc.html` | Enter your Year to Date figures | 💷 Pay | 6 Apr 2026 | 90 days | ⛔ **inert since ~5 Jul 2026** — copy is still accurate, but nobody new sees it (see note above) | One-time; `NOTICE_YTD_KEY` set on close |
 | `links-workspace-2026` | `links.html` | Links Workspace | 🔗 Links | 2 Aug 2026 | **14 days** | ⛔ **inert since 16 Aug 2026** (confirmed at the v21.50 sweep, 17 Aug — the v21.40 sweep called this one day out and it has now passed). Expiring is right for this one: it welcomed a designer to a workspace they have now been using for a fortnight, so nothing is lost by it going quiet. It stays in this table until the 180-day removal on ~29 Jan 2027 | One-time; `myb_links_welcome_seen` set on close |
 | `backpay-2026` | `index.html` | Back pay arrives 28 August | 💷 Pay | 21 Aug 2026 | **Hard cutoff: Thu 27 Aug 2026 · 23:00** (a clock time, not a day count — the eve of the award payslip; past it the notice self-retires silently) | ✅ live until the cutoff; remove from code+table on the 180-day rule ~17 Feb 2027 | One-shot; `myb_notice_backpay_2026_done` set on close AND on the CTA — no snooze |
-| `pw-own-2026` | `index.html` | Set your own password | ⚙️ Settings | 6 Aug 2026 | **`CONFIG.PASSWORD_NOTICE_DAYS`** (90) | ✅ live until ~4 Nov 2026 — **review that date, don't just let it lapse** | CTA + snooze; 7d on close, 1d on CTA; `NOTICE_PW_OWN_DONE` (storage-keys.js). Also retired the moment Settings CONFIRMS the account is migrated, on any device (v19.91) |
+| `sign-in-2026` | `index.html` | Sign in once and skip the code | 📅 Calendar | 27 Aug 2026 | **`CONFIG.SIGN_IN_NOTICE_DAYS`** (90) | ✅ live until ~25 Nov 2026 — **review that date, don't just let it lapse** | CTA + snooze; 7d on close, 1d on CTA; `myb_notice_sign_in_2026_done`. No retirement write anywhere: signing in puts the reader outside its audience, permanently and by itself |
 
 The retired `links-beta-2026` (posted 9 Jun 2026, 28 days) was replaced at v19.51: the beta chip
 went at v19.50, so its lead paragraph described a page that no longer existed. Only the paragraph
@@ -724,14 +726,13 @@ that was still true survived, joined by the fatigue-checks framing and the share
 meant every current designer, all of whom closed the beta notice months ago, never saw the
 replacement.
 
-> **`pw-own-2026` comes out when C5 ships, not when it expires.** Its job ends the moment the surname
-> default is retired (SECURITY_RELEASE_PLAN → Track C5, gated on ~90% migrated) — after that it is
-> telling people to fix something that no longer exists. The window is a backstop, not the plan — and
-> since v19.91 it lives in **`CONFIG.PASSWORD_NOTICE_DAYS`** rather than inside the page, because
-> `isNoticeExpired` marks a notice seen *without showing it*: on 4 Nov 2026 this becomes dead code on
-> every device that has not already displayed it, while the table above still calls it live. If C5 has
-> not shipped by then, raise that number and move the review date with it.
-> It is also the ONLY notice aimed at members who never sign in, so do not "tidy" it by adding a
+> **`sign-in-2026` is NOT gated on C5, and that is the change (v21.84).** Its predecessor
+> `pw-own-2026` was: it asked a member to set their own password, so its job ended when the surname
+> default was retired. This one asks them to SIGN IN — because on a personal phone the staff PIN is
+> re-entered every browser session and signing in ends that for 60 days — and the password ask moved
+> down the funnel to `password-force.js`, which compels it at that sign-in anyway. So retire this one
+> when the PIN goes or when nobody is left to reach, not when C5 ships.
+> It is also the ONLY notice aimed at people who are not signed in, so do not "tidy" it by adding a
 > `getSession()` guard: that would hide it from everyone it was written for.
 
 **Monthly cleanup:** on the 1st of each month, remove any notice from the table where `(today − Posted) > 180 days` — delete the HTML block, JS IIFE, and bump the version.
@@ -1134,7 +1135,7 @@ OPENS has to fire before the await, never after it (the v18.94 bug).
 
 **Calendar access — the staff PIN (v20.12).** The Calendar opens for a named member session OR the shared staff PIN, and for nothing else. A signed-in member is never interrupted. A shared office PC enters four digits and gets the full Calendar including overrides, in a session that lives exactly as long as the browser session. Everything privileged still requires a real member sign-in — the viewer has no `name`, `admin`, `manager` or `linksDesigner` claim and cannot write anywhere. The PIN value lives only in the `CALENDAR_VIEWER_PIN` secret. Design: `calendar-access.js` / `calendar-access-core.js`; operations + rotation: OPERATIONS_REFERENCE.md; the closed limitation: KNOWN_LIMITATIONS.md.
 
-**A consequence worth expecting in support questions:** a member who has never signed in anywhere now has to unlock each browser session, where before the Calendar simply opened. Signing in once (a 60-day session) removes the PIN entirely, which is what the `pw-own-2026` notice already asks of exactly that group.
+**A consequence worth expecting in support questions:** a member who has never signed in anywhere now has to unlock each browser session, where before the Calendar simply opened. Signing in once (a 60-day session) removes the PIN entirely, which is what the `sign-in-2026` notice asks of exactly that group.
 
 Firebase SDK: currently v12.16.0. Check version before any new Firebase work. **An SDK bump must also update `FIREBASE_SDK_VERSION` in `service-worker.js`** (the SDK offline cache is keyed on it) — `sw-asset-check.test.mjs` fails the build if they diverge.
 

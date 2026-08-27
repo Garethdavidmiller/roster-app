@@ -255,6 +255,17 @@ describe('which devices a notice is addressed to', () => {
         assert.equal(noticeAudienceAllows('everyone', 'open'), true);
     });
 
+    test("'signed-out' reaches the PIN station and NOT a signed-in member", () => {
+        // The audience for a notice ABOUT signing in. Its two halves are equally load-bearing: a
+        // member who has already signed in must not be told to, and the check re-runs on every
+        // load — so such a notice stops of its own accord the moment they do, with no done-flag
+        // and no retirement write anywhere else in the app to keep in step.
+        assert.equal(noticeAudienceAllows('signed-out', 'viewer'), true);
+        assert.equal(noticeAudienceAllows('signed-out', 'open'), true, 'the PIN switched off is still nobody signed in');
+        assert.equal(noticeAudienceAllows('signed-out', 'none'), true);
+        assert.equal(noticeAudienceAllows('signed-out', 'named'), false, 'they have already done the thing it asks');
+    });
+
     test('an audience nobody recognises is treated as members-only', () => {
         // Fails towards the direction whose cost is visible: a notice that does not appear gets
         // noticed, station pay copy on a shared screen does not.
