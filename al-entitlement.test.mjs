@@ -340,19 +340,27 @@ describe('one winner per date (v21.56)', () => {
 // defect shape though — an argument dropped in a refactor — and the alternative on offer was
 // nothing at all. The write path's own stamp is covered behaviourally in admin-overrides.test.mjs.
 describe('the entitlement count is asked for with the overrides in hand', () => {
-    const SITES = ['admin-al.js', 'admin-app.js'];
+    // EVERY reader in the family, not just the one the audit happened to break (v21.84). The first
+    // cut of this guard pinned `countedAlDates` alone — and the behavioural test written next found
+    // `alPosition`, the banner's own call site, sitting outside it. That is the same mistake one
+    // level up: a rule guarded at the site somebody thought of.
+    const READERS = ['countedAlDates', 'alPosition'];
+    const SITES   = ['admin-al.js', 'admin-app.js'];
 
     for (const file of SITES) {
-        test(`${file} passes the override cache into countedAlDates`, () => {
+        test(`${file} passes the override cache into every entitlement reader`, () => {
             const src = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8');
-            const calls = src.split('countedAlDates(').slice(1);
-            assert.ok(calls.length > 0, `${file} is listed here because it calls countedAlDates — it no longer does`);
-            for (const [i, call] of calls.entries()) {
-                // The argument object, up to its closing brace — enough to see what was handed over.
-                const args = call.slice(0, call.indexOf('})') + 1);
-                assert.match(args, /overrides:\s*getAllOverrides\(\)/,
-                    `${file} call ${i + 1} must pass the override cache; without it a swapped-in day reads as a rest day and the leave costs nothing`);
+            let seen = 0;
+            for (const fn of READERS) {
+                for (const [i, call] of src.split(`${fn}(`).slice(1).entries()) {
+                    seen++;
+                    // The argument object, up to its closing brace — enough to see what was handed over.
+                    const args = call.slice(0, call.indexOf('})') + 1);
+                    assert.match(args, /overrides:\s*getAllOverrides\(\)/,
+                        `${file}: ${fn} call ${i + 1} must pass the override cache; without it a swapped-in day reads as a rest day and the leave costs nothing`);
+                }
             }
+            assert.ok(seen > 0, `${file} is listed here because it reads the entitlement — it no longer does`);
         });
     }
 });
