@@ -164,6 +164,22 @@ export function createDesignStore(deps) {
                 if (e?.message === 'concurrent-edit') return { status: 'conflict', conflict: e.conflict };
                 // RULE 2. Only the absence of a server may take the unserialised path.
                 if (!isOffline(e)) throw err;
+                // Offline still CONSULTS what we hold before writing. Firestore runs with
+                // persistentLocalCache, so this read is usually served from IndexedDB — it cannot
+                // prove anything about the server, but it can carry a deletion or a co-editor's
+                // save that reached this device before the connection went. Queueing a blind write
+                // over a design our own cache says was deleted would resurrect it on sync, which is
+                // the one outcome `deleted-elsewhere` exists to prevent. (Preserved from the path
+                // this replaced; dropping it was a regression I introduced and caught in review.)
+                try {
+                    const cached = await getDoc(ref);
+                    if (cached.exists() && isDeleted(cached.data())) {
+                        return { status: 'deleted-elsewhere', deletedData: cached.data() };
+                    }
+                    const c = conflictOf(cached.data() || {}, cached.exists(),
+                        { loadedUpdatedAt: baseline, baselineUnknown, currentUser });
+                    if (c) return { status: 'conflict', conflict: c };
+                } catch { /* no cached state either — nothing to consult, proceed */ }
                 await withClaimRetry(() => setDoc(ref, buildPayload()));
                 // Nothing verified what the server held, so the baseline is UNKNOWN, never null.
                 return { status: 'queued', baseline: baselineAfterWrite(null, false) };

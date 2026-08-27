@@ -149,6 +149,54 @@ describe('a SAVE never downgrades its guarantee while online', () => {
         assert.equal(writes.length, 1, 'the queued write did happen');
     });
 
+    test('OFFLINE still consults what this device holds before queueing', async () => {
+        // Firestore runs with persistentLocalCache, so the read below is usually served from
+        // IndexedDB. It proves nothing about the server, but it can carry a deletion that reached
+        // this device before the connection went — and queueing a blind write over that would
+        // RESURRECT a design somebody deliberately deleted, the moment the network came back.
+        //
+        // This case exists because extracting the store dropped the check, and re-reading my own
+        // diff is what found it. It is the sort of loss a behaviour-preserving move makes silently.
+        const { api, writes } = makeDb({
+            initial: { name: 'A', updatedAt: ts(1000), deletedAt: ts(1500), deletedBy: THEM },
+            failTx: { code: 'unavailable', message: 'client is offline' },
+        });
+        api.isOnline = () => false;
+        const res = await createDesignStore(api).save({
+            id: ID, buildPayload: () => ({ name: 'mine' }), baseline: 1000, baselineUnknown: false, currentUser: ME,
+        });
+        assert.equal(res.status, 'deleted-elsewhere');
+        assert.deepEqual(writes, [], 'and nothing was queued');
+    });
+
+    test('OFFLINE reports a cached conflict rather than queueing over it', async () => {
+        const { api, writes } = makeDb({
+            initial: { name: 'A', updatedAt: ts(2000), updatedBy: THEM },
+            failTx: { code: 'unavailable', message: 'client is offline' },
+        });
+        api.isOnline = () => false;
+        const res = await createDesignStore(api).save({
+            id: ID, buildPayload: () => ({ name: 'mine' }), baseline: 1000, baselineUnknown: false, currentUser: ME,
+        });
+        assert.equal(res.status, 'conflict');
+        assert.deepEqual(writes, []);
+    });
+
+    test('and queues normally when the cache shows nothing to worry about', async () => {
+        // The other direction: an offline save that refuses to queue would strand a designer's
+        // work on a device with no connection, which is the whole point of being offline-first.
+        const { api, writes } = makeDb({
+            initial: { name: 'A', updatedAt: ts(1000), updatedBy: ME },
+            failTx: { code: 'unavailable', message: 'client is offline' },
+        });
+        api.isOnline = () => false;
+        const res = await createDesignStore(api).save({
+            id: ID, buildPayload: () => ({ name: 'mine' }), baseline: 1000, baselineUnknown: false, currentUser: ME,
+        });
+        assert.equal(res.status, 'queued');
+        assert.equal(writes.length, 1);
+    });
+
     test('a competing save inside the transaction comes back as a CONFLICT, not an overwrite', async () => {
         const { api, writes } = makeDb({
             initial: { name: 'A', updatedAt: ts(1000), updatedBy: ME },
