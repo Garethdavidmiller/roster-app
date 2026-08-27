@@ -1506,27 +1506,34 @@ describe('summariseSignIns', () => {
 // about a caller walking the PUBLIC roster and filing one request per name, which produced one
 // targeted push each (external review). Fifty buzzes is both the nuisance and the reason a genuine
 // request would then be ignored.
+//
+// The timestamps are the other rows' `notifiedAt` — when a push was ACCEPTED — not their
+// `requestedAt` (v21.85, external review). The old criterion read "another request arrived recently"
+// as "the admin was told recently", so a first push that failed silenced the next member's real
+// request for the rest of the window. These cases are unchanged in shape because the function only
+// ever compared millis; what changed is which millis the endpoint hands it, and that is asserted in
+// auth-endpoints.test.mjs where the two meet.
 describe('shouldNotifyAdmin', () => {
     const FIVE_MIN = 5 * 60 * 1000;
     const NOW = 1_700_000_000_000;
 
-    test('notifies when this is the only request', () => {
+    test('notifies when nobody else has been notified at all', () => {
         assert.equal(shouldNotifyAdmin([], NOW, FIVE_MIN), true);
     });
 
-    test('notifies when every other request is older than the window', () => {
+    test('notifies when every other notification is older than the window', () => {
         assert.equal(shouldNotifyAdmin([NOW - FIVE_MIN, NOW - 86_400_000], NOW, FIVE_MIN), true);
     });
 
     // The burst case: the roster is public, so fifty valid names can be filed in seconds. The first
     // rings; the rest ride on it — and because the feature shares one notification tag carrying the
     // queue depth, that first push stays an accurate summary of the whole queue.
-    test('stays silent when another request landed inside the window', () => {
+    test('stays silent when another push was accepted inside the window', () => {
         assert.equal(shouldNotifyAdmin([NOW - 1000], NOW, FIVE_MIN), false);
         assert.equal(shouldNotifyAdmin([NOW - (FIVE_MIN - 1)], NOW, FIVE_MIN), false);
     });
 
-    test('one recent request among many old ones is enough to coalesce', () => {
+    test('one recent notification among many old ones is enough to coalesce', () => {
         assert.equal(shouldNotifyAdmin([NOW - 86_400_000, NOW - 2000, NOW - 90_000_000], NOW, FIVE_MIN), false);
     });
 

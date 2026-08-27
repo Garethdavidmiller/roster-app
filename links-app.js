@@ -51,6 +51,7 @@ import { normaliseWindow, formatWindow, isDefaultWindow, isValidWindowRow, canon
 import { assessFatigue } from './links-fatigue.js';
 import { initLinksCompare } from './links-compare.js';
 import { conflictOf as _conflictOf, baselineAfterWrite, canAdvanceBaseline } from './links-concurrency.js';
+import { setStatus } from './status-text.js';
 import {
     isDeleted, isPurgeable, purgeableIds, deletedLabel, canSoftDelete, sortByDeleted,
 } from './links-deletion.js';
@@ -2651,7 +2652,7 @@ export function init() {
                 dirty = false;
                 updateSaveBtn();
                 renderDesignPicker();
-                if (status) { status.textContent = '✓ Saved'; status.className = 'links-save-status ok'; }
+                if (status) { setStatus(status, '✓ Saved'); status.className = 'links-save-status ok'; }
                 updateLastSaved(currentUser, { toDate: () => new Date() });
                 return;
             }
@@ -2786,7 +2787,7 @@ export function init() {
 
             dirty = false;
             updateSaveBtn();
-            if (status) { status.textContent = '✓ Saved'; status.className = 'links-save-status ok'; }
+            if (status) { setStatus(status, '✓ Saved'); status.className = 'links-save-status ok'; }
             updateLastSaved(currentUser, { toDate: () => new Date() });
         } catch (err) {
             console.error('[Links] Save failed:', err);

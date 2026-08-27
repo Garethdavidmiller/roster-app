@@ -18,6 +18,7 @@ import { getSession } from './session.js';
 import { teamMembers } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
 import { fdShort, fdLong } from './paycalc-format.js';
+import { setStatus } from './status-text.js';
 import {
   parsePensionTimeline, serialisePensionTimeline, isOptedOutAt,
   withOptOutStartAt, withRejoinAt, optOutStartsAt, migrateLegacyOptOut,
@@ -450,10 +451,10 @@ export function confirmSettings(calculate) {
   const hintEl = document.getElementById('settingsHint');
   const _cfPre = !!curP && isPreAwardPeriod(curP, _cfGrade, curTy.label);
   // No tax code here — matches the coordinator's summary writer (one line at 390px; v17.95).
-  if (hintEl) hintEl.textContent = `✓ ${curTy.label} — £${rate}/hr${_cfPre ? ' · pre-rise' : ''}`;
+  if (hintEl) setStatus(hintEl, `✓ ${curTy.label} — £${rate}/hr${_cfPre ? ' · pre-rise' : ''}`);
   // Brief "saved" confirmation then collapse
   const fb = document.getElementById('settingsSaveFeedback');
-  if (fb) fb.textContent = '✓ Settings saved';
+  if (fb) setStatus(fb, '✓ Settings saved');
   setTimeout(() => {
     if (fb) fb.textContent = '';
     setSettingsCardOpen(false);

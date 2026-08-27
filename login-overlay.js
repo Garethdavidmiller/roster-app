@@ -26,6 +26,7 @@ import { PW_FORCE_PENDING_PREFIX } from './storage-keys.js';
 import { lockBodyScroll, unlockBodyScroll, trapFocus } from './overlay.js';
 import { markLoginStart, clearLoginStart } from './perf-reporter.js';
 
+import { setStatus } from './status-text.js';
 // Full grade order — Management last. The login lists every grade; per-page ACCESS control
 // (admin-only Operations, designer-only Links) is enforced by the caller after sign-in, not here.
 const GRADE_ORDER = CONFIG.GRADE_ORDER;   // single source (roster-data CONFIG) — shared with admin-app's selector
@@ -360,13 +361,16 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
     /** @type {ReturnType<typeof setTimeout>[]} */
     let _statusTimers = [];
     /** @param {string} msg */
-    function setStatus(msg) { statusEl.textContent = msg; statusEl.classList.toggle('visible', !!msg); }
+    // Named for its surface, not generically: `setStatus` is the shared helper in
+    // status-text.js, and two functions of that name doing nearly the same job to the same
+    // kind of element is how one of them gets called by accident (v21.85).
+    function setLoginStatus(msg) { setStatus(statusEl, msg); statusEl.classList.toggle('visible', !!msg); }
     function startStatusProgress() {
-        setStatus('Checking your sign-in…');
-        _statusTimers.push(setTimeout(() => setStatus('Still checking — almost there…'), 1500));
-        _statusTimers.push(setTimeout(() => setStatus('Still working — this can happen after an app update or on weak signal.'), 4000));
+        setLoginStatus('Checking your sign-in…');
+        _statusTimers.push(setTimeout(() => setLoginStatus('Still checking — almost there…'), 1500));
+        _statusTimers.push(setTimeout(() => setLoginStatus('Still working — this can happen after an app update or on weak signal.'), 4000));
     }
-    function clearStatusProgress() { _statusTimers.forEach(clearTimeout); _statusTimers = []; setStatus(''); }
+    function clearStatusProgress() { _statusTimers.forEach(clearTimeout); _statusTimers = []; setLoginStatus(''); }
 
     async function attempt() {
         if (_attempting || Date.now() < _lockedUntil) return;

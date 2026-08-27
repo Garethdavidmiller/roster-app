@@ -63,6 +63,7 @@ import { emptyPeriodData, readFormData, writeFormData } from './paycalc-form-dat
 import { initTransferCard } from './paycalc-transfer-card.js';
 import { buildSummaryRows, buildBreakdownRows, buildActualCheck, buildProvChips } from './paycalc-breakdown.js';
 
+import { setStatus } from './status-text.js';
 /**
  * Phase 4a.2 (ARCHITECTURE_PLAN.md): the coordinator body is an exported init()
  * called by paycalc-boot.js (a 2-line bootstrap — CSP `script-src 'self'` blocks
@@ -239,7 +240,7 @@ export function init() {
         if (hrs > contr) {
           /** @type {HTMLInputElement} */ (document.getElementById(hId)).value = String(contr);
           /** @type {HTMLInputElement} */ (document.getElementById(mId)).value = '0';
-          if (warn) { warn.textContent = `⚠ Capped at ${contr} hrs — your contracted maximum for this period`; warn.classList.add('show'); }
+          if (warn) { setStatus(warn, `⚠ Capped at ${contr} hrs — your contracted maximum for this period`); warn.classList.add('show'); }
         } else {
           if (warn) warn.classList.remove('show');
         }
@@ -324,7 +325,7 @@ export function init() {
       }
       const from = `your <strong>${fdShort(srcP.payday)} payslip</strong> (P${payslipPeriodNum(srcP)})`;
       if (p.num === src + 1) {
-        note.innerHTML = `✓ Your Year to Date figures are from ${from} — they sharpen <strong>this payslip's</strong> tax estimate.`;
+        note.innerHTML = `<span aria-hidden="true">✓</span> Your Year to Date figures are from ${from} — they sharpen <strong>this payslip's</strong> tax estimate.`;
       } else {
         const prevP = getPeriods().find(/** @param {any} x */ x => x.num === p.num - 1);
         const upd = prevP && prevP.num < todaysPeriodNum()
@@ -634,7 +635,7 @@ export function init() {
         if (error) {
           // Saved data exists but can't be read — say so, don't masquerade as "No entries saved"
           // (the user would type over the damaged blob without knowing it held anything) (v16.70).
-          el.textContent = "⚠ Couldn't read this period's saved entries — anything you type will replace them";
+          setStatus(el, "⚠ Couldn't read this period's saved entries — anything you type will replace them");
           el.className   = 'save-status corrupt';
           return;
         }
@@ -642,7 +643,7 @@ export function init() {
           const _pObj = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
           const _hasCustomPension = d.pension != null && Math.abs(d.pension - periodDefaultPension(_pObj)) > 0.005;
           if (!isDataEmpty(d) || _hasCustomPension) {
-            el.textContent = '✓ Entries saved for this period';
+            setStatus(el, '✓ Entries saved for this period');
             el.className   = 'save-status saved';
             return;
           }
@@ -1052,7 +1053,7 @@ export function init() {
       const _netLabel   = document.getElementById('netLabel');
 
       if (_actual) {
-        if (_netLabel) _netLabel.textContent = '✅ Your Actual Take-Home Pay';
+        if (_netLabel) setStatus(_netLabel, '✅ Your Actual Take-Home Pay');
         /** @type {HTMLElement} */ (document.getElementById('netDisplay')).textContent = fmt(_actual.net);
         /** @type {HTMLElement} */ (document.getElementById('summary')).innerHTML = `
           <div class="sum-row sum-gross"><span class="lbl">Total pay</span><span class="val">${fmt(_actual.gross)}</span></div>

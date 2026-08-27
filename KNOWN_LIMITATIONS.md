@@ -1452,19 +1452,28 @@ logic (extracted to `functions/roster-parse-helpers.js` and unit-tested: `parseS
 `resolveRosterAuthConfig`, `claimsForTier`, `computeOrphanLabels`), and the `isSafeStorageUrl`
 download-URL allowlist (extracted to `storage-utils.js` + `storage-utils.test.mjs`).
 
-**Closed for ONE domain, v20.56:** the Cloud Function HTTP *handlers* end-to-end. `overtime-endpoints.test.mjs`
-executes the five Overtime handlers against a fake Firestore and a fake token verifier, which is what
-the entry below said needed firebase-admin mocking — it turned out to need a fake, not a mock. The
-lesson that produced it is worth keeping: a surface test proves the handlers were DEFINED, not that
-any of them works, and the Calendar PIN outage was a mint path that had never once run in production.
-The same technique is available to the other domains and has not been applied to them yet.
+**Closed for Overtime v20.56, for account administration v21.83–85:** the Cloud Function HTTP
+*handlers* end-to-end. `overtime-endpoints.test.mjs` executes the five Overtime handlers, and
+`auth-endpoints.test.mjs` now executes `requestPasswordReset`, `resetMemberPassword` and
+`setupRosterAuth` — each against a fake Firestore, a fake Auth and a recording push transport. That
+is what the entry below said needed firebase-admin mocking; it turned out to need a fake, not a
+mock. The lesson that produced it is worth keeping: a surface test proves the handlers were DEFINED,
+not that any of them works, and the Calendar PIN outage was a mint path that had never once run in
+production.
 
-Still not tested: the coordinator wiring in `calendar-app.js` / `admin-app.js` (the extracted
+**Still not covered at handler level**, in the order they are worth doing:
+- **`getSignInStats`** — the one Auth handler left. Deliberately last: it is a READ, it returns four
+  integers and no identity, and its aggregation is already pinned by `summariseSignIns`.
+- **The Documents domain** (`ingestHuddle`, the three `onDocumentCreated` triggers, the scheduled pay
+  reminder). Higher stakes than the figure above suggests — these fan out to every staff device —
+  but the same technique applies unchanged. `push-transport.test.mjs` (v21.85) now covers the
+  senders both triggers end in, so what is left untested is the DECISION to send.
+
+Also still untested: the coordinator wiring in `calendar-app.js` / `admin-app.js` (the extracted
 `calendar-renderer.js` / `calendar-*` state modules have unit tests; the coordinators themselves do
-not — e2e covers their page-load), the Firestore read/write layer in the page modules (behind the
-gstatic-CDN import), and the Admin-SDK orchestration in every Cloud Function domain EXCEPT Overtime
-(their pure decision logic is tested). Before adding new untested behaviour in these modules,
-consider whether a unit or integration test can be added first.
+not — e2e covers their page-load) and the Firestore read/write layer in the page modules (behind the
+gstatic-CDN import). Before adding new untested behaviour in these modules, consider whether a unit
+or integration test can be added first.
 
 ### E2E smoke tests — REMOVED v12.75, RESTORED v13.95 (no longer a limitation)
 

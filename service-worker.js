@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '21.84';
+const APP_VERSION = '21.85';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -129,7 +129,7 @@ const NETWORK_FIRST_FILES = [
     'overlay.js', 'session.js', 'auth-state-core.js', 'auth-state.js', 'auth-policy.js', 'sw-register.js', 'error-reporter.js', 'fetch-timeout.js', 'splash-watchdog.js',
     'usage-reporter.js', 'usage-stats.js', 'perf-reporter.js', 'perf-stats.js',
     'about-lightbox.js', 'tips-lightbox.js', 'login-overlay.js', 'date-picker.js',
-    'roster-data.js', 'roster-cycle-data.js', 'firebase-client.js', 'claim-retry.js', 'storage-utils.js', 'storage-keys.js', 'auth-identity.js', 'client-errors.js',
+    'roster-data.js', 'roster-cycle-data.js', 'firebase-client.js', 'claim-retry.js', 'storage-utils.js', 'storage-keys.js', 'status-text.js', 'auth-identity.js', 'client-errors.js',
     'shared.css',
     'paycalc.html', 'paycalc-app.js', 'paycalc-boot.js', 'paycalc-calc.js',
     'paycalc-help.js', 'paycalc-migrations.js',
@@ -242,6 +242,7 @@ const CORE_ASSETS = [
     "./claim-retry.js",
     "./storage-utils.js",
     "./storage-keys.js",
+    "./status-text.js",
     "./client-errors.js",
     "./ls.js",
     "./doc-upload.js",

@@ -10,6 +10,7 @@ import { sessionReady } from './session.js';
 import { withClaimRetry, getClientErrors, resolveClientError } from './firebase-client.js';
 import { _cardLoadError, _relativeTime } from './operations-reports.js';
 
+import { setStatus } from './status-text.js';
 async function initErrorLog() {
     const content = document.getElementById('errorLogContent');
     if (!content) return;
@@ -34,7 +35,7 @@ async function initErrorLog() {
         if (truncated) {
             const note = document.createElement('p');
             note.className = 'error-truncation-note';
-            note.textContent = '⚠ More than 100 unresolved errors — showing the first 100. Resolve these to load the rest.';
+            setStatus(note, '⚠ More than 100 unresolved errors — showing the first 100. Resolve these to load the rest.');
             content.appendChild(note);
         }
 
@@ -105,7 +106,7 @@ async function initErrorLog() {
         if (errors.length === 0) {
             const none = document.createElement('p');
             none.className = 'email-count-done';
-            none.textContent = '✓ No errors recorded.';
+            setStatus(none, '✓ No errors recorded.');
             content.appendChild(none);
             return;
         }

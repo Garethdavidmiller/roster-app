@@ -859,7 +859,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             mmNote.className = 'roster-crosscheck-note';
             mmNote.setAttribute('role', 'status');
             const names = parsedResult.missingMembers.map(/** @param {string} n */ n => esc(n)).join(', ');
-            mmNote.innerHTML = `⚠ <strong>Not found in this read:</strong> ${names}. If they should be on this roster, check the PDF — the read may have skipped a row — or read the roster again.`;
+            mmNote.innerHTML = `<span aria-hidden="true">⚠</span> <strong>Not found in this read:</strong> ${names}. If they should be on this roster, check the PDF — the read may have skipped a row — or read the roster again.`;
             changeList.appendChild(mmNote);
         }
         // ---- Build per-person sections ----
@@ -898,7 +898,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 const warn = document.createElement('div');
                 warn.className = 'roster-shift-warning';
                 warn.setAttribute('role', 'alert');
-                warn.innerHTML = `⚠️ <strong>These days may be one day out.</strong> ${esc(entry.memberName)}'s week lines up better with their usual pattern shifted a day ${drift === 'left' ? 'earlier' : 'later'} — check each day against the PDF before saving, or Skip all and re-upload.`;
+                warn.innerHTML = `<span aria-hidden="true">⚠️</span> <strong>These days may be one day out.</strong> ${esc(entry.memberName)}'s week lines up better with their usual pattern shifted a day ${drift === 'left' ? 'earlier' : 'later'} — check each day against the PDF before saving, or Skip all and re-upload.`;
                 section.appendChild(warn);
             }
 

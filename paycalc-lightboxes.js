@@ -19,6 +19,7 @@ import { NOTICE_YTD_KEY, hasPendingLegacyMigration, resolveLegacyMigration,
          readPayslipActuals, writePayslipActuals, clearPayslipActuals, isActualsDev } from './paycalc-migrations.js';
 import { getLoggedMember } from './paycalc-settings.js';
 
+import { setStatus } from './status-text.js';
 /**
  * Initialise all paycalc lightboxes and the decimal hours converter.
  * Returns the openAboutLightbox handle so the coordinator can pass it to initNavPanel.
@@ -191,7 +192,8 @@ export function initPaycalcLightboxes() {
 
     const input  = /** @type {HTMLTextAreaElement|null} */ (document.getElementById('actualsInput'));
     const status = document.getElementById('actualsStatus');
-    const setStatus = (/** @type {string} */ msg) => { if (status) status.textContent = msg; };
+    // See the note in login-overlay.js — this one shadowed the shared setStatus too.
+    const setActualsStatus = (/** @type {string} */ msg) => setStatus(status, msg);
 
     const dialog = createLightbox({
       overlay:  lb,
@@ -201,7 +203,7 @@ export function initPaycalcLightboxes() {
         const stored = readPayslipActuals();
         const n = Object.keys(stored).length;
         if (input) input.value = n ? JSON.stringify(stored, null, 1) : '';
-        setStatus(n ? `${n} period${n !== 1 ? 's' : ''} stored on this device.`
+        setActualsStatus(n ? `${n} period${n !== 1 ? 's' : ''} stored on this device.`
                     : 'No actuals stored on this device.');
       },
     });
@@ -210,12 +212,12 @@ export function initPaycalcLightboxes() {
 
     document.getElementById('actualsImport')?.addEventListener('click', () => {
       const raw = (input?.value || '').trim();
-      if (!raw) { setStatus('Paste your JSON first.'); return; }
+      if (!raw) { setActualsStatus('Paste your JSON first.'); return; }
       let parsed;
       try { parsed = JSON.parse(raw); }
-      catch { setStatus('That is not valid JSON — check the text and try again.'); return; }
+      catch { setActualsStatus('That is not valid JSON — check the text and try again.'); return; }
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        setStatus('Expected a JSON object keyed by payday date.'); return;
+        setActualsStatus('Expected a JSON object keyed by payday date.'); return;
       }
       const keys = Object.keys(parsed);
       // Require the numeric fields the result display reads (gross/tax/ni/net), so a
@@ -225,15 +227,15 @@ export function initPaycalcLightboxes() {
       const ok = keys.length > 0 && keys.every(k =>
         /^\d{4}-\d{2}-\d{2}$/.test(k) && parsed[k] && typeof parsed[k] === 'object' &&
         _num.every(f => typeof parsed[k][f] === 'number' && isFinite(parsed[k][f])));
-      if (!ok) { setStatus('Each key must be a YYYY-MM-DD date with numeric gross, tax, ni and net.'); return; }
+      if (!ok) { setActualsStatus('Each key must be a YYYY-MM-DD date with numeric gross, tax, ni and net.'); return; }
       const n = writePayslipActuals(parsed);
-      setStatus(`Imported ${n} period${n !== 1 ? 's' : ''}. Reloading…`);
+      setActualsStatus(`Imported ${n} period${n !== 1 ? 's' : ''}. Reloading…`);
       window.location.reload();
     });
 
     document.getElementById('actualsClear')?.addEventListener('click', () => {
       clearPayslipActuals();
-      setStatus('Cleared. Reloading…');
+      setActualsStatus('Cleared. Reloading…');
       window.location.reload();
     });
   })();

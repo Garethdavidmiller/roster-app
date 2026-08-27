@@ -25,6 +25,7 @@ import { _decodeHours, isDataEmpty } from './paycalc-hpp.js';
 import { fd, fdShort, fdLong, fdList, fmt } from './paycalc-format.js';
 import { readBpFields, bpFieldWrites, resolveAuthoritativeRates, allRatesOnRecord, resolvePaidInPeriod } from './paycalc-backpay-state.js';
 
+import { setStatus } from './status-text.js';
 /**
  * The currently OFFERED (but not-yet-confirmed) annual pay award, as a percentage. Pre-fills the
  * back-pay card's "Pay rise %" so an UNCONFIRMED award year (`ty.rateUnconfirmed`) opens with a live
@@ -681,7 +682,7 @@ export function calcBackPay() {
       totalEl.style.display  = 'none';
       if (periodWrap) periodWrap.style.display = 'none';
       noticeEl.style.display = 'block';
-      noticeEl.textContent   = 'ℹ️ Enter the back-pay lump sum from your payslip above.';
+      setStatus(noticeEl, 'ℹ️ Enter the back-pay lump sum from your payslip above.');
       _surfaceCorruptReset(noticeEl);
       return { bpAmount: 0, bpVarAmount: 0, bpPNum: 0, bpIsEstimate: false, bpIncluded };
     }
@@ -699,7 +700,7 @@ export function calcBackPay() {
         ? 'ℹ️ The lump sum was taxed in full on that payslip.'
         : '⚠️ The lump sum is taxed in full on that payslip — if it pushes your income over a tax band threshold, you may receive less than the gross figure shown.';
     } else {
-      noticeEl.textContent = '⚠️ Select which payslip carried this lump sum above.';
+      setStatus(noticeEl, '⚠️ Select which payslip carried this lump sum above.');
     }
     _surfaceCorruptReset(noticeEl);
     const newBpPNum = bpPNum > 0 ? bpPNum : 0;
@@ -844,7 +845,7 @@ export function calcBackPay() {
         ? 'ℹ️ The lump sum was taxed in full on that payslip.'
         : '⚠️ The lump sum is taxed in full on that payslip — if it pushes your income over a tax band threshold, you may receive less than the gross figure shown.';
     } else {
-      noticeEl.textContent = '⚠️ This lump sum is taxed in the period it is paid. Select a period above to see a specific warning. If it pushes your income over a tax band threshold that month, you may receive less than the gross figure shown.';
+      setStatus(noticeEl, '⚠️ This lump sum is taxed in the period it is paid. Select a period above to see a specific warning. If it pushes your income over a tax band threshold that month, you may receive less than the gross figure shown.');
     }
     if (_basicOnly.length) {
       // ITS OWN PARAGRAPH (v21.70). This used to be appended after a leading space onto the tax
@@ -872,7 +873,7 @@ export function calcBackPay() {
     // periods now accrue contracted arrears. This state means the award window itself is empty
     // (e.g. the paid-in payslip is at/before April, or every window period pre-dates a joiner's start).
     noticeEl.style.display = 'block';
-    noticeEl.textContent   = 'ℹ️ Nothing to backdate yet — there are no paid periods between April and the selected payslip.';
+    setStatus(noticeEl, 'ℹ️ Nothing to backdate yet — there are no paid periods between April and the selected payslip.');
     rowsEl.innerHTML = '';
     _resetBreakdown(rowsEl, breakdownBtn);
   }

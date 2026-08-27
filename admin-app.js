@@ -39,6 +39,7 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady, markMilestone } from './perf-reporter.js';
 
 
+import { setStatus } from './status-text.js';
 /**
  * Programmatically open a collapsible card body, keeping the collapse control's ARIA state
  * in step. `initCardCollapse` only syncs `aria-expanded` on user click, so a class-only
@@ -1142,7 +1143,7 @@ export function init() {
     function showSuccess(msg, lines) {
         clearTimeout(_feedbackTimer);
         formFeedback.className = 'feedback success';
-        formFeedback.textContent = '✓ ' + msg;
+        setStatus(formFeedback, '✓ ' + msg);
         if (lines?.length) {
             const details = document.createElement('details');
             details.className = 'save-receipt';
@@ -1165,7 +1166,7 @@ export function init() {
         const toast = document.getElementById('saveToast');
         if (toast) {
             clearTimeout(_toastTimer);
-            toast.textContent = '✓ ' + msg;
+            setStatus(toast, '✓ ' + msg);
             toast.classList.add('visible');
             _toastTimer = setTimeout(() => toast.classList.remove('visible'), 4000);
         }
@@ -1175,7 +1176,7 @@ export function init() {
     function showError(msg) {
         clearTimeout(_feedbackTimer);
         formFeedback.className = 'feedback error';
-        formFeedback.textContent = '⚠ ' + msg;
+        setStatus(formFeedback, '⚠ ' + msg);
         formFeedback.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
@@ -1305,7 +1306,7 @@ export function init() {
         await sessionReady;
         if (!auth.currentUser) {
             if (feedbackEl) {
-                feedbackEl.textContent = "⚠ You've been signed out — please sign in again.";
+                setStatus(feedbackEl, "⚠ You've been signed out — please sign in again.");
                 feedbackEl.className = 'feedback error';
             }
             // Reset the button off its "⚠ Confirm?" state (these early returns skip the try/finally) (v16.22).
@@ -1332,7 +1333,7 @@ export function init() {
             if (fieldMember.value && fieldDate.value && !_hasStagedEdits()) renderWeekGrid();
             if (feedbackEl) {
                 const noun = type === 'annual_leave' ? 'AL day' : 'absence day';
-                feedbackEl.textContent = `✓ Deleted ${leaveCount} ${noun}${leaveCount !== 1 ? 's' : ''} for ${memberName}`;
+                setStatus(feedbackEl, `✓ Deleted ${leaveCount} ${noun}${leaveCount !== 1 ? 's' : ''} for ${memberName}`);
                 feedbackEl.className = 'feedback success';
                 setTimeout(() => { feedbackEl.className = 'feedback'; }, 6000);
             }
