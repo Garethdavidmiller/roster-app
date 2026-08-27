@@ -108,7 +108,15 @@ const CAPS = {
     'roster-data.js':          1300,   // mostly data, not logic
     'admin-roster-upload.js':  1250,
     'nav-panel.js':            1250,
-    'overtime-app.js':         1250,   // the young one — this is the cap that matters most
+    // 1250 → 750 at v21.88. The REVIEWER's workspace left for overtime-review-controller.js —
+    // 1,246 measured lines down to 698 — and it took all eight pieces of reviewer state with it.
+    // A cap left at 1250 would bank 550 lines as headroom on the file the note below calls the one
+    // that matters most, which is the ratchet loosening in the place it was tightest.
+    //
+    // The page still holds BOTH surfaces deliberately (overtime.html). What is left here is the
+    // member's side plus the page's own chrome, and if it grows again the next seam is the member
+    // controller — but only once the member path warrants one, not to make a number smaller.
+    'overtime-app.js':          750,   // the young one — this is the cap that matters most
     // 1200 → 1250 at v21.54, and this one is a RAISE rather than an extraction, which the note
     // above says must be argued rather than assumed. The growth is the same-week read guard from
     // the external review — a generation ticket around one `await`, so that a slow earlier read

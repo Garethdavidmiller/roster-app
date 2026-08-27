@@ -1668,6 +1668,36 @@ Different problem, different risk, decided separately. Two page modules also had
 called `setStatus` (`login-overlay.js`, `paycalc-lightboxes.js`); both now delegate here and are
 named for their surface (`setLoginStatus`, `setActualsStatus`).
 
+### `overtime-review-controller.js`
+The reviewer's side of `overtime.html` (v21.88), extracted from `overtime-app.js` — 1,246 lines to
+698.
+- `createReviewController({ el, esc, renderLoading, renderError, detailRefreshDebounceMs })` →
+  `{ loadHorizon, selectWeek, wireConfirmBar, refreshSelectedIfStale }`
+
+**Why it is one module.** The page carrying both surfaces is deliberate — they are the same subject
+seen from two sides, and a second page would double every contract the feature has. That was never
+an argument for one coordinator carrying both: the member has a window, a form, a submission and a
+deadline; the reviewer has a horizon, a selection, a workspace, two lenses, a preview and a confirm
+bar. Nothing in the second is reachable from the first.
+
+**The invariant it owns.** Eight pieces of state that have to agree about which week is on screen,
+and with nothing else on the page:
+- `horizonGeneration` / `detailGeneration` — latest-read-wins tickets. Three actions reload the
+  horizon and two in quick succession put two reads in flight; the older painting last showed
+  pre-action counts and repopulated `horizonByWeek` with stale rows.
+- `selectedWeek` — re-checked after every await; painting an older week over a newer selection is
+  the classic late-read bug.
+- `horizonByWeek` — where a detail read takes a week's milestones from.
+- `reviewGrade` / `reviewDay` — held across a re-render, which is the only reason they are not
+  inside the workspace (rebuilt from scratch on every week change). Grade survives a week switch;
+  day does not, because its values are one window's dates.
+- `pendingWeek` — what Create is armed for, and nothing else.
+- `detailFetchedAt` — what the visibility refresh debounces on.
+
+**What it does not own.** Session, identity, tabs, nav, the member's form, the page's chrome. It
+renders through `overtime-manager.js` and reads through `overtime-data.js`; the missing layer was
+this one, between them.
+
 ### `links-design-store.js`
 The design collection's persistence lifecycle and its concurrency protocol (v21.87).
 - `createDesignStore(deps)` → `{ loadAll, create, save, rename, softDelete, restore, purge,

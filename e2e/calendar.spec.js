@@ -472,6 +472,20 @@ test('nav drawer: every pill label starts on the same x, including the current p
      * Both problems disappear by asking the question the bug actually poses: how far into ITS OWN
      * pill does each label start? That is immune to where the drawer has slid to, and the defect
      * it guards moved a label 19px — so a 3px tolerance for emoji ink leaves it every tooth it had.
+     *
+     * MEASURED ONCE THINGS HAVE STOPPED MOVING (v21.88). The relative measurement removed the
+     * slide, but not the other half: a Range reads GLYPH INK, and glyph ink depends on which font
+     * is actually resolved at that instant. Under load — the full two-project run, not this test
+     * alone — 📅 came back 4px in against everyone else's 16 and the spread crossed the tolerance.
+     *
+     * The outlier is what identifies it: the page under test is operations.html, so the CURRENT
+     * pill is Ops. If the "you are here" dot were misaligning anything it would be that one. It was
+     * Calendar, which is not current and whose only distinguishing feature is its emoji — i.e. the
+     * measurement, not the layout. Padding is static CSS and cannot vary between runs.
+     *
+     * So wait for the fonts to resolve and for the drawer to stop moving, and keep the tolerance
+     * where it is. Raising it to swallow the reading would have spent the guard's remaining teeth
+     * on a problem that was never in the app.
      */
     const INK_TOLERANCE_PX = 3;
     await seedSession(page);
@@ -479,6 +493,19 @@ test('nav drawer: every pill label starts on the same x, including the current p
     await page.goto('/operations.html');   // a page whose pill is IN the row, so a current pill exists
     await page.locator('#navMenuBtn').click();
     await expect(page.locator('.nav-panel-pill').first()).toBeVisible();
+    // Fonts first: an unresolved webfont measures a fallback's ink, not Inter's.
+    await page.evaluate(() => document.fonts.ready);
+    // Then the slide. `transitionend` is unreliable here (this repo documents iOS suppressing it on
+    // a backgrounded tab), so settle on the observable thing instead: the drawer's own position,
+    // unchanged across two consecutive frames.
+    await page.waitForFunction(() => {
+        const panel = document.querySelector('.nav-panel');
+        if (!panel) return false;
+        const now = panel.getBoundingClientRect().left;
+        const prev = window.__navLeft;
+        window.__navLeft = now;
+        return prev !== undefined && Math.abs(now - prev) < 0.5;
+    }, null, { timeout: 5000, polling: 'raf' });
 
     const xs = await page.evaluate(() => [...document.querySelectorAll('.nav-panel-pill')].map(p => {
         const tn = [...p.childNodes].find(n => n.nodeType === 3 && n.textContent.trim());
