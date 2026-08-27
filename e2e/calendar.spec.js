@@ -98,7 +98,14 @@ test('calendar: the retry re-reads, and a grid appears when it succeeds', async 
 // and, worse, one that can pass while asserting a state the swipe never reached — which is exactly
 // how the first version of this test passed against the bug it was written for.
 async function swipeMonth(page, dir) {
-    const before = await page.locator('.month-year').textContent();
+    // `.first()`, because the carousel legitimately holds MORE THAN ONE month panel while a swipe
+    // is in flight — that is what a carousel is. An unscoped `.month-year` is a strict-mode
+    // violation the moment this helper is called during a transition, which under load is exactly
+    // when it is called: the previous swipe's panels had not been torn down yet (v21.88).
+    //
+    // The retry loop below already tolerates a swallowed gesture; it could not tolerate the
+    // locator itself throwing, so the failure surfaced as a hard error rather than a retry.
+    const before = await page.locator('.month-year').first().textContent();
     for (let attempt = 0; attempt < 4; attempt++) {
         const box = await page.locator('#calendarDisplay').boundingBox();
         const y = box.y + box.height / 2;
@@ -111,7 +118,10 @@ async function swipeMonth(page, dir) {
         await page.mouse.up();
         try {
             await page.waitForFunction(
-                (b) => document.querySelector('.month-year')?.textContent !== b,
+                // querySelector already takes the first, so this matches the read above — and it
+                // waits for the carousel to settle to ONE panel, so the next call starts clean.
+                (b) => document.querySelectorAll('.month-year').length === 1
+                    && document.querySelector('.month-year')?.textContent !== b,
                 before, { timeout: 2000 });
             return;
         } catch { /* swallowed gesture — try again */ }
