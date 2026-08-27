@@ -21,6 +21,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
 import { deriveHistory as clientDerive, isWithdrawn as clientWithdrawn,
     canRestoreNow as clientCanRestore } from './overtime-format.js';
 
@@ -167,5 +168,59 @@ describe('may this withdrawal be undone? — the client and the server must agre
         // is the client saying yes where the server says no; the reverse is merely a quiet button.
         const closedNow = M.finalDeadlineAt + 1000;
         assert.equal(serverCanRestore(M, closedNow - 10, closedNow).ok, false);
+    });
+});
+
+// ── THE TWO SURFACES STAY APART (v21.88) ────────────────────────────────────────────────────────
+//
+// `overtime.html` carries both a member's form and the reviewer's workspace, deliberately: they are
+// the same subject seen from two sides, and a second page would double every contract the feature
+// has. That is an argument about the PAGE. It was never an argument for one coordinator holding
+// both, and for eight releases it did — until the reviewer's eight pieces of state left for
+// `overtime-review-controller.js`.
+//
+// The failure this guards is not dramatic, which is why it needs a guard: the next reviewer feature
+// is added to the coordinator because that is where the tabs are, its state joins the member's, and
+// nothing fails. The eight fields only have to agree with EACH OTHER, and that is only true while
+// they live together.
+describe('the reviewer\'s state has one owner', () => {
+    const strip = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    const app  = strip(readFileSync(new URL('./overtime-app.js', import.meta.url), 'utf8'));
+    const ctrl = strip(readFileSync(new URL('./overtime-review-controller.js', import.meta.url), 'utf8'));
+
+    // Named individually rather than pattern-matched: a list is what a reader checks against, and
+    // each of these was a real declaration in the coordinator before the split.
+    const REVIEWER_STATE = [
+        'horizonGeneration', 'detailGeneration', 'selectedWeek', 'horizonByWeek',
+        'reviewGrade', 'reviewDay', 'pendingWeek', 'detailFetchedAt',
+    ];
+
+    for (const field of REVIEWER_STATE) {
+        test(`${field} is declared in the controller, not the coordinator`, () => {
+            assert.match(ctrl, new RegExp(`(let|const)\\s+${field}\\b`),
+                `${field} is no longer declared in overtime-review-controller.js`);
+            assert.ok(!new RegExp(`(let|const)\\s+${field}\\b`).test(app),
+                `${field} is declared in overtime-app.js again — the eight fields only hold ` +
+                `together while they live together`);
+        });
+    }
+
+    test('the coordinator reaches the reviewer through its four entry points only', () => {
+        // A coordinator poking at the workspace directly would be the same coupling by another
+        // route: it would need one of the eight fields to know what to poke.
+        const calls = [...app.matchAll(/review\.(\w+)/g)].map(m => m[1]);
+        const allowed = new Set(['loadHorizon', 'selectWeek', 'wireConfirmBar', 'refreshSelectedIfStale']);
+        const unexpected = [...new Set(calls)].filter(c => !allowed.has(c));
+        assert.deepEqual(unexpected, [],
+            'overtime-app.js uses a review-controller member outside its published surface');
+    });
+
+    test('the controller holds no session or identity logic', () => {
+        // The split that keeps it testable and keeps auth in one place. `canReview` is the
+        // coordinator's answer; the controller never re-derives it.
+        for (const forbidden of ['getSession', 'ensureNamedSession', 'requirePage', 'isOvertimeReviewer', 'canReview']) {
+            assert.ok(!ctrl.includes(forbidden),
+                `overtime-review-controller.js references ${forbidden} — identity is the page's`);
+        }
     });
 });

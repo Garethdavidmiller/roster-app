@@ -1,5 +1,5 @@
 import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the literal 22 — and `links: the rotation
 // length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
@@ -476,7 +476,7 @@ test('links: a guide link (same-tab) routes through the unsaved-changes guard', 
     // so this is deterministic in the hermetic env). Apply goes through the confirmDialog.
     await expect(page.locator('#generatorToggleHeader')).toBeVisible();
     await page.locator('#genApplyBtn').click();
-    await page.locator('.dialog-overlay .dialog-btn-confirm').click();      // "Apply"
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');   // "Apply"
     await expect(page.locator('.dialog-overlay')).toHaveCount(0);
     await expect(page.locator('#linksSaveRow')).toBeVisible();              // design now loaded (unsaved)
 
@@ -533,7 +533,7 @@ test('links: the analysis panels render for a generated design', async ({ page }
     await page.goto('/links.html');
     await expect(page.locator('#generatorToggleHeader')).toBeVisible();
     await page.locator('#genApplyBtn').click();
-    await page.locator('.dialog-overlay .dialog-btn-confirm').click();   // "Apply"
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');   // "Apply"
     await expect(page.locator('.dialog-overlay')).toHaveCount(0);
     await expect(page.locator('#coverageHeatmap .cov-heat')).toBeVisible();   // heat map table
     await expect(page.locator('#checksContent .check-rows')).toBeVisible();   // checks panel
@@ -863,8 +863,7 @@ test('links: every line-order switch OFF leaves the generated order untouched', 
     expect(switches.length).toBeGreaterThan(4);
     for (const id of switches) await page.locator('#' + id).uncheck();
     await page.locator('#genApplyBtn').click({ force: true });
-    const ok = page.locator('.dialog-btn-confirm');
-    if (await ok.count()) await ok.first().click();
+    await clickDialogConfirm(page);
     await expect(page.locator('#linksSaveStatus')).toContainText('Review and save when ready');
     // …and specifically NOT a before→after report, because nothing was reordered.
     await expect(page.locator('#linksSaveStatus')).not.toContainText('week-to-week');
@@ -876,7 +875,7 @@ test('links: deleting a design writes a SOFT delete and leaves the document in p
 
     // ✕ appears on the ACTIVE chip only.
     await page.locator('.design-chip--active .design-chip-delete').click();
-    await page.locator('.dialog-overlay .dialog-btn-confirm').click();
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
     await expect(page.locator('.design-chip')).toHaveCount(1);
 
     const { writes, deletes } = await page.evaluate(() => ({
@@ -962,7 +961,7 @@ test('links: a pasted design is checked before it can be saved, and saved as a N
 test('links: a deleted design can be restored from the bin', async ({ page }) => {
     await openLinksWithDesigns(page);
     await page.locator('.design-chip--active .design-chip-delete').click();
-    await page.locator('.dialog-overlay .dialog-btn-confirm').click();
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
     await expect(page.locator('.design-chip')).toHaveCount(1);
 
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.setWrites = []; });
@@ -2258,7 +2257,7 @@ test('links sets: Save as new writes a set owned as the signed-in designer', asy
     await openLinksWithTargetSets(page);
     await page.locator('#genSetSaveAsBtn').click();
     await page.locator('.dialog-input').fill('Weekend trial');
-    await page.locator('.dialog-btn-confirm').click();
+    await clickDialogConfirm(page);
     await expect.poll(() => page.evaluate(() =>
         (/** @type {any} */ (window).__E2E.setWrites || [])
             .filter((/** @type {any} */ w) => w.added && String(w.path).includes('linkTargetSets')).length
@@ -2372,7 +2371,7 @@ test('links sets: a set can be deleted, and only by someone allowed to', async (
     await page.locator('#genSetSelect').selectOption('ts-robson');
     await expect(del).toBeEnabled();
     await del.click();
-    await page.locator('.dialog-btn-confirm').click();
+    await clickDialogConfirm(page);
 
     // It left the collection, and it left the picker — the second is the part a designer sees.
     await expect.poll(() => page.evaluate(() =>
@@ -2519,8 +2518,7 @@ test('links: Generate works on a card nobody has touched', async ({ page }) => {
     await page.waitForTimeout(700);
     await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
     await page.locator('#genApplyBtn').click({ force: true });
-    const ok = page.locator('.dialog-btn-confirm');
-    if (await ok.count()) await ok.first().click();
+    await clickDialogConfirm(page);
     await expect(page.locator('#genError')).toHaveText('');
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
     // And the design it built pays the contract — the summary chip is where a designer reads that.
@@ -2587,7 +2585,7 @@ test('links: generating names the construction that produced the design', async 
     await openLinks(page);
     await page.locator('#generatorToggleHeader').click();
     await page.locator('#genApplyBtn').click();
-    await page.locator('.dialog-btn-confirm').click();
+    await clickDialogConfirm(page);
     await expect(page.locator('#linksSaveStatus')).toContainText(/settled weeks, \d+ waves?/);
 });
 
@@ -3353,8 +3351,7 @@ test('links generator: pressing Generate leaves the button under your finger and
     const before = await page.evaluate(() =>
         Math.round(/** @type {HTMLElement} */ (document.getElementById('genApplyBtn')).getBoundingClientRect().top));
     await page.locator('#genApplyBtn').click();
-    const ok = page.locator('.dialog-btn-confirm');
-    if (await ok.count()) await ok.first().click();
+    await clickDialogConfirm(page);
 
     // The button did not move — the first-generate reflow (empty state → 24-row grid above this
     // card) is compensated, so pressing again to explore needs no re-scroll.
@@ -3412,8 +3409,7 @@ test('links window: generating the FIRST design reveals the window editor', asyn
     await expect(page.locator('#windowEditor')).toBeHidden();      // no design yet
     await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
     await page.locator('#genApplyBtn').click({ force: true });
-    const ok = page.locator('.dialog-btn-confirm');
-    if (await ok.count()) await ok.first().click();
+    await clickDialogConfirm(page);
     await expect(page.locator('#windowEditor')).toBeVisible();
     // The sticky summary is the third thing this one call has to refresh (v19.57). "The generator
     // forgot to refresh X" has now been a bug twice — the window editor at v19.55, and this would

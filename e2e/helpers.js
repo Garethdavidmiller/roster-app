@@ -474,3 +474,68 @@ export async function clickInView(locator) {
         await locator.evaluate(el => /** @type {HTMLElement} */ (el).click());
     }
 }
+
+/**
+ * Click a confirm/prompt dialog's action button once the dialog has stopped moving.
+ *
+ * ── WHY THIS EXISTS (v21.88) ────────────────────────────────────────────────────────────────────
+ *
+ * `createLightbox` fades a dialog in over ~300ms. Playwright's actionability check refuses to click
+ * a moving element and retries — which is correct, and usually invisible, because on Chromium the
+ * fade is over before the test gets there. Under load it is not: WebKit running two projects burned
+ * the whole 30-second test timeout retrying a click on a button that was still arriving, and the
+ * failure read as "the dialog never appeared" when in fact it had appeared and was mid-animation.
+ *
+ * Ten sites click a dialog button across this suite, so this is the shared answer rather than a
+ * patch at whichever one happened to fail. It waits for the overlay's own settled state — the
+ * `.open` class the lifecycle adds after the first frame — and then for the button's box to hold
+ * still across two frames, which is the same "stop moving before you measure" rule the nav-pill
+ * test needed for a different reason.
+ *
+ * Returns false when no dialog is open, so a caller that only sometimes gets one can say so.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {string} [selector]  the button to press — defaults to the confirm/primary action
+ * @returns {Promise<boolean>} whether a dialog was found and clicked
+ */
+export async function clickDialogConfirm(page, selector = '.dialog-btn-confirm') {
+    const btn = page.locator(selector).first();
+    // A COUNT IS A SNAPSHOT, and at some call sites the dialog is genuinely optional — the links
+    // order-switch test only gets one when there is something to confirm. Under load the count and
+    // the click straddle that: count sees a dialog mid-open, it never finishes arriving, and a
+    // committed click then burns the whole test timeout waiting for an element that is not coming.
+    if (!await btn.count()) return false;
+    // The lifecycle adds `.open` on the frame after `.visible`, so its presence means the fade has
+    // begun; the geometry check below is what says it has finished.
+    await page.locator('.lb-overlay.open, .dialog-overlay.open').first()
+        .waitFor({ state: 'attached', timeout: 5000 }).catch(() => {});
+    await page.waitForFunction((sel) => {
+        const el = document.querySelector(sel);
+        if (!el) return false;
+        const now = el.getBoundingClientRect();
+        const prev = /** @type {any} */ (window).__dlgBox;
+        /** @type {any} */ (window).__dlgBox = { x: now.x, y: now.y };
+        return !!prev && Math.abs(prev.x - now.x) < 0.5 && Math.abs(prev.y - now.y) < 0.5;
+    }, selector, { timeout: 5000, polling: 'raf' }).catch(() => {});
+    // `force` skips Playwright's OWN actionability re-check, which the wait above has just done
+    // explicitly — and which, on mobile-safari under a full two-project run, never returned: the
+    // button was reported "not stable" for the whole 30-second test timeout, twice, at a viewport
+    // (1280×1400 on a phone descriptor) no real device has. Waiting longer was tried and does not
+    // help; the element is not arriving late, the check is not converging.
+    //
+    // This does NOT weaken the test, and that distinction matters. `force` skips the WAIT, not the
+    // outcome: every caller asserts on what the dialog's action did — the status line, the written
+    // payload, the reordered grid — so a click that lands on nothing still fails the test it was
+    // called from. Verified by stubbing the Apply handler so no dialog opens at all: still red.
+    // BOUNDED, and the bound is what distinguishes the two cases. If the button has gone by the
+    // time we press, there was no dialog to confirm and the caller's own assertion decides whether
+    // that is a problem. If it is still sitting there and refuses the click, that is a stuck dialog
+    // and it should fail loudly, which is why this rethrows rather than swallowing.
+    try {
+        await btn.click({ force: true, timeout: 8000 });
+    } catch (err) {
+        if (await btn.count()) throw err;
+        return false;
+    }
+    return true;
+}
