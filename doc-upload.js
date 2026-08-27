@@ -174,8 +174,14 @@ export function initDocUploadCard(cfg) {
       /** @type {HTMLElement} */ (fileLabel).classList.remove('visible');
     } catch (err) {
       console.error(`[${cfg.logPrefix}] Upload failed:`, err);
+      // "Try again" is the wrong instruction for a SUPERSEDED upload (v21.86): somebody else saved
+      // for this date while ours was in flight, and retrying would simply overwrite their file with
+      // no one having decided that. The admin needs to know a newer one exists, then choose.
+      const _e = /** @type {any} */ (err);
       /** @type {HTMLElement} */ (feedback).textContent =
-        (/** @type {any} */ (err))?.message === 'SIGNATURE_MISMATCH' ? sigMismatchMsg : 'Upload failed — please try again';
+        _e?.code === 'upload/superseded'
+          ? 'Someone else saved a newer file for this date. Reload to see it, then upload again only if yours should replace it.'
+          : _e?.message === 'SIGNATURE_MISMATCH' ? sigMismatchMsg : 'Upload failed — please try again';
       /** @type {HTMLElement} */ (feedback).className = 'huddle-feedback huddle-feedback--err';
       uploadBtn.disabled = false;
     } finally {

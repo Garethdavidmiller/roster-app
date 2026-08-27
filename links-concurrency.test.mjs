@@ -10,6 +10,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { conflictOf, baselineAfterWrite, canAdvanceBaseline } from './links-concurrency.js';
 
 /** A Firestore-ish timestamp. */
@@ -128,5 +129,76 @@ describe('canAdvanceBaseline — a rename may only move our baseline if nothing 
         assert.equal(canAdvanceBaseline(null, null), true, 'a doc with no timestamp yet, unchanged');
         assert.equal(canAdvanceBaseline(1000, null), false);
         assert.equal(canAdvanceBaseline(null, 1000), false);
+    });
+});
+
+// ── THE ORCHESTRATION, PINNED STATICALLY (v21.86) ───────────────────────────────────────────────
+//
+// Every rule in this module is unit-tested above, and an external audit still found two silent
+// overwrites in the coordinator that calls them. Both were the same shape and neither is visible
+// from here: the rules were right, and they were being asked about a moment that had already
+// passed.
+//
+//   1. RENAME did `getDoc` → decide → `setDoc`. A co-editor saving inside that gap kept their
+//      patterns (the rename is a merge) but lost the truth of our baseline: we advanced it to a
+//      revision whose CONTENT we had never taken in, so our NEXT save saw server == baseline,
+//      raised no conflict, and wrote our stale copy over theirs.
+//   2. SAVE used a transaction, then fell back to `getDoc` → check → `setDoc` on ANY non-conflict
+//      failure — including an online one. A serialisation mechanism failing is not a reason to
+//      substitute an unserialised one.
+//
+// Reproducing either needs two clients and controlled Firestore scheduling, which this repo has no
+// harness for and which `links-app.js` — a 3,200-line coordinator importing the gstatic SDK —
+// cannot be loaded in Node to provide. So these are STATIC contracts: weaker than a behavioural
+// test, and honest about it. They fail if the orchestration is written the old way again, which is
+// the failure that actually happened.
+describe('the coordinator uses these rules atomically', () => {
+    // Comments are stripped first. The rename's own comment NAMES `canAdvanceBaseline` while
+    // explaining why it now sits inside the transaction — so an ordering check that reads the raw
+    // source finds the explanation before the code and fails on correct work. (Found by this test
+    // failing on the very commit that fixed the bug it guards.)
+    const app = readFileSync(new URL('./links-app.js', import.meta.url), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+    /** The body of a named function declaration, up to the next one at the same indent. */
+    const bodyOf = (name) => {
+        const start = app.indexOf(`async function ${name}(`);
+        assert.notEqual(start, -1, `${name} not found in links-app.js`);
+        const next = app.indexOf('\n    async function ', start + 10);
+        const end  = app.indexOf('\n    function ', start + 10);
+        const stop = Math.min(...[next, end, app.length].filter(n => n > 0));
+        return app.slice(start, stop);
+    };
+
+    test('rename reads and writes inside ONE transaction', () => {
+        const body = bodyOf('renameDesign');
+        assert.match(body, /runTransaction/,
+            'renameDesign must read the current revision and write the new name atomically — a ' +
+            'getDoc/setDoc pair lets a co-editor land between them and corrupts the baseline');
+    });
+
+    test('rename only advances the baseline from a read it made itself', () => {
+        // `canAdvanceBaseline` must be consulted INSIDE the transaction: called outside it, it is
+        // answering about a revision that may already have been replaced by the time we commit.
+        const body = bodyOf('renameDesign');
+        const txAt = body.indexOf('runTransaction');
+        const decideAt = body.indexOf('canAdvanceBaseline');
+        // Both must EXIST before their order means anything. `indexOf` returns -1 for a miss, and
+        // `decideAt > -1` is true for any present decision — so without this the ordering check
+        // passed on a rename with no transaction at all. Found by mutation.
+        assert.notEqual(txAt, -1, 'no transaction in renameDesign');
+        assert.notEqual(decideAt, -1, 'renameDesign no longer consults canAdvanceBaseline');
+        assert.ok(decideAt > txAt,
+            'canAdvanceBaseline is consulted before the transaction opens — its answer is then ' +
+            'about a moment that has passed');
+    });
+
+    test('save does not downgrade to an unserialised write when it is ONLINE', () => {
+        const body = bodyOf('saveChanges');
+        assert.match(body, /_isOffline/,
+            'the transaction fallback must be gated on being offline; without that gate a ' +
+            'contended or transient failure silently overwrites a colleague\'s intervening save');
+        assert.match(body, /else throw txErr/,
+            'an ONLINE transaction failure must surface, keeping the dirty state, not fall through');
     });
 });

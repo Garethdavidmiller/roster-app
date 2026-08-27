@@ -338,7 +338,29 @@ const resetMemberPassword = onRequest(
             const password = nameToPassword(member);   // surname default (reuses the parity-guarded helper)
             const user = await admin.auth().getUserByEmail(email);
             await admin.auth().updateUser(user.uid, { password });
-            if (revoke) await admin.auth().revokeRefreshTokens(user.uid);
+            // ── PAST THIS LINE THE CREDENTIAL HAS CHANGED, AND NOTHING MAY SAY OTHERWISE ─────────
+            // (v21.86, external audit.) Revocation used to be a bare `await` inside the outer try,
+            // so a failure there took the whole call to the generic 500 — skipping the resetAt
+            // stamp on the way. The admin was told the reset failed about an account whose password
+            // was now the surname default; the reasonable next move is to retry, or to tell the
+            // member their old password still works. Neither is true.
+            //
+            // Each later stage is now attempted on its own and REPORTED on its own. The rule this
+            // encodes is the one the stamp already followed and revocation did not: once the
+            // password mutation succeeds, this endpoint reports what happened, never "nothing did".
+            let revoked = false;
+            if (revoke) {
+                try {
+                    await admin.auth().revokeRefreshTokens(user.uid);
+                    revoked = true;
+                } catch (revokeErr) {
+                    // The one consequence worth naming: the member's OTHER devices may still hold
+                    // working sessions. That is a security-relevant partial state, so it is logged
+                    // as an error and returned to the admin rather than folded into a boolean.
+                    console.error('[resetMemberPassword] revoke failed (password WAS reset) for', member,
+                                  revokeErr && revokeErr.code, revokeErr);
+                }
+            }
             // Stamp resetAt so the member is prompted to set a new password. merge preserves any
             // existing passwordSetAt (whose staleness vs this resetAt is what marks them un-migrated).
             // The password is ALREADY changed + sessions revoked by this point, so a failure of only
@@ -356,7 +378,12 @@ const resetMemberPassword = onRequest(
                 stamped = false;
                 console.error('[resetMemberPassword] resetAt stamp failed (password WAS reset) for', member, stampErr && stampErr.code, stampErr);
             }
-            return res.json({ ok: true, member, revoked: revoke, stamped });
+            // `revoked` is now what HAPPENED, not what was asked for. A caller reading the old
+            // field saw the REQUEST echoed back, which is the same value on the failure path.
+            return res.json({
+                ok: true, member, revoked, stamped,
+                ...(revoke && !revoked ? { revokeFailed: true } : {}),
+            });
         } catch (e) {
             if (e && e.code === 'auth/user-not-found') {
                 return res.status(404).json({ error: `No Firebase account for "${member}" — run Set up accounts first` });

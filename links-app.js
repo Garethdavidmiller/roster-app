@@ -837,12 +837,39 @@ export function init() {
             // mismatch (or an offline pre-read) the baseline stays put, so the next save prompts.
             let baselineFresh = false;
             const _preBaseline = (id === activeDesignId) ? loadedUpdatedAt : (d.updatedAt?.toMillis?.() ?? null);
+            const _ref = doc(db, COLLECTIONS.linkDesigns, id);
+            // ONE TRANSACTION, because the read and the write have to be the same instant (v21.86,
+            // external audit). This used to be getDoc → decide → setDoc, and a co-editor's save
+            // landing in that gap produced a silent overwrite LATER, which is the hardest kind to
+            // trace back: the rename itself is a merge, so their patterns survived it. What did not
+            // survive was the truth of our baseline — we advanced it to a revision whose CONTENT we
+            // had never taken in, so the NEXT save saw server == baseline, raised no conflict, and
+            // wrote our stale patterns over theirs. `canAdvanceBaseline` was right every time it
+            // was asked; it was being asked about a moment that had already passed.
+            //
+            // Inside a transaction the answer is true at COMMIT, not merely at read: if anything
+            // lands underneath, Firestore retries the whole callback and `baselineFresh` is
+            // recomputed. Assign it inside for exactly that reason — the last attempt is the one
+            // that counts.
             try {
-                const preTs = (await getDoc(doc(db, COLLECTIONS.linkDesigns, id))).data()?.updatedAt?.toMillis?.() ?? null;
-                baselineFresh = canAdvanceBaseline(preTs, _preBaseline);
-            } catch { baselineFresh = canAdvanceBaseline(null, _preBaseline, false); }
-            await writeWithClaimRetry(() => setDoc(doc(db, COLLECTIONS.linkDesigns, id),
-                { name, updatedAt: serverTimestamp(), updatedBy: currentUser }, { merge: true }));
+                await writeWithClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
+                    const snap = await tx.get(_ref);
+                    const preTs = snap.data()?.updatedAt?.toMillis?.() ?? null;
+                    baselineFresh = canAdvanceBaseline(preTs, _preBaseline);
+                    tx.set(_ref, { name, updatedAt: serverTimestamp(), updatedBy: currentUser }, { merge: true });
+                }));
+            } catch (_txErr) {
+                console.warn('[Links] Rename transaction unavailable — queueing a merge write:',
+                             /** @type {any} */ (_txErr)?.code || _txErr);
+                // Transactions need the server: offline they cannot run at all. Rename is a small,
+                // non-destructive edit and the app is offline-first, so it still queues — but the
+                // baseline may NOT advance on that path, because nothing verified what the server
+                // held. A queued rename therefore leaves the next save prompting, which is the
+                // conservative direction and the one this whole mechanism exists to protect.
+                baselineFresh = canAdvanceBaseline(null, _preBaseline, false);
+                await writeWithClaimRetry(() => setDoc(_ref,
+                    { name, updatedAt: serverTimestamp(), updatedBy: currentUser }, { merge: true }));
+            }
             d.name = name;
             if (id === activeDesignId && design) design.name = name;
             if (baselineFresh) {
@@ -2724,6 +2751,16 @@ export function init() {
                 })) await duplicateDesign();
             };
 
+            // Offline, as distinct from "the transaction did not work this time". Firestore reports
+            // an unreachable backend as `unavailable`; `navigator.onLine` is the browser's own view
+            // and is checked first because it is the case with no ambiguity at all. Anything else —
+            // `aborted` from contention, `deadline-exceeded`, `internal` — is a failure we must NOT
+            // paper over with an unserialised write.
+            const _isOffline = (/** @type {any} */ err) =>
+                (typeof navigator !== 'undefined' && navigator.onLine === false)
+                || err?.code === 'unavailable'
+                || /offline/i.test(String(err?.message || ''));
+
             let committed = false;
             try {
                 await writeWithClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
@@ -2749,11 +2786,21 @@ export function init() {
                     await writeWithClaimRetry(() => setDoc(designRef, buildDoc()));
                     committed = true;
                 }
-                // else: offline / transaction unsupported → fall through to the legacy path below.
+                // Anything else: only an OFFLINE client may fall through to the queued path below.
+                // (v21.86, external audit.) This used to catch every non-conflict failure and drop
+                // straight to getDoc → check → setDoc — which is the very read-decide-write race
+                // the transaction was added to close. A serialisation mechanism failing is not a
+                // reason to substitute an unserialised one: online, a contended or transient
+                // failure would then overwrite a colleague's intervening save with no prompt.
+                //
+                // Offline is different in kind, not degree: transactions cannot run without the
+                // server, the app is deliberately offline-first, and there is no competing writer
+                // to lose to on a device with no connection. That path stays.
+                else if (_isOffline(_e)) { /* fall through to the queued path below */ }
+                else throw txErr;   // online failure — surfaced, dirty state kept, nothing overwritten
             }
             if (!committed) {
-                // Legacy fallback (offline, or the transaction failed for a non-conflict reason):
-                // getDoc-check then a queued setDoc, exactly as before the transaction was added.
+                // OFFLINE ONLY: getDoc-check then a queued setDoc, as before the transaction existed.
                 let deletedByOther = false;
                 try {
                     const fresh = await getDoc(designRef);
