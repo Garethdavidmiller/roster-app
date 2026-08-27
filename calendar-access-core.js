@@ -76,9 +76,12 @@ export function isViewerUser(user) {
  *
  *   · `'members'` — a signed-in member on this device (`named`). Anything about your pay, your
  *     settings or your account belongs here.
- *   · `'everyone'` — including a PIN-unlocked viewer. For a notice whose whole point is to reach
- *     people who have NOT signed in, which is a real audience: `pw-own-2026` asks exactly them to
- *     sign in, and signing in is what removes the PIN.
+ *   · `'signed-out'` — ONLY where no member is signed in on this device (a PIN unlock, or the
+ *     Calendar with the PIN switched off). For a notice whose subject is signing in: telling
+ *     somebody who already has to sign in is noise, and the audience check re-runs on every load,
+ *     so such a notice retires itself the moment they do. That is why it needs no done-flag
+ *     plumbing to stop, unlike a notice that merely expires.
+ *   · `'everyone'` — both. Rarely right; reach for one of the two above first.
  *
  * An unrecognised audience is treated as `'members'`, deliberately: the cost of failing closed is a
  * notice that does not appear and is noticed in testing, and the cost of failing open is station
@@ -87,12 +90,13 @@ export function isViewerUser(user) {
  * A suppressed notice must be left UNFLAGGED by its caller — not marked seen — so it arrives when
  * the same device is next signed in.
  *
- * @param {string} audience  as declared by the notice
+ * @param {'members'|'signed-out'|'everyone'|string} audience  as declared by the notice
  * @param {'named'|'viewer'|'open'|'none'} accessType  getAccessType()
  * @returns {boolean}
  */
 export function noticeAudienceAllows(audience, accessType) {
     if (audience === 'everyone') return true;
+    if (audience === 'signed-out') return accessType !== 'named';
     return accessType === 'named';
 }
 

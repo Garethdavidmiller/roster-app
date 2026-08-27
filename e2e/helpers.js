@@ -31,7 +31,7 @@ export function collectFatalErrors(page) {
 // tests only need a session that is unexpired, and mirroring the real term would make every spec
 // a place the policy is restated (it changed 30 → 60 at v20.47 and nothing here needed to move).
 //
-// IT ALSO SUPPRESSES THE `pw-own-2026` NOTICE, and this is the THIRD seeder to need that (v21.34).
+// IT ALSO SUPPRESSES THE `sign-in-2026` NOTICE, and this is the THIRD seeder to need that (v21.34).
 // `seedMember` and `seedMemberSession` both got it; this one was missed, and it is the seeder the
 // authenticated-page specs use. The notice opens 1,500ms after load on `/` and its dialog
 // intercepts pointer events, so any spec that clicks something on the Calendar after ~1.5s is
@@ -50,7 +50,7 @@ export function seedSession(page, name = 'G. Miller') {
             ver: 2,
             expiry: Date.now() + 90 * 24 * 60 * 60 * 1000,   // arbitrary future — NOT SESSION_MS
         }));
-        localStorage.setItem('myb_notice_pw_own_2026_done', '1');
+        localStorage.setItem('myb_notice_sign_in_2026_done', '1');
         localStorage.setItem('myb_notice_backpay_2026_done', '1');
     }, name);
 }
@@ -71,13 +71,13 @@ export function seedSession(page, name = 'G. Miller') {
  *
  * @param {import('@playwright/test').Page} page
  */
-export function clearPwNoticeFlag(page) {
-    return page.addInitScript(() => localStorage.removeItem('myb_notice_pw_own_2026_done'));
+export function clearSignInNoticeFlag(page) {
+    return page.addInitScript(() => localStorage.removeItem('myb_notice_sign_in_2026_done'));
 }
 
 /**
  * Undo the suppression for BOTH live notices, for a spec whose subject is which notices open at all
- * (v21.81 — the audience gate). Same ordering rule as `clearPwNoticeFlag`: call it AFTER the
+ * (v21.81 — the audience gate). Same ordering rule as `clearSignInNoticeFlag`: call it AFTER the
  * seeders, because later init scripts run last.
  *
  * PASS THE ONE KEY YOU MEAN unless you want both. With two notices live only one can be on screen:
@@ -87,7 +87,7 @@ export function clearPwNoticeFlag(page) {
  * @param {import('@playwright/test').Page} page
  * @param {string[]} [keys] the done-flags to remove; defaults to every live notice
  */
-export function clearNoticeFlags(page, keys = ['myb_notice_pw_own_2026_done', 'myb_notice_backpay_2026_done']) {
+export function clearNoticeFlags(page, keys = ['myb_notice_sign_in_2026_done', 'myb_notice_backpay_2026_done']) {
     return page.addInitScript(ks => ks.forEach(k => localStorage.removeItem(k)), keys);
 }
 
@@ -120,7 +120,7 @@ export function seedSessionOnce(page, name = 'G. Miller') {
 // Seed a chosen calendar member so index.html renders the grid instead of the first-run
 // "choose your name" prompt (shown only when NO member is saved AND not signed in).
 //
-// ALSO SUPPRESSES THE `pw-own-2026` NOTICE, because a seeded member is exactly its audience: it
+// ALSO SUPPRESSES THE `sign-in-2026` NOTICE, because a seeded member is exactly its audience: it
 // opens 1,500ms after load on a fade and its dialog intercepts pointer events, so any calendar
 // spec that clicks something after ~1.5s was racing it — two flaked under full-suite load, and the
 // axe suite hit the same race from the other side (see axe.spec.js's file-level beforeEach). A
@@ -129,7 +129,7 @@ export function seedSessionOnce(page, name = 'G. Miller') {
 export function seedMember(page, name = 'G. Miller') {
     return page.addInitScript((n) => {
         localStorage.setItem('myb_roster_selected_member', n);
-        localStorage.setItem('myb_notice_pw_own_2026_done', '1');
+        localStorage.setItem('myb_notice_sign_in_2026_done', '1');
         localStorage.setItem('myb_notice_backpay_2026_done', '1');
     }, name);
 }
@@ -315,7 +315,7 @@ export function seedMemberSession(page, name = 'G. Miller') {
         }));
         localStorage.setItem('myb_roster_selected_member', n);
         // Same pw-notice suppression as seedMember, same reason — see the note there.
-        localStorage.setItem('myb_notice_pw_own_2026_done', '1');
+        localStorage.setItem('myb_notice_sign_in_2026_done', '1');
         localStorage.setItem('myb_notice_backpay_2026_done', '1');
         window.__E2E = Object.assign(window.__E2E || {}, { authUser: true });
     }, name);

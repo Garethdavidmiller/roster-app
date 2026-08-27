@@ -630,15 +630,15 @@ test.describe('one-time notices and the PIN unlock', () => {
         await page.clock.setFixedTime(BEFORE_CUTOFF);
         await seedViewerAccess(page);
         await seedMember(page);            // a chosen member is a DISPLAY choice, not a session
-        await clearNoticeFlags(page, ['myb_notice_pw_own_2026_done']);
+        await clearNoticeFlags(page, ['myb_notice_sign_in_2026_done']);
         await page.goto('/');
         await expect(page.locator('.month-year')).toBeVisible();
-        await expect(page.locator('#pwNoticeLb'), "'everyone' must survive the audience default").toHaveClass(/open/);
+        await expect(page.locator('#signInNoticeLb'), "'everyone' must survive the audience default").toHaveClass(/open/);
         // ...and it reaches the drawer's App Notices list, which is where a member who closed it
         // goes to read it again. The audience decides BOTH surfaces, not just the lightbox.
         await expect.poll(async () => page.evaluate(() =>
             JSON.parse(localStorage.getItem('myb_app_notices') || '[]').map(n => n.id)))
-            .toContain('pw-own-2026');
+            .toContain('sign-in-2026');
         expect(errors, 'Uncaught JS exceptions on a viewer calendar').toHaveLength(0);
     });
 

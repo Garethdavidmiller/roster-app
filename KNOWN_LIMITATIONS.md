@@ -205,7 +205,7 @@ itself, because it only exists across a genuine browser exit.
 - **A calendar-only member now has to unlock, or sign in.** Before this, a member who never signed
   in anywhere could use the Calendar indefinitely. Now they either sign in once (a 60-day session,
   and no PIN thereafter) or enter the PIN each browser session. On a personal phone signing in is
-  clearly the better deal, and the `pw-own-2026` notice already nudges exactly this group — but it
+  clearly the better deal, and the `sign-in-2026` notice (v21.84) exists to say so — it replaced `pw-own-2026`, which nudged this same group towards a password when what they actually needed to hear was that signing in ends the code — but it
   IS a change for the largest group of users and should be expected in support questions.
 - **Viewer sessions cannot subscribe to push**, by rule as well as by UI. Every office PC unlocking
   with the PIN signs in as the same uid, so a subscription written under it would be owned by an

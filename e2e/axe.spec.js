@@ -31,7 +31,7 @@ import { seedSession, seedMember, seedViewerAccess, stubPinExchange, enterPin } 
 test.beforeEach(async ({ page }) => { await enableCalendarPin(page); await seedViewerAccess(page); });
 
 // ── The one-time notice is suppressed by default, and scanned deliberately instead ───────────────
-// `pw-own-2026` opens on the Calendar 1,500ms after load, on a fade transition, for exactly the
+// `sign-in-2026` opens on the Calendar 1,500ms after load, on a fade transition, for exactly the
 // audience these scans seed (a member with no session). Every scan of `/` therefore raced it, and
 // under full-suite load the race was sometimes lost: axe caught the overlay PART-WAY THROUGH its
 // fade and reported four SERIOUS colour-contrast failures against a background that only exists for
@@ -43,7 +43,7 @@ test.beforeEach(async ({ page }) => { await enableCalendarPin(page); await seedV
 // If a later notice appears on another page, suppress it here the same way.
 test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
-        try { localStorage.setItem('myb_notice_pw_own_2026_done', '1'); } catch (_) { /* noop */ }
+        try { localStorage.setItem('myb_notice_sign_in_2026_done', '1'); } catch (_) { /* noop */ }
     });
 });
 
@@ -431,11 +431,11 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         // proves nothing at all.
         await seedMember(page);
         await page.addInitScript(() => {
-            try { localStorage.removeItem('myb_notice_pw_own_2026_done'); } catch (_) { /* noop */ }
+            try { localStorage.removeItem('myb_notice_sign_in_2026_done'); } catch (_) { /* noop */ }
         });
         await page.goto('/');
         await expect(page.locator('.calendar-day').first()).toBeVisible();
-        await expect(page.locator('#pwNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+        await expect(page.locator('#signInNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
         await page.waitForTimeout(600);      // let the fade finish — mid-transition is the bug
         const v = await scan(page, { exclude: ['.other-month'] });
         expect(v.length, report(v)).toBe(0);

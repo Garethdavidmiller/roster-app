@@ -14,8 +14,6 @@ import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
-import { lsSet } from './ls.js';   // iOS-safe wrapper — never raw localStorage (CLAUDE.md)
-import { NOTICE_PW_OWN_DONE } from './storage-keys.js';
 import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
@@ -431,7 +429,6 @@ export function init() {
                 // card's own save and from the forced overlay's `myb:password-set`). No branch
                 // paints migrated on a guess, which is why this can live here rather than at each
                 // call site.
-                if (migrated) lsSet(NOTICE_PW_OWN_DONE, '1');
                 if (chip) chip.textContent = migrated ? '✓ your own password' : 'using surname';
                 if (nudge) {
                     nudge.hidden = migrated;
@@ -465,15 +462,13 @@ export function init() {
             setFeedback(res && res.statusRecorded === false
                 ? '✓ Password updated. Use it next time you sign in. (Your status will refresh shortly.)'
                 : '✓ Password updated. Use it the next time you sign in.', 'ok');
-            // The calendar's `pw-own-2026` notice is asking for exactly this, so retire it here —
-            // the skill's "target-page permanent dismiss" step (v19.89). Without it the notice only
-            // ever SNOOZES (1 day after its CTA, 7 on close) and would keep returning to someone who
-            // has already done what it asked, for the whole notice window. Set on the DEVICE that
-            // did it, which is the same device the notice is showing on. Fire-and-forget: a notice
-            // that reappears is a nuisance, never a reason to fail a password change that has
-            // landed. `paint(true)` does this too (v19.91) — kept here as well so this path does not
-            // depend on refreshStatus's `if (!member) return` guard to retire the notice.
-            lsSet(NOTICE_PW_OWN_DONE, '1');
+            // NOTHING TO RETIRE ON THE CALENDAR ANY MORE (v21.84). This used to write the
+            // `pw-own-2026` done-flag, because that notice asked for exactly what has just
+            // happened and would otherwise keep returning to someone who had done it. Its
+            // replacement is addressed to the SIGNED-OUT only, so it retires itself the moment
+            // this member has a session — the audience is re-checked on every load. One page
+            // reaching across to silence another page's notice was a real coupling, and the
+            // audience rule removed the need for it rather than tidying it up.
             curEl.value = newEl.value = confEl.value = '';
             // Re-mask on success (v18.95). Clearing the values alone left the fields in whatever
             // reveal state the member chose, so the NEXT password typed into this card — possibly
