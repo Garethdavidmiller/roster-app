@@ -374,6 +374,7 @@ async function _uploadBytesWithClaimRetry(uploadBytes, storageRef, file, metadat
 import { normaliseSurname, nameToEmail, credentialCandidatesFor, isCredentialRejection } from './auth-identity.js';
 import { resolveUploadCommit } from './upload-commit.js';
 import { pruneOldDocs } from './doc-retention.js';
+import { buildDocumentClient } from './documents-client.js';
 export { normaliseSurname, nameToEmail };
 
 // ---- Firebase Storage ----
@@ -395,306 +396,30 @@ function _getStorageSdk() {
     return _storagePromise;
 }
 
-/**
- * Verify a chosen file's leading bytes (magic number) actually match its declared
- * type before it is uploaded. Browser uploads otherwise trust only the file
- * extension / reported MIME, so a renamed non-PDF (e.g. a `.txt` saved as `.pdf`)
- * would be stored behind a trusted in-app document link. This mirrors the
- * server-side `fileSignatureMatches` check the Cloud Function ingest path already
- * performs (`functions/roster-parse-helpers.js`) — PDF must start with `%PDF-`,
- * DOCX (a ZIP container) with `PK\x03\x04`.
- *
- * **Fails CLOSED** (v14.99): a file that can't be read, or is shorter than the 5-byte
- * signature window, can't be a genuine PDF/DOCX — a real one is always ≥5 bytes and reads
- * fine — so reject it rather than wave it through. This is an admin-only manual-upload path,
- * so a rejection is retryable (it never affects the server-side daily Huddle ingest, which
- * runs its own `fileSignatureMatches` check). Throws on a read error, a too-short file, or a
- * positive content mismatch.
- *
- * @param {File}            file - the chosen file
- * @param {'pdf'|'docx'}    expectedType - the type derived from the filename
- * @returns {Promise<void>} resolves when valid; throws `Error('SIGNATURE_MISMATCH')` when invalid/unreadable
- */
-async function assertFileSignature(file, expectedType) {
-    let bytes;
-    try {
-        bytes = new Uint8Array(await file.slice(0, 5).arrayBuffer());
-    } catch {
-        throw new Error('SIGNATURE_MISMATCH'); // can't read the file — fail CLOSED (admin-only, retryable)
-    }
-    if (bytes.length < 5) throw new Error('SIGNATURE_MISMATCH'); // too short to be a real PDF/DOCX — fail closed
-    // %PDF-  → 25 50 44 46 2D
-    const isPdfSig = bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 &&
-                     bytes[3] === 0x46 && bytes[4] === 0x2D;
-    // PK\x03\x04 → 50 4B 03 04 (ZIP container; DOCX is a ZIP)
-    const isZipSig = bytes[0] === 0x50 && bytes[1] === 0x4B && bytes[2] === 0x03 && bytes[3] === 0x04;
-    if (expectedType === 'pdf'  && !isPdfSig) throw new Error('SIGNATURE_MISMATCH');
-    if (expectedType === 'docx' && !isZipSig) throw new Error('SIGNATURE_MISMATCH');
-}
+// ---- The three date-keyed document collections ----
+// Huddle · Circular · Newsletter. The upload SEQUENCE — signature check, versioned path, and what
+// a failed or ambiguous commit does to the file — moved to documents-client.js at v21.90. It takes
+// every Firebase handle as an argument, which is both what keeps the import graph acyclic (this
+// module re-exports it) and what lets the ordering be replayed in Node against fakes; the reasoning
+// is in that module's header.
+const _docs = buildDocumentClient({
+    db, collections: COLLECTIONS,
+    fs: {
+        doc, getDoc, setDoc, collection, query, where, orderBy, limit,
+        getDocs, onSnapshot, runTransaction, serverTimestamp,
+    },
+    getStorageSdk: _getStorageSdk,
+    uploadBytesWithClaimRetry: _uploadBytesWithClaimRetry,
+    utils: { isDocxUpload, uploadMimeType, legacyDocPath, versionedDocPath },
+    resolveUploadCommit, pruneOldDocs,
+});
 
-/** Firestore error codes that warrant a single retry — transient service unavailability only. */
-const _RETRIABLE_FIRESTORE_CODES = new Set(['unavailable', 'deadline-exceeded', 'internal']);
-
-/**
- * Shared transactional upload engine for the date-keyed document collections (huddles / circulars /
- * newsletters). Extracted (v16.38) from the byte-identical uploadHuddle / _uploadDoc paths — both were
- * incident-hardened in lockstep and had begun to drift, so the rollback / commit-ambiguity rules now
- * live in ONE place. Flow: read the old storagePath → write a VERSIONED Storage object → getDownloadURL
- * → setDoc (single retry on a retriable Firestore code) → on failure roll back the new object ONLY for a
- * NON-retriable (definite non-commit) error (a still-retriable final error is commit-AMBIGUOUS — the doc
- * may have committed after the response was lost — so the file is LEFT, to avoid a committed doc pointing
- * at nothing) → best-effort delete of the superseded old object after commit.
- * @param {string} collectionName  Firestore collection AND Storage folder prefix (e.g. 'huddles')
- * @param {string} date            ISO "YYYY-MM-DD" (also the Firestore doc id)
- * @param {File}   file            PDF or Word (.docx)
- * @param {string} uploadedBy      memberName of the uploading admin
- * @param {{ extraFields?: Record<string, any>, postCommit?: (sdk: { storage: any, ref: any, deleteObject: any }) => void, logTag?: string }} [opts]
- *        extraFields → merged into the Firestore doc (e.g. the huddle's converted htmlContent);
- *        postCommit  → runs after a successful commit (e.g. _uploadDoc's 6-month prune); logTag → console prefix.
- * @returns {Promise<string>} the permanent tokenised download URL of the stored file
- */
-async function _transactionalUpload(collectionName, date, file, uploadedBy, opts = {}) {
-    const { extraFields = {}, postCommit, logTag = collectionName } = opts;
-    // Detect by extension OR the docx MIME so it matches the accept predicate (isDocxFile) — a .docx
-    // accepted via its MIME (a cloud/Android picker with no .docx in the name) would otherwise be
-    // mis-detected as 'pdf' and rejected by the signature check with a confusing "not a valid" error.
-    const fileType = isDocxUpload(file) ? 'docx' : 'pdf';
-    await assertFileSignature(file, fileType);   // reject a renamed/mismatched file before Storage
-    // Set the MIME explicitly (uploadMimeType) — Android sometimes reports a .docx (a ZIP archive)
-    // as application/zip or application/octet-stream, which can trip the Storage content-type rule.
-    const mimeType = uploadMimeType(fileType);
-    const { storage, ref, uploadBytes, getDownloadURL, deleteObject } = await _getStorageSdk();
-
-    // Read the previous storagePath first (storagePath added v13.99 — legacyDocPath is the fallback
-    // for older docs, honouring the OLD doc's fileType so a PDF↔DOCX swap still finds and cleans up
-    // the previous file).
-    const oldSnap = await getDoc(doc(db, collectionName, date));
-    const oldData = oldSnap.exists() ? /** @type {any} */ (oldSnap.data()) : null;
-    const oldStoragePath = oldData ? (oldData.storagePath ?? legacyDocPath(collectionName, date, oldData.fileType)) : null;
-
-    // Versioned path (versionedDocPath) keeps the old file alive until Firestore commits — a
-    // re-upload (incl. a PDF↔DOCX swap, which changes the extension) never orphans the old file
-    // mid-commit. The id itself is generated HERE (impure) so the path builder stays pure.
-    const uploadId = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-    const newStoragePath = versionedDocPath(collectionName, date, uploadId, fileType);
-    const storageRef = ref(storage, newStoragePath);
-
-    let storageUrl;
-    try {
-        await _uploadBytesWithClaimRetry(uploadBytes, storageRef, file, { contentType: mimeType });
-        storageUrl = await getDownloadURL(storageRef);   // permanent tokenised (bearer) URL — never expires
-        /** @type {Record<string, any>} */
-        const firestoreDoc = {
-            date, storageUrl, storagePath: newStoragePath, fileType,
-            uploadedAt: serverTimestamp(), uploadedBy, ...extraFields,
-        };
-        // Retry setDoc once on a RETRIABLE code — but LOOK FIRST (v21.86, external audit). A
-        // deadline-exceeded can be raised AFTER the server committed, and re-issuing blind can put
-        // the live document back to a Storage path a competing upload has already deleted. The
-        // rule, the interleaving that produced it and why an unreadable state retries are all in
-        // `upload-commit.js`, beside the function that decides.
-        try {
-            await setDoc(doc(db, collectionName, date), firestoreDoc);
-        } catch (setErr) {
-            const e = /** @type {any} */ (setErr);
-            if (!_RETRIABLE_FIRESTORE_CODES.has(e?.code)) throw setErr;
-            console.warn(`[upload] ${logTag} setDoc attempt 1 failed (${e?.code}) — checking what committed`);
-            await new Promise(r => setTimeout(r, 2000));
-            /** @type {any} */
-            let liveNow = null;
-            let readable = true;
-            try {
-                const snap = await getDoc(doc(db, collectionName, date));
-                liveNow = snap.exists() ? snap.data() : null;
-            } catch (readErr) {
-                // Could not read either. Fall back to the old behaviour — re-issue — because the
-                // alternative is leaving a possibly-uncommitted upload with no metadata at all, and
-                // an unreadable Firestore is the same outage that produced the ambiguity.
-                readable = false;
-                console.warn(`[upload] ${logTag} post-failure read failed; re-issuing:`, /** @type {any} */ (readErr)?.code);
-            }
-            const livePath = liveNow
-                ? (liveNow.storagePath ?? legacyDocPath(collectionName, date, liveNow.fileType))
-                : null;
-            const verdict = resolveUploadCommit({
-                ourPath: newStoragePath, oldPath: oldStoragePath, livePath, readable,
-            });
-            if (verdict === 'committed') {
-                console.log(`[upload] ${logTag} first write had committed after all — not re-writing`);
-            } else if (verdict === 'superseded') {
-                // Somebody else's upload is live. Ours is an orphan, and this must NOT report
-                // success — that would send the admin away believing their file is the one staff
-                // will open. The throw goes to the outer catch, whose non-retriable branch deletes
-                // our object: the rollback belongs there, and duplicating it here would mean two
-                // deletes racing over one path for no gain.
-                const sup = /** @type {any} */ (new Error('A newer upload for this date was saved by someone else.'));
-                sup.code = 'upload/superseded';
-                throw sup;
-            } else {
-                await setDoc(doc(db, collectionName, date), firestoreDoc);
-            }
-        }
-    } catch (err) {
-        // Old file is unaffected. Roll back the new object ONLY on a non-retriable failure (definite
-        // non-commit). A still-retriable FINAL error is commit-ambiguous — deleting could leave a
-        // committed doc pointing at nothing (staff taps 404 until re-upload) — so leave the file (at
-        // most one orphan, which the next upload's cleanup tolerates).
-        if (!_RETRIABLE_FIRESTORE_CODES.has(/** @type {any} */ (err)?.code)) {
-            deleteObject(storageRef).catch(/** @param {any} e */ e => console.warn(`[upload] ${logTag} rollback failed:`, e));
-        } else {
-            console.warn(`[upload] ${logTag} commit-ambiguous failure — leaving new Storage object in place:`, /** @type {any} */ (err)?.code);
-        }
-        throw err;
-    }
-
-    // Firestore committed: asynchronously remove the superseded old object (best-effort).
-    if (oldStoragePath && oldStoragePath !== newStoragePath) {
-        deleteObject(ref(storage, oldStoragePath)).catch(
-            /** @param {any} e */ e => console.warn(`[upload] ${logTag} old-file cleanup failed (orphaned):`, e)
-        );
-    }
-
-    postCommit?.({ storage, ref, deleteObject });
-    return storageUrl;
-}
-
-/**
- * Upload a Huddle file (PDF or Word .docx) for a given date.
- *
- * Stores the file at huddles/YYYY-MM-DD.pdf or huddles/YYYY-MM-DD.docx in
- * Firebase Storage and writes a metadata document to the `huddles` Firestore
- * collection. If a Huddle was already uploaded for that date, this overwrites
- * it (latest wins). The `fileType` field in Firestore tells the app whether
- * to open the file directly (PDF) or via Office Online viewer (docx).
- *
- * @param {string}      date        - ISO date string, e.g. "2026-03-18"
- * @param {File}        file        - PDF or .docx file chosen by the admin
- * @param {string}      uploadedBy  - memberName of the uploading admin
- * @param {string|null} htmlContent - Pre-converted HTML string for DOCX files; null for PDF
- * @returns {Promise<string>} Publicly accessible download URL of the stored file
- */
-export async function uploadHuddle(date, file, uploadedBy, htmlContent = null) {
-    // Thin wrapper over the shared _transactionalUpload engine. 3-month huddle retention is pruned
-    // server-side by the ingestHuddle Cloud Function (not here), so there is no postCommit.
-    return _transactionalUpload(COLLECTIONS.huddles, date, file, uploadedBy, {
-        logTag: 'huddle',
-        // DOCX carries the pre-converted htmlContent so the viewer can render inline; PDF has none.
-        extraFields: htmlContent !== null ? { htmlContent } : {},
-    });
-}
-
-// ---- Weekly Retail Circular / Newsletter ----
-
-
-/**
- * Upload a PDF to Firebase Storage and upsert a metadata document in Firestore.
- * Shared implementation for uploadCircular and uploadNewsletter.
- *
- * Uses a versioned Storage path (`{collection}/{date}-{uploadId}.pdf`) so the old
- * file is not overwritten until Firestore is committed. This closes the data-loss
- * window where a Firestore failure on a replacement would leave both old and new
- * bytes inaccessible (pre-v13.99 used a fixed path that overwrote on upload).
- *
- * Failure handling:
- *   - Storage fails:                                    nothing written; throws.
- *   - Storage OK, setDoc fails (either attempt):        new bytes rolled back via deleteObject;
- *                                                       old file unaffected; throws.
- *   - Storage OK, setDoc succeeds, old-file cleanup fails: orphaned old Storage file
- *                                                       (invisible to users); not thrown.
- *   - setDoc retry: only for retriable Firestore codes (unavailable, deadline-exceeded,
- *                   internal). Non-retriable codes throw immediately with no delay.
- *                   setDoc on a date-keyed doc is idempotent so a double-write is safe.
- *
- * @param {string}   collectionName - 'circulars' | 'newsletters'
- * @param {string}   date           - ISO date string, e.g. "2026-06-27"
- * @param {File}     file           - PDF or Word (.docx) file chosen by the admin
- * @param {string}   uploadedBy     - memberName of the uploading admin
- * @returns {Promise<string>} Download URL of the stored file
- */
-async function _uploadDoc(collectionName, date, file, uploadedBy) {
-    // Thin wrapper over the shared _transactionalUpload engine. Circular/newsletter files are
-    // download-only (no inline conversion, so no extraFields); the 6-month prune runs post-commit.
-    return _transactionalUpload(collectionName, date, file, uploadedBy, {
-        logTag: collectionName,
-        postCommit: ({ storage, ref, deleteObject }) =>
-            pruneOldDocs(collectionName, date, storage, ref, deleteObject,
-                { db, doc, getDoc, collection, query, where, getDocs, runTransaction })
-                .catch(e => console.error(`[pruneOldDocs] ${collectionName}:`, e)),
-    });
-}
-
-/**
- * Upload a Weekly Retail Circular (PDF or Word .docx) for a given date.
- * Stores at circulars/YYYY-MM-DD.pdf in Firebase Storage and writes a metadata
- * document to the `circulars` Firestore collection. Uploading for the same date
- * overwrites the previous file (latest wins). Documents older than 6 months are
- * pruned automatically after each upload.
- *
- * @param {string} date       - ISO date string, e.g. "2026-06-27"
- * @param {File}   file       - PDF or Word (.docx) file chosen by the admin
- * @param {string} uploadedBy - memberName of the uploading admin
- * @returns {Promise<string>} Download URL of the stored file
- */
-export async function uploadCircular(date, file, uploadedBy) {
-    return _uploadDoc(COLLECTIONS.circulars, date, file, uploadedBy);
-}
-
-/**
- * Fetch the most recent Retail Circular document from Firestore (one-shot read).
- * @returns {Promise<object|null>} Latest circular data object or null if none uploaded
- */
-export async function getLatestCircular() {
-    const q = query(collection(db, COLLECTIONS.circulars), orderBy('date', 'desc'), limit(1));
-    const snap = await getDocs(q);
-    if (snap.empty) return null;
-    const data = snap.docs[0].data();
-    return data.storageUrl ? data : null;
-}
-
-/**
- * Upload a Newsletter (PDF or Word .docx) to Firebase Storage and record it in Firestore.
- * Documents older than 6 months are pruned automatically after each upload.
- * @param {string} date       - ISO date string, e.g. "2026-06-27"
- * @param {File}   file       - PDF or Word (.docx) file chosen by the admin
- * @param {string} uploadedBy - memberName of the uploading admin
- * @returns {Promise<string>} Download URL of the stored file
- */
-export async function uploadNewsletter(date, file, uploadedBy) {
-    return _uploadDoc(COLLECTIONS.newsletters, date, file, uploadedBy);
-}
-
-/**
- * Fetch the most recent Newsletter document from Firestore (one-shot read).
- * @returns {Promise<object|null>} Latest newsletter data object or null if none uploaded
- */
-export async function getLatestNewsletter() {
-    const q = query(collection(db, COLLECTIONS.newsletters), orderBy('date', 'desc'), limit(1));
-    const snap = await getDocs(q);
-    if (snap.empty) return null;
-    const data = snap.docs[0].data();
-    return data.storageUrl ? data : null;
-}
-
-/**
- * Subscribe to real-time updates for the latest Huddle document.
- * Fires immediately with cached data (IndexedDB) on repeat visits, then again
- * when the network confirms — so the Huddle button becomes active almost instantly.
- * Also fires whenever a new huddle arrives, so staff don't need to refresh.
- *
- * @param {function} onData  - Called with huddle data object or null (no huddle yet)
- * @param {function} onError - Called with Firestore error if the listener fails
- * @returns {function} Unsubscribe function (call to clean up the listener)
- */
-export function subscribeToLatestHuddle(onData, onError) {
-    // Single-field orderBy — Firestore auto-indexes this; no composite index needed.
-    const q = query(collection(db, COLLECTIONS.huddles), orderBy('date', 'desc'), limit(1));
-    return onSnapshot(q, /** @param {any} snap */ (snap) => {
-        if (snap.empty) { onData(null); return; }
-        const data = snap.docs[0].data();
-        if (!data.storageUrl) console.warn('[Huddle] Document missing storageUrl:', snap.docs[0].id);
-        onData(data.storageUrl ? data : null);
-    }, onError);
-}
+export const uploadHuddle            = _docs.uploadHuddle;
+export const uploadCircular          = _docs.uploadCircular;
+export const uploadNewsletter        = _docs.uploadNewsletter;
+export const getLatestCircular       = _docs.getLatestCircular;
+export const getLatestNewsletter     = _docs.getLatestNewsletter;
+export const subscribeToLatestHuddle = _docs.subscribeToLatestHuddle;
 
 // ---- Push Notification Subscriptions ----
 

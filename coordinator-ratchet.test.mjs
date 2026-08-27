@@ -106,7 +106,13 @@ const CAPS = {
     // mutation-verified, because the gesture had no behavioural coverage at all.
     'admin-app.js':            1700,
     'links-design.js':         1500,   // a DOMAIN module: large is less alarming here, but still capped
-    'firebase-client.js':      1350,
+    // 1350 → 1100 at v21.90. The three date-keyed document collections left for
+    // documents-client.js — 1,308 measured lines down to 1,033 — taking the upload SEQUENCE with
+    // them: signature check, versioned path, and what a failed or ambiguous commit does to the
+    // file. That sequence had been sitting between the auth bootstrap, the push writers, the
+    // password timestamps, the analytics counters and the error log, in the one module that cannot
+    // load in Node, so none of it could be tested. Injecting the Firebase handles fixed both.
+    'firebase-client.js':      1100,
     // 1300 → 1350 at v21.29, deliberately and after extracting first. The page-ready fix added the
     // surface-selection logic, the cache-first-paint race and their reasoning; the RULE it carried
     // ("is a roster on screen?") went to calendar-data-state.js as `showsRoster`, beside the four

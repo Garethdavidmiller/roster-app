@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: August 2026 — v21.80 · Updated every 0.10 version*
+*Last updated: August 2026 — v21.90 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -1379,9 +1379,7 @@ Single Firestore initialisation point — import `db` and Firestore helpers from
 - `db` — initialised with `persistentLocalCache()` so all queries are backed by IndexedDB offline storage
 - `COLLECTIONS` — frozen object mapping logical names to Firestore collection strings (`circulars`, `newsletters`, `clientErrors`, etc.). Use this instead of bare string literals to prevent typo-silent failures.
 - Standard exports re-exported: `collection`, `query`, `where`, `orderBy`, `limit`, `getDocs`, `getDoc`, `addDoc`, `setDoc`, `deleteDoc`, `doc`, `serverTimestamp`, `writeBatch`, `runTransaction` (v17.02 — the links-app.js concurrency transaction), `onSnapshot`
-- `assertFileSignature(file, expectedType)` (module-internal; not exported) — magic-byte guard called at the top of `uploadHuddle` and `_uploadDoc` before any Storage write: rejects a renamed non-PDF/DOCX (browser uploads otherwise trust only the extension/MIME). Mirrors the server-side `fileSignatureMatches` in `functions/roster-parse-helpers.js` (PDF `%PDF-`, DOCX `PK\x03\x04`). **Fails open** on a read error (never blocks a genuine upload); throws `Error('SIGNATURE_MISMATCH')` only on a positive mismatch, which the upload UIs surface as a specific "not a valid PDF/Word document" message.
-- `uploadHuddle(date, file, uploadedBy, htmlContent = null)` — transactional manual-upload path (mirrors the Cloud Function ingest + circular/newsletter `_uploadDoc`): verifies the file signature, then writes a **versioned** Storage object `huddles/{date}-{uploadId}.{ext}`, records its path in the `storagePath` field, writes the `huddles/{date}` Firestore doc, then deletes the previous object only after the commit (rolls the new object back on failure) so a re-upload never orphans the old file. `htmlContent` is the converted HTML for DOCX uploads (null for PDFs). Browser delete requires the admin-delete `/huddles` Storage rule (v14.29). Age-based pruning is handled server-side by `pruneOldHuddles()` (3-month), not here.
-- `subscribeToLatestHuddle(onData, onError)` — real-time `onSnapshot` listener; returns an unsubscribe function. Used by `calendar-huddle-viewer.js` (initialised from `calendar-app.js`) to keep the Huddle viewer content live without a page refresh. Logs a `console.warn` if a huddle document is missing its `storageUrl` (data integrity signal).
+- `uploadHuddle` / `uploadCircular` / `uploadNewsletter` / `getLatestCircular` / `getLatestNewsletter` / `subscribeToLatestHuddle` — still exported here, and every importer is unchanged, but bound from `buildDocumentClient` since **v21.90**. The upload SEQUENCE and its reasoning live in `documents-client.js`; do not restate them here. (The bullets this line replaced had gone stale in the way that matters: they described `assertFileSignature` as failing OPEN on a read error, which it has not done since v14.99 — it fails CLOSED, and a security guard documented backwards is worse than one documented not at all.)
 - `savePushSubscription` / `deletePushSubscription` — Web Push subscription management. `deletePushSubscription` guards against empty endpoint (no-ops silently).
 - `authBootstrap()` / `currentUserAfterBoot(timeoutMs)` — the ONE shared boot restore (v21.29). `authBootstrap` awaits the first auth emission, applies persistence by whether the restored user is the viewer, and memoises; `currentUserAfterBoot` is the bounded wait every caller with a deadline of its own uses, so three `onAuthStateChanged` subscriptions with three separate ceilings became one. `LATENCY_PLAN.md` Phase 1 cites it; it was absent from this map until v21.63.
 - `restoreMemberPersistence()` / `setViewerPersistence()` — the two halves of the persistence decision above, exported so `session.js` can re-arm the member chain AFTER shedding a viewer. **`setViewerPersistence` REJECTS rather than falling back**: every available fallback is longer-lived than session-only, so a quiet degrade would turn a shared-PC boundary into a permanent one. `AUTH_AND_SESSIONS.md` invariant 8.
@@ -1800,6 +1798,31 @@ Each delete now re-reads inside a transaction and stands down if the storage pat
 
 The right long-term home is a scheduled Cloud Function, where the time is trusted by construction —
 the shape `purgeExpiredOvertimeWindows` already has.
+
+### `documents-client.js`
+The three date-keyed document collections — Daily Huddle, Weekly Retail Circular, Marylebone
+Newsletter — and the upload sequence behind them (extracted from `firebase-client.js`, v21.90).
+- `buildDocumentClient(deps)` → `{ uploadHuddle, uploadCircular, uploadNewsletter, getLatestCircular,
+  getLatestNewsletter, subscribeToLatestHuddle }`. `deps` carries `db`, `collections`, the Firestore
+  functions (`fs`), `getStorageSdk`, `uploadBytesWithClaimRetry`, the pure path/type `utils`,
+  `resolveUploadCommit` and `pruneOldDocs`.
+- `assertFileSignature(file, expectedType)` — magic-number check; fails CLOSED on an unreadable or
+  too-short file. Exported separately because it is a decision, not a step.
+
+**One invariant: a live document must never point at a file that is not there.** An upload writes to
+two systems with no transaction across them, so every rule here exists to keep them in step across a
+failure — check the signature before anything is written; upload to a VERSIONED path so the old file
+stays readable until Firestore commits; roll the new object back only on a DEFINITE non-commit,
+because a still-retriable final error is commit-ambiguous and deleting there would 404 a committed
+document; and resolve that ambiguity by READING rather than re-issuing blind, since a blind retry can
+overwrite a competing upload's file reference with a path that upload has already deleted.
+
+**Why a factory rather than a module that imports `db`.** `firebase-client.js` re-exports these, so
+importing back would be a cycle `import-graph.test.mjs` refuses. The reason that earns it, though, is
+the second one: with every Firebase handle injected the module imports nothing from gstatic and loads
+in Node — so the orderings above can be forced against fakes, which no arrangement of real calls can
+do. `doc-retention.js` gained exactly this at v21.86. The pure decisions it composes live in
+`upload-commit.js` and `doc-retention.js`; this module owns the SEQUENCE, not the rules.
 
 ### `firestore.rules`
 Server-side Firestore security rules — deployed via `firebase deploy --only firestore:rules`.
