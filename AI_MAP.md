@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: August 2026 — v21.80 · Updated every 0.10 version*
+*Last updated: August 2026 — v21.90 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -1379,9 +1379,7 @@ Single Firestore initialisation point — import `db` and Firestore helpers from
 - `db` — initialised with `persistentLocalCache()` so all queries are backed by IndexedDB offline storage
 - `COLLECTIONS` — frozen object mapping logical names to Firestore collection strings (`circulars`, `newsletters`, `clientErrors`, etc.). Use this instead of bare string literals to prevent typo-silent failures.
 - Standard exports re-exported: `collection`, `query`, `where`, `orderBy`, `limit`, `getDocs`, `getDoc`, `addDoc`, `setDoc`, `deleteDoc`, `doc`, `serverTimestamp`, `writeBatch`, `runTransaction` (v17.02 — the links-app.js concurrency transaction), `onSnapshot`
-- `assertFileSignature(file, expectedType)` (module-internal; not exported) — magic-byte guard called at the top of `uploadHuddle` and `_uploadDoc` before any Storage write: rejects a renamed non-PDF/DOCX (browser uploads otherwise trust only the extension/MIME). Mirrors the server-side `fileSignatureMatches` in `functions/roster-parse-helpers.js` (PDF `%PDF-`, DOCX `PK\x03\x04`). **Fails open** on a read error (never blocks a genuine upload); throws `Error('SIGNATURE_MISMATCH')` only on a positive mismatch, which the upload UIs surface as a specific "not a valid PDF/Word document" message.
-- `uploadHuddle(date, file, uploadedBy, htmlContent = null)` — transactional manual-upload path (mirrors the Cloud Function ingest + circular/newsletter `_uploadDoc`): verifies the file signature, then writes a **versioned** Storage object `huddles/{date}-{uploadId}.{ext}`, records its path in the `storagePath` field, writes the `huddles/{date}` Firestore doc, then deletes the previous object only after the commit (rolls the new object back on failure) so a re-upload never orphans the old file. `htmlContent` is the converted HTML for DOCX uploads (null for PDFs). Browser delete requires the admin-delete `/huddles` Storage rule (v14.29). Age-based pruning is handled server-side by `pruneOldHuddles()` (3-month), not here.
-- `subscribeToLatestHuddle(onData, onError)` — real-time `onSnapshot` listener; returns an unsubscribe function. Used by `calendar-huddle-viewer.js` (initialised from `calendar-app.js`) to keep the Huddle viewer content live without a page refresh. Logs a `console.warn` if a huddle document is missing its `storageUrl` (data integrity signal).
+- `uploadHuddle` / `uploadCircular` / `uploadNewsletter` / `getLatestCircular` / `getLatestNewsletter` / `subscribeToLatestHuddle` — still exported here, and every importer is unchanged, but bound from `buildDocumentClient` since **v21.90**. The upload SEQUENCE and its reasoning live in `documents-client.js`; do not restate them here. (The bullets this line replaced had gone stale in the way that matters: they described `assertFileSignature` as failing OPEN on a read error, which it has not done since v14.99 — it fails CLOSED, and a security guard documented backwards is worse than one documented not at all.)
 - `savePushSubscription` / `deletePushSubscription` — Web Push subscription management. `deletePushSubscription` guards against empty endpoint (no-ops silently).
 - `authBootstrap()` / `currentUserAfterBoot(timeoutMs)` — the ONE shared boot restore (v21.29). `authBootstrap` awaits the first auth emission, applies persistence by whether the restored user is the viewer, and memoises; `currentUserAfterBoot` is the bounded wait every caller with a deadline of its own uses, so three `onAuthStateChanged` subscriptions with three separate ceilings became one. `LATENCY_PLAN.md` Phase 1 cites it; it was absent from this map until v21.63.
 - `restoreMemberPersistence()` / `setViewerPersistence()` — the two halves of the persistence decision above, exported so `session.js` can re-arm the member chain AFTER shedding a viewer. **`setViewerPersistence` REJECTS rather than falling back**: every available fallback is longer-lived than session-only, so a quiet degrade would turn a shared-PC boundary into a permanent one. `AUTH_AND_SESSIONS.md` invariant 8.
@@ -1668,6 +1666,43 @@ Different problem, different risk, decided separately. Two page modules also had
 called `setStatus` (`login-overlay.js`, `paycalc-lightboxes.js`); both now delegate here and are
 named for their surface (`setLoginStatus`, `setActualsStatus`).
 
+### `paycalc-sticky-total.js`
+The sticky take-home bar (v21.89, extracted from `paycalc-app.js` — 1,988 → 1,888).
+- `initPaycalcStickyTotal()` — safe to call when the elements are absent.
+
+Three inputs, one output: whether the result figure is in the viewport (IntersectionObserver),
+whether a field is focused, and where the visual viewport sits → whether `#stickyTotal` shows and
+how far it is translated up. **No money, no period, no storage.** `calculate()` writes the figure
+and has no knowledge of this module.
+
+Extracted for headroom rather than for an invariant, and honestly so: `paycalc-app.js` was 12 lines
+from its cap, and of everything in it this is the piece whose removal cannot change a figure a
+member reads. Every guard inside is the fix to a reported iOS behaviour — no pagehide-disconnect,
+pin-above-the-keyboard rather than hide-behind-it, the deferred focusout rebase, and the composed
+translate — and none is reproducible in headless or e2e, which is why each carries its reasoning.
+
+### `admin-week-swipe.js`
+The week-grid swipe on admin.html (v21.89, extracted from `admin-app.js` — 1,783 → 1,638).
+- `initAdminWeekSwipe({ weekGrid, fieldDate, prevWeekBtn, nextWeekBtn, canNavigate,
+  onWeekCommitted, onSettled, shiftWeek })`
+
+A pointer state machine plus a carousel. It decides when a drag is a horizontal swipe rather than a
+tap or a scroll (lazy capture — nothing starts until intent is confirmed), builds the adjacent week
+panels, animates the commit, and holds a cooldown so one gesture cannot advance two weeks.
+
+**It holds no business rule.** What a week change means to Admin — the label, the AL banner, the
+booked boxes, the staged-edit reset — stays in the coordinator behind `onWeekCommitted` and
+`onSettled`; whether the move may happen at all is `canNavigate`, which folds the two inline guards
+(staged work, no member/week) into one question.
+
+**Not shared with `calendar-swipe.js`.** They look alike and are not: a month rather than a week, no
+unsaved-work guard, no adjacent-panel build, a different commit. Merging them buys one handler
+behind a mode flag and a dozen options.
+
+Two rules from CLAUDE.md's architecture table, both previously broken by plausible changes: Pointer
+Events never Touch Events, and `setPointerCapture` on the grid rather than the clip — a capture
+target's events do not bubble to its children.
+
 ### `overtime-review-controller.js`
 The reviewer's side of `overtime.html` (v21.88), extracted from `overtime-app.js` — 1,246 lines to
 698.
@@ -1763,6 +1798,31 @@ Each delete now re-reads inside a transaction and stands down if the storage pat
 
 The right long-term home is a scheduled Cloud Function, where the time is trusted by construction —
 the shape `purgeExpiredOvertimeWindows` already has.
+
+### `documents-client.js`
+The three date-keyed document collections — Daily Huddle, Weekly Retail Circular, Marylebone
+Newsletter — and the upload sequence behind them (extracted from `firebase-client.js`, v21.90).
+- `buildDocumentClient(deps)` → `{ uploadHuddle, uploadCircular, uploadNewsletter, getLatestCircular,
+  getLatestNewsletter, subscribeToLatestHuddle }`. `deps` carries `db`, `collections`, the Firestore
+  functions (`fs`), `getStorageSdk`, `uploadBytesWithClaimRetry`, the pure path/type `utils`,
+  `resolveUploadCommit` and `pruneOldDocs`.
+- `assertFileSignature(file, expectedType)` — magic-number check; fails CLOSED on an unreadable or
+  too-short file. Exported separately because it is a decision, not a step.
+
+**One invariant: a live document must never point at a file that is not there.** An upload writes to
+two systems with no transaction across them, so every rule here exists to keep them in step across a
+failure — check the signature before anything is written; upload to a VERSIONED path so the old file
+stays readable until Firestore commits; roll the new object back only on a DEFINITE non-commit,
+because a still-retriable final error is commit-ambiguous and deleting there would 404 a committed
+document; and resolve that ambiguity by READING rather than re-issuing blind, since a blind retry can
+overwrite a competing upload's file reference with a path that upload has already deleted.
+
+**Why a factory rather than a module that imports `db`.** `firebase-client.js` re-exports these, so
+importing back would be a cycle `import-graph.test.mjs` refuses. The reason that earns it, though, is
+the second one: with every Firebase handle injected the module imports nothing from gstatic and loads
+in Node — so the orderings above can be forced against fakes, which no arrangement of real calls can
+do. `doc-retention.js` gained exactly this at v21.86. The pure decisions it composes live in
+`upload-commit.js` and `doc-retention.js`; this module owns the SEQUENCE, not the rules.
 
 ### `firestore.rules`
 Server-side Firestore security rules — deployed via `firebase deploy --only firestore:rules`.

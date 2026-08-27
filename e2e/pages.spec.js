@@ -3484,3 +3484,111 @@ test('operations: no account-status name is truncated at phone width', async ({ 
         .map(el => el.textContent));
     expect(clipped, 'account names clipped at 375px — the row cannot be identified').toEqual([]);
 });
+
+// ── ADMIN WEEK SWIPE ────────────────────────────────────────────────────────────────────────────
+//
+// Written BEFORE extracting the gesture into its own module (v21.89), because it had no
+// behavioural coverage at all: 165 lines of pointer capture, transitions and timers driving a
+// navigation staff use daily on a phone, and nothing that would notice if a refactor broke it.
+//
+// It is also the one surface with a documented history of being broken by a plausible change —
+// CLAUDE.md carries two standing rules about it (Pointer Events not Touch Events; pointer capture
+// on the grid, not the clip) — so "read it carefully" is exactly the assurance that has failed
+// here before.
+//
+// The drag is a real pointer sequence rather than a synthetic event: the whole mechanism is the
+// lazy capture that only starts once horizontal intent is confirmed, and dispatching a single
+// event skips the thing under test.
+async function dragWeek(page, dir) {
+    // WAIT FOR THE PREVIOUS GESTURE TO SETTLE FIRST. A commit sets a cooldown that is released
+    // only when the carousel animation finishes, so a second drag issued the moment the DATE
+    // changes is correctly ignored — the date is written before the animation, deliberately, so
+    // the label cannot lag the grid. The first version of this test dragged straight back and
+    // read that as a broken swipe; it is the double-commit guard doing its job.
+    //
+    // The observable end of the gesture is the carousel panels being torn down in `restore()`.
+    await page.waitForFunction(
+        () => document.querySelectorAll('.week-carousel-panel').length === 0,
+        null, { timeout: 5000 });
+    // SCROLL IT INTO VIEW FIRST, then take a y inside BOTH the grid and the viewport. The grid is
+    // 559px tall and starts 594px down a 727px-tall phone viewport, so its midpoint is off-screen —
+    // `page.mouse` works in viewport coordinates, so the original midpoint drag was dispatched below
+    // the window and hit nothing. It passed on desktop only because that layout happens to fit.
+    await page.locator('#weekGrid').scrollIntoViewIfNeeded();
+    const box = await page.locator('#weekGrid').boundingBox();
+    const vh  = page.viewportSize().height;
+    const top = Math.max(box.y, 0);
+    const bot = Math.min(box.y + box.height, vh);
+    const y   = (top + bot) / 2;
+    expect(y, 'the drag must start inside the viewport').toBeGreaterThan(0);
+    expect(y, 'the drag must start inside the viewport').toBeLessThan(vh);
+    // Start well clear of the left edge — the handler deliberately ignores the first 24px so it
+    // does not fight the iOS system back-swipe.
+    const [from, to] = dir === 'next'
+        ? [box.x + box.width - 30, box.x + 40]
+        : [box.x + 40, box.x + box.width - 30];
+    await page.mouse.move(from, y);
+    await page.mouse.down();
+    // Enough steps to clear the intent threshold and register velocity; a single jump reads as a
+    // tap with a large delta and is correctly ignored.
+    await page.mouse.move(to, y, { steps: 14 });
+    await page.mouse.up();
+}
+
+test('admin: swiping the week grid moves a week, in both directions', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    const dateField = page.locator('#fieldDate');
+    const start = await dateField.inputValue();
+    expect(start, 'the grid should open on a week').toBeTruthy();
+
+    await dragWeek(page, 'next');
+    await expect
+        .poll(() => dateField.inputValue(), { timeout: 5000 })
+        .not.toBe(start);
+    const forward = await dateField.inputValue();
+    // Exactly one week, not two: the carousel commits a single panel per gesture, and a
+    // double-commit is the failure a cooldown exists to prevent.
+    expect(Math.round((Date.parse(forward) - Date.parse(start)) / 86400000)).toBe(7);
+
+    await dragWeek(page, 'prev');
+    await expect.poll(() => dateField.inputValue(), { timeout: 5000 }).toBe(start);
+});
+
+test('admin: the week label follows the swipe, so the grid and its heading agree', async ({ page }) => {
+    // The label is written on COMMIT, before the animation, precisely so it cannot lag the grid.
+    // A heading naming one week above a grid showing another is the misreading this prevents.
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    const label = page.locator('#weekNavLabel');
+    const before = await label.textContent();
+    await dragWeek(page, 'next');
+    await expect.poll(() => label.textContent(), { timeout: 5000 }).not.toBe(before);
+
+    // And it agrees with the date field, which is the state everything else reads.
+    const iso = await page.locator('#fieldDate').inputValue();
+    const day = new Date(iso + 'T00:00:00').getDate();
+    await expect(label).toContainText(String(day));
+});
+
+test('admin: the week arrows and the swipe move the same state', async ({ page }) => {
+    // The buttons live inside the gesture's own closure so they share its cooldown. Extracting the
+    // gesture must not leave them wired to a different notion of "which week".
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    const dateField = page.locator('#fieldDate');
+    const start = await dateField.inputValue();
+    await page.locator('#nextWeekBtn').click();
+    await expect.poll(() => dateField.inputValue(), { timeout: 5000 }).not.toBe(start);
+    const afterBtn = await dateField.inputValue();
+
+    await dragWeek(page, 'prev');
+    await expect.poll(() => dateField.inputValue(), { timeout: 5000 }).toBe(start);
+    expect(Math.round((Date.parse(afterBtn) - Date.parse(start)) / 86400000)).toBe(7);
+});

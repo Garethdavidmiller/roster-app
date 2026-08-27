@@ -89,16 +89,30 @@ const CAPS = {
     // a grid, a paint tool, a generator, a compare mode, an importer and a bin, and the next
     // genuine seam (target-set persistence) is a smaller version of the one just taken.
     'links-app.js':            3150,   // ← the next Links rule goes in a domain module
-    'paycalc-app.js':          2000,
+    // 2000 → 1900 at v21.89. The sticky take-home bar left for paycalc-sticky-total.js — 1,988
+    // measured lines down to 1,888. Of everything in this coordinator it was the piece whose
+    // removal cannot affect a figure a member reads: a scroll-position widget that touches no
+    // money, no period and no storage.
+    'paycalc-app.js':          1900,
     // 1727 → 486 (v21.38): the store, the week editor, the Saved Changes list and the shift-type
     // table all moved out. Re-set to its new size plus the usual room — a cap left at 1800 over a
     // 486-line file is the "quietly generous" case this suite's own last check refuses.
     'admin-overrides.js':      560,
     'admin-week-editor.js':    950,
     'admin-saved-changes.js':  460,
-    'admin-app.js':            1800,
+    // 1800 → 1700 at v21.89. The week-grid swipe left for admin-week-swipe.js — 1,783 down to
+    // 1,638 — taking a pointer state machine with no business rule in it. What a week change MEANS
+    // to Admin stayed here, as two callbacks. The e2e covering it was written BEFORE the move and
+    // mutation-verified, because the gesture had no behavioural coverage at all.
+    'admin-app.js':            1700,
     'links-design.js':         1500,   // a DOMAIN module: large is less alarming here, but still capped
-    'firebase-client.js':      1350,
+    // 1350 → 1100 at v21.90. The three date-keyed document collections left for
+    // documents-client.js — 1,308 measured lines down to 1,033 — taking the upload SEQUENCE with
+    // them: signature check, versioned path, and what a failed or ambiguous commit does to the
+    // file. That sequence had been sitting between the auth bootstrap, the push writers, the
+    // password timestamps, the analytics counters and the error log, in the one module that cannot
+    // load in Node, so none of it could be tested. Injecting the Firebase handles fixed both.
+    'firebase-client.js':      1100,
     // 1300 → 1350 at v21.29, deliberately and after extracting first. The page-ready fix added the
     // surface-selection logic, the cache-first-paint race and their reasoning; the RULE it carried
     // ("is a roster on screen?") went to calendar-data-state.js as `showsRoster`, beside the four
