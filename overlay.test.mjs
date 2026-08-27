@@ -476,3 +476,95 @@ describe('createLightbox — re-open during the close fade', () => {
         assert.equal(_bodyClasses.has('lb-open'), true);
     });
 });
+
+// ── NESTED OVERLAYS AND A DOUBLE CLOSE (v21.86) ─────────────────────────────────────────────────
+//
+// `close()` is reachable from four controls at once — ✕, backdrop, Escape, Android Back — and the
+// fade lasts ~300ms. Two of them firing inside that window used to run the whole close body twice,
+// which meant a second `dismissOverlay` with its own `_done` flag, and therefore a second
+// `unlockBodyScroll()` for one `lockBodyScroll()`.
+//
+// With ONE overlay that is invisible: depth 1 → 0 either way. The damage needs a NESTED overlay,
+// where the depth counter is what keeps the outer one's lock alive: 2 → 1 → 0 leaves the page
+// behind a still-open modal scrollable. Reproduced by an external audit; this is that case.
+//
+// The fade is DRIVEN here (`_trigger('transitionend')`) rather than waited out. The first draft of
+// these tests did neither, so nothing had finished by the time they asserted — and they passed with
+// the bug still in, which is the failure mode this whole suite exists to avoid.
+describe('a double close does not unlock the page under an overlay that is still open', () => {
+    const makeLb = (onClose) => {
+        const overlay = makeEl({ classes: [] });
+        const content = makeEl({});
+        const lb = createLightbox({ overlay, content, closeBtn: null, onClose });
+        return { ...lb, overlay, settle: () => overlay._trigger('transitionend') };
+    };
+
+    beforeEach(() => { _drainLock(); _bodyClasses.clear(); });
+
+    test('the outer overlay keeps the page locked', () => {
+        const outer = makeLb();
+        const inner = makeLb();
+        outer.open();
+        inner.open();
+        assert.equal(_bodyClasses.has('lb-open'), true, 'both open → locked');
+
+        inner.close();
+        inner.close();      // the second tap, mid-fade — this is the whole test
+        inner.settle();     // now let the fade finish
+
+        assert.equal(_bodyClasses.has('lb-open'), true,
+            'the outer overlay is still open, so the page behind it must stay locked');
+    });
+
+    test('and closing them both still unlocks it', () => {
+        // The opposite failure: a guard that swallowed too much would leave the page permanently
+        // locked, which is worse than the bug — the app would look frozen.
+        const outer = makeLb();
+        const inner = makeLb();
+        outer.open();
+        inner.open();
+        inner.close(); inner.settle();
+        outer.close(); outer.settle();
+        assert.equal(_bodyClasses.has('lb-open'), false);
+    });
+
+    test('a re-opened overlay still closes properly afterwards', () => {
+        // The guard must not latch. An overlay opened, closed and opened again is the ordinary
+        // life of every lightbox in the app.
+        const lb = makeLb();
+        lb.open(); lb.close(); lb.settle();
+        lb.open();
+        assert.equal(_bodyClasses.has('lb-open'), true);
+        lb.close(); lb.settle();
+        assert.equal(_bodyClasses.has('lb-open'), false);
+    });
+
+    test('onClose runs once per close, not once per tap', () => {
+        // A one-time notice archives itself and writes its seen-flag in onClose; running it twice
+        // is harmless there by luck rather than by design.
+        let calls = 0;
+        const lb = makeLb(() => { calls++; });
+        lb.open();
+        lb.close(); lb.close(); lb.close();
+        lb.settle();
+        assert.equal(calls, 1);
+    });
+
+    test('and the same holds under REDUCED MOTION, where the close finishes synchronously', () => {
+        // The path a `_pendingClose`-only guard misses: `dismissOverlay` completes immediately and
+        // returns null, so there is no pending finisher to test against. The overlay's own
+        // `visible` class is what says it has already gone.
+        const realMM = global.window.matchMedia;
+        global.window.matchMedia = () => ({ matches: true });
+        try {
+            const outer = makeLb();
+            const inner = makeLb();
+            outer.open();
+            inner.open();
+            inner.close();
+            inner.close();
+            assert.equal(_bodyClasses.has('lb-open'), true,
+                'the outer overlay is still open — one close must only unlock one depth');
+        } finally { global.window.matchMedia = realMM; }
+    });
+});

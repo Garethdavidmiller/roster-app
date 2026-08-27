@@ -133,9 +133,22 @@
         splash.appendChild(wrap);
     }
 
-    /** Nuclear cache clear: unregister every service worker + delete every cache, clear the
-     *  reload guard, then reload. Resolves the stale/broken-cache cause without the user needing
-     *  to hunt through OS app-storage settings. Best-effort — always reloads even if a step fails. */
+    /** THIS APP's cache clear: unregister the service workers that serve this app, delete the
+     *  caches this app owns, clear the reload guard, then reload. Resolves the stale/broken-cache
+     *  cause without the user needing to hunt through OS app-storage settings. Best-effort —
+     *  always reloads even if a step fails.
+     *
+     *  SCOPED, not origin-wide (v21.86, external audit). It used to unregister EVERY service worker
+     *  registration and delete EVERY Cache Storage entry on the origin. On a dedicated origin that
+     *  is merely blunt; the GitHub Pages mirror is not one — `garethdavidmiller.github.io` can host
+     *  any number of other pages, and a member tapping "Reset app" there would take out an
+     *  unrelated app's offline data with no warning and no way back. The recovery is the same
+     *  either way: what breaks this app is this app's own stale cache.
+     *
+     *  Both filters FAIL OPEN in the direction of doing LESS, which is the right way round for a
+     *  destructive action: an unreadable scope or an unexpected cache name is left alone. The cost
+     *  is a reset that occasionally does not clear everything; the alternative cost is deleting
+     *  somebody else's data. */
     function resetApp() {
         var done = false;
         var reload = function () {
@@ -151,14 +164,29 @@
         // hang, so we need a real timeout race (v16.19).
         setTimeout(reload, 4000);
         var jobs = [];
+        // Our own directory — the scope any registration serving THIS page must be at or above.
+        var here = location.pathname.replace(/[^/]*$/, '');
         if ('serviceWorker' in navigator) {
             jobs.push(navigator.serviceWorker.getRegistrations()
-                .then(function (regs) { return Promise.all(regs.map(function (r) { return r.unregister(); })); })
+                .then(function (regs) {
+                    return Promise.all(regs.filter(function (r) {
+                        // A registration governs this page only if its scope is a prefix of our
+                        // directory. Anything else belongs to another app on the same origin.
+                        try { return here.indexOf(new URL(r.scope).pathname) === 0; }
+                        catch (_e) { return false; }
+                    }).map(function (r) { return r.unregister(); }));
+                })
                 .catch(function () { /* ignore */ }));
         }
         if ('caches' in window) {
             jobs.push(caches.keys()
-                .then(function (keys) { return Promise.all(keys.map(function (k) { return caches.delete(k); })); })
+                .then(function (keys) {
+                    return Promise.all(keys.filter(function (k) {
+                        // Every cache this app creates is named in service-worker.js and starts
+                        // with this prefix — the versioned app cache and the SDK cache both.
+                        return k.indexOf('myb-roster') === 0;
+                    }).map(function (k) { return caches.delete(k); }));
+                })
                 .catch(function () { /* ignore */ }));
         }
         Promise.all(jobs).then(reload, reload);

@@ -12,7 +12,7 @@
 
 import { TAX_YEARS, calcProRateFactor } from './paycalc-calc.js';
 import { teamMembers } from './roster-data.js';
-import { lsGet, lsSet, lsDel, lsKeys } from './ls.js';
+import { lsGet, lsSet, lsDel, lsKeys, lsMove, lsSetVerified } from './ls.js';
 
 // ── STORAGE KEYS ──────────────────────────────────────────────────────────────
 // Keys use the myb_pc_ prefix (previously cea_ — migrated in _migrateCeaKeys below).
@@ -235,10 +235,18 @@ export const RETIRED_DEVICE_KEYS = new Set(_RETIRED_DEVICE_KEYS);
 function _migrateCeaKeys({ getPeriods }) {
     if (lsGet('myb_pc_cea_migrated')) return;
 
+    // Every failed move is counted, and the completion flag is withheld if there were any (v21.86).
+    // The old form was `lsSet(newKey, val); lsDel(oldKey);` — and `lsSet` swallows a storage error
+    // by design, so a write that failed was indistinguishable from one that worked. The delete then
+    // destroyed the only copy, and the flag below made sure it was never retried. An external audit
+    // reproduced exactly that against `cea_code`: old key gone, new key absent, migration recorded
+    // as complete. `lsMove` deletes only after reading the destination back.
+    let _failed = 0;
     const migrate = (/** @type {string} */ oldKey, /** @type {string} */ newKey) => {
         const val = lsGet(oldKey);
-        if (val !== null && !lsGet(newKey)) { lsSet(newKey, val); lsDel(oldKey); }
-        else if (val !== null) { lsDel(oldKey); } // new key already present — just remove old
+        if (val === null) return;                                  // nothing here to move
+        if (lsGet(newKey) !== null) { lsDel(oldKey); return; }     // destination already holds a value
+        if (!lsMove(oldKey, newKey, val)) _failed++;               // keeps BOTH sides on failure
     };
 
     // Fixed single keys
@@ -266,7 +274,11 @@ function _migrateCeaKeys({ getPeriods }) {
         migrate(`cea_ytd_tax_${slug}`,    `myb_pc_ytd_tax_${slug}`);
     });
 
-    lsSet('myb_pc_cea_migrated', '1');
+    // Only claim the migration is done if every key actually moved. A device that could not write
+    // (private mode, a full quota) retries on the next load with its data still intact, which is
+    // the entire difference between a deferred migration and a lost tax code.
+    if (_failed === 0) lsSet('myb_pc_cea_migrated', '1');
+    else console.warn(`[paycalc] CEA key migration deferred — ${_failed} value(s) could not be stored; nothing was deleted`);
 }
 
 // ── PER-MEMBER NAMESPACE MIGRATION (v14.11; ownership prompt v14.25) ───────────
@@ -288,20 +300,30 @@ function _hasUnnamespacedPaycalcData() {
 
 /** Move only genuinely-unnamespaced legacy keys into memberName's namespace. Keys owned by
  *  ANY member (this one or another) are left untouched. Used by the 'mine' choice.
- *  @param {string|undefined} memberName */
+ *
+ *  The delete was UNCONDITIONAL until v21.86 — `if (val !== null && …) lsSet(…); lsDel(k);` — so a
+ *  write `lsSet` had silently dropped still cost the source key. An external audit reproduced it
+ *  with a tax code: `myb_pc_code` gone, the member-namespaced replacement absent, the prompt
+ *  suppressed for good. Now a key that cannot be moved is LEFT WHERE IT IS, and the caller is told,
+ *  so the prompt returns next time rather than the data disappearing.
+ *  @param {string|undefined} memberName
+ *  @returns {boolean} true only if every legacy key reached the namespace */
 function _moveLegacyToNamespace(memberName) {
     const seg = memberSlug(memberName);
-    if (!seg) return;
+    if (!seg) return false;
     const nsPrefix = `myb_pc_${seg}_`;
+    let ok = true;
     lsKeys().forEach(k => {                       // lsKeys() is a copy — safe to mutate in loop
         if (!k.startsWith('myb_pc_')) return;
         if (DEVICE_KEYS.has(k)) return;
         if (_keyOwnerSlug(k) !== null) return;    // belongs to a member — never move it
         const newKey = nsPrefix + k.slice('myb_pc_'.length);
         const val = lsGet(k);
-        if (val !== null && lsGet(newKey) === null) lsSet(newKey, val);
-        lsDel(k);
+        if (val === null) { lsDel(k); return; }               // empty — nothing to lose
+        if (lsGet(newKey) !== null) { lsDel(k); return; }     // destination already populated
+        if (!lsMove(k, newKey, val)) ok = false;              // keeps BOTH sides on failure
     });
+    return ok;
 }
 
 /** Delete only genuinely-unnamespaced legacy keys. Every member's namespaced data (the
@@ -329,11 +351,17 @@ export function hasPendingLegacyMigration(memberName) {
  *  one-shot guard is set so the prompt never reappears.
  *  @param {string|undefined} memberName @param {'mine'|'fresh'} choice */
 export function resolveLegacyMigration(memberName, choice) {
-    if (choice === 'mine') _moveLegacyToNamespace(memberName);
+    let moved = true;
+    if (choice === 'mine') moved = _moveLegacyToNamespace(memberName);
     else if (choice === 'fresh') _clearLegacyData();
     else return;                                  // unknown choice — leave undecided
     setPaycalcNamespace(memberName);
-    lsSet('myb_pc_ns_migrated', '1');
+    // The one-shot guard is withheld when a move failed, so the member is asked again on a device
+    // where storage was momentarily unwritable — rather than the question being closed for ever
+    // over data that never arrived. 'fresh' always sets it: a delete that fails leaves the data
+    // there, which is the safe direction, and re-asking would be the annoyance without the risk.
+    if (moved) lsSet('myb_pc_ns_migrated', '1');
+    else console.warn('[paycalc] namespace migration deferred — some values could not be stored; nothing was deleted');
 }
 
 // ── ALL DATA MIGRATIONS ───────────────────────────────────────────────────────
@@ -360,18 +388,24 @@ export function runMigrations({ getPeriods, getLoggedMember, getPensionDefault }
     const legacyYtdTax = lsGet(SK.ytdTax);
     if (legacyYtdPay != null || legacyYtdTax != null) {
         const firstTy = TAX_YEARS[0];
-        if (!lsGet(ytdPayKey(firstTy))) lsSet(ytdPayKey(firstTy), legacyYtdPay || '');
-        if (!lsGet(ytdTaxKey(firstTy))) lsSet(ytdTaxKey(firstTy), legacyYtdTax || '');
-        lsDel(SK.ytdPay);
-        lsDel(SK.ytdTax);
+        // Each half deletes only its OWN source, and only once the destination reads back (v21.86).
+        // These are the two figures that sharpen a member's tax estimate for the whole year; losing
+        // them to a swallowed storage error is silent and only noticed as a wrong take-home.
+        const _ytdPayOk = lsGet(ytdPayKey(firstTy)) !== null
+            || lsSetVerified(ytdPayKey(firstTy), legacyYtdPay || '');
+        const _ytdTaxOk = lsGet(ytdTaxKey(firstTy)) !== null
+            || lsSetVerified(ytdTaxKey(firstTy), legacyYtdTax || '');
+        if (_ytdPayOk) lsDel(SK.ytdPay);
+        if (_ytdTaxOk) lsDel(SK.ytdTax);
     }
 
     // Migration: legacy global hppActual (cea_hpp_actual) to per-year key
     const legacyHppActual = lsGet('cea_hpp_actual');
     if (legacyHppActual) {
         const firstTy = TAX_YEARS[0];
-        if (!lsGet(hppActualKey(firstTy))) lsSet(hppActualKey(firstTy), legacyHppActual);
-        lsDel('cea_hpp_actual');
+        if (lsGet(hppActualKey(firstTy)) !== null || lsSetVerified(hppActualKey(firstTy), legacyHppActual)) {
+            lsDel('cea_hpp_actual');
+        }
     }
 
     // Migration (v8.88): two-part pension localStorage cleanup.
@@ -441,9 +475,12 @@ export function runMigrations({ getPeriods, getLoggedMember, getPensionDefault }
             const _yr = _parsed && typeof _parsed.year === 'string' ? _parsed.year : null;
             if (_yr) {
                 const _yk = `${pcPrefix()}bp_state_${_yr.replace('/', '_')}`;
-                if (!lsGet(_yk)) lsSet(_yk, _oldBp);
+                // Re-homed only once the year key holds it. The blob can carry a hand-entered rate
+                // and an in-flight include-tick, i.e. money the member typed in themselves.
+                if (lsGet(_yk) !== null || lsSetVerified(_yk, _oldBp)) lsDel(`${pcPrefix()}bp_state`);
+            } else {
+                lsDel(`${pcPrefix()}bp_state`);   // no year label — nowhere to re-home it to
             }
-            lsDel(`${pcPrefix()}bp_state`);
         }
     } catch { try { lsDel(`${pcPrefix()}bp_state`); } catch { /* storage unavailable */ } }
 }

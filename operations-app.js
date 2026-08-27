@@ -487,16 +487,33 @@ export function init() {
                 btn.title = 'Reset failed — try again shortly';
                 return;
             }
-            // Partial success (Cloud Function contract): the Firebase password WAS reset + sessions
-            // revoked, but writing `resetAt` to Firestore failed (`stamped:false`). Without the stamp the
-            // status re-read below still sees the old passwordSetAt with no newer resetAt → the table
-            // keeps showing "Own password" + a Reset button, so an admin could reset again not knowing it
-            // already worked. Tell them what actually happened (a re-run is safe and heals the stamp).
-            if (result && result.stamped === false) {
-                console.warn('[Operations] resetMemberPassword: password reset but resetAt stamp failed for', name);
+            // PARTIAL SUCCESS. The endpoint reports each stage separately (v21.86) because the
+            // password change is the irreversible one: once it lands, the account IS on the surname
+            // default whatever else failed, and telling the admin otherwise invites them either to
+            // reset again or to tell the member their old password still works.
+            //
+            // The message is BUILT from what happened rather than asserted. It used to say "and
+            // their other sessions were signed out" unconditionally — true on the only partial path
+            // that existed then, and a flat untruth on the one this release added.
+            const _revokeFailed = result && result.revokeFailed === true;
+            const _notStamped   = result && result.stamped === false;
+            if (_revokeFailed || _notStamped) {
+                console.warn('[Operations] resetMemberPassword partial for', name,
+                             { revoked: result?.revoked, stamped: result?.stamped });
+                const parts = [`${name}'s password WAS reset to their surname.`];
+                // The security-relevant half leads, because it is the one with an action attached.
+                if (_revokeFailed) {
+                    parts.push('Their other devices could NOT be signed out, so an existing session there may still work. Reset again to retry that.');
+                } else {
+                    parts.push('Their other sessions were signed out.');
+                }
+                if (_notStamped) {
+                    parts.push('The account-status stamp couldn\'t be saved, so the table below may still show "Own password".');
+                }
+                parts.push('Resetting again is safe.');
                 confirmDialog({
-                    title: 'Password reset — status not updated',
-                    message: `${name}'s password was reset to their surname and their other sessions were signed out. The account-status stamp couldn't be saved, so the table below may still show "Own password". Resetting again later is safe and will fix the status.`,
+                    title: _revokeFailed ? 'Password reset — other devices not signed out' : 'Password reset — status not updated',
+                    message: parts.join('\n\n'),
                     confirmLabel: 'OK',
                 }).catch(() => {});   // informational; the reset itself already succeeded
             }

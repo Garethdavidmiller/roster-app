@@ -22,6 +22,7 @@ import {
     parseSavedPeriod,
 } from './paycalc-migrations.js';
 import { teamMembers } from './roster-data.js';
+import { TAX_YEARS } from './paycalc-calc.js';
 
 // Mirror of the private _memberSlug() in paycalc-migrations.js: lowercase, alphanumerics only.
 const slug = (/** @type {string} */ name) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -316,5 +317,116 @@ describe('back-pay per-year migration (v17.86)', () => {
         const kept = JSON.parse(global.localStorage.getItem('myb_pc_gmiller_bp_state_2026_27'));
         assert.equal(kept.newR, '21.49', 'existing year-key blob preserved');
         assert.equal(global.localStorage.getItem('myb_pc_gmiller_bp_state'), null, 'old key still cleaned up');
+    });
+});
+
+// ── FAULT-INJECTED STORAGE: a migration must never delete what it could not move ────────────────
+//
+// Added v21.86, after an external audit REPRODUCED permanent data loss here. The mechanism is not
+// exotic and it is not rare: `lsSet` swallows a storage exception on purpose (iOS private mode, a
+// full quota, a locked-down browser), so a write that failed looked exactly like one that worked.
+// The migration then deleted the source and wrote its completion marker, which guaranteed it would
+// never be retried. Old key gone, new key absent, question closed.
+//
+// These cases inject that failure directly, because it cannot be reached any other way: every
+// happy-path browser test and every ordinary run has working storage, so the destructive branch is
+// invisible right up until somebody's tax code disappears.
+//
+// Two failure SHAPES, deliberately, because they are not the same bug:
+//   · setItem THROWS — quota exceeded, private mode.
+//   · setItem silently does nothing — the shape a read-back catches and a try/catch does not.
+
+/** A localStorage stub where writes to keys matching `failOn` fail in the given way. */
+function makeFailingStorage(initial = {}, failOn = () => false, mode = 'throw') {
+    const store = new Map(Object.entries(initial));
+    return {
+        getItem(k)    { return store.has(k) ? store.get(k) : null; },
+        setItem(k, v) {
+            if (failOn(k)) {
+                if (mode === 'throw') { const e = new Error('QuotaExceededError'); e.name = 'QuotaExceededError'; throw e; }
+                return;                       // silent no-op — the nastier shape
+            }
+            store.set(k, String(v));
+        },
+        removeItem(k) { store.delete(k); },
+        key(i)        { return Array.from(store.keys())[i] ?? null; },
+        get length()  { return store.size; },
+        dump()        { return Object.fromEntries(store); },
+    };
+}
+
+describe('a migration that cannot write does not delete', () => {
+    // `SK` is REBUILT when the namespace changes, and runMigrations activates the member's
+    // namespace as its last step — so reading `SK.code` afterwards names a different key from the
+    // one the migration wrote. The first draft of these tests did exactly that and two assertions
+    // passed for the wrong reason: they checked a member-namespaced key that had never existed in
+    // any run, failing or not. Capture the unnamespaced names BEFORE running.
+    const legacyNames = () => {
+        setPaycalcNamespace(undefined);
+        return { code: SK.code, ytdPay: SK.ytdPay, ytdTax: SK.ytdTax };
+    };
+
+    for (const mode of ['throw', 'silent']) {
+        test(`CEA key migration keeps the old key when the new one fails (${mode})`, () => {
+            // The audit's exact reproduction: a tax code, and a write that does not land.
+            const KEY = legacyNames().code;
+            global.localStorage = makeFailingStorage(
+                { cea_code: '1257L' }, (k) => k === KEY, mode);
+            runMigrations(deps(MEMBER));
+
+            const after = global.localStorage.dump();
+            assert.equal(after.cea_code, '1257L', 'the source survives — it is the only copy');
+            assert.equal(after[KEY], undefined, 'and the destination genuinely did not take it');
+            assert.equal(after.myb_pc_cea_migrated, undefined,
+                'so the migration is NOT recorded as done, and runs again next load');
+        });
+
+        test(`namespace migration keeps the legacy key when the member key fails (${mode})`, () => {
+            const memberKey = `myb_pc_${slug(MEMBER.name)}_code`;
+            global.localStorage = makeFailingStorage(
+                { myb_pc_code: '1257L' }, (k) => k === memberKey, mode);
+            setPaycalcNamespace(undefined);
+
+            assert.equal(hasPendingLegacyMigration(MEMBER.name), true, 'precondition: it would ask');
+            resolveLegacyMigration(MEMBER.name, 'mine');
+
+            const after = global.localStorage.dump();
+            assert.equal(after.myb_pc_code, '1257L', 'the legacy value is still there');
+            assert.equal(after[memberKey], undefined);
+            assert.equal(after.myb_pc_ns_migrated, undefined,
+                'and the one-shot guard is withheld, so the member is asked again');
+        });
+    }
+
+    test('the Year to Date figures are not lost half-way', () => {
+        // Two independent values sharing one migration. The tax half failing must not take the pay
+        // half's source with it, and vice versa — they are deleted separately for that reason.
+        // Built from the REAL first tax year, via the real key helper — a hand-written slug
+        // here would pass while the production key moved somewhere else entirely.
+        const L = legacyNames();
+        const payKey = ytdPayKey(TAX_YEARS[0]);
+        const taxKey = ytdTaxKey(TAX_YEARS[0]);
+        global.localStorage = makeFailingStorage(
+            { [L.ytdPay]: '12345.67', [L.ytdTax]: '2345.67', myb_pc_cea_migrated: '1' },
+            (k) => k === taxKey);
+        runMigrations(deps(MEMBER));
+
+        const after = global.localStorage.dump();
+        assert.equal(after[payKey], '12345.67', 'the half that worked moved');
+        assert.equal(after[L.ytdPay], undefined, 'and its source was cleaned up');
+        assert.equal(after[L.ytdTax], '2345.67', 'the half that failed kept its source');
+    });
+
+    test('with working storage every one of them still migrates', () => {
+        // The other direction. A guard that is too cautious would leave a healthy device stuck on
+        // legacy keys for ever, which is a slower version of the same problem.
+        const KEY = legacyNames().code;
+        global.localStorage = makeFailingStorage({ cea_code: '1257L', cea_grade: 'CEA' });
+        runMigrations(deps(MEMBER));
+
+        const after = global.localStorage.dump();
+        assert.equal(after.cea_code, undefined, 'source removed');
+        assert.equal(after[KEY], '1257L', 'destination populated');
+        assert.equal(after.myb_pc_cea_migrated, '1', 'and the migration is recorded as done');
     });
 });

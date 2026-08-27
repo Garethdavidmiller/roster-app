@@ -108,7 +108,7 @@ export const COLLECTIONS = {
 // importers (nav-panel, calendar-doc-viewer, the Huddle viewer) are unaffected; isDocxUpload is used
 // internally by the upload paths. officeViewerUrl is re-exported for the DOCX circular/newsletter
 // open path (nav-panel, calendar-doc-viewer).
-import { isSafeStorageUrl, isDocxUpload, officeViewerUrl, sixMonthCutoffISO, legacyDocPath, versionedDocPath, uploadMimeType } from './storage-utils.js';
+import { isSafeStorageUrl, isDocxUpload, officeViewerUrl, legacyDocPath, versionedDocPath, uploadMimeType } from './storage-utils.js';
 import { fetchWithTimeout, isFetchTimeout } from './fetch-timeout.js';
 export { isSafeStorageUrl, officeViewerUrl };
 
@@ -372,6 +372,8 @@ async function _uploadBytesWithClaimRetry(uploadBytes, storageRef, file, metadat
 // unaffected. The deliberate functions/roster-parse-helpers.js duplicate + surname-parity.test.mjs
 // source-equivalence check now read auth-identity.js.
 import { normaliseSurname, nameToEmail, credentialCandidatesFor, isCredentialRejection } from './auth-identity.js';
+import { resolveUploadCommit } from './upload-commit.js';
+import { pruneOldDocs } from './doc-retention.js';
 export { normaliseSurname, nameToEmail };
 
 // ---- Firebase Storage ----
@@ -486,17 +488,51 @@ async function _transactionalUpload(collectionName, date, file, uploadedBy, opts
             date, storageUrl, storagePath: newStoragePath, fileType,
             uploadedAt: serverTimestamp(), uploadedBy, ...extraFields,
         };
-        // Retry setDoc once on a RETRIABLE code before treating it as a real failure: a
-        // deadline-exceeded/unavailable can be raised AFTER the server committed, and the date-keyed
-        // setDoc is idempotent, so a re-issue of a genuinely-committed write just succeeds (no rollback).
+        // Retry setDoc once on a RETRIABLE code — but LOOK FIRST (v21.86, external audit). A
+        // deadline-exceeded can be raised AFTER the server committed, and re-issuing blind can put
+        // the live document back to a Storage path a competing upload has already deleted. The
+        // rule, the interleaving that produced it and why an unreadable state retries are all in
+        // `upload-commit.js`, beside the function that decides.
         try {
             await setDoc(doc(db, collectionName, date), firestoreDoc);
         } catch (setErr) {
             const e = /** @type {any} */ (setErr);
             if (!_RETRIABLE_FIRESTORE_CODES.has(e?.code)) throw setErr;
-            console.warn(`[upload] ${logTag} setDoc attempt 1 failed (${e?.code}) — retrying once`);
+            console.warn(`[upload] ${logTag} setDoc attempt 1 failed (${e?.code}) — checking what committed`);
             await new Promise(r => setTimeout(r, 2000));
-            await setDoc(doc(db, collectionName, date), firestoreDoc);
+            /** @type {any} */
+            let liveNow = null;
+            let readable = true;
+            try {
+                const snap = await getDoc(doc(db, collectionName, date));
+                liveNow = snap.exists() ? snap.data() : null;
+            } catch (readErr) {
+                // Could not read either. Fall back to the old behaviour — re-issue — because the
+                // alternative is leaving a possibly-uncommitted upload with no metadata at all, and
+                // an unreadable Firestore is the same outage that produced the ambiguity.
+                readable = false;
+                console.warn(`[upload] ${logTag} post-failure read failed; re-issuing:`, /** @type {any} */ (readErr)?.code);
+            }
+            const livePath = liveNow
+                ? (liveNow.storagePath ?? legacyDocPath(collectionName, date, liveNow.fileType))
+                : null;
+            const verdict = resolveUploadCommit({
+                ourPath: newStoragePath, oldPath: oldStoragePath, livePath, readable,
+            });
+            if (verdict === 'committed') {
+                console.log(`[upload] ${logTag} first write had committed after all — not re-writing`);
+            } else if (verdict === 'superseded') {
+                // Somebody else's upload is live. Ours is an orphan, and this must NOT report
+                // success — that would send the admin away believing their file is the one staff
+                // will open. The throw goes to the outer catch, whose non-retriable branch deletes
+                // our object: the rollback belongs there, and duplicating it here would mean two
+                // deletes racing over one path for no gain.
+                const sup = /** @type {any} */ (new Error('A newer upload for this date was saved by someone else.'));
+                sup.code = 'upload/superseded';
+                throw sup;
+            } else {
+                await setDoc(doc(db, collectionName, date), firestoreDoc);
+            }
         }
     } catch (err) {
         // Old file is unaffected. Roll back the new object ONLY on a non-retriable failure (definite
@@ -549,47 +585,6 @@ export async function uploadHuddle(date, file, uploadedBy, htmlContent = null) {
 
 // ---- Weekly Retail Circular / Newsletter ----
 
-/**
- * Delete Firestore documents (and matching Storage files) for a collection
- * whose `date` field is older than 6 months. Called fire-and-forget after
- * each successful upload to cap collection growth automatically.
- *
- * Each document is deleted independently — a failure on one does not abort the rest.
- * Firestore is deleted first; Storage follows only on success. This ordering means a
- * partial failure leaves an orphaned Storage file (invisible to users) rather than a
- * Firestore doc with a broken storageUrl (user-facing 404).
- *
- * @param {string}   collectionName - 'circulars' or 'newsletters'
- * @param {string}   excludeDate    - Date string of the just-uploaded doc to skip — prevents
- *                                    immediately pruning a historical correction (date > 6 months old)
- * @param {object}   storage        - Firebase Storage instance
- * @param {Function} refFn          - Firebase Storage `ref` function
- * @param {Function} deleteObject   - Firebase Storage `deleteObject` function
- * @returns {Promise<void>}
- */
-async function _pruneOldDocs(collectionName, excludeDate, storage, refFn, deleteObject) {
-    // The month-underflow-safe 6-month cutoff lives in storage-utils.js so it can be unit-tested.
-    const cutoffStr = sixMonthCutoffISO(new Date());
-    const q = query(collection(db, collectionName), where('date', '<', cutoffStr));
-    const snap = await getDocs(q);
-    await Promise.all(snap.docs
-        .filter(/** @param {any} d */ d => d.id !== excludeDate)
-        .map(/** @param {any} d */ async d => {
-            // storagePath added at v13.99; legacyDocPath is the fallback for older documents
-            // uploaded before the versioned upload scheme — it honours the doc's own fileType
-            // (default 'pdf'), the same one rule _transactionalUpload's cleanup reads, so the two
-            // deciders of "which old object do we delete" can no longer drift (v20.55).
-            const _docData    = d.data() || {};
-            const storagePath = _docData.storagePath ?? legacyDocPath(collectionName, d.id, _docData.fileType);
-            try {
-                await deleteDoc(doc(db, collectionName, d.id));
-                await deleteObject(refFn(storage, storagePath))
-                    .catch(/** @param {any} e */ e => console.warn(`[pruneOldDocs] ${collectionName} Storage delete ${d.id}:`, e));
-            } catch (/** @param {any} e */ e) {
-                console.error(`[pruneOldDocs] ${collectionName} Firestore delete ${d.id}:`, e);
-            }
-        }));
-}
 
 /**
  * Upload a PDF to Firebase Storage and upsert a metadata document in Firestore.
@@ -622,7 +617,8 @@ async function _uploadDoc(collectionName, date, file, uploadedBy) {
     return _transactionalUpload(collectionName, date, file, uploadedBy, {
         logTag: collectionName,
         postCommit: ({ storage, ref, deleteObject }) =>
-            _pruneOldDocs(collectionName, date, storage, ref, deleteObject)
+            pruneOldDocs(collectionName, date, storage, ref, deleteObject,
+                { db, doc, getDoc, collection, query, where, getDocs, runTransaction })
                 .catch(e => console.error(`[pruneOldDocs] ${collectionName}:`, e)),
     });
 }

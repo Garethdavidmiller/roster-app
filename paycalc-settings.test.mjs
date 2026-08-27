@@ -42,6 +42,14 @@ mock.module('./ls.js', {
         lsGet: k => _ls.has(k) ? _ls.get(k) : null,
         lsSet: (k, v) => { _ls.set(k, String(v)); },
         lsDel: k => { _ls.delete(k); }, lsKeys: () => [..._ls.keys()],
+        // Real semantics, not an always-succeeds stub: the Map cannot fail, so these mirror
+        // what ls.js does when storage works.
+        lsSetVerified: (k, v) => { _ls.set(k, String(v)); return true; },
+        lsMove: (a, b, v) => {
+            const val = v === undefined ? (_ls.has(a) ? _ls.get(a) : null) : v;
+            if (val === null) return false;
+            _ls.set(b, String(val)); _ls.delete(a); return true;
+        },
     },
 });
 mock.module('./roster-data.js', {

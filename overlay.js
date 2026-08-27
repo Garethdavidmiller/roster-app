@@ -250,15 +250,22 @@ export function trapFocus(container, e) {
  * @param {HTMLElement|null} panel the  element
  */
 function _watchScrollFade(panel) {
-    if (!panel) return;
+    if (!panel) return () => {};
     const sync = () => {
         const more = panel.scrollHeight - panel.clientHeight - panel.scrollTop > 2;
         panel.classList.toggle('has-more', more);
     };
-    // After layout — on open the panel is still mid-transition and its height is not final.
+    // The WINDOW listener outlives the panel unless something removes it (v21.86, external audit).
+    // The scroll listener dies with the element; `resize` is on `window`, so every open added one
+    // more, and for the dialogs built on the fly (`confirmDialog`/`promptDialog`) the handler also
+    // closed over a detached node and kept it alive. One AbortController per open, aborted on
+    // close, retires both listeners together and cannot drift out of step the way a pair of
+    // matching add/remove calls can.
+    const ac = new AbortController();
     requestAnimationFrame(() => requestAnimationFrame(sync));
-    panel.addEventListener('scroll', sync, { passive: true });
-    window.addEventListener('resize', sync, { passive: true });
+    panel.addEventListener('scroll', sync, { passive: true, signal: ac.signal });
+    window.addEventListener('resize', sync, { passive: true, signal: ac.signal });
+    return () => ac.abort();
 }
 
 /**
@@ -290,6 +297,8 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
     // re-open being silently dropped.
     /** @type {(() => void)|null} */
     let _pendingClose = null;
+    /** Retires this open's scroll/resize listeners. Reassigned per open, called on close. */
+    let _stopScrollFade = /** @type {() => void} */ (() => {});
 
     /** @param {KeyboardEvent} e */
     function onKey(e) {
@@ -317,7 +326,7 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
         lockBodyScroll();
         _pushOverlayState(close);
         overlay.classList.add('visible');
-        _watchScrollFade(/** @type {HTMLElement|null} */ (content ?? null));
+        _stopScrollFade = _watchScrollFade(/** @type {HTMLElement|null} */ (content ?? null));
         requestAnimationFrame(() => {
             overlay.classList.add('open');
             const explicit = typeof initialFocus === 'function' ? initialFocus() : initialFocus;
@@ -341,6 +350,26 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
     }
 
     function close() {
+        // ALREADY CLOSING — do nothing (v21.86, external audit). `close` is reachable from four
+        // places at once (✕, backdrop, Escape, Android Back), and during the ~300ms fade a second
+        // one used to run the whole body again: a second `onClose`, and a second `dismissOverlay`
+        // with its own `_done` flag, so `unlockBodyScroll()` ran TWICE for one open.
+        //
+        // That is only invisible while a single overlay is up, because the lock is DEPTH-COUNTED.
+        // With a lightbox open over another (a confirm over the bin, a notice over the Huddle
+        // viewer) the depth went 2 → 1 → 0 and the page behind the still-open outer overlay became
+        // scrollable. Reproduced by the audit.
+        //
+        // The history stack was already guarded against the same double-tap — `backHandler: close`
+        // below exists for exactly that — so this was the one lifecycle the guard had missed.
+        // TWO conditions, because there are two ways to be "already closed" and only one of them
+        // leaves a pending finisher behind. `_pendingClose` covers the fade; the `visible` check
+        // covers REDUCED MOTION, where `dismissOverlay` finishes synchronously and returns null —
+        // so a guard on `_pendingClose` alone would let a second close through on exactly the
+        // devices whose users asked for less animation.
+        if (_pendingClose) return;
+        if (!overlay.classList.contains('visible')) return;
+        _stopScrollFade();
         // A caller's onClose must NEVER strand the overlay: if it threw, dismissOverlay below would
         // not run, leaving the overlay .open/.visible, body scroll locked, and the pushed Back-history
         // entry orphaned (a later Android Back would then pop the wrong overlay). Isolate it.

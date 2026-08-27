@@ -54,6 +54,14 @@ mock.module('./ls.js', {
         lsSet:  (k, v) => { _ls.set(k, String(v)); },
         lsDel:  k      => { _ls.delete(k); },
         lsKeys: ()     => [..._ls.keys()],
+        // The real semantics, not a stub that always succeeds: these mocks back onto a Map
+        // that cannot fail, so both simply mirror what ls.js does when storage works.
+        lsSetVerified: (/** @type {string} */ k, /** @type {any} */ v) => { _ls.set(k, String(v)); return true; },
+        lsMove: (/** @type {string} */ a, /** @type {string} */ b, /** @type {any} */ v) => {
+            const val = v === undefined ? (_ls.has(a) ? _ls.get(a) : null) : v;
+            if (val === null) return false;
+            _ls.set(b, String(val)); _ls.delete(a); return true;
+        },
     },
 });
 

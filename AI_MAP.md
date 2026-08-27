@@ -1614,6 +1614,21 @@ Safe localStorage wrappers for all app pages (iOS Safari private mode compatibil
 - On the first failure, emits a single `console.warn` (visible in DevTools) — subsequent failures are silent
 - **Never call `localStorage` directly** in `calendar-app.js`, `admin-app.js`, or `paycalc-app.js` — always use these wrappers
 
+### `ls.js` — the checked writes (v21.86)
+`lsGet`/`lsSet`/`lsDel`/`lsKeys` are unchanged: `lsSet` swallows a storage exception on purpose,
+because iOS private mode, a full quota and a locked-down browser all throw, and a preference that
+fails to save is not worth crashing a page over.
+- `lsSetVerified(k, v)` → boolean — writes and READS THE VALUE BACK. For the one case where that
+  forgiveness is wrong: a caller about to DELETE the source needs an answer, not a silence.
+- `lsMove(fromKey, toKey, value?)` → boolean — deletes the source only once the destination is
+  verified. **Never delete source data until the destination has been read back.**
+
+An external audit reproduced permanent data loss without these: the CEA-code and namespace
+migrations wrote, had the write silently dropped, deleted the source anyway and then wrote a
+completion marker so it was never retried. Old key gone, new key absent, question closed.
+Deliberately NOT the default — changing `lsSet` globally would make ~200 ordinary preference writes
+branch for a case that only matters when something is about to be deleted.
+
 ### `storage-keys.js`
 Single source for the CROSS-FILE localStorage key names (v16.81) — a shared key must have ONE spelling.
 - `SELECTED_MEMBER` (`myb_roster_selected_member`) + `SELECTED_MEMBER_LEGACY` (`adminLastMember`, the pre-rename alias still read as a fallback) — shared by `calendar-member.js` and `admin-app.js`
@@ -1652,6 +1667,43 @@ what does that.
 Different problem, different risk, decided separately. Two page modules also had LOCAL functions
 called `setStatus` (`login-overlay.js`, `paycalc-lightboxes.js`); both now delegate here and are
 named for their surface (`setLoginStatus`, `setActualsStatus`).
+
+### `upload-commit.js`
+What an AMBIGUOUS Firestore commit means after a document upload (v21.86, external audit).
+- `resolveUploadCommit({ ourPath, oldPath, livePath, readable })` → `'committed'|'superseded'|'retry'`
+
+A `deadline-exceeded` can be raised AFTER the server committed. The old retry re-issued the same
+write blind, reasoning that a date-keyed `setDoc` is idempotent — it is idempotent against ITSELF
+and against nobody else, and this document has several writers. The interleaving: A commits and
+sees a timeout; B uploads, commits, and deletes A's superseded object; A retries and points the
+live document at a path B has already deleted. **The button 404s and nothing errors.**
+
+Resolve by READING, because the three answers are genuinely distinguishable — the live path is
+ours (committed), unchanged (retry), or somebody else's (never overwrite). An unreadable state is
+not a fourth answer and resolves to `retry`: abandoning would leave Storage holding a file nothing
+points at, on the same outage that caused the ambiguity.
+
+### `doc-retention.js`
+The six-month sweep behind Circular and Newsletter uploads (extracted from `firebase-client.js`,
+v21.86).
+- `pruneOldDocs(collectionName, excludeDate, storage, refFn, deleteObject, fs)` — `fs` is the
+  Firestore handles, INJECTED so the whole sweep can be driven against fakes in Node.
+
+It is the browser's only destructive operation on shared data and it ran untested for nineteen
+versions, because `firebase-client.js` imports the Firebase SDK from gstatic and cannot be loaded
+outside a browser. Two rules, both from the audit that found them by reading:
+
+**The clock must be the server's.** A cutoff from `new Date()` is a deletion driven by whichever
+admin device uploaded; one running months fast takes months of current documents. The just-written
+anchor document carries `uploadedAt: serverTimestamp()`, so reading it back costs one read. No
+server time → no sweep, deliberately: retention is housekeeping and the next upload runs it again.
+
+**Delete only what you read.** The query is a snapshot; a re-upload for one of those dates between
+the query and the delete destroyed the FRESH metadata while the cleanup removed the stale object.
+Each delete now re-reads inside a transaction and stands down if the storage path has moved.
+
+The right long-term home is a scheduled Cloud Function, where the time is trusted by construction —
+the shape `purgeExpiredOvertimeWindows` already has.
 
 ### `firestore.rules`
 Server-side Firestore security rules — deployed via `firebase deploy --only firestore:rules`.

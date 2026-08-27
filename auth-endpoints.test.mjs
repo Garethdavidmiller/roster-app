@@ -189,7 +189,10 @@ function build({
             if (authFail.updateUser) throw new Error(authFail.updateUser);
             return { uid, ...patch };
         },
-        revokeRefreshTokens: async (uid) => { authOps.push({ op: 'revokeRefreshTokens', uid }); },
+        revokeRefreshTokens: async (uid) => {
+            authOps.push({ op: 'revokeRefreshTokens', uid });
+            if (authFail.revokeRefreshTokens) throw new Error(authFail.revokeRefreshTokens);
+        },
         setCustomUserClaims: async (uid, claims) => {
             authOps.push({ op: 'setCustomUserClaims', uid, claims });
             if (authFail.setCustomUserClaims) throw new Error(authFail.setCustomUserClaims);
@@ -419,6 +422,36 @@ describe('resetMemberPassword does the whole job when it does proceed', () => {
         const { eps, authOps } = build();
         await call(eps.resetMemberPassword, asAdmin({ member: MEMBER, revoke: false }));
         assert.equal(authOps.filter((o) => o.op === 'revokeRefreshTokens').length, 0);
+    });
+
+    test('a failed REVOCATION does not report the reset as failed either', async () => {
+        // v21.86, external audit. Revocation used to be a bare await inside the outer try, so a
+        // failure took the whole call to the generic 500 — skipping the resetAt stamp on the way.
+        // The admin was told nothing happened about an account now sitting on the surname default,
+        // whose reasonable next step is to retry, or to tell the member their old password is fine.
+        const { eps, authOps, db } = build({ authFail: { revokeRefreshTokens: 'network' } });
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+
+        assert.equal(out.code, 200, 'the password change is irreversible — it is reported');
+        assert.equal(out.body.revoked, false, 'and `revoked` says what HAPPENED');
+        assert.equal(out.body.revokeFailed, true, 'named explicitly, because a live session may remain');
+        assert.ok(authOps.some((o) => o.op === 'updateUser' && o.patch.password),
+            'the password really was rewritten');
+        assert.ok(db._dump('passwordStatus')[MEMBER].resetAt,
+            'and the stamp still ran — it used to be skipped, leaving the table wrong as well');
+    });
+
+    test('`revoked` reports the outcome, not the request', async () => {
+        // The old field echoed the REQUEST back, so it read `true` on exactly the path where the
+        // revocation had failed. A caller cannot distinguish those, and this one now can.
+        const { eps } = build({ authFail: { revokeRefreshTokens: 'network' } });
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER, revoke: true }));
+        assert.equal(out.body.revoked, false);
+
+        const { eps: ok } = build();
+        const good = await call(ok.resetMemberPassword, asAdmin({ member: MEMBER, revoke: true }));
+        assert.equal(good.body.revoked, true);
+        assert.equal(good.body.revokeFailed, undefined, 'and nothing is flagged when nothing failed');
     });
 
     test('a failed Firestore stamp does not report the reset as failed', async () => {
