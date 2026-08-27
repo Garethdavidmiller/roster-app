@@ -634,6 +634,11 @@ test.describe('one-time notices and the PIN unlock', () => {
         await page.goto('/');
         await expect(page.locator('.month-year')).toBeVisible();
         await expect(page.locator('#pwNoticeLb'), "'everyone' must survive the audience default").toHaveClass(/open/);
+        // ...and it reaches the drawer's App Notices list, which is where a member who closed it
+        // goes to read it again. The audience decides BOTH surfaces, not just the lightbox.
+        await expect.poll(async () => page.evaluate(() =>
+            JSON.parse(localStorage.getItem('myb_app_notices') || '[]').map(n => n.id)))
+            .toContain('pw-own-2026');
         expect(errors, 'Uncaught JS exceptions on a viewer calendar').toHaveLength(0);
     });
 
@@ -650,6 +655,16 @@ test.describe('one-time notices and the PIN unlock', () => {
         // ...and NOT flagged seen, or it would never arrive on the day that device signs in.
         const flagged = await page.evaluate(() => localStorage.getItem('myb_notice_backpay_2026_done'));
         expect(flagged, 'a suppressed notice must be left untouched, not marked seen').toBeNull();
+
+        // ...and NOT in the ARCHIVE either, which is the half the report was actually about: the
+        // drawer's "App Notices" list is this store, so a notice kept off the screen but written
+        // here would still be sitting in a menu on the station PC. It is archived in `onOpen`, so
+        // not opening covers it — but that is a consequence of the wiring rather than a rule
+        // anybody stated, and it is one refactor away from not being true.
+        const archived = await page.evaluate(() =>
+            JSON.parse(localStorage.getItem('myb_app_notices') || '[]').map(n => n.id));
+        expect(archived, 'a notice the station was not addressed by must not reach its drawer')
+            .not.toContain('backpay-2026');
         expect(errors, 'Uncaught JS exceptions on a viewer calendar').toHaveLength(0);
     });
 
