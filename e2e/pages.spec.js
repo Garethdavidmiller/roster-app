@@ -1175,6 +1175,78 @@ test('a tips panel with more below the fold says so, and stops saying it at the 
 // page — a right-shaped batch against the wrong days — produces a perfectly plausible count. Driven
 // in a browser because the wording is unit-tested but the WIRING is not: whether the days a save
 // actually staged reach the receipt is a different pass over the same state.
+// ── THE AL COUNT ACTUALLY SEES THE OVERRIDES (v21.84) ───────────────────────────────────────────
+//
+// The behavioural half of the wiring audit's AL finding. Handing `countedAlDates`/`alPosition` an
+// empty override map left 57 unit tests and 8 admin e2es green while a member's entitlement read as
+// untouched — the rules are right, and the answer on screen is wrong, which is the shape this
+// repo's rule-level tests cannot see.
+//
+// The banner is the honest target: it is the number a manager actually reads before booking, and it
+// runs `alPosition` — a THIRD call site of this family, and one the static call-site guard in
+// al-entitlement.test.mjs does not cover (that one pins `countedAlDates`). So this is not a
+// duplicate of the guard; it is the part of the family nothing else watches.
+//
+// The contrast is drawn INSIDE the test — the same page loaded with and without the AL on record —
+// because an absolute figure proves nothing here: a member with no leave booked and a member whose
+// leave is invisible both read zero.
+test('admin: the AL banner counts leave that is already on record', async ({ page }) => {
+    const AL_DATES = [];
+    for (let d = 1; d <= 28; d++) AL_DATES.push(`2026-06-${String(d).padStart(2, '0')}`);
+
+    /**
+     * Select the member the leave belongs to, then read the four banner figures.
+     *
+     * The selection is load-bearing: the Annual Leave card opens on the FIRST roster member, not on
+     * whoever is signed in, and the override read is filtered by that name — so a test that seeds
+     * one member's leave and reads another's banner watches a correct zero and proves nothing.
+     */
+    const readBanner = async () => {
+        await page.locator('#fieldMember').selectOption('G. Miller');
+        await page.waitForSelector('.day-row', { timeout: 10000 });
+        await page.locator('#alToggleHeader').click();
+        await expect(page.locator('#alBanner')).toBeVisible();
+        return page.evaluate(() => ({
+            taken:       Number(document.getElementById('alBannerTaken')?.textContent),
+            booked:      Number(document.getElementById('alBannerBooked')?.textContent),
+            remaining:   Number(document.getElementById('alBannerRemaining')?.textContent),
+            entitlement: Number(document.getElementById('alBannerEntitlement')?.textContent),
+        }));
+    };
+
+    // 1. NOTHING on record — the baseline this test is a contrast against.
+    await page.clock.setFixedTime(new Date('2026-08-27T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    const clear = await readBanner();
+    expect(clear.entitlement, 'a CEA has an entitlement to spend').toBeGreaterThan(0);
+    expect(clear.taken, 'no leave on record means none taken').toBe(0);
+    expect(clear.remaining).toBe(clear.entitlement);
+
+    // 2. The SAME member, with June's leave on record.
+    await page.clock.setFixedTime(new Date('2026-08-27T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript((dates) => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = dates.map((date, i) => ({
+            id: `al-${i}`, memberName: 'G. Miller', date,
+            type: 'annual_leave', value: 'AL', note: '', source: 'manual',
+        }));
+    }, AL_DATES);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    const booked = await readBanner();
+
+    // June is in the past at the pinned date, so it lands in TAKEN rather than BOOKED.
+    expect(booked.taken, 'the leave on record must reach the figure the manager reads').toBeGreaterThan(0);
+    expect(booked.taken).toBeLessThanOrEqual(AL_DATES.length);
+    expect(booked.entitlement).toBe(clear.entitlement);
+    // The four figures have to describe one position, not three independent reads of it.
+    expect(booked.remaining, 'remaining must account for what is taken and booked')
+        .toBe(booked.entitlement - booked.taken - booked.booked);
+});
+
 test('admin: saving reports the DAYS it changed, not just how many', async ({ page }) => {
     // executeSave refuses without a Firebase user ("You've been signed out"), which is right — so
     // opt the stub in, the way every other spec that reaches a real write does.

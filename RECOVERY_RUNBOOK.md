@@ -403,8 +403,8 @@ as the record of how the release ran rather than as work still to do.
    > **DONE — 26 Aug 2026** (scheduled for Mon 24 Aug; shipped two days later). The go/no-go was
    > taken on the pre-flight below: the App Speed version breakdown showed most real loads had moved
    > off the pre-v20.51 client, and page views were broadly level with July. `deploy-rules.yml`
-   > succeeded at 16:38. **Step 5 is the remaining work** — production verification in a fresh
-   > private window.
+   > succeeded at 16:38, and step 5 confirmed it in production the following morning — so the
+   > whole sequence is closed.
    >
    > **Two things the pre-flight asked for that the Operations cards cannot actually produce**, and
    > which cost time on the day: item 1 wants the share of loads on a pre-v20.51 client, but the App
@@ -446,6 +446,15 @@ as the record of how the release ran rather than as work still to do.
 5. **Verify in production**, in a fresh private window: PIN → roster → reload → still unlocked →
    Team View → month navigation → Admin (must demand a member sign-in) → close the browser →
    PIN again. Then on a phone, and at an office-desktop width.
+
+   > **DONE — 27 Aug 2026**, confirmed by the owner. This is the step nothing automated can stand in
+   > for: the e2e suite stubs the exchange (rightly — a test must not hold the secret), so the mint
+   > path is only ever exercised for real by a person entering the real PIN against the real
+   > function. That is exactly the gap that let the 10 Aug attempt ship a 500 (see step 3's warning),
+   > and it is why this step is a person and not a job.
+   >
+   > **The sequence is now CLOSED end to end.** `CALENDAR_PIN_ACCESS: false` is not a rollback any
+   > more — reverting step 4's rules commit is.
 
 **The mixed-version window at step 4** is one page load wide: the service worker claims immediately
 on activate and reloads the page, so a device is on the new client by its next open. Within that one
