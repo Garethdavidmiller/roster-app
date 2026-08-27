@@ -132,3 +132,46 @@ describe('the watchdog stands down on the RIGHT condition', () => {
         assert.ok(/position:fixed/.test(fn), 'the built surface is not full-screen — it would render into a broken layout');
     });
 });
+
+// ── THE RESET'S BLAST RADIUS (v21.86) ───────────────────────────────────────────────────────────
+//
+// "Reset app" used to unregister EVERY service worker registration on the origin and delete EVERY
+// Cache Storage entry. On a dedicated origin that is merely blunt. The GitHub Pages mirror is not
+// one — `garethdavidmiller.github.io` can host any number of other pages — so a member tapping
+// Reset there would take out an unrelated app's offline data, with no warning and no way back.
+//
+// The scoping introduces a DRIFT RISK that nothing else in the repo can see: the cache filter is a
+// string prefix, and the caches it must match are named in service-worker.js. Rename them and Reset
+// silently stops clearing anything, which presents as "the reset button does nothing" on precisely
+// the broken device that needed it.
+describe('Reset app clears THIS app, and still clears it', () => {
+    const SW = readFileSync(new URL('./service-worker.js', import.meta.url), 'utf8');
+    const fn = extractFn(SRC, 'resetApp');
+
+    test('the cache prefix still matches what the service worker names its caches', () => {
+        const prefix = fn.match(/k\.indexOf\('([^']+)'\)\s*===\s*0/)?.[1];
+        assert.ok(prefix, 'resetApp no longer filters caches by prefix — it is origin-wide again');
+        // Both cache names the SW creates: the versioned app cache and the SDK cache.
+        for (const decl of ['CACHE_NAME', 'SDK_CACHE_NAME']) {
+            const name = SW.match(new RegExp('const ' + decl + '\\s*=\\s*`([^`$]*)'))?.[1];
+            assert.ok(name, `${decl} not found in service-worker.js`);
+            assert.ok(name.startsWith(prefix),
+                `the SW names a cache "${name}…" which does not start with resetApp's "${prefix}" — ` +
+                'the reset would leave it in place and appear to do nothing');
+        }
+    });
+
+    test('service workers are filtered by scope, not unregistered wholesale', () => {
+        assert.match(fn, /getRegistrations/);
+        assert.match(fn, /\.filter\(/, 'every registration on the origin is still being unregistered');
+        assert.match(fn, /new URL\(r\.scope\)/, 'the scope is not being consulted');
+    });
+
+    test('both filters fail towards doing LESS', () => {
+        // The right way round for a destructive action: an unreadable scope leaves that
+        // registration alone. The cost is a reset that occasionally under-clears; the alternative
+        // cost is deleting somebody else's data.
+        assert.match(fn, /catch \(_e\) \{ return false; \}/,
+            'an unparseable scope must be skipped, not swept');
+    });
+});

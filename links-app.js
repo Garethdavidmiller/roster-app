@@ -50,7 +50,8 @@ import { reorderLines, applyOrder, cost, DEFAULT_BLOCK_TARGET } from './links-ad
 import { normaliseWindow, formatWindow, isDefaultWindow, isValidWindowRow, canonicaliseWindowTime } from './links-window.js';
 import { assessFatigue } from './links-fatigue.js';
 import { initLinksCompare } from './links-compare.js';
-import { conflictOf as _conflictOf, baselineAfterWrite, canAdvanceBaseline } from './links-concurrency.js';
+import { baselineAfterWrite } from './links-concurrency.js';
+import { createDesignStore } from './links-design-store.js';
 import { setStatus } from './status-text.js';
 import {
     isDeleted, isPurgeable, purgeableIds, deletedLabel, canSoftDelete, sortByDeleted,
@@ -640,16 +641,14 @@ export function init() {
         if (!name) return;
         if (_designNameTooLong(name)) return;
         try {
-            const ref = await writeWithClaimRetry(() => addDoc(DESIGNS_COL,
-                // A blank design starts on the app default window — docPayload normalises it.
+            // A blank design starts on the app default window — docPayload normalises it. The
+            // store arms the baseline from the server, so the FIRST content-save is guarded;
+            // without that a new design carried updatedAt:null, the guard read it as "nothing to
+            // compare", and a concurrent edit was clobbered silently.
+            const { id: newId, updatedAt: createdTs } = await store.create(
                 docPayload({ name, patterns: {}, window: null },
-                           { updatedBy: currentUser, updatedAt: serverTimestamp() })));
-            // Arm the concurrency baseline: read back the server updatedAt so loadedUpdatedAt
-            // is non-null from the first content-save. Without this, a just-created design's
-            // guard was bypassed (updatedAt:null) and a concurrent edit was silently clobbered.
-            let createdTs = null;
-            try { createdTs = (await getDoc(ref)).data()?.updatedAt ?? null; } catch { /* offline — no concurrent editor to guard */ }
-            const d = restoredEntryFrom({ id: ref.id, name, patterns: {}, window: null }, { updatedAt: createdTs, updatedBy: currentUser });
+                           { updatedBy: currentUser, updatedAt: serverTimestamp() }));
+            const d = restoredEntryFrom({ id: newId, name, patterns: {}, window: null }, { updatedAt: createdTs, updatedBy: currentUser });
             designs.push(d);
             _sortDesigns();
             _activateDesign(d);
@@ -755,15 +754,13 @@ export function init() {
         _importStatus('Saving…', null);
         try {
             const patterns = _importParsed.patterns;
-            const ref = await writeWithClaimRetry(() => addDoc(DESIGNS_COL,
-                // An imported design starts on the app default window, like a new one — the paste
-                // describes duties, and a window it never mentioned must not be inferred from them.
+            // An imported design starts on the app default window, like a new one — the paste
+            // describes duties, and a window it never mentioned must not be inferred from them.
+            // Through the store, so the baseline is armed identically however a design is born.
+            const { id: importedId, updatedAt: ts } = await store.create(
                 docPayload({ name, patterns, window: null },
-                           { updatedBy: currentUser, updatedAt: serverTimestamp() })));
-            // Arm the concurrency baseline exactly as createDesign does — see there.
-            let ts = null;
-            try { ts = (await getDoc(ref)).data()?.updatedAt ?? null; } catch { /* offline */ }
-            const d = restoredEntryFrom({ id: ref.id, name, patterns, window: null }, { updatedAt: ts, updatedBy: currentUser });
+                           { updatedBy: currentUser, updatedAt: serverTimestamp() }));
+            const d = restoredEntryFrom({ id: importedId, name, patterns, window: null }, { updatedAt: ts, updatedBy: currentUser });
             designs.push(d);
             _sortDesigns();
             _importLb?.close();
@@ -791,13 +788,10 @@ export function init() {
         // duplicating a moved-boundary proposal is least likely to notice.
         const window = normaliseWindow(design.window);
         try {
-            const ref = await writeWithClaimRetry(() => addDoc(DESIGNS_COL,
+            const { id: dupId, updatedAt: dupTs } = await store.create(
                 docPayload({ name, patterns, window },
-                           { updatedBy: currentUser, updatedAt: serverTimestamp() })));
-            // Arm the concurrency baseline (see createDesign).
-            let dupTs = null;
-            try { dupTs = (await getDoc(ref)).data()?.updatedAt ?? null; } catch { /* offline */ }
-            const d = restoredEntryFrom({ id: ref.id, name, patterns, window }, { updatedAt: dupTs, updatedBy: currentUser });
+                           { updatedBy: currentUser, updatedAt: serverTimestamp() }));
+            const d = restoredEntryFrom({ id: dupId, name, patterns, window }, { updatedAt: dupTs, updatedBy: currentUser });
             designs.push(d);
             _sortDesigns();
             _activateDesign(d);
@@ -835,47 +829,16 @@ export function init() {
             // OUR rename's timestamp made the next saveChanges skip the "X saved a different
             // version" confirm and silently overwrite their patterns with our stale copy. On
             // mismatch (or an offline pre-read) the baseline stays put, so the next save prompts.
-            let baselineFresh = false;
+            // The transaction, the baseline decision and the offline fallback are the store's
+            // (v21.87). What stays here is the naming of a thing on screen.
             const _preBaseline = (id === activeDesignId) ? loadedUpdatedAt : (d.updatedAt?.toMillis?.() ?? null);
-            const _ref = doc(db, COLLECTIONS.linkDesigns, id);
-            // ONE TRANSACTION, because the read and the write have to be the same instant (v21.86,
-            // external audit). This used to be getDoc → decide → setDoc, and a co-editor's save
-            // landing in that gap produced a silent overwrite LATER, which is the hardest kind to
-            // trace back: the rename itself is a merge, so their patterns survived it. What did not
-            // survive was the truth of our baseline — we advanced it to a revision whose CONTENT we
-            // had never taken in, so the NEXT save saw server == baseline, raised no conflict, and
-            // wrote our stale patterns over theirs. `canAdvanceBaseline` was right every time it
-            // was asked; it was being asked about a moment that had already passed.
-            //
-            // Inside a transaction the answer is true at COMMIT, not merely at read: if anything
-            // lands underneath, Firestore retries the whole callback and `baselineFresh` is
-            // recomputed. Assign it inside for exactly that reason — the last attempt is the one
-            // that counts.
-            try {
-                await writeWithClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
-                    const snap = await tx.get(_ref);
-                    const preTs = snap.data()?.updatedAt?.toMillis?.() ?? null;
-                    baselineFresh = canAdvanceBaseline(preTs, _preBaseline);
-                    tx.set(_ref, { name, updatedAt: serverTimestamp(), updatedBy: currentUser }, { merge: true });
-                }));
-            } catch (_txErr) {
-                console.warn('[Links] Rename transaction unavailable — queueing a merge write:',
-                             /** @type {any} */ (_txErr)?.code || _txErr);
-                // Transactions need the server: offline they cannot run at all. Rename is a small,
-                // non-destructive edit and the app is offline-first, so it still queues — but the
-                // baseline may NOT advance on that path, because nothing verified what the server
-                // held. A queued rename therefore leaves the next save prompting, which is the
-                // conservative direction and the one this whole mechanism exists to protect.
-                baselineFresh = canAdvanceBaseline(null, _preBaseline, false);
-                await writeWithClaimRetry(() => setDoc(_ref,
-                    { name, updatedAt: serverTimestamp(), updatedBy: currentUser }, { merge: true }));
-            }
+            const { baselineFresh, updatedAt: renamedAt } =
+                await store.rename({ id, name, by: currentUser, preBaseline: _preBaseline });
             d.name = name;
             if (id === activeDesignId && design) design.name = name;
             if (baselineFresh) {
                 d.updatedBy = currentUser;
-                try { d.updatedAt = (await getDoc(doc(db, COLLECTIONS.linkDesigns, id))).data()?.updatedAt ?? d.updatedAt; }
-                catch { /* offline — baseline stays as-is */ }
+                if (renamedAt) d.updatedAt = renamedAt;
                 if (id === activeDesignId) {
                     loadedUpdatedAt = d.updatedAt?.toMillis?.() ?? loadedUpdatedAt;
                     updateLastSaved(d.updatedBy, d.updatedAt);
@@ -916,10 +879,7 @@ export function init() {
             danger: true,
         })) return;
         try {
-            // A merge write, not a replace: the patterns we hold could be a stale copy of a
-            // co-designer's newer version, and deleting is not a reason to overwrite them.
-            await writeWithClaimRetry(() => setDoc(doc(db, COLLECTIONS.linkDesigns, id),
-                { deletedAt: serverTimestamp(), deletedBy: currentUser }, { merge: true }));
+            await store.softDelete(id, currentUser);
             designs = designs.filter(x => x.id !== id);
             // deletedAt is null until the server resolves it — deliberately kept as null rather
             // than stamped with a client clock, so the row reads "Deleted by X" until the real
@@ -967,20 +927,12 @@ export function init() {
         const d = deletedDesigns.find(x => x.id === id);
         if (!d) return;
         try {
-            await writeWithClaimRetry(() => setDoc(doc(db, COLLECTIONS.linkDesigns, id), {
-                deletedAt: deleteField(), deletedBy: deleteField(),
-                updatedAt: serverTimestamp(), updatedBy: currentUser,
-            }, { merge: true }));
+            const { updatedAt: restoredTs } = await store.restore(id, currentUser);
             deletedDesigns = deletedDesigns.filter(x => x.id !== id);
-            // Arm the concurrency baseline by reading the server timestamp back, exactly as
-            // createDesign/duplicateDesign do. A restored design is an OLD document a co-editor may
-            // still hold, so entering it with no baseline is worse here than for a new one: the
-            // next save would skip the "someone else saved" confirm entirely. On a failed read-back
-            // the entry keeps a null timestamp, which _activateDesign now correctly reads as an
-            // UNKNOWN baseline (guard on) rather than "nothing to compare" (guard off).
-            let restoredTs = null;
-            try { restoredTs = (await getDoc(doc(db, COLLECTIONS.linkDesigns, id))).data()?.updatedAt ?? null; }
-            catch { /* offline — the unknown-baseline flag covers it */ }
+            // The store armed the baseline from the server. A restored design is an OLD document a
+            // co-editor may still hold, so entering it with no baseline is worse than for a new
+            // one: the next save would skip the "someone else saved" confirm entirely. A null
+            // stamp reads as an UNKNOWN baseline (guard on), never "nothing to compare".
             designs.push(restoredEntryFrom(d, { updatedAt: restoredTs, updatedBy: currentUser }));
             _sortDesigns();
             renderDesignPicker();
@@ -1006,36 +958,11 @@ export function init() {
             danger: true,
         })) return;
         try {
-            // RE-CHECK ON THE SERVER, INSIDE A TRANSACTION (v19.84, external review P1).
-            //
-            // This used to be a bare `deleteDoc` on the strength of `deletedDesigns` — the list
-            // loaded when the bin was opened. `purgeExpiredDeletions` below has carried a long
-            // comment for several versions explaining why that is unsafe, and this path, which is
-            // the more dangerous of the two, ignored it: a human pressing a button on a stale row
-            // is far likelier than an expiry sweep landing in the same window.
-            //
-            // The race is real in a workspace built for several designers. A opens the bin, B
-            // restores "Old idea", A's row is now stale, A presses Remove for good — and a LIVE
-            // design that someone deliberately rescued is destroyed with no undo. Firestore runs
-            // here with persistentLocalCache, so A's snapshot can also simply be an old read
-            // served from IndexedDB.
-            //
-            // Reading inside the transaction makes the decision and the deletion inseparable.
-            // Offline it fails and nothing is destroyed, which is the right way for a permanent
-            // delete to fail.
-            const ref = doc(db, COLLECTIONS.linkDesigns, id);
-            await writeWithClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
-                const snap = await tx.get(ref);
-                if (!snap.exists()) return;                    // already gone — nothing to do
-                if (!isDeleted(snap.data())) throw new Error('design-restored');
-                tx.delete(ref);
-            }));
-            deletedDesigns = deletedDesigns.filter(x => x.id !== id);
-            renderDesignPicker();
-            renderBinList();
-            _binStatus(`“${d.name}” removed.`, 'ok');
-        } catch (err) {
-            if (err instanceof Error && err.message === 'design-restored') {
+            // The re-read-inside-the-transaction rule is the store's (v21.87). It matters most
+            // here: this is the only hard delete left in the workspace, and the row that was
+            // pressed may be stale — A opens the bin, B restores, A presses Remove for good.
+            const outcome = await store.purge(id);
+            if (outcome === 'restored-elsewhere') {
                 // Say what happened rather than "couldn't remove": someone put it back on purpose,
                 // and the right next step is to look at it again, not to retry.
                 deletedDesigns = deletedDesigns.filter(x => x.id !== id);
@@ -1044,6 +971,11 @@ export function init() {
                 _binStatus(`“${d.name}” was restored by someone else, so it was not removed.`);
                 return;
             }
+            deletedDesigns = deletedDesigns.filter(x => x.id !== id);
+            renderDesignPicker();
+            renderBinList();
+            _binStatus(`“${d.name}” removed.`, 'ok');
+        } catch (err) {
             console.error('[Links] Permanent delete failed:', err);
             _binStatus('Couldn’t remove that design — check your connection and try again.');
         }
@@ -1144,21 +1076,13 @@ export function init() {
         if (ids.length === 0) return;
         deletedDesigns = deletedDesigns.filter(d => !ids.includes(d.id));
         for (const id of ids) {
-            const ref = doc(db, COLLECTIONS.linkDesigns, id);
-            // Re-check inside a TRANSACTION rather than deleting on the strength of the load
-            // snapshot. That snapshot is not necessarily current: this app runs Firestore with
-            // persistentLocalCache, so a load made offline (or during a blip) is served from
-            // IndexedDB and can be arbitrarily stale — it could show a design as deleted-and-expired
-            // that a colleague restored days ago, and the queued delete would then destroy a LIVE
-            // design. A transaction reads from the server and commits atomically, so the decision
-            // and the deletion cannot be separated by someone else's restore. Offline it simply
-            // fails and nothing is destroyed, which is the right way for this one to fail.
-            writeWithClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
-                const snap = await tx.get(ref);
-                if (!snap.exists()) return;                          // already gone
-                if (!isPurgeable(snap.data(), Date.now())) return;   // restored, or not actually expired
-                tx.delete(ref);
-            })).catch(err => console.warn('[Links] Purge of an expired deletion failed (will retry next load):', err));
+            // Read-and-delete inseparably — the store's rule, and the reason is the same one that
+            // applies to every destructive act here: the load snapshot is not necessarily current.
+            // Firestore runs with persistentLocalCache, so a load made offline is served from
+            // IndexedDB and can be arbitrarily stale — it could show a design as expired that a
+            // colleague restored days ago. Offline it simply fails and nothing is destroyed.
+            store.purgeIfExpired(id, (data) => isPurgeable(data, Date.now()))
+                .catch(err => console.warn('[Links] Purge of an expired deletion failed (will retry next load):', err));
         }
     }
 
@@ -2643,6 +2567,23 @@ export function init() {
         el.textContent = lastSavedLabel(updatedBy, updatedAt?.toDate?.() ?? null);
     }
 
+    /**
+     * Refresh the in-memory designs[] entry after a successful write.
+     *
+     * UNCONDITIONAL on the saved patterns: they are authoritative whether or not the server
+     * timestamp came back. This used to sit inside the read-back's try, so a failed read left the
+     * entry holding STALE patterns while `design.patterns` held the new ones — switching away and
+     * back then reverted the grid to the pre-save state (v16.19).
+     * @param {any} updatedAt  the server stamp, or null when it could not be read
+     */
+    function _applySavedEntry(updatedAt) {
+        const entry = designs.find(x => x.id === activeDesignId);
+        if (!entry || !design) return;
+        entry.patterns  = deepCopyPatterns(design.patterns);
+        entry.updatedBy = currentUser;
+        if (updatedAt) entry.updatedAt = updatedAt;
+    }
+
     async function saveChanges() {
         const btn    = /** @type {HTMLButtonElement|null} */ (document.getElementById('linksSaveBtn'));
         const status = document.getElementById('linksSaveStatus');
@@ -2655,25 +2596,19 @@ export function init() {
 
             if (!activeDesignId) {
                 // First save of a generator-created design — create the Firestore document
-                const dsn = design; // capture non-null (guarded above) so the retry closure keeps narrowing
-                const ref = await writeWithClaimRetry(() => addDoc(DESIGNS_COL, {
-                    ...docPayload(dsn, { updatedBy: currentUser, updatedAt: serverTimestamp() }),
-                }));
-                activeDesignId = ref.id;
-                design.id = ref.id;
-                lsSet(ACTIVE_KEY, ref.id);
-                // Read back to capture the server timestamp for concurrency tracking
-                let savedAt = null;
-                try {
-                    const snap = await getDoc(doc(db, COLLECTIONS.linkDesigns, ref.id));
-                    savedAt = snap.data()?.updatedAt ?? null;
-                    // Mirror the v17.18 saveChanges invariant: a null (unresolved) read-back must
-                    // pair loadedUpdatedAt=null with baselineUnknown=true, else the NEXT save sees
-                    // neither a known timestamp nor the unknown-baseline flag and can clobber a
-                    // co-editor's intervening write with no conflict prompt.
-                    ({ loadedUpdatedAt, baselineUnknown } = baselineAfterWrite(savedAt?.toMillis?.()));
-                } catch { ({ loadedUpdatedAt, baselineUnknown } = baselineAfterWrite(null, false)); }
-                const newEntry = restoredEntryFrom({ ...design, id: ref.id, patterns: deepCopyPatterns(design.patterns) }, { updatedAt: savedAt, updatedBy: currentUser });
+                const dsn = design; // capture non-null (guarded above) so the closure keeps narrowing
+                // One create primitive, so the baseline invariant cannot differ between a design
+                // made by the picker and one made by the generator (v21.87): an unresolved
+                // read-back must pair loadedUpdatedAt=null with baselineUnknown=true, or the next
+                // save sees neither and clobbers a co-editor with no prompt.
+                const created = await store.create(
+                    docPayload(dsn, { updatedBy: currentUser, updatedAt: serverTimestamp() }));
+                activeDesignId = created.id;
+                design.id = created.id;
+                lsSet(ACTIVE_KEY, created.id);
+                ({ loadedUpdatedAt, baselineUnknown } = created.baseline);
+                const savedAt = created.updatedAt;
+                const newEntry = restoredEntryFrom({ ...design, id: created.id, patterns: deepCopyPatterns(design.patterns) }, { updatedAt: savedAt, updatedBy: currentUser });
                 designs.push(newEntry);
                 _sortDesigns();
                 dirty = false;
@@ -2684,24 +2619,13 @@ export function init() {
                 return;
             }
 
-            // Concurrency: two designers can have this page open at once. Prefer an ATOMIC
-            // compare-and-set — read the doc's updatedAt and write in ONE transaction — so a
-            // co-designer's save that lands between our read and our write can no longer be silently
-            // clobbered (the old getDoc-then-setDoc was a check-then-act race; Finding #13). A
-            // transaction needs connectivity, so on offline / any transaction failure we fall back to
-            // the previous getDoc-check + queued setDoc (persistentLocalCache syncs it) — offline-first
-            // preserved, never worse than before.
-            const designRef = doc(db, COLLECTIONS.linkDesigns, activeDesignId);
-            const dsn = design; // capture non-null (guarded above) so the retry closures keep narrowing
-            // ONE payload builder for the transaction and both fallbacks (it already was — the
-            // near-identical copy that used to sit 40 lines above is now the same docPayload too).
+            // Two designers can have this page open at once. The compare-and-set that guards
+            // against that is the store's now (v21.87) — including the rule that only an OFFLINE
+            // failure may take an unserialised path, which three silent overwrites came out of
+            // (v16.19 / v16.23 / v17.18) and which was reinstated by accident as recently as the
+            // v21.86 audit. What remains below is the conversation with the designer.
+            const dsn = design; // capture non-null (guarded above) so the closure keeps narrowing
             const buildDoc = () => docPayload(dsn, { updatedBy: currentUser, updatedAt: serverTimestamp() });
-            // Server doc vs our load baseline → { by, at } on conflict, else null. Single source used by
-            // BOTH the transaction and the offline fallback so they can't drift.
-            // The RULE lives in links-concurrency.js (v19.38) — pure and tested, because three silent
-            // overwrites have come out of it (v16.19 / v16.23 / v17.18) and it had no seam.
-            const conflictOf = (/** @type {any} */ data, /** @type {boolean} */ exists) =>
-                _conflictOf(data, exists, { loadedUpdatedAt, baselineUnknown, currentUser });
             const confirmOverwrite = (/** @type {{by:string, at:any}} */ c) => {
                 const when = c.at?.toDate?.()?.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) ?? '';
                 return confirmDialog({
@@ -2751,87 +2675,34 @@ export function init() {
                 })) await duplicateDesign();
             };
 
-            // Offline, as distinct from "the transaction did not work this time". Firestore reports
-            // an unreachable backend as `unavailable`; `navigator.onLine` is the browser's own view
-            // and is checked first because it is the case with no ambiguity at all. Anything else —
-            // `aborted` from contention, `deadline-exceeded`, `internal` — is a failure we must NOT
-            // paper over with an unserialised write.
-            const _isOffline = (/** @type {any} */ err) =>
-                (typeof navigator !== 'undefined' && navigator.onLine === false)
-                || err?.code === 'unavailable'
-                || /offline/i.test(String(err?.message || ''));
+            // ── THE PROTOCOL LIVES IN links-design-store.js (v21.87) ────────────────────────
+            // This function used to hold the transaction, the conflict comparison, the offline
+            // fallback and the baseline arithmetic inline — one of five write paths each doing its
+            // own version of that, which is how the same defect reached production twice. What is
+            // left here is the part that genuinely belongs to a workspace: what to ASK, and what to
+            // do with the answer. The store never asks anything.
+            const res = await store.save({
+                id: activeDesignId,
+                buildPayload: buildDoc,
+                baseline: loadedUpdatedAt,
+                baselineUnknown,
+                currentUser,
+            });
 
-            let committed = false;
-            try {
-                await writeWithClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
-                    const snap = await tx.get(designRef);
-                    if (snap.exists() && isDeleted(snap.data())) {
-                        const e = /** @type {any} */ (new Error('design-deleted'));
-                        e.deletedData = snap.data();
-                        throw e;
-                    }
-                    const c = conflictOf(snap.data() || {}, snap.exists());
-                    if (c) { const e = /** @type {any} */ (new Error('concurrent-edit')); e.conflict = c; throw e; }
-                    tx.set(designRef, buildDoc());
-                }));
-                committed = true;
-            } catch (txErr) {
-                const _e = /** @type {any} */ (txErr);
-                if (_e && _e.message === 'design-deleted') { await deletedElsewhere(_e.deletedData); return; }
-                if (_e && _e.message === 'concurrent-edit') {
-                    // The transaction saw a co-editor's newer version. Ask; on overwrite write
-                    // UNCONDITIONALLY (the user accepted the replace) — a plain setDoc, which also
-                    // queues offline. On decline, stop without writing.
-                    if (!await confirmOverwrite(_e.conflict)) { await declineOrFork(); return; }
-                    await writeWithClaimRetry(() => setDoc(designRef, buildDoc()));
-                    committed = true;
-                }
-                // Anything else: only an OFFLINE client may fall through to the queued path below.
-                // (v21.86, external audit.) This used to catch every non-conflict failure and drop
-                // straight to getDoc → check → setDoc — which is the very read-decide-write race
-                // the transaction was added to close. A serialisation mechanism failing is not a
-                // reason to substitute an unserialised one: online, a contended or transient
-                // failure would then overwrite a colleague's intervening save with no prompt.
-                //
-                // Offline is different in kind, not degree: transactions cannot run without the
-                // server, the app is deliberately offline-first, and there is no competing writer
-                // to lose to on a device with no connection. That path stays.
-                else if (_isOffline(_e)) { /* fall through to the queued path below */ }
-                else throw txErr;   // online failure — surfaced, dirty state kept, nothing overwritten
+            if (res.status === 'deleted-elsewhere') { await deletedElsewhere(res.deletedData); return; }
+            if (res.status === 'conflict') {
+                if (!await confirmOverwrite(res.conflict)) { await declineOrFork(); return; }
+                // They accepted the replace, so write unconditionally — the decision is made.
+                const forced = await store.save({
+                    id: activeDesignId, buildPayload: buildDoc,
+                    baseline: loadedUpdatedAt, baselineUnknown, currentUser, force: true,
+                });
+                ({ loadedUpdatedAt, baselineUnknown } = forced.baseline);
+                _applySavedEntry(forced.updatedAt);
+            } else {
+                ({ loadedUpdatedAt, baselineUnknown } = res.baseline);
+                _applySavedEntry(res.updatedAt);
             }
-            if (!committed) {
-                // OFFLINE ONLY: getDoc-check then a queued setDoc, as before the transaction existed.
-                let deletedByOther = false;
-                try {
-                    const fresh = await getDoc(designRef);
-                    if (fresh.exists() && isDeleted(fresh.data())) {
-                        await deletedElsewhere(fresh.data());
-                        deletedByOther = true;
-                    } else {
-                        const c = conflictOf(fresh.data() || {}, fresh.exists());
-                        if (c && !await confirmOverwrite(c)) { await declineOrFork(); return; }
-                    }
-                } catch { /* offline — no reachable server state to compare; proceed with the queued write */ }
-                if (deletedByOther) return;
-                await writeWithClaimRetry(() => setDoc(designRef, buildDoc()));
-            }
-            // Refresh the in-memory cache entry UNCONDITIONALLY after the successful write — the
-            // saved patterns are authoritative regardless of whether the updatedAt read-back below
-            // succeeds. Previously this lived inside the getDoc try, so a read-back failure left the
-            // designs[] entry with STALE patterns while design.patterns held the new content, and
-            // switching away then back reverted the grid to the pre-save patterns (v16.19).
-            const entry = designs.find(x => x.id === activeDesignId);
-            if (entry) { entry.patterns = deepCopyPatterns(design.patterns); entry.updatedBy = currentUser; }
-            try {
-                const after = await getDoc(designRef);
-                ({ loadedUpdatedAt, baselineUnknown } = baselineAfterWrite(after.data()?.updatedAt?.toMillis?.()));
-                if (entry) entry.updatedAt = after.data()?.updatedAt;
-            } catch { ({ loadedUpdatedAt, baselineUnknown } = baselineAfterWrite(null, false)); }
-            // ^ On a post-save read-back failure the baseline is UNKNOWN, not "no baseline": leaving
-            // baselineUnknown=false here meant the NEXT save saw neither a known timestamp
-            // (loadedUpdatedAt=null) nor an unknown-baseline flag, so a co-editor's intervening save
-            // was overwritten with NO conflict warning. Mirrors the transaction path's catch (v17.18).
-
             dirty = false;
             updateSaveBtn();
             if (status) { setStatus(status, '✓ Saved'); status.className = 'links-save-status ok'; }
@@ -2848,6 +2719,15 @@ export function init() {
      * Load all named designs from Firestore.
      * Migrates the legacy combined-28 document into a named design on first run.
      */
+    // The design collection's persistence lifecycle and its concurrency protocol (v21.87). Every
+    // Firestore handle it needs is passed in, which is what makes the interleavings testable —
+    // see links-design-store.js for why that mattered enough to extract.
+    const store = createDesignStore({
+        db, doc, getDoc, setDoc, addDoc, getDocs, runTransaction,
+        serverTimestamp, deleteField, designsCol: DESIGNS_COL,
+        withClaimRetry: writeWithClaimRetry,
+    });
+
     async function loadDesigns() {
         loadFailed = false;
         try {
@@ -2883,12 +2763,11 @@ export function init() {
                 // that skipped the legacy handling — because it runs once, for one document, on a
                 // visit nobody is watching.
                 const migrated = designFromDoc('', { ...legacyData, name: 'Design 1' });
-                const ref = await writeWithClaimRetry(() => addDoc(DESIGNS_COL,
-                    docPayload(migrated, {
-                        updatedBy: legacyData.updatedBy ?? currentUser,
-                        updatedAt: legacyData.updatedAt ?? serverTimestamp(),
-                    })));
-                named.push({ ...migrated, id: ref.id, updatedBy: legacyData.updatedBy || currentUser });
+                const { id: migratedId } = await store.create(docPayload(migrated, {
+                    updatedBy: legacyData.updatedBy ?? currentUser,
+                    updatedAt: legacyData.updatedAt ?? serverTimestamp(),
+                }));
+                named.push({ ...migrated, id: migratedId, updatedBy: legacyData.updatedBy || currentUser });
             }
 
             // Sort by name — getDocs returns documents in (random) auto-ID order,

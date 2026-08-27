@@ -80,10 +80,15 @@ const LARGE_THRESHOLD = 900;
  * to reconsider — that is the whole mechanism.
  */
 const CAPS = {
-    // 3250 → 3200 at v21.31. The generator's target VERDICT left for links-target-hours.js, so the
-    // ceiling comes down with it — a cap left where it was would bank the saving as future headroom,
-    // which is the ratchet quietly loosening rather than tightening.
-    'links-app.js':            3200,   // ← the one the reviewer named; the next Links rule goes in a domain module
+    // 3200 → 3150 at v21.87. The design collection's PERSISTENCE LIFECYCLE left for
+    // links-design-store.js — 3,197 measured lines down to 3,076 — and the ceiling comes down with
+    // it. Leaving it at 3,200 would bank the whole saving as future headroom, which is the ratchet
+    // quietly loosening rather than tightening; the same reasoning as the v21.31 cut above.
+    //
+    // The rest of the reduction is deliberately NOT claimed. This file is still a workspace holding
+    // a grid, a paint tool, a generator, a compare mode, an importer and a bin, and the next
+    // genuine seam (target-set persistence) is a smaller version of the one just taken.
+    'links-app.js':            3150,   // ← the next Links rule goes in a domain module
     'paycalc-app.js':          2000,
     // 1727 → 486 (v21.38): the store, the week editor, the Saved Changes list and the shift-type
     // table all moved out. Re-set to its new size plus the usual room — a cap left at 1800 over a
