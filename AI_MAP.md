@@ -1668,6 +1668,35 @@ Different problem, different risk, decided separately. Two page modules also had
 called `setStatus` (`login-overlay.js`, `paycalc-lightboxes.js`); both now delegate here and are
 named for their surface (`setLoginStatus`, `setActualsStatus`).
 
+### `links-design-store.js`
+The design collection's persistence lifecycle and its concurrency protocol (v21.87).
+- `createDesignStore(deps)` → `{ loadAll, create, save, rename, softDelete, restore, purge,
+  purgeIfExpired }`. Every Firebase handle is injected.
+- `isOfflineFailure(err, isOnlineCheck?)` — the predicate that decides whether the one unserialised
+  path may be taken at all.
+
+**Why it exists.** The protocol lived across eight functions and twenty-seven direct Firestore calls
+in `links-app.js`, each implementing its own variant. `links-concurrency.js` had thorough unit tests
+for the three pure rules the whole time, and an external audit still found two silent overwrites —
+in different functions, the same shape. The rules were right; they were being asked about a moment
+that had already passed. Fixing both where they lay (v21.86) did nothing to stop a third.
+
+**The three rules, and what each one is defending:**
+1. *A read a write depends on happens INSIDE that write's transaction.* A transaction re-runs its
+   callback when anything lands underneath, so a decision made inside one is true at COMMIT. This is
+   the rename bug in one sentence.
+2. *No weaker fallback while online.* Offline is a different kind of thing, not a lesser degree:
+   transactions need a server, the app is offline-first, and a disconnected device has no competing
+   writer. An online failure is reported and the caller keeps its unsaved state.
+3. *The baseline only advances to a revision the store verified.* Everything else is
+   `baselineUnknown`, which makes the next save prompt. Asked once too often costs a tap; asked once
+   too seldom costs somebody else's afternoon.
+
+**What it deliberately is not.** No DOM, no dialogs, no status text, no decision about what the user
+sees — a conflict returns `{ status: 'conflict', conflict }` and the workspace chooses. Nor is it a
+generic repository: it understands design revisions, soft deletion and conflict results, because
+those are Links concepts.
+
 ### `upload-commit.js`
 What an AMBIGUOUS Firestore commit means after a document upload (v21.86, external audit).
 - `resolveUploadCommit({ ourPath, oldPath, livePath, readable })` → `'committed'|'superseded'|'retry'`

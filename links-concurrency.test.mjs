@@ -132,73 +132,72 @@ describe('canAdvanceBaseline — a rename may only move our baseline if nothing 
     });
 });
 
-// ── THE ORCHESTRATION, PINNED STATICALLY (v21.86) ───────────────────────────────────────────────
+// ── THE ORCHESTRATION NOW HAS ONE OWNER (v21.87) ────────────────────────────────────────────────
 //
 // Every rule in this module is unit-tested above, and an external audit still found two silent
-// overwrites in the coordinator that calls them. Both were the same shape and neither is visible
-// from here: the rules were right, and they were being asked about a moment that had already
-// passed.
+// overwrites in the code that CALLS them — in different functions, both the same shape. The rules
+// were right; they were being asked about a moment that had already passed.
 //
-//   1. RENAME did `getDoc` → decide → `setDoc`. A co-editor saving inside that gap kept their
-//      patterns (the rename is a merge) but lost the truth of our baseline: we advanced it to a
-//      revision whose CONTENT we had never taken in, so our NEXT save saw server == baseline,
-//      raised no conflict, and wrote our stale copy over theirs.
-//   2. SAVE used a transaction, then fell back to `getDoc` → check → `setDoc` on ANY non-conflict
-//      failure — including an online one. A serialisation mechanism failing is not a reason to
-//      substitute an unserialised one.
+// v21.86 fixed both where they lay. v21.87 removed the shape: the protocol moved to
+// `links-design-store.js`, which takes its Firebase handles as arguments, so the interleavings can
+// be replayed deterministically in `links-design-store.test.mjs` rather than reasoned about.
 //
-// Reproducing either needs two clients and controlled Firestore scheduling, which this repo has no
-// harness for and which `links-app.js` — a 3,200-line coordinator importing the gstatic SDK —
-// cannot be loaded in Node to provide. So these are STATIC contracts: weaker than a behavioural
-// test, and honest about it. They fail if the orchestration is written the old way again, which is
-// the failure that actually happened.
-describe('the coordinator uses these rules atomically', () => {
-    // Comments are stripped first. The rename's own comment NAMES `canAdvanceBaseline` while
-    // explaining why it now sits inside the transaction — so an ordering check that reads the raw
-    // source finds the explanation before the code and fails on correct work. (Found by this test
-    // failing on the very commit that fixed the bug it guards.)
-    const app = readFileSync(new URL('./links-app.js', import.meta.url), 'utf8')
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/^\s*\/\/.*$/gm, '');
-    /** The body of a named function declaration, up to the next one at the same indent. */
-    const bodyOf = (name) => {
-        const start = app.indexOf(`async function ${name}(`);
-        assert.notEqual(start, -1, `${name} not found in links-app.js`);
-        const next = app.indexOf('\n    async function ', start + 10);
-        const end  = app.indexOf('\n    function ', start + 10);
-        const stop = Math.min(...[next, end, app.length].filter(n => n > 0));
-        return app.slice(start, stop);
-    };
+// What remains here is the guard that keeps it that way. These are STATIC contracts — weaker than a
+// behavioural test and honest about it — and they exist because the failure that actually happened
+// was a THIRD write path being added in the coordinator's own idiom.
+describe('the design protocol has exactly one owner', () => {
+    const strip = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    const app   = strip(readFileSync(new URL('./links-app.js', import.meta.url), 'utf8'));
+    const store = strip(readFileSync(new URL('./links-design-store.js', import.meta.url), 'utf8'));
 
-    test('rename reads and writes inside ONE transaction', () => {
-        const body = bodyOf('renameDesign');
-        assert.match(body, /runTransaction/,
-            'renameDesign must read the current revision and write the new name atomically — a ' +
-            'getDoc/setDoc pair lets a co-editor land between them and corrupts the baseline');
+    test('the coordinator writes no design document itself', () => {
+        // The one that matters. Five write paths each had their own version of the protocol, which
+        // is how the same defect reached production twice; a sixth added the old way would be
+        // invisible to every behavioural test until two designers collided.
+        //
+        // Scoped to the DESIGN collection: links-app.js legitimately writes `linkTargetSets`, which
+        // is a different document with no revision semantics and no co-editing guarantee.
+        // Each write is judged by WHAT IT TARGETS, not counted against an approximation — the
+        // first draft compared two totals and fired on a target-set write whose collection
+        // constant it had not thought of, which is a guard that reports the wrong thing.
+        const offenders = [];
+        for (const m of app.matchAll(/(setDoc|addDoc|deleteDoc|runTransaction)\s*\(/g)) {
+            const stmt = app.slice(m.index, m.index + 160);
+            if (/linkTargetSets|SETS_COL/.test(stmt)) continue;   // a different document entirely
+            offenders.push(`${m[1]} @ ${app.slice(0, m.index).split('\n').length}`);
+        }
+        assert.deepEqual(offenders, [],
+            'links-app.js writes a design document itself — design persistence belongs in ' +
+            'links-design-store.js, where the protocol is applied once instead of per call site');
     });
 
-    test('rename only advances the baseline from a read it made itself', () => {
-        // `canAdvanceBaseline` must be consulted INSIDE the transaction: called outside it, it is
+    test('the store decides inside its transactions, never before them', () => {
+        // The rename bug in one line: `canAdvanceBaseline` called before the transaction opens is
         // answering about a revision that may already have been replaced by the time we commit.
-        const body = bodyOf('renameDesign');
+        const body = store.slice(store.indexOf('async rename('));
         const txAt = body.indexOf('runTransaction');
         const decideAt = body.indexOf('canAdvanceBaseline');
-        // Both must EXIST before their order means anything. `indexOf` returns -1 for a miss, and
-        // `decideAt > -1` is true for any present decision — so without this the ordering check
-        // passed on a rename with no transaction at all. Found by mutation.
-        assert.notEqual(txAt, -1, 'no transaction in renameDesign');
-        assert.notEqual(decideAt, -1, 'renameDesign no longer consults canAdvanceBaseline');
-        assert.ok(decideAt > txAt,
-            'canAdvanceBaseline is consulted before the transaction opens — its answer is then ' +
-            'about a moment that has passed');
+        assert.notEqual(txAt, -1, 'rename no longer uses a transaction');
+        assert.notEqual(decideAt, -1, 'rename no longer consults canAdvanceBaseline');
+        assert.ok(decideAt > txAt, 'the decision is made before the transaction opens');
     });
 
-    test('save does not downgrade to an unserialised write when it is ONLINE', () => {
-        const body = bodyOf('saveChanges');
-        assert.match(body, /_isOffline/,
-            'the transaction fallback must be gated on being offline; without that gate a ' +
-            'contended or transient failure silently overwrites a colleague\'s intervening save');
-        assert.match(body, /else throw txErr/,
-            'an ONLINE transaction failure must surface, keeping the dirty state, not fall through');
+    test('the store has exactly one unserialised write path, and it is gated on OFFLINE', () => {
+        // Rule 2. A serialisation mechanism failing is not a reason to substitute an unserialised
+        // one — but a device with no server has nothing to serialise against, and this app is
+        // deliberately offline-first. The gate is what keeps those two apart.
+        assert.match(store, /if \(!isOffline\(e\)\) throw err;/,
+            'save must rethrow an ONLINE transaction failure rather than falling through');
+        assert.match(store, /if \(!isOffline\(err\)\) throw err;/,
+            'rename must do the same');
+    });
+
+    test('the store holds no UI', () => {
+        // The split that makes the interleaving tests possible at all. A dialog in here would drag
+        // the DOM back in and the fake-Firestore harness would stop working.
+        for (const forbidden of ['confirmDialog', 'promptDialog', 'document.', 'innerHTML', 'querySelector']) {
+            assert.ok(!store.includes(forbidden),
+                `links-design-store.js references ${forbidden} — it decides, the workspace presents`);
+        }
     });
 });
