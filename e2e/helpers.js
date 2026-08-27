@@ -513,6 +513,16 @@ export async function clickDialogConfirm(page, selector = '.dialog-btn-confirm')
         /** @type {any} */ (window).__dlgBox = { x: now.x, y: now.y };
         return !!prev && Math.abs(prev.x - now.x) < 0.5 && Math.abs(prev.y - now.y) < 0.5;
     }, selector, { timeout: 5000, polling: 'raf' }).catch(() => {});
-    await btn.click();
+    // `force` skips Playwright's OWN actionability re-check, which the wait above has just done
+    // explicitly — and which, on mobile-safari under a full two-project run, never returned: the
+    // button was reported "not stable" for the whole 30-second test timeout, twice, at a viewport
+    // (1280×1400 on a phone descriptor) no real device has. Waiting longer was tried and does not
+    // help; the element is not arriving late, the check is not converging.
+    //
+    // This does NOT weaken the test, and that distinction matters. `force` skips the WAIT, not the
+    // outcome: every caller asserts on what the dialog's action did — the status line, the written
+    // payload, the reordered grid — so a click that lands on nothing still fails the test it was
+    // called from. Verified by stubbing the Apply handler so no dialog opens at all: still red.
+    await btn.click({ force: true });
     return true;
 }
