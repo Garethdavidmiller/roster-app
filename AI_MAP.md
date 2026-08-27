@@ -1668,6 +1668,43 @@ Different problem, different risk, decided separately. Two page modules also had
 called `setStatus` (`login-overlay.js`, `paycalc-lightboxes.js`); both now delegate here and are
 named for their surface (`setLoginStatus`, `setActualsStatus`).
 
+### `paycalc-sticky-total.js`
+The sticky take-home bar (v21.89, extracted from `paycalc-app.js` — 1,988 → 1,888).
+- `initPaycalcStickyTotal()` — safe to call when the elements are absent.
+
+Three inputs, one output: whether the result figure is in the viewport (IntersectionObserver),
+whether a field is focused, and where the visual viewport sits → whether `#stickyTotal` shows and
+how far it is translated up. **No money, no period, no storage.** `calculate()` writes the figure
+and has no knowledge of this module.
+
+Extracted for headroom rather than for an invariant, and honestly so: `paycalc-app.js` was 12 lines
+from its cap, and of everything in it this is the piece whose removal cannot change a figure a
+member reads. Every guard inside is the fix to a reported iOS behaviour — no pagehide-disconnect,
+pin-above-the-keyboard rather than hide-behind-it, the deferred focusout rebase, and the composed
+translate — and none is reproducible in headless or e2e, which is why each carries its reasoning.
+
+### `admin-week-swipe.js`
+The week-grid swipe on admin.html (v21.89, extracted from `admin-app.js` — 1,783 → 1,638).
+- `initAdminWeekSwipe({ weekGrid, fieldDate, prevWeekBtn, nextWeekBtn, canNavigate,
+  onWeekCommitted, onSettled, shiftWeek })`
+
+A pointer state machine plus a carousel. It decides when a drag is a horizontal swipe rather than a
+tap or a scroll (lazy capture — nothing starts until intent is confirmed), builds the adjacent week
+panels, animates the commit, and holds a cooldown so one gesture cannot advance two weeks.
+
+**It holds no business rule.** What a week change means to Admin — the label, the AL banner, the
+booked boxes, the staged-edit reset — stays in the coordinator behind `onWeekCommitted` and
+`onSettled`; whether the move may happen at all is `canNavigate`, which folds the two inline guards
+(staged work, no member/week) into one question.
+
+**Not shared with `calendar-swipe.js`.** They look alike and are not: a month rather than a week, no
+unsaved-work guard, no adjacent-panel build, a different commit. Merging them buys one handler
+behind a mode flag and a dozen options.
+
+Two rules from CLAUDE.md's architecture table, both previously broken by plausible changes: Pointer
+Events never Touch Events, and `setPointerCapture` on the grid rather than the clip — a capture
+target's events do not bubble to its children.
+
 ### `overtime-review-controller.js`
 The reviewer's side of `overtime.html` (v21.88), extracted from `overtime-app.js` — 1,246 lines to
 698.
