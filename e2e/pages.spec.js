@@ -3510,8 +3510,18 @@ async function dragWeek(page, dir) {
     await page.waitForFunction(
         () => document.querySelectorAll('.week-carousel-panel').length === 0,
         null, { timeout: 5000 });
+    // SCROLL IT INTO VIEW FIRST, then take a y inside BOTH the grid and the viewport. The grid is
+    // 559px tall and starts 594px down a 727px-tall phone viewport, so its midpoint is off-screen —
+    // `page.mouse` works in viewport coordinates, so the original midpoint drag was dispatched below
+    // the window and hit nothing. It passed on desktop only because that layout happens to fit.
+    await page.locator('#weekGrid').scrollIntoViewIfNeeded();
     const box = await page.locator('#weekGrid').boundingBox();
-    const y = box.y + box.height / 2;
+    const vh  = page.viewportSize().height;
+    const top = Math.max(box.y, 0);
+    const bot = Math.min(box.y + box.height, vh);
+    const y   = (top + bot) / 2;
+    expect(y, 'the drag must start inside the viewport').toBeGreaterThan(0);
+    expect(y, 'the drag must start inside the viewport').toBeLessThan(vh);
     // Start well clear of the left edge — the handler deliberately ignores the first 24px so it
     // does not fight the iOS system back-swipe.
     const [from, to] = dir === 'next'
