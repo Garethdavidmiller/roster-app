@@ -83,7 +83,7 @@ export async function pruneOldDocs(collectionName, excludeDate, storage, refFn, 
         .map(/** @param {any} d */ async d => {
             // storagePath added at v13.99; legacyDocPath is the fallback for older documents
             // uploaded before the versioned upload scheme — it honours the doc's own fileType
-            // (default 'pdf'), the same one rule _transactionalUpload's cleanup reads, so the two
+            // (default 'pdf'), the same one rule the upload engine's own cleanup reads (documents-client.js), so the two
             // deciders of "which old object do we delete" can no longer drift (v20.55).
             const _docData    = d.data() || {};
             const storagePath = _docData.storagePath ?? legacyDocPath(collectionName, d.id, _docData.fileType);

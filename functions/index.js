@@ -103,7 +103,7 @@ const MAX_HUDDLE_HTML_CHARS = 200_000;         // converted-DOCX htmlContent cap
 // blip on an otherwise-successful write) — i.e. COMMIT-AMBIGUOUS. On these the Function must not
 // delete the just-uploaded Storage object (that would orphan a committed doc pointing at nothing);
 // the date-keyed set is idempotent, so a retry is safe. Admin SDK raises numeric gRPC codes; string
-// forms are included for safety. Mirrors the browser _transactionalUpload hardening.
+// forms are included for safety. Mirrors the browser upload engine (documents-client.js) hardening.
 const _RETRIABLE_FIRESTORE_CODES = new Set([
     4, 10, 13, 14, 'deadline-exceeded', 'aborted', 'internal', 'unavailable',
     'DEADLINE_EXCEEDED', 'ABORTED', 'INTERNAL', 'UNAVAILABLE',

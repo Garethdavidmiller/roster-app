@@ -30,7 +30,7 @@ SECURITY_RELEASE_PLAN.md for status"; it may not restate the stage.
 | **C — passwords** | Forced migration live (Phase 0+1 v18.63, Phase 2 v18.92, reset queue v18.93–95) | **C5** — retire the surname default | Track E (below): un-migrated roster-viewers never sign in, so the metric cannot converge | ≥90% migrated **and** a proven recovery route for the remainder |
 | **C2 — email verification/reset** | Deferred | — | Needs an email relay that does not exist | Relay available and owner wants it |
 | **D — App Check** | Deferred, not started | **D1** — monitor mode | Owner decision | Legitimate traffic characterised over a real window before any enforcement |
-| **E — full-app auth** | E0 ✓ v19.00 · E1 ✓ v19.01 · **the READ closure is BUILT (v20.12) and its client is LIVE in soak (v20.46)** — the Calendar asks for a named session or the staff PIN, but the `overrides` read rule still carries its `allow read;` hold line, so the read actually closes at RECOVERY_RUNBOOK step 4 (after the soak) | **E3** — INDIVIDUAL authentication, if it is ever required. E2 was superseded, not built: it would have required merely *any* session, which an anonymous sign-in satisfies | Owner decision, most likely forced externally by a Chiltern IT requirement that each person authenticates | Owner approval + rollback rehearsed + **E3 criteria pre-registered before telemetry starts** |
+| **E — full-app auth** | E0 ✓ v19.00 · E1 ✓ v19.01 · **the READ closure is IN FORCE since 26 Aug 2026** — the Calendar asks for a named session or the staff PIN (client live since v20.51), and the `allow read;` hold line above the `overrides` read rule was deleted at v21.78, so the SERVER now refuses anything without a `name` claim, `admin`, or `calendarViewer`. RECOVERY_RUNBOOK step 4 records the go/no-go | **E3** — INDIVIDUAL authentication, if it is ever required. E2 was superseded, not built: it would have required merely *any* session, which an anonymous sign-in satisfies | Owner decision, most likely forced externally by a Chiltern IT requirement that each person authenticates | Owner approval + rollback rehearsed + **E3 criteria pre-registered before telemetry starts** |
 | **Deferred residual** | Held on purpose. The CALENDAR's anonymous bootstrap is gone in EFFECT (v20.12), but the call site is not: `calendar-access.js` still calls `signInAnonymously` under the `CALENDAR_PIN_ACCESS === false` rollback path, and `session.js` keeps its soft fallback. Both are in scope when this is retired — the removal checklist below omitted the first until v21.63 | Retire the anonymous fallback + `ENFORCE_NAMED_SESSION` kill-switch | — | Track B soak complete and Track E decided |
 
 **Two things this table is deliberately explicit about**, because both were previously implied and
@@ -131,13 +131,13 @@ B2, which recurs in B3/B4. State the tiers once, here:
 | Tier | Source list | Firebase claim they must carry | What they legitimately write |
 |------|-------------|-------------------------------|------------------------------|
 | **Master admin** | `CONFIG.ADMIN_NAMES` (`['G. Miller']`) | `{ admin: true, name }` | Everything — overrides for any member, huddle/circular/newsletter, roster upload, auth setup |
-| **Management** | `CONFIG.MANAGER_NAMES` (6 names) | **`{ manager: true, name }`** ← set by `setupRosterAuth` since B2 (v14.53); live only on tokens minted after each manager was re-provisioned + refreshed | Overrides (AL/sick/shift) **on behalf of any staff member** — but NOT the master-admin uploads/auth-setup |
+| **Management** | `CONFIG.MANAGER_NAMES` (7 names) | **`{ manager: true, name }`** ← set by `setupRosterAuth` since B2 (v14.53); live only on tokens minted after each manager was re-provisioned + refreshed | Overrides (AL/sick/shift) **on behalf of any staff member** — but NOT the master-admin uploads/auth-setup |
 | **Staff** | everyone else | `{ name }` | Only their **own** overrides (`token.name == memberName`) |
 | *Links designer* | `CONFIG.LINKS_DESIGNERS` (`['G. Miller', 'S. Silva', 'M. Robson']`) | *cross-cuts the above* — S. Silva and M. Robson are **CEAs**, not managers. The `linksDesigner` claim is LIVE (H2, v16.29): `setupRosterAuth` sets it from `CONFIG.LINKS_DESIGNERS` and `linkDesigns` writes are gated on it | `linkDesigns` (designs are **not** member-owned) — write control is the `linksDesigner`/`admin` claim |
 
 Three design points that flow from this and still govern any future rule change:
 
-- The **`manager: true` bypass is load-bearing** — the 6 managers edit staff AL/absence/shifts on behalf
+- The **`manager: true` bypass is load-bearing** — the 7 managers edit staff AL/absence/shifts on behalf
   every day; without it the isolation rule silently locks them out. Equally, the **`admin` bypass** is
   load-bearing (admin writes for others constantly: on-behalf AL/sick, every `source:'roster_import'`
   row). Master-admin-only collections (huddles/circulars/newsletters/roster/auth) stay `admin == true`
@@ -188,39 +188,39 @@ Three design points that flow from this and still govern any future rule change:
   retire surname (C5, irreversible, ≥90% migrated). *(Historic ordering — C3/C4′ shipped first as the
   "C-lite" reshuffle; C2 is deferred behind a mail relay.)*
 
-- **RE-PRIORITISED (v18.88) — migrate the 7 PRIVILEGED accounts first, as their own milestone.**
+- **RE-PRIORITISED (v18.88) — migrate the 8 PRIVILEGED accounts first, as their own milestone.**
   The plan's only migration gate is "≥90% of everyone", which conflates two different goals: *closing
   risk* and *retiring the surname mechanism*. They are not the same size of job, because **risk is
-  concentrated in 7 of the 50 active accounts** (counted from `functions/roster-members.json`, the
+  concentrated in 8 of the 51 active accounts** (counted from `functions/roster-members.json`, the
   server-owned list — managers carry `hidden: true`, which is why a headcount off the visible
   dropdown reads lower):
 
   | Tier | Accounts | What a guessed password gets an attacker |
   |------|----------|------------------------------------------|
   | Master admin | 1 | Everything — any member's overrides, uploads, roster import, auth setup |
-  | Management | 6 | Any member's AL / absence / shifts, on behalf |
+  | Management | 7 | Any member's AL / absence / shifts, on behalf |
   | Staff | 43 | **Only their own** overrides (the B3 isolation rule holds) |
 
   **SUPERSEDED as the ROLLOUT plan (v18.92).** The owner chose to compel EVERYONE at their next sign-in
   rather than run privileged-first waves — the session model (60-day absolute) staggers it by each member's
   own expiry anyway, so a tiered flag would have added releases without lowering the peak. The tier
-  table above still stands as the RISK analysis (it is why the 7 mattered most, and why chasing them by
+  table above still stands as the RISK analysis (it is why the 8 mattered most, and why chasing them by
   conversation was worth doing first); it is no longer the sequencing.
 
-  So migrating the admin + 6 managers closes the large majority of the exposure, and it needs **no
-  code at all** — 7 people opening Settings → Password. The ≥90% gate is about being able to delete
+  So migrating the admin + 7 managers closes the large majority of the exposure, and it needs **no
+  code at all** — 8 people opening Settings → Password. The ≥90% gate is about being able to delete
   the surname fallback, which is a tidiness/one-way-door goal, not the risk-closing one.
 
   **Owner-reported (25 Jul 2026, not independently verified here): 2 accounts migrated in the first
   24 hours, one of them the owner's.** That means the single highest-value target — the master admin —
   **is already off the guessable surname default**, which is the biggest single risk reduction
   available in this whole track and it has already happened. It also means voluntary migration among
-  everyone else is running at roughly one account per day, so **the ≥90% (≈38 accounts) gate is
+  everyone else is running at roughly one account per day, so **the ≥90% gate is
   unreachable without compulsion** — which is exactly why Phase 2 shipped at v18.92.
 
-  **Recommended next step:** chase the 6 managers directly (a conversation, not a release), and record
+  **Recommended next step:** chase the 7 managers directly (a conversation, not a release), and record
   "all admin + manager accounts migrated" as an explicit milestone here. Only then decide whether the
-  Phase 2 forced overlay is worth building for the ~35 staff accounts, whose blast radius is one
+  Phase 2 forced overlay is worth building for the ~43 staff accounts, whose blast radius is one
   person's own roster.
 - **Risk:** locking staff out of the *core roster* is a bigger operational risk than the present
   surname-password weakness. C5 is one-way.
@@ -292,11 +292,18 @@ Three design points that flow from this and still govern any future rule change:
 
 **⚠️ A CORRECTION WORTH KEEPING, BECAUSE IT IS THIS FILE'S OWN FAILURE MODE (v21.63).** From v20.12
 to v21.62 this section stated the external review's **"public absence/AL data"** finding was CLOSED.
-It was not, and the canonical table at the top of this file said so correctly the whole time —
+It was not, and the canonical table at the top of this file said so correctly at the time —
 "BUILT … and its client is LIVE in soak … the read actually closes at RECOVERY_RUNBOOK step 4".
 `ARCHITECTURE.md`, `CLAUDE.md` and `firestore.rules` itself all agreed with the table;
 only Track E's own prose disagreed, which is the worst possible place for it, because a reviewer
-opening this section is asking exactly that question. **The rule this file states — every other
+opening this section is asking exactly that question.
+
+**And then it happened the other way round (found 28 Aug 2026).** Step 4 shipped on 26 Aug, this
+prose was updated, and **the canonical table was not** — so for two days the table said the read
+rule still carried its hold line while the prose said closed, which is the same defect with the
+halves swapped. The lesson is not "trust the table"; it is that a fact written in two places gets
+updated in one, and **which one is arbitrary**. Both are now correct; if you are changing a status,
+change the table, and then search this file for the prose that restates it. **The rule this file states — every other
 document owns design, this table owns status — applies to this file's prose too.** Status belongs in
 the table; a section that restates it can drift from it, and did, for eleven releases.
 
@@ -329,7 +336,7 @@ lets any staff member view any colleague's roster/AL by design — Track E does 
 REST). Staged:
 
 - **E0 (free, no decision needed) — ✓ SHIPPED v19.00.** Search engines excluded: `X-Robots-Tag:
-  noindex, nofollow` on Firebase Hosting + a mirrored `<meta name="robots">` in all ten served pages
+  noindex, nofollow` on Firebase Hosting + a mirrored `<meta name="robots">` in all twelve served pages
   (the GitHub Pages mirror gets no headers, and a `robots.txt` cannot reach it — only honoured at an
   origin root). `robots.txt` deliberately **permits** crawling: a crawler blocked from fetching can
   never read the noindex, so `Disallow: /` would hide the signal, not the page. Guarded by
@@ -447,12 +454,16 @@ surface) — starting E means re-stamping that anti-goal, not violating it silen
 - **Do not** bundle the Track-A infra work (WIF/A2, the functions `uuid` fix/A1) into an authz release —
   different failure domains.
 - **Do not** retire the surname password (C5) before the ≥90% migration metric.
-- **Do not** remove the calendar's anonymous read/bootstrap when hardening `ensureFirebaseSession` — that
-  path is a deliberate public-read surface. **(Holds until Track E is chosen — Track E E3 is exactly the
-  decision to retire it; reverse this anti-goal there, not silently.)**
+- ~~**Do not** remove the calendar's anonymous read/bootstrap when hardening `ensureFirebaseSession` — that
+  path is a deliberate public-read surface.~~ **SPENT — the reversal happened, deliberately, at v20.12.**
+  The unconditional bootstrap is gone and `calendar-app.js` forbids restoring it ("Do not re-add it
+  'so telemetry keeps working'"); `signInAnonymously` survives on the Calendar only under the
+  `CALENDAR_PIN_ACCESS === false` rollback path. The public-read surface it protected was closed on
+  26 Aug 2026. Kept struck through rather than deleted because this anti-goal was cited while it was
+  live, and an anti-goal that quietly disappears reads as one nobody thought about.
 - **Do not** drop the `|| token.admin == true` bypass from the isolation rule — admin writes for other
   members are load-bearing (roster import + on-behalf booking).
-- **Do not** drop (or forget to add) the `|| token.manager == true` bypass — the 6 managers write staff
+- **Do not** drop (or forget to add) the `|| token.manager == true` bypass — the 7 managers write staff
   AL/absence/shifts on behalf every day; without it the isolation rule silently locks them out. Equally,
   **do not grant managers `admin: true`** as a shortcut — that reaches the master-admin-only collections
   the tier exists to deny.

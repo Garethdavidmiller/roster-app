@@ -443,7 +443,7 @@ const onNewsletterCreated = onDocumentCreated(
 // is domain knowledge; how a payload reaches a phone is not.
 // Number of months of Huddle history to retain. Huddles are daily and short-lived in
 // usefulness; older ones are pruned so the collection and Storage stay bounded. Circulars
-// and newsletters keep 6 months (browser-side _pruneOldDocs); huddles are higher-volume and
+// and newsletters keep 6 months (browser-side pruneOldDocs, doc-retention.js); huddles are higher-volume and
 // less referenced after the day, so 3 months is enough.
 const HUDDLE_RETENTION_MONTHS = 3;
 
@@ -461,8 +461,8 @@ const HUDDLE_RETENTION_MONTHS = 3;
 async function pruneOldHuddles(excludeDate) {
     // Clamp the day to the last valid day of the target month — a bare
     // setMonth(getMonth() - N) overflows on a month-end run (e.g. 31 May → 31 Feb →
-    // 3 Mar), which would over-prune by a few days. Mirrors _pruneOldDocs in
-    // firebase-client.js (the browser circular/newsletter prune).
+    // 3 Mar), which would over-prune by a few days. Mirrors pruneOldDocs in
+    // doc-retention.js (the browser circular/newsletter prune).
     // nowInLondon (v16.23): huddle dates are London dates; a bare new Date() on UTC Cloud Run
     // skews the 3-month cutoff by a day during BST (midnight–1am London) — this file's own
     // convention (the pay reminder) already derives London dates this way. nowInLondon returns

@@ -87,8 +87,8 @@ user is **signed in but frozen on the login overlay**; when the read returns, th
 - **v14.73–74** time-boxed, then removed, the email-check read from the login path (bounded the freeze
   but didn't remove it — the read was still on the path).
 - **v14.75** the real fix: the login contract above (from an external review). 671 unit + 68 e2e pass.
-- **v14.77–91** follow-ups, all done: email-check trigger marker + ~3-monthly cadence (v14.77, see
-  CLAUDE.md "Work email check"); real-overlay Playwright click-path tests (v14.79); the back-link
+- **v14.77–91** follow-ups, all done: email-check trigger marker + ~3-monthly cadence (v14.77; that section has since been removed
+  from CLAUDE.md — the email check itself was retired at v19.30); real-overlay Playwright click-path tests (v14.79); the back-link
   `_signingIn` guard (v14.79); the `_attempting` mutex fix (v14.78); the stale-auth generation guard
   (v14.87/91).
 - **v14.98** B1 re-enabled.

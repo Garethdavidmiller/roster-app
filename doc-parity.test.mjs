@@ -706,6 +706,69 @@ test('no doc writes down a repo-derived count that grows with the repo', () => {
         JSON.stringify(actual));
 });
 
+// ── CONTRACT 3d: a doc may not write down the SIZE of a roster-owned list ──────────────────────
+//
+// Found by a line-by-line read on 28 Aug 2026, twelve days after `N. Sobers` was added as a seventh
+// manager. Nine sentences across `SECURITY_RELEASE_PLAN.md` and `KNOWN_LIMITATIONS.md` still said
+// six, and two derived figures moved with them ("7 of the 50 active accounts", "7 people opening
+// Settings → Password"). One of those sentences is the C5 chase-list — "chase the 6 managers
+// directly" — so a milestone built from it would have reported complete with a privileged account
+// still on the surname default.
+//
+// Nothing caught it. `roster-members.json` is CI-locked against `roster-data.js`, so the CODE could
+// not drift; the prose is what drifted, and prose is what a person acts on. CONTRACT 3c guards the
+// counts that grow with the REPO; this guards the ones that grow with the ROSTER, which move for a
+// different reason (somebody was promoted) and are read by somebody doing an access review.
+//
+// Narrow on purpose, matching this file's own rule about guards that cry wolf: only the phrasings
+// that actually appeared, and only where the number is the size of a list this repo declares.
+test('no doc writes down the size of a roster-owned list', () => {
+    const members = JSON.parse(read('./functions/roster-members.json'));
+    const actual = {
+        manager:  members.roles.manager.length,
+        admin:    members.roles.admin.length,
+        designer: members.roles.designer.length,
+        active:   members.activeMembers.length,
+        served:   readdirSync(new URL('.', import.meta.url)).filter(f => /\.html$/.test(f)).length,
+    };
+    for (const [k, v] of Object.entries(actual)) assert.ok(v > 0, `${k} derived as ${v} — the counter is broken`);
+    actual.privileged = actual.admin + actual.manager;
+
+    /** [regex, the key it must equal, what the number is]. Capture group 1 is the figure. */
+    const CLAIMS = [
+        [/(\d+)\s+managers\b/gi,                                   'manager',    'the manager tier'],
+        [/(\d+)\s+management accounts\b/gi,                        'manager',    'the manager tier'],
+        [/MANAGER_NAMES`?\s*\((\d+)\s+names\)/gi,                'manager',    'the manager tier'],
+        [/(\d+)\s+PRIVILEGED accounts\b/gi,                        'privileged', 'admin + managers'],
+        [/concentrated in (\d+) of the \d+ active accounts/gi,      'privileged', 'admin + managers'],
+        [/concentrated in \d+ of the (\d+) active accounts/gi,      'active',     'the active roster'],
+        [/all (?:ten|eleven|twelve|\d+) served pages/gi,             'served',     'the served HTML pages'],
+        [/all (?:ten|eleven|twelve|\d+) `<meta>` CSPs/gi,            'served',     'the served HTML pages'],
+    ];
+    const WORD = { ten: 10, eleven: 11, twelve: 12 };
+    const wrong = [];
+    for (const doc of ['./CLAUDE.md', './AI_MAP.md', './KNOWN_LIMITATIONS.md', './OPERATIONS_REFERENCE.md',
+                       './SECURITY_RELEASE_PLAN.md', './AUTH_PLAN.md', './PASSWORD_PLAN.md',
+                       './ARCHITECTURE.md', './.claude/rules/paycalc.md']) {
+        const lines = read(doc).split('\n');
+        lines.forEach((line, i) => {
+            for (const [re, key, what] of CLAIMS) {
+                for (const m of line.matchAll(re)) {
+                    const said = WORD[(m[1] || m[0].match(/ten|eleven|twelve/i)?.[0] || '').toLowerCase()]
+                        ?? Number(m[1] ?? (m[0].match(/\d+/) || [])[0]);
+                    if (!Number.isFinite(said) || said === actual[key]) continue;
+                    wrong.push(`${doc.replace('./', '')}:${i + 1} says ${said} for ${what} — it is ${actual[key]}`);
+                }
+            }
+        });
+    }
+    assert.deepEqual(wrong, [],
+        'a doc states the size of a list this repo declares, and the list has moved:\n  ' +
+        wrong.join('\n  ') +
+        '\nThese are read by somebody doing an access review or working a chase-list. Derive the ' +
+        'number or drop it; do not re-write it.');
+});
+
 // ── CONTRACT 5: the register IDs resolve, and the index knows every document ────────────────────
 //
 // v21.38 introduced two stable ID spaces so that a doubt is WRITTEN DOWN ONCE and cited everywhere
