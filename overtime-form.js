@@ -560,28 +560,37 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         }
     }
 
+    /**
+     * Is this ONE day still unfinished? The single definition — three callers used to carry their
+     * own, and the third disagreed (v21.92). `updateSubmitState` counted a day as answered whenever
+     * an answer OBJECT existed, while the other two also required a `custom` pair to be present and
+     * sane. So a day set to Custom with the times left blank made the button read "Submit
+     * availability", and pressing it refused with "Answer Tue 2 Sep before submitting" — the form
+     * telling the member two different things about the same day.
+     *
+     * A picked mode with nothing behind it is exactly the state this is for: the member has
+     * started that day and not finished it, which is neither answered nor untouched.
+     * @param {string} d an ISO date in this window
+     */
+    function dayUnfinished(d) {
+        const a = answers[d];
+        if (!a || !a.mode) return true;
+        return a.mode === 'custom' && (!a.start || !a.end || a.start === a.end);
+    }
+
     /** All seven answered, and any custom pair complete and sane. */
     function isComplete() {
-        return dates.every(d => {
-            const a = answers[d];
-            if (!a || !a.mode) return false;
-            if (a.mode !== 'custom') return true;
-            return !!a.start && !!a.end && a.start !== a.end;
-        });
+        return dates.every(d => !dayUnfinished(d));
     }
 
     /** The first date the member has not finished — what an error focuses. */
     function firstIncomplete() {
-        return dates.find(d => {
-            const a = answers[d];
-            if (!a || !a.mode) return true;
-            return a.mode === 'custom' && (!a.start || !a.end || a.start === a.end);
-        }) || null;
+        return dates.find(dayUnfinished) || null;
     }
 
     function updateSubmitState() {
         if (!submitBtn) return;
-        const missing = dates.filter(d => !answers[d]).length;
+        const missing = dates.filter(dayUnfinished).length;
         submitBtn.textContent = missing
             ? `${missing} ${missing === 1 ? 'day' : 'days'} still to answer`
             : (baseRevision ? 'Save changes' : 'Submit availability');

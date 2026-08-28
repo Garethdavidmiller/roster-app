@@ -139,9 +139,28 @@ export function createDesignStore(deps) {
         async save({ id, buildPayload, baseline, baselineUnknown, currentUser, force = false }) {
             const ref = refFor(id);
             if (force) {
-                // The user has SEEN the conflict and chosen to replace. An unconditional write is
-                // the decision they made, so there is nothing left to check.
-                await withClaimRetry(() => setDoc(ref, buildPayload()));
+                // The user has SEEN the conflict and chosen to replace, so nothing about a
+                // competing SAVE is checked again — that decision is made.
+                //
+                // A DELETE is a different consent, and it was never given (v21.92). The gap here is
+                // human think-time in a dialog: the design was live when the conflict was raised
+                // and can be deleted while it sits open. `docPayload` carries no `deletedAt`, and
+                // this is a full `setDoc`, so an unguarded force STRIPS the deletion — the design
+                // reappears in the picker and the colleague who deleted it is never told. That is
+                // the outcome `deleted-elsewhere` exists to prevent, and this was the one path that
+                // skipped the check. Both halves were tested; their intersection was not.
+                let deletedData = null;
+                await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
+                    // A retried transaction must not keep the losing attempt's verdict — the same
+                    // reset `rename` makes below, for the same reason. NOT covered by a test: the
+                    // suite's fake calls the callback exactly once, so it cannot express a retry.
+                    // Stated rather than left to look tested.
+                    deletedData = null;
+                    const snap = await tx.get(ref);
+                    if (snap.exists() && isDeleted(snap.data())) { deletedData = snap.data(); return; }
+                    tx.set(ref, buildPayload());
+                }));
+                if (deletedData) return { status: 'deleted-elsewhere', deletedData };
                 const updatedAt = await readStamp(ref);
                 return { status: 'saved', updatedAt, baseline: baselineAfterWrite(updatedAt?.toMillis?.()) };
             }

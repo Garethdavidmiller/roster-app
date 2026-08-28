@@ -220,6 +220,28 @@ describe('a SAVE never downgrades its guarantee while online', () => {
         assert.equal(writes.length, 1);
     });
 
+    test('FORCE still refuses a design deleted since the conflict was raised', async () => {
+        // The two consents are different, and the gap between them is human think-time in a dialog.
+        // Pressing "replace" answers "their SAVE should not win". It does not answer "their DELETE
+        // should be undone" — a question nobody was asked, because the design was live when the
+        // conflict was raised and was deleted while the dialog sat open.
+        //
+        // `docPayload` carries no `deletedAt`/`deletedBy`, and force does a full `setDoc`, so an
+        // unguarded force REPLACES the document and strips the deletion: the design reappears in
+        // the picker, and the colleague who deleted it is never told. That is precisely the outcome
+        // the `deleted-elsewhere` branch exists to prevent, reached down the one path that skipped
+        // the check.
+        const { api, writes } = makeDb({ initial: { name: 'A', updatedAt: ts(2000), updatedBy: THEM,
+                                                    deletedAt: ts(2500), deletedBy: THEM } });
+        const res = await createDesignStore(api).save({
+            id: ID, buildPayload: () => ({ name: 'mine' }), baseline: 1000, baselineUnknown: false,
+            currentUser: ME, force: true,
+        });
+        assert.equal(res.status, 'deleted-elsewhere', 'force must not resurrect a deleted design');
+        assert.equal(res.deletedData?.deletedBy, THEM, 'and it must say who deleted it');
+        assert.deepEqual(writes, [], 'nothing was written');
+    });
+
     test('a design deleted while we had it open is reported as such', async () => {
         // Not the same event as "someone saved a different version": a plain overwrite would
         // resurrect a design somebody deliberately deleted.

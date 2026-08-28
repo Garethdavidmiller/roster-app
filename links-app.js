@@ -2692,11 +2692,15 @@ export function init() {
             if (res.status === 'deleted-elsewhere') { await deletedElsewhere(res.deletedData); return; }
             if (res.status === 'conflict') {
                 if (!await confirmOverwrite(res.conflict)) { await declineOrFork(); return; }
-                // They accepted the replace, so write unconditionally — the decision is made.
+                // They accepted the replace, so a competing SAVE is no longer checked — that
+                // decision is made. A DELETE landing while the dialog sat open is a different
+                // matter and still comes back here (v21.92); handle it exactly as on the first
+                // attempt, rather than destructuring a baseline that is not there.
                 const forced = await store.save({
                     id: activeDesignId, buildPayload: buildDoc,
                     baseline: loadedUpdatedAt, baselineUnknown, currentUser, force: true,
                 });
+                if (forced.status === 'deleted-elsewhere') { await deletedElsewhere(forced.deletedData); return; }
                 ({ loadedUpdatedAt, baselineUnknown } = forced.baseline);
                 _applySavedEntry(forced.updatedAt);
             } else {
