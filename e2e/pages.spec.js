@@ -3570,9 +3570,27 @@ test('admin: the week label follows the swipe, so the grid and its heading agree
     await expect.poll(() => label.textContent(), { timeout: 5000 }).not.toBe(before);
 
     // And it agrees with the date field, which is the state everything else reads.
+    //
+    // AGREEMENT MEANS THE SAME WEEK, NOT THE SAME DAY. The label names the week's two BOUNDARY days
+    // (Sunday–Saturday, `updateWeekNavLabel`), while `#fieldDate` holds a day INSIDE that week — so
+    // asserting the label contains the field's own day-of-month is true only on the 2 days in 7
+    // where they coincide. The first version of this test did exactly that, passed on the day it
+    // was written, and failed the next morning against unchanged code.
+    //
+    // Derive the boundaries here and assert both. This checks the property the test is named for
+    // without re-implementing the formatter's month-collapsing rule, which is the label's business.
     const iso = await page.locator('#fieldDate').inputValue();
-    const day = new Date(iso + 'T00:00:00').getDate();
-    await expect(label).toContainText(String(day));
+    const inWeek = new Date(iso + 'T00:00:00');
+    const sunday = new Date(inWeek);
+    sunday.setDate(inWeek.getDate() - inWeek.getDay());
+    const saturday = new Date(sunday);
+    saturday.setDate(sunday.getDate() + 6);
+
+    const text = await label.textContent();
+    expect(text, `the heading should name the week containing ${iso}`)
+        .toContain(String(sunday.getDate()));
+    expect(text, `the heading should name the week containing ${iso}`)
+        .toContain(String(saturday.getDate()));
 });
 
 test('admin: the week arrows and the swipe move the same state', async ({ page }) => {
