@@ -16,10 +16,10 @@ that reads uniformly confident invites someone to start at the wrong end:
 
 | | Confidence |
 |---|---|
-| §1 framing, §2 current exposure, E0, E2 | **Verified against code.** Safe to act on. |
+| §1 framing, §2 current exposure, E0, E2 | **Verified against code** (§2 re-checked 28 Aug 2026). Safe to act on. |
 | E1 | **✓ SHIPPED v19.01.** |
 | E3, the decision gate, §6 measurement | **Sound, unverified.** Design is right; numbers are missing. |
-| §4 offline (E4) | Designed, but rests on **one unvalidated assumption** — see the warning there. |
+| §4 offline (E4) | Designed; its one load-bearing assumption is now **demonstrated** — `experiments/firestore-offline-proof/`, see §4. |
 | E5 | **Under-analysed.** The claim-tier work the B-track proved necessary has not been done for reads. |
 | §5 documents (E6) | **A sketch.** The Office-viewer dependency invalidates the cheapest option. |
 
@@ -63,14 +63,23 @@ Two consequences follow, and both are easy to get wrong:
 
 ---
 
-## 2. What is actually exposed today (verified, v19.00)
+## 2. What is actually exposed today (re-verified 28 Aug 2026)
 
-Open reads (`allow read;` in `firestore.rules`): **`overrides`, `huddles`, `circulars`, `newsletters`**.
-Everything else already requires auth, and most requires a claim.
+Open reads (`allow read;` in `firestore.rules`): **`huddles`, `circulars`, `newsletters`** — the three
+document collections, deliberately, because a notification tap carries no session. Everything else
+requires auth, and most requires a claim.
 
-- **`overrides`** carries `memberName` + `date` + `type` + `value` — so AL, absence, and shift changes
-  for every member. This is personal data; absence especially. (The app never stores a *reason* — that
-  is a deliberate GDPR decision recorded in CLAUDE.md — but "who was absent, and when" is readable.)
+- **`overrides` is NO LONGER open** (closed 26 Aug 2026, v21.78). It carries `memberName` + `date` +
+  `type` + `value` — AL, absence and shift changes for every member — and was readable by anyone with
+  the URL from the app's first Firestore write until that date. Reads now require a member `name`
+  claim, `admin`, or the shared `calendarViewer` capability. (The app never stores a *reason* for an
+  absence — a deliberate GDPR decision recorded in CLAUDE.md — but "who was absent, and when" was
+  readable for as long as the rule stood, and **a device that cached it before the tightening still
+  holds what it saw**: see E2 below.)
+
+  *This section listed `overrides` as an open read until 28 Aug, two days after it was closed and in
+  the same file whose status header said so — which is why the heading now carries the date it was
+  last checked rather than the version it was first written against.*
 - **The three document collections** carry the download URLs for internal Chiltern operational
   documents.
 - **`storageUrl` is a permanent tokenised bearer URL**, so the document *files* are not protected by
@@ -97,7 +106,7 @@ guarded, but the prose that tells a maintainer what ORDER to work in was not, so
 three-stage shorthand survived the v19.08 renumbering in the sequencing doc as a result.
 
 ### E0 — exclude search engines ✓ SHIPPED v19.00
-`X-Robots-Tag: noindex, nofollow` on Firebase Hosting + a mirrored `<meta name="robots">` in all ten
+`X-Robots-Tag: noindex, nofollow` on Firebase Hosting + a mirrored `<meta name="robots">` in all twelve
 served pages, because GitHub Pages serves no headers and a `robots.txt` cannot reach the mirror (only
 honoured at an origin root; the mirror lives under `/roster-app/`). `robots.txt` deliberately **permits**
 crawling — a crawler blocked from fetching can never read the noindex, so `Disallow: /` would hide the
@@ -246,7 +255,7 @@ policy layer is clean) and wire the shared `login-overlay.js`. Gate on `ENFORCE_
 posture and *measure* (§6) before hardening. Do not tighten rules in the same window.
 
 Two things make this less of a leap than it sounds: the calendar already has session-gated affordances
-(the pay-period strip, `calendar-app.js`), and `login-overlay.js` is proven on five pages. It also
+(the pay-period strip, `calendar-app.js`), and `login-overlay.js` is proven on the six protected pages. It also
 *removes* an inconsistency — today the app has two contradictory onboarding stories, one where a new
 starter picks a name from a dropdown and one where they sign in.
 

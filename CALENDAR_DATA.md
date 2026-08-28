@@ -25,7 +25,7 @@ beside the code, where it cannot drift from the thing it describes. Every row po
 | 6 | **Only ONE authoritative reconciler per range.** A second one racing it is the Team View eviction bug. | `override-utils.js` (`reconcileRangeIntoCache`) |
 | 7 | **`getBaseShift()` is the only way to read a base shift.** Direct `roster.data` access bypasses start-date suppression, Christmas rules and scheduled roster changes. | `roster-data.js` |
 | 8 | **`isChristmasRD()` applies BEFORE Firestore overrides.** Dec 25/26 force to RD first so Dec 26 can then be overridden to RDW. Never reorder. | `roster-data.js` |
-| 9 | **Sundays are non-contracted.** No `annual_leave` or `sick` override may be written or displayed on a Sunday — five enforcement layers, none removable alone. | CLAUDE.md → architecture decisions |
+| 9 | **Sundays are non-contracted.** The forbidden write types are declared once as `SUNDAY_FORBIDDEN_TYPES` — consult it rather than restating it here, which is how this row came to name two of the four. Six enforcement layers, none removable alone. | `override-utils.js` · CLAUDE.md → architecture decisions |
 | 10 | **Phase 1 paints with no network and no auth.** Requiring a session for reads must never put a sign-in round trip in front of data the device already holds. | `calendar-initial-fetch.js` |
 | 11 | **A member is never sent to the staff PIN.** A held session with no restored identity gets a sign-in card, and the late-identity watcher keeps listening. | `calendar-access.js` · `calendar-access-core.js` |
 | 12 | **The viewer's persistence is session-only, and boot must not migrate it.** `setPersistence` moves the current user between stores. | `firebase-client.js` (`authReady`) |

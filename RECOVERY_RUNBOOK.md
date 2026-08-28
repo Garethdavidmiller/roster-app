@@ -346,7 +346,7 @@ steps below are three separate pushes rather than one:
 
 | Brake | Where | Ships as | Released at |
 |---|---|---|---|
-| `CONFIG.CALENDAR_PIN_ACCESS` | `roster-data.js` | **RELEASED — `true` and live since v20.51.** (It shipped `false`, was released at v20.46, rolled back at v20.50 the same morning, and re-released at v20.51 once the cause was found to be a GCP IAM gap rather than app code. This row said "ships as `false` … ROLLED BACK" until v21.63, which read as though the soak had never restarted — an argument for postponing step 4 on false grounds.) | step 3 — **DONE**, soaking since v20.51 |
+| `CONFIG.CALENDAR_PIN_ACCESS` | `roster-data.js` | **RELEASED — `true` and live since v20.51.** (It shipped `false`, was released at v20.46, rolled back at v20.50 the same morning, and re-released at v20.51 once the cause was found to be a GCP IAM gap rather than app code. This row said "ships as `false` … ROLLED BACK" until v21.63, which read as though the soak had never restarted — an argument for postponing step 4 on false grounds.) | step 3 — **DONE** (soaked from v20.51); the whole sequence closed at step 4 on 26 Aug 2026 |
 | `allow read;` hold line | `firestore.rules` overrides block | **RELEASED — deleted 26 Aug 2026 (v21.78).** `overrides` reads now require a `name` claim, `admin`, or the `calendarViewer` capability; a request with none is refused by the SERVER | step 4 — **DONE** |
 
 The hold line was declared a second time as `OVERRIDES_READ_HELD_OPEN` in `firestore.rules.test.mjs`,
@@ -383,6 +383,8 @@ as the record of how the release ran rather than as work still to do.
    The Calendar now asks for the PIN and mints a viewer session, and because the rule is still
    permissive a stale cached client keeps working. **Let this soak.** Rolling back is the same one
    line, and while the rules are still permissive that rollback genuinely re-opens the Calendar.
+   *(Both conditions in that last sentence expired at step 4 on 26 Aug 2026. `CALENDAR_PIN_ACCESS:
+   false` is no longer a rollback — see step 4.)*
 
    > **⛔ DO STEP 2b FIRST — this step failed on 10 Aug 2026 and had to be reverted within hours.**
    > A correct PIN returned 500 from the function's token-mint block; every member entering the right

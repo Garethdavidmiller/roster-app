@@ -147,24 +147,30 @@ NOW, take it seriously: the flake excuse has been spent.
 > runtime service account changes, if the function is given its own service account, or if the
 > project is rebuilt — see RECOVERY_RUNBOOK's project facts.
 >
-> **Runbook position: 1, 2, 2b and 3 COMPLETE. Now SOAKING on step 3. Steps 4–5 remain** — and the
-> exposure statement above stays present-tense until step 4 ships, because the read rule is still
-> permissive. The
+> **Runbook position: the whole sequence is COMPLETE.** Steps 1, 2, 2b and 3 landed by 10 Aug 2026;
+> step 4 (deleting the `allow read;` hold line) shipped on **26 Aug 2026** and step 5 confirmed it in
+> production the next morning — RECOVERY_RUNBOOK.md → "The Calendar PIN". The exposure statement
+> below was deliberately present-tense while the rule was permissive, and was flipped to the past
+> when step 4 shipped. The
 > `CALENDAR_VIEWER_PIN` secret is set (owner, 9 Aug 2026) and confirmed present, non-empty and
 > four-digit-shaped. The other activation blockers all remain closed: Lock Calendar fail-closed
 > (v20.39), secret shape-validated (v20.39), Calendar data readiness (v20.40–41), throttle-store
 > failure fail-closed (v20.45).
 >
 > Written this way on purpose. An entry that read "CLOSED at v20.12" while the rule was still
-> permissive is worse than no entry: it is the one document someone checks to decide whether the
-> roster is exposed, and it would have answered no when the answer was yes. Do not re-word this to
-> past tense until `firestore.rules` says so.
+> permissive would have been worse than no entry: this is the one document someone checks to decide
+> whether the roster is exposed, and it would have answered no when the answer was yes.
+> **`firestore.rules` now says so, and the wording followed on 28 Aug 2026** — two days late, which
+> is the other half of the same lesson. "Do not re-word until the rules say so" needs a matching
+> "and re-word it the moment they do", or the entry answers wrongly in the opposite direction and
+> does it for longer, because nothing prompts a re-read of a paragraph that has stopped being
+> alarming.
 
-The `overrides` collection — annual leave, absence and shift changes for every member — is readable
-with no authentication at all: `allow read;`, so anyone who finds the app URL can read all of it.
-The fix, built and waiting: reads require **either** a real member `name` claim **or** the shared
-`calendarViewer` capability, minted server-side by the `unlockCalendarViewer` Cloud Function in
-exchange for a four-digit staff PIN.
+The `overrides` collection — annual leave, absence and shift changes for every member — **was**
+readable with no authentication at all: `allow read;`, so anyone who found the app URL could read
+all of it. That stood from the app's first Firestore write until **26 Aug 2026**. Reads now require
+**either** a real member `name` claim **or** the shared `calendarViewer` capability, minted
+server-side by the `unlockCalendarViewer` Cloud Function in exchange for a four-digit staff PIN.
 
 **Why it stayed open for so long, and what changed.** Requiring auth was tried at v12.04 using an
 anonymous session and reverted at v12.05, correctly: an anonymous session is obtainable by anyone,
@@ -198,7 +204,7 @@ dies at that browser's next close — no manual cleanup and no token-revocation 
 pinned by `calendar-viewer-parity.test.mjs` Contract C; no unit or e2e test can observe the property
 itself, because it only exists across a genuine browser exit.
 
-**Residual limitations once it is switched on, all deliberate:**
+**Residual limitations now that it is switched on, all deliberate:**
 - **Rotation is manual.** Changing the PIN is a Secret Manager update (no client release —
   OPERATIONS_REFERENCE.md → "Rotating the Calendar PIN"). Existing viewer sessions survive a
   rotation until their browser closes unless the viewer account's refresh tokens are revoked.
@@ -319,10 +325,10 @@ all accounts". Migration progress is visible in Operations → Account status.
 **Status update (25 Jul 2026, owner-reported — not independently verified in-repo).** 2 accounts had
 migrated in the first 24 hours, **one of them the owner's**. So the specific exposure this entry is
 about — a guessable *master admin* password, the highest-value target in the app — **is closed in
-practice**. What remains open is the **6 management accounts**, which can write any member's
+practice**. What remains open is the **7 management accounts**, which can write any member's
 AL/absence/shifts on behalf; a staff account, by contrast, can only write its own overrides (the B3
 isolation rule holds), so its blast radius is one person's roster. Chasing those 6 needs no code —
-it is 7 people total opening Settings → Password, and it closes the large majority of what is left.
+it is 8 people total opening Settings → Password, and it closes the large majority of what is left.
 Verify against Operations → Account status rather than taking this paragraph's word for it.
 
 **Revisit when:** the app URL is advertised more widely, or it becomes official Chiltern
@@ -355,7 +361,7 @@ hosts), `script-src 'self'` already blocks injected script, and this is P4 defen
 live vector — not worth the breakage. **If narrowing is retried:** first capture the COMPLETE host set
 from a real-network run — read every `blockedURI` from the CI `csp` job (or a browser with the narrowed
 header on a live network), not a proxied dev run — then list exactly those hosts in `firebase.json` AND
-all ten `<meta>` CSPs, and confirm the CI `csp` job (not just local) goes green.
+all twelve `<meta>` CSPs, and confirm the CI `csp` job (not just local) goes green.
 
 ### `script-src`/`frame-src` must allow Firebase Auth's Google-API iframe — `apis.google.com` (fixed v17.82)
 Firebase Auth (`firebase-auth.js`, loaded from gstatic) pulls in the Google API client
@@ -372,7 +378,7 @@ Firebase-Auth-under-CSP requirement. **Second layer (v17.96):** once the gapi sc
 began pinging its own telemetry endpoint (`apis.google.com/js/gen_204`) — a `connect-src` violation
 (the `*.googleapis.com` wildcard does NOT cover `apis.google.com`). `connect-src` now includes
 `https://apis.google.com` too. Lesson: allowing a third-party script means allowing what it then
-CONNECTS to — check the CI csp job after each layer, not just the first. Applied to the `firebase.json` header AND all ten `<meta>` CSPs
+CONNECTS to — check the CI csp job after each layer, not just the first. Applied to the `firebase.json` header AND all twelve `<meta>` CSPs
 (csp-meta-parity), with `apis.google.com` added to `csp-hygiene.test.mjs`'s `DYNAMIC_HOSTS` (it's
 requested by the gstatic SDK, not built in our source).
 
@@ -486,7 +492,7 @@ can hold a valid local session with **no restorable identity** — a state that 
 about a day, became up to three weeks at v20.41, and is up to **seven weeks** at v20.47 now the
 session runs 60 days against ITP's unchanged 7.
 
-Since v20.46 (`CONFIG.CALENDAR_PIN_ACCESS: true`) this is **live behaviour, not a future one**:
+Since v20.51 (`CONFIG.CALENDAR_PIN_ACCESS: true` — v20.46 released it, v20.50 rolled it back) this is **live behaviour, not a future one**:
 that member gets the unlock card instead of their roster, despite being signed in. The
 card's "Sign in instead" link resolves it in one step and re-establishes the identity, so it is
 recoverable rather than a lockout — but it will generate a support question, it will land on iPhone
@@ -549,7 +555,7 @@ will silently fail for users on that domain, with no visible error in the app UI
 > set for everyone by `setupRosterAuth`; the page-load Firebase session is reliably established via
 > `ensureFirebaseSession`, B1). B2 first avoided the original outage by (a) an interim `!('name' in token)`
 > escape so no legacy/anonymous token was hard-rejected, and (b) adding the **`manager` tier** the original
-> lacked — the 6 managers edit staff data on behalf and would otherwise be locked out. B3 (v16.29) then
+> lacked — the 7 managers edit staff data on behalf and would otherwise be locked out. B3 (v16.29) then
 > dropped the escape and went strict, after the CLAIM_EPOCH=2 token sweep + manager re-provision; stale
 > tokens self-heal via `writeWithClaimRetry`, so no mass sign-out was needed. Emulator-tested (tier matrix
 > + delete + date bounding, all green). The historical post-mortem below is retained for context.
@@ -871,17 +877,28 @@ releases and was still being read as a live defect at the v20.32 audit. That is 
 this file has to guard against: an old finding is indistinguishable from a current one, so a stale
 entry costs more here than a missing one.
 
-### ~~The pension default assumed everybody is in the scheme~~ — CLOSED v21.64
+### ~~The pension default assumed everybody is in the scheme~~ — CLOSED v21.64, then FIXED PROPERLY at v21.78
 
-**Closed (v21.64).** A member who has withdrawn from the RPS could not set her pension to £0: the
-zero held on the payslip she typed it into and reverted to the scheme rate on every other, because
-four sites resolved "what should this payslip's pension be?" through `getPensionDefault()` and
-being IN the scheme was assumed rather than asked. Her take-home was understated by the whole
-contribution, and her tax and NI with it (the sacrifice comes off gross before both). `SK.pensionOptOut`
-(member-level, a separate flag from the amount) is now read by that one function, so the field
-default, `calculate()`'s fallback, the HPP estimate and the year summary all inherit the answer.
-It changes the DEFAULT and never a stored figure — payslips from when she WAS contributing keep
-their own amount. Design + the reason it is a flag rather than a magic £0: `.claude/rules/paycalc.md`.
+**First closed at v21.64.** A member who has withdrawn from the RPS could not set her pension to £0:
+the zero held on the payslip she typed it into and reverted to the scheme rate on every other, because
+four sites resolved "what should this payslip's pension be?" through `getPensionDefault()` and being
+IN the scheme was assumed rather than asked. Her take-home was understated by the whole contribution,
+and her tax and NI with it (the sacrifice comes off gross before both).
+
+**That first fix was itself a money bug, and the entry said otherwise for four releases.** v21.64
+shipped a single member-level boolean, `SK.pensionOptOut`, and this paragraph claimed it "changes the
+DEFAULT and never a stored figure — payslips from when she WAS contributing keep their own amount".
+It does not: `readFormData` stores `null` whenever a period's pension equals the period default (so
+periods keep healing as the app learns real historic rates), and a timeless boolean made that default
+£0 for **every payslip there has ever been**. Found by external review and reproduced — a 2025/26
+payslip's deduction went £160.78 → £0.00 and its take-home rose **£115.92**.
+
+**The shipped shape is a TIMELINE (v21.78).** `SK.pensionTimeline` records the changes,
+`paycalc-pension.js` holds the rules, and `getPensionDefault(pObj)` asks `isPensionOptedOut(pObj)`
+per period — so a member names the first payslip with no deduction and everything earlier is
+untouched. A timeline rather than one date because auto-enrolment re-enrols opted-out staff about
+every three years, so a rejoin is expected rather than hypothetical. Design: `.claude/rules/paycalc.md`
+invariant 12 and the `paycalc-pension.js` header.
 
 ### ~~Pension default is frozen onto a period once it is touched~~ — CLOSED v18.43
 
@@ -1091,9 +1108,16 @@ to its peer dependency range. Check with `npm outdated` in `functions/`. When un
 
 ### `firebase-tools` → `gaxios` dev-only advisory — no clean forward fix (F-DEP-1, reviewed v17.74)
 
-`npm audit` reports **5 moderate** advisories, all one root cause: a transitive `gaxios` in the
-**6.4.0 – 6.7.1** range pulled in by **`firebase-tools`** (root `devDependency`, currently
-`^15.22.2`).
+`npm audit` at the root reports a set of advisories that are **all dev-only** and all reachable
+through **`firebase-tools`** (root `devDependency`, currently `^15.22.2`). The original and still the
+awkward one is a transitive `gaxios` in the **6.4.0 – 6.7.1** range.
+
+**Do not trust a count written down here — run it.** This paragraph said "5 moderate, all one root
+cause" from v17.74 until 28 Aug 2026, by which point the real figure was **16 (1 low, 10 moderate,
+4 high, 1 critical)** across sixteen packages — `tar`, `brace-expansion`, `fast-uri`, `ip-address`,
+`js-yaml`, `hono`, `undici` and others had joined, and "one root cause" had stopped being true. A
+transitive dev tree moves on its own, so a number recorded in prose is stale from the day after it is
+written.
 
 **Impact: none in production.** `firebase-tools` is a **dev/CI-only** tool (Firebase emulators +
 deploy) — it is **never bundled or served** to staff. The app ships no npm dependencies at all
@@ -1599,7 +1623,7 @@ appear in DevTools and the Operations Error Log.
 
 | File | Location | Before | After |
 |------|----------|--------|-------|
-| `firebase-client.js:_pruneOldDocs` | Individual Storage file delete inside prune loop | `.catch(() => {})` | `.catch(e => console.warn('[pruneOldDocs] ...', e))` |
+| `doc-retention.js:pruneOldDocs` (was `firebase-client.js:_pruneOldDocs`) | Individual Storage file delete inside prune loop | `.catch(() => {})` | `.catch(e => console.warn('[pruneOldDocs] ...', e))` |
 | `firebase-client.js:uploadCircular` | Rollback Storage delete on Firestore write failure | `.catch(() => {})` | `.catch(e => console.warn('[uploadCircular] rollback ...', e))` |
 | `firebase-client.js:uploadNewsletter` | Rollback Storage delete on Firestore write failure | `.catch(() => {})` | `.catch(e => console.warn('[uploadNewsletter] rollback ...', e))` |
 
@@ -1622,8 +1646,10 @@ trigger** (design at ~4,000, must land before ~5,000), the recurring guide and p
 reviews, and the **after-every-new-starter** checks — including the work email, which since v19.30
 nothing prompts for.
 
-The one item that stays here because it is a *constraint*, not a date: **2026/27 pay rates** — see
-"2026/27 pay rates not confirmed" above (update `GRADES` when the award lands; evidence class B).
+The one item that stayed here as a *constraint* rather than a date — **2026/27 pay rates** — is
+**closed**: the award was payslip-confirmed on 28 Aug 2026 and is shipped. See "2026/27 pay
+rates — ✅ CONFIRMED AND SHIPPED" above, and `MAINTENANCE_CALENDAR.md` for the recurring
+read-the-payslip instruction that replaced it.
 
 ---
 

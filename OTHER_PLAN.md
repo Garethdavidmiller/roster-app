@@ -87,7 +87,7 @@ green (see Evolution above for the final values).*
 | 6 | Pay on a training rest-day (TRG RDW) | **Default 8h → RDW bucket**, manually adjusted afterwards (member in pay calc, or admin by entering real times) |
 | 7 | Over-run | Excess beyond the base shift → the existing **Overtime** bucket (BH over-run → BH-overtime bucket, matching the payslip). RDW days are never split — all hours stay RDW |
 | 8 | How RDW-ness is decided | **Explicitly marked on the roster** ("TRG RDW"). Manual entry gets an RDW tick, **pre-ticked** when the day's base is a rest day. Engine belt-and-braces: base RD/OFF ⇒ treat as RDW even if the flag is missing |
-| 9 | Sunday | **Blocked** — a Sunday can never be a training day (same 5-layer treatment as AL/Absent) |
+| 9 | Sunday | **Blocked** — a Sunday can never be a training day (same enforcement-layer treatment as AL/Absent; the layers are enumerated in CLAUDE.md and there are six of them now, not the five there were when this decision was recorded) |
 | 10 | Admin manual entry | Yes — **one** "Training" pill in Change a Shift; picking it reveals flavour choice + RDW tick + **optional** time boxes (blank = defaults) |
 | 11 | Times storage | Optional, on the override value itself (see grammar). Roster upload never carries times; only manual admin entry does |
 | 12 | Worked-day status | Training counts as a **worked** day (dispatcher BH-lieu counting included — a BH training earns lieu, since it pays as the day) |

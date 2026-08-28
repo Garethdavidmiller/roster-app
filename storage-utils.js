@@ -77,7 +77,7 @@ export function officeViewerUrl(storageUrl) {
 
 /**
  * The "YYYY-MM-DD" retention cutoff six months before `now` — documents dated strictly before
- * it are pruned (circulars/newsletters keep 6 months). Extracted from `_pruneOldDocs` so the
+ * it are pruned (circulars/newsletters keep 6 months). Extracted from `pruneOldDocs` (doc-retention.js) so the
  * fiddly month-underflow clamp is unit-testable: `setMonth()`/a bare `getMonth()-6` overflows on
  * a month-end date that doesn't exist 6 months prior (e.g. 31 Aug → "31 Feb" → 3 Mar), which
  * would prematurely delete docs only ~5 months and 29+ days old. Clamping the day to the target
@@ -97,8 +97,8 @@ export function sixMonthCutoffISO(now) {
  * a fixed `{collection}/{date}.{ext}` per date, honouring the doc's own fileType with a 'pdf'
  * default (DOCX support postdates storagePath, so a legacy doc with no fileType is a PDF).
  *
- * ONE RULE, previously written twice (v20.55). `_transactionalUpload` derived it with `?? 'pdf'`
- * and `_pruneOldDocs` with `|| 'pdf'` — semantically different spellings (`??` keeps an empty
+ * ONE RULE, previously written twice (v20.55). The upload engine derived it with `?? 'pdf'`
+ * and `pruneOldDocs` with `|| 'pdf'` — semantically different spellings (`??` keeps an empty
  * string, `||` replaces it) of what must be one answer, in the two places that decide which old
  * Storage object to DELETE. A drift here doesn't error: it quietly orphans a file, or worse,
  * removes the wrong one. `||` is the correct reading — a doc carrying `fileType: ''` should fall

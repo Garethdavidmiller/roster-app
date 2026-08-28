@@ -329,28 +329,51 @@ Apply approved changes:
 
 ### Overview
 
-Two independent document-upload flows with identical mechanics: an admin uploads a PDF from the Operations page; staff access the latest document via the nav-panel drawer. Both are handled by the same helper pattern in `firebase-client.js`.
+Two independent document-upload flows with identical mechanics: an admin uploads a PDF from the Operations page; staff access the latest document via the nav-panel drawer. Both are handled by the same upload engine in `documents-client.js` (split out of `firebase-client.js` at v21.90; `firebase-client.js` still re-exports the entry points, so importers are unchanged).
 
 ### Upload flow (admin, Operations page)
 
 1. Admin opens the Operations page and expands the relevant card (Weekly Retail Circular or Marylebone Newsletter).
 2. Selects an upload date using the date input (capped to today — `dateInput.max = formatISO(new Date())`).
 3. Selects a PDF or Word (.docx) file and clicks **Upload**.
-4. `uploadCircular(date, file, uploadedBy)` / `uploadNewsletter(date, file, uploadedBy)` in `firebase-client.js`:
+4. `uploadCircular(date, file, uploadedBy)` / `uploadNewsletter(date, file, uploadedBy)` — exported from `firebase-client.js`, implemented in `documents-client.js`:
    - Writes the file (PDF or Word .docx) to Firebase Storage at a versioned path: `circulars/{date}-{uploadId}.{ext}` / `newsletters/{date}-{uploadId}.{ext}` (the random suffix prevents overwriting the existing file before Firestore has committed the new doc)
    - Upserts the Firestore doc at `circulars/{date}` / `newsletters/{date}` with `{ date, storageUrl, storagePath, fileType: "pdf"|"docx", uploadedAt, uploadedBy }`; the `storagePath` field records the exact Storage path for cleanup tracking
    - After a successful Firestore upsert, deletes the previous Storage file at the old `storagePath` (if one existed)
-   - Fire-and-forget: calls `_pruneOldDocs()` to delete documents and Storage files older than 6 months
+   - Fire-and-forget: calls `pruneOldDocs()` (`doc-retention.js`) to delete documents and Storage files older than 6 months
 
-Re-uploading for the same date overwrites the Firestore doc and replaces the Storage file; the old Storage file is deleted after the new Firestore doc commits. Docs uploaded before v13.99 lack a `storagePath` field — `_pruneOldDocs` falls back to `{collection}/{date}.pdf` for those.
+Re-uploading for the same date overwrites the Firestore doc and replaces the Storage file; the old Storage file is deleted after the new Firestore doc commits. Docs uploaded before v13.99 lack a `storagePath` field — `pruneOldDocs` falls back (via `legacyDocPath`) to `{collection}/{date}.{fileType}` for those, honouring the OLD doc's own `fileType` so a PDF↔DOCX swap still finds the previous file.
 
 ### 6-month auto-prune
 
-`_pruneOldDocs(collectionName, excludeDate, storage, refFn, deleteObject)` in `firebase-client.js`:
-- Calculates a cutoff date 6 months in the past
-- Queries the collection for docs with `date < cutoff`, then skips the just-uploaded `excludeDate`
-- For each match (Firestore first, then Storage): `deleteDoc` then `deleteObject`. A Storage delete failure is logged via `console.warn` and never thrown; a Firestore delete failure is caught per-doc and logged via `console.error` so one bad delete can't abort the rest
-- Called fire-and-forget at the end of both `uploadCircular` and `uploadNewsletter` — a failed prune never blocks the upload
+`pruneOldDocs(collectionName, excludeDate, storage, refFn, deleteObject, fs)` in **`doc-retention.js`**
+(extracted from `firebase-client.js` at v21.86, and renamed off its underscore in the same move; `fs`
+is the injected Firestore handle set, which is what lets the sweep be driven against fakes in Node):
+
+- **Reads a SERVER time first** and skips the whole sweep if it cannot get one. The just-written
+  anchor document carries `uploadedAt: serverTimestamp()`, so reading it back costs one read. The
+  cutoff used to come from `new Date()` — a destructive delete driven by whichever admin device
+  happened to upload, so a clock running months fast silently took months of current documents. No
+  server time → no sweep, deliberately: retention is housekeeping and the next upload runs it again.
+- Derives the month-underflow-safe cutoff via `sixMonthCutoffISO` (`storage-utils.js`), queries the
+  collection for `date < cutoff`, and skips the just-uploaded `excludeDate`
+- **Deletes only what it read.** The query is a snapshot; a re-upload for one of those dates between
+  the query and the delete used to destroy the FRESH metadata while cleaning up the stale object —
+  document gone, new file orphaned. Each delete now re-reads inside a `runTransaction` and stands
+  down if the `storagePath` has moved (logged as "changed since the query — left alone")
+- Only after that transaction commits is the Storage object removed. A Storage delete failure is
+  logged via `console.warn` and never thrown; a Firestore delete failure is caught per-doc and logged
+  via `console.error` so one bad delete can't abort the rest
+- Called fire-and-forget from the shared upload engine's `postCommit` for both `uploadCircular` and
+  `uploadNewsletter` — a failed prune never blocks the upload
+- Covered by `doc-retention.test.mjs`, whose Firestore fake has an `onBeforeDelete` seam that slips a
+  competing writer between the query and the transaction — the interleaving no ordering of real calls
+  can force
+
+*This section described the pre-v21.86 implementation — the wrong name, the wrong file, a signature
+one argument short, and a `new Date()` cutoff — until 28 Aug 2026. It is the operational reference
+for the browser's only destructive operation on shared data, so it is worth re-reading against
+`doc-retention.js` rather than trusting this paragraph.*
 
 ### Staff access flow
 
