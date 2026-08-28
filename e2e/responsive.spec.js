@@ -102,7 +102,6 @@ test('paycalc desktop @1280×720 (short height): result card renders, no horizon
     await page.setViewportSize({ width: 1280, height: 720 });
     await seedSession(page);
     await page.addInitScript(() => {
-        localStorage.setItem('myb_pc_ytd_notice_shown', '1');
         localStorage.setItem('myb_pc_ns_migrated', '1');
     });
     await page.goto('/paycalc.html');

@@ -43,6 +43,14 @@ export function collectFatalErrors(page) {
 // A spec that is ABOUT the notice re-enables it with a later addInitScript removing the key —
 // later init scripts run after this one, so the remove wins (axe.spec.js and calendar.spec.js
 // both do exactly that, and are unaffected).
+//
+// THE PAYCALC NOTICE JOINED IT AT v21.91, and how it got here is the useful part. That key was set
+// by FIVE specs individually, each with its own copy of the literal, because the seeder had never
+// owned it. Re-posting the notice on a new key therefore broke fifteen tests across four files that
+// were still setting the old one — and four MORE specs open paycalc.html having never suppressed it
+// at all, which was invisible for as long as the notice sat past its expiry. A per-spec list that is
+// only exercised when a notice happens to be live is not a list anybody maintains. It belongs here,
+// once, with the other two.
 export function seedSession(page, name = 'G. Miller') {
     return page.addInitScript((n) => {
         localStorage.setItem('myb_admin_session', JSON.stringify({
@@ -52,6 +60,7 @@ export function seedSession(page, name = 'G. Miller') {
         }));
         localStorage.setItem('myb_notice_sign_in_2026_done', '1');
         localStorage.setItem('myb_notice_backpay_2026_done', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
     }, name);
 }
 
