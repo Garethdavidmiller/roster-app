@@ -1789,7 +1789,7 @@ export function init() {
     // ── LIGHTBOXES — About, Help, Welcome, YTD notice, Decimal converter ──────────
     // All five lightboxes delegated to paycalc-lightboxes.js; returns the About
     // open handle so the nav-panel drawer logo can open the same panel.
-    const { openAboutLightbox } = initPaycalcLightboxes();
+    const { openAboutLightbox, showYtdNotice } = initPaycalcLightboxes();
 
     // ── SW UPDATE AUTO-ACTIVATION ─────────────────────────────────────────────────
     // Handled by the shared registerServiceWorker() call below (see "SERVICE WORKER").
@@ -1821,7 +1821,18 @@ export function init() {
         // terminal identity. That matters most here — paycalc is the one `soft` page, so a member can
         // reach this line locally signed in with a FAILED Firebase session, and the overlay's
         // `named`-only gate is what stops it showing a block they could never satisfy.
-        initPasswordForce(name, {});
+        // The YTD notice queues BEHIND this one. `initPasswordForce` has always returned whether
+        // it showed the overlay, and its own JSDoc says the value exists for "the next overlay that
+        // has to queue behind this one" — this is that overlay. Before v21.91 nothing awaited it, so
+        // a notice about copying two figures off a payslip opened in front of a set-password block
+        // the member could not dismiss until they had satisfied it.
+        //
+        // We do not branch on the result: if the overlay IS up, `openNoticeIfClear` sees it and
+        // defers, leaving the notice unflagged for the next load. Awaiting is the whole fix — it
+        // moves the YTD notice after the decision instead of racing it. `.catch` because a failed
+        // password overlay must never cost the member their notice, and `initPasswordForce` fails
+        // open by design.
+        initPasswordForce(name, {}).catch(() => {}).finally(() => showYtdNotice());
       };
       // SOFT enforcement (B1.2), now decided via the policy (ARCHITECTURE_PLAN.md Phase 7): the pay
       // calculator is localStorage-based and writes no isolated data, so a degraded/anonymous session

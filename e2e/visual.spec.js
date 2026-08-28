@@ -46,7 +46,7 @@ const FIXED_TIME = new Date('2026-07-15T09:00:00Z');
 function dismissOneTimeOverlays(page) {
     return page.addInitScript(() => {
         const flags = {
-            'myb_pc_ytd_notice_shown': '1',    // paycalc Year-to-Date notice
+            'myb_pc_ytd_notice_2_shown': '1',  // paycalc Year-to-Date notice (run 2, v21.91)
             'myb_pc_ns_migrated': '1',         // paycalc legacy data-ownership prompt
             'myb_notif_prompt_done': '1',      // calendar notification prompt strip
             'myb_links_welcome_seen': '1',        // links first-visit notice

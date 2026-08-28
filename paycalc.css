@@ -481,7 +481,11 @@
     .badge-sun  { background: var(--blue-light);   color: var(--blue-sky); border-color: var(--blue-sky); }
     .badge-box  { background: var(--boxing-day-bg); color: var(--boxing-day-text); border-color: var(--accent-gold); }
     .badge-peer { background: var(--green-light);  color: var(--green);    border-color: var(--green);    }
-    .badge-bh   { background: var(--al-light);     color: var(--al);       border-color: var(--al);       }
+    /* --al-text, not --al: teal-on-teal-tint measures 4.16:1, under the 4.5 AA floor. The token
+       already existed for this (shared.css, beside --orange-text and --rdw-text) and these badges
+       had simply never used it — they render only when the pay period contains a bank holiday, so
+       the a11y gate first SAW them on 28 Aug 2026. Border keeps --al: a 3:1 non-text element. */
+    .badge-bh   { background: var(--al-light);     color: var(--al-text);  border-color: var(--al);       }
 
     /* HH:MM input (all hours rows) */
     .hhmm-wrap { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
@@ -1169,7 +1173,7 @@
       }
       /* Rate badge colours — ensure they print with background */
       .badge-sat  { background: var(--orange-light)    !important; color: var(--orange-text)   !important; }
-      .badge-bh   { background: var(--al-light)        !important; color: var(--al)       !important; }
+      .badge-bh   { background: var(--al-light)        !important; color: var(--al-text)  !important; }
       .badge-ot   { background: var(--ot-light)        !important; color: var(--ot)       !important; }
       .badge-rdw  { background: var(--rdw-light)       !important; color: var(--rdw-text) !important; }
       .badge-sun  { background: var(--blue-light)      !important; color: var(--blue-sky) !important; }

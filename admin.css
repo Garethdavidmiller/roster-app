@@ -202,7 +202,10 @@
             font-size: 20px;
             font-weight: 800;
             line-height: 1;
-            color: var(--al);
+            /* --al-text: the same 4.16:1 pair as the paycalc BH badge. Unscanned rather than
+               passing — the axe gate reaches admin with this banner EMPTY, so the figure it
+               colours is not in the accessibility tree at scan time. */
+            color: var(--al-text);
         }
         /* Weight 600→700 and letter-spacing 0.4→0.5px (v18.86) to match `.field-eyebrow` in
            shared.css — the app's uppercase micro-label convention, and what `.week-grid-header`

@@ -8,7 +8,7 @@ It is a **floor**: axe catches the machine-checkable ~third of real issues (labe
 ARIA, duplicate ids). It does not replace a manual screen-reader pass.
 
 **Open items: one, and it is not a finding.** Every finding recorded below is fixed (the last,
-transient status glyphs, at v21.85). What has never been done is a **manual screen-reader pass** —
+BH rate badges, at v21.91). What has never been done is a **manual screen-reader pass** —
 somebody driving the app with VoiceOver or TalkBack and listening to it. That is the only way to
 reach the two-thirds axe cannot: reading ORDER, whether announcements arrive at a useful moment,
 whether a live region interrupts something the user was in the middle of, and whether the app is
@@ -117,6 +117,31 @@ assertion passes, and axe has no rule for "a decorative glyph that was not hidde
 judgement about meaning, which is why it sat here as prose for eight months instead of failing a
 build. `status-glyph-parity.test.mjs` enforces it in the three shapes it can break (markup,
 `textContent`, `innerHTML`), plus that the helper is imported wherever it is called.
+
+### BH rate badges — `color-contrast` (SERIOUS) — ✅ FIXED (v21.91)
+
+`#badge-bh` / `#badge-bhot` on paycalc rendered `--al` on `--al-light` — teal on teal tint, measured
+**4.16:1** against the 4.5 AA floor. Fixed by using `--al-text` (`oklch(43% 0.101 182.5)`, 5.98:1),
+the token that already existed in `shared.css` beside `--orange-text` and `--rdw-text` for exactly
+this case. The border keeps `--al`: a non-text element, 3:1. No new token, and the badge keeps its
+teal identity. The same pair in admin's `.al-banner-stat .stat-val` was corrected with it.
+
+**Why the gate had never caught it, which is the part worth keeping.** Two independent maskings, and
+neither is a hole in the gate:
+
+1. **The badges only exist some of the time.** They render when the selected pay period contains a
+   bank holiday, so the scan first SAW them on 28 Aug 2026, with Monday's holiday in period P28. A
+   gate that scans one settled state per page can only find what that state happens to contain, and
+   conditional UI is invisible to it for most of the year.
+2. **An open modal hid them even then.** Until v21.91 the YTD notice opened during this scan — the
+   spec suppressed it with a key that had been renamed — and axe does not flag what sits behind an
+   open dialog. So the run that first had the badges on screen ALSO had them covered. Suppressing the
+   notice correctly is what made the violation appear, and the failure looked at first like the
+   notice change had caused it.
+
+The general lesson, and it applies to every page in `axe.spec.js`: **a green a11y scan is a statement
+about the state that was scanned, not about the page.** If a surface only appears under a condition —
+a bank holiday, an error, a populated list — the gate is silent on it until something puts it there.
 
 ## Known pre-existing (not gate-caught, low priority)
 
