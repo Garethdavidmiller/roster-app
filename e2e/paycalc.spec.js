@@ -45,7 +45,7 @@ for (const { w, h } of [{ w: 1024, h: 900 }, { w: 1280, h: 1000 }, { w: 1366, h:
         await seedSession(page);
         // Suppress the one-time notices so we measure the underlying layout.
         await page.addInitScript(() => {
-            localStorage.setItem('myb_pc_ytd_notice_shown', '1');
+            localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
             localStorage.setItem('myb_pc_ns_migrated', '1');
         });
         await page.goto('/paycalc.html');
@@ -116,23 +116,58 @@ for (const { w, h } of [{ w: 1024, h: 900 }, { w: 1280, h: 1000 }, { w: 1366, h:
 // and it must be the ONLY thing open (overlay.js manages a single active overlay; two at once fight
 // over Back/Escape/Tab).
 //
-// This USED to be a stacking test: the welcome lightbox was the competitor it had to beat. The
-// welcome lightbox was retired at v19.36 and the YTD notice has been past its expiry since 5 Jul, so
-// there is nothing left on this page to stack WITH — the `_ownerPending` guard in
-// paycalc-lightboxes.js still exists and still suppresses the YTD notice, but it can no longer be
-// exercised from the outside. What remains testable is the prompt itself, which is the part that
-// matters; the loss of the priority coverage is real and deliberate, not an oversight.
+// This is a STACKING test again (v21.91). It stopped being one twice over — the welcome lightbox was
+// retired at v19.36, and the YTD notice went past its expiry on 5 Jul, leaving nothing on the page to
+// stack WITH; the comment here recorded that loss as real and deliberate rather than pretending the
+// assertion still meant something. Re-posting the YTD notice restores the competitor, so the
+// priority rule is exercised from the outside once more. Note what that means: the value of the
+// `toHaveCount(1)` assertion below has been silently zero for seven weeks, and only the note saying
+// so made that recoverable.
 test('paycalc: the data-ownership prompt opens for legacy data, and alone', async ({ page }) => {
     await seedSession(page);   // signs in as a real member (G. Miller)
     await page.addInitScript(() => {
         // Genuine unnamespaced legacy pay data → migration pending.
         localStorage.setItem('myb_pc_rate', '20.74');
         localStorage.removeItem('myb_pc_ns_migrated');
+        // The YTD notice is live again and would otherwise be the second overlay. Left UNSET on
+        // purpose — suppressing it here would be suppressing the thing under test.
+        localStorage.removeItem('myb_pc_ytd_notice_2_shown');
     });
     await page.goto('/paycalc.html');
 
     await expect(page.locator('#dataOwnerLightbox.visible')).toBeVisible();
     await expect(page.locator('.lb-overlay.visible'), 'exactly one overlay open').toHaveCount(1);
+    // And specifically not the lower-stakes one: a prompt about copying two figures off a payslip
+    // must never sit in front of a decision about whose pay data this device is holding.
+    await expect(page.locator('#noticeYtdLightbox.visible')).toHaveCount(0);
+
+    // WHAT THIS CAN AND CANNOT CATCH, measured by mutation rather than assumed. Two INDEPENDENT
+    // guards keep the notice out: `_ownerPending` (will-open) and `openNoticeIfClear` (is-open).
+    // Removing EITHER leaves this test green, because the other still holds — so a single-guard
+    // regression is invisible here. Removing BOTH fails it. That is the honest description: the
+    // assertion is live and watching the right thing, and the redundancy is the product being
+    // well built rather than the test being weak. Do not "simplify" by deleting one guard on the
+    // evidence that the suite stays green; it will.
+});
+
+// The other half: on a device with nothing competing, the re-posted notice DOES appear. Without this
+// the test above passes just as well against a notice that is broken and never opens at all — which
+// is the state it was actually in from 5 Jul, and which nothing detected.
+test('paycalc: the re-posted YTD notice appears on a clean device', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');          // no ownership prompt
+        localStorage.removeItem('myb_pc_ytd_notice_2_shown');     // not yet seen on this device
+    });
+    await page.goto('/paycalc.html');
+
+    await expect(page.locator('#noticeYtdLightbox.visible')).toBeVisible();
+    // Closing it flags the device, and the flag is the NEW key — re-dating the old one would have
+    // reached nobody, because every device that arrived after the first run expired already carries
+    // it, set by the silent-expiry branch without ever showing the notice.
+    await page.locator('#noticeYtdClose').click();
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('myb_pc_ytd_notice_2_shown')))
+        .toBe('1');
 });
 
 
@@ -206,7 +241,7 @@ test('paycalc: joiner ytd-mode HPP excludes pre-employment non-premium pay', asy
 // suite passed; a human pressing the button found it), so the destructive path gets a real browser.
 const PT_QUIET = () => {
     localStorage.setItem('myb_pc_ns_migrated', '1');
-    localStorage.setItem('myb_pc_ytd_notice_shown', '1');
+    localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
 };
 
 test('paycalc: the Settings deep link lands on the backup card OPEN', async ({ page }) => {

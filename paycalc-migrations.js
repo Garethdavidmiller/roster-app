@@ -156,7 +156,13 @@ export function ytdTaxKey(ty)     { return `${pcPrefix()}ytd_tax_${ty.label.repl
 
 /** localStorage key: YTD notice seen-flag (set when the YTD notice is dismissed).
  *  Device-level — not namespaced. */
-export const NOTICE_YTD_KEY = 'myb_pc_ytd_notice_shown';
+// v21.91 — the SECOND run of the YTD notice, and it needed a new key rather than a new date.
+// The first run expired on ~5 Jul 2026, and the expiry branch sets the flag WITHOUT showing
+// anything — so every device that arrived after that date is marked "shown" for a notice it never
+// saw. Those are exactly the people the restart is for (a new starter's tax estimate is only
+// accurate once they enter Year-to-Date figures). Re-dating the old key would have reached nobody.
+// Same reasoning as the links welcome notice at v19.51.
+export const NOTICE_YTD_KEY = 'myb_pc_ytd_notice_2_shown';
 
 // ── DEVICE-LOCAL PAYSLIP ACTUALS (v14.69) ─────────────────────────────────────
 // A member's own real payslip figures, keyed by ISO payday, used by the Pay
@@ -198,7 +204,7 @@ export function clearPayslipActuals() { lsDel(payslipActualsKey()); }
 const _ACTIVE_DEVICE_KEYS = [
     'myb_pc_cea_migrated',
     'myb_pc_pension_v882_migrated',
-    'myb_pc_ytd_notice_shown',
+    'myb_pc_ytd_notice_2_shown',
     'myb_pc_ns_migrated',
 ];
 
@@ -221,6 +227,7 @@ const _ACTIVE_DEVICE_KEYS = [
  *  having no writer is what "retired" MEANS. */
 const _RETIRED_DEVICE_KEYS = [
     'myb_pc_pay_welcome_shown',   // welcome lightbox, retired v19.36
+    'myb_pc_ytd_notice_shown',    // YTD notice run 1 (Apr–Jul 2026), superseded by run 2 at v21.91
 ];
 
 export const DEVICE_KEYS = new Set([..._ACTIVE_DEVICE_KEYS, ..._RETIRED_DEVICE_KEYS]);

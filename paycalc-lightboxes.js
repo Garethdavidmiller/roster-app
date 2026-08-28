@@ -22,18 +22,32 @@ import { getLoggedMember } from './paycalc-settings.js';
 import { setStatus } from './status-text.js';
 /**
  * Initialise all paycalc lightboxes and the decimal hours converter.
- * Returns the openAboutLightbox handle so the coordinator can pass it to initNavPanel.
  *
- * @returns {{ openAboutLightbox: (() => void)|null }}
+ * Returns the openAboutLightbox handle so the coordinator can pass it to initNavPanel, and
+ * `showYtdNotice` — the YTD notice's opener, DEFERRED rather than fired here. Everything else this
+ * page can put on screen by itself must have had its turn first; see the note on that function.
+ *
+ * @returns {{ openAboutLightbox: (() => void)|null, showYtdNotice: () => void }}
  */
 export function initPaycalcLightboxes() {
   // One-time notices must not stack — overlay.js manages a single active overlay
   // (history entry + focus trap), so two open at once fight over Back/Escape/Tab.
-  // The data-ownership prompt is highest priority (it guards another member's pay
-  // data and forces a reload on resolution), so when it's pending the YTD notice is suppressed
-  // this load and reappears next load once it's resolved. The welcome lightbox and the
-  // password-2026 notice that used to queue behind it were retired at v19.36 — the YTD notice is
-  // the only one left, so this guard now has a single subject.
+  //
+  // THE YTD NOTICE GOES LAST, ALWAYS. It is the lowest-stakes thing this page can open: the
+  // ownership prompt guards another member's pay data and forces a reload, and the forced
+  // set-password overlay is a block the member has to satisfy. A prompt about copying two figures
+  // off a payslip must never sit in front of either. Two guards, and they catch different cases:
+  //
+  //   `_ownerPending`  — a WILL-OPEN guard, read here, before the ownership prompt has opened.
+  //   `openNoticeIfClear` — an IS-OPEN guard, read at open time, for anything already on screen.
+  //
+  // Neither could see the forced password overlay, because that one is decided AFTER an auth
+  // round-trip while this function runs synchronously at init — so until v21.91 the YTD notice
+  // simply won the race and appeared first. That is why the opener below is returned rather than
+  // called: the coordinator invokes it once `initPasswordForce` has settled.
+  //
+  // Deferring never loses the notice. `openNoticeIfClear` leaves it unflagged, so it returns on the
+  // next load — which is the correct outcome for a notice whose whole job can wait a day.
   const _ownerPending = hasPendingLegacyMigration(getLoggedMember()?.name);
 
   // ── ABOUT LIGHTBOX ──────────────────────────────────────────────────────────
@@ -90,14 +104,24 @@ export function initPaycalcLightboxes() {
 
   // ── YTD NOTICE ──────────────────────────────────────────────────────────────
   // Shown once per device. It used to wait for the welcome lightbox; that was retired at v19.36.
-  (function () {
-    const NOTICE_DATE = '6 Apr 2026';
-    if (isNoticeExpired(NOTICE_DATE, 90) && !lsGet(NOTICE_YTD_KEY)) { lsSet(NOTICE_YTD_KEY, '1'); return; }
-    if (lsGet(NOTICE_YTD_KEY)) return;
-    if (_ownerPending) return;   // data-ownership prompt takes priority this load
+  //
+  // RE-POSTED 28 Aug 2026 (v21.91) for one further 90-day run, on a NEW key — see NOTICE_YTD_KEY.
+  // The first run was dated 6 Apr and expired ~5 Jul, and expiry here is silent: the branch below
+  // flags the device and shows nothing. So from July onwards a new starter, or anyone on a new
+  // phone, got no prompt at all — at exactly the point in the tax year when entering Year-to-Date
+  // figures is what makes their estimate accurate. This is a ONE-OFF restart, not a recurring
+  // prompt: when this run lapses in ~Nov 2026 the honest fix is to key it off whether the member
+  // has actually entered YTD figures for the current tax year, which is a different mechanism from
+  // the one-time notice pattern and wants deciding on its own.
+  const showYtdNotice = (function () {
+    const NOTICE_DATE = '28 Aug 2026';
+    const noop = () => {};
+    if (isNoticeExpired(NOTICE_DATE, 90) && !lsGet(NOTICE_YTD_KEY)) { lsSet(NOTICE_YTD_KEY, '1'); return noop; }
+    if (lsGet(NOTICE_YTD_KEY)) return noop;
+    if (_ownerPending) return noop;   // data-ownership prompt takes priority this load
 
     const lb = document.getElementById('noticeYtdLightbox');
-    if (!lb) return;
+    if (!lb) return noop;
 
     const notice = createLightbox({
       overlay:  lb,
@@ -115,11 +139,10 @@ export function initPaycalcLightboxes() {
       },
     });
 
-    // Two guards, catching DIFFERENT cases — keep both. `_ownerPending` above is a WILL-OPEN guard
-    // (the ownership prompt has not opened yet at this point, so an is-open test cannot see it);
-    // `openNoticeIfClear` is an IS-OPEN guard for anything already on screen. Deferring leaves the
-    // notice unflagged, so it returns on the next load.
-    openNoticeIfClear(notice);
+    // Handed back rather than called — the coordinator opens it after everything else has had its
+    // turn. `openNoticeIfClear` is still the only way it may open (a bare `.open()` on a stacked
+    // notice archives and flags a notice nobody saw — the v19.53 bug).
+    return () => openNoticeIfClear(notice);
   })();
 
   // ── DECIMAL HOURS CONVERTER ─────────────────────────────────────────────────
@@ -240,5 +263,5 @@ export function initPaycalcLightboxes() {
     });
   })();
 
-  return { openAboutLightbox };
+  return { openAboutLightbox, showYtdNotice };
 }
