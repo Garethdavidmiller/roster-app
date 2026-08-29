@@ -504,13 +504,13 @@ export async function fillFromRoster(autosave) {
     const _names = written.map(c => _CAT_LABELS[c] ?? c);
     const _what = _names.length > 3 ? `${written.length} categories` : _names.join(' + ');
     const _gone = cleared.map(c => _CAT_LABELS[c] ?? c).join(' + ');
-    hint.textContent = written.length > 0
+    setStatus(hint, written.length > 0
       ? `✓ Filled ${_what}${cleared.length ? ` + cleared ${_gone}` : ''} — tap "Clear all entries" to undo`
       : cleared.length > 0
         ? `✓ Cleared ${_gone} — your calendar shows none`
         : (getOverridesFetchState() === 'loaded'
             ? 'Nothing to fill — no special-rate shifts on this payslip'
-            : 'Nothing to fill — and recorded shift changes could not be loaded (check signal)');
+            : 'Nothing to fill — and recorded shift changes could not be loaded (check signal)'));
     setTimeout(() => { hint.textContent = prev; }, 4000);
   }
 }

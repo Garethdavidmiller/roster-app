@@ -158,10 +158,13 @@ export function buildActualCheck(actual, estimated) {
     if (!(actual > 0)) return '';
     const diff = actual - estimated;
     const ad   = Math.abs(diff);
+    // The ✓ is wrapped because this lands in `#actualVerdict`, which is `aria-live="polite"`
+    // (v21.94). A pure builder returning markup is a shape `status-glyph-parity` cannot see —
+    // it has no assignment target to attribute — so this one is kept right by hand.
     if (ad < 0.005)
-        return `<div class="check-actual-line check-ok">✓ Matches your payslip exactly.</div>`;
+        return `<div class="check-actual-line check-ok"><span aria-hidden="true">✓</span> Matches your payslip exactly.</div>`;
     if (ad <= 2)
-        return `<div class="check-actual-line check-ok">✓ Matches your payslip to within ${fmt(ad)} — the expected rounding from payroll's cumulative tax method.</div>`;
+        return `<div class="check-actual-line check-ok"><span aria-hidden="true">✓</span> Matches your payslip to within ${fmt(ad)} — the expected rounding from payroll's cumulative tax method.</div>`;
     const dir = diff > 0 ? 'more' : 'less';
     if (ad <= 25)
         return `<div class="check-actual-line check-near">Close — your payslip pays ${fmt(ad)} ${dir} than this estimate. Small gaps usually come from tax adjustments; entering your Year to Date figures sharpens the next estimate.</div>`;

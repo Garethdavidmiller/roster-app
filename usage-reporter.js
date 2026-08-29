@@ -139,8 +139,8 @@ function _recordOrigin(identity) {
  * developer's own opens are never recorded. No dedup: every open counts ("how many times"),
  * unlike the active-account metric. Item ids (also allowlisted in firestore.rules):
  *   'huddle' | 'circular' | 'newsletter'
- *   'guide-staff' | 'guide-paycalc' | 'guide-railcard' | 'guide-fip'
- * The four guide ids come from NAV_GUIDES in nav-panel.js, which stamps each one onto its own
+ *   'guide-staff' | 'guide-paycalc' | 'guide-railcard' | 'guide-rangers' | 'guide-fip'
+ * The guide ids come from NAV_GUIDES in nav-panel.js, which stamps each one onto its own
  * link — never matched from the href here, because './paycalc-guide.html'.includes('guide.html')
  * is true and a substring test would silently count the Pay Calculator Guide as the Staff Guide.
  * @param {string} itemId - stable open id (see list above)

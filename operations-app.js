@@ -324,7 +324,8 @@ export function init() {
             // the `?` panel and in the title here, so nothing is lost from the one place a reader
             // goes when they do not know the term.
             pwEl.title = mig ? 'Has set their own password' : 'Still on the surname default password';
-            pwEl.textContent = mig ? '✓ Own' : 'Default';
+            // The ✓ is decoration; "Own" is the whole statement, on ~50 rows (v21.94).
+            pwEl.innerHTML = mig ? '<span aria-hidden="true">✓</span> Own' : 'Default';
             head.append(nameEl, pwEl);
             const resetBtn = document.createElement('button');
             resetBtn.type = 'button';
@@ -469,10 +470,10 @@ export function init() {
         async function doReset(/** @type {string} */ name, /** @type {HTMLButtonElement} */ btn) {
             const ok = await confirmDialog({
                 title: 'Reset password?',
-                // Wording matches what actually happens today: there is NO forced set-a-new-password
-                // overlay yet (PASSWORD_PLAN.md Phase 2, not shipped) — the member signs in with their
-                // surname and is nudged in Settings → Password. Don't imply an enforced step.
-                message: `Reset ${name}'s password back to their surname default and sign them out of their other devices? Tell them to sign in with their surname, then open Settings → Password to choose a new one.`,
+                // Tracks the FORCED overlay (v21.94): `password-force.js` shipped at v18.92 and
+                // `CONFIG.FORCE_PASSWORD_SET` is true, so a reset member is compelled to choose a
+                // new password at their next sign-in. This used to send them to Settings instead.
+                message: `Reset ${name}'s password back to their surname default and sign them out of their other devices? Tell them to sign in with their surname — the app will then ask them to choose a new one.`,
                 confirmLabel: 'Reset', danger: true,
             });
             if (!ok) return;
@@ -607,7 +608,7 @@ export function init() {
                 // a green ✓ there, plain grey here. On a page of ten cards an admin scans for
                 // trouble, "all clear" has to look the same wherever it appears, or the quieter
                 // one reads as "not loaded yet".
-                content.innerHTML = '<p class="email-count-done">✓ No outstanding requests.</p>';
+                content.innerHTML = '<p class="email-count-done"><span aria-hidden="true">✓</span> No outstanding requests.</p>';
                 return;
             }
             // Auto-open when there IS something to action — an outstanding request is time-sensitive
@@ -810,8 +811,10 @@ export function init() {
                         { icon: '📝', html: 'You can enter, edit, or remove an email on anyone\'s behalf with the <strong>Set email</strong> / <strong>Edit</strong> buttons — useful if they\'re having trouble, or for <strong>Management accounts</strong> (which have no Settings page of their own).' },
                     ]},
                     { heading: 'Resetting a password', items: [
-                        { icon: '↩️', html: 'The <strong>Reset</strong> button appears only next to someone who has set their own password. Tap it if they\'ve forgotten it — the password goes back to their <strong>surname default</strong> and they\'re signed out of their other devices.' },
-                        { icon: '🔒', html: 'After a reset they sign in with their surname again and can set a new password of their own.' },
+                        // Both lines rewritten at v21.94: Reset is offered to EVERYONE (see
+                        // `buildRow` — v18.84), and the new password is compelled, not optional.
+                        { icon: '↩️', html: '<strong>Reset</strong> is offered next to <strong>everyone</strong>. Tap it if someone has forgotten their password — it goes back to their <strong>surname default</strong> and they\'re signed out of their other devices. Resetting an account that is already on the default is harmless, and still signs their other devices out.' },
+                        { icon: '🔒', html: 'They sign in with their surname again, and the app then <strong>asks them to choose a new password</strong> before they can carry on.' },
                     ]},
                 ],
             },

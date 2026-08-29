@@ -12,7 +12,7 @@
  */
 
 import { getBaseShift, formatISO, getBankHolidays, parseISODate } from './roster-data.js';
-import { parseOtherValue, resolveOtherPay, OTHER_RDW_DEFAULT_MINS } from './override-utils.js';
+import { parseOtherValue, resolveOtherPay, OTHER_RDW_DEFAULT_MINS, shouldReplaceOverride } from './override-utils.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 
 // ── OVERRIDE CACHE ────────────────────────────────────────────────────────────
@@ -130,16 +130,14 @@ export async function fetchOverridesForPeriod(p, memberName) {
     snap.forEach(/** @param {any} doc */ doc => {
       const d = doc.data();
       if (!d.date || d.memberName !== memberName) return;
-      // Priority matches calendar-app.js: manual always beats roster_import;
-      // within the same class, newer createdAt wins.
-      const existing     = map.get(d.date);
-      const docTs        = d.createdAt?.toMillis?.() ?? 0;
-      const isManual     = d.source !== 'roster_import';
-      const existManual  = existing?._manual ?? false;
-      const wins = !existing
-        || (isManual && !existManual)
-        || (isManual === existManual && docTs > (existing._ts ?? -1));
-      if (wins) map.set(d.date, { type: d.type, value: d.value, _ts: docTs, _manual: isManual });
+      // THE SHARED RULE, not a fourth copy of it (v21.94). This was fifteen inline lines whose
+      // comment claimed "priority matches calendar-app.js" — a claim nothing checked, and one that
+      // had already drifted: it broke a same-class tie with `>` where `shouldReplaceOverride` uses
+      // `>=`. Unreachable in practice (both sides are 0 only for an unresolved server timestamp,
+      // where either answer is arbitrary), which is precisely why a fourth copy is worth removing
+      // before the next difference is not.
+      const existing = map.get(d.date);
+      if (shouldReplaceOverride(existing, d)) map.set(d.date, d);
     });
     _overridesByDate = map;
     _overridesFetchState = 'loaded';

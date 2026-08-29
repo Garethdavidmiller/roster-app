@@ -39,6 +39,9 @@ let _currentIsManager = false;
 /** @type {() => boolean} */                  let _hasStagedEdits = () => false;
 /** @type {(iso: string) => string} */        let formatDisplay   = (s) => s;
 
+/** Delegated listeners are attached once per page life — see the note in initWeekEditor. */
+let _wired = false;
+
 /**
  * @param {object} deps
  * @param {boolean} deps.currentIsAdmin
@@ -60,6 +63,11 @@ export function initSavedChanges(deps) {
     renderWeekGrid    = deps.onRenderWeekGrid;
     _hasStagedEdits   = deps.hasStagedEdits;
     formatDisplay     = deps.formatDate;
+    // Deps above every time; wiring once — see the note in `initWeekEditor` for why (v21.94).
+    // `_initOverridesTable` delegates on `#overrideTableBody` and the bulk bar, so a second attach
+    // would make one tap of the two-tap Delete both arm and execute.
+    if (_wired) return;
+    _wired = true;
     _initOverridesTable();
 }
 
@@ -264,9 +272,9 @@ async function _handleDelete(e) {
         btn.classList.remove('confirming');
         btn.textContent = 'Delete';
         if (listFeedback) {
-            listFeedback.textContent = (/** @type {any} */ (err))?.code === 'unavailable'
+            setStatus(listFeedback, (/** @type {any} */ (err))?.code === 'unavailable'
                 ? '⚠ You appear to be offline — reconnect and try again.'
-                : '⚠ Could not delete — check your connection and try again.';
+                : '⚠ Could not delete — check your connection and try again.');
             listFeedback.className = 'list-feedback error';
         }
     }
@@ -337,14 +345,32 @@ function _initOverridesTable() {
                 }
             } catch (err) {
                 console.error('[Admin] Bulk delete failed:', err);
-                bulkDeleteBtn.disabled = false;
-                bulkDeleteBtn.textContent = 'Delete selected';
                 if (listFeedback) {
-                    listFeedback.textContent = (/** @type {any} */ (err))?.code === 'unavailable'
+                    setStatus(listFeedback, (/** @type {any} */ (err))?.code === 'unavailable'
                         ? '⚠ You appear to be offline — reconnect and try again.'
-                        : '⚠ Bulk delete failed — check your connection and try again.';
+                        : '⚠ Bulk delete failed — check your connection and try again.');
                     listFeedback.className = 'list-feedback error';
                 }
+            } finally {
+                // RESTORE THE LABEL ON EVERY PATH, NOT JUST THE FAILING ONE (v21.94).
+                //
+                // The success path restored neither, and nothing else in the app writes this
+                // button's `disabled` or `textContent` — `renderTable()` and
+                // `_updateBulkDeleteVisibility()` only touch `style.display`. So one successful
+                // bulk delete left it disabled reading “Deleting 3…” for the rest of the page
+                // life, and ticking more rows re-SHOWED it in that dead state. Worse when the
+                // delete emptied the view: `renderTable()` returns from its `!rows.length` branch
+                // BEFORE the line that hides the button, so the dead control sat above an empty list.
+                //
+                // The single-row Delete has the same shape and is fine only because `renderTable()`
+                // rebuilds `#overrideTableBody` and destroys that node. This button lives OUTSIDE
+                // the table body, so it survives — and that asymmetry is exactly what made this
+                // invisible to inspection.
+                //
+                // Label only; VISIBILITY stays with `_updateBulkDeleteVisibility`, which is the
+                // pattern `executeSave` and `createRangeBookingSection` already follow.
+                bulkDeleteBtn.disabled = false;
+                bulkDeleteBtn.textContent = 'Delete selected';
             }
         });
     }

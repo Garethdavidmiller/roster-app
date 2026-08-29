@@ -460,7 +460,7 @@ export function calcHPP() {
     // EVERY readable period failed to parse — the worst case must not be the silent one (the
     // partial-corruption warning below only renders on the non-empty branch).
     if (_skipped.length && basisEl) {
-      basisEl.innerHTML += ` <span class="pay-skip-warn">⚠️ Couldn't read ${_skipped.length} saved payslip${_skipped.length > 1 ? 's' : ''}, so no premium could be calculated — open ${_skipped.length > 1 ? 'those periods' : 'that period'} above and enter the hours again.</span>`;
+      basisEl.innerHTML += ` <span class="pay-skip-warn"><span aria-hidden="true">⚠️</span> Couldn't read ${_skipped.length} saved payslip${_skipped.length > 1 ? 's' : ''}, so no premium could be calculated — open ${_skipped.length > 1 ? 'those periods' : 'that period'} above and enter the hours again.</span>`;
     }
   } else {
     if (amountEl) amountEl.textContent = fmt(hpp);
@@ -493,7 +493,7 @@ export function calcHPP() {
     // A corrupt saved period was excluded, so this premium may be too low — surface it rather than
     // quietly under-stating money (no-silent-caps). Rare: only malformed localStorage trips it.
     if (_skipped.length && basisEl) {
-      basisEl.innerHTML += ` <span class="pay-skip-warn">⚠️ Couldn't read ${_skipped.length} saved payslip${_skipped.length > 1 ? 's' : ''}, so this may be too low — open ${_skipped.length > 1 ? 'those periods' : 'that period'} above and enter the hours again.</span>`;
+      basisEl.innerHTML += ` <span class="pay-skip-warn"><span aria-hidden="true">⚠️</span> Couldn't read ${_skipped.length} saved payslip${_skipped.length > 1 ? 's' : ''}, so this may be too low — open ${_skipped.length > 1 ? 'those periods' : 'that period'} above and enter the hours again.</span>`;
     }
   }
 
@@ -598,7 +598,7 @@ export function updatePriorHpp(ty) {
   const basisEl  = document.getElementById('priorHppBasis');
 
   if (hasActual) {
-    if (amtLabel) amtLabel.innerHTML  = `<span class="actual-badge">✓ Confirmed</span>`;
+    if (amtLabel) amtLabel.innerHTML  = `<span class="actual-badge"><span aria-hidden="true">✓</span> Confirmed</span>`;
     if (amtEl)    amtEl.textContent   = fmt(actual);
     if (basisEl)  basisEl.textContent = `Confirmed from your January ${priorTy.hppPaidJan} payslip`;
   } else if (est > 0) {
@@ -617,7 +617,7 @@ export function updatePriorHpp(ty) {
   }
   // Corrupt periods behind a PARTIAL estimate: the figure shown may be too low — say so (v16.70).
   if (_priorSkipped > 0 && !hasActual && est > 0 && basisEl) {
-    basisEl.innerHTML += ` <span class="pay-skip-warn">⚠️ Couldn't read ${_priorSkipped} saved period${_priorSkipped > 1 ? 's' : ''}, so this may be too low.</span>`;
+    basisEl.innerHTML += ` <span class="pay-skip-warn"><span aria-hidden="true">⚠️</span> Couldn't read ${_priorSkipped} saved period${_priorSkipped > 1 ? 's' : ''}, so this may be too low.</span>`;
   }
 
   const input = document.getElementById('priorHppActualInput');

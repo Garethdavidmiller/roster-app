@@ -18,6 +18,7 @@
 
 import { APP_VERSION, CONFIG } from './roster-data.js';
 import { createLightbox } from './overlay.js';
+import { setStatus } from './status-text.js';
 
 /**
  * Wire up the page's #iconLightbox. Safe no-op (returns null) if the page
@@ -52,7 +53,7 @@ export function initAboutLightbox({ appLabel = 'Marylebone Roster', bugLinkId = 
         statusEl.className = 'lightbox-status';
         (navigator.serviceWorker?.getRegistration() ?? Promise.resolve(null))
             .then(reg => {
-                statusEl.textContent = reg?.waiting ? '↻ Update ready — it will apply next time you reopen the app' : '✓ Up to date';
+                setStatus(statusEl, reg?.waiting ? '↻ Update ready — it will apply next time you reopen the app' : '✓ Up to date');
                 statusEl.className   = reg?.waiting ? 'lightbox-status needs-update' : 'lightbox-status up-to-date';
             })
             // The CHECK itself failed (registration lookup rejected) — we don't actually know the app

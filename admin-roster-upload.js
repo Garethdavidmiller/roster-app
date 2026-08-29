@@ -7,6 +7,7 @@
 import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO, isSunday, parseISODate } from './roster-data.js';
 import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { shouldReplaceOverride, isOtherValue, sundaySafeValue, parseOtherValue, buildOverrideWrite, nextReplacedType } from './override-utils.js';
+import { setStatus } from './status-text.js';
 
 const RDW_PREFIX   = 'RDW|';
 const isRdwEncoded = /** @param {any} v */ v => typeof v === 'string' && v.startsWith(RDW_PREFIX);
@@ -844,9 +845,9 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             const ccNote = document.createElement('div');
             ccNote.className = 'roster-crosscheck-note';
             ccNote.setAttribute('role', 'status');
-            ccNote.textContent = parsedResult.crossCheck === 'unavailable'
+            setStatus(ccNote, parsedResult.crossCheck === 'unavailable'
                 ? '⚠ The independent column check didn\'t run for this read — review each day carefully against the PDF, or try reading the roster again.'
-                : '⚠ The independent column check only covered some staff on this read — review the days carefully against the PDF.';
+                : '⚠ The independent column check only covered some staff on this read — review the days carefully against the PDF.');
             changeList.appendChild(ccNote);
         }
         // ---- Missing-member note (Finding #3) ----
@@ -1083,6 +1084,30 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                         const pPill = rowEl.querySelector('.roster-cv-pdf');
                         if (mPill) mPill.classList.remove('cv-dim');
                         if (pPill) pPill.classList.add('cv-dim');
+                    } else if (s.state === 'UNREADABLE' && s.options) {
+                        // SKIP ALL MUST SKIP THE ROW THE ADMIN WAS LEAST SURE ABOUT (v21.94).
+                        //
+                        // This branch did not exist. UNREADABLE gained a writable `chosen` at
+                        // v19.32 (the two-way pick); Skip all predates it and was never extended —
+                        // so an admin who picked a reading and then pressed Skip all got a dimmed,
+                        // `inert` section whose picked value was still WRITTEN by Save, with the
+                        // chosen button keeping its highlight under the overlay.
+                        //
+                        // `null` is the state's own "writes nothing" value, which is what an
+                        // untouched row already holds. Restoring (un-skipping) deliberately does
+                        // NOT re-pick: there is no safe default here, which is the whole reason
+                        // the row starts on neither.
+                        if (nowSkipped) {
+                            s.chosen = null;
+                            rowEl.querySelectorAll('.roster-choice-btn').forEach(/** @param {any} b */ b => {
+                                const on = /** @type {HTMLElement} */ (b).dataset.opt === 'skip';
+                                b.classList.toggle('is-chosen', on);
+                                b.setAttribute('aria-pressed', String(on));
+                            });
+                            rowEl.classList.add('roster-change-unreadable');
+                            const act = rowEl.querySelector('.act-choice');
+                            if (act) act.textContent = "Couldn't read";
+                        }
                     }
                 });
                 refreshOutcome();
@@ -1134,7 +1159,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
         // ---- Empty state ----
         if (sectionsShown === 0) {
-            changeList.innerHTML = `<div class="roster-no-changes">✓ The roster matches what's already saved — no changes needed.</div>`;
+            changeList.innerHTML = `<div class="roster-no-changes"><span aria-hidden="true">✓</span> The roster matches what's already saved — no changes needed.</div>`;
         }
         refreshOutcome();   // fills the outcome summary + sets the Save button label/disabled state
 

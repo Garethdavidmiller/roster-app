@@ -1035,12 +1035,6 @@ registerServiceWorker({
     bfcache: true,
 });
 
-// The hash this page was ENTERED with, captured before any viewer initialises (v18.84). Both
-// initHuddleViewer() and initDocViewer() strip their own deep-link hash SYNCHRONOUSLY via
-// history.replaceState, so anything reading window.location.hash after them sees an empty string —
-// which silently disarmed the password notice's "never cover a notification tap" guard below.
-const _entryHash = window.location.hash;
-
 // ============================================
 // HUDDLE VIEWER — initialised via calendar-huddle-viewer.js
 // ============================================

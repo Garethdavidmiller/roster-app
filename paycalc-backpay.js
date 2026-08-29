@@ -54,7 +54,7 @@ function _surfaceCorruptReset(/** @type {HTMLElement} */ noticeEl) {
   if (!_bpStateWasCorrupt) return;
   _bpStateWasCorrupt = false;
   noticeEl.style.display = 'block';
-  noticeEl.innerHTML += `<span class="pay-skip-warn">⚠️ Your saved back-pay entries couldn't be read and were reset — re-check the figures and the tick above.</span>`;
+  noticeEl.innerHTML += `<span class="pay-skip-warn"><span aria-hidden="true">⚠️</span> Your saved back-pay entries couldn't be read and were reset — re-check the figures and the tick above.</span>`;
 }
 
 // ── PAID-IN PERIOD (pure) ─────────────────────────────────────────────────────
@@ -884,7 +884,7 @@ export function calcBackPay() {
   // both branches above, so append to it.
   if (_skipped.length) {
     noticeEl.style.display = 'block';
-    noticeEl.innerHTML += `<span class="pay-skip-warn">⚠️ Couldn't read ${_skipped.length} saved payslip${_skipped.length > 1 ? 's' : ''} (${_skipped.join(', ')}), so this total may be too low. Open ${_skipped.length > 1 ? 'those payslips' : 'that payslip'} on the calculator to re-save, then check again.</span>`;
+    noticeEl.innerHTML += `<span class="pay-skip-warn"><span aria-hidden="true">⚠️</span> Couldn't read ${_skipped.length} saved payslip${_skipped.length > 1 ? 's' : ''} (${_skipped.join(', ')}), so this total may be too low. Open ${_skipped.length > 1 ? 'those payslips' : 'that payslip'} on the calculator to re-save, then check again.</span>`;
   }
 
   // Surface a CORRUPT saved-CARD-state reset once (Finding #7) — shared helper, also called on the

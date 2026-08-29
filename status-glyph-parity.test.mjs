@@ -24,6 +24,34 @@
  * region `feedbackBtn` and slip through. That is accepted rather than unnoticed: the alternative is
  * resolving each variable to an element, which no static test can do in this codebase, and the
  * honest comparison is against having no guard at all.
+ *
+ * ── WIDENED AT v21.94, AFTER IT MISSED TEN LIVE SITES ───────────────────────────────────────────
+ *
+ * Both JS rules were anchored too tightly to see the shapes the app actually writes:
+ *
+ *   · Rule 2 required the string literal IMMEDIATELY after the `=`, so **every ternary evaded it**
+ *     — and a ternary is the natural way to write "offline, or something else went wrong". Six
+ *     live regions were writing a bare glyph through one, including `#alFeedback` / `#sickFeedback`
+ *     and the roster review's cross-check note.
+ *   · Rule 3 inspected only the FIRST character of an `innerHTML` template, so a glyph one opening
+ *     tag in — `'<p class="…">✓ No outstanding requests.'` — was invisible.
+ *
+ * Both now scan the whole right-hand side / the template past one opening tag. The `<span
+ * aria-hidden` opener is skipped deliberately: that IS the fix, so a template starting with it
+ * must pass.
+ *
+ * ── WHAT IT STILL CANNOT SEE, STATED RATHER THAN IMPLIED ────────────────────────────────────────
+ *
+ * Two shapes remain outside any regex, and both exist in the app today. Neither is a reason to
+ * trust the guard less than it deserves; they are the reason not to trust it more:
+ *
+ *   · **The glyph lives in the DATA, not the template.** `admin-auth.js` builds `✅ Created (3): …`
+ *     as a plain string and renders `lines.map(l => \`<p>${escapeHtml(l)}</p>\`)`. The template is
+ *     clean; the glyph arrives at runtime.
+ *   · **A pure builder returns markup with no assignment target.** `buildActualCheck`
+ *     (paycalc-breakdown.js) returns a `<div>` that `calculate()` puts into `#actualVerdict`, which
+ *     is `aria-live`. There is nothing here to attribute the return value to, so that one is kept
+ *     right by hand and says so in a comment beside it.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -62,14 +90,17 @@ describe('served markup never bakes a glyph into a live region', () => {
 });
 
 describe('a status line goes through setStatus, not straight to textContent', () => {
+    // The whole right-hand side, up to the statement's `;` — NOT just the token after the `=`.
+    // Anchoring on the `=` is what let every ternary through (see the header).
     const ASSIGN = new RegExp(
-        `([A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)*)\\.textContent\\s*=\\s*` +
-        `(['"\`])\\s?(?:${GLYPH_CLASS})\\s`, 'g');
+        `([A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)*)\\.textContent\\s*=\\s*([^;]{0,600});`, 'gs');
+    const LEADING = new RegExp(`(['"\`])\\s?(?:${GLYPH_CLASS})\\s`);
     const BUTTONISH = /btn|button|chip/i;
 
     for (const file of JS) {
         test(file, () => {
             const offenders = [...stripComments(read(file)).matchAll(ASSIGN)]
+                .filter((m) => LEADING.test(m[2]))
                 .map((m) => m[1])
                 .filter((target) => !BUTTONISH.test(target));
             assert.deepEqual(offenders, [],
@@ -81,11 +112,18 @@ describe('a status line goes through setStatus, not straight to textContent', ()
 describe('an innerHTML template wraps its leading glyph', () => {
     // `setStatus` cannot help here — these templates carry markup of their own — so the span is
     // written by hand, and this is what checks it was.
-    const TEMPLATE = new RegExp(`\\.innerHTML\\s*=\\s*(['"\`])\\s?(?:${GLYPH_CLASS})\\s`, 'g');
+    // Past ONE opening tag, because a glyph is rarely the very first character of a template —
+    // `'<p class="…">✓ …'` was the shape that got through. `<span aria-hidden` is skipped: that
+    // opener IS the fix, so a template beginning with it must pass.
+    const TEMPLATE = new RegExp(
+        `\\.innerHTML\\s*\\+?=\\s*(['"\`])((?:\\\\.|(?!\\1)[\\s\\S]){0,200})`, 'g');
+    const LEADS_WITH_GLYPH = new RegExp(`^(?:\\s*<(?!span\\s+aria-hidden)[^>]*>\\s*)?\\s?(?:${GLYPH_CLASS})\\s`);
 
     for (const file of JS) {
         test(file, () => {
-            const hits = [...stripComments(read(file)).matchAll(TEMPLATE)].map((m) => m[0]);
+            const hits = [...stripComments(read(file)).matchAll(TEMPLATE)]
+                .filter((m) => LEADS_WITH_GLYPH.test(m[2]))
+                .map((m) => m[0].slice(0, 110));
             assert.deepEqual(hits, [],
                 'lead with <span aria-hidden="true">…</span> instead of the bare glyph');
         });
