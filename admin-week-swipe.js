@@ -188,7 +188,17 @@ export function initAdminWeekSwipe({
             incoming.style.transform  = 'translate3d(0, 0, 0)';
             if (discard && discard.parentNode) discard.remove();
 
+            // ONCE, WHICHEVER ARRIVES FIRST (v21.94). The commit is settled by two racing signals —
+            // `transitionend` and a timer that covers the case where it never fires — and the
+            // listener cancelled the timer but the timer could not cancel the listener. On a
+            // backgrounded or throttled tab the timeout wins, and a late `transitionend` then ran
+            // the whole thing a second time. Harmless today (`onSettled` is idempotent and the refs
+            // are already null), and not harmless the moment a NEW swipe has started in between:
+            // the stale run would null that swipe's panel references mid-gesture.
+            let settled = false;
             function restore() {
+                if (settled) return;
+                settled = true;
                 incoming.classList.remove('week-carousel-panel');
                 incoming.style.transition = incoming.style.transform = incoming.style.willChange = '';
                 if (swipePanelCurrent && swipePanelCurrent.parentNode) swipePanelCurrent.remove();

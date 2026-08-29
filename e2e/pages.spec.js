@@ -1903,6 +1903,46 @@ test('operations: a flagged roster cell can be resolved from the review table', 
     expect(values, 'the picked reading must be among the values written').toContain('14:30-22:00');
 });
 
+// "Skip all" must skip the row the admin was LEAST sure about (v21.94).
+//
+// `UNREADABLE` gained a writable `chosen` when the two-way pick shipped at v19.32; this handler
+// predates it and branched only on DIFF/REMOVE_IMPORT/CONFLICT. So an admin who picked a reading and
+// then pressed Skip all got a dimmed, `inert` section whose picked value was STILL WRITTEN by Save,
+// with the chosen button keeping its highlight under the overlay.
+//
+// Driven through the real review table, because the bug was a missing branch in a delegated handler
+// — there is no rule to unit-test, and the section state is inside a closure. The Save button's
+// label is the observable consequence: with everything skipped it must offer nothing at all.
+test('operations: Skip all also clears a resolved "couldn\'t read" pick', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+
+    const saveBtn = page.locator('#rosterApplyBtn');
+    const flagged = page.locator('.roster-change-row').filter({ has: page.locator('.roster-choice-btn[data-opt="0"]') });
+    await expect(saveBtn).toHaveText(/Save 3 changes/);
+
+    // Resolve one flagged cell — now four things would be written.
+    await flagged.first().locator('.roster-choice-btn[data-opt="0"]').click();
+    await expect(saveBtn).toHaveText(/Save 4 changes/);
+
+    // Skip all for that person. Every row in the section belongs to G. Miller, so nothing is left.
+    await page.locator('.roster-skip-all-btn').first().click();
+    await expect(saveBtn, 'the resolved flagged row was still going to be written').toHaveText(/Nothing to save/);
+    await expect(saveBtn).toBeDisabled();
+
+    // The row must SAY so too: back on Skip, back to "Couldn't read". A section that writes nothing
+    // while a value still looks chosen is the same contradiction one layer down.
+    await expect(flagged.first().locator('.roster-choice-btn--skip')).toHaveClass(/is-chosen/);
+    await expect(flagged.first().locator('.roster-choice-btn[data-opt="0"]')).not.toHaveClass(/is-chosen/);
+
+    // Restore brings the ticked rows back — and must NOT re-pick the flagged one. There is no safe
+    // default for a cell nobody could read, which is why it starts on neither.
+    await page.locator('.roster-skip-all-btn').first().click();
+    await expect(saveBtn).toHaveText(/Save 3 changes/);
+    await expect(flagged.first().locator('.roster-choice-btn[data-opt="0"]')).not.toHaveClass(/is-chosen/);
+});
+
 // Skip means "write nothing", so it must never wear the colour that means "this will be saved".
 // Asserted on computed style rather than by screenshot: --text-mid (L45%) and --success-green
 // (L48.5%) differ in HUE at near-equal luminance, and pixelmatch's delta is luminance-dominated, so

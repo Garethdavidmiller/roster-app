@@ -433,9 +433,10 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
 .mb-0  { margin-bottom: 0; }
 .mb-8  { margin-bottom: 8px; }
 .mb-12 { margin-bottom: 12px; }
-.mt-0  { margin-top: 0; }
+/* `.mt-0` and `.mt-12` went at v21.94 — nothing in fip.html has ever used them. A spacing
+   utility nobody applies is not a spare part; it is a rule the next reader has to check for
+   before changing a margin. The four that ARE used stay. */
 .mt-8  { margin-top: 8px; }
-.mt-12 { margin-top: 12px; }
 
 /* ── Checklist ───────────────────────────── */
 .checklist { list-style: none; }

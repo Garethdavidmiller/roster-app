@@ -725,22 +725,30 @@ function _initBulkBar() {
     const weekGrid      = document.getElementById('weekGrid');
 
     if (bulkTypePills) {
-        bulkTypePills.querySelectorAll('.type-pill-btn').forEach(pillEl => {
-            const pill = /** @type {HTMLButtonElement} */ (pillEl);
-            pill.addEventListener('click', () => {
-                const type    = pill.dataset.type ?? '';
-                const already = pill.classList.contains('active');
-                if (already) { resetBulkPills(); return; }
-                bulkTypePills.querySelectorAll('.type-pill-btn').forEach(p => { p.classList.remove('active'); p.setAttribute('aria-pressed', 'false'); });
-                pill.classList.add('active');
-                pill.setAttribute('aria-pressed', 'true');
-                _bulkActiveType = type;
-                const bulkApplyLabel = document.getElementById('bulkApplyLabel');
-                if (bulkApplyLabel) bulkApplyLabel.textContent = `Apply “${TYPES[type]?.label ?? type}” to ticked days`;
-                if (bulkTimeGroup) bulkTimeGroup.style.display = (TYPES[type] && !TYPES[type].fixed) ? 'flex' : 'none';
-                if (bulkStart) bulkStart.value = '';
-                if (bulkEnd)   bulkEnd.value   = '';
-            });
+        // DELEGATED ON THE CONTAINER, not attached per pill (v21.94).
+        //
+        // The pills do not exist in `admin.html` — `#bulkTypePills` ships empty and `admin-app.js`
+        // fills it from `PILL_TYPES` at init. Per-pill listeners therefore depend on this running
+        // AFTER that fill and on the row never being rebuilt, and the wiring guard added in the
+        // same release makes the second half load-bearing: a rebuild would leave dead pills with
+        // no second `initWeekEditor` to re-attach them. The container is static, so delegating on
+        // it is true whatever order the two run in and however often the row is redrawn.
+        bulkTypePills.addEventListener('click', (e) => {
+            const pill = /** @type {HTMLButtonElement|null} */ (
+                /** @type {Element} */ (e.target).closest('.type-pill-btn'));
+            if (!pill || !bulkTypePills.contains(pill)) return;
+            const type    = pill.dataset.type ?? '';
+            const already = pill.classList.contains('active');
+            if (already) { resetBulkPills(); return; }
+            bulkTypePills.querySelectorAll('.type-pill-btn').forEach(p => { p.classList.remove('active'); p.setAttribute('aria-pressed', 'false'); });
+            pill.classList.add('active');
+            pill.setAttribute('aria-pressed', 'true');
+            _bulkActiveType = type;
+            const bulkApplyLabel = document.getElementById('bulkApplyLabel');
+            if (bulkApplyLabel) bulkApplyLabel.textContent = `Apply “${TYPES[type]?.label ?? type}” to ticked days`;
+            if (bulkTimeGroup) bulkTimeGroup.style.display = (TYPES[type] && !TYPES[type].fixed) ? 'flex' : 'none';
+            if (bulkStart) bulkStart.value = '';
+            if (bulkEnd)   bulkEnd.value   = '';
         });
     }
 

@@ -906,7 +906,23 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             const nowMs = Date.now();
             const weekEndings = OT.planningWeekEndings(nowMs);
 
-            const snap = await db().collection(WINDOWS).get();
+            // BOUNDED BY RETENTION, like the member's read (v21.94). This is the other unbounded
+            // `collection(WINDOWS).get()`, and while it is a reviewer-only call rather than the hot
+            // path, it grows with the same disarmed purge.
+            //
+            // Checked against all three consumers before narrowing it, because dropping documents
+            // from a set something else derives an ABSENCE from is exactly how a bound goes wrong:
+            //   · `overdue` asks `weeksNeedingWindows(lastSchedulerRun, byWeek.keys(), …)`, which
+            //     filters `planningWeekEndings` — the current week and the six ahead. An expired
+            //     week is >91 days past its Saturday, so it can never appear in that list, and its
+            //     absence from `have` cannot make anything look missing.
+            //   · `countsByWeek` and the `planningWeeks` loop both index `byWeek` by a horizon week,
+            //     for the same reason.
+            //   · `retained` filtered `retentionUntil > nowMs` in memory anyway — the query now does
+            //     it, and the redundant filter is gone rather than left to imply a second rule.
+            const snap = await db().collection(WINDOWS)
+                .where('retentionUntil', '>', admin.firestore.Timestamp.fromMillis(nowMs))
+                .get();
             /** @type {Map<string, any>} */
             const byWeek = new Map();
             for (const d of snap.docs) byWeek.set(d.id, d.data());
@@ -1006,7 +1022,6 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             // scheduled job last ran.
             const retained = snap.docs
                 .map(d => ({ ...storedMilestones(d.data()), audience: d.data().audience }))
-                .filter(w => w.retentionUntil > nowMs)
                 .sort((a, b) => (a.weekEnding < b.weekEnding ? 1 : -1));
 
             return res.json({ ok: true, serverNow: nowMs, planningWeeks, retained });
