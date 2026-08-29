@@ -95,6 +95,79 @@ export function shouldResyncClock(correctedNow, deadlines) {
 }
 
 /**
+ * Has this day been ANSWERED, or merely started?
+ *
+ * A picked mode with nothing behind it is neither answered nor untouched: the member opened the
+ * custom row, typed one time and stopped. Treating that as answered submits a half-declaration
+ * about somebody's own life under their name, which is the same class of wrong as pre-filling.
+ *
+ * `start === end` is unfinished rather than a 24-hour offer, for the reason `shiftSpanMinutes`
+ * refuses the same pair below.
+ *
+ * @param {{ mode?: string, start?: string, end?: string }|null|undefined} answer
+ * @returns {boolean}
+ */
+export function dayUnfinished(answer) {
+    if (!answer || !answer.mode) return true;
+    return answer.mode === 'custom' && (!answer.start || !answer.end || answer.start === answer.end);
+}
+
+/**
+ * Which of a window's dates are still unanswered, IN WINDOW ORDER.
+ *
+ * One list answers both questions the form asks — how many are outstanding, and which one an error
+ * should walk to. Those were three separate traversals with three chances to disagree, and a count
+ * that disagrees with the day it points at is a form telling a member to finish a day they have
+ * already finished.
+ *
+ * @param {Record<string, any>} answers
+ * @param {string[]} dates the window's dates, in order
+ * @returns {string[]}
+ */
+export function unfinishedDates(answers, dates) {
+    return dates.filter(d => dayUnfinished(answers?.[d]));
+}
+
+/**
+ * What a re-read after a TIMED-OUT submission can actually establish.
+ *
+ * Three outcomes, and the third is the point. `AbortController` stops us waiting; it does not stop
+ * the server writing — so when the re-read itself fails there is no honest answer, and reporting
+ * "it did not save" invites a second, contradictory submission that then legitimately conflicts.
+ *
+ * A `saved` verdict requires OUR mutation id, never merely the presence of a submission: every
+ * device a member owns shares one Firebase uid, so a submission from their other tab is
+ * indistinguishable from ours by anything else.
+ *
+ * @param {boolean} stateOk did the re-read succeed at all?
+ * @param {{ lastMutationId?: string }|null|undefined} freshSubmission the re-read submission for this week
+ * @param {string|null} pendingMutationId the id of the submission whose response we never saw
+ * @returns {'saved'|'not-saved'|'unknown'}
+ */
+export function reconcileVerdict(stateOk, freshSubmission, pendingMutationId) {
+    if (!stateOk) return 'unknown';
+    const last = freshSubmission?.lastMutationId;
+    return last && last === pendingMutationId ? 'saved' : 'not-saved';
+}
+
+/**
+ * Did WE win the write the server is now refusing as a conflict?
+ *
+ * Almost always not — somebody else saved — but the exception is this member's own timed-out
+ * request landing late, and the two want opposite words: "your earlier submission did save, review
+ * it" against "we have not overwritten a newer version". The server tells them apart by returning
+ * the id that won; nothing on the client can.
+ *
+ * @param {string|null} pendingMutationId
+ * @param {string|null|undefined} lastMutationId the id the server says is stored
+ * @returns {boolean}
+ */
+export function conflictIsOurs(pendingMutationId, lastMutationId) {
+    return !!pendingMutationId && lastMutationId === pendingMutationId;
+}
+
+
+/**
  * How long a rostered duty runs, in minutes — overnight-aware.
  *
  * "22:00–07:00" is nine hours, not minus fifteen: an end BEFORE the start means the duty crosses
