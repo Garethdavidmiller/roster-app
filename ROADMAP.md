@@ -410,14 +410,20 @@ starting it is a decision nobody has taken yet, not because a trigger is still a
 
 Two readings a week apart (22 and 30 Aug 2026, the second on 2,226 Calendar opens) agree: the wall is
 `page start → Recognised` at **52% over one second**, three times its nearest rival, and everything
-downstream inherits it. **Phase 3** (split Firebase Auth from Firestore) is the treatment; **Phase 2**
-(fetch the displayed month, not three months of the whole team) is second and shapes the sync chip
-rather than what a member feels. **Phase 4 / the bundler is measurably NOT the problem** — all three
-boot stages finish inside half a second on ~90% of opens.
+downstream inherits it. The code is ready inside ½s and **21% of page opens still take over three
+seconds to become usable** — everything a member waits for is after the code has loaded.
 
-The number to put in front of the decision is not on the ladder: the code is ready inside ½s and
-**21% of page opens still take over three seconds to become usable.** Everything a member waits for
-is after the code has loaded.
+**Phase 3 was then measured before being built, and it is NOT the treatment** (30 Aug 2026,
+`experiments/auth-firestore-split-proof/`). Splitting Firebase Auth from Firestore saves 4.6 ms on a
+desktop and 52 ms at 6× CPU throttling, against a wall of over a second — the entire auth boot is
+229 ms on a throttled device. **The wall is ONE network round trip**: every boot issues a single
+`accounts:lookup` to validate the stored user, unconditionally, and `Recognised` waits for it;
+injecting 300 ms of latency moved the milestone by 336 ms.
+
+So the open item is no longer "do Phase 3". It is a **security trade** — whether the app may paint
+from a locally-stored identity before the server has confirmed it — and it belongs to
+`CALENDAR_DATA.md` and `AUTH_AND_SESSIONS.md`, not to a performance plan. **Phase 2** is still real
+and still second. **Phase 4 / the bundler is measurably not the problem.**
 
 ### Build tooling — trigger-based; no action currently
 **Status:** Conditional · **Do nothing until a trigger occurs**

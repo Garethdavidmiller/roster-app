@@ -509,6 +509,12 @@ a { color: var(--navy); text-underline-offset: 2px; }
    either: "we could not find out" is not a finding. */
 .rc-correction { background: var(--red-bg); border-left: 3px solid var(--red); }
 .rc-correction .ct-label { color: var(--red); }
+/* `.rc-transition` marks a rule that is CHANGING on a named date. Its last user was the 16-17
+   Saver's 17 Aug 2026 age change, simplified to present tense at v21.97 once the date had passed —
+   which is what the source register asked for, so the page would not age into a historical
+   footnote. The rule is kept, unused, because this guide will need it again the next time a
+   railcard condition is announced ahead of its start date, and it is one line. Delete it only if
+   that stops being true. */
 .rc-transition { background: var(--amber-bg); border-left: 3px solid var(--amber); }
 .rc-unsourced  { background: var(--navy-bg); border-left: 3px solid var(--light); }
 .rc-unsourced .ct-label { color: var(--mid); }

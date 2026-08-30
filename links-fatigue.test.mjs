@@ -242,11 +242,20 @@ describe('assessFatigue — the report as a whole', () => {
                 `${c} must stop reading as "not applicable" once a night duty exists`);
     });
 
-    test('the two unsettled interpretations are flagged for confirmation', () => {
+    test('every unsettled interpretation is flagged for confirmation', () => {
+        // The count has moved twice and the NAME of this test moved with it the second time. It
+        // read "the two unsettled interpretations" while asserting three codes — the module header
+        // records the same slip — so it is now named for the property rather than the number, and
+        // the number lives only in the assertion.
+        //
+        // The fourth is the v21.97 MRSF row: "more than 7 consecutive 8h shifts" has more than one
+        // defensible reading of "8h shifts", and the module takes the one that reports rather than
+        // the one that stays quiet. An unlabelled number whose definition is unagreed is this
+        // module's false-assurance failure in miniature.
         const a = assessFatigue(GOOD, 2);
         const flagged = a.results.filter(r => r.confirm).map(r => r.code).sort();
-        assert.deepEqual(flagged, ['FF17', 'FF18', 'FF19']);
-        assert.equal(a.confirmNeeded, 3);
+        assert.deepEqual(flagged, ['FF17', 'FF18', 'FF19', 'MRSF']);
+        assert.equal(a.confirmNeeded, 4);
     });
 
     test('a punishing design reports the cumulative factors', () => {

@@ -374,7 +374,7 @@ What stays here, because it is what a designer needs before opening anything:
 
 The second half of the card, from `links-fatigue.js`. It exists because the December 2026 proposals
 will be **assessed** against that list (`LINKS_DEC2026_PLAN.md`), and `runDesignChecks` covered two
-of its 24 factors — though **the panel renders 23**, a discrepancy standing since v19.46 and recorded in `KNOWN_LIMITATIONS.md` → Links; check the ORR source before "fixing" either number. Read the module header before changing any rule; the four things that govern it:
+of its 25 rows — a figure read at source in Aug 2026, after this file said 24 and the panel rendered 23 for two years. Neither was right, and the two missing rows were both MRSF ones in the Cumulative family; the module header has the account. Read the module header before changing any rule; the four things that govern it:
 
 - **It reports factors PRESENT. It never passes or fails a design.** The ORR states these are not
   prescriptive limits, so red/green would misrepresent the guidance being quoted. Amber

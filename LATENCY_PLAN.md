@@ -189,12 +189,26 @@ fetch had just loaded. Any per-member narrowing has to keep that single-reconcil
 **Trigger:** the ladder shows the gap before Recognised, i.e. cold sign-in and cold Calendar start
 are dominated by getting an identity.
 
-> **THE TRIGGER HAS FIRED — twice, on two independent months' worth of data (22 and 30 Aug 2026).**
-> This phase is no longer conditional; what remains is the decision to start it. Read the
-> confirmation read above first, and in particular the note that the code is ready inside ½s while
-> a fifth of opens take over three seconds to be usable — that gap is this phase's whole subject.
-> The prove-it-on-ONE-page step below is not optional: the wall is 52 points and nothing has
-> established how much of it Firestore's presence in the auth graph actually owns.
+> **THE TRIGGER FIRED, THE PROOF WAS RUN, AND THE ANSWER IS NO — do not do this as a latency fix**
+> (30 Aug 2026, `experiments/auth-firestore-split-proof/`). The trigger had fired twice on
+> independent data, and the prove-it-on-ONE-page step was there because nothing had established how
+> much of the 52-point wall Firestore's presence in the auth graph actually owns. It owns almost
+> none of it.
+>
+> | CPU throttle | today (app+firestore+auth) | split (app+auth) | saving |
+> |---|---|---|---|
+> | 1× | 38.3 ms | 33.7 ms | **4.6 ms** |
+> | 4× | 132.9 ms | 119.0 ms | **13.9 ms** |
+> | 6× | 229.0 ms | 176.8 ms | **52.2 ms** |
+>
+> The saving is real, scales with a slower CPU as a parse cost should, and is the wrong order of
+> magnitude: **the entire auth boot is 229 ms on a 6×-throttled device**, against a wall of over a
+> second on 52% of loads. `initializeFirestore(persistentLocalCache)` costs **0.4 ms** synchronously
+> — the cache opens lazily, so the IndexedDB-contention half of the theory is not happening at all.
+>
+> **The split may still be worth doing on architectural grounds. It may not be sold as the treatment
+> for this ladder.** That is the distinction the measurement bought, and it was bought before
+> refactoring the module every page in the app imports.
 
 `firebase-client.js` statically imports app, auth **and** Firestore, so somebody who only needs to
 sign in still pulls the database SDK into the module graph. Authentication does not require
@@ -210,6 +224,44 @@ Firestore.
 path is ~782 KB of unminified JS across 40 modules plus ~214 KB of render-blocking CSS, and under 6×
 CPU throttling reaching `myb-sdk-ready` takes 682 ms. See CLAUDE.md → *When a build step earns its
 keep*, which this phase does **not** by itself trigger.
+
+---
+
+## What the wall actually is — ONE auth round trip (measured 30 Aug 2026)
+
+The Phase 3 proof is a negative result with a positive half. Because the local cost turned out to be
+so small, the missing ~800 ms has to be network — and it is, and it is a single call:
+
+> **Every boot makes exactly one auth request — `POST /identitytoolkit.googleapis.com/v1/accounts:lookup`
+> — and `Recognised` waits for it.**
+
+Counted directly, one reload, one request. It is **not** conditional on the ID token having expired:
+the measured reloads were seconds apart with a fresh token and the call happened anyway. Firebase
+validates the stored user against the server before emitting it, which is a correctness feature —
+it is how a deleted or disabled account stops being restored on the next load.
+
+Injecting latency into that one call moves the milestone almost one-for-one — +335.7 ms of
+`authBootstrap` for +300 ms of latency. On a real mobile connection that round trip **is** the wall,
+and no arrangement of the module graph shortens it.
+
+### Why there is no Phase 5 written here yet
+
+The obvious treatment is to stop waiting: paint from the locally-stored identity and let the lookup
+confirm in the background. **That is a security trade, not a performance tweak**, and it is not this
+document's to make. `calendar-access.js` decides what a viewer may SEE from the restored identity,
+so an account disabled since the last load would be trusted for the length of one paint. The
+question belongs to `CALENDAR_DATA.md` and `AUTH_AND_SESSIONS.md`, and it should be answered there
+before anything is built.
+
+What can be said without that decision: the app already knows how to do this shape safely for DATA
+— the Calendar's two-phase load paints from the local cache and then reconciles authoritatively
+(E1, `calendar-initial-fetch.js`). Whether identity may take the same shape is exactly the harder
+question, because data can be wrong and re-render, and access cannot.
+
+**The measurement also retires a suspicion.** The 22 Aug reading guessed the delay "smells of
+network" from the 4G-versus-not-reported split, and the 30 Aug reading argued that split is probably
+reading the platform instead. Both were reasoning from a dimension that cannot separate them. This
+is the direct answer: it is network, it is one call, and it is on every load.
 
 ---
 
