@@ -2,18 +2,28 @@
 
 *Created August 2026 (at v21.30), external review. Not version-stamped; not a runtime asset.*
 
-**Where this stands (30 Aug 2026):** Phase 1 shipped and its ladder has now decided things. **Phase 3
-is measured and DECLINED as a latency fix** — the split was priced at 4.6–52 ms against a wall of
-over a second, and the wall turned out to be one unconditional auth round trip, which is now an
-owner decision in `ROADMAP.md` (*Calendar start — the identity round trip*), not a phase here.
-**Phase 2 is instrumented, not started** — the card's "What put the shifts on screen" split decides
-it, and the reading is due a month after v21.99 ships. **Phase 4's trigger did not fire.** The
-method IS the point of this file: every one of those was measured before being built, and twice the
-measurement stopped work that would not have helped.
+**This is no longer a programme of engineering. It is TWO OPEN ITEMS and a close-out rule** (deep
+review, 30 Aug 2026). It began as four phases to do in measured order; the measuring is what ended
+that. Phase 1 shipped. Phase 3 was priced at 4.6–52 ms against a wall of over a second and
+**declined**. Phase 4's trigger did not fire. What remains is not work:
+
+| Open item | What it is | Who / when |
+|---|---|---|
+| **The identity round trip** | An owner DECISION — `ROADMAP.md` → *Calendar start — the identity round trip*. The wall is one unconditional `accounts:lookup` per boot; everything now funnels into whether the app may paint before it returns | **Gareth**, when ready — the field-confirmation check below first |
+| **The Phase 2 reading** | A NUMBER — the card's "What put the shifts on screen" split, read against the rule in the Phase 2 section | ~end September 2026, one full month after v21.99 |
+
+**And the close-out.** There is a likely path where the identity answer is "no — the gate holds" and
+the cache-miss share comes back small. In that world this plan **CLOSES**, recording ~1 second to
+`Recognised` as the PRICE OF THE SECURITY MODEL — a cost that was chosen, not a problem nobody
+solved. That is a success ending, not a failure: the alternative is a plan that can only end by
+fading, which is the quiet stop the section at the bottom warns against. Do not go looking for a
+Phase 5 to make the plan feel finished — twice this week, measuring first stopped confident work
+worth five milliseconds, and a review that ended by inventing new work would be undoing its own
+lesson. **No engineering left in this file plausibly moves the number.**
 
 Design detail lives beside the code, as ever — `perf-reporter.js` and `perf-stats.js` for what is
 measured, `AI_MAP.md` for the ladder's exports, `CALENDAR_DATA.md` for the invariants any change
-here must not break. This file holds only the SEQUENCE and the DECISION RULE.
+here must not break. This file holds the sequence, the readings and the decision rules.
 
 ---
 
@@ -304,6 +314,14 @@ network" from the 4G-versus-not-reported split, and the 30 Aug reading argued th
 reading the platform instead. Both were reasoning from a dimension that cannot separate them. This
 is the direct answer: it is network, it is one call, and it is on every load.
 
+**One honest caveat, and the check that closes it (deep review, 30 Aug).** The round-trip finding
+rests on an emulator with injected latency — rigorous, and the FIELD contribution is inferred rather
+than observed. Before the identity decision is taken either way, confirm it on real devices with the
+signature it predicts: **if the wall is the lookup, `Recognised` should track connection quality far
+more strongly than `Getting ready` does** — a slow network moves a network wall and barely moves a
+parse one. The card already carries both rows and the connection split; the comparison is a reading,
+not a build. If the signature is absent, the finding is wrong and the decision should wait.
+
 ---
 
 ## Phase 4 — only if the measurement still says so
@@ -317,12 +335,17 @@ the fetch/parse phase after phases 2 and 3 have landed.
 
 ---
 
-## What would make this file wrong
+## What would make this file wrong — and how it CLOSES
 
-If the ladder's rows come back uniformly quick, phases 2 and 3 are not worth their risk and this
-plan should be closed rather than worked through out of momentum. Record that outcome here if it
-happens — a plan that was measured and dropped is more useful to the next reader than one that
-quietly stopped.
+This section predates the readings and asked a question they have now half-answered: the rows did
+not come back uniformly quick, but the slow one led to a decision rather than a build. So the live
+version of the question is the close-out in the header, restated here so the two ends of the file
+agree: **the plan closes when the identity decision is taken AND the Phase 2 reading is acted on**,
+whichever way both go. If both answers are "no build", close it as a success — the second to
+`Recognised` becomes the recorded price of the security model, the `Recognised` row is re-labelled a
+floor, and this file stops being a plan and becomes the record of why. A plan that was measured and
+settled is more useful to the next reader than one that quietly stopped — and also more useful than
+one kept alive by inventing a Phase 5.
 
 ## Links workspace — measured 24 Aug 2026
 

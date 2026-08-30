@@ -66,7 +66,7 @@ live anchors:
 | `ARCHITECTURE_PLAN.md` | Track 1 complete | Code comments cite it by phase number |
 | `OTHER_PLAN.md` | Shipped | Code comments cite "OTHER_PLAN.md decision N" |
 | `LOGIN_INCIDENT.md` | Resolved | `CLAUDE.md` sends you here before touching login |
-| `LATENCY_PLAN.md` | Phase 1 shipped; **Phase 3 measured and declined as a latency fix** (30 Aug 2026) | Holds the decision rule, the two readings, and the proof that redirected it at one auth round trip |
+| `LATENCY_PLAN.md` | **Two open items and a close-out rule** — the identity decision (owner) and the Phase 2 reading (~end Sept); Phase 3 measured and declined, Phase 4's trigger unfired | Holds the readings, the field-confirmation check gating the identity decision, and the terms on which it closes |
 | `LINKS_DEC2026_PLAN.md` | Live | Holds the links modules' release history |
 | `RANGERS_ROVERS_PLAN.md` | Shipped, 2 open claims | The open claims are `VAL` rows |
 | `BRASS_PLAN.md` | **Gated on owner answers** | The Part 2 payslip questions decide the design; nothing ships before them |

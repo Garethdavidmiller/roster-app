@@ -130,15 +130,25 @@ one — which is exactly why it is a decision rather than an optimisation.
 
 **Three answers are all reasonable**, and the engineering differs completely:
 1. **No** — the gate holds; accept the round trip and close this. Then the ladder's `Recognised`
-   row should be re-labelled as a floor rather than a target, so nobody re-opens it every quarter.
+   row should be re-labelled as a floor rather than a target, so nobody re-opens it every quarter —
+   and `LATENCY_PLAN.md` closes, recording the second as the price of the security model.
 2. **Yes, for a named member with a live local session only** — never for the shared PIN viewer,
    whose whole security model is that it holds no identity. The narrowest useful form.
-3. **Yes, with a visible tell** — paint, and mark the grid as unconfirmed until the lookup lands,
-   the way the sync chip already marks data. Costs a design decision about a state most members
-   would never see.
+3. **Yes, with a visible tell** — paint, and mark the grid as unconfirmed until the lookup lands.
 
-**Do not start building any of them before the answer.** The measurement is done; what is left is
-not a performance question.
+**Option 3 is cheaper than it first reads, and that should be weighed before choosing** (deep
+review, 30 Aug 2026). It is not a new design: the Calendar already ships the ENTIRE state it needs —
+the `cached`/`stale` display state that draws a labelled last-known grid, and the sync chip that
+says "Updating…" and withdraws on confirmation. Staff have been taught to read that state for
+months. Identity taking the same two-phase shape as data would EXTEND shipped, tested machinery
+rather than invent an "unconfirmed" state nobody has seen — which is a materially smaller cost than
+"a design decision about a state most members would never see", the wording this entry carried
+before. What it does NOT change: the security question itself is identical in options 2 and 3, and
+the choice between them is about honesty on screen, not about safety.
+
+**Do not start building any of them before the answer** — and before the answer, run the
+field-confirmation check in `LATENCY_PLAN.md` (does `Recognised` track connection quality the way a
+network wall must?). The measurement is done; what is left is not a performance question.
 
 ### Track C5 — retire the surname default
 **Status:** Blocked · **Owner:** Gareth · **Plan:** `PASSWORD_PLAN.md` · **Gate:** ≥90% migrated
