@@ -182,14 +182,14 @@ what `password-force.js` still follows).
 A new admin-only Cloud Function **`resetMemberPassword`**, mirroring `setupRosterAuth` exactly:
 
 - Same shell: `onRequest({ region: 'europe-west2', cors: ADMIN_FUNCTION_ORIGINS })`, POST-only,
-  then the identical guard — `admin.auth().verifyIdToken(bearer, true)` → `decoded.admin !== true`
+  then the identical guard — `getAuth().verifyIdToken(bearer, true)` → `decoded.admin !== true`
   → 403. **Admin-only** — managers cannot reset (account administration is master-admin territory,
   matching the huddles/roster/auth precedent).
 - Validate the target name against `roster-members.json` `activeMembers` (server-owned list — never
   trust a raw client name). Unprovisioned member → clear error ("run Set up accounts first").
 - `email = nameToEmail(name)`, `password = nameToPassword(name)` — **reuse** the existing helpers
   (the `surname-parity` test guards the algorithm); `getUserByEmail` →
-  `admin.auth().updateUser(uid, { password })` — the first password-write Admin SDK call in the
+  `getAuth().updateUser(uid, { password })` — the first password-write Admin SDK call in the
   codebase. `revokeRefreshTokens(uid)` behind an **optional `revoke` flag**: `true` for real
   resets (kick lost/stolen sessions), `false` for Phase 2 compels (don't sign a mid-shift member
   out of their devices just to nudge them).

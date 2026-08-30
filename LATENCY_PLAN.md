@@ -322,6 +322,12 @@ more strongly than `Getting ready` does** — a slow network moves a network wal
 parse one. The card already carries both rows and the connection split; the comparison is a reading,
 not a build. If the signature is absent, the finding is wrong and the decision should wait.
 
+**And one of the two pre-decision questions is already answered (31 Aug 2026): the check is only
+enforced when the network is up.** The offline arm of the same experiment shows Firebase emits the
+stored user anyway when the lookup cannot run — so an offline device already trusts the stored
+identity under shipped behaviour, and the "no — keep waiting" answer protects strictly less than it
+appears. The remaining open reading is the field signature above.
+
 ---
 
 ## Phase 4 — only if the measurement still says so

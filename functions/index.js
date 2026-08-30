@@ -21,7 +21,9 @@
 
 const { onRequest } = require('firebase-functions/v2/https');
 const { defineSecret }  = require('firebase-functions/params');
-const admin             = require('firebase-admin');
+const { initializeApp } = require('firebase-admin/app');
+const { getAuth }       = require('firebase-admin/auth');
+const { getFirestore }  = require('firebase-admin/firestore');
 // M8: @anthropic-ai/sdk, mammoth and web-push are LAZY-required inside the one function that
 // each needs (parseRosterPDF / ingestHuddle DOCX branch / the push fan-out helpers) rather than
 // at module load, so a cold start of a function that doesn't use them (e.g. setupRosterAuth) does
@@ -56,7 +58,7 @@ const { buildAuthEndpoints }     = require('./auth-endpoints');
 const { buildOvertimeEndpoints } = require('./overtime');
 const rosterMembers = require('./roster-members.json');
 
-admin.initializeApp();
+initializeApp();
 
 const HUDDLE_SECRET      = defineSecret('HUDDLE_SECRET');
 const ANTHROPIC_API_KEY  = defineSecret('ANTHROPIC_API_KEY');
@@ -259,7 +261,7 @@ exports.parseRosterPDF = onRequest(
         const idToken = authHeader.slice('Bearer '.length);
         let decodedToken;
         try {
-            decodedToken = await admin.auth().verifyIdToken(idToken, true);
+            decodedToken = await getAuth().verifyIdToken(idToken, true);
         } catch (err) {
             console.warn('[parseRosterPDF] Token verification failed:', err.message);
             res.status(401).json({ error: 'Unauthorised' });
@@ -795,13 +797,13 @@ exports.unlockCalendarViewer = onRequest(
 
         const now       = Date.now();
         const sourceKey = sourceKeyFor(clientIpOf(req));
-        const throttleRef = admin.firestore().collection('viewerAttempts').doc(sourceKey);
+        const throttleRef = getFirestore().collection('viewerAttempts').doc(sourceKey);
         // The ALL-SOURCES ceiling (v20.35). Every per-source control depends on attributing the
         // request correctly, and that attribution rests on a forwarding header whose exact shape
         // depends on the deployment — so it is checked and recorded ALONGSIDE the per-source bucket,
         // never instead of it. This one is keyed on a constant, so no header can mint a fresh
         // allowance. See GLOBAL_SOURCE_KEY in calendar-viewer-auth.js.
-        const globalRef = admin.firestore().collection('viewerAttempts').doc(GLOBAL_SOURCE_KEY);
+        const globalRef = getFirestore().collection('viewerAttempts').doc(GLOBAL_SOURCE_KEY);
 
         // ── Throttle check, BEFORE the comparison ───────────────────────────────────────────────
         // Order matters: a blocked source must not get its guess compared at all, or the block
@@ -857,7 +859,7 @@ exports.unlockCalendarViewer = onRequest(
         const ok = isValidPinShape(supplied) && pinMatches(supplied, expected);
         if (!ok) {
             try {
-                await admin.firestore().runTransaction(async tx => {
+                await getFirestore().runTransaction(async tx => {
                     // Firestore requires every read in a transaction before any write.
                     const [snap, gSnap] = await Promise.all([tx.get(throttleRef), tx.get(globalRef)]);
                     tx.set(throttleRef, recordFailure(snap.exists ? snap.data() : null, now));
@@ -881,10 +883,10 @@ exports.unlockCalendarViewer = onRequest(
             // correct-PIN path still writes and reads nothing. Best-effort: a sweep that fails must
             // never affect the response the member already earned.
             try {
-                const old = await admin.firestore().collection('viewerAttempts').limit(50).get();
+                const old = await getFirestore().collection('viewerAttempts').limit(50).get();
                 const dead = old.docs.filter(d => isThrottleStateStale(d.data(), now));
                 if (dead.length) {
-                    const batch = admin.firestore().batch();
+                    const batch = getFirestore().batch();
                     dead.forEach(d => batch.delete(d.ref));
                     await batch.commit();
                     console.log('[unlockCalendarViewer] swept', dead.length, 'expired throttle rows');
@@ -904,10 +906,10 @@ exports.unlockCalendarViewer = onRequest(
             // `getSignInStats` works from an allowlist of derived member emails. Both are asserted
             // by calendar-viewer-auth.test.mjs rather than left to hold by luck.
             try {
-                await admin.auth().getUser(CALENDAR_VIEWER_UID);
+                await getAuth().getUser(CALENDAR_VIEWER_UID);
             } catch (e) {
                 if (e && e.code === 'auth/user-not-found') {
-                    await admin.auth().createUser({
+                    await getAuth().createUser({
                         uid: CALENDAR_VIEWER_UID,
                         displayName: 'Calendar viewer (shared staff access)',
                         disabled: false,
@@ -922,13 +924,13 @@ exports.unlockCalendarViewer = onRequest(
             // whole set, so this is not merely idempotent housekeeping — it is what guarantees the
             // account cannot accumulate a claim by any route and keep it. Cheap, and it means the
             // account's privileges are re-asserted from source rather than trusted from history.
-            await admin.auth().setCustomUserClaims(CALENDAR_VIEWER_UID, viewerClaims());
+            await getAuth().setCustomUserClaims(CALENDAR_VIEWER_UID, viewerClaims());
 
             // The claims are ALSO baked into the custom token. Without this the client would hold a
             // token minted before the claims took effect and its first override read would be denied
             // — the same stale-claim class `writeWithClaimRetry` exists for on the member paths,
             // except here there is no retry net because the very first read is the one that matters.
-            const token = await admin.auth().createCustomToken(CALENDAR_VIEWER_UID, viewerClaims());
+            const token = await getAuth().createCustomToken(CALENDAR_VIEWER_UID, viewerClaims());
 
             console.log('[unlockCalendarViewer] unlocked', sourceKey);
             // The MINIMUM the client needs. No claims echo, no uid, no expiry hint — the client

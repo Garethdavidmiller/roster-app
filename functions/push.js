@@ -24,11 +24,11 @@
  * colleagues would be a leak. When adding a notification, ask whether every member should read it;
  * if not, it is targeted (`.claude/rules/notifications.md` → the checklist).
  *
- * `admin` is required here rather than passed in: `require('firebase-admin')` returns the same
- * singleton index.js initialised, so there is no second app and no init-order coupling.
+ * Firestore is reached here rather than passed in: `getFirestore()` resolves the same default
+ * app index.js initialised, so there is no second app and no init-order coupling.
  */
 
-const admin = require('firebase-admin');
+const { getFirestore } = require('firebase-admin/firestore');
 const { shouldDeleteSubscription } = require('./roster-parse-helpers');
 
 // Module-level flag so setVapidDetails() is only called once per warm instance.
@@ -115,7 +115,7 @@ async function sendTargetedPush(payload, ownerUids, logTag) {
     // (one or two names), `in` caps at 30 values, and per-uid queries keep the failure of one lookup
     // from taking the others down with it.
     const results = await Promise.all(uids.map(uid =>
-        admin.firestore().collection('pushSubscriptions').where('owner', '==', uid).get()));
+        getFirestore().collection('pushSubscriptions').where('owner', '==', uid).get()));
     const docs = results.flatMap(snap => snap.docs);
     if (docs.length === 0) {
         // Worth a warning, not a silent return: on a fresh project this means the admin has never
@@ -152,7 +152,7 @@ async function sendTargetedPush(payload, ownerUids, logTag) {
 }
 
 async function fanOutPush(payload, logTag) {
-    const snapshot = await admin.firestore().collection('pushSubscriptions').get();
+    const snapshot = await getFirestore().collection('pushSubscriptions').get();
     if (snapshot.empty) {
         console.log(`${logTag} No subscriptions — skipping`);
         return;

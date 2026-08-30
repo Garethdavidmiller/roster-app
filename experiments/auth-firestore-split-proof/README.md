@@ -89,6 +89,29 @@ the server has confirmed it — and `calendar-access.js` decides what a viewer m
 identity. An account disabled since the last load would be trusted for the length of one paint. That
 is a trade for `CALENDAR_DATA.md` and `AUTH_AND_SESSIONS.md` to price, not a performance tweak.
 
+## The offline arm (offline.mjs, 31 Aug 2026) — the check is only enforced when the network is up
+
+Asked while reviewing the auth plans: what does the boot emit when the device is OFFLINE with a
+stored user? The identity decision implicitly assumed waiting for `accounts:lookup` always buys the
+server's check on the account. It does not:
+
+| Arm | `authBootstrap` | restored? |
+|---|---|---|
+| online (control) | 63.6 ms | yes |
+| auth endpoint unreachable (route abort — the tunnel shape: SW serves the page, the call dies) | **130.6 ms** | **yes** |
+
+**Firebase emits the stored user anyway when the lookup fails.** So a device that is offline — the
+installed-PWA-in-a-tunnel case — already trusts the stored identity today, with no wait: a disabled
+account paints its cached roster on an offline device under the SHIPPED behaviour. The round trip
+therefore buys its check only on exactly the loads where it also costs the most, and the "no — keep
+waiting" answer to the identity decision protects strictly less than it appears to.
+
+Two honesty notes. The abort fails FAST; a degraded-but-connected network hangs instead, and the
+emission then waits on the failure — which is consistent with the field wall being this call. And
+the full-offline arm (`context.setOffline`) could not load the page at all, because this harness has
+no service worker — that is a fact about the harness, not about the app, whose SW serves every page
+from cache.
+
 ## Running it
 
 ```bash

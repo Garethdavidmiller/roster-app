@@ -47,7 +47,8 @@
 
 const { onRequest } = require('firebase-functions/v2/https');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
-const admin = require('firebase-admin');
+const { getAuth } = require('firebase-admin/auth');
+const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const OT = require('./overtime-core');
 const { setupWebPush, sendTargetedPush } = require('./push');
 const { nameToEmail, buildPushPayload } = require('./roster-parse-helpers');
@@ -93,7 +94,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
         }
         : async (_payload, _uids, tag) => { console.warn(`${tag} push not configured — nothing sent`); return 0; });
     const uidForName = (notify && notify.uidForName) || (async (name) => {
-        try { return (await admin.auth().getUserByEmail(nameToEmail(name))).uid; }
+        try { return (await getAuth().getUserByEmail(nameToEmail(name))).uid; }
         catch { return null; }   // no account (or lookup hiccup) → this member is skipped, never guessed
     });
 
@@ -182,7 +183,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                     });
                     await send(payload, uids, `[overtimeReminder ${d.id}]`);
                 }
-                await d.ref.update({ reminderSentAt: admin.firestore.FieldValue.serverTimestamp() });
+                await d.ref.update({ reminderSentAt: FieldValue.serverTimestamp() });
                 console.log(`[overtimeReminder] ${d.id} — ${names.length} unanswered, ${uids.length} resolvable target(s)`);
             } catch (err) {
                 // One bad week must not abandon the rest. NOTE there is no retry to rely on
@@ -217,7 +218,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
      */
     const PURGE_ARMED = purgeArmed === true;
 
-    const db = () => admin.firestore();
+    const db = () => getFirestore();
 
     // ── Shared boundary helpers ─────────────────────────────────────────────────────────────────
 
@@ -238,7 +239,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
         const bearer = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
         let decoded;
         try {
-            decoded = await admin.auth().verifyIdToken(bearer, true);
+            decoded = await getAuth().verifyIdToken(bearer, true);
         } catch (_) {
             res.status(401).json({ error: 'Unauthorised' });
             return null;
@@ -295,7 +296,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
 
     /** Milliseconds → Firestore Timestamp, for anything stored as an instant. */
     function ts(ms) {
-        return admin.firestore.Timestamp.fromMillis(ms);
+        return Timestamp.fromMillis(ms);
     }
 
     // ── createOvertimeWindow ────────────────────────────────────────────────────────────────────
@@ -437,7 +438,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             retentionUntil:    ts(milestones.retentionUntil),
             policyVersion:     milestones.policyVersion,
             audience,
-            createdAt:         admin.firestore.FieldValue.serverTimestamp(),
+            createdAt:         FieldValue.serverTimestamp(),
             createdByName:     byName,
             createdByUid:      byUid,
         });
@@ -447,7 +448,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                 uid:         null,        // resolved lazily on first submission; see the header
                 grade:       p.grade,
                 rosterOrder: p.rosterOrder,
-                createdAt:   admin.firestore.FieldValue.serverTimestamp(),
+                createdAt:   FieldValue.serverTimestamp(),
             });
         }
         await batch.commit();
@@ -542,7 +543,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                 uid:         null,
                 grade:       p.grade,
                 rosterOrder: p.rosterOrder,
-                createdAt:   admin.firestore.FieldValue.serverTimestamp(),
+                createdAt:   FieldValue.serverTimestamp(),
             });
         }
         await batch.commit();
@@ -613,11 +614,11 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                 if (!restorable.ok) return res.status(409).json({ error: restorable.error });
             }
 
-            const del = admin.firestore.FieldValue.delete();
+            const del = FieldValue.delete();
             await pRef.update(withdrawn
                 ? {
                     withdrawn:   true,
-                    withdrawnAt: admin.firestore.FieldValue.serverTimestamp(),
+                    withdrawnAt: FieldValue.serverTimestamp(),
                     withdrawnBy: who.name,
                 }
                 : { withdrawn: del, withdrawnAt: del, withdrawnBy: del });
@@ -921,7 +922,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             //   · `retained` filtered `retentionUntil > nowMs` in memory anyway — the query now does
             //     it, and the redundant filter is gone rather than left to imply a second rule.
             const snap = await db().collection(WINDOWS)
-                .where('retentionUntil', '>', admin.firestore.Timestamp.fromMillis(nowMs))
+                .where('retentionUntil', '>', Timestamp.fromMillis(nowMs))
                 .get();
             /** @type {Map<string, any>} */
             const byWeek = new Map();
@@ -1104,7 +1105,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             // single-field index) and makes the growth irrelevant to the hot path, so arming the
             // purge stays a storage decision rather than a latency one.
             const snap = await db().collection(WINDOWS)
-                .where('retentionUntil', '>', admin.firestore.Timestamp.fromMillis(nowMs))
+                .where('retentionUntil', '>', Timestamp.fromMillis(nowMs))
                 .get();
             const live = snap.docs;
 
@@ -1260,13 +1261,13 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                         // never confirm a submission that is saved and correct.
                         tx.update(headRef, {
                             lastMutationId:    mutationId,
-                            lastMutationSeenAt: admin.firestore.FieldValue.serverTimestamp(),
+                            lastMutationSeenAt: FieldValue.serverTimestamp(),
                         });
                         return { revision: decision.revision, noop: true };
                     }
 
                     const revision = decision.revision;
-                    const acceptedAt = admin.firestore.FieldValue.serverTimestamp();
+                    const acceptedAt = FieldValue.serverTimestamp();
                     tx.set(headRef.collection('revisions').doc(OT.revisionId(revision)), {
                         weekEnding,
                         memberName: who.name,

@@ -152,7 +152,8 @@ function build({
      *  "did a refused call still reset the password?" needs the payload, not a tally. */
     const authOps = [];
     const fnDir = new URL('./functions/', import.meta.url).pathname;
-    const adminPath = require.resolve('firebase-admin', { paths: [fnDir] });
+    const authPath  = require.resolve('firebase-admin/auth', { paths: [fnDir] });
+    const firePath  = require.resolve('firebase-admin/firestore', { paths: [fnDir] });
     const pushPath  = require.resolve('./functions/push.js');
     const db = makeDb(seed);
     const users = new Map((existingUsers || []).map((u) => [u.email, u]));
@@ -199,10 +200,13 @@ function build({
         },
         listUsers: async () => ({ users: [...users.values()], pageToken: undefined }),
     };
-    const fakeAdmin = { auth: () => auth, firestore };
-    fakeAdmin.firestore.FieldValue = firestore.FieldValue;
-
-    require.cache[adminPath] = { id: adminPath, filename: adminPath, loaded: true, exports: fakeAdmin };
+    // Injected at the MODULAR entry points, which is what the handlers require since the
+    // firebase-admin v14 migration — the old single `firebase-admin` root export no longer
+    // carries `auth`/`firestore`, so a fake installed there would be loaded by nobody and every
+    // assertion below would run against the real SDK.
+    const stub = (p, exports) => { require.cache[p] = { id: p, filename: p, loaded: true, exports }; };
+    stub(authPath, { getAuth: () => auth });
+    stub(firePath, { getFirestore: () => db, FieldValue: firestore.FieldValue });
     require.cache[pushPath]  = { id: pushPath, filename: pushPath, loaded: true, exports: {
         setupWebPush: () => {},
         sendTargetedPush: async (payload, uids, tag) => {

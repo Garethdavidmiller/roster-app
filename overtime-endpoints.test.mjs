@@ -161,28 +161,35 @@ function makeDb(seed = {}, onRead = null) {
     };
 }
 
-/** Install a fake `firebase-admin` into the CommonJS cache before overtime.js requires it. */
+/**
+ * Install fake firebase-admin MODULES into the CommonJS cache before overtime.js requires them.
+ *
+ * The injection points are `firebase-admin/auth` and `firebase-admin/firestore`, not the package
+ * root: since the v14 migration the handlers import those directly, and the root export no longer
+ * carries `auth`/`firestore` at all. A fake left at the root would be required by nothing, and the
+ * whole suite would silently run against the real SDK.
+ */
 function installFakeAdmin(db, tokens) {
-    const adminPath = require.resolve('firebase-admin', { paths: [new URL('./functions/', import.meta.url).pathname] });
+    const fnDir = new URL('./functions/', import.meta.url).pathname;
+    const authPath = require.resolve('firebase-admin/auth', { paths: [fnDir] });
+    const firePath = require.resolve('firebase-admin/firestore', { paths: [fnDir] });
     const stamp = () => ({ toMillis: () => SERVER_NOW });
-    const firestore = () => db;
-    firestore.FieldValue = { serverTimestamp: stamp, delete: () => DELETE_SENTINEL };
-    firestore.Timestamp  = { fromMillis: (ms) => ({ toMillis: () => ms }) };
-    const fake = {
-        auth: () => ({
-            verifyIdToken: async (token, checkRevoked) => {
-                // Revocation checking is MANDATORY here, so the fake refuses to answer without it —
-                // a handler that dropped the flag would fail loudly rather than silently accepting
-                // an hour-stale token from a disabled account.
-                assert.equal(checkRevoked, true, 'verifyIdToken must be called with checkRevoked');
-                if (!tokens[token]) throw new Error('invalid token');
-                return tokens[token];
-            },
-        }),
-        firestore,
+    const FieldValue = { serverTimestamp: stamp, delete: () => DELETE_SENTINEL };
+    const Timestamp  = { fromMillis: (ms) => ({ toMillis: () => ms }) };
+    const auth = {
+        verifyIdToken: async (token, checkRevoked) => {
+            // Revocation checking is MANDATORY here, so the fake refuses to answer without it —
+            // a handler that dropped the flag would fail loudly rather than silently accepting
+            // an hour-stale token from a disabled account.
+            assert.equal(checkRevoked, true, 'verifyIdToken must be called with checkRevoked');
+            if (!tokens[token]) throw new Error('invalid token');
+            return tokens[token];
+        },
     };
-    require.cache[adminPath] = { id: adminPath, filename: adminPath, loaded: true, exports: fake };
-    return fake;
+    const stub = (p, exports) => { require.cache[p] = { id: p, filename: p, loaded: true, exports }; };
+    stub(authPath, { getAuth: () => auth });
+    stub(firePath, { getFirestore: () => db, FieldValue, Timestamp });
+    return { auth: () => auth, firestore: () => db };
 }
 
 /**

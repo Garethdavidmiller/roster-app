@@ -28,7 +28,8 @@
 const { onRequest }         = require('firebase-functions/v2/https');
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { onSchedule }        = require('firebase-functions/v2/scheduler');
-const admin  = require('firebase-admin');
+const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { getStorage } = require('firebase-admin/storage');
 const crypto = require('crypto');
 const { parseStrictIsoDate, isPayCutoffDay, fileSignatureMatches, buildPushPayload } = require('./roster-parse-helpers');
 const { setupWebPush, fanOutPush } = require('./push');
@@ -195,14 +196,14 @@ const ingestHuddle = onRequest(
         // atomically inside the metadata transaction below (Finding #6). Non-fatal: a failed read just
         // means a prior version's object may be left for pruneOldHuddles to reclaim.
         try {
-            const prevSnap = await admin.firestore().collection('huddles').doc(date).get();
+            const prevSnap = await getFirestore().collection('huddles').doc(date).get();
             if (prevSnap.exists) prevStoragePath = (prevSnap.data() || {}).storagePath || null;
         } catch (readErr) {
             console.warn('[ingestHuddle] Could not read previous huddle metadata (non-fatal, cleanup only):', readErr.message);
         }
 
         try {
-            const bucket = admin.storage().bucket();
+            const bucket = getStorage().bucket();
             const file   = bucket.file(storagePath);
 
             await file.save(fileBuffer, { contentType: mimeType });
@@ -250,7 +251,7 @@ const ingestHuddle = onRequest(
                 storageUrl,
                 storagePath,
                 fileType,
-                uploadedAt: admin.firestore.FieldValue.serverTimestamp(),
+                uploadedAt: FieldValue.serverTimestamp(),
                 uploadedBy: 'power-automate',
             };
             if (htmlContent !== null) firestoreDoc.htmlContent = htmlContent;
@@ -264,9 +265,9 @@ const ingestHuddle = onRequest(
             // state — if a concurrent run created the doc meanwhile, createdNew flips false and we don't
             // double-notify, consistent with "a missed notification is safer than spamming staff").
             let createdNew = false;
-            const huddleRef = admin.firestore().collection('huddles').doc(date);
+            const huddleRef = getFirestore().collection('huddles').doc(date);
             try {
-                createdNew = await admin.firestore().runTransaction(async tx => {
+                createdNew = await getFirestore().runTransaction(async tx => {
                     const snap = await tx.get(huddleRef);
                     tx.set(huddleRef, firestoreDoc);
                     return !snap.exists;   // true ⇒ this run created the date's doc → a genuine first upload
@@ -479,8 +480,8 @@ async function pruneOldHuddles(excludeDate) {
     const cutoff = new Date(now.getFullYear(), tm, Math.min(now.getDate(), daysInTargetMonth));
     const cutoffISO = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`;   // "YYYY-MM-DD"
 
-    const db     = admin.firestore();
-    const bucket = admin.storage().bucket();
+    const db     = getFirestore();
+    const bucket = getStorage().bucket();
     const stale  = await db.collection('huddles').where('date', '<', cutoffISO).get();
     if (stale.empty) return;
 

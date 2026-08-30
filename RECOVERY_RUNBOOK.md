@@ -486,4 +486,4 @@ worse than a Calendar that will not open.
 Rotation needs no client release — OPERATIONS_REFERENCE.md → "Rotating the Calendar PIN". Set the new
 secret, redeploy the function, tell staff. Existing unlocked sessions keep working until their
 browsers close; to kill those too, revoke the shared account's refresh tokens
-(`admin.auth().revokeRefreshTokens('calendar-viewer')`). Member sessions are untouched either way.
+(`getAuth().revokeRefreshTokens('calendar-viewer')`, from `firebase-admin/auth`). Member sessions are untouched either way.

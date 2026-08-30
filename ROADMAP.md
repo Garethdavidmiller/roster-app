@@ -128,6 +128,22 @@ device is not authorisation, and "they already have it cached" is the argument t
 refuse. The honest position is that this is a smaller version of the same question, not a different
 one — which is exactly why it is a decision rather than an optimisation.
 
+**Measured 31 Aug 2026: the check the wait buys is only enforced when the network is UP.** With the
+auth endpoint unreachable, Firebase emits the stored user anyway (130 ms, restored — the offline arm
+of `experiments/auth-firestore-split-proof/`). So an offline device — the installed app in a tunnel
+— already trusts the stored identity under the SHIPPED behaviour, and a disabled account already
+paints its cached roster there. The "no" answer therefore protects strictly less than it appears:
+it enforces the check exactly and only on the loads where the wait is also longest.
+
+**Two couplings, so neither decision is taken as if the other did not exist:**
+- **Track E scales this decision's cost.** If E3 ever ships, every load runs the member restore, so
+  the round-trip wait applies to the whole population rather than to signed-in members only. Decide
+  this with that in view, or Track E quietly re-opens it.
+- **`AUTH_PLAN.md` §4's grace mode is this same trust question at greater severity** — it
+  contemplates trusting a stored identity for DAYS offline; the "no" here refuses to trust it for
+  one paint online. The measured offline behaviour above says the app already sits nearer grace
+  mode than the "no" answer assumes. An owner weighing this should read that section first.
+
 **Three answers are all reasonable**, and the engineering differs completely:
 1. **No** — the gate holds; accept the round trip and close this. Then the ladder's `Recognised`
    row should be re-labelled as a floor rather than a target, so nobody re-opens it every quarter —
@@ -542,7 +558,7 @@ both would need the governance gate answered before that changed.
 | Watch | Because | Where |
 |---|---|---|
 | Override document count | An archive strategy must land before ~5,000 docs | `MAINTENANCE_CALENDAR.md` |
-| `firebase-admin` v14 | Blocked until `firebase-functions` widens its peer range; the scoped `uuid` override holds meanwhile. The originally-assumed v14 bump was neither needed nor safe | `KNOWN_LIMITATIONS.md`, `SECURITY_RELEASE_PLAN.md` → A1 |
+| ~~`firebase-admin` v14~~ | **DONE v22.01** — `14.3.0` + `firebase-functions` `7.3.2`. v14 removes the namespaced `admin.*` API, so 59 call sites moved to the modular entry points first (on v13, green) and the version bump changed no code. The `uuid` override is still needed: `gaxios@6.7.1` under `@google-cloud/storage` declares `uuid ^9.0.1` | `KNOWN_LIMITATIONS.md`, `SECURITY_RELEASE_PLAN.md` → A1 |
 | `npm audit --omit=dev` in `functions/` | The weekly workflow runs `--audit-level=high`, so low/moderate drift does **not** fail CI — it is caught only by looking | `SECURITY_RELEASE_PLAN.md` → A1 |
 | App Speed card — the **Usable** milestone | Added v20.80, and the first figure that describes what a member actually waits for. The two older milestones cannot: "First appears" is the splash painting, and "Code loaded" fires while the Calendar can still be blank. Watch this one, not those | Operations → App Speed |
 | App Speed card, calendar tail | The only trigger that would reopen the bundler or SDK-deferral question | This file → Build tooling |
