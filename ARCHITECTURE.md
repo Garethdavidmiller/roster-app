@@ -66,7 +66,7 @@ live anchors:
 | `ARCHITECTURE_PLAN.md` | Track 1 complete | Code comments cite it by phase number |
 | `OTHER_PLAN.md` | Shipped | Code comments cite "OTHER_PLAN.md decision N" |
 | `LOGIN_INCIDENT.md` | Resolved | `CLAUDE.md` sends you here before touching login |
-| `LATENCY_PLAN.md` | Phase 1 shipped | Holds the decision rule for phases 2–3 |
+| `LATENCY_PLAN.md` | Phase 1 shipped; **Phase 3's trigger has fired** (confirmed 30 Aug 2026) | Holds the decision rule for phases 2–3, and now the two readings that resolved it |
 | `LINKS_DEC2026_PLAN.md` | Live | Holds the links modules' release history |
 | `RANGERS_ROVERS_PLAN.md` | Shipped, 2 open claims | The open claims are `VAL` rows |
 | `BRASS_PLAN.md` | **Gated on owner answers** | The Part 2 payslip questions decide the design; nothing ships before them |

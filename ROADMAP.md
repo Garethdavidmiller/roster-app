@@ -154,22 +154,28 @@ never share a marker, or a staff member is sent back to a page that has already 
 Settling either needs Chiltern/retail guidance, not another read. **Never resolve a conflict by
 picking the likelier reading** — both cases refuse somebody whichever way they are called.
 
-**Also outstanding:** four product-page URLs (Chiltern Friends & Family, West Midlands Family Day
-Ranger, and the two conflicting Thames pages). Those rows cite the parent/landing page and say so,
-rather than carrying a URL pattern-guessed from the others — a fabricated citation in a source
-register is the precise failure the register exists to prevent, and it would look more authoritative
-than the honest gap.
+**~~Also outstanding: four product-page URLs~~ — CLOSED at v20.37.** Chiltern Friends & Family and
+West Midlands Family Day Ranger were sourced to their own dedicated product pages in that release,
+and the two Thames rows both cite the 7-Day promotion page they actually rest on. This paragraph
+outlived the fix by sixty versions. The principle it states is still the rule and is worth keeping:
+a row cites the page it was read from, never a URL pattern-guessed from its neighbours — a
+fabricated citation in a source register is the precise failure the register exists to prevent, and
+it would look more authoritative than an honest gap.
 
-**The egress request still stands, and is now about maintenance rather than launch.** The session's
-policy denies `nationalrail.co.uk` and `chilternrailways.co.uk` (re-tested Aug 2026, still
-`EGRESS_BLOCKED`), and the allowlist is environment config that cannot be changed from inside a
-session. **Gareth: add `www.nationalrail.co.uk` and `support.chilternrailways.co.uk` to this
-environment's network policy (claude.ai/code → environment settings). Name the SUBDOMAINS** — the
-Chiltern content is on `support.`, the product pages on `www.`. With that open, review passes can
-quote verbatim instead of depending on the owner re-checking by hand each time.
+**~~The egress request~~ — GRANTED, and verified Aug 2026.** `www.nationalrail.co.uk`,
+`www.chilternrailways.co.uk` and `support.chilternrailways.co.uk` all reach real content from inside
+a session now. Every one of the **73 URLs** in `GUIDE_SOURCES.md` was fetched once it opened: 72
+resolve, and the one that did not was a rotted gov.scot slug behind the Scottish tax bands, repointed
+in the same pass. **That check had never been possible before, and it is now cheap enough to run on
+every guide review** — a dead citation is invisible to a reader who trusts the register and to every
+test in the repo. What review passes can now do is quote verbatim rather than depend on the owner
+re-reading by hand.
 
 **Half two stays with Gareth whatever the egress policy says:** *is it valid on us, and between which
-stations* is an operator fact the national pages do not answer.
+stations* is an operator fact the national pages do not answer. And **neither Rangers conflict is
+settled by the new access** — both are the publisher contradicting itself on one live page, so
+re-reading confirms the contradiction and can never resolve it (`VAL-GUIDE-001`). What egress buys
+there is confirming they are still live, which is worth doing before troubling Chiltern retail.
 
 **The one design decision worth knowing without reading the plan:** the guide leads with the products
 that are **not** valid on Chiltern, and states plainly that it is **not an exhaustive national list** —
@@ -396,12 +402,22 @@ reached** — a 2026 implementation preference must not become a 2028 architectu
 Distribution costs an Apple Developer account ($99/year) and Google Play ($25) whatever is chosen.
 
 ### Sign-in and Calendar start latency
-**Status:** Phase 1 shipped (v21.29–30) · **Owner:** Gareth · **Plan:** `LATENCY_PLAN.md` · **Trigger:** one full month of start-ladder data
+**Status:** Phase 1 shipped (v21.29–30) · **PHASE 3'S TRIGGER HAS FIRED** (confirmed 30 Aug 2026) · **Owner:** Gareth · **Plan:** `LATENCY_PLAN.md`
 
-The measurement landed before the work, deliberately. Phases 2 (fetch the displayed month, not three
-months of the whole team) and 3 (split Firebase Auth from Firestore) are both real, and which one is
-worth doing is a question the App Speed card's "How far the start gets" block now answers. Read it
-before starting either. The decision rule is a table in the plan.
+The measurement landed before the work, deliberately, and it has now answered. **This entry belongs
+under NOW rather than LATER the moment the work is scheduled** — it is left here only because
+starting it is a decision nobody has taken yet, not because a trigger is still awaited.
+
+Two readings a week apart (22 and 30 Aug 2026, the second on 2,226 Calendar opens) agree: the wall is
+`page start → Recognised` at **52% over one second**, three times its nearest rival, and everything
+downstream inherits it. **Phase 3** (split Firebase Auth from Firestore) is the treatment; **Phase 2**
+(fetch the displayed month, not three months of the whole team) is second and shapes the sync chip
+rather than what a member feels. **Phase 4 / the bundler is measurably NOT the problem** — all three
+boot stages finish inside half a second on ~90% of opens.
+
+The number to put in front of the decision is not on the ladder: the code is ready inside ½s and
+**21% of page opens still take over three seconds to become usable.** Everything a member waits for
+is after the code has loaded.
 
 ### Build tooling — trigger-based; no action currently
 **Status:** Conditional · **Do nothing until a trigger occurs**

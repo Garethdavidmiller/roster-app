@@ -179,7 +179,7 @@ belongs.
 | pay-income-tax | paycalc | rUK income-tax bands + Personal Allowance (2026/27) — confirmed Jul 2026; the rUK income-tax/PA freeze now runs to Apr 2031 | Fact | 2026-07 | 2027-03 | https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027 |
 | pay-ni | paycalc | National Insurance primary threshold + employee rates (2026/27) — confirmed Jul 2026 | Fact | 2026-07 | 2027-03 | https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027 |
 | pay-student-loan | paycalc | Student-loan plan thresholds (2026/27) — confirmed Jul 2026 vs GOV.UK SL3 2026-27 | Fact | 2026-07 | 2027-03 | https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027 |
-| pay-scottish | paycalc | Scottish income-tax bands (2026/27) — confirmed Jul 2026 vs the Scottish Budget 2026/27 | Fact | 2026-07 | 2027-03 | https://www.gov.scot/publications/scottish-budget-2026-to-2027/ |
+| pay-scottish | paycalc | Scottish income-tax bands (2026/27) — confirmed Jul 2026 vs the Scottish Budget 2026/27. **URL repointed Aug 2026: the cited link 404s.** gov.scot's slug is `scottish-budget-2026-2027`, not `-2026-to-2027`; the publication itself is unchanged and its title still reads "Scottish Budget 2026 to 2027", which is presumably where the wrong slug came from. Found by fetching all 73 register URLs once network egress to the rail and government domains was opened — the FIGURES were verified in Jul 2026 and are not re-opened by this; only the citation rotted | Fact | 2026-07 | 2027-03 | https://www.gov.scot/publications/scottish-budget-2026-2027/ |
 
 ## Not certified
 

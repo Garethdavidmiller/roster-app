@@ -67,8 +67,8 @@ than the ones above it by construction — the same property the card already st
 
 Recorded against the decision rule above so the numbers and the verdict sit next to the rule that
 produced them. **Read from the deployed Operations card, not from this repo** — the analytics are
-admin-only, so screenshots are the record. A full-month confirmation read is due after **31 Aug**;
-act then, not now.
+admin-only, so screenshots are the record. **Superseded by the confirmation read below; kept because
+the two together are the evidence that the verdict is stable rather than a single month's shape.**
 
 **The boot stages exonerate the code.** Waking up 9% over ½s (989 opens) · Loading code 11%
 (1,052) · Getting ready 0% (1,114). The SW, the module graph and the no-bundler trade are all fast
@@ -105,6 +105,61 @@ Three cautions attached to the verdict:
 
 ---
 
+## Confirmation read — 30 Aug 2026 (owner screenshot; the month effectively complete)
+
+The read the section above deferred. August is 1½ days from ending and the Calendar sample has gone
+from 1,619 opens to **2,226**; no row here can move materially in what is left, so this is recorded
+as the confirmation rather than a second provisional. **The verdict is unchanged on 2× the sample,
+which is the useful part** — a decision this size should not rest on one partial month.
+
+**The boot stages exonerate the code — CONFIRMED.** Waking up 10% over ½s (1,513 opens) · Loading
+code 12% (1,623) · Getting ready **0%** (1,738). Every figure is within a point of the provisional
+on ~50% more data. **Phase 4's trigger did not fire, and the no-bundler trade is measured, not
+argued.**
+
+**The ladder, cumulative (Calendar, 2,226 opens):**
+
+| Rung | over 1s | jump | opens | (22 Aug) |
+|---|---|---|---|---|
+| page start → **Recognised** | 52% | **+52 ← the wall** | 1,072 | 56% |
+| → Unlocked | 58% | +6 | 1,086 | 62% |
+| → Shifts shown | 75% | +17 | 1,493 | 71% |
+| → **Confirmed** | 100% | +25 | 1,045 | 100% |
+
+**Verdict per the rule: Phase 3 first, confirmed.** The dominant gap is still `page start →
+Recognised` by a factor of three over its nearest rival, and the two rungs that moved (Shifts shown
++9→+17, Confirmed +29→+25) traded with each other without touching the wall.
+
+**The sharpest single fact in this read is not in the ladder at all.** All three boot stages finish
+inside ½s on ~90% of opens — *Getting ready* is 0% over ½s across 1,738 of them — and yet **21% of
+page opens take over three seconds to become USABLE** (32% under 1s · 46% 1–3s, 1,695 opens). The
+code is ready and the page is not. Everything a member waits for is therefore downstream of DCL, in
+the identity restore and the access decision, which is precisely what Phase 3 addresses and is a
+stronger statement of it than the ladder alone makes.
+
+**Three things worth knowing before reading any dimension on this card:**
+
+- **The connection split is probably reading the PLATFORM, not the network.** Not-reported runs
+  **10%** over 1s (1,163 opens) against 4G-like's **20%** (1,041) — i.e. the devices that report no
+  connection class are the FASTER half. `NetworkInformation` is unimplemented in Safari, so
+  "not reported" is largely iOS and "4G-like" largely Android. Treat the row as a device split
+  until something distinguishes them. The provisional read drew the opposite inference from the
+  same two rows ("smells of network"); on the fuller sample the gap widened rather than closed,
+  which fits a platform explanation better than a signal one.
+- **The installed app is SLOWER than a browser tab** — 16% over 1s (1,736 opens) against 11% (490).
+  Counter-intuitive, and not yet explained. The likeliest reading is population rather than
+  performance: an installed app belongs to somebody with a saved session to restore, while a
+  browser tab is disproportionately a PIN unlock or a first visit, and neither of those runs the
+  member chain that the wall lives in. **Do not act on this row** — it is a hypothesis with an
+  obvious confound, and it would be settled by splitting `Recognised` by install mode rather than
+  by changing anything.
+- **Every by-version row is at or near the thin bar.** `THIN_SAMPLE` is 20; these rows carry 24–46
+  opens each (two exceptions at 152 and 214). v21.91 reading 23% against v21.78's 4% is noise on
+  ~30 samples, not a regression to hunt. The card withholds a verdict below 20 and does not shade
+  it above; that is the reader's job here.
+
+---
+
 ## Phase 2 — the Calendar data path
 
 **Trigger:** the ladder shows the gap at Unlocked → Shifts shown, or Shifts shown → Confirmed.
@@ -133,6 +188,13 @@ fetch had just loaded. Any per-member narrowing has to keep that single-reconcil
 
 **Trigger:** the ladder shows the gap before Recognised, i.e. cold sign-in and cold Calendar start
 are dominated by getting an identity.
+
+> **THE TRIGGER HAS FIRED — twice, on two independent months' worth of data (22 and 30 Aug 2026).**
+> This phase is no longer conditional; what remains is the decision to start it. Read the
+> confirmation read above first, and in particular the note that the code is ready inside ½s while
+> a fifth of opens take over three seconds to be usable — that gap is this phase's whole subject.
+> The prove-it-on-ONE-page step below is not optional: the wall is 52 points and nothing has
+> established how much of it Firestore's presence in the auth graph actually owns.
 
 `firebase-client.js` statically imports app, auth **and** Firestore, so somebody who only needs to
 sign in still pulls the database SDK into the module graph. Authentication does not require
