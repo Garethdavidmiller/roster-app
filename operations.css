@@ -33,6 +33,58 @@ body {
     overflow-x: hidden; overflow-x: clip;
 }
 body.auth-ready .container { display: grid; }
+/* ── Needs attention strip (v22.03) ─────────────────────────────────────────
+   Quiet amber accents on the ordinary CARD surface, not a coloured banner: it lists work, it does
+   not report an outage. The first cut tinted the whole strip with the AL-warning background and it
+   read as the one pink surface on a page of white cards — slightly alarming and off-system. Now
+   the strip wears the page's own card recipe (surface + radius + shadow) with the amber LEFT RAIL
+   the reset rows already use for "attention", and the warning tint lives in the CHIPS, matching
+   how warnings appear inside cards everywhere else. Display is left at default block — the module
+   toggles `hidden`, and page-visibility-parity holds any author `display:` off it. */
+.attn-strip {
+    background: var(--surface);
+    border-left: 4px solid var(--al-warning);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-2);
+    padding: 12px 16px 13px;
+}
+.attn-head {
+    margin: 0 0 8px;
+    font-size: var(--type-label);
+    font-weight: 700;
+    color: var(--primary-blue);
+}
+.attn-items {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.attn-item {
+    display: inline-block;
+    padding: 6px 13px;
+    background: var(--al-warning-bg);
+    border: 1px solid color-mix(in oklch, var(--al-warning) 22%, white);
+    border-radius: var(--radius-pill);
+    color: var(--primary-blue);
+    font-size: var(--type-label);
+    font-weight: 600;
+    text-decoration: none;
+    transition: border-color 0.1s, background 0.1s;
+}
+.attn-item:hover { border-color: var(--al-warning); background: white; }
+.attn-item:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+/* Wide screens: heading and items share one line — a full-width strip holding two small chips
+   under a heading is mostly empty field. INLINE-level children, never `display:` on .attn-strip
+   itself (see the header note). */
+@media (min-width: 768px) {
+    .attn-head  { display: inline-flex; align-items: center; gap: 6px; margin: 0 14px 0 0; vertical-align: middle; }
+    .attn-items { display: inline-flex; vertical-align: middle; }
+    .attn-strip { padding: 10px 16px; }
+}
+
 /* Pull the header closer to the first card — net gap = 12px - 8px = 4px */
 .app-header { margin-bottom: -8px; }
 
@@ -1384,4 +1436,10 @@ select:focus-visible, input:focus-visible {
     color: var(--text-light);
     text-align: center;
     text-transform: lowercase;
+}
+
+/* The attention strip spans both desktop columns — it indexes cards on each side, so it must not
+   sit inside either. (Same breakpoint as the column grid above.) */
+@media (min-width: 1024px) {
+    body.auth-ready .container > .attn-strip { grid-column: 1 / -1; }
 }

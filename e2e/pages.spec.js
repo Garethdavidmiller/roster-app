@@ -3524,6 +3524,70 @@ for (const [pageFile, ready] of [['paycalc.html', '#periodSelect'], ['settings.h
     });
 }
 
+// ── Needs attention strip (v22.03) ───────────────────────────────────────────────────────────
+// The unit suite owns the arithmetic; these cover what only a browser can — that the REAL card
+// loads feed the strip (a severed report call leaves every unit test green), that clean means
+// ABSENT, and that an item genuinely opens the card it names.
+//
+// The reset rows ride the fixtures' per-path seam (getResetRequests is a plain collection read);
+// the client errors ride the shared e2e.docs (getClientErrors is query-wrapped, and the stub
+// serves queries from the shared array — both of its queries see the same rows, so an exact
+// on-screen error count is the stub's artefact, not the app's: assert presence, not arithmetic).
+
+test('operations: a clean page has NO attention strip — absence is the all-clear', async ({ page }) => {
+    await seedSession(page);
+    await page.goto('/operations.html');
+    await expect(page.locator('#accountStatusCard')).toBeVisible();
+    await expect(page.locator('#attentionStrip')).toBeHidden();
+});
+
+test('operations: outstanding resets and errors surface in the strip, and an item opens its card', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(() => {
+        window.__E2E = Object.assign(window.__E2E || {}, {
+            docsByPath: { resetRequests: [
+                { id: 'S. Silva', memberName: 'S. Silva', requestedAt: Date.now() - 3600e3, count: 2, provisioned: true },
+                { id: 'M. Robson', memberName: 'M. Robson', requestedAt: Date.now() - 60e3, count: 1, provisioned: true },
+            ] },
+            docs: [
+                { id: 'err1', memberName: 'G. Miller', page: 'admin.html', message: 'boom', stack: '', appVersion: 'x', userAgent: 'ua', timestamp: Date.now(), resolved: false },
+            ],
+        });
+    });
+    await page.goto('/operations.html');
+    const strip = page.locator('#attentionStrip');
+    await expect(strip).toBeVisible();
+    await expect(strip).toContainText('Needs attention');
+    await expect(strip.locator('a[href="#reset-requests"]')).toHaveText(/2 password resets waiting/);
+    await expect(strip.locator('a[href="#error-log"]')).toContainText('unresolved error');
+
+    // The jump: the error-log card is collapsed by default; the strip item must open it.
+    await expect(page.locator('#errorLogBody')).not.toHaveClass(/open/);
+    await page.locator('#attentionStrip a[href="#error-log"]').click();
+    await expect(page.locator('#errorLogBody')).toHaveClass(/open/);
+    // …and a REPEAT tap after the admin closes the card still works (same hash, no hashchange).
+    await page.locator('#errorLogToggleHeader').click();
+    await expect(page.locator('#errorLogBody')).not.toHaveClass(/open/);
+    await page.locator('#attentionStrip a[href="#error-log"]').click();
+    await expect(page.locator('#errorLogBody')).toHaveClass(/open/);
+});
+
+test('operations: resets alone show one item, and the strip never renders a zero', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(() => {
+        window.__E2E = Object.assign(window.__E2E || {}, {
+            docsByPath: { resetRequests: [
+                { id: 'S. Silva', memberName: 'S. Silva', requestedAt: Date.now(), count: 1, provisioned: true },
+            ] },
+        });
+    });
+    await page.goto('/operations.html');
+    const strip = page.locator('#attentionStrip');
+    await expect(strip).toBeVisible();
+    await expect(strip.locator('a[href="#reset-requests"]')).toHaveText(/1 password reset waiting/);
+    await expect(strip.locator('a[href="#error-log"]')).toHaveCount(0);
+});
+
 test('operations: no account-status name is truncated at phone width', async ({ page }) => {
     /*
      * The NAME is what identifies a row on a 51-row list, and at 375px it was the element being

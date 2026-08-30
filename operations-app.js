@@ -14,6 +14,7 @@ import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAll
 import { isPasswordMigrated } from './auth-identity.js';
 import { _cardLoadError, _relativeTime } from './operations-reports.js';
 import { initErrorLog } from './operations-errors.js';
+import { createAttentionStrip } from './operations-attention.js';
 import { initUsageCard } from './operations-usage.js';
 import { initPageSpeedCard } from './operations-speed.js';
 import { initErrorReporter } from './error-reporter.js';
@@ -207,9 +208,14 @@ export function init() {
     // hashchange, because tapping the notification while Operations is already open re-navigates an
     // existing client (see the SW's notificationclick) and fires only hashchange.
     /** @type {Record<string, [string, string, string]>} hash → [bodyId, chevronId, cardId] */
-    const DEEP_LINK_CARDS = { '#reset-requests': ['resetRequestsBody', 'resetRequestsChevron', 'resetRequestsCard'] };
-    function openDeepLinkedCard() {
-        const target = DEEP_LINK_CARDS[location.hash];
+    const DEEP_LINK_CARDS = {
+        '#reset-requests': ['resetRequestsBody', 'resetRequestsChevron', 'resetRequestsCard'],
+        '#error-log':      ['errorLogBody',      'errorLogChevron',      'errorLogCard'],
+    };
+    /** @param {string} [hash] defaults to location.hash — the strip passes its own so a repeat
+     *  tap (same hash, no hashchange) still opens and scrolls. */
+    function openDeepLinkedCard(hash) {
+        const target = DEEP_LINK_CARDS[hash || location.hash];
         if (!target) return;
         const [bodyId, chevronId, cardId] = target;
         // Only ever OPENS. Re-running on a repeat tap must not toggle a card the admin just closed.
@@ -222,7 +228,14 @@ export function init() {
         });
     }
     openDeepLinkedCard();
-    window.addEventListener('hashchange', openDeepLinkedCard);
+    window.addEventListener('hashchange', () => openDeepLinkedCard());
+
+    // The Needs-attention strip (v22.03) — an index the cards feed; it runs no reads of its own
+    // (operations-attention.js header has the three refusals that ARE the design).
+    const attention = createAttentionStrip({
+        container: document.getElementById('attentionStrip'),
+        onJump: (hash) => openDeepLinkedCard(hash),
+    });
 
     /**
      * Expand a collapsible card programmatically — idempotent, and never a toggle.
@@ -602,6 +615,7 @@ export function init() {
             const requests = await getResetRequests();
             content.removeAttribute('aria-busy');
             if (chip) chip.textContent = requests.length ? String(requests.length) : '';
+            attention.report('resets', requests.length);
             if (!requests.length) {
                 // Same treatment as the Error Log's empty state (v21.72): both cards report that
                 // nothing needs the admin's attention, and they said so in two different voices —
@@ -884,7 +898,7 @@ export function init() {
     // ============================================
     // ERROR LOG CARD
     // ============================================
-    initErrorLog();
+    initErrorLog({ onAttention: (n, extra) => attention.report('errors', n, extra) });
     initUsageCard();
     initPageSpeedCard();
 

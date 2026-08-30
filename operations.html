@@ -96,6 +96,11 @@
         <span class="badge-page" id="opsBadge"><span class="badge-glyph" aria-hidden="true">🔧</span> Ops</span>
     </header>
 
+    <!-- Needs attention (v22.03) — an INDEX of exceptional card states, rendered by
+         operations-attention.js from what the cards themselves report. Hidden (absent, not empty)
+         when nothing needs doing; role=status so an item appearing is announced. -->
+    <section class="attn-strip" id="attentionStrip" role="status" hidden></section>
+
     <!-- Desktop column wrappers (like admin.html): the narrow left column holds the
          short publishing cards; the wide right column holds the width-hungry roster
          review table + monitoring/admin cards. On mobile the wrappers are display:contents

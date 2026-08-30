@@ -1547,6 +1547,13 @@ Cross-guide search (v22.02): a member knows a term ("gold card", "Thames Rover")
 - `nav-guide-search.js` — `initGuideSearch({ guides })` (guides = nav-panel's own NAV_GUIDES, passed in so the drawer keeps the single declaration). Lazy-loaded with the index on the search input's first focus. Result rows are ordinary `.nav-panel-link--guide` anchors with `data-open-id`, so nav-panel's delegated handler supplies open-counting, `?from=` and the Back-history dance; evidence renders as one chip per state (`EVIDENCE_LABELS`). Escape clears a non-empty box (and stops there); an empty box lets Escape reach the drawer.
 - Contracts: guide-search.test.mjs (rules) + guide-index-parity.test.mjs (staleness, marker vocabulary, anchor round-trip, legend rule, wiring).
 
+### `operations-attention.js`
+The "Needs attention" strip on operations.html (v22.03) — an index of exceptional card states.
+- `ATTENTION_CATALOGUE` — the one declaration of what can need attention (id → emoji, deep-link hash, count-in-words label; `errors` honours `truncated` as "100+").
+- `buildAttentionItems(reports)` — pure: which items render, in catalogue order. A count of 0 renders nothing; an id never reported is ABSENT (unknown ≠ clean).
+- `createAttentionStrip({ container, onJump })` → `{ report(id, count, {truncated}) }` — renders into `#attentionStrip` (hidden until an item exists), items as hash anchors into operations-app's DEEP_LINK_CARDS plus `onJump` for repeat taps. `report` THROWS on an unknown id.
+- Fed by: the reset-requests refresh in operations-app.js and `_setCountChip` in operations-errors.js — the same moments the header chips update, so strip and chips cannot disagree. A failed card load reports nothing.
+
 ### `nav-panel.js`
 Shared slide-out navigation panel — imported by all seven app pages.
 - `initNavPanel({ currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, canOpenOvertime, onLogoClick, usageIdentity, authReady, onLockCalendar })`  — **`canOpenOvertime` was missing from this signature until v21.63**, and it is the one that decides whether a beta participant is offered the Overtime pill at all, so a permission flag was invisible in the doc that routes people here — injects overlay + drawer HTML, wires burger button, manages open/close. `memberName` displays in footer; `onSignOut` callback wires the Sign out button (omit both to hide footer).
