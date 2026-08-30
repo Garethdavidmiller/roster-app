@@ -33,9 +33,17 @@ test('counts read in words, singular and plural, with the right jump target', ()
     assert.deepEqual(many.map(i => i.hash), ['#reset-requests', '#error-log']);
 });
 
-test('a truncated error backlog says 100+, never the capped number', () => {
+test('a truncated error backlog says 100+ in BOTH voices, never the capped number', () => {
     const [item] = buildAttentionItems({ errors: { count: 100, truncated: true } });
     assert.equal(item.text, '100+ unresolved errors');
+    assert.equal(item.badge, '100+');
+});
+
+test('the two voices state one fact: the badge is the count the sentence speaks', () => {
+    const [item] = buildAttentionItems({ resets: { count: 3 } });
+    assert.equal(item.badge, '3');
+    assert.equal(item.short, 'Password resets');
+    assert.equal(item.text, '3 password resets waiting');
 });
 
 test('items keep catalogue order regardless of report order', () => {
@@ -46,6 +54,7 @@ test('items keep catalogue order regardless of report order', () => {
 test('every catalogue entry carries what a row needs — a half-declared id cannot half-render', () => {
     for (const [id, entry] of Object.entries(ATTENTION_CATALOGUE)) {
         assert.ok(entry.emoji && entry.hash.startsWith('#'), id);
+        assert.ok(entry.short, `${id}: pills need the short name`);
         assert.equal(typeof entry.label(2), 'string');
     }
 });
@@ -77,7 +86,8 @@ test('report(): an unknown id THROWS — a typo cannot report into the void', as
     // …and a KNOWN id renders, then a zero re-report hides the strip again
     strip.report('resets', 2);
     assert.equal(container.hidden, false);
-    assert.match(container.textContent, /2 password resets waiting/);
+    assert.match(container.textContent, /Password resets/);
+    assert.match(container.textContent, /2/);
     strip.report('resets', 0);
     assert.equal(container.hidden, true, 'back to clean → back to absent');
 });

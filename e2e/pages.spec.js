@@ -3558,8 +3558,10 @@ test('operations: outstanding resets and errors surface in the strip, and an ite
     const strip = page.locator('#attentionStrip');
     await expect(strip).toBeVisible();
     await expect(strip).toContainText('Needs attention');
-    await expect(strip.locator('a[href="#reset-requests"]')).toHaveText(/2 password resets waiting/);
-    await expect(strip.locator('a[href="#error-log"]')).toContainText('unresolved error');
+    // The full sentence is the ACCESSIBLE NAME; the visible pill is the card-header echo.
+    await expect(strip.getByRole('link', { name: '2 password resets waiting' })).toBeVisible();
+    await expect(strip.locator('a[href="#reset-requests"] .attn-count')).toHaveText('2');
+    await expect(strip.getByRole('link', { name: /unresolved error/ })).toBeVisible();
 
     // The jump: the error-log card is collapsed by default; the strip item must open it.
     await expect(page.locator('#errorLogBody')).not.toHaveClass(/open/);
@@ -3584,7 +3586,7 @@ test('operations: resets alone show one item, and the strip never renders a zero
     await page.goto('/operations.html');
     const strip = page.locator('#attentionStrip');
     await expect(strip).toBeVisible();
-    await expect(strip.locator('a[href="#reset-requests"]')).toHaveText(/1 password reset waiting/);
+    await expect(strip.getByRole('link', { name: '1 password reset waiting' })).toBeVisible();
     await expect(strip.locator('a[href="#error-log"]')).toHaveCount(0);
 });
 

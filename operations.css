@@ -33,26 +33,25 @@ body {
     overflow-x: hidden; overflow-x: clip;
 }
 body.auth-ready .container { display: grid; }
-/* ── Needs attention strip (v22.03) ─────────────────────────────────────────
-   Quiet amber accents on the ordinary CARD surface, not a coloured banner: it lists work, it does
-   not report an outage. The first cut tinted the whole strip with the AL-warning background and it
-   read as the one pink surface on a page of white cards — slightly alarming and off-system. Now
-   the strip wears the page's own card recipe (surface + radius + shadow) with the amber LEFT RAIL
-   the reset rows already use for "attention", and the warning tint lives in the CHIPS, matching
-   how warnings appear inside cards everywhere else. Display is left at default block — the module
-   toggles `hidden`, and page-visibility-parity holds any author `display:` off it. */
-.attn-strip {
-    background: var(--surface);
-    border-left: 4px solid var(--al-warning);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-2);
-    padding: 12px 16px 13px;
-}
+/* ── Needs attention strip (v22.03; group-label redesign same release) ──────────────────────
+   The page organises itself with group labels on the navy canvas (PUBLISH · ROSTER & ACCOUNTS ·
+   MONITORING). "Needs attention" is a FOURTH, CONDITIONAL group in exactly that voice — an
+   eyebrow label and a row of pills, no banner and no card frame. Two earlier cuts are worth
+   remembering: a full-tint amber banner read as the one pink surface on a page of white cards,
+   and a white card frame around two small chips was mostly empty field. Each pill is a MINIATURE
+   OF THE CARD HEADER it opens — emoji, name, and the same .card-year-chip count the target card's
+   header wears — so what you tap looks like where you land. Display stays default block on the
+   container: the module toggles `hidden`, and page-visibility-parity holds any author `display:`
+   off it. */
+.attn-strip { margin-bottom: -2px; }
 .attn-head {
-    margin: 0 0 8px;
-    font-size: var(--type-label);
+    /* .ops-group-label's voice, warmed: this group exists only when something is wrong. */
+    font-size: var(--type-micro);
     font-weight: 700;
-    color: var(--primary-blue);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--accent-gold);
+    margin: 4px 0 8px 2px;
 }
 .attn-items {
     list-style: none;
@@ -63,27 +62,24 @@ body.auth-ready .container { display: grid; }
     gap: 8px;
 }
 .attn-item {
-    display: inline-block;
-    padding: 6px 13px;
-    background: var(--al-warning-bg);
-    border: 1px solid color-mix(in oklch, var(--al-warning) 22%, white);
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 9px 8px 13px;
+    background: var(--surface);
     border-radius: var(--radius-pill);
+    box-shadow: var(--shadow-2);
     color: var(--primary-blue);
     font-size: var(--type-label);
-    font-weight: 600;
+    font-weight: 700;
     text-decoration: none;
-    transition: border-color 0.1s, background 0.1s;
+    transition: transform 0.1s;
 }
-.attn-item:hover { border-color: var(--al-warning); background: white; }
-.attn-item:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
-/* Wide screens: heading and items share one line — a full-width strip holding two small chips
-   under a heading is mostly empty field. INLINE-level children, never `display:` on .attn-strip
-   itself (see the header note). */
-@media (min-width: 768px) {
-    .attn-head  { display: inline-flex; align-items: center; gap: 6px; margin: 0 14px 0 0; vertical-align: middle; }
-    .attn-items { display: inline-flex; vertical-align: middle; }
-    .attn-strip { padding: 10px 16px; }
-}
+.attn-item:hover { transform: translateY(-1px); }
+.attn-item:active { transform: scale(var(--press-scale)); }
+/* Gold ring, not navy — these pills sit on the navy canvas where the default ring vanishes. */
+.attn-item:focus-visible { outline: var(--focus-outline-gold); outline-offset: 2px; }
+.attn-count { flex-shrink: 0; }
 
 /* Pull the header closer to the first card — net gap = 12px - 8px = 4px */
 .app-header { margin-bottom: -8px; }

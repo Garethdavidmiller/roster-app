@@ -34,20 +34,26 @@ export const ATTENTION_CATALOGUE = /** @type {const} */ ({
     resets: {
         emoji: '🙋',
         hash: '#reset-requests',
+        short: 'Password resets',
         label: (/** @type {number} */ n) => `${n} password reset${n === 1 ? '' : 's'} waiting`,
     },
     errors: {
         emoji: '🐛',
         hash: '#error-log',
+        short: 'Unresolved errors',
         label: (/** @type {number} */ n, /** @type {{truncated?: boolean}} */ { truncated } = {}) =>
             truncated ? '100+ unresolved errors' : `${n} unresolved error${n === 1 ? '' : 's'}`,
     },
 });
 
 /**
- * The pure decision: which items render, in catalogue order, saying what.
+ * The pure decision: which items render, in catalogue order, saying what. Each item carries two
+ * voices for one fact: `text` is the full sentence (the accessible name — "2 password resets
+ * waiting"), `short` + `badge` are the visual pill (the card-header echo — "Password resets ‹2›",
+ * where the badge matches the count chip on the card the item opens). `badge` honours the error
+ * log's 100+ truncation — the strip must never understate a backlog its target card states.
  * @param {Record<string, {count: number, truncated?: boolean}>} reports
- * @returns {{id: string, hash: string, emoji: string, text: string}[]}
+ * @returns {{id: string, hash: string, emoji: string, short: string, badge: string, text: string}[]}
  */
 export function buildAttentionItems(reports) {
     const out = [];
@@ -55,7 +61,11 @@ export function buildAttentionItems(reports) {
         const r = reports[id];
         if (!r) continue;                                    // never reported — unknown, not zero
         if (!(r.count > 0) && !r.truncated) continue;        // known clean — nothing to index
-        out.push({ id, hash: entry.hash, emoji: entry.emoji, text: entry.label(r.count, r) });
+        out.push({
+            id, hash: entry.hash, emoji: entry.emoji, short: entry.short,
+            badge: r.truncated ? '100+' : String(r.count),
+            text: entry.label(r.count, r),
+        });
     }
     return out;
 }
@@ -87,11 +97,13 @@ export function createAttentionStrip({ container, onJump }) {
         host.textContent = '';
         if (!items.length) { host.hidden = true; return; }
 
+        // The heading speaks in the page's group-label voice (PUBLISH · MONITORING · …) — the
+        // strip is a fourth, CONDITIONAL group at the top, not a banner over the page.
         const head = document.createElement('h2');
         head.className = 'attn-head';
         const glyph = document.createElement('span');
         glyph.setAttribute('aria-hidden', 'true');
-        glyph.textContent = '⚠️';
+        glyph.textContent = '⚠';
         head.append(glyph, ' Needs attention');
 
         const list = document.createElement('ul');
@@ -101,10 +113,17 @@ export function createAttentionStrip({ container, onJump }) {
             const a = document.createElement('a');
             a.className = 'attn-item';
             a.href = item.hash;
+            // The full sentence is the accessible name; the pill shows the card-header ECHO
+            // (emoji · name · the same count chip the target card's header wears), so what you
+            // tap looks like where you land.
+            a.setAttribute('aria-label', item.text);
             const icon = document.createElement('span');
             icon.setAttribute('aria-hidden', 'true');
             icon.textContent = item.emoji;
-            a.append(icon, ` ${item.text}`);
+            const count = document.createElement('span');
+            count.className = 'card-year-chip errorlog-count-chip attn-count';
+            count.textContent = item.badge;
+            a.append(icon, ` ${item.short} `, count);
             li.append(a);
             list.append(li);
         }

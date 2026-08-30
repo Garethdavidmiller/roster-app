@@ -1550,7 +1550,7 @@ Cross-guide search (v22.02): a member knows a term ("gold card", "Thames Rover")
 ### `operations-attention.js`
 The "Needs attention" strip on operations.html (v22.03) — an index of exceptional card states.
 - `ATTENTION_CATALOGUE` — the one declaration of what can need attention (id → emoji, deep-link hash, count-in-words label; `errors` honours `truncated` as "100+").
-- `buildAttentionItems(reports)` — pure: which items render, in catalogue order. A count of 0 renders nothing; an id never reported is ABSENT (unknown ≠ clean).
+- `buildAttentionItems(reports)` — pure: which items render, in catalogue order, each in TWO VOICES for one fact — `text` (the full sentence, used as the accessible name) and `short`+`badge` (the visual pill: emoji · name · the same `.card-year-chip` count the target card's header wears, so what you tap looks like where you land; `badge` honours the 100+ truncation). A count of 0 renders nothing; an id never reported is ABSENT (unknown ≠ clean).
 - `createAttentionStrip({ container, onJump })` → `{ report(id, count, {truncated}) }` — renders into `#attentionStrip` (hidden until an item exists), items as hash anchors into operations-app's DEEP_LINK_CARDS plus `onJump` for repeat taps. `report` THROWS on an unknown id.
 - Fed by: the reset-requests refresh in operations-app.js and `_setCountChip` in operations-errors.js — the same moments the header chips update, so strip and chips cannot disagree. A failed card load reports nothing.
 
