@@ -128,6 +128,22 @@ device is not authorisation, and "they already have it cached" is the argument t
 refuse. The honest position is that this is a smaller version of the same question, not a different
 one — which is exactly why it is a decision rather than an optimisation.
 
+**Measured 31 Aug 2026: the check the wait buys is only enforced when the network is UP.** With the
+auth endpoint unreachable, Firebase emits the stored user anyway (130 ms, restored — the offline arm
+of `experiments/auth-firestore-split-proof/`). So an offline device — the installed app in a tunnel
+— already trusts the stored identity under the SHIPPED behaviour, and a disabled account already
+paints its cached roster there. The "no" answer therefore protects strictly less than it appears:
+it enforces the check exactly and only on the loads where the wait is also longest.
+
+**Two couplings, so neither decision is taken as if the other did not exist:**
+- **Track E scales this decision's cost.** If E3 ever ships, every load runs the member restore, so
+  the round-trip wait applies to the whole population rather than to signed-in members only. Decide
+  this with that in view, or Track E quietly re-opens it.
+- **`AUTH_PLAN.md` §4's grace mode is this same trust question at greater severity** — it
+  contemplates trusting a stored identity for DAYS offline; the "no" here refuses to trust it for
+  one paint online. The measured offline behaviour above says the app already sits nearer grace
+  mode than the "no" answer assumes. An owner weighing this should read that section first.
+
 **Three answers are all reasonable**, and the engineering differs completely:
 1. **No** — the gate holds; accept the round trip and close this. Then the ladder's `Recognised`
    row should be re-labelled as a floor rather than a target, so nobody re-opens it every quarter —
