@@ -2,9 +2,14 @@
 
 *Created August 2026 (at v21.30), external review. Not version-stamped; not a runtime asset.*
 
-**Phase 1 has shipped. Phases 2 and 3 are deliberately NOT started, and the reason is the point of
-this file:** the instrumentation that decides between them only began collecting at v21.30. Starting
-either one now would be choosing on intuition, which is the thing the measurement was built to stop.
+**Where this stands (30 Aug 2026):** Phase 1 shipped and its ladder has now decided things. **Phase 3
+is measured and DECLINED as a latency fix** — the split was priced at 4.6–52 ms against a wall of
+over a second, and the wall turned out to be one unconditional auth round trip, which is now an
+owner decision in `ROADMAP.md` (*Calendar start — the identity round trip*), not a phase here.
+**Phase 2 is instrumented, not started** — the card's "What put the shifts on screen" split decides
+it, and the reading is due a month after v21.99 ships. **Phase 4's trigger did not fire.** The
+method IS the point of this file: every one of those was measured before being built, and twice the
+measurement stopped work that would not have helped.
 
 Design detail lives beside the code, as ever — `perf-reporter.js` and `perf-stats.js` for what is
 measured, `AI_MAP.md` for the ladder's exports, `CALENDAR_DATA.md` for the invariants any change
@@ -23,7 +28,7 @@ Two things were considered and refused outright:
 
 | Refused | Why |
 |---|---|
-| **Render the base roster instantly, correct it when Firestore answers** | Override-unknown is not override-absent. It would look fast and reintroduce the exact defect `calendar-data-state.js` exists to prevent. **Latency must not buy a false roster.** |
+| **Render the base roster instantly, correct it when Firestore answers** | Override-unknown is not override-absent. It would look fast and reintroduce the exact defect `calendar-data-state.js` exists to prevent. **Latency must not buy a false roster.** — And this refusal is NOT the open `ROADMAP.md` identity question, though they rhyme: that one paints CACHED overrides (real data, correctly labelled) before the server confirms the *account*; this one would paint the base roster while overrides are *unknown*. Refusing the second says nothing about the first, and neither may be cited to settle the other. |
 | **Extend the session past 60 days** | It reduces how OFTEN latency is felt without improving it, and lengthens the life of a stale local session. Optimise the real path instead. |
 
 ---
@@ -49,10 +54,14 @@ Compare rows; do not do arithmetic.
 
 | The gap is between | What is slow | Do |
 |---|---|---|
-| page start → **Recognised** | restoring the saved sign-in | **Phase 3** (split Auth from Firestore) |
-| Recognised → **Unlocked** | the access decision itself | re-read `calendar-access.js`; phase 3 helps only indirectly |
-| Unlocked → **Shifts shown** | reaching a roster at all | **Phase 2** (fetch less, sooner) |
+| page start → **Recognised** | restoring the saved sign-in | ~~Phase 3~~ — **measured and declined**; the gap is one auth round trip, and skipping it is the `ROADMAP.md` identity decision, not a build |
+| Recognised → **Unlocked** | the access decision itself | re-read `calendar-access.js` |
+| Unlocked → **Shifts shown** | reaching a roster at all | **Phase 2** (fetch less, sooner) — read "What put the shifts on screen" first |
 | Shifts shown → **Confirmed** | the authoritative Firestore read | **Phase 2**, and its member/month narrowing especially |
+
+The first row is struck through rather than deleted because the rule was FOLLOWED: the ladder named
+Phase 3, the proof priced it, and the answer redirected the question. A table quietly rewritten to
+the outcome would hide that the method worked.
 
 **Wait for a full month before reading it.** The card's own `THIN_SAMPLE` rule governs these rows;
 a week of data on a 50-person app can read 100% and mean nothing.
