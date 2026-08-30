@@ -31,7 +31,7 @@ import { loadRosterContext, rosterBadge } from './overtime-roster.js';
 import {
     weekLabel, weekSpan, shortDate, answerCopy, answerTone, deadlineLines,
     answerAnchorStale, submitDisposition, modesFor, offersFullTwelve, submitFailureCopy,
-    sameAnswer, receiptLine,
+    sameAnswer, receiptLine, unfinishedDates, reconcileVerdict, conflictIsOurs,
 } from './overtime-format.js';
 
 /**
@@ -560,28 +560,25 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         }
     }
 
-    /** All seven answered, and any custom pair complete and sane. */
-    function isComplete() {
-        return dates.every(d => {
-            const a = answers[d];
-            if (!a || !a.mode) return false;
-            if (a.mode !== 'custom') return true;
-            return !!a.start && !!a.end && a.start !== a.end;
-        });
-    }
-
-    /** The first date the member has not finished — what an error focuses. */
-    function firstIncomplete() {
-        return dates.find(d => {
-            const a = answers[d];
-            if (!a || !a.mode) return true;
-            return a.mode === 'custom' && (!a.start || !a.end || a.start === a.end);
-        }) || null;
+    /**
+     * The dates still outstanding, in window order — the ONE traversal, and the one list.
+     *
+     * The count and the day an error walks to used to be computed separately, and they disagreed
+     * (v21.92): `updateSubmitState` counted a day as answered whenever an answer OBJECT existed,
+     * while the press-time check also required a `custom` pair to be present and sane. So a day set
+     * to Custom with the times left blank made the button read "Submit availability", and pressing
+     * it refused with "Answer Tue 2 Sep before submitting" — the form telling the member two
+     * different things about the same day. The rule itself now lives in `overtime-format.js`, where
+     * it can be tested; this closure only supplies the answers and the dates.
+     * @returns {string[]}
+     */
+    function unfinished() {
+        return unfinishedDates(answers, dates);
     }
 
     function updateSubmitState() {
         if (!submitBtn) return;
-        const missing = dates.filter(d => !answers[d]).length;
+        const missing = unfinished().length;
         submitBtn.textContent = missing
             ? `${missing} ${missing === 1 ? 'day' : 'days'} still to answer`
             : (baseRevision ? 'Save changes' : 'Submit availability');
@@ -593,8 +590,9 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     // ── Submit ──────────────────────────────────────────────────────────────────────────────────
 
     async function onSubmit() {
-        if (!isComplete()) {
-            const date = firstIncomplete();
+        const outstanding = unfinished();
+        if (outstanding.length) {
+            const date = outstanding[0];
             say(`Answer ${date ? shortDate(date) : 'every day'} before submitting.`, 'warn');
             focusDay(date);
             return;
@@ -671,13 +669,25 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     async function reconcile() {
         say('Checking whether your form was saved…', 'busy');
         const state = await OTD.getMyOvertimeState();
-        if (!state.ok) {
+        const fresh = state.ok
+            ? (state.data.windows || []).find((/** @type {any} */ w) => w.weekEnding === win.weekEnding)
+            : null;
+        const verdict = reconcileVerdict(state.ok, fresh?.submission, pendingMutationId, !!fresh);
+        if (verdict === 'gone') {
+            // The week is no longer ours to answer — almost always a withdrawal that landed while
+            // the submission was in flight. Saying "it didn't reach the server" would be a claim we
+            // cannot support AND an instruction to re-answer a form that has gone.
+            pendingMutationId = null;
+            say('This overtime week is no longer available to you, so we couldn\'t confirm the '
+                + 'submission. If you\'ve been taken off this week, nothing more is needed.', 'warn');
+            return;
+        }
+        if (verdict === 'unknown') {
             say('We couldn\'t confirm whether your form was saved. Check this week again when '
                 + 'you\'re online, before submitting another version.', 'warn');
             return;
         }
-        const fresh = (state.data.windows || []).find((/** @type {any} */ w) => w.weekEnding === win.weekEnding);
-        if (fresh?.submission?.lastMutationId && fresh.submission.lastMutationId === pendingMutationId) {
+        if (verdict === 'saved') {
             baseRevision = fresh.submission.currentRevision;
             pendingMutationId = null;
             win.submission = fresh.submission;   // the list rows read this — keep them truthful
@@ -706,7 +716,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
      */
     /** @param {any} r */
     function showConflict(r) {
-        const mine = pendingMutationId && r.data?.lastMutationId === pendingMutationId;
+        const mine = conflictIsOurs(pendingMutationId, r.data?.lastMutationId);
         const stored = r.data?.days ? summarise(r.data.days) : '';
         say(mine
             ? `Your earlier submission did save. Here's what's currently stored${stored ? ` — ${stored}` : ''}. `

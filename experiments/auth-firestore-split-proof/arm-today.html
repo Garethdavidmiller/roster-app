@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>arm A — today's graph</title></head><body>
+<pre id="log">arm A: app + firestore + auth (what firebase-client.js imports today)</pre>
+<script type="module">
+// ARM A — the graph as it ships. All three SDK modules are STATIC imports, exactly as in
+// firebase-client.js, so all three are fetched, parsed and executed before this body runs.
+import { initializeApp } from './sdk/firebase-app.js';
+import { initializeFirestore, persistentLocalCache } from './sdk/firebase-firestore.js';
+import {
+    getAuth, connectAuthEmulator, onAuthStateChanged, setPersistence,
+    indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence,
+    signInWithEmailAndPassword, createUserWithEmailAndPassword,
+} from './sdk/firebase-auth.js';
+import { probe } from './arm.js';
+
+probe({
+    initializeApp, getAuth, connectAuthEmulator, onAuthStateChanged, setPersistence,
+    indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence,
+    signInWithEmailAndPassword, createUserWithEmailAndPassword,
+    initFirestore: (app) => initializeFirestore(app, { localCache: persistentLocalCache({}) }),
+});
+</script></body></html>

@@ -161,17 +161,94 @@ describe('Reset app clears THIS app, and still clears it', () => {
         }
     });
 
-    test('service workers are filtered by scope, not unregistered wholesale', () => {
-        assert.match(fn, /getRegistrations/);
-        assert.match(fn, /\.filter\(/, 'every registration on the origin is still being unregistered');
-        assert.match(fn, /new URL\(r\.scope\)/, 'the scope is not being consulted');
+    // ── THE SW FILTER IS RUN, NOT READ ──────────────────────────────────────────────────────────
+    // These three used to assert on the SOURCE — that it called `getRegistrations`, that it had a
+    // `.filter(`, that it mentioned `r.scope`. Every one of them passed against the bug an external
+    // review found: the filter asked whether a registration's scope was a PREFIX of our directory,
+    // and a root-scoped worker belonging to a different app on the Pages origin is a prefix of
+    // everything. So the reset unregistered it — which is precisely what the filter was added to
+    // stop. A test that reads the code can only confirm the author's intention; it cannot see the
+    // set that comes out. This one runs the real function over a real registration list.
+
+    /** Run the real `resetApp` against a fake SW/cache world and report what it removed.
+     *  @param {{path?: string, regs: {scope: string, script?: string|null, slot?: string}[]}} world */
+    async function reset({ path = '/roster-app/index.html', regs }) {
+        /** @type {string[]} */ const unregistered = [];
+        const navigator = {
+            serviceWorker: {
+                getRegistrations: async () => regs.map(r => {
+                    const worker = r.script === null ? null : { scriptURL: 'https://x.invalid' + (r.script ?? '/roster-app/service-worker.js') };
+                    return {
+                        scope: 'https://x.invalid' + r.scope,
+                        active: (r.slot ?? 'active') === 'active' ? worker : null,
+                        waiting: r.slot === 'waiting' ? worker : null,
+                        installing: r.slot === 'installing' ? worker : null,
+                        unregister: async () => { unregistered.push(r.scope + '@' + (r.script ?? '/roster-app/service-worker.js')); },
+                    };
+                }),
+            },
+        };
+        const window = {}; // no `caches` — this block is about service workers only
+        const location = { pathname: path, reload() {} };
+        const sessionStorage = { removeItem() {} };
+        // `resetApp` returns nothing — it is a fire-and-forget recovery that ends in a reload — so
+        // the observable result is what it DID, read after the microtask queue has drained. The
+        // internal 4-second reload timer is stubbed out; letting it run would prove nothing here
+        // and is covered by its own reasoning in the module.
+        new Function('navigator', 'window', 'location', 'sessionStorage', 'setTimeout',
+            `${fn}\nresetApp();`
+        )(navigator, window, location, sessionStorage, () => 0);
+        for (let i = 0; i < 8; i++) await Promise.resolve();
+        return unregistered;
+    }
+
+    test('another app\'s ROOT-scoped worker survives — the case a scope prefix could not see', async () => {
+        // `/` is a prefix of `/roster-app/` by definition, so the old rule swept it. On the Pages
+        // mirror that is somebody else's offline data, deleted with no warning and no way back.
+        const gone = await reset({ regs: [
+            { scope: '/', script: '/sw.js' },
+            { scope: '/roster-app/', script: '/roster-app/service-worker.js' },
+        ]});
+        assert.deepEqual(gone, ['/roster-app/@/roster-app/service-worker.js'],
+            "only this app's own worker may be unregistered");
     });
 
-    test('both filters fail towards doing LESS', () => {
-        // The right way round for a destructive action: an unreadable scope leaves that
-        // registration alone. The cost is a reset that occasionally under-clears; the alternative
-        // cost is deleting somebody else's data.
+    test('and OUR worker is still removed — a filter that removes nothing is not a fix', async () => {
+        const gone = await reset({ regs: [{ scope: '/roster-app/', script: '/roster-app/service-worker.js' }] });
+        assert.equal(gone.length, 1);
+    });
+
+    test('it is found wherever it sits in the lifecycle', async () => {
+        // A registration mid-update has its new worker in `waiting` or `installing` and nothing in
+        // `active`. Consulting only `active` would leave the broken registration in place on the
+        // one page state most likely to have prompted the reset.
+        for (const slot of ['active', 'waiting', 'installing']) {
+            const gone = await reset({ regs: [{ scope: '/roster-app/', slot }] });
+            assert.equal(gone.length, 1, `a ${slot} worker was not recognised as ours`);
+        }
+    });
+
+    test('a registration with no worker at all is left alone', async () => {
+        // Nothing identifies it, and the filter fails towards doing LESS — the right way round for
+        // a destructive action. The cost is a reset that occasionally under-clears; the alternative
+        // is deleting somebody else's data.
+        const gone = await reset({ regs: [{ scope: '/roster-app/', script: null }] });
+        assert.deepEqual(gone, []);
+    });
+
+    test('a sibling app in a NEIGHBOURING directory is untouched', async () => {
+        const gone = await reset({ regs: [
+            { scope: '/other-app/', script: '/other-app/service-worker.js' },
+            { scope: '/roster-app-two/', script: '/roster-app-two/service-worker.js' },
+        ]});
+        assert.deepEqual(gone, []);
+    });
+
+    test('the cache filter still fails towards doing LESS', () => {
+        // Unlike the SW filter this one is a name prefix with no lifecycle to it, and the test
+        // above already pins it against the SW's own constants. What is asserted here is only the
+        // direction of its failure.
         assert.match(fn, /catch \(_e\) \{ return false; \}/,
-            'an unparseable scope must be skipped, not swept');
+            'an unparseable script URL must be skipped, not swept');
     });
 });

@@ -1341,13 +1341,36 @@ select:focus-visible, input:focus-visible {
    it was opened" reads as that row's label rather than the start of a new group.
    MUST stay after `.usage-section-label` — same specificity, and that rule's `margin` SHORTHAND
    resets margin-top, so declared earlier this silently does nothing. */
-.speed-dim-label { margin-top: 18px; }
+/* AND THEY ARE NESTED, so they must not look like the section above them (v22.00). Every block
+   inside "Why some are slower" — the boot stages, the start ladder, what served the grid, and the
+   three dimensional splits — carried the SAME style as "By page", which is not their parent but
+   their parent's sibling. Five children rendered as peers of their own uncle, and the flattening
+   got worse each time a block was added. Subordinated by TREATMENT rather than by size: an
+   uppercase eyebrow reads as a label under a heading, where 10px would have been a heading too
+   small to read comfortably at the width most of this card is read on. `.speed-dim-label` is on
+   exactly those five and nothing else, so no wrapper element is needed to scope it. */
+.speed-dim-label {
+    margin-top: 18px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-mid);
+}
 
 /* Per-page milestone bars: label | appears | code loaded | usable | count (v20.80 — the third bar
    was added when "ready" was split into the scripts finishing and the page actually being usable).
    The label column narrows to pay for it: three bars in the width that held two is the whole cost,
    and at 78px the page names still read. */
 .speed-row--dual { grid-template-columns: minmax(64px, 26%) 1fr 1fr 1fr auto; }
+/* …and "at 78px the page names still read" was measured on a DESKTOP card. On a phone 26% is ~86px
+   before the emoji, which rendered "Pay calculator" as "Pay calcul…" and "Settings" as "Setti…" —
+   a page name truncated past the point of being one, in the column whose whole job is to say which
+   page the row is about. The bars give the width back: three of them share what is left, so each
+   loses ~9px and stays perfectly legible as a bar, which is not a shape that needs precision. Kept
+   to the narrow end deliberately — above it the desktop measurement still holds and the bars are
+   worth more than the slack. */
+@media (max-width: 480px) {
+    .speed-row--dual { grid-template-columns: minmax(88px, 36%) 1fr 1fr 1fr auto; }
+}
 .speed-dual-head { margin-bottom: -2px; }
 /* "This page does not report that milestone" — see the dash in dualRows. Centred in the track it
    replaces so the column still scans as a column. */

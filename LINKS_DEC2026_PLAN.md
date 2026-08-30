@@ -49,11 +49,11 @@ below is owned by somebody other than the developer.
 |---|---|---|---|
 | **Rotation length** | ✅ **24, main-only** (owner, Aug 2026) — 22 at v19.98, corrected v20.01. Evidence class C | — | — |
 | **Spare weeks** | ✅ **4** — the same as the roster today. A fifth was added v20.01 and reverted v20.02 once its motivating FF11 finding proved to be an optimiser bug (owner) | — | — |
-| **Existing 28-line designs** | ⚠️ **The owner's call.** They still load, are analysed over their first 24 lines, and re-save all 28; the grid says so in an amber notice. Nothing trims them automatically | Before proposals are drawn | **Gareth** — bin them, or keep them as a record |
+| **Existing 28-line designs** | ✅ **DECIDED (owner, 30 Aug 2026): BIN THEM.** Not kept as a record — the 28-line link is described in this document and in the module comments, which is where a record belongs; a stale design in the picker is a thing somebody opens and edits by mistake. **Execution is a click in the app and is not done yet** (soft delete ✕ → they sit in 🗑 Recently deleted until removed for good). **Generate the new 24-line design FIRST** — `canSoftDelete` refuses the last LIVE design, so binning them all requires one to exist, and that is the order the work wants anyway | Before proposals are drawn | **Gareth** — the clicks |
 | Timetable data (all three simplifiers) | ✅ Final — confirmed not provisional (owner, Aug 2026) | — | — |
 | Existing roster baseline | ✅ Measured (corrected v19.79 — 9 / 8 consecutive days, not 15 / 14) | — | — |
 | Operating-window setting | ✅ Shipped v19.54 | — | — |
-| ORR fatigue factors (p3, 24 factors) | ✅ Shipped v19.46 (+ v19.48 / v19.69 corrections) | — | — |
+| ORR fatigue factors (25 rows) | ✅ Shipped v19.46 (+ v19.48 / v19.69 / v21.97 corrections — the last read the ORR sheet at source and added the two rows nobody had implemented) | — | — |
 | Demand overlay | ✅ Shipped v19.56 | — | — |
 | Line-order objectives | ✅ Shipped v19.58–v19.60 | — | — |
 | **Hard company limits — a controlled source** | ⚠️ **Cited to the policy, but the policy is not identified** | **Before management review** | **Gareth** — get the title, clause, staff group and effective date. Evidence class B required (ROADMAP.md → Evidence class) |
@@ -238,7 +238,7 @@ proposals should answer it deliberately instead of inheriting it.
 > inapplicable ones. It is left here because the argument for the work is more useful than a table
 > of ticks, and because the "Applies to a CEA rotating link?" column is still the live judgement.
 
-P3 lists **24 factors** in five families (the shipped panel renders **23** — see `KNOWN_LIMITATIONS.md` → Links; unresolved). `runDesignChecks` tested two things that map to
+The sheet lists **25 rows** in six families (read at source Aug 2026; this said 24 against a panel rendering 23, and the real answer was neither). `runDesignChecks` tested two things that map to
 them, and CEAs work no nights, which makes a large part of the list inapplicable:
 
 | Factor | Applies to a CEA rotating link? | Checked today? |
@@ -734,6 +734,91 @@ Ordered by how much they change if the answer is unexpected.
    cleared and the coverage card no longer says "(provisional)".
 5. **Should Saturday's window ever differ from Mon–Fri?** Currently identical; the setting can split
    them if the answer changes.
+
+## The four decisions, as they would be put in the room
+
+A draft, written v21.97 so the questions exist in a form somebody can answer rather than only as
+rows in a readiness table. **The point of each is the same: state the measurement, state what turns
+on the answer, and do not offer a recommendation the tool has no standing to make.**
+
+Everything below is already in this document; this section adds no facts. It exists because a
+question spread across a plan is not a question anyone has been asked.
+
+---
+
+**1 · The Sunday finish.** *Does the staffed window on a Sunday move past 23:25?*
+
+Five December 2026 movements fall after it: 23:27 dep, 23:35 arr, 23:45 dep, 23:51 arr, 23:54 arr.
+**Three of the five are arrivals** — trains full of people getting off at a terminus with nobody on.
+That the arrivals count is the owner's own answer to what drives CEA workload, so this is not a
+question about whether they matter.
+
+*What turns on it:* the operating window is stored per design, so a proposal can be built to either
+answer — but not to both, and the coverage assessment differs throughout. It has to be settled
+before proposals are frozen, not after.
+
+*What the tool will not do:* decide it. The heat map marks post-window movements as a neutral fact
+rather than a finding, deliberately, because a shut station is not a coverage hole.
+
+---
+
+**2 · FF18 — cadence, or step?** *Which reading of the ORR's "rotating pattern of about a week" is
+being assessed against?*
+
+Read as **cadence**, no link can avoid it: a link moves everyone one line a week by construction.
+Read as **the size of the step** — how far your working day jumps week to week — it is a design
+choice, and a measurable one.
+
+*The measurements, and quote them with the switches named:* the live main roster moves **typically
+4h 0m a week, largest 8h 46m, with 9 of 20 boundaries over two hours**. The generator's shipped
+default measures **~1h 35m**. A step of ~9 min is reachable but only by turning the variety
+constraint off, which produces blocks of 8+ weeks on the same shift — judged "excessive and would be
+unpopular" by the owner, so it is not an answer to offer.
+
+*What turns on it:* under the cadence reading no proposal can clear the factor, and it belongs in
+the ORR's own justify / minimise / control conversation instead of on a checklist. Under the step
+reading the proposals should be compared on the figure, and the tool already produces it.
+
+---
+
+**3 · The contracted week.** *Today's duties cannot fill a 24-line link. Where does the rest come
+from?*
+
+Seeded from today's duties, 24 lines average **29h 53m** a week against a 35h contract. The live
+20-line roster gives exactly **35h 00m** — that is the check on the measure, not a coincidence.
+The gap is **123 hours of duty a week of rotation** at four cover weeks (88h at five).
+
+**The generator refuses to build a design that misses the contract in either direction**, so this is
+not a warning that can be scrolled past; it is a blocked action with the gap named. Note the shape
+of what it asks for: the target is an **equality**, so overshooting is refused too — the extra
+service has to land on a table totalling exactly `working × 35h`.
+
+*What turns on it:* either the December 2026 service supplies the work — in which case the targets
+should be seeded from the new timetable rather than today's roster — or a widened link does not fill
+a contracted week and the proposal is about headcount, not patterns. **This is the argument the tool
+was built to make and it has made it:** a service increase cannot be absorbed by making existing
+lines denser.
+
+---
+
+**4 · The business staffing requirement.** *What is the station actually required to staff?*
+
+Never formally stated by anyone. "Coverage versus service" is an inference this tool draws from the
+timetable; it is not a requirement anybody has issued.
+
+*What turns on it:* every proposal is currently assessed against a standard the assessor has not
+set. That is a fair way to lose a design meeting, and it is the one question here with no
+measurement to offer in place of an answer.
+
+---
+
+**And one that is a decision rather than a question:** the hard company limits (13 consecutive days)
+are cited to a policy nobody has identified — evidence class C, on the ROADMAP's scale. Every
+surface that states the limit carries provisional wording until a controlled source is named, and
+`POLICY_SOURCE_CONFIRMED` is the single switch that clears all of them at once. Getting the title,
+clause, staff group and effective date is a task, not a discussion.
+
+---
 
 ## What this plan does not know
 

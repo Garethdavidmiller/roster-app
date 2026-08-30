@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: August 2026 — v21.90 · Updated every 0.10 version*
+*Last updated: August 2026 — v22.00 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -101,6 +101,55 @@ starts, precisely so they cannot be chosen after seeing the numbers.
 This gates more than itself: **C5 cannot complete without it**, because a member who only ever reads
 the roster never signs in and is therefore never compelled to set a password.
 
+### Calendar start — the identity round trip
+**Status:** Blocked on an owner decision · **Owner:** Gareth · **Measured:** `LATENCY_PLAN.md` · **Would change:** `CALENDAR_DATA.md` invariant 3
+
+**The measurement is finished and it names one thing.** Every Calendar boot issues a single
+`accounts:lookup` so Firebase can validate the stored user before emitting it, and the access
+decision waits for it — so the first shift a member sees is behind a network round trip on every
+load. Injecting 300 ms of latency into that one call moved the milestone by 336 ms. It is not
+conditional on the token having expired; it happens on every boot. Preconnect is already in place on
+all seven pages, so the connection is warm and there is no easy win left in it.
+
+**What removing it from the critical path would mean.** The Calendar would paint its CACHED
+overrides on the strength of the local session, before the server has confirmed the account is still
+live. That is `CALENDAR_DATA.md` invariant 3 — *no access, no override data, at source* — which
+exists because the local Firestore cache serves reads the rules would deny
+(`experiments/firestore-offline-proof/`, measured).
+
+**The cost, stated as precisely as it can be.** A member whose account was disabled since their last
+visit would see one paint of their own already-cached roster before the lookup returned and the app
+corrected. Bounded three ways: it is **their own** data, **already on their device**, and it is
+**one paint**. No new data is read — server-side rules still refuse every network read without the
+claim, and that is untouched.
+
+**Why it is still not obvious.** The whole point of the v20.12 access gate was that possession of a
+device is not authorisation, and "they already have it cached" is the argument the gate was built to
+refuse. The honest position is that this is a smaller version of the same question, not a different
+one — which is exactly why it is a decision rather than an optimisation.
+
+**Three answers are all reasonable**, and the engineering differs completely:
+1. **No** — the gate holds; accept the round trip and close this. Then the ladder's `Recognised`
+   row should be re-labelled as a floor rather than a target, so nobody re-opens it every quarter —
+   and `LATENCY_PLAN.md` closes, recording the second as the price of the security model.
+2. **Yes, for a named member with a live local session only** — never for the shared PIN viewer,
+   whose whole security model is that it holds no identity. The narrowest useful form.
+3. **Yes, with a visible tell** — paint, and mark the grid as unconfirmed until the lookup lands.
+
+**Option 3 is cheaper than it first reads, and that should be weighed before choosing** (deep
+review, 30 Aug 2026). It is not a new design: the Calendar already ships the ENTIRE state it needs —
+the `cached`/`stale` display state that draws a labelled last-known grid, and the sync chip that
+says "Updating…" and withdraws on confirmation. Staff have been taught to read that state for
+months. Identity taking the same two-phase shape as data would EXTEND shipped, tested machinery
+rather than invent an "unconfirmed" state nobody has seen — which is a materially smaller cost than
+"a design decision about a state most members would never see", the wording this entry carried
+before. What it does NOT change: the security question itself is identical in options 2 and 3, and
+the choice between them is about honesty on screen, not about safety.
+
+**Do not start building any of them before the answer** — and before the answer, run the
+field-confirmation check in `LATENCY_PLAN.md` (does `Recognised` track connection quality the way a
+network wall must?). The measurement is done; what is left is not a performance question.
+
 ### Track C5 — retire the surname default
 **Status:** Blocked · **Owner:** Gareth · **Plan:** `PASSWORD_PLAN.md` · **Gate:** ≥90% migrated
 
@@ -154,22 +203,28 @@ never share a marker, or a staff member is sent back to a page that has already 
 Settling either needs Chiltern/retail guidance, not another read. **Never resolve a conflict by
 picking the likelier reading** — both cases refuse somebody whichever way they are called.
 
-**Also outstanding:** four product-page URLs (Chiltern Friends & Family, West Midlands Family Day
-Ranger, and the two conflicting Thames pages). Those rows cite the parent/landing page and say so,
-rather than carrying a URL pattern-guessed from the others — a fabricated citation in a source
-register is the precise failure the register exists to prevent, and it would look more authoritative
-than the honest gap.
+**~~Also outstanding: four product-page URLs~~ — CLOSED at v20.37.** Chiltern Friends & Family and
+West Midlands Family Day Ranger were sourced to their own dedicated product pages in that release,
+and the two Thames rows both cite the 7-Day promotion page they actually rest on. This paragraph
+outlived the fix by sixty versions. The principle it states is still the rule and is worth keeping:
+a row cites the page it was read from, never a URL pattern-guessed from its neighbours — a
+fabricated citation in a source register is the precise failure the register exists to prevent, and
+it would look more authoritative than an honest gap.
 
-**The egress request still stands, and is now about maintenance rather than launch.** The session's
-policy denies `nationalrail.co.uk` and `chilternrailways.co.uk` (re-tested Aug 2026, still
-`EGRESS_BLOCKED`), and the allowlist is environment config that cannot be changed from inside a
-session. **Gareth: add `www.nationalrail.co.uk` and `support.chilternrailways.co.uk` to this
-environment's network policy (claude.ai/code → environment settings). Name the SUBDOMAINS** — the
-Chiltern content is on `support.`, the product pages on `www.`. With that open, review passes can
-quote verbatim instead of depending on the owner re-checking by hand each time.
+**~~The egress request~~ — GRANTED, and verified Aug 2026.** `www.nationalrail.co.uk`,
+`www.chilternrailways.co.uk` and `support.chilternrailways.co.uk` all reach real content from inside
+a session now. Every one of the **73 URLs** in `GUIDE_SOURCES.md` was fetched once it opened: 72
+resolve, and the one that did not was a rotted gov.scot slug behind the Scottish tax bands, repointed
+in the same pass. **That check had never been possible before, and it is now cheap enough to run on
+every guide review** — a dead citation is invisible to a reader who trusts the register and to every
+test in the repo. What review passes can now do is quote verbatim rather than depend on the owner
+re-reading by hand.
 
 **Half two stays with Gareth whatever the egress policy says:** *is it valid on us, and between which
-stations* is an operator fact the national pages do not answer.
+stations* is an operator fact the national pages do not answer. And **neither Rangers conflict is
+settled by the new access** — both are the publisher contradicting itself on one live page, so
+re-reading confirms the contradiction and can never resolve it (`VAL-GUIDE-001`). What egress buys
+there is confirming they are still live, which is worth doing before troubling Chiltern retail.
 
 **The one design decision worth knowing without reading the plan:** the guide leads with the products
 that are **not** valid on Chiltern, and states plainly that it is **not an exhaustive national list** —
@@ -396,12 +451,33 @@ reached** — a 2026 implementation preference must not become a 2028 architectu
 Distribution costs an Apple Developer account ($99/year) and Google Play ($25) whatever is chosen.
 
 ### Sign-in and Calendar start latency
-**Status:** Phase 1 shipped (v21.29–30) · **Owner:** Gareth · **Plan:** `LATENCY_PLAN.md` · **Trigger:** one full month of start-ladder data
+**Status:** Phase 1 shipped (v21.29–30) · **PHASE 3'S TRIGGER HAS FIRED** (confirmed 30 Aug 2026) · **Owner:** Gareth · **Plan:** `LATENCY_PLAN.md`
 
-The measurement landed before the work, deliberately. Phases 2 (fetch the displayed month, not three
-months of the whole team) and 3 (split Firebase Auth from Firestore) are both real, and which one is
-worth doing is a question the App Speed card's "How far the start gets" block now answers. Read it
-before starting either. The decision rule is a table in the plan.
+The measurement landed before the work, deliberately, and it has now answered. **This entry belongs
+under NOW rather than LATER the moment the work is scheduled** — it is left here only because
+starting it is a decision nobody has taken yet, not because a trigger is still awaited.
+
+Two readings a week apart (22 and 30 Aug 2026, the second on 2,226 Calendar opens) agree: the wall is
+`page start → Recognised` at **52% over one second**, three times its nearest rival, and everything
+downstream inherits it. The code is ready inside ½s and **21% of page opens still take over three
+seconds to become usable** — everything a member waits for is after the code has loaded.
+
+**Phase 3 was then measured before being built, and it is NOT the treatment** (30 Aug 2026,
+`experiments/auth-firestore-split-proof/`). Splitting Firebase Auth from Firestore saves 4.6 ms on a
+desktop and 52 ms at 6× CPU throttling, against a wall of over a second — the entire auth boot is
+229 ms on a throttled device. **The wall is ONE network round trip**: every boot issues a single
+`accounts:lookup` to validate the stored user, unconditionally, and `Recognised` waits for it;
+injecting 300 ms of latency moved the milestone by 336 ms.
+
+So the open item is no longer "do Phase 3". It is a **security trade** — whether the app may paint
+from a locally-stored identity before the server has confirmed it — and it belongs to
+`CALENDAR_DATA.md` and `AUTH_AND_SESSIONS.md`, not to a performance plan.
+
+**Phase 2 is now the largest open item, and it was instrumented rather than started** (v21.99). Its
+value rests entirely on how many loads reach a grid through the authoritative read rather than from
+the local cache — a cache-served load cannot be helped by narrowing that read — and nothing measured
+the split. The App Speed card now carries it, with the reading rule in the plan. **Phase 4 / the
+bundler is measurably not the problem.**
 
 ### Build tooling — trigger-based; no action currently
 **Status:** Conditional · **Do nothing until a trigger occurs**

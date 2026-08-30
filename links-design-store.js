@@ -133,15 +133,62 @@ export function createDesignStore(deps) {
          * @param {boolean} o.baselineUnknown
          * @param {string} o.currentUser       whose save this is — `conflictOf` needs it to tell a
          *                                     stranger's write from our own on an unknown baseline
-         * @param {boolean} [o.force]          the user accepted an overwrite — write unconditionally
+         * @param {boolean} [o.forcing]        this is the second attempt, after the user accepted
+         *                                     an overwrite. `forceAgainstRevision` then names WHICH
+         *                                     revision they approved replacing.
+         * @param {number|null} [o.forceAgainstRevision]  the `updatedAt` millis the conflict dialog
+         *                                     showed them, or null if it carried no timestamp
          * @returns {Promise<{status: 'saved'|'conflict'|'deleted-elsewhere'|'queued', conflict?: any, deletedData?: any, baseline?: any, updatedAt?: any}>}
          */
-        async save({ id, buildPayload, baseline, baselineUnknown, currentUser, force = false }) {
+        async save({ id, buildPayload, baseline, baselineUnknown, currentUser,
+            forcing = false, forceAgainstRevision = null }) {
             const ref = refFor(id);
-            if (force) {
-                // The user has SEEN the conflict and chosen to replace. An unconditional write is
-                // the decision they made, so there is nothing left to check.
-                await withClaimRetry(() => setDoc(ref, buildPayload()));
+            if (forcing) {
+                // ── WHAT THE USER ACTUALLY CONSENTED TO ─────────────────────────────────────
+                // "Replace THE VERSION I WAS SHOWN", not "replace whatever exists whenever I get
+                // round to pressing the button". Until v21.96 this was an unconditional `setDoc`,
+                // on the reasoning that the decision had been made — and the gap it ignored is the
+                // same human think-time the delete check below was added for:
+                //
+                //     Alice loads R1. Bob saves R2. Alice saves; the dialog names Bob's R2.
+                //     Charlie saves R3 while Alice reads it. Alice presses Replace.
+                //     R3 is destroyed. Alice never saw it and never agreed to replace it.
+                //
+                // So the approved revision is re-checked INSIDE the transaction, and anything else
+                // comes back as a fresh conflict for the user to consent to on its own terms. That
+                // is the same rule as the first attempt, with a different baseline — which is why
+                // this is a compare-and-set and not a second kind of write.
+                //
+                // A DELETE is a different consent again, and was never given (v21.92): `docPayload`
+                // carries no `deletedAt`, so an unguarded force STRIPS the deletion and the design
+                // reappears in the picker with its deleter never told. A document that has gone
+                // ENTIRELY (purged from the bin while the dialog sat open) takes the same exit with
+                // no data — the workspace's offer, "save mine as new", is right for both, and only
+                // one line of its copy assumes the bin.
+                let deletedData = null;
+                let gone = false;
+                /** @type {{by: string, at: any}|null} */
+                let movedOn = null;
+                await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
+                    // A retried transaction must not keep the losing attempt's verdict — the same
+                    // reset `rename` makes below, for the same reason. NOT covered by a test: the
+                    // suite's fake calls the callback exactly once, so it cannot express a retry.
+                    // Stated rather than left to look tested.
+                    deletedData = null; gone = false; movedOn = null;
+                    const snap = await tx.get(ref);
+                    if (!snap.exists()) { gone = true; return; }
+                    const d = snap.data() || {};
+                    if (isDeleted(d)) { deletedData = d; return; }
+                    const liveRevision = d.updatedAt?.toMillis?.() ?? null;
+                    if (liveRevision !== forceAgainstRevision) {
+                        movedOn = { by: d.updatedBy || 'Someone', at: d.updatedAt || null };
+                        return;
+                    }
+                    tx.set(ref, buildPayload());
+                }));
+                if (gone)         return { status: 'deleted-elsewhere', deletedData: null };
+                if (deletedData)  return { status: 'deleted-elsewhere', deletedData };
+                if (movedOn)      return { status: 'conflict', conflict: movedOn };
                 const updatedAt = await readStamp(ref);
                 return { status: 'saved', updatedAt, baseline: baselineAfterWrite(updatedAt?.toMillis?.()) };
             }

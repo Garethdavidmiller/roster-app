@@ -157,7 +157,9 @@ export function createRangeBookingSection(cfg) {
             }
 
             feedbackEl.className = 'feedback success';
-            feedbackEl.textContent = cfg.successFeedback(workingCount, member);
+            // Through setStatus even though the string arrives from a CONFIG CALL — `successFeedback`
+            // returns '✓ Recorded …', which no regex in status-glyph-parity can see (v21.94).
+            setStatus(feedbackEl, cfg.successFeedback(workingCount, member));
             clearTimeout(feedbackTimer);
             feedbackTimer = setTimeout(() => { feedbackEl.className = 'feedback'; }, 7000);
             // The form resets and Change-a-Shift scrolls into view below, so also fire
@@ -173,7 +175,7 @@ export function createRangeBookingSection(cfg) {
             console.error(`[Admin] ${cfg.logLabel} save failed:`, err);
             clearTimeout(feedbackTimer);
             feedbackEl.className = 'feedback error';
-            feedbackEl.textContent = (/** @type {any} */ (err)).partialCommit
+            setStatus(feedbackEl, (/** @type {any} */ (err)).partialCommit
                 // A long range failed mid-way after earlier chunks committed. recordRangeOverrides
                 // has already resynced the Saved-changes list from Firestore, so the admin can see
                 // exactly what did land before retrying (v16.25).
@@ -184,7 +186,7 @@ export function createRangeBookingSection(cfg) {
                     ? "⚠ Couldn't load saved changes — reload the page before recording this."
                     : (/** @type {any} */ (err)).message === 'auth/session-expired'
                         ? "⚠ You've been signed out — please sign in again."
-                        : "⚠ Couldn't save — check your connection and try again.";
+                        : "⚠ Couldn't save — check your connection and try again.");
         } finally {
             // Restore the button LABEL only — let updatePreview() govern the disabled state. On the
             // SUCCESS path picker.reset() has already cleared the range and updatePreview() disabled

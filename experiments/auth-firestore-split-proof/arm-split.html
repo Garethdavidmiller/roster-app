@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>arm B — auth only</title></head><body>
+<pre id="log">arm B: app + auth (Phase 3's split — Firestore is not on the auth path)</pre>
+<script type="module">
+// ARM B — Phase 3. Firestore is not imported at all, so its 705 kB is neither fetched nor parsed
+// before auth runs, and `initializeFirestore`/`persistentLocalCache` never touches IndexedDB ahead
+// of the auth restore. Everything else is identical.
+import { initializeApp } from './sdk/firebase-app.js';
+import {
+    getAuth, connectAuthEmulator, onAuthStateChanged, setPersistence,
+    indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence,
+    signInWithEmailAndPassword, createUserWithEmailAndPassword,
+} from './sdk/firebase-auth.js';
+import { probe } from './arm.js';
+
+probe({
+    initializeApp, getAuth, connectAuthEmulator, onAuthStateChanged, setPersistence,
+    indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence,
+    signInWithEmailAndPassword, createUserWithEmailAndPassword,
+    initFirestore: null,
+});
+</script></body></html>

@@ -23,6 +23,7 @@ import {
     weekSummary, asAtLine,
     modesFor, offersFullTwelve, submitFailureCopy, shiftSpanMinutes, sameAnswer, deadlineLines, receiptLine,
     declaredAgo, deriveHistory,
+    dayUnfinished, unfinishedDates, reconcileVerdict, conflictIsOurs,
 } from './overtime-format.js';
 
 describe('the corrected clock', () => {
@@ -903,5 +904,152 @@ describe('what a failed submit says', () => {
         // Two codes exist so the member can be told which situation they are in. If these ever
         // collapse to one string, the second code has stopped earning its place on the wire.
         assert.notEqual(notAsked, submitFailureCopy('withdrawn', null));
+    });
+});
+
+
+describe('an answer the member did not give', () => {
+    // The form's first standing rule: an unanswered day stays unanswered. Both directions cost
+    // something, and they are not symmetrical — counting an unfinished day as ANSWERED submits a
+    // half-declaration about somebody's own life under their name, which is the failure that
+    // reaches the roster office; counting a finished one as outstanding only nags.
+    const DATES = ['2026-08-31', '2026-09-01', '2026-09-02'];
+
+    test('nothing at all is unanswered', () => {
+        assert.equal(dayUnfinished(undefined), true);
+        assert.equal(dayUnfinished(null), true);
+        assert.equal(dayUnfinished({}), true);
+    });
+
+    test('a mode with nothing behind it is STARTED, not answered', () => {
+        assert.equal(dayUnfinished({ mode: 'custom' }), true);
+        assert.equal(dayUnfinished({ mode: 'custom', start: '09:00' }), true);
+        assert.equal(dayUnfinished({ mode: 'custom', end: '17:00' }), true);
+    });
+
+    test('equal custom times are unfinished, not a 24-hour offer', () => {
+        // `shiftSpanMinutes` refuses the same pair for the same reason: a non-advancing range is
+        // malformed, and reading it as round-the-clock would submit an offer nobody made.
+        assert.equal(dayUnfinished({ mode: 'custom', start: '08:00', end: '08:00' }), true);
+        assert.equal(dayUnfinished({ mode: 'custom', start: '22:00', end: '07:00' }), false,
+            'an overnight range is finished — the roster writes night turns that way');
+    });
+
+    test('every non-custom mode is complete on its own', () => {
+        for (const mode of ['all_day', 'before', 'after', 'before_after', 'unavailable']) {
+            assert.equal(dayUnfinished({ mode }), false, mode);
+        }
+    });
+
+    test('the outstanding list is in WINDOW order, not answer order', () => {
+        // What it returns first is the day an error walks to, so the order is the behaviour.
+        const answers = { '2026-09-02': { mode: 'all_day' } };
+        assert.deepEqual(unfinishedDates(answers, DATES), ['2026-08-31', '2026-09-01']);
+        assert.equal(unfinishedDates(answers, DATES)[0], '2026-08-31');
+    });
+
+    test('the COUNT and the day it points at come from one traversal', () => {
+        // The v21.92 defect: the button counted a day as answered whenever an answer object
+        // existed, while the press-time check also required a sane custom pair — so the form said
+        // "Submit availability" and then refused to.
+        const answers = {
+            '2026-08-31': { mode: 'all_day' },
+            '2026-09-01': { mode: 'custom', start: '09:00' },   // started, not finished
+            '2026-09-02': { mode: 'unavailable' },
+        };
+        const outstanding = unfinishedDates(answers, DATES);
+        assert.deepEqual(outstanding, ['2026-09-01']);
+        assert.equal(outstanding.length, 1, 'the count is the length of the same list');
+    });
+
+    test('an answer for a date OUTSIDE the window does not complete it', () => {
+        const answers = { '2026-10-01': { mode: 'all_day' } };
+        assert.deepEqual(unfinishedDates(answers, DATES), DATES);
+    });
+
+    test('a fully answered week is an empty list, never a falsy nothing', () => {
+        const answers = Object.fromEntries(DATES.map(d => [d, { mode: 'all_day' }]));
+        assert.deepEqual(unfinishedDates(answers, DATES), []);
+        assert.deepEqual(unfinishedDates(undefined, DATES), DATES);
+    });
+});
+
+
+describe('what a timed-out submission can be said to have done', () => {
+    // Four outcomes and four sentences. Aborting stops us waiting; it does not stop the server
+    // writing — so the wrong answers cost different things. Saying "it did not save" when we cannot
+    // tell invites a second, contradictory submission that then legitimately conflicts; saying "it
+    // saved" when it did not leaves the member unrecorded and believing otherwise.
+    const OURS = 'mut-ours';
+
+    test('a week that has GONE is not a submission that failed', () => {
+        // A withdrawal landing in the seconds between the timeout and the re-read takes the whole
+        // window out of this member's state. Our id is then nowhere to be found — which reads
+        // exactly like a lost submission, and is not one. The instruction that follows differs
+        // completely: re-answer a form that no longer exists, or nothing at all.
+        assert.equal(reconcileVerdict(true, undefined, OURS, false), 'gone');
+        // Not-saved is reserved for a week that is STILL OURS and does not hold our answer.
+        assert.equal(reconcileVerdict(true, undefined, OURS, true), 'not-saved');
+        // And an unreadable state still outranks it: we cannot say the week has gone if we could
+        // not read anything at all.
+        assert.equal(reconcileVerdict(false, undefined, OURS, false), 'unknown');
+    });
+
+    test('a re-read that failed establishes NOTHING', () => {
+        assert.equal(reconcileVerdict(false, null, OURS), 'unknown');
+        // Even when a submission is somehow to hand, a failed read is not evidence about it.
+        assert.equal(reconcileVerdict(false, { lastMutationId: OURS }, OURS), 'unknown');
+    });
+
+    test('OUR id stored is the only thing that means it saved', () => {
+        assert.equal(reconcileVerdict(true, { lastMutationId: OURS }, OURS), 'saved');
+    });
+
+    test('somebody else’s write is not our write', () => {
+        // Every device a member owns shares one Firebase uid, so their other tab's submission is
+        // indistinguishable from ours by anything except this id.
+        assert.equal(reconcileVerdict(true, { lastMutationId: 'mut-other-tab' }, OURS), 'not-saved');
+    });
+
+    test('no submission at all did not save', () => {
+        assert.equal(reconcileVerdict(true, null, OURS), 'not-saved');
+        assert.equal(reconcileVerdict(true, undefined, OURS), 'not-saved');
+        assert.equal(reconcileVerdict(true, {}, OURS), 'not-saved');
+    });
+
+    test('a missing pending id never matches a missing stored one', () => {
+        // Both absent is the trap: `undefined === undefined` would report a phantom success on a
+        // week nobody submitted.
+        assert.equal(reconcileVerdict(true, {}, null), 'not-saved');
+        assert.equal(reconcileVerdict(true, { lastMutationId: undefined }, null), 'not-saved');
+        // And in the flavour that a bare `===` would let through. `pendingMutationId` is only ever
+        // null or a string today, so this case is not reachable from the form — it is pinned
+        // because the guard is what makes that safe to stop thinking about.
+        assert.equal(reconcileVerdict(true, {}, /** @type {any} */ (undefined)), 'not-saved');
+    });
+});
+
+
+describe('whose write the server is refusing', () => {
+    // Two opposite sentences hang off this: "your earlier submission did save, review it" against
+    // "we have not overwritten a newer version". Getting it backwards tells a member their own
+    // answers are somebody else's, or invites them to overwrite a colleague's.
+    test('our own late-landing write is ours', () => {
+        assert.equal(conflictIsOurs('mut-1', 'mut-1'), true);
+    });
+
+    test('a different id is somebody else', () => {
+        assert.equal(conflictIsOurs('mut-1', 'mut-2'), false);
+    });
+
+    test('with nothing pending it is never ours', () => {
+        assert.equal(conflictIsOurs(null, 'mut-2'), false);
+        assert.equal(conflictIsOurs(null, null), false, 'two absences are not a match');
+        assert.equal(conflictIsOurs(null, undefined), false);
+    });
+
+    test('a pending id the server did not name is not a match', () => {
+        assert.equal(conflictIsOurs('mut-1', undefined), false);
+        assert.equal(conflictIsOurs('mut-1', null), false);
     });
 });

@@ -363,13 +363,30 @@ export function init() {
 
     async function loadEverything() {
         await Promise.all([loadMine(), canReview ? review.loadHorizon() : Promise.resolve()]);
-        // The tab strip appears only once BOTH surfaces are known to exist. Drawing it from the
-        // CONFIG guess would flash a tab at a reviewer who turns out to have no form of their own.
+        // The tab strip appears once there are two surfaces worth moving between: both exist, OR
+        // the member's own side FAILED and its error is worth being able to return to. Drawing it
+        // from the CONFIG guess would flash a tab at a reviewer who turns out to have no form.
         const tabs = el('otTabs');
-        if (tabs) tabs.hidden = !(canReview && canSubmit);
+        if (tabs) tabs.hidden = !(canReview && (canSubmit || mineFailed));
         // Switch a reviewer to the workspace only when their own side genuinely has nothing —
         // never when it FAILED. Switching on failure hides the error the member is looking at and
         // replaces it with a different card, which reads as the page ignoring them.
+        //
+        // ── THE TAB STRIP ABOVE IS WHAT MAKES THAT SAFE (v21.94) ────────────────────────────────
+        //
+        // It used to appear only when BOTH surfaces existed, and that combination was a trap: a
+        // reviewer during the restricted beta has no form (`canSubmit` false), so a failed
+        // `getMyOvertimeState` — an endpoint for a surface they do not use — left them with a
+        // single "Couldn't load · Try again" card and NO ROUTE ANYWHERE. `otAllPanel` and `otTabs`
+        // both start `hidden` in overtime.html and `showPanel` is the only thing that unhides the
+        // panel, so Try again just re-reached the same state. Meanwhile `loadHorizon()` handles its
+        // own failure and resolves, so the horizon had very likely painted perfectly into a panel
+        // nobody could see — and the horizon is the one surface that shows a week NOBODY CREATED,
+        // which this module's header names as the feature's single catastrophic failure.
+        //
+        // Showing the tab strip on a failed member load fixes that without touching the rule above:
+        // the error keeps the screen it is on, and the workspace is one tap away rather than
+        // unreachable.
         if (canReview && !canSubmit && !mineFailed) showPanel('all');
     }
 

@@ -417,6 +417,35 @@ test.describe('manager surface', () => {
         await expect(page.locator('#otHorizonContent')).toBeVisible();
     });
 
+    test('the reviewer still reaches the workspace when THEIR OWN form fails to load', async ({ page }) => {
+        // The regression this exists for (v21.94). `loadEverything` used to skip `showPanel('all')`
+        // whenever the member-side read had failed, on the reasoning that switching away hides the
+        // error the member is looking at. A reviewer during the restricted beta HAS no member
+        // surface — so one transient failure of `getMyOvertimeState`, an endpoint for a form they
+        // do not have, left them with a single "Couldn't load" card and no route to anything:
+        // `#otAllPanel` and `#otTabs` both start hidden, and `showPanel` is the only thing that
+        // unhides the panel.
+        //
+        // The horizon had loaded perfectly the whole time. It is the one surface that shows a week
+        // NOBODY CREATED, which is invisible everywhere else in the app, so losing it to an
+        // unrelated failure is the worst outcome this page has.
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { windows: [], weeks: sixWeeks() });
+        // AFTER the stub, so this route wins: the member's own read fails, the reviewer's succeeds.
+        await page.route('**/getMyOvertimeState',
+            r => r.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"boom"}' }));
+        await page.goto('/overtime.html');
+
+        // The error keeps the screen it is on — a reviewer is not silently switched away from it.
+        await expect(page.locator('#otMineContent')).toContainText("Couldn't load overtime availability");
+        // …but the workspace is REACHABLE, which is the half that was missing: without the tab
+        // strip this reviewer had no route to anything at all.
+        await expect(page.locator('#otTabs')).toBeVisible();
+        await page.getByRole('tab', { name: 'Everyone' }).click();
+        await expect(page.locator('#otHorizonContent')).toBeVisible();
+        await expect(page.locator('#otHorizonContent')).toContainText('Opens automatically overnight');
+    });
+
     test('a preview arms the bar; a FAILED preview leaves it disarmed and says so', async ({ page }) => {
         // Two halves of one rule, in one test because either alone passes on the bug. The bar stays
         // on screen carrying the failure — and the button beside that failure used to stay enabled

@@ -191,9 +191,31 @@ Track-1 refactor). The live modules + tests are the source of truth for the curr
 
 **Done as Track 2 step 1.** `MILLER_ACTUALS` (13 periods of real payslip figures) was moved OUT of the
 served `roster-data.js` into `test-fixtures/miller-actuals.js`, **excluded from Firebase Hosting**
-(`firebase.json` `ignore` → `test-fixtures/**`) so it is no longer fetchable; `paycalc.test.mjs` imports
-the fixture as its single source. This closes the (small) privacy exposure — in a no-build app any
-served JS file is publicly fetchable, and these were real payslip figures.
+(`firebase.json` `ignore` → `test-fixtures/**`); `paycalc.test.mjs` imports the fixture as its single
+source. This removes it from the deployed app bundle — in a no-build app any served JS file is
+publicly fetchable, and these are real payslip figures.
+
+**IT DOES NOT MAKE THE FILE UNFETCHABLE, and this section said it did until v21.94.** The app has TWO
+live origins. `firebase.json` governs one of them; the GitHub Pages staff mirror is served by the
+repo's own native Pages from `main`/root with a `.nojekyll` marker — **the whole repository, copied
+verbatim, with no config file that could exclude anything.** Measured 29 Aug 2026 (status and size
+only): `GET /roster-app/test-fixtures/miller-actuals.js` → `200`, 2,410 bytes. `CLAUDE.md`,
+`functions/roster-members.json` and `e2e/` serve from there too.
+
+Nothing is newly exposed by that — the repository is PUBLIC, so the file is already readable on
+github.com — which is exactly why the wording matters rather than the bytes. The exclusion list is
+the only place this decision is written down, and it is structurally incapable of governing half the
+app; a future "do not serve this" would be expressed there and would be half-true again. No test
+knows the mirror exists as a file server either: `sw-asset-check`, `page-contract-parity` and the CSP
+suites all reason about the Firebase side.
+
+**Three ways to close it properly, none of them free, all of them the owner's call:**
+  a. **Leave it and keep this paragraph** — the exposure is a public repo the owner chose to have.
+  b. **Synthesise the figures** to the same shape. `paycalc.test.mjs` asserts money tolerances
+     against them, so this is real work, and it loses the "matches a real payslip" property that is
+     the fixture's whole value.
+  c. **Retire the Pages mirror** — already the stated direction; `analytics/origins` exists to
+     measure that migration.
 
 **The in-app "Actual Take-Home" comparison was kept, made DEVICE-LOCAL (Option B, v14.69):** the owner
 imports the figures once per device via an owner-only paste box (Settings → "Import payslip actuals"),

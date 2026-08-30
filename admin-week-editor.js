@@ -32,6 +32,7 @@ import { teamMembers, getBaseShift, getShiftBadge, getSpecialDayBadges, formatIS
 import { isRestShift, isForbiddenOnSunday, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
 import { TYPES, PILL_TYPES } from './admin-shift-types.js';
 import { hasOverrideAuthorityFor, loadFailedFor, loadOverrides } from './admin-override-store.js';
+import { setStatus } from './status-text.js';
 
 // ── INJECTED ──────────────────────────────────────────────────────────────────
 let _currentIsAdmin = false;
@@ -39,6 +40,9 @@ let _currentIsAdmin = false;
 /** @type {(msg: string) => void} */   let _showSuccess  = () => {};
 /** @type {() => void} */              let _markChanged  = () => {};
 /** @type {(m: string) => Map<string, any>} */ let buildMemberDateMap = () => new Map();
+
+/** Delegated listeners are attached once per page life — see the note inside initWeekEditor. */
+let _wired = false;
 
 /**
  * @param {object} deps
@@ -55,6 +59,19 @@ export function initWeekEditor(deps) {
     _showSuccess      = deps.showSuccess;
     _markChanged      = deps.markChanged;
     buildMemberDateMap = deps.memberDateMap;
+    // DEPS ABOVE EVERY TIME; WIRING ONCE (v21.94).
+    //
+    // `initOverrides` can be called twice on the in-place login path — an optimistic 'allow' init,
+    // then again after B1 clears an unconfirmable session — and both of these attach DELEGATED
+    // listeners, `_initTimeInputs` two of them at `document` level. A second attach double-fires
+    // every click, which on the two-tap Delete means one tap both arms AND executes.
+    //
+    // The guard used to live in `admin-overrides.js`, around wiring that moved out in the v21.38
+    // split; what was left there was an `if` with an EMPTY body and a comment still describing the
+    // hazard as handled. It belongs where the listeners are. Identity/permissions are re-assigned
+    // on every call, which is what keeps a re-init meaningful.
+    if (_wired) return;
+    _wired = true;
     _initBulkBar();
     _initTimeInputs();
 }
@@ -559,9 +576,12 @@ function _activateRow(row, checkbox, pills, startEl, endEl, type) {
 function _syncOverwriteBadge(row) {
     const badge = row.querySelector('.overwrite-badge');
     if (!badge) return;
-    badge.textContent = row.classList.contains('prefilled-existing') ? '✓ Saved'
+    // setStatus, not a bare assignment (v21.94): the badge's initial markup already wraps its
+    // glyph in an `aria-hidden` span, and repainting it here used to replace that with a bare
+    // '⚠ Updating' — so the row announced "warning sign Updating" from the second paint onwards.
+    setStatus(badge, row.classList.contains('prefilled-existing') ? '✓ Saved'
         : row.dataset.type ? '⚠ Updating'
-        : '⚠ Removing';
+        : '⚠ Removing');
 }
 
 /**
@@ -705,22 +725,30 @@ function _initBulkBar() {
     const weekGrid      = document.getElementById('weekGrid');
 
     if (bulkTypePills) {
-        bulkTypePills.querySelectorAll('.type-pill-btn').forEach(pillEl => {
-            const pill = /** @type {HTMLButtonElement} */ (pillEl);
-            pill.addEventListener('click', () => {
-                const type    = pill.dataset.type ?? '';
-                const already = pill.classList.contains('active');
-                if (already) { resetBulkPills(); return; }
-                bulkTypePills.querySelectorAll('.type-pill-btn').forEach(p => { p.classList.remove('active'); p.setAttribute('aria-pressed', 'false'); });
-                pill.classList.add('active');
-                pill.setAttribute('aria-pressed', 'true');
-                _bulkActiveType = type;
-                const bulkApplyLabel = document.getElementById('bulkApplyLabel');
-                if (bulkApplyLabel) bulkApplyLabel.textContent = `Apply “${TYPES[type]?.label ?? type}” to ticked days`;
-                if (bulkTimeGroup) bulkTimeGroup.style.display = (TYPES[type] && !TYPES[type].fixed) ? 'flex' : 'none';
-                if (bulkStart) bulkStart.value = '';
-                if (bulkEnd)   bulkEnd.value   = '';
-            });
+        // DELEGATED ON THE CONTAINER, not attached per pill (v21.94).
+        //
+        // The pills do not exist in `admin.html` — `#bulkTypePills` ships empty and `admin-app.js`
+        // fills it from `PILL_TYPES` at init. Per-pill listeners therefore depend on this running
+        // AFTER that fill and on the row never being rebuilt, and the wiring guard added in the
+        // same release makes the second half load-bearing: a rebuild would leave dead pills with
+        // no second `initWeekEditor` to re-attach them. The container is static, so delegating on
+        // it is true whatever order the two run in and however often the row is redrawn.
+        bulkTypePills.addEventListener('click', (e) => {
+            const pill = /** @type {HTMLButtonElement|null} */ (
+                /** @type {Element} */ (e.target).closest('.type-pill-btn'));
+            if (!pill || !bulkTypePills.contains(pill)) return;
+            const type    = pill.dataset.type ?? '';
+            const already = pill.classList.contains('active');
+            if (already) { resetBulkPills(); return; }
+            bulkTypePills.querySelectorAll('.type-pill-btn').forEach(p => { p.classList.remove('active'); p.setAttribute('aria-pressed', 'false'); });
+            pill.classList.add('active');
+            pill.setAttribute('aria-pressed', 'true');
+            _bulkActiveType = type;
+            const bulkApplyLabel = document.getElementById('bulkApplyLabel');
+            if (bulkApplyLabel) bulkApplyLabel.textContent = `Apply “${TYPES[type]?.label ?? type}” to ticked days`;
+            if (bulkTimeGroup) bulkTimeGroup.style.display = (TYPES[type] && !TYPES[type].fixed) ? 'flex' : 'none';
+            if (bulkStart) bulkStart.value = '';
+            if (bulkEnd)   bulkEnd.value   = '';
         });
     }
 

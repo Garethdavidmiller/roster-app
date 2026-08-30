@@ -16,6 +16,10 @@
  *     annoying, and the admin can simply try again.
  *   · saying `committed` when nothing committed → the file is in Storage and NOTHING points at it.
  *     Silent, and the document is missing for the day.
+ *   · saying `retry` when we cannot SEE — the second external audit's finding, and this file used
+ *     to assert it. An unreadable state is the same overwrite as the first bullet, arrived at by
+ *     assuming rather than by reading. The verdict is now `ambiguous`, and the test below is the
+ *     inverse of the one it replaces.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -61,13 +65,26 @@ describe('retry only when the state genuinely has not moved', () => {
         assert.equal(at({ livePath: null }), 'retry');
     });
 
-    test('an UNREADABLE state retries rather than abandoning the upload', () => {
-        // Not a fourth answer — the absence of one. Abandoning here would leave a file in Storage
-        // that nothing points at, on the same outage that made the read fail. Asserted for every
-        // live state so the read failure is what decides, not what happens to be underneath it.
+});
+
+describe('uncertainty is not permission to write', () => {
+    test('an UNREADABLE state is AMBIGUOUS — never retry', () => {
+        // Asserted for every live state, and the point is now the opposite of what it was: under an
+        // unreadable read `livePath` is not evidence, it is whatever the caller happened to hold. A
+        // rule that consulted it would be right by luck on two of these four and wrong on the two
+        // that matter. So the read failure decides, alone.
         for (const livePath of [null, OLD, OURS, THEIRS]) {
             assert.equal(resolveUploadCommit({ ourPath: OURS, oldPath: OLD, livePath, readable: false }),
-                'retry', `unreadable with live=${livePath}`);
+                'ambiguous', `unreadable with live=${livePath}`);
+        }
+    });
+
+    test('the verdict that costs a colleague their file can never be reached without a read', () => {
+        // The whole rule, stated once: `retry` — the only verdict that WRITES — requires
+        // `readable`. Everything else is a refusal of one kind or another, and refusals are safe.
+        for (const livePath of [null, OLD, OURS, THEIRS]) {
+            assert.notEqual(resolveUploadCommit({ ourPath: OURS, oldPath: OLD, livePath, readable: false }),
+                'retry', `unreadable must never write (live=${livePath})`);
         }
     });
 });

@@ -19,9 +19,12 @@
  *   at nothing — one orphaned file is recoverable, a 404 behind the staff Huddle button is not;
  * · a retriable failure RESOLVES BY READING rather than re-issuing blind (`resolveUploadCommit`),
  *   because a `deadline-exceeded` can be raised after the server committed, and a blind retry can
- *   overwrite a competing upload's file reference with a path that upload has already deleted.
+ *   overwrite a competing upload's file reference with a path that upload has already deleted;
+ * · and when that READ itself fails we write NOTHING (v21.96). The upload is reported unconfirmed
+ *   and both systems are left exactly as they are — no second `setDoc`, no rollback — because an
+ *   unreadable Firestore tells us neither whether we committed nor whether somebody superseded us.
  *
- * Those four are one argument, and they were previously spread through the middle of
+ * Those five are one argument, and they were previously spread through the middle of
  * `firebase-client.js` between the auth bootstrap, the push-subscription writers, the password
  * timestamps, the analytics counters and the error log — five domains that have nothing to do with
  * each other and no reason to be read together.
@@ -186,11 +189,10 @@ export function buildDocumentClient({
                     const snap = await getDoc(doc(db, collectionName, date));
                     liveNow = snap.exists() ? snap.data() : null;
                 } catch (readErr) {
-                    // Could not read either. Fall back to re-issuing — the alternative is leaving a
-                    // possibly-uncommitted upload with no metadata at all, and an unreadable
-                    // Firestore is the same outage that produced the ambiguity.
+                    // Could not read either, so we know nothing. That is NOT permission to re-issue
+                    // — see `upload-commit.js`, which turns it into `ambiguous` rather than `retry`.
                     readable = false;
-                    console.warn(`[upload] ${logTag} post-failure read failed; re-issuing:`, /** @type {any} */ (readErr)?.code);
+                    console.warn(`[upload] ${logTag} post-failure read failed; cannot confirm:`, /** @type {any} */ (readErr)?.code);
                 }
                 const livePath = liveNow
                     ? (liveNow.storagePath ?? legacyDocPath(collectionName, date, liveNow.fileType))
@@ -209,6 +211,15 @@ export function buildDocumentClient({
                     const sup = /** @type {any} */ (new Error('A newer upload for this date was saved by someone else.'));
                     sup.code = 'upload/superseded';
                     throw sup;
+                } else if (verdict === 'ambiguous') {
+                    // We could not read, so we cannot say whether our write landed — and a blind
+                    // re-issue here is the original race with a failed read standing in for the
+                    // ambiguity. Report it as UNCONFIRMED and touch nothing: no second write, and
+                    // (see the outer catch) no rollback either, because our object may be the one
+                    // the live document points at.
+                    const amb = /** @type {any} */ (new Error('Could not confirm the upload saved.'));
+                    amb.code = 'upload/unconfirmed';
+                    throw amb;
                 } else {
                     await setDoc(doc(db, collectionName, date), firestoreDoc);
                 }
@@ -218,10 +229,15 @@ export function buildDocumentClient({
             // (definite non-commit). A still-retriable FINAL error is commit-ambiguous — deleting
             // could leave a committed doc pointing at nothing (staff taps 404 until re-upload) — so
             // leave the file (at most one orphan, which the next upload's cleanup tolerates).
-            if (!RETRIABLE_FIRESTORE_CODES.has(/** @type {any} */ (err)?.code)) {
+            // `upload/unconfirmed` joins the retriable codes here for the same reason they are
+            // listed: our write MAY have committed, so deleting the object could leave a live
+            // document pointing at nothing. `upload/superseded` deliberately does NOT — there the
+            // read PROVED somebody else's document is live, so ours is an orphan with a known name.
+            const _code = /** @type {any} */ (err)?.code;
+            if (!RETRIABLE_FIRESTORE_CODES.has(_code) && _code !== 'upload/unconfirmed') {
                 deleteObject(storageRef).catch(/** @param {any} e */ e => console.warn(`[upload] ${logTag} rollback failed:`, e));
             } else {
-                console.warn(`[upload] ${logTag} commit-ambiguous failure — leaving new Storage object in place:`, /** @type {any} */ (err)?.code);
+                console.warn(`[upload] ${logTag} commit-ambiguous failure — leaving new Storage object in place:`, _code);
             }
             throw err;
         }

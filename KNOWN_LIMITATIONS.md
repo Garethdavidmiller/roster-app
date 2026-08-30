@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: August 2026 — v21.90 · Updated every 0.10 version*
+*Last updated: August 2026 — v22.00 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -1158,15 +1158,21 @@ never contingent on the beta label, and dropping it does not make any of them go
   requirement. It is recorded here rather than left implicit because the number shapes every figure
   the tool produces, and "why 24?" is a question a proposal will be asked.
 
-- **The docs say the panel covers "24 fatigue factors"; it renders 23** (measured v20.01, during a
-  regression sweep — pre-existing, not introduced by the v20.01 change; `main` returns 23 too).
-  `assessFatigue` returns 20 numbered `FF*` rows plus `FF8b` plus **two** rows attributed to MRSF
-  ("more than 55 hours in any 7-day period" and "more than 12 consecutive day shifts"), which is 23.
-  The section heading's own counts add to 23 as well, so nothing on screen claims 24 — the figure
-  appears only in internal docs (`.claude/rules/links-design.md`, `LINKS_DEC2026_PLAN.md`,
-  `CLAUDE.md`). Recorded rather than corrected because settling it needs the ORR p3 list itself: the
-  right fix is either a 24th factor that was never implemented, or a doc that has been saying 24
-  since v19.46 for no reason. **Check against the source before changing either.**
+- **~~The docs say the panel covers "24 fatigue factors"; it renders 23~~ — SETTLED at v21.97, and
+  the answer was NEITHER NUMBER.** The row said the right fix was "either a 24th factor that was
+  never implemented, or a doc that has been saying 24 for no reason", and instructed a reader to
+  check the source before changing either. That instruction was correct and unfollowable — the ORR
+  site was blocked from this environment — until network egress opened in Aug 2026. The sheet
+  (`good-practice-guidelines-fatigue-factors.pdf`, Dec 2021) carries **25 rows in six families**.
+  **TWO were missing, not one**, both MRSF rows in the Cumulative family, and one of them matters:
+  *"More than 7 consecutive 8h shifts"* is the tightest consecutive-working rule on the page and the
+  one most likely to bite a link of eight-hour duties — FF11 allows 13 shifts between 48h breaks and
+  this allows 7. The panel had been silent on it since v19.46. The other, *"More than 6 consecutive
+  night or early shifts in a permanent pattern"*, is not applicable to a rotating link and now
+  renders saying so rather than being absent. Both shipped at v21.97; the reasoning is in
+  `links-fatigue.js`'s header. **The general lesson is worth more than the fix: a disagreement
+  between two numbers is not settled by picking whichever is easier to change**, and for two years
+  the easier one would have been wrong in both directions at once.
 
 - **~~The seeded default trips FF11, and the spare count is why~~ — CAUSE FOUND AND FIXED (v20.02).**
   Recorded at v20.01 as a property of running 5 spare weeks. It was not: the **line-order optimiser
@@ -1684,9 +1690,14 @@ they are latent, owner-territory, or within a documented tolerance. Each is real
   saved as `shift` rendered as an ordinary worked badge and **the pay calculator's Sunday-overtime
   pre-fill missed it, under-counting pay**. An entry that under-rates its own severity is how a real
   defect stays parked as an accepted limitation.
-- **Roster-import save path has no equal-start/end guard (VERY LOW).** The two manual authoring paths
-  reject `s === e` (validates 0 h but pays 24 h via overnight-wrap); `_saveOverrideBatches` does not.
-  Implausible from a real roster PDF and visible in the review table before any write.
+- **~~Roster-import save path has no equal-start/end guard~~ — CLOSED at v20.39, and this row outlived
+  the fix by more than a hundred versions.** It said `_saveOverrideBatches` did not reject `s === e`
+  while the two manual paths did. It does: the refusal is at `admin-roster-upload.js:153`, logged
+  and unwritten, with the parse-side reasoning in `functions/roster-parse-helpers.js` — a
+  zero-length range reads as TWENTY-FOUR HOURS through the overnight wrap, and it reaches pay.
+  Found by an external review reading the code against this file, which is the only way a stale
+  "we don't do X" is ever caught: nothing fails when a limitation is fixed, so the entry simply sits
+  here being believed.
 - **~~Applying the *estimated* 2026/27 award rate overstates pre-award (Apr–Jul 2026) periods~~ —
   CLOSED, and it self-corrected exactly as written.** The entry said "no clean fix until the award
   lands"; the award landed, `londonAllowFrom` is set to 28 Aug 2026 on the 2026/27 row

@@ -374,7 +374,7 @@ What stays here, because it is what a designer needs before opening anything:
 
 The second half of the card, from `links-fatigue.js`. It exists because the December 2026 proposals
 will be **assessed** against that list (`LINKS_DEC2026_PLAN.md`), and `runDesignChecks` covered two
-of its 24 factors — though **the panel renders 23**, a discrepancy standing since v19.46 and recorded in `KNOWN_LIMITATIONS.md` → Links; check the ORR source before "fixing" either number. Read the module header before changing any rule; the four things that govern it:
+of its 25 rows — a figure read at source in Aug 2026, after this file said 24 and the panel rendered 23 for two years. Neither was right, and the two missing rows were both MRSF ones in the Cumulative family; the module header has the account. Read the module header before changing any rule; the four things that govern it:
 
 - **It reports factors PRESENT. It never passes or fails a design.** The ORR states these are not
   prescriptive limits, so red/green would misrepresent the guidance being quoted. Amber
@@ -406,6 +406,16 @@ of its 24 factors — though **the panel renders 23**, a discrepancy standing si
   lines, which is the real branch a hardcoded status could not express. The 2h figure is the ORR's
   own FF19 threshold, single-sourced from `GENTLE_THRESHOLD_MINUTES` so the chip and the sentence
   cannot drift from what was actually counted.
+
+**A COVER WEEK IS AN UNKNOWN, NOT A NO** (v21.98). Every rule that counts a RUN must measure it with
+`runLengthsWhere` — `workedRunLengths`'s spare-week budget with the question as a parameter — and not
+with a plain scan. A spare day has no times, so it fails any predicate and a plain scan treats it as
+a BREAK: FF15 reported a longest early-shift run of 3 with a green tick on the shipped default,
+against a worst case of 6 over a threshold of 4. Two boundaries keep the fix honest rather than
+merely louder: **four duties a week, never seven** (seven fuses the blocks either side — the v19.79
+defect), and **extend, never create** (`requireMatch`, or FF10 reports a run of four 12-hour shifts
+on a design containing none). Where the worst case and the certain figure differ, the row states
+both.
 
 Two things about the rules themselves that are easy to get wrong, both caught by their own tests:
 **FF11 is not the consecutive-worked-days check it resembles** (a single rest day is not a 48h break,

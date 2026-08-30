@@ -1319,6 +1319,14 @@ body.lb-open #stickyTotal { display: none !important; }
 .badge-al    { background: var(--al);        color: white; }
 .badge-sick  { background: var(--absence);   color: white; }
 .badge-other   { background: var(--other);       color: white; }
+/* The tenth badge, and the only one that had no colour until v21.94 (`getShiftBadge` has emitted
+   `badge-unknown` since v20.96). It marks a shift value the app could NOT parse, so it rendered
+   with no background at all — inheriting whatever calendar cell it sat in, which is the one badge
+   whose whole job is to say "this value is wrong". Deliberately NOT a tenth brand colour: amber
+   with a dashed edge reads as "unrecognised" rather than as another shift type somebody has to
+   learn. The CELL half of the pair was already styled (`.calendar-day.unknown-day`), which is what
+   made this look finished. */
+.badge-unknown { background: white; color: var(--warning-amber); border: 2px dashed var(--warning-amber); }
 
 /* Badge colour enforcement for print — keeps colours when browser strips backgrounds.
    badge-night keeps its screen style (white bg + dark border) — it reads better on
@@ -1332,6 +1340,9 @@ body.lb-open #stickyTotal { display: none !important; }
     .badge-al    { background: var(--al)        !important; color: white !important; }
     .badge-sick  { background: var(--absence)   !important; color: white !important; }
     .badge-other   { background: var(--other)       !important; color: white !important; }
+    /* Keeps its screen treatment for the same reason badge-night does: an outlined badge survives a
+       black-and-white printer, where a filled amber one would not read as different from Late. */
+    .badge-unknown { background: white !important; color: var(--warning-amber) !important; }
 }
 
 /* ═══════════════════════════════════════════════════════════════

@@ -2,15 +2,51 @@
 /**
  * links-fatigue.js — the ORR good-practice FATIGUE FACTORS, assessed against a link design.
  *
- * Source: ORR, *Good practice guidelines — Fatigue Factors*, December 2021, **p3**. Twenty-four
- * factors in five families (time of day, duty length, recovery time, intervals between duties,
- * cumulative, circadian phase shift).
+ * Source: ORR, *Good practice guidelines — Fatigue Factors*, December 2021 —
+ * `orr.gov.uk/sites/default/files/2021-12/good-practice-guidelines-fatigue-factors.pdf`.
+ * **TWENTY-FIVE rows** in six families: time of day (3), duty length (4), recovery time (3),
+ * intervals between duties (3), cumulative (8), circadian phase shift (4). Twenty are numbered FF1
+ * to FF20; the rest are FF8b and four rows the sheet attributes to MRSF rather than numbering.
  *
- * **The panel renders 23 of those 24, and that gap is UNRESOLVED — do not "correct" either number
- * from memory.** It has stood since v19.46 and is recorded in KNOWN_LIMITATIONS.md → Links; settling
- * it needs the ORR source, which is not reachable from this environment. Reconciling the count by
- * adjusting the one that is easier to change would produce a panel that agrees with itself and
- * misstates the guidance it cites, which is this module's whole failure mode.
+ * **The count was wrong in the docs (24) AND in this module (23), and neither was the answer.** From
+ * v19.46 the header said 24 and the panel rendered 23, with the gap logged as unresolvable because
+ * the source could not be reached from this environment. It became reachable in Aug 2026, and the
+ * sheet says 25. The two rows nobody had implemented were both MRSF rows in the Cumulative family,
+ * and they are not interchangeable:
+ *
+ *   · **"More than 7 consecutive 8h shifts"** — the tightest consecutive-working rule on the page,
+ *     and the one most likely to bite a link whose duties are around eight hours. FF11 allows 13
+ *     shifts between 48h breaks; this allows 7. It was simply absent, so the panel was silent about
+ *     the rule most likely to have something to say.
+ *   · **"More than 6 consecutive night or early shifts in a permanent pattern"** — not applicable to
+ *     a link, which is a rotating pattern by construction, and rendered saying so. FF15 is its
+ *     rotating counterpart, at a threshold of 4.
+ *
+ * The lesson is the one this module already states about statuses, now applied to itself: a
+ * disagreement between two numbers is not settled by picking whichever is easier to change. It is
+ * settled by reading the source — and until somebody does, neither number is evidence.
+ *
+ * ── A COVER WEEK IS AN UNKNOWN, NOT A NO (v21.98) ───────────────────────────────────────────────
+ *
+ * Found regression-checking the row above, and it was two rows wider than the new one. FF10, FF15
+ * and the new 8h rule all measured their runs with a plain scan, so a spare day — which has no
+ * times and therefore fails any predicate — ENDED the run. **FF15's false clear was live**: on the
+ * shipped default design it reported a longest early-shift run of 3 with a green tick, against a
+ * worst case of 6 over a threshold of 4.
+ *
+ * All three now use `runLengthsWhere` (links-design.js), which is `workedRunLengths`'s own
+ * spare-week budget with the question as a parameter — four duties a week, no reset, one reading
+ * shared by every rule that counts a run. Two boundaries make it honest rather than merely louder:
+ *
+ *   · **four, never seven.** Counting a whole cover week fuses the blocks either side, which is the
+ *     v19.79 defect that reported the live roster at 15 against a true 9.
+ *   · **extend, never create** (`requireMatch`). The default design contains no duty over twelve
+ *     hours, and without this FF10 would report a run of four made entirely of unknowns — a finding
+ *     about nothing, on the row that exists to find something.
+ *
+ * Where the worst case and the certain figure differ, the row says both. A number the reader cannot
+ * take apart is one they either over-trust or discount, and this panel has already been discounted
+ * once for over-reporting.
  *
  * WHY THIS IS ITS OWN MODULE, and what it deliberately does NOT do.
  *
@@ -43,7 +79,7 @@
  * estimate. `hoursAreFloor` is returned so the UI can say so rather than imply precision.
  */
 
-import { DAYS, ROTATING_LINES, startMinutes, dutyMinutes, runDesignChecks, MIN_REST_MINUTES, worstCaseWorkedRun, SPARE_WORKED_DAYS } from './links-design.js';
+import { DAYS, ROTATING_LINES, startMinutes, dutyMinutes, runDesignChecks, MIN_REST_MINUTES, worstCaseWorkedRun, runLengthsWhere, SPARE_WORKED_DAYS } from './links-design.js';
 // FF18 is the one factor here whose subject is what happens BETWEEN lines, so it is the one that
 // needs the adjacency maths. Direction is fatigue → adjacency → design; `links-adjacency.js` imports
 // only from `links-design.js`, so this adds no cycle (asserted by import-graph.test.mjs).
@@ -362,6 +398,18 @@ export function rotationDirection(seq) {
  *             value?:number|string, threshold?:number|string, detail?:string, confirm?:boolean}} FatigueResult */
 
 /**
+ * The sentence a spare-aware run owes its reader: the worst case is the number on screen, so say how
+ * much of it is certain and where the rest came from. Written once because three rows need it and a
+ * fourth will; silent when there is nothing to qualify, so a design with no cover week reads clean.
+ * @param {number} worst @param {number} certain @param {string} what
+ */
+function _spareCaveat(worst, certain, what) {
+    if (worst === certain) return `Longest run of ${what} is ${worst}.`;
+    return `Longest run of ${what} is ${worst} in the worst case — ${certain} of them are certain, and a `
+        + `cover week can supply up to ${SPARE_WORKED_DAYS} more whose times are not yet assigned.`;
+}
+
+/**
  * Assess a design against the p3 fatigue factors.
  *
  * @param {Object} patterns - { "1".."N": { sun..sat } }
@@ -435,13 +483,28 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
                 : '') });
 
     // ── Cumulative ───────────────────────────────────────────────────────────
-    const ff10 = longestRunOf(seq, s => (dutyMinutes(s) ?? 0) > 12 * 60);
+    // ── FF10 AND FF15 CARRIED THE SAME DEFECT, AND FF15's WAS LIVE (v21.98) ─────────────────
+    // Both used a plain run scan, so a cover week — whose duties have no times and therefore fail
+    // any predicate — ENDED the run. Measured on the shipped default design, FF15 reported a
+    // longest early-shift run of 3 with a green tick against a worst case of 6, over a threshold of
+    // 4. A factor that goes quiet whenever a cover week lands mid-block is the false-assurance
+    // failure this module's header names as its dominant risk, and it was two rows wide.
+    //
+    // `requireMatch` is the other half. A cover week may EXTEND a run and must not CREATE one: at
+    // the default, no duty anywhere is over twelve hours, and without it FF10 would report a run of
+    // four made entirely of unknowns — a finding about nothing, on the row that exists to find
+    // something.
+    const runs10 = runLengthsWhere(seq, s => (dutyMinutes(s) ?? 0) > 12 * 60, { requireMatch: true });
+    const ff10 = runs10.length ? Math.max(...runs10) : 0;
     add({ code: 'FF10', family: 'Cumulative', title: 'More than 4 consecutive 12h day shifts',
-        status: ff10 > 4 ? 'present' : 'clear', value: ff10, threshold: 4 });
+        status: ff10 > 4 ? 'present' : 'clear', value: ff10, threshold: 4,
+        detail: _spareCaveat(ff10, longestRunOf(seq, s => (dutyMinutes(s) ?? 0) > 12 * 60), '12-hour day shifts') });
 
-    const ff15 = longestRunOf(seq, isEarlyStart);
+    const runs15 = runLengthsWhere(seq, isEarlyStart, { requireMatch: true });
+    const ff15 = runs15.length ? Math.max(...runs15) : 0;
     add({ code: 'FF15', family: 'Cumulative', title: 'More than 4 consecutive early shifts in a rotating pattern',
-        status: ff15 > 4 ? 'present' : 'clear', value: ff15, threshold: 4 });
+        status: ff15 > 4 ? 'present' : 'clear', value: ff15, threshold: 4,
+        detail: _spareCaveat(ff15, longestRunOf(seq, isEarlyStart), 'early shifts') });
 
     const consec = longestWorkedRun(seq);
     add({ code: 'MRSF', family: 'Cumulative', title: 'More than 12 consecutive day shifts',
@@ -451,6 +514,53 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
     add({ code: 'MRSF', family: 'Cumulative', title: 'More than 55 hours worked in any 7-day period',
         status: hrs > 55 ? 'present' : 'clear', value: hrs, threshold: 55,
         detail: 'Spare days carry no times and count as zero hours, so this figure is a floor — the real total is higher.' });
+
+    // ── THE TWO ROWS THAT WERE MISSING (v21.97) ─────────────────────────────
+    // Added when the ORR source was read for the first time. It carries FOUR MRSF rows in this
+    // family; this module implemented two. See the header — neither 23 nor 24 was the right count.
+
+    // "More than 7 consecutive 8h shifts". The tightest consecutive-working rule on the page and
+    // the one most likely to bite THIS link, whose duties are around eight hours: FF11 allows 13
+    // shifts between 48h breaks, and this allows 7. It is marked `confirm` because "8h shifts" has
+    // more than one defensible reading and the choice changes what fires.
+    //
+    // Read here as EIGHT HOURS OR MORE, which is the direction that reports rather than the one
+    // that stays quiet — a nine-hour duty is not less fatiguing than an eight-hour one, and this
+    // module's stated failure mode is false assurance, not noise. The alternatives are "about 8h"
+    // (a band nobody has drawn) and "exactly 8h" (which would exclude most of this link and make
+    // the row silent on the designs it exists for).
+    // `runLengthsWhere`, NOT `longestRunOf` — and the difference is the whole row. A plain run scan
+    // treats a cover week as a BREAK, because a spare day has no times and fails the predicate: on
+    // the shipped default design that reported 5 and a green tick, against a worst case of 8 and a
+    // threshold of 7. A spare day is an UNKNOWN, not a no. The shared helper counts it towards the
+    // run, capped at four a week, which is the same reading FF11 and the longest-run check already
+    // use — one rule, three questions.
+    const runs8 = runLengthsWhere(seq, s => (dutyMinutes(s) ?? 0) >= 8 * 60, { requireMatch: true });
+    const eightPlus = runs8.length ? Math.max(...runs8) : 0;
+    const certain8 = longestRunOf(seq, s => (dutyMinutes(s) ?? 0) >= 8 * 60);
+    add({ code: 'MRSF', family: 'Cumulative', title: 'More than 7 consecutive 8h shifts', confirm: true,
+        status: eightPlus > 7 ? 'present' : 'clear', value: eightPlus, threshold: 7,
+        detail: `Longest run of duties of 8 hours or more is ${eightPlus}`
+            + (eightPlus !== certain8
+                ? ` in the worst case — ${certain8} of them are certain, and a cover week can supply up to `
+                  + `${SPARE_WORKED_DAYS} more whose times are not yet assigned. The worst case is what is reported, `
+                  + 'because a factor that goes quiet when a cover week sits in the middle of a long stretch is the '
+                  + 'one thing this panel must not do.'
+                : '.')
+            + ' Read as eight hours OR MORE; confirm whether the guidance means that, a band around 8h, or exactly'
+            + ' 8h — the reading changes what this reports.' });
+
+    // "More than 6 consecutive night or early shifts in a permanent pattern". NOT APPLICABLE to a
+    // link, and it renders saying so rather than being left out. A link is a rotating pattern by
+    // construction — everyone moves one line a week — so the permanent-pattern rule cannot apply,
+    // and FF15 above is its rotating counterpart at a threshold of 4. Omitting it would leave the
+    // panel quietly two rows short of the source it cites, which is how the count went wrong in
+    // the first place; the module's own rule is that not-applicable, clear and standing are three
+    // different answers and none of them is silence.
+    add({ code: 'MRSF', family: 'Cumulative', title: 'More than 6 consecutive night or early shifts in a permanent pattern',
+        status: 'n/a', value: 'rotating pattern',
+        detail: 'This link is a rotating pattern, so the permanent-pattern rule does not apply. '
+            + 'FF15 above is the rotating equivalent, and its threshold is lower (4).' });
 
     // ── Circadian phase shift — both readings unsettled ──────────────────────
     const rot = rotationDirection(seq);

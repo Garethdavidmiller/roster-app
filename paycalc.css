@@ -722,6 +722,13 @@
       font-size: var(--type-small); line-height: 1.5; margin: 8px 0 12px; color: var(--text-mid);
     }
     .check-actual-line.check-ok { color: var(--success-text); font-weight: 600; }
+    /* The DISAGREEING states had no rule at all until v21.94, so a payslip more than £25 away from
+       the estimate rendered as ordinary grey body text — quieter than the ✓ that needs no
+       attention, and visually identical to the "close enough" case beside it. Amber, matching the
+       app's warning token, and the same 600 weight as the ✓ so the two read as one pair of answers
+       rather than a statement and an aside. Every `page-css-parity` sibling is scoped to
+       cross-page borrowing, so nothing could have caught a class defined nowhere. */
+    .check-actual-line.check-near { color: var(--warning-amber); font-weight: 600; }
 
     /* First-run banner */
     .setup-banner {

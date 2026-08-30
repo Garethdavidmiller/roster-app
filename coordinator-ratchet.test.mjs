@@ -131,6 +131,22 @@ const CAPS = {
     // member's side plus the page's own chrome, and if it grows again the next seam is the member
     // controller — but only once the member path warrants one, not to make a number smaller.
     'overtime-app.js':          750,   // the young one — this is the cap that matters most
+    // NEW at v21.93, and the ratchet asking for a decision is exactly why it is here rather than
+    // discovered later. The member form's three rules — completeness, the timed-out-submit verdict,
+    // and whose write a 409 refuses — moved out of `overtime-form.js`, where they sat inside a
+    // closure that no Node test can reach (the form needs a real DOM, and adding a DOM library to
+    // this repo is a dependency decision, not a testing one).
+    //
+    // They landed HERE rather than in a fourth Overtime module because ownership, not line count,
+    // is the split rule: `submitDisposition` and `clockOffset` already live in this file and are
+    // the same kind of statement — a pure decision the client makes about a submission. A new
+    // 100-line module that every consumer imports alongside this one would be a split for the sake
+    // of a number, which the note at the top of this file says the ratchet must not become.
+    //
+    // The cap is 1050 against 955 measured. If this file needs raising again, the seam to take
+    // first is the WORDS — `phaseCopy`, `rowStateCopy`, `countsCopy`, `submitFailureCopy` and the
+    // rest are a coherent subject and the largest single one in here.
+    'overtime-format.js':      1050,   // ← the words are the seam if this ever needs raising
     // 1200 → 1250 at v21.54, and this one is a RAISE rather than an extraction, which the note
     // above says must be argued rather than assumed. The growth is the same-week read guard from
     // the external review — a generation ticket around one `await`, so that a slow earlier read

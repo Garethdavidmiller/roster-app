@@ -21,6 +21,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildDocumentClient, assertFileSignature } from './documents-client.js';
+import { resolveUploadCommit } from './upload-commit.js';
 
 const PDF_BYTES  = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2D, 0x31]);
 const DOCX_BYTES = new Uint8Array([0x50, 0x4B, 0x03, 0x04, 0x14, 0x00]);
@@ -48,9 +49,16 @@ function harness(opts = {}) {
     const fs = {
         doc: (_db, c, d) => ({ _key: `${c}/${d}` }),
         getDoc: async (r) => {
-            if (opts.getDocThrows && opts.getDocThrows(log.length)) throw Object.assign(new Error('read'), { code: 'unavailable' });
+            // The RECONCILIATION read is the one after a setDoc; the pre-read is not. Keeping them
+            // apart matters: a seam that fails "the read" would fail the authoritative pre-read
+            // instead and never reach the branch under test.
+            const reconciling = setDocCalls > 0;
+            if (reconciling) opts.beforeReconcile?.({ store, objects, deleted });
+            if (opts.getDocThrows && opts.getDocThrows({ reconciling, reads: log.length })) {
+                throw Object.assign(new Error('read'), { code: 'unavailable' });
+            }
             // A read AFTER a failed setDoc can see a competing writer's document.
-            if (setDocCalls > 0 && opts.liveAfterFailure !== undefined) {
+            if (reconciling && opts.liveAfterFailure !== undefined) {
                 const v = opts.liveAfterFailure;
                 return { exists: () => v !== null, data: () => v };
             }
@@ -60,7 +68,14 @@ function harness(opts = {}) {
         setDoc: async (r, data) => {
             setDocCalls++;
             const err = opts.setDocFails?.(setDocCalls);
-            if (err) { log.push(`setDoc-fail:${err}`); throw Object.assign(new Error('boom'), { code: err }); }
+            if (err) {
+                log.push(`setDoc-fail:${err}`);
+                // `commitsAnyway` is the whole hazard in one line: Firestore CAN raise
+                // deadline-exceeded after the server has committed, so the store must be able to
+                // hold a document the writer was told it failed to write.
+                if (opts.commitsAnyway) store.set(r._key, data);
+                throw Object.assign(new Error('boom'), { code: err });
+            }
             store.set(r._key, data);
             log.push('setDoc-ok');
         },
@@ -92,13 +107,11 @@ function harness(opts = {}) {
             legacyDocPath: (c, d, t) => `${c}/${d}.${t || 'pdf'}`,
             versionedDocPath: (c, d, id, t) => `${c}/${d}-${id}.${t}`,
         },
-        resolveUploadCommit: opts.resolveUploadCommit
-            || (({ ourPath, livePath, readable }) => {
-                if (!readable) return 'retry';
-                if (livePath === ourPath) return 'committed';
-                if (livePath === null) return 'retry';
-                return 'superseded';
-            }),
+        // The REAL rule by default (v21.96). It used to be a hand-written stand-in that restated
+        // the verdicts — and restated them WRONG once the rule changed, which is how a test named
+        // for the unreadable branch went on passing while asserting the behaviour that branch was
+        // fixed to stop doing. A test may replace it to drive one verdict; it may not re-implement it.
+        resolveUploadCommit: opts.resolveUploadCommit || resolveUploadCommit,
         pruneOldDocs: async () => { log.push('pruned'); },
     });
 
@@ -196,17 +209,75 @@ describe('an ambiguous commit is resolved by READING, never by re-issuing blind'
         assert.deepEqual(h.deleted, h.uploaded, 'our orphaned object is removed');
     });
 
-    test('an unreadable Firestore retries rather than abandoning a file nothing points at', async () => {
-        let sawReadable = null;
-        const h = harness({
-            setDocFails: n => (n === 1 ? 'unavailable' : null),
-            getDocThrows: () => false,
-            resolveUploadCommit: ({ readable }) => { sawReadable = readable; return 'retry'; },
-        });
+    test('a readable, unchanged state IS re-issued — the gate is a gate, not a disablement', async () => {
+        // The counterpart to the two tests below. Nothing superseded us and the read PROVED it, so
+        // the write must go out; a fix that simply stopped retrying would pass those and break this.
+        const h = harness({ setDocFails: n => (n === 1 ? 'unavailable' : null) });
         await h.client.uploadHuddle('2026-09-01', fakeFile(PDF_BYTES), 'G. Miller');
         assert.equal(h.setDocCalls(), 2, 'the write is re-issued');
-        assert.equal(sawReadable, true);
         assert.ok(h.store.get('huddles/2026-09-01'), 'and it lands');
+        assert.deepEqual(h.deleted, [], 'nothing was rolled back');
+    });
+});
+
+describe('when we cannot SEE, we write nothing and undo nothing', () => {
+
+    // The previous test in this position was named for the unreadable branch and did not exercise
+    // it: its harness set `getDocThrows: () => false`, so the reconciliation read succeeded, and the
+    // verdict came from an injected stub that returned `retry` unconditionally. It passed on both
+    // sides of the fix. These three drive the real read seam and the real rule.
+
+    test('an unreadable reconciliation does NOT re-issue the write', async () => {
+        const h = harness({
+            setDocFails: n => (n === 1 ? 'unavailable' : null),
+            getDocThrows: ({ reconciling }) => reconciling,
+        });
+        await assert.rejects(
+            () => h.client.uploadHuddle('2026-09-01', fakeFile(PDF_BYTES), 'G. Miller'),
+            /** @param {any} e */ (e) => e.code === 'upload/unconfirmed');
+        assert.equal(h.setDocCalls(), 1, 'the write is NOT re-issued');
+    });
+
+    test('and does NOT roll the object back either — our write may be the live one', async () => {
+        // The two halves are separate assertions because they are separate mistakes with opposite
+        // costs. Re-issuing overwrites a colleague; rolling back leaves a live document pointing at
+        // a file we have just deleted, which is the 404 this whole module exists to prevent.
+        const h = harness({
+            setDocFails: n => (n === 1 ? 'unavailable' : null),
+            getDocThrows: ({ reconciling }) => reconciling,
+        });
+        await assert.rejects(() => h.client.uploadCircular('2026-09-01', fakeFile(PDF_BYTES), 'G. Miller'),
+            /Could not confirm/);
+        assert.deepEqual(h.deleted, [], 'the new object is left in place');
+        assert.equal(h.objects.size, 1, 'so it survives as an orphan, which is the cheap outcome');
+    });
+
+    test('the exact interleaving: a superseding upload is not overwritten by a blind retry', async () => {
+        // A's write COMMITS and reports deadline-exceeded. A's reconciliation read then fails. In
+        // that window B — who can read — sees A's document, uploads its own, commits, and deletes
+        // A's now-superseded object. The old rule sent A back to `setDoc` here, pointing the live
+        // document at a path B had already removed: staff tap the Circular and get a 404, with no
+        // error anywhere. This is that sequence, and the assertion is that B's document survives.
+        const KEY = 'circulars/2026-09-01';
+        const h = harness({
+            setDocFails: n => (n === 1 ? 'deadline-exceeded' : null),
+            commitsAnyway: true,
+            beforeReconcile: ({ store, objects }) => {
+                const ours = store.get(KEY);                 // A's committed metadata
+                if (!ours || ours.storagePath === 'circulars/2026-09-01-BBB.pdf') return;
+                objects.delete(ours.storagePath);            // B deletes A's superseded object
+                store.set(KEY, { ...ours, storagePath: 'circulars/2026-09-01-BBB.pdf', uploadedBy: 'S. Silva' });
+            },
+            getDocThrows: ({ reconciling }) => reconciling,   // A cannot read any of it
+        });
+
+        await assert.rejects(() => h.client.uploadCircular('2026-09-01', fakeFile(PDF_BYTES), 'G. Miller'),
+            /** @param {any} e */ (e) => e.code === 'upload/unconfirmed');
+
+        assert.equal(h.setDocCalls(), 1, 'A did not write a second time');
+        assert.equal(h.store.get(KEY).storagePath, 'circulars/2026-09-01-BBB.pdf',
+            "B's document is still the live one");
+        assert.deepEqual(h.deleted, [], 'and A deleted nothing on the way out');
     });
 });
 

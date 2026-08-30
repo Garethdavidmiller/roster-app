@@ -71,7 +71,15 @@ rules_version = '2';
 // To re-deploy rules: push a change to this file on main; deploy-rules.yml runs
 // automatically. Or: GitHub → Actions → "Deploy Firestore Rules" → Run workflow.
 //
-// Last updated: v16.29 — B3 STRICT + H2 linkDesigns cutover (two rules deploys on the 16.29 line).
+// ── THE CHANGELOG BELOW IS NOT "LAST UPDATED" — THE SWEEP LINE ABOVE IS (v21.94) ────────────────
+// This block opened "Last updated: v16.29" while the sweep line near the top of the file read
+// v21.04, so the file carried two answers to "when did this last change" and they disagreed by five
+// major versions. The one that is maintained is the SWEEP line — it is what the audit table beside
+// it belongs to, and it is what the instruction at the top of the file ("update this line by hand
+// when rules change") points at. What follows is a DEPLOY LOG: entries are appended, never restated
+// as a header, and the newest is not necessarily at the top of it.
+//
+// Deploy log — v16.29: B3 STRICT + H2 linkDesigns cutover (two rules deploys on the 16.29 line).
 //   B3: removed the `!('name' in token)` no-name escape from the overrides create/update AND delete
 //   blocks (only that line changed; the name/admin/manager 3-tier is retained). Shipped after
 //   re-provision + the CLAIM_EPOCH=2 sweep. Rollback = re-add the two escape lines and redeploy.

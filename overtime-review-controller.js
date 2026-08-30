@@ -510,8 +510,13 @@ async function renderWeekDetail(weekEnding) {
         // happened and clear the selection instead (v21.56, external sweep).
         selectedWeek = null;
         host.innerHTML = '<div class="ot-state">That week is no longer available — pick a week above.</div>';
+        // EMPTY, not `hidden` (v21.94). `selectWeek` clears this chip by writing '' and relying on
+        // the `.card-year-chip:empty { display: none }` rule; setting `hidden` here was a second
+        // mechanism that nothing ever undoes, so once this branch ran the ratio was gone for the
+        // rest of the page life — a later week would write `4/6` into an element still hidden.
+        // One way it goes away, one way it comes back.
         const chip = el('otWeekChip');
-        if (chip) chip.hidden = true;
+        if (chip) chip.textContent = '';
         return;
     }
     const dates = weekDatesFrom(win.weekStart);

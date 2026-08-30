@@ -799,18 +799,27 @@ test('railcard: a physical 16-17 Saver is never described as not genuine', () =>
     assert.match(body, /not sold at stations|not available to purchase at stations/i);
 });
 
-test('railcard: the 17 August 2026 Saver change is represented, expiry over appearance', () => {
+test('railcard: an 18-year-old holding a Saver is legitimate, and the check is the expiry date', () => {
+    // This asserted the literal string "17 August 2026" until v21.97, which was right while the
+    // change was still ahead: a gateline needed the date to know the rule was about to move. It has
+    // moved — the source now reads "can NOW buy" and names no date — so pinning the date would keep
+    // a historical footnote on the page for ever, which is what its own source-register row asked
+    // this test not to do.
+    //
+    // What is asserted instead is the thing a gateline acts on, which was true before the change
+    // and after it: an in-date Saver in the hands of an 18-year-old is valid, and appearance is not
+    // a check. Cards issued under the old rule are still in circulation until Aug 2027 and simply
+    // expire earlier — the instruction does not change for them either.
     const card = RC_HTML.slice(RC_HTML.indexOf('id="rc-1617"'));
     const body = card.slice(0, card.indexOf('<div class="rc amber"'));
-    assert.match(body, /17 August 2026/,
-        'the dated Saver change has gone. Until it has bedded in the guide must name the date — an ' +
-        '18-year-old holding an in-date Saver is legitimate from then on.');
+    assert.match(body, /18-year-old can hold a valid Saver/i,
+        'the Saver card no longer states that an 18-year-old can hold a valid one');
     assert.match(body, /expiry date|check the expiry/i);
 });
 
 test('railcard: nobody is asked to judge age, disability or eligibility by appearance', () => {
     // Removed rather than softened (v20.38). It is wrong on FOUR products — 16-25 and 26-30 both
-    // outlive their upper age, the Saver will from 17 Aug 2026, and F&F keeps discounting a child
+    // outlive their upper age, the Saver does too since Aug 2026, and F&F keeps discounting a child
     // who turns 16 mid-card — and on the Disabled Persons Railcard it asks for a judgement no
     // gateline should be making at all.
     for (const bad of [

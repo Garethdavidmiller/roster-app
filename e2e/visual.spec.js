@@ -34,7 +34,7 @@
 // e2e responsive/calendar specs; the calendar's pixels are still locked at desktop width below.
 
 import { test, expect, enableCalendarPin } from './fixtures.js';
-import { seedSession, seedMember, openRosterReview, openReference} from './helpers.js';
+import { seedSession, seedMember, openRosterReview, openReference, stubPerfReads } from './helpers.js';
 import { ROTATING_LINES } from '../links-design.js';
 
 // A Wednesday inside G. Miller's rendered roster window — gives a stable "Today" cell and a
@@ -270,57 +270,6 @@ test('operations — Usage card, populated (desktop 1280)', async ({ page }) => 
 // The fixture is deliberately UNEVEN — a fast Calendar, a slow paycalc, a thin page, and a start
 // ladder whose big jump is between "Unlocked" and "Shifts up". A uniform fixture would make every
 // bar the same width and lock in a picture that could not show a layout fault.
-function perfSamples() {
-    const out = {};
-    const add = (page, metric, bucket, n, conn = '4g', mode = 'standalone', ver = 'v21.29') => {
-        out[[ver, page, metric, bucket, mode, conn].join('|')] = n;
-    };
-    for (const [m, quick, ok, slow] of [['fcp', 900, 180, 40], ['domReady', 700, 300, 120], ['ready', 520, 260, 180]]) {
-        add('calendar', m, 'lt500ms', quick); add('calendar', m, '1-3s', ok); add('calendar', m, '3-8s', slow);
-        add('paycalc',  m, 'lt500ms', 120);   add('paycalc',  m, '1-3s', 210); add('paycalc', m, '3-8s', 95);
-        add('settings', m, 'lt500ms', 4);     // thin — must wear the "(few)" marker, not a confident bar
-    }
-    add('login', 'loginTotal', 'lt500ms', 40); add('login', 'loginTotal', '1-3s', 22); add('login', 'loginTotal', '3-8s', 9);
-    // Boot stages — contiguous spans, finer bands.
-    add('calendar', 'swBoot',  'lt500ms', 900); add('calendar', 'swBoot',  '500ms-1s', 60);
-    add('calendar', 'sdkLoad', 'lt500ms', 700); add('calendar', 'sdkLoad', '500ms-1s', 220); add('calendar', 'sdkLoad', '1-3s', 40);
-    add('calendar', 'appBoot', 'lt500ms', 820); add('calendar', 'appBoot', '500ms-1s', 120);
-    // The start ladder — the point of the fixture. Signed in and Unlocked are quick; the roster is
-    // where the time goes, which is the shape the block exists to make visible at a glance.
-    add('calendar', 'authBoot',   'lt500ms', 940); add('calendar', 'authBoot',   '1-3s', 30);
-    add('calendar', 'access',     'lt500ms', 900); add('calendar', 'access',     '1-3s', 70);
-    add('calendar', 'rosterLive', 'lt500ms', 300); add('calendar', 'rosterLive', '1-3s', 420); add('calendar', 'rosterLive', '3-8s', 240);
-    // Second connection class, so the "Why some are slower" splits have something to split.
-    add('calendar', 'domReady', '1-3s', 160, '3g'); add('calendar', 'domReady', '3-8s', 90, '3g');
-    add('calendar', 'domReady', '1-3s', 60, '4g', 'browser');
-    return out;
-}
-
-/** Serve a firebase-client.js whose perf read returns the fixture. Loud on a missing anchor, for
- *  the same reason as the Usage stub: a silent no-op would baseline the EMPTY card.
- *  @param {import('@playwright/test').Page} page */
-function stubPerfReads(page) {
-    return page.route('**/firebase-client.js', async route => {
-        const res = await route.fetch();
-        const src = await res.text();
-        const anchor = 'export async function getPerfStats() {';
-        if (!src.includes(anchor)) throw new Error(`visual: perf fixture anchor no longer matches — "${anchor}". `
-            + 'Update it, or this baseline silently degrades to the empty state.');
-        const fixture = `
-    {
-        const _s = ${JSON.stringify(perfSamples())};
-        const _w = (month) => ({ month,
-            login: summarisePerf(_s, { metric: 'loginTotal' }),
-            fcp:   summarisePerf(_s, { metric: 'fcp' }),
-            pages: summarisePerf(_s, { metric: 'domReady' }),
-            ready: summarisePerf(_s, { metric: 'ready' }),
-            samples: _s });
-        return { thisMonth: _w('2026-08'), lastMonth: _w('2026-07') };
-    }`;
-        await route.fulfill({ response: res, body: src.replace(anchor, anchor + fixture), contentType: 'text/javascript' });
-    });
-}
-
 test('operations — App Speed card, populated (desktop 1280)', async ({ page }) => {
     await stubPerfReads(page);
     await prep(page, { width: 1280, height: 1800 });
@@ -335,6 +284,7 @@ test('operations — App Speed card, populated (desktop 1280)', async ({ page })
     // rather than policing copy. Four ladder rows is the claim — a partly-wired ladder would show
     // fewer and the capture would lock that in.
     await expect(card).toContainText('How far the start gets');
+    await expect(card).toContainText('What put the shifts on screen');
     await page.waitForTimeout(400);
     await expect(card).toHaveScreenshot('operations-speed-card.png');
 });

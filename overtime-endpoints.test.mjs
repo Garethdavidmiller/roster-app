@@ -76,13 +76,26 @@ function makeDb(seed = {}, onRead = null) {
         return {
             path,
             doc: (id) => docRef(`${path}/${id}`),
-            // Equality filtering, which is all the production code uses — and the ONE property
-            // worth modelling faithfully is that a document MISSING the field never matches. That
-            // is why `windowCounts` counts the withdrawn and subtracts instead of filtering for the
-            // rest: a fake that matched absent fields would make the wrong design pass here.
+            // Equality AND the one inequality the code uses (`retentionUntil > now`, v21.94). The
+            // ONE property worth modelling faithfully is the same for both: a document MISSING the
+            // field never matches. That is why `windowCounts` counts the withdrawn and subtracts
+            // instead of filtering for the rest — a fake that matched absent fields would make the
+            // wrong design pass here — and it is also why the retention bound on
+            // `getMyOvertimeState` is safe: every window has carried `retentionUntil` since the
+            // feature shipped, and a hypothetical one without it would be dropped, not kept.
+            //
+            // Timestamps are compared through `toMillis()` on BOTH sides, because that is the only
+            // thing the fake's stamps and `admin.firestore.Timestamp.fromMillis` have in common —
+            // comparing the objects themselves would silently compare `[object Object]`.
             where: (field, op, value) => {
-                assert.equal(op, '==', 'the fake models equality filters only');
-                return collRef(path, k => store.get(k)?.[field] === value);
+                assert.ok(op === '==' || op === '>', 'the fake models `==` and `>` only');
+                const ms = (v) => (v && typeof v.toMillis === 'function' ? v.toMillis() : v);
+                if (op === '==') return collRef(path, k => store.get(k)?.[field] === value);
+                return collRef(path, (k) => {
+                    const held = store.get(k)?.[field];
+                    if (held === undefined || held === null) return false;   // missing field never matches
+                    return ms(held) > ms(value);
+                });
             },
             // Field projection is a wire optimisation, not a behaviour: the one caller that uses
             // `.select()` reads document IDS only, which a projection never changes. Modelling it

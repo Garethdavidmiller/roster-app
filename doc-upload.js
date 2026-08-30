@@ -177,11 +177,16 @@ export function initDocUploadCard(cfg) {
       // "Try again" is the wrong instruction for a SUPERSEDED upload (v21.86): somebody else saved
       // for this date while ours was in flight, and retrying would simply overwrite their file with
       // no one having decided that. The admin needs to know a newer one exists, then choose.
+      // "Try again" is also wrong for an UNCONFIRMED one (v21.96): the write may have landed, so
+      // the honest instruction is to look before repeating it. Saying "failed" would be a claim we
+      // deliberately refused to make one layer down.
       const _e = /** @type {any} */ (err);
       /** @type {HTMLElement} */ (feedback).textContent =
         _e?.code === 'upload/superseded'
           ? 'Someone else saved a newer file for this date. Reload to see it, then upload again only if yours should replace it.'
-          : _e?.message === 'SIGNATURE_MISMATCH' ? sigMismatchMsg : 'Upload failed — please try again';
+          : _e?.code === 'upload/unconfirmed'
+            ? "Couldn't confirm this saved — the connection dropped mid-save. Reload to see whether it's there, and upload again if it isn't."
+            : _e?.message === 'SIGNATURE_MISMATCH' ? sigMismatchMsg : 'Upload failed — please try again';
       /** @type {HTMLElement} */ (feedback).className = 'huddle-feedback huddle-feedback--err';
       uploadBtn.disabled = false;
     } finally {

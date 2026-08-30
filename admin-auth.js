@@ -70,7 +70,7 @@ export function initAuthSetup({ currentIsAdmin }) {
             // be restored in the Firebase console first. Surface that honestly rather than
             // implying a bootstrap is in progress.
             if (!tokenResult.claims.admin) {
-                resultEl.innerHTML = '<p class="auth-result-info">⚠️ Your account is missing the admin claim, which this setup requires — the server will reject this call. Set the admin claim in the Firebase console, then sign out and back in.</p>';
+                resultEl.innerHTML = '<p class="auth-result-info"><span aria-hidden="true">⚠️</span> Your account is missing the admin claim, which this setup requires — the server will reject this call. Set the admin claim in the Firebase console, then sign out and back in.</p>';
                 resultEl.classList.add('visible');
                 return;   // without this, the fetch below 403s and the catch overwrites this guidance with a raw error
             }

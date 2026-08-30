@@ -30,6 +30,15 @@ beside the code, where it cannot drift from the thing it describes. Every row po
 | 11 | **A member is never sent to the staff PIN.** A held session with no restored identity gets a sign-in card, and the late-identity watcher keeps listening. | `calendar-access.js` · `calendar-access-core.js` |
 | 12 | **The viewer's persistence is session-only, and boot must not migrate it.** `setPersistence` moves the current user between stores. | `firebase-client.js` (`authReady`) |
 
+**One open decision touches invariant 3, and the invariant stands until it is answered.** The
+Calendar's access decision waits on a network round trip Firebase makes to validate the stored user,
+and that round trip is the measured cause of the start-latency wall (`LATENCY_PLAN.md`). Taking it
+off the critical path would mean painting cached overrides before the account is confirmed live.
+**It is recorded as a question, not as a plan** — `ROADMAP.md` → *Calendar start — the identity
+round trip*, where the cost is priced and three defensible answers are set out. Nothing here is
+softened in the meantime: an invariant that starts hedging against a decision nobody has taken is an
+invariant that has already been half-abandoned.
+
 ---
 
 ## Dependencies

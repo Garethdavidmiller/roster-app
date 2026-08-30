@@ -1,5 +1,5 @@
 import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the literal 22 — and `links: the rotation
 // length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
@@ -1903,6 +1903,46 @@ test('operations: a flagged roster cell can be resolved from the review table', 
     expect(values, 'the picked reading must be among the values written').toContain('14:30-22:00');
 });
 
+// "Skip all" must skip the row the admin was LEAST sure about (v21.94).
+//
+// `UNREADABLE` gained a writable `chosen` when the two-way pick shipped at v19.32; this handler
+// predates it and branched only on DIFF/REMOVE_IMPORT/CONFLICT. So an admin who picked a reading and
+// then pressed Skip all got a dimmed, `inert` section whose picked value was STILL WRITTEN by Save,
+// with the chosen button keeping its highlight under the overlay.
+//
+// Driven through the real review table, because the bug was a missing branch in a delegated handler
+// — there is no rule to unit-test, and the section state is inside a closure. The Save button's
+// label is the observable consequence: with everything skipped it must offer nothing at all.
+test('operations: Skip all also clears a resolved "couldn\'t read" pick', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+
+    const saveBtn = page.locator('#rosterApplyBtn');
+    const flagged = page.locator('.roster-change-row').filter({ has: page.locator('.roster-choice-btn[data-opt="0"]') });
+    await expect(saveBtn).toHaveText(/Save 3 changes/);
+
+    // Resolve one flagged cell — now four things would be written.
+    await flagged.first().locator('.roster-choice-btn[data-opt="0"]').click();
+    await expect(saveBtn).toHaveText(/Save 4 changes/);
+
+    // Skip all for that person. Every row in the section belongs to G. Miller, so nothing is left.
+    await page.locator('.roster-skip-all-btn').first().click();
+    await expect(saveBtn, 'the resolved flagged row was still going to be written').toHaveText(/Nothing to save/);
+    await expect(saveBtn).toBeDisabled();
+
+    // The row must SAY so too: back on Skip, back to "Couldn't read". A section that writes nothing
+    // while a value still looks chosen is the same contradiction one layer down.
+    await expect(flagged.first().locator('.roster-choice-btn--skip')).toHaveClass(/is-chosen/);
+    await expect(flagged.first().locator('.roster-choice-btn[data-opt="0"]')).not.toHaveClass(/is-chosen/);
+
+    // Restore brings the ticked rows back — and must NOT re-pick the flagged one. There is no safe
+    // default for a cell nobody could read, which is why it starts on neither.
+    await page.locator('.roster-skip-all-btn').first().click();
+    await expect(saveBtn).toHaveText(/Save 3 changes/);
+    await expect(flagged.first().locator('.roster-choice-btn[data-opt="0"]')).not.toHaveClass(/is-chosen/);
+});
+
 // Skip means "write nothing", so it must never wear the colour that means "this will be saved".
 // Asserted on computed style rather than by screenshot: --text-mid (L45%) and --success-green
 // (L48.5%) differ in HUE at near-equal luminance, and pixelmatch's delta is luminance-dominated, so
@@ -2379,6 +2419,30 @@ test('links sets: a set can be deleted, and only by someone allowed to', async (
             .filter((/** @type {string} */ p) => p.includes('linkTargetSets')).length)).toBe(1);
     await expect(page.locator('#genSetSelect option')).toHaveCount(1);
     await expect(page.locator('#genSetSelect option').nth(0)).toHaveText('Set A — S. Silva');
+});
+
+test('links sets: a set changed while the confirm sat open is not deleted', async ({ page }) => {
+    // Consent names a VERSION, in the one Links surface that did not check (external review). The
+    // set's other writer is the admin, and a confirm dialog is human think-time: the row the picker
+    // is showing can be minutes old. A bare `deleteDoc` removes whatever is there NOW — including an
+    // update made in that gap, which the person confirming never saw. There is no bin behind a set.
+    await openLinksWithTargetSets(page);
+    await page.locator('#genSetSelect').selectOption('ts-robson');
+
+    // The SERVER moves on while the dialog is open: same set, newer revision.
+    await page.evaluate(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E.txDocs = (w.__E2E.docsByPath.linkTargetSets || []).map((/** @type {any} */ r) =>
+            (r.id === 'ts-robson' ? { ...r, updatedAt: 1_760_000_000_000, updatedBy: 'G. Miller' } : r));
+    });
+
+    await page.locator('#genSetDeleteBtn').click();
+    await clickDialogConfirm(page);
+
+    await expect(page.locator('#genSetHint')).toContainText('changed by someone else');
+    // The refusal is the assertion: nothing left the collection.
+    expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.deletedPaths || [])
+        .filter((/** @type {string} */ p) => p.includes('linkTargetSets')).length)).toBe(0);
 });
 
 test('links sets: the row says whether the table still matches the set', async ({ page }) => {
@@ -3483,6 +3547,42 @@ test('operations: no account-status name is truncated at phone width', async ({ 
         .filter(el => el.scrollWidth > el.clientWidth + 1)
         .map(el => el.textContent));
     expect(clipped, 'account names clipped at 375px — the row cannot be identified').toEqual([]);
+});
+
+test('operations: no App Speed row label is truncated at phone width', async ({ page }) => {
+    /*
+     * The same fault as the account-status one above, on the card that had just gained a block.
+     * Found by SCREENSHOTTING it (v22.00) rather than by any assertion: two rows read "From the
+     * save…" and "Pay calcul…" at 390px, and one of them was the label naming the whole distinction
+     * the new block exists to draw. Every behavioural test passed throughout, because the DOM text
+     * was complete and only the pixels were wrong — which is exactly what the account-status guard
+     * says about its own defect, so the card that learned the lesson was not the card that needed it.
+     *
+     * Both label kinds are checked. `.speed-row-name` is deliberately the ellipsising element (the
+     * "(few)" marker beside it must never be the part that goes), so measuring it is measuring the
+     * thing that can actually be lost.
+     */
+    // SEEDED, because an empty card is not a passing truncation test — it is no test. The fixture is
+    // the visual baseline's own, shared through helpers.js so the guard and the picture cannot end
+    // up describing two different cards.
+    await stubPerfReads(page);
+    await page.setViewportSize({ width: 390, height: 2400 });
+    await seedSession(page);
+    await seedMember(page);
+    await page.goto('/operations.html');
+    await expect(page.locator('#pageSpeedCard')).toBeVisible({ timeout: 10000 });
+    await page.evaluate(() => {
+        const b = document.getElementById('pageSpeedBody');
+        if (b && !b.classList.contains('open')) document.getElementById('pageSpeedToggleHeader')?.click();
+    });
+    await expect(page.locator('#pageSpeedCard')).toContainText('What put the shifts on screen');
+    const names = page.locator('#pageSpeedCard .speed-row-name');
+    expect(await names.count(), 'the fixture did not reach the card — nothing is being measured')
+        .toBeGreaterThan(8);
+    const clipped = await page.evaluate(() => [...document.querySelectorAll('#pageSpeedCard .speed-row-name')]
+        .filter(el => el.scrollWidth > el.clientWidth + 1)
+        .map(el => el.textContent));
+    expect(clipped, 'App Speed labels clipped at 390px — the row cannot be read').toEqual([]);
 });
 
 // ── ADMIN WEEK SWIPE ────────────────────────────────────────────────────────────────────────────

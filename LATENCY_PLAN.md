@@ -2,13 +2,28 @@
 
 *Created August 2026 (at v21.30), external review. Not version-stamped; not a runtime asset.*
 
-**Phase 1 has shipped. Phases 2 and 3 are deliberately NOT started, and the reason is the point of
-this file:** the instrumentation that decides between them only began collecting at v21.30. Starting
-either one now would be choosing on intuition, which is the thing the measurement was built to stop.
+**This is no longer a programme of engineering. It is TWO OPEN ITEMS and a close-out rule** (deep
+review, 30 Aug 2026). It began as four phases to do in measured order; the measuring is what ended
+that. Phase 1 shipped. Phase 3 was priced at 4.6–52 ms against a wall of over a second and
+**declined**. Phase 4's trigger did not fire. What remains is not work:
+
+| Open item | What it is | Who / when |
+|---|---|---|
+| **The identity round trip** | An owner DECISION — `ROADMAP.md` → *Calendar start — the identity round trip*. The wall is one unconditional `accounts:lookup` per boot; everything now funnels into whether the app may paint before it returns | **Gareth**, when ready — the field-confirmation check below first |
+| **The Phase 2 reading** | A NUMBER — the card's "What put the shifts on screen" split, read against the rule in the Phase 2 section | ~end September 2026, one full month after v21.99 |
+
+**And the close-out.** There is a likely path where the identity answer is "no — the gate holds" and
+the cache-miss share comes back small. In that world this plan **CLOSES**, recording ~1 second to
+`Recognised` as the PRICE OF THE SECURITY MODEL — a cost that was chosen, not a problem nobody
+solved. That is a success ending, not a failure: the alternative is a plan that can only end by
+fading, which is the quiet stop the section at the bottom warns against. Do not go looking for a
+Phase 5 to make the plan feel finished — twice this week, measuring first stopped confident work
+worth five milliseconds, and a review that ended by inventing new work would be undoing its own
+lesson. **No engineering left in this file plausibly moves the number.**
 
 Design detail lives beside the code, as ever — `perf-reporter.js` and `perf-stats.js` for what is
 measured, `AI_MAP.md` for the ladder's exports, `CALENDAR_DATA.md` for the invariants any change
-here must not break. This file holds only the SEQUENCE and the DECISION RULE.
+here must not break. This file holds the sequence, the readings and the decision rules.
 
 ---
 
@@ -23,7 +38,7 @@ Two things were considered and refused outright:
 
 | Refused | Why |
 |---|---|
-| **Render the base roster instantly, correct it when Firestore answers** | Override-unknown is not override-absent. It would look fast and reintroduce the exact defect `calendar-data-state.js` exists to prevent. **Latency must not buy a false roster.** |
+| **Render the base roster instantly, correct it when Firestore answers** | Override-unknown is not override-absent. It would look fast and reintroduce the exact defect `calendar-data-state.js` exists to prevent. **Latency must not buy a false roster.** — And this refusal is NOT the open `ROADMAP.md` identity question, though they rhyme: that one paints CACHED overrides (real data, correctly labelled) before the server confirms the *account*; this one would paint the base roster while overrides are *unknown*. Refusing the second says nothing about the first, and neither may be cited to settle the other. |
 | **Extend the session past 60 days** | It reduces how OFTEN latency is felt without improving it, and lengthens the life of a stale local session. Optimise the real path instead. |
 
 ---
@@ -49,10 +64,14 @@ Compare rows; do not do arithmetic.
 
 | The gap is between | What is slow | Do |
 |---|---|---|
-| page start → **Recognised** | restoring the saved sign-in | **Phase 3** (split Auth from Firestore) |
-| Recognised → **Unlocked** | the access decision itself | re-read `calendar-access.js`; phase 3 helps only indirectly |
-| Unlocked → **Shifts shown** | reaching a roster at all | **Phase 2** (fetch less, sooner) |
+| page start → **Recognised** | restoring the saved sign-in | ~~Phase 3~~ — **measured and declined**; the gap is one auth round trip, and skipping it is the `ROADMAP.md` identity decision, not a build |
+| Recognised → **Unlocked** | the access decision itself | re-read `calendar-access.js` |
+| Unlocked → **Shifts shown** | reaching a roster at all | **Phase 2** (fetch less, sooner) — read "What put the shifts on screen" first |
 | Shifts shown → **Confirmed** | the authoritative Firestore read | **Phase 2**, and its member/month narrowing especially |
+
+The first row is struck through rather than deleted because the rule was FOLLOWED: the ladder named
+Phase 3, the proof priced it, and the answer redirected the question. A table quietly rewritten to
+the outcome would hide that the method worked.
 
 **Wait for a full month before reading it.** The card's own `THIN_SAMPLE` rule governs these rows;
 a week of data on a 50-person app can read 100% and mean nothing.
@@ -67,8 +86,8 @@ than the ones above it by construction — the same property the card already st
 
 Recorded against the decision rule above so the numbers and the verdict sit next to the rule that
 produced them. **Read from the deployed Operations card, not from this repo** — the analytics are
-admin-only, so screenshots are the record. A full-month confirmation read is due after **31 Aug**;
-act then, not now.
+admin-only, so screenshots are the record. **Superseded by the confirmation read below; kept because
+the two together are the evidence that the verdict is stable rather than a single month's shape.**
 
 **The boot stages exonerate the code.** Waking up 9% over ½s (989 opens) · Loading code 11%
 (1,052) · Getting ready 0% (1,114). The SW, the module graph and the no-bundler trade are all fast
@@ -105,6 +124,61 @@ Three cautions attached to the verdict:
 
 ---
 
+## Confirmation read — 30 Aug 2026 (owner screenshot; the month effectively complete)
+
+The read the section above deferred. August is 1½ days from ending and the Calendar sample has gone
+from 1,619 opens to **2,226**; no row here can move materially in what is left, so this is recorded
+as the confirmation rather than a second provisional. **The verdict is unchanged on 2× the sample,
+which is the useful part** — a decision this size should not rest on one partial month.
+
+**The boot stages exonerate the code — CONFIRMED.** Waking up 10% over ½s (1,513 opens) · Loading
+code 12% (1,623) · Getting ready **0%** (1,738). Every figure is within a point of the provisional
+on ~50% more data. **Phase 4's trigger did not fire, and the no-bundler trade is measured, not
+argued.**
+
+**The ladder, cumulative (Calendar, 2,226 opens):**
+
+| Rung | over 1s | jump | opens | (22 Aug) |
+|---|---|---|---|---|
+| page start → **Recognised** | 52% | **+52 ← the wall** | 1,072 | 56% |
+| → Unlocked | 58% | +6 | 1,086 | 62% |
+| → Shifts shown | 75% | +17 | 1,493 | 71% |
+| → **Confirmed** | 100% | +25 | 1,045 | 100% |
+
+**Verdict per the rule: Phase 3 first, confirmed.** The dominant gap is still `page start →
+Recognised` by a factor of three over its nearest rival, and the two rungs that moved (Shifts shown
++9→+17, Confirmed +29→+25) traded with each other without touching the wall.
+
+**The sharpest single fact in this read is not in the ladder at all.** All three boot stages finish
+inside ½s on ~90% of opens — *Getting ready* is 0% over ½s across 1,738 of them — and yet **21% of
+page opens take over three seconds to become USABLE** (32% under 1s · 46% 1–3s, 1,695 opens). The
+code is ready and the page is not. Everything a member waits for is therefore downstream of DCL, in
+the identity restore and the access decision, which is precisely what Phase 3 addresses and is a
+stronger statement of it than the ladder alone makes.
+
+**Three things worth knowing before reading any dimension on this card:**
+
+- **The connection split is probably reading the PLATFORM, not the network.** Not-reported runs
+  **10%** over 1s (1,163 opens) against 4G-like's **20%** (1,041) — i.e. the devices that report no
+  connection class are the FASTER half. `NetworkInformation` is unimplemented in Safari, so
+  "not reported" is largely iOS and "4G-like" largely Android. Treat the row as a device split
+  until something distinguishes them. The provisional read drew the opposite inference from the
+  same two rows ("smells of network"); on the fuller sample the gap widened rather than closed,
+  which fits a platform explanation better than a signal one.
+- **The installed app is SLOWER than a browser tab** — 16% over 1s (1,736 opens) against 11% (490).
+  Counter-intuitive, and not yet explained. The likeliest reading is population rather than
+  performance: an installed app belongs to somebody with a saved session to restore, while a
+  browser tab is disproportionately a PIN unlock or a first visit, and neither of those runs the
+  member chain that the wall lives in. **Do not act on this row** — it is a hypothesis with an
+  obvious confound, and it would be settled by splitting `Recognised` by install mode rather than
+  by changing anything.
+- **Every by-version row is at or near the thin bar.** `THIN_SAMPLE` is 20; these rows carry 24–46
+  opens each (two exceptions at 152 and 214). v21.91 reading 23% against v21.78's 4% is noise on
+  ~30 samples, not a regression to hunt. The card withholds a verdict below 20 and does not shade
+  it above; that is the reader's job here.
+
+---
+
 ## Phase 2 — the Calendar data path
 
 **Trigger:** the ladder shows the gap at Unlocked → Shifts shown, or Shifts shown → Confirmed.
@@ -127,12 +201,63 @@ KNOWN before rendering is not. `CALENDAR_DATA.md` invariants 1, 2 and 6.
 precisely because a second authoritative reconciler racing the first evicted overrides the initial
 fetch had just loaded. Any per-member narrowing has to keep that single-reconciler property.
 
+### Do not start it until the card answers ONE question (instrumented v21.99)
+
+Phase 3 was the nominated treatment until it was measured, and it was worth 4.6 ms. The same
+discipline applies here, and the question is narrower than it looks.
+
+**`Shifts shown` fires on whichever render first puts a real grid up**, and on a device with a warm
+cache that is PHASE ONE — no network at all. Narrowing the authoritative read cannot move that load
+by a millisecond. On a cache MISS it is phase two, the three-month whole-team query, which the card
+says has never once finished inside a second. So Phase 2's entire value is the size of the
+cache-miss population, and nothing measured it: the ladder carried connection, install mode and
+version, but not what served the grid.
+
+It does now. `markPageReady` takes a source, derived from the display state the Calendar already
+computes (`render` means the read landed, `stale` means the cache did), and the App Speed card
+renders **"What put the shifts on screen"** directly beneath the ladder rung it splits.
+
+**The reading rule:**
+
+| From the server | Do |
+|---|---|
+| a small share of opens | **close Phase 2.** It would be a rewrite of the read path, with the Team View eviction trap above, for a population that mostly does not exist |
+| a substantial share, and slow | **do Phase 2**, narrowest form first — displayed month before adjacent months, then selected member |
+
+**Wait a full month before reading it**, and mind two things. The two rows do NOT sum to `Shifts
+shown` — a page that cannot tell its source reports `ready` alone — so they are shares of the
+attributed population, not of the whole. And `THIN_SAMPLE` governs them like every other row on the
+card: the cache-miss arm is the smaller by construction, so it is the one that will read as thin
+first, and a confident percentage from thirty opens is what this card's own v21.16 pass existed to
+stop.
+
 ---
 
 ## Phase 3 — split Firebase Auth from Firestore
 
 **Trigger:** the ladder shows the gap before Recognised, i.e. cold sign-in and cold Calendar start
 are dominated by getting an identity.
+
+> **THE TRIGGER FIRED, THE PROOF WAS RUN, AND THE ANSWER IS NO — do not do this as a latency fix**
+> (30 Aug 2026, `experiments/auth-firestore-split-proof/`). The trigger had fired twice on
+> independent data, and the prove-it-on-ONE-page step was there because nothing had established how
+> much of the 52-point wall Firestore's presence in the auth graph actually owns. It owns almost
+> none of it.
+>
+> | CPU throttle | today (app+firestore+auth) | split (app+auth) | saving |
+> |---|---|---|---|
+> | 1× | 38.3 ms | 33.7 ms | **4.6 ms** |
+> | 4× | 132.9 ms | 119.0 ms | **13.9 ms** |
+> | 6× | 229.0 ms | 176.8 ms | **52.2 ms** |
+>
+> The saving is real, scales with a slower CPU as a parse cost should, and is the wrong order of
+> magnitude: **the entire auth boot is 229 ms on a 6×-throttled device**, against a wall of over a
+> second on 52% of loads. `initializeFirestore(persistentLocalCache)` costs **0.4 ms** synchronously
+> — the cache opens lazily, so the IndexedDB-contention half of the theory is not happening at all.
+>
+> **The split may still be worth doing on architectural grounds. It may not be sold as the treatment
+> for this ladder.** That is the distinction the measurement bought, and it was bought before
+> refactoring the module every page in the app imports.
 
 `firebase-client.js` statically imports app, auth **and** Firestore, so somebody who only needs to
 sign in still pulls the database SDK into the module graph. Authentication does not require
@@ -151,6 +276,54 @@ keep*, which this phase does **not** by itself trigger.
 
 ---
 
+## What the wall actually is — ONE auth round trip (measured 30 Aug 2026)
+
+The Phase 3 proof is a negative result with a positive half. Because the local cost turned out to be
+so small, the missing ~800 ms has to be network — and it is, and it is a single call:
+
+> **Every boot makes exactly one auth request — `POST /identitytoolkit.googleapis.com/v1/accounts:lookup`
+> — and `Recognised` waits for it.**
+
+Counted directly, one reload, one request. It is **not** conditional on the ID token having expired:
+the measured reloads were seconds apart with a fresh token and the call happened anyway. Firebase
+validates the stored user against the server before emitting it, which is a correctness feature —
+it is how a deleted or disabled account stops being restored on the next load.
+
+Injecting latency into that one call moves the milestone almost one-for-one — +335.7 ms of
+`authBootstrap` for +300 ms of latency. On a real mobile connection that round trip **is** the wall,
+and no arrangement of the module graph shortens it.
+
+### Why there is no Phase 5 written here yet
+
+The obvious treatment is to stop waiting: paint from the locally-stored identity and let the lookup
+confirm in the background. **That is a security trade, not a performance tweak**, and it is not this
+document's to make. `calendar-access.js` decides what a viewer may SEE from the restored identity,
+so an account disabled since the last load would be trusted for the length of one paint. The
+question belongs to `CALENDAR_DATA.md` and `AUTH_AND_SESSIONS.md`, and it should be answered before
+anything is built. **It is now written up as a decision with the cost priced and three defensible
+answers: `ROADMAP.md` → *Calendar start — the identity round trip*.** Both contracts point at it,
+and neither is softened while it is open.
+
+What can be said without that decision: the app already knows how to do this shape safely for DATA
+— the Calendar's two-phase load paints from the local cache and then reconciles authoritatively
+(E1, `calendar-initial-fetch.js`). Whether identity may take the same shape is exactly the harder
+question, because data can be wrong and re-render, and access cannot.
+
+**The measurement also retires a suspicion.** The 22 Aug reading guessed the delay "smells of
+network" from the 4G-versus-not-reported split, and the 30 Aug reading argued that split is probably
+reading the platform instead. Both were reasoning from a dimension that cannot separate them. This
+is the direct answer: it is network, it is one call, and it is on every load.
+
+**One honest caveat, and the check that closes it (deep review, 30 Aug).** The round-trip finding
+rests on an emulator with injected latency — rigorous, and the FIELD contribution is inferred rather
+than observed. Before the identity decision is taken either way, confirm it on real devices with the
+signature it predicts: **if the wall is the lookup, `Recognised` should track connection quality far
+more strongly than `Getting ready` does** — a slow network moves a network wall and barely moves a
+parse one. The card already carries both rows and the connection split; the comparison is a reading,
+not a build. If the signature is absent, the finding is wrong and the decision should wait.
+
+---
+
 ## Phase 4 — only if the measurement still says so
 
 Reducing the Calendar's critical `modulepreload` graph, and the bundler question.
@@ -162,12 +335,17 @@ the fetch/parse phase after phases 2 and 3 have landed.
 
 ---
 
-## What would make this file wrong
+## What would make this file wrong — and how it CLOSES
 
-If the ladder's rows come back uniformly quick, phases 2 and 3 are not worth their risk and this
-plan should be closed rather than worked through out of momentum. Record that outcome here if it
-happens — a plan that was measured and dropped is more useful to the next reader than one that
-quietly stopped.
+This section predates the readings and asked a question they have now half-answered: the rows did
+not come back uniformly quick, but the slow one led to a decision rather than a build. So the live
+version of the question is the close-out in the header, restated here so the two ends of the file
+agree: **the plan closes when the identity decision is taken AND the Phase 2 reading is acted on**,
+whichever way both go. If both answers are "no build", close it as a success — the second to
+`Recognised` becomes the recorded price of the security model, the `Recognised` row is re-labelled a
+floor, and this file stops being a plan and becomes the record of why. A plan that was measured and
+settled is more useful to the next reader than one that quietly stopped — and also more useful than
+one kept alive by inventing a Phase 5.
 
 ## Links workspace — measured 24 Aug 2026
 
