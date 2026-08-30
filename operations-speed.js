@@ -365,7 +365,7 @@ async function initPageSpeedCard() {
         heading.className = 'usage-section-label speed-dim-label';
         heading.textContent = 'What put the shifts on screen';
         frag.appendChild(heading);
-        frag.appendChild(noteLine('Only the Calendar reports this, and the two do not add up to “Shifts shown” above — a page that cannot tell is counted there and not here. A grid from the saved copy did not wait for the server.'));
+        frag.appendChild(noteLine('A grid from the saved copy never waited for the server. Only the Calendar reports this, so the two do not add up to “Shifts shown” above.'));
 
         const list = document.createElement('div');
         list.className = 'speed-rows';

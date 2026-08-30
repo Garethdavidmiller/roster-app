@@ -1,5 +1,5 @@
 import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the literal 22 — and `links: the rotation
 // length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
@@ -3547,6 +3547,42 @@ test('operations: no account-status name is truncated at phone width', async ({ 
         .filter(el => el.scrollWidth > el.clientWidth + 1)
         .map(el => el.textContent));
     expect(clipped, 'account names clipped at 375px — the row cannot be identified').toEqual([]);
+});
+
+test('operations: no App Speed row label is truncated at phone width', async ({ page }) => {
+    /*
+     * The same fault as the account-status one above, on the card that had just gained a block.
+     * Found by SCREENSHOTTING it (v22.00) rather than by any assertion: two rows read "From the
+     * save…" and "Pay calcul…" at 390px, and one of them was the label naming the whole distinction
+     * the new block exists to draw. Every behavioural test passed throughout, because the DOM text
+     * was complete and only the pixels were wrong — which is exactly what the account-status guard
+     * says about its own defect, so the card that learned the lesson was not the card that needed it.
+     *
+     * Both label kinds are checked. `.speed-row-name` is deliberately the ellipsising element (the
+     * "(few)" marker beside it must never be the part that goes), so measuring it is measuring the
+     * thing that can actually be lost.
+     */
+    // SEEDED, because an empty card is not a passing truncation test — it is no test. The fixture is
+    // the visual baseline's own, shared through helpers.js so the guard and the picture cannot end
+    // up describing two different cards.
+    await stubPerfReads(page);
+    await page.setViewportSize({ width: 390, height: 2400 });
+    await seedSession(page);
+    await seedMember(page);
+    await page.goto('/operations.html');
+    await expect(page.locator('#pageSpeedCard')).toBeVisible({ timeout: 10000 });
+    await page.evaluate(() => {
+        const b = document.getElementById('pageSpeedBody');
+        if (b && !b.classList.contains('open')) document.getElementById('pageSpeedToggleHeader')?.click();
+    });
+    await expect(page.locator('#pageSpeedCard')).toContainText('What put the shifts on screen');
+    const names = page.locator('#pageSpeedCard .speed-row-name');
+    expect(await names.count(), 'the fixture did not reach the card — nothing is being measured')
+        .toBeGreaterThan(8);
+    const clipped = await page.evaluate(() => [...document.querySelectorAll('#pageSpeedCard .speed-row-name')]
+        .filter(el => el.scrollWidth > el.clientWidth + 1)
+        .map(el => el.textContent));
+    expect(clipped, 'App Speed labels clipped at 390px — the row cannot be read').toEqual([]);
 });
 
 // ── ADMIN WEEK SWIPE ────────────────────────────────────────────────────────────────────────────

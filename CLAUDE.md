@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: August 2026 — v21.90 · Updated every 0.10 version*
+*Last updated: August 2026 — v22.00 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 

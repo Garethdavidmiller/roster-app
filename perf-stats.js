@@ -365,9 +365,14 @@ export function summariseStartMilestones(samples, { page }) {
  * not know its source (the three whose container unhides on `auth-ready`) reports `ready` alone.
  * Reading these as a partition of the whole would understate whichever way the remainder fell.
  */
+// SHORT LABELS, because the column they sit in is `minmax(76px, 27%)` and the bar beside them is
+// what the row is for. "From the saved copy" ellipsised to "From the save…" at 390px — the label
+// that named the whole distinction, truncated on the width most staff read the card at. The heading
+// above carries the question, so the rows only have to name the two answers; the fuller wording
+// survives in `sub`, which is the bar's accessible description.
 export const READY_SOURCES = /** @type {const} */ ([
-    { metric: 'readyCached',  label: 'From the saved copy', sub: 'a grid the device already held' },
-    { metric: 'readyFetched', label: 'From the server',     sub: 'a grid that waited for the read' },
+    { metric: 'readyCached',  label: 'Saved copy', sub: 'a grid the device already held' },
+    { metric: 'readyFetched', label: 'The server', sub: 'a grid that waited for the read' },
 ]);
 
 /** @param {Record<string, number>} samples @param {{page: string}} opts */

@@ -548,3 +548,66 @@ export async function clickDialogConfirm(page, selector = '.dialog-btn-confirm')
     }
     return true;
 }
+
+// ── App Speed fixture ───────────────────────────────────────────────────────────────────────────
+//
+// Shared for the same reason `openRosterReview` is: the surface only exists once real analytics have
+// arrived, so BOTH the opt-in visual baseline and the CI truncation guard need the same seed, and
+// two copies of it would drift into testing two different cards. The shape is deliberately UNEVEN —
+// a fast Calendar, a slow paycalc, a thin page, a lopsided cache/server split — because a uniform
+// fixture makes every bar the same width and locks in a picture that cannot show a layout fault.
+export function perfSamples() {
+    const out = {};
+    const add = (page, metric, bucket, n, conn = '4g', mode = 'standalone', ver = 'v21.29') => {
+        out[[ver, page, metric, bucket, mode, conn].join('|')] = n;
+    };
+    for (const [m, quick, ok, slow] of [['fcp', 900, 180, 40], ['domReady', 700, 300, 120], ['ready', 520, 260, 180]]) {
+        add('calendar', m, 'lt500ms', quick); add('calendar', m, '1-3s', ok); add('calendar', m, '3-8s', slow);
+        add('paycalc',  m, 'lt500ms', 120);   add('paycalc',  m, '1-3s', 210); add('paycalc', m, '3-8s', 95);
+        add('settings', m, 'lt500ms', 4);     // thin — must wear the "(few)" marker, not a confident bar
+    }
+    add('login', 'loginTotal', 'lt500ms', 40); add('login', 'loginTotal', '1-3s', 22); add('login', 'loginTotal', '3-8s', 9);
+    // Boot stages — contiguous spans, finer bands.
+    add('calendar', 'swBoot',  'lt500ms', 900); add('calendar', 'swBoot',  '500ms-1s', 60);
+    add('calendar', 'sdkLoad', 'lt500ms', 700); add('calendar', 'sdkLoad', '500ms-1s', 220); add('calendar', 'sdkLoad', '1-3s', 40);
+    add('calendar', 'appBoot', 'lt500ms', 820); add('calendar', 'appBoot', '500ms-1s', 120);
+    // The start ladder — the point of the fixture. Signed in and Unlocked are quick; the roster is
+    // where the time goes, which is the shape the block exists to make visible at a glance.
+    add('calendar', 'authBoot',   'lt500ms', 940); add('calendar', 'authBoot',   '1-3s', 30);
+    add('calendar', 'access',     'lt500ms', 900); add('calendar', 'access',     '1-3s', 70);
+    add('calendar', 'rosterLive', 'lt500ms', 300); add('calendar', 'rosterLive', '1-3s', 420); add('calendar', 'rosterLive', '3-8s', 240);
+    // What SERVED the first grid (v21.99). Deliberately lopsided — most opens come from the saved
+    // copy and are quick, a minority wait for the server and are slow — because that IS the shape
+    // the block exists to reveal, and a 50/50 fixture would hide a layout fault in either row.
+    add('calendar', 'readyCached',  'lt500ms', 480); add('calendar', 'readyCached',  '1-3s', 60);
+    add('calendar', 'readyFetched', '1-3s', 140);    add('calendar', 'readyFetched', '3-8s', 110);
+    // Second connection class, so the "Why some are slower" splits have something to split.
+    add('calendar', 'domReady', '1-3s', 160, '3g'); add('calendar', 'domReady', '3-8s', 90, '3g');
+    add('calendar', 'domReady', '1-3s', 60, '4g', 'browser');
+    return out;
+}
+
+/** Serve a firebase-client.js whose perf read returns the fixture. Loud on a missing anchor, for
+ *  the same reason as the Usage stub: a silent no-op would baseline the EMPTY card.
+ *  @param {import('@playwright/test').Page} page */
+export function stubPerfReads(page) {
+    return page.route('**/firebase-client.js', async route => {
+        const res = await route.fetch();
+        const src = await res.text();
+        const anchor = 'export async function getPerfStats() {';
+        if (!src.includes(anchor)) throw new Error(`visual: perf fixture anchor no longer matches — "${anchor}". `
+            + 'Update it, or this baseline silently degrades to the empty state.');
+        const fixture = `
+    {
+        const _s = ${JSON.stringify(perfSamples())};
+        const _w = (month) => ({ month,
+            login: summarisePerf(_s, { metric: 'loginTotal' }),
+            fcp:   summarisePerf(_s, { metric: 'fcp' }),
+            pages: summarisePerf(_s, { metric: 'domReady' }),
+            ready: summarisePerf(_s, { metric: 'ready' }),
+            samples: _s });
+        return { thisMonth: _w('2026-08'), lastMonth: _w('2026-07') };
+    }`;
+        await route.fulfill({ response: res, body: src.replace(anchor, anchor + fixture), contentType: 'text/javascript' });
+    });
+}
