@@ -49,7 +49,7 @@ below is owned by somebody other than the developer.
 |---|---|---|---|
 | **Rotation length** | ✅ **24, main-only** (owner, Aug 2026) — 22 at v19.98, corrected v20.01. Evidence class C | — | — |
 | **Spare weeks** | ✅ **4** — the same as the roster today. A fifth was added v20.01 and reverted v20.02 once its motivating FF11 finding proved to be an optimiser bug (owner) | — | — |
-| **Existing 28-line designs** | ⚠️ **The owner's call.** They still load, are analysed over their first 24 lines, and re-save all 28; the grid says so in an amber notice. Nothing trims them automatically | Before proposals are drawn | **Gareth** — bin them, or keep them as a record |
+| **Existing 28-line designs** | ✅ **DECIDED (owner, 30 Aug 2026): BIN THEM.** Not kept as a record — the 28-line link is described in this document and in the module comments, which is where a record belongs; a stale design in the picker is a thing somebody opens and edits by mistake. **Execution is a click in the app and is not done yet** (soft delete ✕ → they sit in 🗑 Recently deleted until removed for good). **Generate the new 24-line design FIRST** — `canSoftDelete` refuses the last LIVE design, so binning them all requires one to exist, and that is the order the work wants anyway | Before proposals are drawn | **Gareth** — the clicks |
 | Timetable data (all three simplifiers) | ✅ Final — confirmed not provisional (owner, Aug 2026) | — | — |
 | Existing roster baseline | ✅ Measured (corrected v19.79 — 9 / 8 consecutive days, not 15 / 14) | — | — |
 | Operating-window setting | ✅ Shipped v19.54 | — | — |
