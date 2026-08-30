@@ -101,6 +101,45 @@ starts, precisely so they cannot be chosen after seeing the numbers.
 This gates more than itself: **C5 cannot complete without it**, because a member who only ever reads
 the roster never signs in and is therefore never compelled to set a password.
 
+### Calendar start — the identity round trip
+**Status:** Blocked on an owner decision · **Owner:** Gareth · **Measured:** `LATENCY_PLAN.md` · **Would change:** `CALENDAR_DATA.md` invariant 3
+
+**The measurement is finished and it names one thing.** Every Calendar boot issues a single
+`accounts:lookup` so Firebase can validate the stored user before emitting it, and the access
+decision waits for it — so the first shift a member sees is behind a network round trip on every
+load. Injecting 300 ms of latency into that one call moved the milestone by 336 ms. It is not
+conditional on the token having expired; it happens on every boot. Preconnect is already in place on
+all seven pages, so the connection is warm and there is no easy win left in it.
+
+**What removing it from the critical path would mean.** The Calendar would paint its CACHED
+overrides on the strength of the local session, before the server has confirmed the account is still
+live. That is `CALENDAR_DATA.md` invariant 3 — *no access, no override data, at source* — which
+exists because the local Firestore cache serves reads the rules would deny
+(`experiments/firestore-offline-proof/`, measured).
+
+**The cost, stated as precisely as it can be.** A member whose account was disabled since their last
+visit would see one paint of their own already-cached roster before the lookup returned and the app
+corrected. Bounded three ways: it is **their own** data, **already on their device**, and it is
+**one paint**. No new data is read — server-side rules still refuse every network read without the
+claim, and that is untouched.
+
+**Why it is still not obvious.** The whole point of the v20.12 access gate was that possession of a
+device is not authorisation, and "they already have it cached" is the argument the gate was built to
+refuse. The honest position is that this is a smaller version of the same question, not a different
+one — which is exactly why it is a decision rather than an optimisation.
+
+**Three answers are all reasonable**, and the engineering differs completely:
+1. **No** — the gate holds; accept the round trip and close this. Then the ladder's `Recognised`
+   row should be re-labelled as a floor rather than a target, so nobody re-opens it every quarter.
+2. **Yes, for a named member with a live local session only** — never for the shared PIN viewer,
+   whose whole security model is that it holds no identity. The narrowest useful form.
+3. **Yes, with a visible tell** — paint, and mark the grid as unconfirmed until the lookup lands,
+   the way the sync chip already marks data. Costs a design decision about a state most members
+   would never see.
+
+**Do not start building any of them before the answer.** The measurement is done; what is left is
+not a performance question.
+
 ### Track C5 — retire the surname default
 **Status:** Blocked · **Owner:** Gareth · **Plan:** `PASSWORD_PLAN.md` · **Gate:** ≥90% migrated
 

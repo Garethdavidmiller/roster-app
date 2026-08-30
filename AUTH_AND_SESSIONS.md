@@ -41,6 +41,17 @@ track status is `SECURITY_RELEASE_PLAN.md`. Design lives in `PASSWORD_PLAN.md` (
 
 ---
 
+**One open decision sits on this boundary.** Restoring a saved identity costs a network round trip
+— Firebase validates the stored user against the server before emitting it, on every boot, which is
+how a disabled account stops being restored. That round trip is the measured cause of the Calendar's
+start-latency wall, and the only way off it is to trust the local session for one paint. The trade
+is priced in `ROADMAP.md` → *Calendar start — the identity round trip*, and the measurement behind
+it in `LATENCY_PLAN.md`. **Recorded here because it is this contract's question, not the
+performance plan's** — the answer decides how much a local session is allowed to mean before the
+server has agreed with it.
+
+---
+
 ## The three states, and what each one is for
 
 ```

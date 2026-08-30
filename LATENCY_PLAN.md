@@ -250,8 +250,10 @@ The obvious treatment is to stop waiting: paint from the locally-stored identity
 confirm in the background. **That is a security trade, not a performance tweak**, and it is not this
 document's to make. `calendar-access.js` decides what a viewer may SEE from the restored identity,
 so an account disabled since the last load would be trusted for the length of one paint. The
-question belongs to `CALENDAR_DATA.md` and `AUTH_AND_SESSIONS.md`, and it should be answered there
-before anything is built.
+question belongs to `CALENDAR_DATA.md` and `AUTH_AND_SESSIONS.md`, and it should be answered before
+anything is built. **It is now written up as a decision with the cost priced and three defensible
+answers: `ROADMAP.md` → *Calendar start — the identity round trip*.** Both contracts point at it,
+and neither is softened while it is open.
 
 What can be said without that decision: the app already knows how to do this shape safely for DATA
 — the Calendar's two-phase load paints from the local cache and then reconciles authoritatively

@@ -181,35 +181,71 @@ export function worstCaseWorkedRun(seq) {
  *
  * @param {Array<{shift: any}>} seq - one person's journey, in day order, SEVEN PER LINE
  * @returns {number[]} one worst-case run length per starting day
+ *
+ * ── WHY IT TAKES A PREDICATE (v21.98) ───────────────────────────────────────────────────────────
+ * The spare-week budget above is the hard part of this function and it was written for exactly one
+ * question, "is this a worked day?". A second question then arrived — the ORR's "more than 7
+ * consecutive 8h shifts" — and answering it with a plain run scan treated a cover week as a BREAK,
+ * which reported the shipped default design as CLEAR at 5 against a worst case of 8. That is the
+ * false-assurance failure `links-fatigue.js` names as its dominant risk, arrived at by asking the
+ * right question with the wrong tool.
+ *
+ * So the budget is written once and the QUESTION is the parameter. What must not be moved into the
+ * predicate is the SPARE branch: a spare day is an unknown rather than a no, so it counts towards
+ * every question, capped at four a week — and a `counts` that tried to answer for it would either
+ * fuse the blocks either side (the v19.79 defect, 15 reported against a true 9) or break the run.
+ *
+ * `requireMatch` exists because a cover week may EXTEND a run and must not CREATE one. Without it,
+ * a design containing no 12-hour duty anywhere still reports a run of four of them — the cover
+ * week's own days, counted as unknowns that might be anything. That is a finding about nothing, and
+ * a panel that produces them teaches the reader to skip the row (the same cry-wolf rule the demand
+ * overlay's finding/fact split follows). `workedRunLengths` leaves it off, correctly: a cover week
+ * with nothing either side genuinely IS a run of worked days.
+ *
+ * @param {(shift: any) => boolean} counts - does a NON-spare day count towards the run?
+ * @param {{requireMatch?: boolean}} [opts] - when set, a run of only spare days scores 0
  */
-export function workedRunLengths(seq) {
+export function runLengthsWhere(seq, counts, { requireMatch = false } = {}) {
     const N = seq.length;
     if (!N) return [];
-    const isRestDay = (/** @type {any} */ s) => !s || s === 'RD' || s === 'OFF';
     /** @type {number[]} */ const out = [];
     for (let start = 0; start < N; start++) {
         /** Duties already spent in each spare week by THIS run. @type {Map<number, number>} */
         const spent = new Map();
         let run = 0;
+        let sawMatch = false;
         for (let k = 0; k < N; k++) {
             const i = (start + k) % N;
             const s = seq[i].shift;
             if (s === 'SPARE') {
-                // Which line this day belongs to — the budget is per WEEK, not per day.
+                // A spare day is an UNKNOWN, not a no — it is a duty whose times are not yet
+                // assigned, so in the worst case it satisfies whatever is being counted. It is
+                // therefore handled here rather than by `counts`, for every predicate: the budget
+                // is per WEEK, not per day, and four is what a cover week actually works.
                 const line = Math.floor(i / 7);
                 const used = spent.get(line) || 0;
                 if (used >= SPARE_WORKED_DAYS) break;
                 spent.set(line, used + 1);
                 run++;
-            } else if (!isRestDay(s)) {
+            } else if (counts(s)) {
                 run++;
+                sawMatch = true;
             } else {
                 break;
             }
         }
-        out.push(Math.min(run, N));
+        out.push(requireMatch && !sawMatch ? 0 : Math.min(run, N));
     }
     return out;
+}
+
+/**
+ * The worst-case run of consecutive WORKED days from every starting day.
+ * Delegates, so the spare-week budget is written once. @param {Array<{shift:any}>} seq
+ */
+export function workedRunLengths(seq) {
+    const isRestDay = (/** @type {any} */ s) => !s || s === 'RD' || s === 'OFF';
+    return runLengthsWhere(seq, s => !isRestDay(s));
 }
 
 /**

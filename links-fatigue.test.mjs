@@ -200,6 +200,121 @@ describe('rotationDirection (FF17)', () => {
     });
 });
 
+describe('the 8h-shift run counts a cover week as an UNKNOWN, not a break', () => {
+    // Found regression-checking v21.97, which ADDED this rule and got it wrong in the one direction
+    // this module says it must never fail in. The rule used a plain run scan, so a spare day — which
+    // has no times and therefore fails a ">= 8h" test — BROKE the run. On the shipped default design
+    // that reported 5 with a green tick, against a worst case of 8 and a threshold of 7.
+    //
+    // A cover week is four duties whose times are not yet assigned. In the worst case they are 8h
+    // duties, and the person works straight through. Reporting otherwise makes the factor go quiet
+    // exactly when a cover week sits in the middle of a long stretch.
+    const SHORT = '09:00-15:00';   // 6h — a real duty that does NOT count
+    const spareWeek = () => [SPARE, SPARE, SPARE, SPARE, SPARE, SPARE, SPARE];
+    const runOf = (d) => {
+        const a = assessFatigue(d, 3);
+        return a.results.find(r => r.title.includes('7 consecutive 8h'));
+    };
+
+    test('a cover week EXTENDS a block of 8h duties rather than ending it', () => {
+        const d = design(
+            [RD, RD, RD, EARLY, EARLY, EARLY, EARLY],
+            spareWeek(),
+            [EARLY, EARLY, EARLY, EARLY, RD, RD, RD],
+        );
+        // 4 certain + the cover week's FOUR = 8. A plain scan gives 4, which is the defect.
+        assert.equal(runOf(d).value, 8);
+        assert.equal(runOf(d).status, 'present', '8 is over the threshold of 7');
+    });
+
+    test('and it supplies FOUR, never seven — the run stops INSIDE the cover week', () => {
+        // Two opposite errors are excluded by the same number. Counting all seven would fuse the
+        // blocks either side into 12 — the v19.79 defect, which reported the live roster at 15
+        // against a true 9. And the run cannot reach the block BEYOND the cover week at all: three
+        // of that week's days are rest days wherever they fall, so they always break the chain.
+        // That is why the answer is 8 and not 4 + 4 + 4.
+        const d = design(
+            [RD, RD, RD, EARLY, EARLY, EARLY, EARLY],
+            spareWeek(),
+            [EARLY, EARLY, EARLY, EARLY, RD, RD, RD],
+        );
+        assert.equal(runOf(d).value, 8, 'not 12 (seven spare days) and not 4 (a spare day as a break)');
+    });
+
+    test('a duty UNDER eight hours still breaks it — the predicate is real', () => {
+        const d = design(
+            [RD, RD, RD, RD, EARLY, EARLY, EARLY],
+            [SHORT, RD, RD, RD, RD, RD, RD],
+            [RD, RD, RD, RD, RD, RD, RD],
+        );
+        assert.equal(runOf(d).value, 3, 'the 6h duty is not an 8h shift and ends the run');
+    });
+
+    test('the detail states the CERTAIN figure as well as the worst case', () => {
+        // The status comes from the worst case, so the reader is owed the other number — otherwise
+        // a design is reported over the threshold on duties whose times nobody has chosen yet, with
+        // nothing on screen saying so.
+        const d = design(
+            [RD, RD, RD, EARLY, EARLY, EARLY, EARLY],
+            spareWeek(),
+            [EARLY, EARLY, EARLY, EARLY, RD, RD, RD],
+        );
+        const r = runOf(d);
+        assert.match(r.detail, /worst case/i);
+        assert.match(r.detail, /\b4 of them are certain\b/);
+    });
+
+    test('FF15 has the same shape, and its false-clear was LIVE on the shipped default', () => {
+        // Measured at v21.98: the default design reported a longest early-shift run of 3 with a
+        // green tick, against a worst case of 6 and a threshold of 4. Same cause, different row —
+        // which is why the spare rule is one shared helper rather than three copies.
+        const d = design(
+            [RD, RD, RD, EARLY, EARLY, EARLY, EARLY],
+            spareWeek(),
+            [EARLY, EARLY, EARLY, EARLY, RD, RD, RD],
+        );
+        const ff15 = assessFatigue(d, 3).results.find(r => r.code === 'FF15');
+        assert.equal(ff15.value, 8);
+        assert.equal(ff15.status, 'present');
+    });
+
+    test('a cover week EXTENDS a run and never CREATES one', () => {
+        // The other half. This design contains no duty over twelve hours at all, so FF10 must read
+        // ZERO — not four, which is what a cover week's own days would score as unknowns that might
+        // be anything. A finding about nothing is how a panel teaches its reader to skip a row.
+        const d = design(
+            [RD, RD, RD, EARLY, EARLY, EARLY, EARLY],
+            spareWeek(),
+            [EARLY, EARLY, EARLY, EARLY, RD, RD, RD],
+        );
+        const ff10 = assessFatigue(d, 3).results.find(r => r.code === 'FF10');
+        assert.equal(ff10.value, 0, 'no 12h duty exists, so no run of them can');
+        assert.equal(ff10.status, 'clear');
+    });
+
+    test('a design of NOTHING BUT cover weeks reports no run for any of the three', () => {
+        // The degenerate case the requireMatch rule is really for: every day is an unknown, so
+        // every predicate would match in the worst case and every row would fire at once.
+        const d = design(spareWeek(), spareWeek(), spareWeek());
+        const a = assessFatigue(d, 3);
+        for (const code of ['FF10', 'FF15']) {
+            assert.equal(a.results.find(r => r.code === code).value, 0, `${code} invented a run`);
+        }
+        assert.equal(a.results.find(r => r.title.includes('7 consecutive 8h')).value, 0);
+    });
+
+    test('with no cover week at all the two figures agree, and it says nothing about them', () => {
+        const d = design(
+            [RD, RD, RD, RD, EARLY, EARLY, EARLY],
+            [EARLY, EARLY, RD, RD, RD, RD, RD],
+            [RD, RD, RD, RD, RD, RD, RD],
+        );
+        const r = runOf(d);
+        assert.equal(r.value, 5);
+        assert.doesNotMatch(r.detail, /worst case/i, 'no cover week, so there is nothing to qualify');
+    });
+});
+
 describe('assessFatigue — the report as a whole', () => {
     /** A deliberately gentle design: forward-rotating, short blocks, generous rest. */
     const GOOD = design(
