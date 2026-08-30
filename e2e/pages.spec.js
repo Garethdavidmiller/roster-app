@@ -2421,6 +2421,30 @@ test('links sets: a set can be deleted, and only by someone allowed to', async (
     await expect(page.locator('#genSetSelect option').nth(0)).toHaveText('Set A — S. Silva');
 });
 
+test('links sets: a set changed while the confirm sat open is not deleted', async ({ page }) => {
+    // Consent names a VERSION, in the one Links surface that did not check (external review). The
+    // set's other writer is the admin, and a confirm dialog is human think-time: the row the picker
+    // is showing can be minutes old. A bare `deleteDoc` removes whatever is there NOW — including an
+    // update made in that gap, which the person confirming never saw. There is no bin behind a set.
+    await openLinksWithTargetSets(page);
+    await page.locator('#genSetSelect').selectOption('ts-robson');
+
+    // The SERVER moves on while the dialog is open: same set, newer revision.
+    await page.evaluate(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E.txDocs = (w.__E2E.docsByPath.linkTargetSets || []).map((/** @type {any} */ r) =>
+            (r.id === 'ts-robson' ? { ...r, updatedAt: 1_760_000_000_000, updatedBy: 'G. Miller' } : r));
+    });
+
+    await page.locator('#genSetDeleteBtn').click();
+    await clickDialogConfirm(page);
+
+    await expect(page.locator('#genSetHint')).toContainText('changed by someone else');
+    // The refusal is the assertion: nothing left the collection.
+    expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.deletedPaths || [])
+        .filter((/** @type {string} */ p) => p.includes('linkTargetSets')).length)).toBe(0);
+});
+
 test('links sets: the row says whether the table still matches the set', async ({ page }) => {
     // "Save changes" was a leap of faith before this: nothing said whether the table on screen WAS
     // the set, or your own work about to overwrite it. The state has to survive a single keystroke,

@@ -148,7 +148,16 @@
      *  Both filters FAIL OPEN in the direction of doing LESS, which is the right way round for a
      *  destructive action: an unreadable scope or an unexpected cache name is left alone. The cost
      *  is a reset that occasionally does not clear everything; the alternative cost is deleting
-     *  somebody else's data. */
+     *  somebody else's data.
+     *
+     *  The SW filter matches the SCRIPT, not the scope (v21.96, external review). "Scope is a
+     *  prefix of our directory" was the right shape and one step too loose: a ROOT scope (`/`) is a
+     *  prefix of `/roster-app/` by definition, so another app's root-scoped worker on the Pages
+     *  origin satisfied it and was unregistered — the exact case the v21.86 narrowing was for.
+     *  `sw-register.js` registers `./service-worker.js`, so our registration's script URL is that
+     *  file in this directory, and nobody else's is. Which of the three worker slots is populated
+     *  depends on where in the lifecycle the registration is, so all three are consulted; a
+     *  registration with none of them is not ours to remove. */
     function resetApp() {
         var done = false;
         var reload = function () {
@@ -164,15 +173,18 @@
         // hang, so we need a real timeout race (v16.19).
         setTimeout(reload, 4000);
         var jobs = [];
-        // Our own directory — the scope any registration serving THIS page must be at or above.
-        var here = location.pathname.replace(/[^/]*$/, '');
+        // The exact script THIS app registers — `sw-register.js` calls register('./service-worker.js'),
+        // so it resolves against our own directory and is ours alone.
+        var ourScript = location.pathname.replace(/[^/]*$/, '') + 'service-worker.js';
         if ('serviceWorker' in navigator) {
             jobs.push(navigator.serviceWorker.getRegistrations()
                 .then(function (regs) {
                     return Promise.all(regs.filter(function (r) {
-                        // A registration governs this page only if its scope is a prefix of our
-                        // directory. Anything else belongs to another app on the same origin.
-                        try { return here.indexOf(new URL(r.scope).pathname) === 0; }
+                        // OURS means it is running OUR service-worker file. A scope test cannot say
+                        // that: every parent scope can control this page, root included.
+                        var w = r.active || r.waiting || r.installing;
+                        if (!w || !w.scriptURL) return false;      // nothing to identify — leave it
+                        try { return new URL(w.scriptURL).pathname === ourScript; }
                         catch (_e) { return false; }
                     }).map(function (r) { return r.unregister(); }));
                 })

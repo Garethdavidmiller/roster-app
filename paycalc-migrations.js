@@ -436,6 +436,18 @@ export function runMigrations({ getPeriods, getLoggedMember, getPensionDefault }
             ? getPeriods().find((/** @type {any} */ p) => _member.startDate > p.start && _member.startDate <= p.cutoff)
             : null;
 
+        // A MARKER IS A PROMISE THAT THE WORK IS DONE (v21.96). This patch corrects a stale pension
+        // figure inside saved periods, and it stamps itself complete exactly once — so anything it
+        // fails to write is never revisited, and the member keeps a wrong figure on a payslip
+        // estimate for ever. It used to stamp unconditionally: `lsSet` swallows a storage failure
+        // by design (iOS private mode throws on any access), and a period that would not parse was
+        // caught, logged and stepped over. Both left the marker saying otherwise.
+        //
+        // So the marker now waits for every intended mutation to be VERIFIED — the same rule the
+        // v14.11 namespace move was given, applied to the one older patch that had not inherited
+        // it. Failing means running again next load, which is safe: every branch below is a
+        // fingerprint match on a specific stale value, so re-running finds nothing left to do.
+        let _v882Complete = true;
         getPeriods().forEach((/** @type {any} */ p) => {
             const raw = lsGet(periodKey(p.num));
             if (!raw) return;
@@ -456,10 +468,15 @@ export function runMigrations({ getPeriods, getLoggedMember, getPensionDefault }
                         changed = true;
                     }
                 }
-                if (changed) lsSet(periodKey(p.num), JSON.stringify(d));
-            } catch(e) { console.warn('[paycalc-migrations] pension patch failed for period', p.num, e); }
+                if (changed && !lsSetVerified(periodKey(p.num), JSON.stringify(d))) _v882Complete = false;
+            } catch(e) {
+                // A period we could not read is a period we could not correct. It may hold the very
+                // figure this patch exists to fix, so it must not count as done.
+                _v882Complete = false;
+                console.warn('[paycalc-migrations] pension patch failed for period', p.num, e);
+            }
         });
-        lsSet('myb_pc_pension_v882_migrated', '1');
+        if (_v882Complete) lsSet('myb_pc_pension_v882_migrated', '1');
     }
 
     // Per-member namespacing (v14.11) — runs LAST, after the legacy migrations have

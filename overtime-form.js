@@ -672,7 +672,16 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         const fresh = state.ok
             ? (state.data.windows || []).find((/** @type {any} */ w) => w.weekEnding === win.weekEnding)
             : null;
-        const verdict = reconcileVerdict(state.ok, fresh?.submission, pendingMutationId);
+        const verdict = reconcileVerdict(state.ok, fresh?.submission, pendingMutationId, !!fresh);
+        if (verdict === 'gone') {
+            // The week is no longer ours to answer — almost always a withdrawal that landed while
+            // the submission was in flight. Saying "it didn't reach the server" would be a claim we
+            // cannot support AND an instruction to re-answer a form that has gone.
+            pendingMutationId = null;
+            say('This overtime week is no longer available to you, so we couldn\'t confirm the '
+                + 'submission. If you\'ve been taken off this week, nothing more is needed.', 'warn');
+            return;
+        }
         if (verdict === 'unknown') {
             say('We couldn\'t confirm whether your form was saved. Check this week again when '
                 + 'you\'re online, before submitting another version.', 'warn');

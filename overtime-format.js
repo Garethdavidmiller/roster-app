@@ -131,9 +131,20 @@ export function unfinishedDates(answers, dates) {
 /**
  * What a re-read after a TIMED-OUT submission can actually establish.
  *
- * Three outcomes, and the third is the point. `AbortController` stops us waiting; it does not stop
- * the server writing — so when the re-read itself fails there is no honest answer, and reporting
- * "it did not save" invites a second, contradictory submission that then legitimately conflicts.
+ * FOUR outcomes, and the last two are the point. `AbortController` stops us waiting; it does not
+ * stop the server writing — so when the re-read itself fails there is no honest answer, and
+ * reporting "it did not save" invites a second, contradictory submission that then legitimately
+ * conflicts.
+ *
+ * `gone` is the same mistake in a quieter disguise (v21.96, external review). A member can be
+ * WITHDRAWN from a week — a leaver, or a correction — and the endpoint then stops returning that
+ * window to them at all. If a manager does it in the seconds between a timed-out submission and its
+ * re-read, the week vanishes, our mutation id is nowhere to be found, and the old rule announced
+ * "that submission didn't reach the server". It did. Nothing is lost and the member is no longer
+ * eligible, so the cost is only the words — but they are words that send somebody to re-answer a
+ * form that is not there.
+ *
+ * `not-saved` therefore means what it says: **the week is still ours and our answer is not in it.**
  *
  * A `saved` verdict requires OUR mutation id, never merely the presence of a submission: every
  * device a member owns shares one Firebase uid, so a submission from their other tab is
@@ -142,10 +153,12 @@ export function unfinishedDates(answers, dates) {
  * @param {boolean} stateOk did the re-read succeed at all?
  * @param {{ lastMutationId?: string }|null|undefined} freshSubmission the re-read submission for this week
  * @param {string|null} pendingMutationId the id of the submission whose response we never saw
- * @returns {'saved'|'not-saved'|'unknown'}
+ * @param {boolean} [windowPresent=true] did the re-read still return this week to this member?
+ * @returns {'saved'|'not-saved'|'unknown'|'gone'}
  */
-export function reconcileVerdict(stateOk, freshSubmission, pendingMutationId) {
+export function reconcileVerdict(stateOk, freshSubmission, pendingMutationId, windowPresent = true) {
     if (!stateOk) return 'unknown';
+    if (!windowPresent) return 'gone';
     const last = freshSubmission?.lastMutationId;
     return last && last === pendingMutationId ? 'saved' : 'not-saved';
 }

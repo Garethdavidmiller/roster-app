@@ -210,14 +210,63 @@ describe('a SAVE never downgrades its guarantee while online', () => {
         assert.deepEqual(writes.filter(w => w.kind.startsWith('tx')), [], 'nothing was written');
     });
 
-    test('force writes unconditionally — that is what the user chose', async () => {
+    test('a FORCE against the version the user was shown writes — that is what they chose', async () => {
         const { api, writes } = makeDb({ initial: { name: 'A', updatedAt: ts(2000), updatedBy: THEM } });
         const res = await createDesignStore(api).save({
             id: ID, buildPayload: () => ({ name: 'mine' }), baseline: 1000, baselineUnknown: false,
-            currentUser: ME, force: true,
+            currentUser: ME, forcing: true, forceAgainstRevision: 2000,
         });
         assert.equal(res.status, 'saved');
         assert.equal(writes.length, 1);
+    });
+
+    test('a THIRD save landing while the dialog sat open is NOT covered by that consent', async () => {
+        // The audit's interleaving, and the reason a boolean was the wrong parameter. Alice holds
+        // R1. Bob saves R2. The dialog names Bob and R2, and Alice reads it. Charlie saves R3.
+        // Alice presses Replace — approving the replacement of a version that is no longer there.
+        //
+        // The old force was an unconditional `setDoc`: R3 was destroyed, Alice never saw it, and
+        // Charlie found out on reopening. Consent names ONE revision, so anything else comes back
+        // as a fresh conflict for the workspace to ask about on its own terms.
+        const { api, writes } = makeDb({ initial: { name: 'A', updatedAt: ts(3000), updatedBy: 'C. Reen' } });
+        const res = await createDesignStore(api).save({
+            id: ID, buildPayload: () => ({ name: 'mine' }), baseline: 1000, baselineUnknown: false,
+            currentUser: ME, forcing: true, forceAgainstRevision: 2000,   // they approved replacing R2
+        });
+        assert.equal(res.status, 'conflict', "R3 is not the version they agreed to replace");
+        assert.equal(res.conflict.by, 'C. Reen', 'and the second ask names the RIGHT person');
+        assert.deepEqual(writes, [], 'nothing was written');
+    });
+
+    test('a save landing INSIDE the forced transaction is caught too', async () => {
+        // The narrower window: not think-time, but the microseconds between the transaction's own
+        // read and its commit. The check is inside the transaction precisely so that both are one
+        // rule — a pre-read-then-write would pass the test above and fail this one.
+        const { api, writes } = makeDb({
+            initial: { name: 'A', updatedAt: ts(2000), updatedBy: THEM },
+            onRead: (n, setStore) => { if (n === 1) setStore({ name: 'A', updatedAt: ts(3000), updatedBy: 'C. Reen' }); },
+        });
+        const res = await createDesignStore(api).save({
+            id: ID, buildPayload: () => ({ name: 'mine' }), baseline: 1000, baselineUnknown: false,
+            currentUser: ME, forcing: true, forceAgainstRevision: 2000,
+        });
+        assert.equal(res.status, 'conflict');
+        assert.deepEqual(writes.filter(w => w.kind.startsWith('tx')), [], 'nothing was written');
+    });
+
+    test('a design PURGED while the dialog sat open is not recreated by the force', async () => {
+        // Soft delete is covered below; this is the harder one, because there is no `deletedAt` to
+        // find — the document is simply gone, and a full `setDoc` would put it back with no trace
+        // of the removal. It exits as `deleted-elsewhere` with no data, which is the same offer the
+        // workspace makes for a soft delete: save mine as new.
+        const { api, writes } = makeDb({ initial: null });
+        const res = await createDesignStore(api).save({
+            id: ID, buildPayload: () => ({ name: 'mine' }), baseline: 1000, baselineUnknown: false,
+            currentUser: ME, forcing: true, forceAgainstRevision: 2000,
+        });
+        assert.equal(res.status, 'deleted-elsewhere');
+        assert.equal(res.deletedData, null, 'and it does not invent a deleter');
+        assert.deepEqual(writes, [], 'nothing was written');
     });
 
     test('FORCE still refuses a design deleted since the conflict was raised', async () => {
@@ -235,7 +284,7 @@ describe('a SAVE never downgrades its guarantee while online', () => {
                                                     deletedAt: ts(2500), deletedBy: THEM } });
         const res = await createDesignStore(api).save({
             id: ID, buildPayload: () => ({ name: 'mine' }), baseline: 1000, baselineUnknown: false,
-            currentUser: ME, force: true,
+            currentUser: ME, forcing: true, forceAgainstRevision: 2000,
         });
         assert.equal(res.status, 'deleted-elsewhere', 'force must not resurrect a deleted design');
         assert.equal(res.deletedData?.deletedBy, THEM, 'and it must say who deleted it');

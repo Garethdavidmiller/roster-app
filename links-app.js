@@ -10,7 +10,7 @@
  */
 
 import { APP_VERSION, CONFIG, weeklyRoster, escapeHtml } from './roster-data.js';
-import { db, doc, getDoc, setDoc, addDoc, deleteDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
+import { db, doc, getDoc, setDoc, addDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
 import { initNavPanel, resetNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
@@ -2107,6 +2107,39 @@ export function init() {
             refreshSetControls();
         });
 
+        /**
+         * Write (or delete) a target set ONLY if it is still the revision the picker was showing.
+         *
+         * The same rule the design store applies to a forced save, in the one Links surface that
+         * did not have it: consent names a VERSION. A confirm dialog is human think-time, and a
+         * set has two writers — its creator and the admin — so "the version I clicked" and "the
+         * version that exists when I confirm" are different questions. Answering only the second
+         * silently discards the other person's work, and for a delete there is no bin to recover
+         * it from.
+         *
+         * Deliberately NOT an extraction to a store module (the external review's own advice:
+         * these boundaries are new, let them settle). It is one transaction, used twice.
+         *
+         * @param {{id: string, name: string, updatedAt: any}} set the row the picker showed
+         * @param {any|null} payload  what to write, or null to DELETE
+         * @returns {Promise<boolean>} false when somebody else moved it first — nothing was written
+         */
+        async function _writeSetIfUnchanged(set, payload) {
+            const seen = set.updatedAt?.toMillis?.() ?? null;
+            let moved = false;
+            await writeWithClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
+                moved = false;                       // a retried transaction re-decides from scratch
+                const ref = doc(db, COLLECTIONS.linkTargetSets, set.id);
+                const snap = await tx.get(ref);
+                // Gone already is not a conflict for a DELETE — the outcome asked for is the
+                // outcome. For an overwrite it is: recreating it would resurrect a deleted set.
+                if (!snap.exists()) { moved = !!payload; return; }
+                if ((snap.data()?.updatedAt?.toMillis?.() ?? null) !== seen) { moved = true; return; }
+                if (payload) tx.set(ref, payload); else tx.delete(ref);
+            }));
+            return !moved;
+        }
+
         // DELETE — the verb the feature shipped without (v21.08). `firestore.rules` has allowed the
         // creator or the admin to delete a set since v21.04; there was simply no way to ask, so sets
         // could only ever accumulate. The confirm names the set and is marked destructive, because
@@ -2122,7 +2155,19 @@ export function init() {
             });
             if (!sure) return;
             try {
-                await writeWithClaimRetry(() => deleteDoc(doc(db, COLLECTIONS.linkTargetSets, set.id)));
+                // AGAINST THE VERSION THEY WERE SHOWN (v21.96, external review). The picker's copy
+                // of a set can be minutes old, and this dialog adds however long it takes to read.
+                // A bare `deleteDoc` destroys whatever is there now — including an update somebody
+                // made in that gap, which the person confirming never saw and did not agree to
+                // remove. There is no bin behind a set, so that is final.
+                if (!await _writeSetIfUnchanged(set, null)) {
+                    // Refresh FIRST, then say why. `loadTargetSets` repaints the hint from the
+                    // reloaded row, so setting the message before it wrote a sentence nobody ever
+                    // saw — the refusal would have looked like a button that did nothing.
+                    await loadTargetSets(set.id);
+                    if (_setHint) _setHint.textContent = `“${set.name}” was changed by someone else just now — reload and check before deleting it.`;
+                    return;
+                }
                 // The table itself stays exactly as it is — deleting the SET does not take the shift
                 // times off the screen. It is no longer FROM a set, though, so the row must stop
                 // claiming it is, or the hint would name a set that no longer exists.
@@ -2148,10 +2193,18 @@ export function init() {
             if (!sure) return;
             try {
                 // `createdBy` is passed through UNCHANGED — the rules refuse an update that moves
-                // it, so ownership survives every overwrite including the admin's.
-                await writeWithClaimRetry(() => setDoc(doc(db, COLLECTIONS.linkTargetSets, set.id),
-                    targetSetPayload({ name: set.name, slots: genSlots, spareLines: genSpareLines },
-                        set.createdBy, currentUser ?? '', serverTimestamp())));
+                // it, so ownership survives every overwrite including the admin's. And the write
+                // only lands on the version the picker showed: see `_writeSetIfUnchanged`.
+                const _payload = targetSetPayload({ name: set.name, slots: genSlots, spareLines: genSpareLines },
+                    set.createdBy, currentUser ?? '', serverTimestamp());
+                if (!await _writeSetIfUnchanged(set, _payload)) {
+                    // Refresh FIRST, then say why. `loadTargetSets` repaints the hint from the
+                    // reloaded row, so setting the message before it wrote a sentence nobody ever
+                    // saw — the refusal would have looked like a button that did nothing.
+                    await loadTargetSets(set.id);
+                    if (_setHint) _setHint.textContent = `“${set.name}” was changed by someone else just now — reload it and try again if you still want to overwrite.`;
+                    return;
+                }
                 // The table IS this set again — an overwrite is the other way of making them match,
                 // so the row must stop saying "you have changed it since".
                 genFromSetId = set.id; genFromSetName = set.name;
@@ -2691,18 +2744,32 @@ export function init() {
 
             if (res.status === 'deleted-elsewhere') { await deletedElsewhere(res.deletedData); return; }
             if (res.status === 'conflict') {
-                if (!await confirmOverwrite(res.conflict)) { await declineOrFork(); return; }
-                // They accepted the replace, so a competing SAVE is no longer checked — that
-                // decision is made. A DELETE landing while the dialog sat open is a different
-                // matter and still comes back here (v21.92); handle it exactly as on the first
-                // attempt, rather than destructuring a baseline that is not there.
-                const forced = await store.save({
-                    id: activeDesignId, buildPayload: buildDoc,
-                    baseline: loadedUpdatedAt, baselineUnknown, currentUser, force: true,
-                });
-                if (forced.status === 'deleted-elsewhere') { await deletedElsewhere(forced.deletedData); return; }
-                ({ loadedUpdatedAt, baselineUnknown } = forced.baseline);
-                _applySavedEntry(forced.updatedAt);
+                // ── CONSENT IS PER VERSION, SO THE ASK CAN REPEAT (v21.96) ──────────────────
+                // Accepting "replace their changes" names ONE version — the one the dialog showed.
+                // If somebody else saves while that dialog sits open, the store refuses and hands
+                // back the NEW conflict rather than writing over a version nobody was asked about,
+                // so the honest response is to ask again about that one. The loop is bounded: a
+                // colleague saving faster than this admin can read is not a state to sit in, and an
+                // unbounded prompt cycle would be its own defect.
+                let pending = res.conflict;
+                for (let round = 0; ; round++) {
+                    if (!await confirmOverwrite(pending)) { await declineOrFork(); return; }
+                    const forced = await store.save({
+                        id: activeDesignId, buildPayload: buildDoc,
+                        baseline: loadedUpdatedAt, baselineUnknown, currentUser,
+                        forcing: true,
+                        forceAgainstRevision: pending?.at?.toMillis?.() ?? null,
+                    });
+                    if (forced.status === 'deleted-elsewhere') { await deletedElsewhere(forced.deletedData); return; }
+                    if (forced.status === 'conflict') {
+                        if (round >= 2) { await declineOrFork(); return; }
+                        pending = forced.conflict;
+                        continue;
+                    }
+                    ({ loadedUpdatedAt, baselineUnknown } = forced.baseline);
+                    _applySavedEntry(forced.updatedAt);
+                    break;
+                }
             } else {
                 ({ loadedUpdatedAt, baselineUnknown } = res.baseline);
                 _applySavedEntry(res.updatedAt);

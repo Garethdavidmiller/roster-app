@@ -91,8 +91,18 @@ export const runTransaction = (_db, fn) => {
   // server disagrees with your snapshot", a re-check that reads the same stale data would look
   // like it was working.
   const find = (ref) => {
-    const id = ref && ref.path ? String(ref.path).split('/').pop() : null;
-    const rows = Array.isArray(e2e.txDocs) ? e2e.txDocs : (Array.isArray(e2e.docs) ? e2e.docs : []);
+    const parts = ref && ref.path ? String(ref.path).split('/') : [];
+    const id = parts.length ? parts[parts.length - 1] : null;
+    const col = parts.length > 1 ? parts[parts.length - 2] : null;
+    // Per-collection seeding is consulted FIRST (v21.96). It was not, and a transaction against a
+    // docsByPath collection therefore read "no such document" — which for a compare-and-set reads
+    // as somebody having removed it, so the write was skipped and the assertion saw no delete. The
+    // harness was answering a different question from the one the page asked.
+    // txDocs still WINS where a test sets it — that is the seam for "the server disagrees with the
+    // snapshot you loaded", which is the only way to express a competing writer.
+    const scoped = col && e2e.docsByPath && Array.isArray(e2e.docsByPath[col]) ? e2e.docsByPath[col] : null;
+    const rows = Array.isArray(e2e.txDocs) ? e2e.txDocs
+      : (scoped || (Array.isArray(e2e.docs) ? e2e.docs : []));
     return rows.find(r => r.id === id) || null;
   };
   const ts = (v) => (typeof v === 'number' && v >= 1e12 ? { toDate: () => new Date(v), toMillis: () => v } : v);
@@ -111,8 +121,14 @@ export const runTransaction = (_db, fn) => {
     delete: (/** @type {any} */ ref) => {
       e2e.deletedPaths = e2e.deletedPaths || [];
       if (ref && ref.path) e2e.deletedPaths.push(String(ref.path));
-      const id = ref && ref.path ? String(ref.path).split('/').pop() : null;
+      const parts = ref && ref.path ? String(ref.path).split('/') : [];
+      const id = parts.length ? parts[parts.length - 1] : null;
+      const col = parts.length > 1 ? parts[parts.length - 2] : null;
       if (id && Array.isArray(e2e.docs)) e2e.docs = e2e.docs.filter(r => r.id !== id);
+      // …and out of the per-collection seed too, or the picker reloads the row it just deleted.
+      if (id && col && e2e.docsByPath && Array.isArray(e2e.docsByPath[col])) {
+        e2e.docsByPath[col] = e2e.docsByPath[col].filter(r => r.id !== id);
+      }
     },
   };
   return Promise.resolve(fn(tx));

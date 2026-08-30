@@ -1684,9 +1684,14 @@ they are latent, owner-territory, or within a documented tolerance. Each is real
   saved as `shift` rendered as an ordinary worked badge and **the pay calculator's Sunday-overtime
   pre-fill missed it, under-counting pay**. An entry that under-rates its own severity is how a real
   defect stays parked as an accepted limitation.
-- **Roster-import save path has no equal-start/end guard (VERY LOW).** The two manual authoring paths
-  reject `s === e` (validates 0 h but pays 24 h via overnight-wrap); `_saveOverrideBatches` does not.
-  Implausible from a real roster PDF and visible in the review table before any write.
+- **~~Roster-import save path has no equal-start/end guard~~ — CLOSED at v20.39, and this row outlived
+  the fix by more than a hundred versions.** It said `_saveOverrideBatches` did not reject `s === e`
+  while the two manual paths did. It does: the refusal is at `admin-roster-upload.js:153`, logged
+  and unwritten, with the parse-side reasoning in `functions/roster-parse-helpers.js` — a
+  zero-length range reads as TWENTY-FOUR HOURS through the overnight wrap, and it reaches pay.
+  Found by an external review reading the code against this file, which is the only way a stale
+  "we don't do X" is ever caught: nothing fails when a limitation is fixed, so the entry simply sits
+  here being believed.
 - **~~Applying the *estimated* 2026/27 award rate overstates pre-award (Apr–Jul 2026) periods~~ —
   CLOSED, and it self-corrected exactly as written.** The entry said "no clean fix until the award
   lands"; the award landed, `londonAllowFrom` is set to 28 Aug 2026 on the 2026/27 row

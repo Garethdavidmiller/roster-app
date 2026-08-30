@@ -160,10 +160,22 @@ describe('the design protocol has exactly one owner', () => {
         // Each write is judged by WHAT IT TARGETS, not counted against an approximation — the
         // first draft compared two totals and fired on a target-set write whose collection
         // constant it had not thought of, which is a guard that reports the wrong thing.
+        //
+        // The target is found by BRACKET-MATCHING the call, not by reading a fixed number of
+        // characters after it (v21.96). The window was 160 chars, which is a proximity test: it
+        // passed for every write that named its collection early and failed the moment a
+        // legitimate target-set transaction put its `doc(...)` on the third line. A guard that
+        // depends on where the author breaks a line reports formatting, not structure.
         const offenders = [];
         for (const m of app.matchAll(/(setDoc|addDoc|deleteDoc|runTransaction)\s*\(/g)) {
-            const stmt = app.slice(m.index, m.index + 160);
-            if (/linkTargetSets|SETS_COL/.test(stmt)) continue;   // a different document entirely
+            let i = app.indexOf('(', m.index), depth = 0;
+            for (; i < app.length; i++) {
+                const ch = app[i];
+                if (ch === '(' || ch === '{') depth++;
+                else if (ch === ')' || ch === '}') { if (--depth === 0) break; }
+            }
+            const call = app.slice(m.index, i + 1);
+            if (/linkTargetSets|SETS_COL/.test(call)) continue;   // a different document entirely
             offenders.push(`${m[1]} @ ${app.slice(0, m.index).split('\n').length}`);
         }
         assert.deepEqual(offenders, [],

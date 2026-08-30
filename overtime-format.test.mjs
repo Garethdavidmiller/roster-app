@@ -976,11 +976,24 @@ describe('an answer the member did not give', () => {
 
 
 describe('what a timed-out submission can be said to have done', () => {
-    // Three outcomes and three sentences. Aborting stops us waiting; it does not stop the server
+    // Four outcomes and four sentences. Aborting stops us waiting; it does not stop the server
     // writing — so the wrong answers cost different things. Saying "it did not save" when we cannot
     // tell invites a second, contradictory submission that then legitimately conflicts; saying "it
     // saved" when it did not leaves the member unrecorded and believing otherwise.
     const OURS = 'mut-ours';
+
+    test('a week that has GONE is not a submission that failed', () => {
+        // A withdrawal landing in the seconds between the timeout and the re-read takes the whole
+        // window out of this member's state. Our id is then nowhere to be found — which reads
+        // exactly like a lost submission, and is not one. The instruction that follows differs
+        // completely: re-answer a form that no longer exists, or nothing at all.
+        assert.equal(reconcileVerdict(true, undefined, OURS, false), 'gone');
+        // Not-saved is reserved for a week that is STILL OURS and does not hold our answer.
+        assert.equal(reconcileVerdict(true, undefined, OURS, true), 'not-saved');
+        // And an unreadable state still outranks it: we cannot say the week has gone if we could
+        // not read anything at all.
+        assert.equal(reconcileVerdict(false, undefined, OURS, false), 'unknown');
+    });
 
     test('a re-read that failed establishes NOTHING', () => {
         assert.equal(reconcileVerdict(false, null, OURS), 'unknown');

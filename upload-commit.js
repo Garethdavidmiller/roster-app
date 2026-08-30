@@ -35,10 +35,28 @@
  *   · the live path is UNCHANGED     → nothing of ours committed. Re-issue.
  *   · the live path is SOMETHING ELSE → another upload superseded us. Never overwrite it.
  *
- * A read that FAILS is not a fourth answer — it is the absence of one — and it resolves to `retry`,
- * deliberately: the alternative is abandoning an upload whose metadata may never have been written,
- * leaving Storage holding a file nothing points at. The same outage that produced the ambiguity is
- * the likeliest reason the read failed, so this errs towards the document existing.
+ * A read that FAILS is not a fourth answer — it is the absence of one — and it must not be treated
+ * as permission to write. It resolved to `retry` until v21.96, on the reasoning that abandoning here
+ * leaves Storage holding a file nothing points at. That reasoning was wrong in one direction and
+ * right in the other, and the two costs are not comparable. An external audit walked the
+ * interleaving it re-opens, which is the ORIGINAL race with a failed read standing in for the
+ * ambiguity:
+ *
+ *     A commits, and sees deadline-exceeded.
+ *     A's reconciliation read fails too.
+ *     B — who can read — sees A's committed document, uploads its own, commits, and deletes A's
+ *       now-superseded object.
+ *     A retries blind, and points the live document back at a path B has already deleted.
+ *
+ * So the fourth answer is `ambiguous`: **do not write, and do not roll back either.** The upload is
+ * reported to the admin as unconfirmed, and the Storage object is left where it is. That can leave
+ * an orphan — a file nothing points at, costing storage and nothing else — and an orphan is the
+ * cheaper of the two outcomes by a wide margin: the alternative is a live document staff can tap
+ * that 404s, silently, until somebody uploads again. The admin retries when connectivity returns,
+ * and that retry begins with a fresh authoritative pre-read rather than a stale assumption.
+ *
+ * The rule this makes true, which was not true before: **we write again only when we have PROVED
+ * nobody superseded us.**
  */
 
 /**
@@ -53,11 +71,13 @@
  * Decide what an ambiguous commit means.
  *
  * @param {CommitSituation} situation
- * @returns {'committed'|'superseded'|'retry'}
+ * @returns {'committed'|'superseded'|'retry'|'ambiguous'}
  */
 export function resolveUploadCommit({ ourPath, oldPath, livePath, readable }) {
-    // No usable evidence — see the note above. Retry rather than abandon.
-    if (!readable) return 'retry';
+    // No usable evidence. Uncertainty is not permission to write — see the note above. Checked
+    // FIRST, because `livePath` under an unreadable state is not evidence of anything: it is
+    // whatever the caller happened to be holding, and every other branch reads it.
+    if (!readable) return 'ambiguous';
     if (livePath && livePath === ourPath) return 'committed';
     // A live path that is neither ours nor the one we started from belongs to somebody else's
     // upload. `oldPath` being null (no document when we began) is handled by the same test: any
