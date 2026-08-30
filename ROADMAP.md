@@ -558,7 +558,7 @@ both would need the governance gate answered before that changed.
 | Watch | Because | Where |
 |---|---|---|
 | Override document count | An archive strategy must land before ~5,000 docs | `MAINTENANCE_CALENDAR.md` |
-| `firebase-admin` v14 | Blocked until `firebase-functions` widens its peer range; the scoped `uuid` override holds meanwhile. The originally-assumed v14 bump was neither needed nor safe | `KNOWN_LIMITATIONS.md`, `SECURITY_RELEASE_PLAN.md` → A1 |
+| ~~`firebase-admin` v14~~ | **DONE v22.01** — `14.3.0` + `firebase-functions` `7.3.2`. v14 removes the namespaced `admin.*` API, so 59 call sites moved to the modular entry points first (on v13, green) and the version bump changed no code. The `uuid` override is still needed: `gaxios@6.7.1` under `@google-cloud/storage` declares `uuid ^9.0.1` | `KNOWN_LIMITATIONS.md`, `SECURITY_RELEASE_PLAN.md` → A1 |
 | `npm audit --omit=dev` in `functions/` | The weekly workflow runs `--audit-level=high`, so low/moderate drift does **not** fail CI — it is caught only by looking | `SECURITY_RELEASE_PLAN.md` → A1 |
 | App Speed card — the **Usable** milestone | Added v20.80, and the first figure that describes what a member actually waits for. The two older milestones cannot: "First appears" is the splash painting, and "Code loaded" fires while the Calendar can still be blank. Watch this one, not those | Operations → App Speed |
 | App Speed card, calendar tail | The only trigger that would reopen the bundler or SDK-deferral question | This file → Build tooling |

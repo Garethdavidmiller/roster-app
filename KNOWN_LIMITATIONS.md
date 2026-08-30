@@ -1080,31 +1080,43 @@ and `roster-members.json` is produced from `teamMembers` in `roster-data.js` by
 update `teamMembers` in `roster-data.js`, then run `npm run generate:roster-members` to rebuild
 the JSON in the same commit. (The `/new-starter` skill already includes this step.)
 
-### firebase-admin upgrade to v14 blocked on firebase-functions compatibility (June 2026)
+### ~~firebase-admin upgrade to v14 blocked on firebase-functions compatibility~~ — CLOSED v22.01
 
-`firebase-admin@14.0.0` is available. Its original driver — a `uuid < 11.1.1` advisory in the
-transitive dependency chain — is **already mitigated**: `functions/package.json` pins
-`"overrides": { "uuid": "^11.1.1" }` (see that file's comment for the exact advisory), and
-`cd functions && npm audit --omit=dev` now reports **0 vulnerabilities**. So the v14 bump is no
-longer a vulnerability fix — it is hygiene / staying-current only. It remains blocked by one thing:
+Shipped: `firebase-admin@13.10.0 → 14.3.0`, `firebase-functions@7.2.5 → 7.3.2`. The peer range that
+blocked it (`^11 || ^12 || ^13`) widened to include `^14` in `firebase-functions@7.3.x`.
 
-- `firebase-functions@7.x` (all released versions as of June 2026) declares
-  `firebase-admin@"^11 || ^12 || ^13"` — it does not yet list v14 as a supported peer.
+**What the bump actually was, because this entry understated it.** The old step 2 said to "audit
+`admin.firestore.FieldValue.serverTimestamp()` usage in `functions/index.js`". The real scope was
+**59 call sites across five modules** — v14 removes the namespaced API wholesale, so `admin.auth()`,
+`admin.firestore()`, `admin.storage()` and `admin.firestore.FieldValue`/`.Timestamp` all cease to
+exist; the root export is now app lifecycle (of which we use only `initializeApp`), credentials and
+errors. Verified against the published `firebase-admin@14.3.0` tarball, not the release notes.
 
-(The Node-runtime prerequisite that previously also blocked this is already met:
-`functions/package.json` `engines` is on Node 22.)
+It was done as **two separately-verifiable commits, and that order is the lesson**: the modular
+entry points (`firebase-admin/auth`, `firebase-admin/firestore`, `firebase-admin/storage`,
+`firebase-admin/app`) already exist on v13, so every call site was migrated and the full 350-test
+functions suite run GREEN before a single version moved. The version bump then changed no code and
+had one job — proving the migration was complete.
 
-**Practical risk:** none outstanding — the `uuid` advisory is pinned out entirely by the `overrides`
-entry (production audit = 0). The v14 bump is deferred purely on the `firebase-functions` peer range.
+Two things a future major will hit again:
 
-**When to upgrade:** once `firebase-functions` releases a version adding `firebase-admin@^14`
-to its peer dependency range. Check with `npm outdated` in `functions/`. When unblocked:
-1. Bump `firebase-admin` to `^14.0.0` (the Node 22 `engines` requirement is already satisfied)
-2. Audit `admin.firestore.FieldValue.serverTimestamp()` usage in `functions/index.js` —
-   v14 dropped the legacy `admin.firestore` namespace; `FieldValue` must be imported from
-   `firebase-admin/firestore` directly
-3. Test all three Cloud Functions (ingestHuddle, parseRosterPDF, setupRosterAuth) before
-   deploying to production
+- **The three endpoint harnesses inject their fakes by resolved path.** They stubbed
+  `require.resolve('firebase-admin')`; after the migration nothing requires that path, so a fake
+  left there would have been loaded by nobody and the whole suite would have run against the real
+  SDK — passing or failing for reasons unconnected to the code. They now stub
+  `firebase-admin/auth` and `firebase-admin/firestore`, and both were mutation-checked (remove the
+  stub, or repoint it at the old root: 9 and 10 failures respectively).
+- **v14 declares `engines: {"node": ">=22"}`.** The deployed runtime already is 22, and the PR-side
+  `functions` job in `e2e.yml` has been on 22 since v21.82 — but `deploy-functions.yml` pins Node
+  **20** for firebase-tools auth, so it would have installed a package it declares unsupported
+  (npm's `engines` is advisory without `engine-strict`) and then exercised every handler on a Node
+  the SDK does not support. That job now opens a Node 22 window around the functions install and
+  tests and steps back to 20 for the deploy tool, satisfying both constraints in sequence rather
+  than choosing between them.
+
+The scoped `overrides: { "uuid": "^11.1.1" }` **is still needed** and was re-checked here, not
+assumed: `@google-cloud/storage@7.22.0` still pulls `gaxios@6.7.1`, which declares `uuid ^9.0.1`.
+`npm audit --omit=dev` in `functions/` is 0.
 
 ### `firebase-tools` → `gaxios` dev-only advisory — no clean forward fix (F-DEP-1, reviewed v17.74)
 

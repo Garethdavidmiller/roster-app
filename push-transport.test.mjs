@@ -29,7 +29,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const fnDir = new URL('./functions/', import.meta.url).pathname;
-const adminPath   = require.resolve('firebase-admin', { paths: [fnDir] });
+const firePath    = require.resolve('firebase-admin/firestore', { paths: [fnDir] });
 const webpushPath = require.resolve('web-push', { paths: [fnDir] });
 const pushPath    = require.resolve('./functions/push.js');
 
@@ -56,8 +56,8 @@ function build(subs, statusFor = () => undefined) {
             },
         }),
     });
-    require.cache[adminPath] = { id: adminPath, filename: adminPath, loaded: true,
-        exports: { firestore: () => ({ collection }) } };
+    require.cache[firePath] = { id: firePath, filename: firePath, loaded: true,
+        exports: { getFirestore: () => ({ collection }) } };
     require.cache[webpushPath] = { id: webpushPath, filename: webpushPath, loaded: true, exports: {
         setVapidDetails: () => {},
         sendNotification: async (sub, payload) => {
@@ -75,7 +75,7 @@ function build(subs, statusFor = () => undefined) {
 const sub = (id, owner, endpoint = `https://push.example/${id}`) => ({ id, owner, endpoint });
 const PAYLOAD = { title: 'x', body: 'y', tag: 'reset-request', url: 'https://myb-roster.web.app/' };
 
-beforeEach(() => { for (const p of [adminPath, webpushPath, pushPath]) delete require.cache[p]; });
+beforeEach(() => { for (const p of [firePath, webpushPath, pushPath]) delete require.cache[p]; });
 
 describe('sendTargetedPush fails CLOSED — an addressed notice never widens', () => {
     test('no target uids sends nothing', async () => {

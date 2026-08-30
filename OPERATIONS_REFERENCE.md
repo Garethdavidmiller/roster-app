@@ -591,7 +591,8 @@ got out), also revoke the shared account's refresh tokens:
 # Google Cloud Shell, or anywhere with the Admin SDK and project credentials:
 firebase auth:export /tmp/u.json --project myb-roster    # (optional, to confirm the uid exists)
 # then, in a Node shell with firebase-admin initialised:
-await admin.auth().revokeRefreshTokens('calendar-viewer')
+const { getAuth } = require('firebase-admin/auth');
+await getAuth().revokeRefreshTokens('calendar-viewer')
 ```
 
 Every viewer session is then rejected on its next token refresh (within the hour) and must re-enter

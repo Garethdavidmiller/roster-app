@@ -59,6 +59,23 @@ jobs:
       # firebase-admin/firebase-functions from functions/node_modules. With the install after the
       # tests (the old order), the surface pin would have failed on every CI run while passing on
       # any dev machine that had ever installed — the classic works-here gap.
+      # ── NODE 22 WINDOW ──────────────────────────────────────────────────────────────────────
+      # firebase-admin v14 declares `engines: {"node": ">=22"}`, and the deployed runtime IS 22
+      # (functions/package.json). The deploy TOOL below still needs Node 20 (see the setup-node
+      # comment at the top of this job), so the two requirements are satisfied in sequence rather
+      # than by choosing between them: install and TEST the handlers on the version they actually
+      # run on, then step back to 20 for firebase-tools.
+      #
+      # Without this the job would install a package it declares unsupported (npm treats `engines`
+      # as advisory with no `.npmrc` engine-strict, so it warns and proceeds) and then exercise
+      # every handler on a Node the SDK does not support — a green gate that proves nothing about
+      # production. The PR-side `functions` job in e2e.yml has been on 22 since v21.82 for the
+      # same reason; this closes the same gap on the deploy side.
+      - name: Switch to the Functions runtime Node version
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+
       - name: Install function dependencies
         run: npm ci
         working-directory: functions
@@ -80,6 +97,14 @@ jobs:
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
         working-directory: functions
+
+      # ── BACK TO NODE 20 FOR THE DEPLOY TOOL ─────────────────────────────────────────────────
+      # Closes the window opened above. Everything from here on is firebase-tools, which is pinned
+      # to 20 by the empirical auth failure recorded at the top of this job.
+      - name: Switch back to the deploy-tool Node version
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
 
       # Authenticate to Google Cloud via Workload Identity Federation — no long-lived key.
       # GitHub's per-run OIDC token is exchanged for short-lived credentials for the

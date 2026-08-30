@@ -25,7 +25,8 @@
  */
 
 const { onRequest } = require('firebase-functions/v2/https');
-const admin = require('firebase-admin');
+const { getAuth } = require('firebase-admin/auth');
+const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const {
     nameToEmail,
     nameToPassword,
@@ -100,7 +101,7 @@ const setupRosterAuth = onRequest(
         try {
             // checkRevoked=true: this function re-provisions accounts, so a revoked/disabled admin's
             // still-cached token must be rejected immediately, not honoured for up to ~1h (v17.42).
-            decodedAuth = await admin.auth().verifyIdToken(bearer, true);
+            decodedAuth = await getAuth().verifyIdToken(bearer, true);
         } catch (_) {
             return res.status(401).json({ error: 'Unauthorised' });
         }
@@ -175,7 +176,7 @@ const setupRosterAuth = onRequest(
             activeEmails.add(email);
             let uid;
             try {
-                const user = await admin.auth().createUser({ email, password, displayName: name });
+                const user = await getAuth().createUser({ email, password, displayName: name });
                 uid = user.uid;
                 created.push(name);
                 console.log(`[setupRosterAuth] Created: ${email}`);
@@ -184,10 +185,10 @@ const setupRosterAuth = onRequest(
                     // Fetch UID so we can still (re)apply claims, and re-enable
                     // if the account was previously disabled (returning staff member).
                     try {
-                        const existing = await admin.auth().getUserByEmail(email);
+                        const existing = await getAuth().getUserByEmail(email);
                         uid = existing.uid;
                         if (existing.disabled) {
-                            await admin.auth().updateUser(uid, { disabled: false });
+                            await getAuth().updateUser(uid, { disabled: false });
                             console.log(`[setupRosterAuth] Re-enabled returning member: ${email}`);
                         }
                         skipped.push(name);
@@ -218,7 +219,7 @@ const setupRosterAuth = onRequest(
                 // demoted member loses the elevated claim on the next run.
                 const claims = claimsForTier(name, { adminSet: adminMembers, managerSet: managerMembers, designerSet: designerMembers });
                 try {
-                    await admin.auth().setCustomUserClaims(uid, claims);
+                    await getAuth().setCustomUserClaims(uid, claims);
                     const tier = (claims.admin ? 'admin+name' : claims.manager ? 'manager+name' : 'name') + (claims.linksDesigner ? '+designer' : '');
                     console.log(`[setupRosterAuth] Set ${tier} claim: ${email}`);
                 } catch (claimErr) {
@@ -245,7 +246,7 @@ const setupRosterAuth = onRequest(
             try {
                 let pageToken;
                 do {
-                    const page = await admin.auth().listUsers(1000, pageToken);
+                    const page = await getAuth().listUsers(1000, pageToken);
                     // computeOrphanLabels (unit-tested) owns the "which accounts are leaver orphans"
                     // filter (@myb-roster.local, not in activeEmails, not already disabled).
                     for (const { uid, label } of computeOrphanLabels(page.users, activeEmails)) {
@@ -254,10 +255,10 @@ const setupRosterAuth = onRequest(
                             continue;
                         }
                         try {
-                            await admin.auth().updateUser(uid, { disabled: true });
+                            await getAuth().updateUser(uid, { disabled: true });
                             // Revoke so an already-issued ID token for this account is rejected on
                             // its next refresh (within the hour), not just future sign-ins. Best-effort.
-                            try { await admin.auth().revokeRefreshTokens(uid); } catch (_) { /* non-fatal */ }
+                            try { await getAuth().revokeRefreshTokens(uid); } catch (_) { /* non-fatal */ }
                             disabled.push(label);
                             console.log(`[setupRosterAuth] Disabled + revoked leaver: ${label}`);
                         } catch (err) {
@@ -306,7 +307,7 @@ const resetMemberPassword = onRequest(
         let decodedAuth;
         try {
             // checkRevoked=true — a disabled/revoked admin's still-cached token must not reset accounts.
-            decodedAuth = await admin.auth().verifyIdToken(bearer, true);
+            decodedAuth = await getAuth().verifyIdToken(bearer, true);
         } catch (_) {
             return res.status(401).json({ error: 'Unauthorised' });
         }
@@ -336,8 +337,8 @@ const resetMemberPassword = onRequest(
             // members are "X. Surname", so this is latent hardening, matching setupRosterAuth.
             const email    = nameToEmail(member);
             const password = nameToPassword(member);   // surname default (reuses the parity-guarded helper)
-            const user = await admin.auth().getUserByEmail(email);
-            await admin.auth().updateUser(user.uid, { password });
+            const user = await getAuth().getUserByEmail(email);
+            await getAuth().updateUser(user.uid, { password });
             // ── PAST THIS LINE THE CREDENTIAL HAS CHANGED, AND NOTHING MAY SAY OTHERWISE ─────────
             // (v21.86, external audit.) Revocation used to be a bare `await` inside the outer try,
             // so a failure there took the whole call to the generic 500 — skipping the resetAt
@@ -351,7 +352,7 @@ const resetMemberPassword = onRequest(
             let revoked = false;
             if (revoke) {
                 try {
-                    await admin.auth().revokeRefreshTokens(user.uid);
+                    await getAuth().revokeRefreshTokens(user.uid);
                     revoked = true;
                 } catch (revokeErr) {
                     // The one consequence worth naming: the member's OTHER devices may still hold
@@ -370,8 +371,8 @@ const resetMemberPassword = onRequest(
             // nudged to re-set until a re-run. A retry heals the stamp (the reset is idempotent).
             let stamped = true;
             try {
-                await admin.firestore().collection('passwordStatus').doc(member).set(
-                    { resetAt: admin.firestore.FieldValue.serverTimestamp() },
+                await getFirestore().collection('passwordStatus').doc(member).set(
+                    { resetAt: FieldValue.serverTimestamp() },
                     { merge: true },
                 );
             } catch (stampErr) {
@@ -469,7 +470,7 @@ async function notifyAdminOfResetRequest(member, adminNames, vapidPrivate) {
     const uids = [];
     for (const name of adminNames || []) {
         try {
-            const user = await admin.auth().getUserByEmail(nameToEmail(name));
+            const user = await getAuth().getUserByEmail(nameToEmail(name));
             if (user && user.uid) uids.push(user.uid);
         } catch (e) {
             console.warn('[requestPasswordReset] could not resolve admin uid for', name, e && e.code);
@@ -483,7 +484,7 @@ async function notifyAdminOfResetRequest(member, adminNames, vapidPrivate) {
     /** @type {Array<number|null>} notifiedAt of every row EXCEPT this member's */
     let otherStamps = [];
     try {
-        const snap = await admin.firestore().collection('resetRequests').select('notifiedAt').get();
+        const snap = await getFirestore().collection('resetRequests').select('notifiedAt').get();
         pending = snap.size || 1;
         otherStamps = snap.docs
             .filter(d => d.id !== member)
@@ -527,8 +528,8 @@ async function notifyAdminOfResetRequest(member, adminNames, vapidPrivate) {
     // stamp only costs a duplicate notification later, and the push has already gone.
     if (accepted > 0) {
         try {
-            await admin.firestore().collection('resetRequests').doc(member).set(
-                { notifiedAt: admin.firestore.FieldValue.serverTimestamp() },
+            await getFirestore().collection('resetRequests').doc(member).set(
+                { notifiedAt: FieldValue.serverTimestamp() },
                 { merge: true },
             );
         } catch (e) {
@@ -569,7 +570,7 @@ const requestPasswordReset = onRequest(
         }
 
         try {
-            const docRef = admin.firestore().collection('resetRequests').doc(member);
+            const docRef = getFirestore().collection('resetRequests').doc(member);
 
             // Whether a Firebase account exists at all decides which remedy the admin needs: Reset, or
             // run Set up accounts first. The login overlay must not distinguish these (it would leak
@@ -583,7 +584,7 @@ const requestPasswordReset = onRequest(
             /** @type {boolean|null} */
             let provisioned = true;
             try {
-                await admin.auth().getUserByEmail(nameToEmail(member));
+                await getAuth().getUserByEmail(nameToEmail(member));
             } catch (e) {
                 if (e && e.code === 'auth/user-not-found') provisioned = false;
                 else {
@@ -597,7 +598,7 @@ const requestPasswordReset = onRequest(
             // and drove `count` to 40 inside the window the throttle exists to collapse to 1 — which
             // also means N writes/second to ONE document, past Firestore's ~1/s sustained guidance. The
             // count is what the admin reads as "how stuck is this person", so it has to mean something.
-            const recorded = await admin.firestore().runTransaction(async tx => {
+            const recorded = await getFirestore().runTransaction(async tx => {
                 const snap   = await tx.get(docRef);
                 const stamp  = snap.exists ? snap.data().requestedAt : null;
                 const lastMs = stamp && typeof stamp.toMillis === 'function' ? stamp.toMillis() : null;
@@ -605,8 +606,8 @@ const requestPasswordReset = onRequest(
                 /** @type {any} */
                 const data = {
                     memberName:  member,
-                    requestedAt: admin.firestore.FieldValue.serverTimestamp(),
-                    count:       admin.firestore.FieldValue.increment(1),
+                    requestedAt: FieldValue.serverTimestamp(),
+                    count:       FieldValue.increment(1),
                 };
                 if (provisioned !== null) data.provisioned = provisioned;
                 tx.set(docRef, data, { merge: true });
@@ -696,7 +697,7 @@ const getSignInStats = onRequest(
         const bearer = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
         let decodedAuth;
         try {
-            decodedAuth = await admin.auth().verifyIdToken(bearer, true);
+            decodedAuth = await getAuth().verifyIdToken(bearer, true);
         } catch (_) {
             return res.status(401).json({ error: 'Unauthorised' });
         }
@@ -722,7 +723,7 @@ const getSignInStats = onRequest(
             const users = [];
             let pageToken;
             do {
-                const page = await admin.auth().listUsers(1000, pageToken);
+                const page = await getAuth().listUsers(1000, pageToken);
                 users.push(...page.users);
                 pageToken = page.pageToken;
             } while (pageToken);

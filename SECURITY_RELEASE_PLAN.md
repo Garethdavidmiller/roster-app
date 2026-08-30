@@ -51,9 +51,13 @@ rule text and gate cases:
   moderate `protobufjs`, both transitive DoS advisories), cleared by a lockfile-only `npm audit fix`
   (body-parser 1.20.5→1.20.6, protobufjs 7.6.4→7.6.5; no `package.json` range moved). **Note the
   weekly `functions-audit.yml` runs `--audit-level=high`, so low/moderate drift like this does NOT
-  fail CI** — it is caught only by looking. Re-check when reading this doc. The originally-assumed firebase-admin **v14 bump was neither needed nor
-  safe** — it breaks the `firebase-functions` peer range and the namespaced `admin.*` API `index.js`
-  uses. Drop the override once `@google-cloud/storage` ships `uuid >= 11.1.1` upstream. · A2 — Workload
+  fail CI** — it is caught only by looking. Re-check when reading this doc. **firebase-admin is on `^14` as of v22.01**
+  (`14.3.0`, with `firebase-functions` `7.3.2`): the peer range widened, and the namespaced `admin.*`
+  API v14 removes was migrated to the modular entry points across 59 call sites first, on v13, so the
+  version move itself changed no code — KNOWN_LIMITATIONS.md carries what that cost and what to expect
+  at the next major. The `uuid` override **survived the bump and is still doing work** —
+  `@google-cloud/storage@7.22.0` pulls `gaxios@6.7.1`, which declares `uuid ^9.0.1`. Drop it once
+  `@google-cloud/storage` ships `uuid >= 11.1.1` upstream. · A2 — Workload
   Identity Federation, keyless OIDC on all 3 deploy workflows; SA JSON key + `FIREBASE_SERVICE_ACCOUNT`
   secret both deleted (v14.93 — **Appendix A2**). · A3 — doc-only accuracy (v14.38).
 - **Track B (authorization release):** B0 — named-vs-anonymous identity signal (v14.39). · B1 —
