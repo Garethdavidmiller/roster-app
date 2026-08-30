@@ -350,6 +350,39 @@ export const START_MILESTONES = /** @type {const} */ ([
  *   pctOver1s: number }> }}
  */
 export function summariseStartMilestones(samples, { page }) {
+    return _summariseMetricRows(samples, page, START_MILESTONES);
+}
+
+/**
+ * WHAT SERVED THE FIRST GRID — the split that decides `LATENCY_PLAN.md` Phase 2 (v21.99).
+ *
+ * Phase 2 narrows the Calendar's authoritative Firestore read, and its whole value rests on how many
+ * loads reach a grid THROUGH that read rather than from the local cache. A cache-served load never
+ * touches the network on this path, so narrowing the read cannot move it — and the card could not
+ * tell the two apart, so the phase could only be argued.
+ *
+ * **The two rows do NOT sum to `ready`**, and the note beside them has to say so: a page that does
+ * not know its source (the three whose container unhides on `auth-ready`) reports `ready` alone.
+ * Reading these as a partition of the whole would understate whichever way the remainder fell.
+ */
+export const READY_SOURCES = /** @type {const} */ ([
+    { metric: 'readyCached',  label: 'From the saved copy', sub: 'a grid the device already held' },
+    { metric: 'readyFetched', label: 'From the server',     sub: 'a grid that waited for the read' },
+]);
+
+/** @param {Record<string, number>} samples @param {{page: string}} opts */
+export function summariseReadySource(samples, { page }) {
+    return _summariseMetricRows(samples, page, READY_SOURCES);
+}
+
+/**
+ * The shared body. Extracted rather than copied when the ready-source split arrived: the bucket
+ * banding, the thin-sample total and the deliberately-inverted `pctOver1s` are one reading, and two
+ * copies of them is how a card comes to state the same figure two ways.
+ * @param {Record<string, number>} samples @param {string} page
+ * @param {ReadonlyArray<{metric: string, label: string, sub: string}>} wanted
+ */
+function _summariseMetricRows(samples, page, wanted) {
     /** @type {Record<string, Record<string, number>>} */
     const perMilestone = {};
     for (const [key, raw] of Object.entries(samples || {})) {
@@ -357,13 +390,13 @@ export function summariseStartMilestones(samples, { page }) {
         if (!Number.isFinite(n) || n <= 0) continue;
         const parsed = parsePerfSampleKey(key);
         if (parsed.page !== page) continue;
-        if (!START_MILESTONES.some(m => m.metric === parsed.metric)) continue;
+        if (!wanted.some(m => m.metric === parsed.metric)) continue;
         (perMilestone[parsed.metric] || (perMilestone[parsed.metric] = {}))[parsed.bucket] =
             (perMilestone[parsed.metric]?.[parsed.bucket] || 0) + n;
     }
     const rows = [];
     let grand = 0;
-    for (const milestone of START_MILESTONES) {
+    for (const milestone of wanted) {
         const buckets = perMilestone[milestone.metric];
         if (!buckets) continue;
         const g = { quick: 0, ok: 0, slow: 0 };

@@ -2,7 +2,7 @@
 // Run with: node --test perf-stats.test.mjs   (part of test:hygiene)
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { THIN_SAMPLE, PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, summarisePerfBy, PERF_DIMENSIONS, perfVerdict, loginDurationBucket, LOGIN_MAX_MS, BOOT_PHASES, bootPhases, summariseBootPhases, START_MILESTONES, summariseStartMilestones } from './perf-stats.js';
+import { THIN_SAMPLE, PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, summarisePerfBy, PERF_DIMENSIONS, perfVerdict, loginDurationBucket, LOGIN_MAX_MS, BOOT_PHASES, bootPhases, summariseBootPhases, START_MILESTONES, summariseStartMilestones, READY_SOURCES, summariseReadySource } from './perf-stats.js';
 
 /** Build a samples map from [page, metric, bucket, count] rows (version/mode/conn fixed). */
 function samplesFrom(rows) {
@@ -508,5 +508,61 @@ describe('summariseStartMilestones', () => {
             assert.ok(m.label && m.label.length <= 13, `${m.metric}: label must fit the row column`);
             assert.ok(m.sub && m.sub.length > 0, `${m.metric}: the sub carries what the label gives up`);
         }
+    });
+});
+
+// ── summariseReadySource — what put the shifts on screen ────────────────────────────────────────
+//
+// This block exists to decide ONE thing: `LATENCY_PLAN.md` Phase 2 narrows the Calendar's
+// authoritative Firestore read, and a load the local cache already served never touches the network
+// on that path. So "how many loads waited for the read?" is the whole question, and the card could
+// not answer it.
+//
+// The dangerous misreading is treating the two rows as a PARTITION of "Shifts shown". They are not:
+// a page that cannot tell its source reports `ready` alone, so the remainder is real and invisible.
+// A reader who assumes they add up over-states whichever row they are looking at.
+describe('summariseReadySource', () => {
+    test('the two sources are separated, and neither absorbs the other', () => {
+        const samples = Object.fromEntries([
+            mk('calendar', 'readyCached', 'lt500ms', 40),
+            mk('calendar', 'readyFetched', '1-3s', 10),
+        ]);
+        const { rows } = summariseReadySource(samples, { page: 'calendar' });
+        assert.deepEqual(rows.map(r => r.metric), READY_SOURCES.map(m => m.metric));
+        assert.equal(rows[0].total, 40);
+        assert.equal(rows[1].total, 10);
+        assert.equal(rows[0].pctOver1s, 0, 'a cache hit under half a second is not over one second');
+        assert.equal(rows[1].pctOver1s, 100);
+    });
+
+    test('it does NOT count plain `ready`, which is the row it splits', () => {
+        // Folding `ready` in would double-count every attributed load and make the cache share look
+        // like whatever fraction of the population happened to report a source.
+        const samples = Object.fromEntries([
+            mk('calendar', 'ready', 'lt500ms', 900),
+            mk('calendar', 'readyCached', 'lt500ms', 40),
+        ]);
+        const { rows } = summariseReadySource(samples, { page: 'calendar' });
+        assert.equal(rows.length, 1);
+        assert.equal(rows[0].total, 40);
+    });
+
+    test('a source nobody has reported is ABSENT, not a zero row', () => {
+        // Same rule as the ladder, and for a stronger reason here: a zero against "From the server"
+        // reads as "no load has ever waited for the read", which is the Phase 2 answer itself. A
+        // partly-rolled-out release would be making that claim on no evidence at all.
+        const samples = Object.fromEntries([mk('calendar', 'readyCached', 'lt500ms', 12)]);
+        const { rows } = summariseReadySource(samples, { page: 'calendar' });
+        assert.equal(rows.length, 1);
+        assert.equal(rows[0].metric, 'readyCached');
+    });
+
+    test('another page’s samples are not mixed in', () => {
+        const samples = Object.fromEntries([
+            mk('calendar', 'readyCached', 'lt500ms', 5),
+            mk('paycalc', 'readyCached', '3s+', 500),
+        ]);
+        const { rows } = summariseReadySource(samples, { page: 'calendar' });
+        assert.equal(rows[0].total, 5);
     });
 });

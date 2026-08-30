@@ -8,7 +8,7 @@
  */
 import { sessionReady } from './session.js';
 import { withClaimRetry, getPerfStats } from './firebase-client.js';
-import { SPEED_GROUPS, perfVerdict, summarisePerfBy, PERF_DIMENSIONS, summariseBootPhases, summariseStartMilestones, THIN_SAMPLE } from './perf-stats.js';
+import { SPEED_GROUPS, perfVerdict, summarisePerfBy, PERF_DIMENSIONS, summariseBootPhases, summariseStartMilestones, summariseReadySource, THIN_SAMPLE } from './perf-stats.js';
 import { escapeHtml } from './roster-data.js';
 import { PRIVACY_FOOTER, PAGE_META, _cardLoadError, _usageMonthLabel } from './operations-reports.js';
 
@@ -345,6 +345,52 @@ async function initPageSpeedCard() {
         return frag;
     };
 
+    /** WHAT SERVED THE FIRST GRID (v21.99) — the reading `LATENCY_PLAN.md` Phase 2 turns on.
+     *
+     *  Phase 2 narrows the Calendar's authoritative Firestore read. A load the local cache already
+     *  served never touches the network on that path, so narrowing it cannot move that load by a
+     *  millisecond — which makes "how many loads waited for the read?" the whole question, and it
+     *  was one the card could not answer.
+     *
+     *  The note is load-bearing: **these two do not sum to the row above them.** A page that does
+     *  not know its source reports `ready` alone, so reading them as a partition would understate
+     *  whichever way the remainder fell. Same shape and bands as the ladder, so the two blocks read
+     *  as one idiom.
+     *  @param {Record<string, number>} samples @param {string} page */
+    const readySourceRows = (samples, page) => {
+        const { rows } = summariseReadySource(samples, { page });
+        if (!rows.length) return null;
+        const frag = document.createDocumentFragment();
+        const heading = document.createElement('p');
+        heading.className = 'usage-section-label speed-dim-label';
+        heading.textContent = 'What put the shifts on screen';
+        frag.appendChild(heading);
+        frag.appendChild(noteLine('Only the Calendar reports this, and the two do not add up to “Shifts shown” above — a page that cannot tell is counted there and not here. A grid from the saved copy did not wait for the server.'));
+
+        const list = document.createElement('div');
+        list.className = 'speed-rows';
+        const head = document.createElement('div');
+        head.className = 'speed-row speed-row--why speed-dual-head';
+        head.innerHTML = '<span></span><span></span>'
+            + '<span class="speed-dual-label">over 1s</span>'
+            + '<span class="speed-dual-label">opens</span>';
+        list.appendChild(head);
+        rows.forEach(r => {
+            const row = document.createElement('div');
+            row.className = 'speed-row speed-row--why';
+            const thin = r.total < THIN_SAMPLE;
+            row.innerHTML =
+                `<span class="speed-row-label"><span class="speed-row-name">${escapeHtml(r.label)}</span>`
+                    + `${thin ? '<span class="speed-thin">(few)</span>' : ''}</span>` +
+                `<span class="speed-bar" role="img" aria-label="${escapeHtml(r.sub)}: ${r.pctQuick}% quick, ${r.pctOk}% a moment, ${r.pctSlow}% slow">${segs(r)}</span>` +
+                `<span class="speed-row-count">${r.pctOver1s}%</span>` +
+                `<span class="speed-row-sub">${r.total.toLocaleString('en-GB')}</span>`;
+            list.appendChild(row);
+        });
+        frag.appendChild(list);
+        return frag;
+    };
+
     /** The whole "why" section, for the page with the most samples.
      *
      *  Deliberately NOT hardcoded to the Calendar, even though the Calendar is what prompted it and
@@ -372,6 +418,10 @@ async function initPageSpeedCard() {
         // Calendar the auth restore, the access decision and Firestore all happen after it.
         const ladder = ladderRows(samples, busiest.page);
         if (ladder) { frag.appendChild(ladder); any = true; }
+        // Immediately after the ladder, because it splits ONE of its rungs — "Shifts shown" — and
+        // reading it anywhere else would leave the reader to remember which row it belonged to.
+        const source = readySourceRows(samples, busiest.page);
+        if (source) { frag.appendChild(source); any = true; }
         for (const dim of /** @type {Array<'conn'|'mode'|'version'>} */ (['conn', 'mode', 'version'])) {
             const block = breakdownRows(samples, busiest.page, dim);
             if (block) { frag.appendChild(block); any = true; }

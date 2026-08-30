@@ -94,7 +94,9 @@ function _markReadyIfGridShown() {
         // month here would time the wrong thing in both directions. Each surface computes its own
         // answer; what COUNTS as a roster is `showsRoster`, beside the states it reads.
         if (_teamView?.isTeamViewMode()) {
-            if (_teamView.isGridShown()) markPageReady();
+            // `isGridConfirmed()` is Team View's own word for authoritative, so it answers the same
+            // question `display` answers below: did the network serve this grid, or the cache?
+            if (_teamView.isGridShown()) markPageReady(_teamView.isGridConfirmed() ? 'fetched' : 'cached');
             // BOTH RUNGS, NOT JUST THE FIRST (v21.37, external review). This branch used to return
             // here, so a launch that restored straight into Team View was counted at "Shifts shown"
             // and never at "Confirmed" — the surface simply dropped out of the ladder at the far
@@ -106,7 +108,13 @@ function _markReadyIfGridShown() {
             return;
         }
         const display = decideDisplay(knowledgeOf(monthKey(getDisplayYear(), getDisplayMonth())));
-        if (showsRoster(display)) markPageReady();
+        // WHAT SERVED IT, not merely that something did (v21.99). The two display states that count
+        // as a roster already carry the answer — `render` means the authoritative read landed,
+        // `stale` means the local cache did and phase 2 has not returned. That distinction is the
+        // whole of `LATENCY_PLAN.md` Phase 2's value: narrowing the server read cannot move a load
+        // the cache already served. Derived here rather than tracked separately, so it can never
+        // disagree with the grid it describes.
+        if (showsRoster(display)) markPageReady(display === 'render' ? 'fetched' : 'cached');
         // The LAST rung, and the reason `ready` is not the end of the ladder: a device can put
         // yesterday's roster up instantly and take another two seconds to confirm it. Without this
         // the card would call that load fast, which for a member checking whether their shift

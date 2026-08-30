@@ -1467,6 +1467,14 @@ Anonymous page-load latency recorder (Project 0 instrumentation, v14.89; FCP + a
   may see anything, which is no place for telemetry. Observed from outside the instants are the same
   to within a microtask. Labels + the summariser: `perf-stats.START_MILESTONES` /
   `summariseStartMilestones`; rendered as "How far the start gets" by `operations-reports.js`.
+- **`READY_SOURCES` / `summariseReadySource`** (perf-stats.js, v21.99) split the `Shifts shown` rung
+  by WHAT SERVED IT — `readyCached` against `readyFetched`, written by `markPageReady(source)` and
+  rendered as "What put the shifts on screen". It exists to decide `LATENCY_PLAN.md` Phase 2, which
+  narrows the authoritative Firestore read: a load the local cache already served cannot be helped
+  by that, so the size of the cache-miss population IS the phase's value. Recorded as extra metrics
+  rather than a seventh key field, because `parsePerfSampleKey` splits the key positionally and a
+  new field would invalidate every sample already stored. **The two do not sum to `ready`** — a page
+  that cannot tell its source reports `ready` alone.
   **`ready` is deliberately NOT the last rung** — it fires on a cached grid as readily as a confirmed
   one, which is right, but a device can show yesterday's roster instantly and take another two
   seconds to confirm it.

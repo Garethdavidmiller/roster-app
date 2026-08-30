@@ -140,11 +140,36 @@ export function markMilestone(id) {
  * Idempotent (the first call wins — `performance.mark` would otherwise record a second entry and
  * `getEntriesByName()[0]` would still read the first, but a re-render must not even try). Silent on
  * any platform without the Performance API: the metric is simply absent, which the card handles.
+ *
+ * ── WHAT SERVED THE FIRST GRID (v21.99) ─────────────────────────────────────────────────────────
+ *
+ * `source` says whether the grid the member is now looking at came from the LOCAL CACHE or from the
+ * authoritative server read. It exists to make one decision decidable and no other: `LATENCY_PLAN.md`
+ * Phase 2 proposes narrowing that server read, and its entire value rests on how many loads reach a
+ * grid THROUGH it. A cache-served load never touches the network on this path, so narrowing the read
+ * cannot move it by a millisecond — while a cache MISS waits for the whole three-month, whole-team
+ * query, which the card says has never once finished inside a second.
+ *
+ * Nothing about `ready` changes: it is still written for every load and its history stays
+ * continuous. The split is recorded as two ADDITIONAL metrics, because the sample key is a fixed
+ * six-part format that `parsePerfSampleKey` splits positionally — a seventh field would invalidate
+ * every sample already stored, and the analytics document's rules constrain its shape but not the
+ * names inside `samples`, so a new metric needs no rules deploy and carries no ordering hazard.
+ *
+ * A page that does not know its source simply omits it and reports `ready` alone, which is the same
+ * honesty rule the milestones follow: a thing that was not established is not given a value.
+ *
+ * @param {'cached'|'fetched'} [source] what put this grid on screen, where the caller knows
  * @returns {void}
  */
-export function markPageReady() {
+export function markPageReady(source) {
     try {
         if (performance.getEntriesByName?.(PAGE_READY_MARK)?.length) return;
+        // Captured on the FIRST call only, alongside the mark it describes. A later re-render can
+        // reach a better-known state — cached becomes authoritative the moment phase 2 lands — and
+        // attributing the FIRST grid's timing to the SECOND grid's source would report the whole
+        // population as fetch-served and answer the question backwards.
+        if (source === 'cached' || source === 'fetched') _readySource = source;
         performance.mark(PAGE_READY_MARK);
         // Announce it as well as record it. `performance.mark()` returns the entry in modern
         // browsers and nothing in older ones, so the timestamp is read back the same way
@@ -153,6 +178,9 @@ export function markPageReady() {
         if (typeof t === 'number') _resolveReady(t);
     } catch { /* Performance API unavailable — the metric is skipped, nothing else changes */ }
 }
+
+/** What served the first grid, when the page knew. @type {'cached'|'fetched'|null} */
+let _readySource = null;
 
 /** Read non-identifying environment dimensions (PWA display mode + connection class). */
 function envContext() {
@@ -219,7 +247,14 @@ export function recordPageLatency(page, identity = null) {
             const bucket = bucketDuration(startTime);
             // Deferring the WRITE is safe: this function is already gated on the page's auth being
             // established, so the session that carries it exists by now and outlives the wait.
-            if (bucket) recordPerfSample({ page, metric: 'ready', bucket, mode, conn });
+            if (!bucket) return;
+            recordPerfSample({ page, metric: 'ready', bucket, mode, conn });
+            // The same reading, attributed. Written as a SECOND sample rather than replacing the
+            // first, so `ready` keeps counting every load and the two are comparable against it.
+            if (_readySource) {
+                recordPerfSample({ page, metric: _readySource === 'cached' ? 'readyCached' : 'readyFetched',
+                    bucket, mode, conn });
+            }
         };
         let readyNow;
         try { readyNow = performance.getEntriesByName?.(PAGE_READY_MARK)?.[0]?.startTime; }

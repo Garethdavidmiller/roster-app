@@ -461,8 +461,13 @@ injecting 300 ms of latency moved the milestone by 336 ms.
 
 So the open item is no longer "do Phase 3". It is a **security trade** — whether the app may paint
 from a locally-stored identity before the server has confirmed it — and it belongs to
-`CALENDAR_DATA.md` and `AUTH_AND_SESSIONS.md`, not to a performance plan. **Phase 2** is still real
-and still second. **Phase 4 / the bundler is measurably not the problem.**
+`CALENDAR_DATA.md` and `AUTH_AND_SESSIONS.md`, not to a performance plan.
+
+**Phase 2 is now the largest open item, and it was instrumented rather than started** (v21.99). Its
+value rests entirely on how many loads reach a grid through the authoritative read rather than from
+the local cache — a cache-served load cannot be helped by narrowing that read — and nothing measured
+the split. The App Speed card now carries it, with the reading rule in the plan. **Phase 4 / the
+bundler is measurably not the problem.**
 
 ### Build tooling — trigger-based; no action currently
 **Status:** Conditional · **Do nothing until a trigger occurs**

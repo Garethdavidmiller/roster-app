@@ -182,6 +182,36 @@ KNOWN before rendering is not. `CALENDAR_DATA.md` invariants 1, 2 and 6.
 precisely because a second authoritative reconciler racing the first evicted overrides the initial
 fetch had just loaded. Any per-member narrowing has to keep that single-reconciler property.
 
+### Do not start it until the card answers ONE question (instrumented v21.99)
+
+Phase 3 was the nominated treatment until it was measured, and it was worth 4.6 ms. The same
+discipline applies here, and the question is narrower than it looks.
+
+**`Shifts shown` fires on whichever render first puts a real grid up**, and on a device with a warm
+cache that is PHASE ONE — no network at all. Narrowing the authoritative read cannot move that load
+by a millisecond. On a cache MISS it is phase two, the three-month whole-team query, which the card
+says has never once finished inside a second. So Phase 2's entire value is the size of the
+cache-miss population, and nothing measured it: the ladder carried connection, install mode and
+version, but not what served the grid.
+
+It does now. `markPageReady` takes a source, derived from the display state the Calendar already
+computes (`render` means the read landed, `stale` means the cache did), and the App Speed card
+renders **"What put the shifts on screen"** directly beneath the ladder rung it splits.
+
+**The reading rule:**
+
+| From the server | Do |
+|---|---|
+| a small share of opens | **close Phase 2.** It would be a rewrite of the read path, with the Team View eviction trap above, for a population that mostly does not exist |
+| a substantial share, and slow | **do Phase 2**, narrowest form first — displayed month before adjacent months, then selected member |
+
+**Wait a full month before reading it**, and mind two things. The two rows do NOT sum to `Shifts
+shown` — a page that cannot tell its source reports `ready` alone — so they are shares of the
+attributed population, not of the whole. And `THIN_SAMPLE` governs them like every other row on the
+card: the cache-miss arm is the smaller by construction, so it is the one that will read as thin
+first, and a confident percentage from thirty opens is what this card's own v21.16 pass existed to
+stop.
+
 ---
 
 ## Phase 3 — split Firebase Auth from Firestore

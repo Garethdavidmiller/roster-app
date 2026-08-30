@@ -382,7 +382,12 @@ test('every app page marks itself USABLE, so the App Speed figure covers all of 
         // Comments are stripped first: several coordinators DISCUSS markPageReady in prose next to
         // the call, so a bare substring match would pass on a file that only mentions it.
         const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-        const calls    = /markPageReady\s*\(\s*\)/.test(code);
+        // ARGUMENTS ALLOWED (v21.99). This matched `markPageReady()` with EMPTY parentheses, so the
+        // moment the Calendar started passing what served its grid, the guard reported the busiest
+        // page in the app as never marking itself usable — a false alarm about the one page the
+        // contract most exists for. The property is that the page CALLS it; what it passes is the
+        // recorder's business.
+        const calls    = /markPageReady\s*\(/.test(code);
         const imported = /import\s*\{[^}]*\bmarkPageReady\b[^}]*\}\s*from\s*'\.\/perf-reporter\.js'/.test(code);
         if (!calls) missing.push(`${file} never calls markPageReady()`);
         else if (!imported) missing.push(`${file} calls markPageReady() without importing it`);

@@ -277,3 +277,94 @@ describe('the `usable` milestone survives losing the race (v21.16)', async () =>
         assert.deepEqual(_samples, [], 'the developer\'s own load is excluded at every point');
     });
 });
+
+// ── WHAT SERVED THE FIRST GRID (v21.99) ─────────────────────────────────────────────────────────
+//
+// This split exists to make ONE decision decidable: `LATENCY_PLAN.md` Phase 2 narrows the Calendar's
+// authoritative Firestore read, and its whole value rests on how many loads reach a grid THROUGH
+// that read rather than from the local cache. A cache-served load never touches the network on this
+// path, so narrowing the read cannot move it at all.
+//
+// Organised by the two ways the attribution can lie. Reporting a cache-served load as fetch-served
+// makes Phase 2 look worth doing on evidence about loads it cannot help — the expensive mistake,
+// because the work is a rewrite of the read path with a documented eviction trap. Losing the
+// attribution entirely leaves the plan where it already was, arguing.
+describe('the `ready` sample says what served the grid', () => {
+    // ONE MODULE INSTANCE PER CASE, and that is not ceremony. The source is module state written by
+    // the first `markPageReady` and deliberately never rewritten — a later render reaching a
+    // better-known state must not re-attribute the FIRST grid's timing. Sharing an instance would
+    // therefore carry the previous test's source into the next one, and the two cases below that
+    // assert an ABSENCE would pass or fail on where they sit in the file.
+    const load = async (/** @type {string} */ tag) => {
+        _marks.clear();
+        _samples.length = 0;
+        global.performance = /** @type {any} */ ({
+            getEntriesByType: () => [],
+            getEntriesByName: (/** @type {string} */ n) => (_marks.has(n) ? [_marks.get(n)] : []),
+            mark: (/** @type {string} */ n) => { _marks.set(n, { name: n, startTime: 640 }); },
+        });
+        return import(`./perf-reporter.js?fresh=rs-${tag}`);
+    };
+
+    test('a cache-served grid is attributed to the cache, and still counted in `ready`', async () => {
+        const { recordPageLatency, markPageReady } = await load('cached');
+        recordPageLatency('calendar', 'S. Silva');
+        markPageReady('cached');
+        await Promise.resolve();
+        const metrics = _samples.map(s => s.metric);
+        assert.ok(metrics.includes('ready'), '`ready` must keep counting every load — its history is continuous');
+        assert.ok(metrics.includes('readyCached'));
+        assert.ok(!metrics.includes('readyFetched'), 'a cache hit is not a fetch');
+    });
+
+    test('both samples carry the SAME bucket — one reading, two names', async () => {
+        // If they could differ, the split would not be a split: the card would be comparing two
+        // different measurements and calling the difference a cache effect.
+        const { recordPageLatency, markPageReady } = await load('bucket');
+        recordPageLatency('calendar', 'S. Silva');
+        markPageReady('fetched');
+        await Promise.resolve();
+        const ready = _samples.find(s => s.metric === 'ready');
+        const attributed = _samples.find(s => s.metric === 'readyFetched');
+        assert.ok(ready && attributed);
+        assert.equal(attributed.bucket, ready.bucket);
+        assert.equal(attributed.page, ready.page);
+    });
+
+    test('a page that does not know its source reports `ready` alone', async () => {
+        // The three pages whose `.container` unhides on `auth-ready` call `markPageReady()` with no
+        // argument. Inventing a source for them would put loads with no cache path at all into a
+        // cache-versus-network comparison.
+        const { recordPageLatency, markPageReady } = await load('none');
+        recordPageLatency('settings', 'S. Silva');
+        markPageReady();
+        await Promise.resolve();
+        const metrics = _samples.map(s => s.metric);
+        assert.ok(metrics.includes('ready'));
+        assert.ok(!metrics.some(m => m.startsWith('readyC') || m.startsWith('readyF')),
+            'an unknown source must not be guessed at');
+    });
+
+    test('a nonsense source is ignored rather than stored', async () => {
+        const { recordPageLatency, markPageReady } = await load('junk');
+        recordPageLatency('calendar', 'S. Silva');
+        markPageReady(/** @type {any} */ ('probably-cached'));
+        await Promise.resolve();
+        assert.ok(_samples.some(s => s.metric === 'ready'));
+        assert.ok(!_samples.some(s => /^ready[CF]/.test(s.metric)));
+    });
+
+    test('the FIRST grid decides the source, not a later re-render', async () => {
+        // The Calendar renders again the moment phase 2 lands, and that render is authoritative. If
+        // the later call could overwrite the source, every cache-served load would end up filed as
+        // fetch-served — which is the answer this whole split exists to avoid getting backwards, and
+        // it would make Phase 2 look worth doing on evidence about loads it cannot help.
+        const { recordPageLatency, markPageReady } = await load('first-wins');
+        recordPageLatency('calendar', 'S. Silva');
+        markPageReady('cached');
+        markPageReady('fetched');
+        await Promise.resolve();
+        assert.ok(_samples.some(s2 => s2.metric === 'readyCached'));
+        assert.ok(!_samples.some(s2 => s2.metric === 'readyFetched'));
+    });
+});
