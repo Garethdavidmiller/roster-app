@@ -676,6 +676,24 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         const isOpen = guidesToggle.getAttribute('aria-expanded') === 'true';
         guidesToggle.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
         if (guidesList) guidesList.hidden = isOpen;
+        const searchZone = document.getElementById('navGuideSearchZone');
+        if (searchZone) searchZone.hidden = isOpen;
+    });
+
+    // Cross-guide search loads on FIRST FOCUS only — the module and its ~90KB index are not part
+    // of any page's boot. If the import fails (it is SW-precached, so this is rare), the box says
+    // so rather than sitting silently dead.
+    const gsInput = /** @type {HTMLInputElement|null} */ (document.getElementById('navGuideSearchInput'));
+    let _gsRequested = false;
+    gsInput?.addEventListener('focus', () => {
+        if (_gsRequested) return;
+        _gsRequested = true;
+        import('./nav-guide-search.js')
+            .then(m => m.initGuideSearch({ guides: NAV_GUIDES }))
+            .catch(() => {
+                const st = document.getElementById('navGuideSearchStatus');
+                if (st) st.textContent = 'Search is unavailable — the guides below still open.';
+            });
     });
 
     // Notification toggle — an in-panel action, so the panel stays open.
@@ -1150,6 +1168,18 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, c
                         <span class="nav-panel-guides-count" aria-hidden="true">${NAV_GUIDES.length + 1}</span>
                         <span class="nav-panel-guides-arrow" aria-hidden="true">▾</span>
                     </button>
+                    <div id="navGuideSearchZone">
+                        <!-- Cross-guide search (v22.02). The box is a dumb input until first focus:
+                             nav-guide-search.js and the generated index load lazily then, so the
+                             drawer costs every page boot nothing for it. Results render into the
+                             list below as ordinary guide links — the delegated handler above gives
+                             them counting, ?from= and the history dance with no second copy. -->
+                        <input id="navGuideSearchInput" class="nav-gs-input" type="search"
+                               enterkeyhint="search" autocomplete="off" spellcheck="false"
+                               placeholder="Search the guides…" aria-label="Search the staff guides">
+                        <div class="nav-gs-status" id="navGuideSearchStatus" role="status"></div>
+                        <ul class="nav-panel-links nav-panel-guides-list" id="navGuideSearchResults" hidden></ul>
+                    </div>
                     <ul class="nav-panel-links nav-panel-guides-list" id="navGuidesList">
                         ${guideLinks}
                     </ul>

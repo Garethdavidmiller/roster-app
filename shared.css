@@ -1810,6 +1810,42 @@ body.lb-open #stickyTotal { display: none !important; }
 /* In-flight state for the Circular/Newsletter links (a Firestore fetch, up to 8s) — appends a
    quiet "Opening…" so the tap has visible feedback instead of a silent wait. */
 .nav-panel-link--loading { opacity: 0.75; }
+
+/* ── Cross-guide search (v22.02) ─────────────────────────────────────────────────────────────
+   The box at the top of the Reference zone. Result rows reuse .nav-panel-link (same delegated
+   handler, same hover states); everything below only adds the two-line text layout and the
+   evidence chips. Colours are the drawer's scoped tokens — nothing hardcoded. */
+#navGuideSearchZone { padding: 2px 0 4px; }
+.nav-gs-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    margin: 2px 0 4px;
+    border: 1px solid var(--nav-border);
+    border-radius: var(--radius-sm);
+    background: var(--nav-raised);
+    color: var(--nav-text);
+    font-family: var(--font-sans);
+    font-size: var(--type-medium); /* >=16px — never trip iOS focus-zoom on a focusable field */
+}
+.nav-gs-input::placeholder { color: var(--nav-text-faint); }
+.nav-gs-input:focus-visible { outline: var(--focus-outline-gold); outline-offset: 1px; }
+/* WebKit draws its own ✕ clear control in a search field; on navy it renders as a dark smudge.
+   The Escape/backspace paths cover clearing, so hide it rather than restyle it. */
+.nav-gs-input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.nav-gs-status {
+    color: var(--nav-text-faint);
+    font-size: var(--type-small);
+    padding: 0 8px 2px;
+    min-height: 16px;
+}
+.nav-gs-result { align-items: flex-start; }
+.nav-gs-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.nav-gs-title { color: var(--nav-text); overflow-wrap: anywhere; }
+.nav-gs-meta  { color: var(--nav-text-faint); font-size: var(--type-small); }
+.nav-gs-flag  { font-size: var(--type-small); color: var(--accent-gold); }
+.nav-gs-flag--draft { color: var(--nav-text-muted); }
+
 .nav-panel-link--loading::after { content: ' · Opening…'; color: var(--nav-text-muted); }
 @media (hover: hover) and (pointer: fine) {
     .nav-panel-link:hover { background: var(--nav-raised); }
