@@ -279,6 +279,73 @@ test('admin: a drawer guide link comes back to Admin, not the calendar', async (
     await page.waitForURL(/admin\.html/, { timeout: 4000 });
 });
 
+// ── Cross-guide search (v22.02) ──────────────────────────────────────────────────────────────
+// The unit suites cover the matching rules and the index's truth; these cover what only a browser
+// can — that the LAZY module actually loads on focus, that results really do ride nav-panel's
+// delegated guide-link handler (counting/?from=/history come from there), and that the drawer's
+// static list comes back when the query clears.
+
+async function openGuideSearch(page) {
+    await page.goto('/');
+    await expect(page.locator('#teamMemberSelect option').first()).toBeAttached();
+    await page.locator('#navMenuBtn').click();
+    const input = page.locator('#navGuideSearchInput');
+    await expect(input).toBeVisible();
+    await input.click();     // first focus triggers the lazy import
+    return input;
+}
+
+test('guide search: typing finds a railcard card, hides the static list, and clearing restores it', async ({ page }) => {
+    const input = await openGuideSearch(page);
+    await input.fill('gold card');
+    const gold = page.locator('#navGuideSearchResults a[href*="railcard-guide.html#rc-gold"]');
+    await expect(gold).toBeVisible();
+    await expect(gold).toContainText('Annual Gold Card');
+    await expect(gold).toContainText('Railcard Guide');
+    await expect(page.locator('#navGuidesList')).toBeHidden();
+    // …and the section that merely CONTAINS the card must not double the answer
+    await expect(page.locator('#navGuideSearchResults a[href$="#rc-cards"]')).toHaveCount(0);
+    await input.fill('');
+    await expect(page.locator('#navGuidesList')).toBeVisible();
+    await expect(page.locator('#navGuideSearchResults')).toBeHidden();
+});
+
+test('guide search: a provisional claim carries its evidence state INTO the result row', async ({ page }) => {
+    const input = await openGuideSearch(page);
+    await input.fill('thames rover');
+    const thames = page.locator('#navGuideSearchResults a[href*="rangers-guide.html#rr-thames"]');
+    await expect(thames).toBeVisible();
+    await expect(thames.locator('.nav-gs-flag')).toContainText('Source conflict');
+});
+
+test('guide search: no matches says so, in words', async ({ page }) => {
+    const input = await openGuideSearch(page);
+    await input.fill('zzzqxv');
+    await expect(page.locator('#navGuideSearchStatus')).toHaveText('No matches in the guides');
+    await expect(page.locator('#navGuideSearchResults')).toBeHidden();
+});
+
+test('guide search: collapsing Reference takes the search box with it', async ({ page }) => {
+    const input = await openGuideSearch(page);
+    await expect(input).toBeVisible();
+    await page.locator('#navGuidesToggle').click();
+    await expect(input).toBeHidden();
+    await page.locator('#navGuidesToggle').click();
+    await expect(input).toBeVisible();
+});
+
+test('guide search: a result navigates same-tab with the ?from= hint and the section hash', async ({ page }) => {
+    const input = await openGuideSearch(page);
+    await input.fill('gold card');
+    let popupSeen = false;
+    page.context().once('page', () => { popupSeen = true; });
+    await page.locator('#navGuideSearchResults a[href*="#rc-gold"]').click();
+    await page.waitForURL(/railcard-guide\.html\?from=.*#rc-gold/, { timeout: 4000 });
+    expect(popupSeen, 'no popup/new tab must open').toBe(false);
+    // The hash landed on a real anchor — the card is on screen
+    await expect(page.locator('#rc-gold')).toBeVisible();
+});
+
 // A crafted ?from= must never become the back arrow's destination — the guide checks it against an
 // allowlist of the app's own pages and otherwise leaves the authored href alone.
 test('guide: an off-allowlist ?from= leaves the back arrow untouched', async ({ page }) => {

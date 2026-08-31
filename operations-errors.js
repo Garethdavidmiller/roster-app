@@ -11,7 +11,14 @@ import { withClaimRetry, getClientErrors, resolveClientError } from './firebase-
 import { _cardLoadError, _relativeTime } from './operations-reports.js';
 
 import { setStatus } from './status-text.js';
-async function initErrorLog() {
+/**
+ * @param {{onAttention?: (count: number, extra: {truncated: boolean}) => void}} [opts]
+ *   `onAttention` feeds the Needs-attention strip — called at the SAME moments the header count
+ *   chip is set, so the strip and the chip cannot disagree. Deliberately NOT called when the card
+ *   load fails: the strip only claims what is known, and a reassuring zero from a failed read
+ *   would be a lie (operations-attention.js header).
+ */
+async function initErrorLog({ onAttention } = {}) {
     const content = document.getElementById('errorLogContent');
     if (!content) return;
 
@@ -51,6 +58,7 @@ async function initErrorLog() {
         const _setCountChip = () => {
             if (_countChip) _countChip.textContent = unresolvedShown.length
                 ? (truncated ? '100+' : String(unresolvedShown.length)) : '';
+            onAttention?.(unresolvedShown.length, { truncated });
         };
         _setCountChip();
         /** Keep the resolve-all button's count in step as individual resolves prune the

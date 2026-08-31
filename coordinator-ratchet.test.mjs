@@ -122,6 +122,12 @@ const CAPS = {
     'roster-data.js':          1300,   // mostly data, not logic
     'admin-roster-upload.js':  1250,
     'nav-panel.js':            1250,
+    'operations-app.js':        965,
+    // Crossed the 900 uncapped-file threshold at v22.03 (914 measured): the Needs-attention strip
+    // added ~14 lines of pure WIRING — the strip module owns every rule, the coordinator only
+    // creates it and feeds it from the loads the cards already run. Capped as the ratchet asks
+    // (a decision, not a discovery), with the standard fix-sized headroom. The next real feature
+    // on this page should extract a card, not raise this number.
     // 1250 → 750 at v21.88. The REVIEWER's workspace left for overtime-review-controller.js —
     // 1,246 measured lines down to 698 — and it took all eight pieces of reviewer state with it.
     // A cap left at 1250 would bank 550 lines as headroom on the file the note below calls the one

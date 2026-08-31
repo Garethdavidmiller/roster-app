@@ -33,6 +33,54 @@ body {
     overflow-x: hidden; overflow-x: clip;
 }
 body.auth-ready .container { display: grid; }
+/* ── Needs attention strip (v22.03; group-label redesign same release) ──────────────────────
+   The page organises itself with group labels on the navy canvas (PUBLISH · ROSTER & ACCOUNTS ·
+   MONITORING). "Needs attention" is a FOURTH, CONDITIONAL group in exactly that voice — an
+   eyebrow label and a row of pills, no banner and no card frame. Two earlier cuts are worth
+   remembering: a full-tint amber banner read as the one pink surface on a page of white cards,
+   and a white card frame around two small chips was mostly empty field. Each pill is a MINIATURE
+   OF THE CARD HEADER it opens — emoji, name, and the same .card-year-chip count the target card's
+   header wears — so what you tap looks like where you land. Display stays default block on the
+   container: the module toggles `hidden`, and page-visibility-parity holds any author `display:`
+   off it. */
+.attn-strip { margin-bottom: -2px; }
+.attn-head {
+    /* .ops-group-label's voice, warmed: this group exists only when something is wrong. */
+    font-size: var(--type-micro);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--accent-gold);
+    margin: 4px 0 8px 2px;
+}
+.attn-items {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.attn-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 9px 8px 13px;
+    background: var(--surface);
+    border-radius: var(--radius-pill);
+    box-shadow: var(--shadow-2);
+    color: var(--primary-blue);
+    font-size: var(--type-label);
+    font-weight: 700;
+    text-decoration: none;
+    transition: transform 0.1s;
+}
+.attn-item:hover { transform: translateY(-1px); }
+.attn-item:active { transform: scale(var(--press-scale)); }
+/* Gold ring, not navy — these pills sit on the navy canvas where the default ring vanishes. */
+.attn-item:focus-visible { outline: var(--focus-outline-gold); outline-offset: 2px; }
+.attn-count { flex-shrink: 0; }
+
 /* Pull the header closer to the first card — net gap = 12px - 8px = 4px */
 .app-header { margin-bottom: -8px; }
 
@@ -1384,4 +1432,10 @@ select:focus-visible, input:focus-visible {
     color: var(--text-light);
     text-align: center;
     text-transform: lowercase;
+}
+
+/* The attention strip spans both desktop columns — it indexes cards on each side, so it must not
+   sit inside either. (Same breakpoint as the column grid above.) */
+@media (min-width: 1024px) {
+    body.auth-ready .container > .attn-strip { grid-column: 1 / -1; }
 }
