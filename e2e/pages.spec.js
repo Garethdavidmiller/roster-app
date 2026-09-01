@@ -1,5 +1,5 @@
 import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, ROSTER_REVIEW_DATES } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the literal 22 — and `links: the rotation
 // length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
@@ -3963,4 +3963,86 @@ test('operations: the review offers the original PDF to check against', async ({
     const view = page.locator('.roster-view-pdf');
     await expect(view).toBeVisible();
     await expect(view).toContainText('roster.pdf');
+});
+
+
+// ── ANSWERING AN UNREADABLE CELL IN PLACE (v22.17) ────────────────────────────────────────────
+//
+// The composition rule is unit-tested in override-utils.test.mjs. What only a browser answers is
+// whether the control REACHES the write — and that is the whole point of the feature, because the
+// thing it replaces was a dead end that sent the admin to another page with a name and a date to
+// remember. The batch mock records payloads, so these assert on what was WRITTEN.
+test('operations: an unreadable cell can be answered in the review, and the entry is written', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+
+    const row = page.locator('.roster-change-row', { hasText: 'XZ9 GARBLED' });
+    await row.locator('.roster-choice-btn--enter').click();
+    await row.locator('.roster-entry-pill', { hasText: 'Shift' }).click();
+
+    // An INCOMPLETE entry writes nothing and says so — the dangerous direction is a half-typed
+    // time becoming a shift, because a half-typed time still looks like a time.
+    await row.locator('.roster-entry-time[data-part="from"]').fill('06:00');
+    await expect(row.locator('.roster-entry-hint')).toContainText('Enter both times');
+    await expect(page.locator('#rosterApplyBtn')).toHaveText(/Save 3 changes/);
+
+    await row.locator('.roster-entry-time[data-part="to"]').fill('14:00');
+    await expect(row.locator('.roster-entry-hint')).toContainText('will be saved');
+    // The row itself must stop saying "couldn't read — check the paper roster" while the summary
+    // above counts it: the two used to disagree on screen, because the keystroke path patches the
+    // row rather than re-rendering it (a re-render would destroy the field being typed into).
+    await expect(row.locator('.roster-act')).toHaveText('Your entry');
+    await expect(page.locator('#rosterApplyBtn')).toHaveText(/Save 4 changes/);
+
+    await page.locator('#rosterApplyBtn').click();
+    await page.waitForTimeout(700);
+    const written = await page.evaluate(() =>
+        (/** @type {any} */ (window).__E2E?.batchWrites || []).filter(/** @param {any} w */ w => w.date === '2026-08-05'));
+    expect(written.length, 'the entered day must be written exactly once').toBe(1);
+    expect(written[0].value).toBe('06:00-14:00');
+    expect(written[0].type).toBe('shift');
+    expect(written[0].source).toBe('roster_import');
+});
+
+test('operations: an entered RDW is written as RDW, not as an ordinary shift', async ({ page }) => {
+    // ADDED AFTER A SURVIVING MUTATION. Dropping the `RDW|` marker from `manualCellValue` left the
+    // suite green, because the case above only ever enters a Shift. The marker is what makes
+    // `shiftValueToOverrideType` write `rdw`, and the day is a WEDNESDAY on purpose: on a Sunday a
+    // plain time is promoted to rdw anyway, so a Sunday case would pass with the marker gone and
+    // prove nothing. This is money — a rest day worked is paid at a different rate.
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+    const row = page.locator('.roster-change-row', { hasText: 'XZ9 GARBLED' });
+    await row.locator('.roster-choice-btn--enter').click();
+    await row.locator('.roster-entry-pill', { hasText: /^RDW$/ }).click();
+    await row.locator('.roster-entry-time[data-part="from"]').fill('09:00');
+    await row.locator('.roster-entry-time[data-part="to"]').fill('17:00');
+    await page.locator('#rosterApplyBtn').click();
+    await page.waitForTimeout(700);
+    const written = await page.evaluate(() =>
+        (/** @type {any} */ (window).__E2E?.batchWrites || []).filter(/** @param {any} w */ w => w.date === '2026-08-05'));
+    expect(written.length).toBe(1);
+    expect(written[0].type, 'a rest day worked must not be saved as an ordinary shift').toBe('rdw');
+    // The stored value is the bare time — the RDW-ness lives in `type`, as it does everywhere else.
+    expect(written[0].value).toBe('09:00-17:00');
+});
+
+test('operations: the entry control never offers a type Sunday forbids', async ({ page }) => {
+    // Sunday is uncontracted, so AL, Absent and a plain Shift may never be written to one — six
+    // numbered enforcement layers say so, and this control consults that list rather than keeping
+    // a seventh copy. RDW is the type that BELONGS on a Sunday and must stay available.
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page, {
+        weekEnding: '2026-08-08', rosterType: 'cea', dates: ROSTER_REVIEW_DATES,
+        crossCheck: 'complete', missingMembers: [], choices: {},
+        parsed: [{ memberName: 'G. Miller', shifts: { '2026-08-02': 'UNKNOWN|SMUDGE' } }],
+    });
+    const row = page.locator('.roster-change-row', { hasText: 'SMUDGE' });
+    await row.locator('.roster-choice-btn--enter').click();
+    for (const label of ['AL', 'Absent', 'Shift']) {
+        await expect(row.locator('.roster-entry-pill', { hasText: new RegExp(`^${label}$`) }))
+            .toBeDisabled();
+    }
+    await expect(row.locator('.roster-entry-pill', { hasText: /^RDW$/ })).toBeEnabled();
+    await expect(row.locator('.roster-entry-pill', { hasText: /^Rest Day$/ })).toBeEnabled();
 });

@@ -749,6 +749,42 @@ export const SUNDAY_FORBIDDEN_TYPES = Object.freeze(['annual_leave', 'sick', 'ot
 /** @param {string} type an override type id @returns {boolean} */
 export function isForbiddenOnSunday(type) { return SUNDAY_FORBIDDEN_TYPES.includes(type); }
 
+/**
+ * Compose the parsed-roster VALUE a chosen override TYPE plus optional times amounts to (v22.17).
+ *
+ * The roster review needs this because an unreadable cell can now be answered in place rather than
+ * being a dead end that sends the admin to another page with a name and a date to remember. The
+ * admin picks a type — the same pill vocabulary as Change a Shift — and this turns that back into
+ * the parsed-value alphabet the review already speaks, so the entry goes through `normaliseCellValue`
+ * and every guard an ordinary parsed value gets. It is the TRANSLATION the note above warns about
+ * being skipped at the point of use, written once, here, beside both vocabularies.
+ *
+ * Returns null when the type needs times and does not have a usable pair — the caller then has
+ * nothing to write, which is the right answer for a half-filled entry.
+ *
+ * `other` is deliberately NOT supported: its grammar is `FLAVOUR[" RDW"][" HH:MM-HH:MM"]`, composed
+ * from a flavour chip, a rest-day tick and optional times that only the week editor offers. A second
+ * partial implementation of that grammar is exactly where a wrong value would come from, so the
+ * review says so and points at Change a Shift instead.
+ *
+ * @param {string} type an override type id (`PILL_TYPES` vocabulary)
+ * @param {string} [from] `HH:MM`
+ * @param {string} [to] `HH:MM`
+ * @returns {string|null} a parsed-roster value, or null when the entry is incomplete/unsupported
+ */
+export function manualCellValue(type, from = '', to = '') {
+    if (type === 'correction')   return 'RD';
+    if (type === 'annual_leave') return 'AL';
+    if (type === 'sick')         return 'SICK';
+    if (type === 'spare_shift')  return 'SPARE';
+    if (type !== 'shift' && type !== 'rdw') return null;   // incl. `other` — see above
+    const t = /** @param {string} v */ v => /^\d{2}:\d{2}$/.test(v);
+    if (!t(from) || !t(to)) return null;
+    const range = `${from}-${to}`;
+    return type === 'rdw' ? `RDW|${range}` : range;
+}
+
+
 /** Parsed roster VALUES that cannot stand on a Sunday, and what they become instead.
  *  Returns the value unchanged when it is fine, so a caller can use it unconditionally.
  *  The import NORMALISES rather than refusing — a PDF is a statement about the past, and rejecting
