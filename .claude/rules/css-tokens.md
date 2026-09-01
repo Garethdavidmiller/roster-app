@@ -435,6 +435,42 @@ page's primary control. Desktop now gets a one-line label and trimmed padding un
 accepted two-column void, which card *reordering* can only relocate (above). Height is a lever
 the void discussion never considered.
 
+## A card has ONE left edge, and a header shares its rows' template (v22.22)
+
+Two failures with the same shape, both found by measuring the admin page rather than reading it.
+Neither is a bug; both are what "assembled rather than designed" looks like.
+
+**One left edge.** The Change-a-Shift card had four. Its week nav was capped and CENTRED, its Save
+button capped and left-aligned, and everything else — bulk bar, column header, day rows, save hint
+— ran the content width. Worst of all, `.save-hint` was not capped with the button it explains, so
+at 1280px a 320px button sat on the left while its sentence was centred across all 624px: **their
+centres 152px apart**, reading as unrelated things.
+
+The precedent was already here — Settings capped `.btn-action` at 280px and every card ended with a
+256px gutter (v20.72), and the fix was full width. Same answer. And a cap that merely stops
+centring is the worst of the three options: it fixes the left edge and opens a gutter on the right,
+so the row becomes the only block that stops short. **A gutter on both sides reads as deliberate;
+a gutter on one side reads as unfinished.** Where a control genuinely should not stretch, cap the
+CONTROL and let its row span (`.week-date-wrap`, not `.week-nav`).
+
+**`auto` in two grids is two different widths.** The week-grid header and the day rows are separate
+grids that both declared `32px 1fr auto`. The `auto` sized to each one's own content — "Base roster"
+at 76.5px against a badge at 110px — so the column the header labels was 34px out of step with the
+column it labels. They shared a right edge, and only because both happen to be right-aligned. The
+681–1023px layout was worse: its last `auto` was 62px in the header and 194px in the rows, putting
+the pills column 132px wider in the header than beneath it.
+
+**A header and the rows it labels must share explicit tracks.** `--wg-base-col` / `--wg-time-col`
+are declared once and used by every template *and* by the badge's own `min-width`, so the three
+cannot drift. Pinned by an e2e that compares the two COMPUTED templates at eight widths — static
+CSS cannot see this, because the stylesheet said the same thing in both places.
+
+**Where a value column is right-aligned, give every chip in it one width.** Otherwise the left edge
+is ragged: measured at three values down one seven-row week. `font-variant-numeric: tabular-nums`
+is the other half — without it `1` is narrower than `4` and the times jitter 2px between rows. Size
+from the widest MEASURED variant, not the widest you can think of: 🦉 has a wider advance than
+☀️ or 🌙, which is why a width taken from a Late badge still left two edges.
+
 ## Prose is left-aligned once it passes ~2 lines (v18.89)
 
 Overlay body copy (`.notice-body`, `.lightbox-privacy`, paycalc's `.welcome-desc`) used to be

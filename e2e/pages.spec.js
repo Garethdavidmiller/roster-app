@@ -1349,6 +1349,60 @@ test('admin: "All staff" fetches everyone rather than listing whoever happened t
             .toHaveText('This member only');
     });
 
+test('admin: the week-grid header and its rows share ONE column template, at every width', async ({ page }) => {
+    // The header labels the rows; if the two grids resolve different tracks, the labels sit over
+    // nothing in particular. They did. Both used `auto` for the base-roster column — and `auto` in
+    // two separate grids sizes to each grid's OWN content, so "Base roster" (76.5px) and a badge
+    // (110px) put the column 34px out of step. They shared a right edge, and only because both are
+    // right-aligned; nothing made them agree. The 681–1023px layout was worse: its last `auto` was
+    // 62px in the header and 194px in the rows, so the pills column was 132px wider in the header
+    // than beneath it.
+    //
+    // Only a browser can see this — it is what the values RESOLVE to, not what the stylesheet says,
+    // and the stylesheet said the same thing in both places. Every layout the page has is swept,
+    // because the templates are declared in four separate blocks and it is the mid-range ones
+    // nobody looks at.
+    await seedSession(page);
+    for (const width of [360, 390, 700, 800, 1023, 1024, 1280, 1440]) {
+        await page.setViewportSize({ width, height: 1200 });
+        await page.goto('/admin.html');
+        await page.waitForSelector('.day-row', { timeout: 10000 });
+        const m = await page.evaluate(() => {
+            const h = document.querySelector('.week-grid-header');
+            const r = document.querySelector('.day-row');
+            const badge = r.querySelector('.col-base .shift-badge').getBoundingClientRect();
+            const col = r.querySelector('.col-base').getBoundingClientRect();
+            return {
+                head: getComputedStyle(h).gridTemplateColumns,
+                row:  getComputedStyle(r).gridTemplateColumns,
+                badgeW: Math.round(badge.width), colW: Math.round(col.width),
+                overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+            };
+        });
+        expect(m.head, `@${width}px the header and rows must resolve the SAME tracks`).toBe(m.row);
+        expect(m.badgeW, `@${width}px the badge must not exceed the column it sits in`)
+            .toBeLessThanOrEqual(m.colW);
+        expect(m.overflow, `@${width}px the page must not scroll sideways`).toBe(false);
+    }
+});
+
+test('admin: every base-roster badge in a week shares one left edge', async ({ page }) => {
+    // The badges are right-aligned, so a variable width gives a ragged LEFT edge down the column —
+    // measured at three different values over one seven-row week (654 / 615 / 613 at 1280px),
+    // because `REST` is short, a time is long, and 🦉 is wider than ☀️. One width fixes it by
+    // construction; `tabular-nums` is what stops the TIMES varying among themselves.
+    for (const width of [390, 1280]) {
+        await page.setViewportSize({ width, height: 1200 });
+        await seedSession(page);
+        await page.goto('/admin.html');
+        await page.locator('#fieldMember').selectOption('L. Atrakimaviciene');
+        await page.waitForSelector('.day-row', { timeout: 10000 });
+        const lefts = await page.evaluate(() => [...new Set([...document.querySelectorAll('.day-row .col-base .shift-badge')]
+            .map(b => Math.round(b.getBoundingClientRect().left)))]);
+        expect(lefts, `@${width}px every badge starts at the same x — got ${lefts.join(', ')}`).toHaveLength(1);
+    }
+});
+
 test('admin: the BASE ROSTER column shows the time, not just Early/Late', async ({ page }) => {
     // Owner report with a screenshot: "you can't see the default shift time as reference, only
     // early or late." The badge was the only thing on an untouched row, so the question an admin is

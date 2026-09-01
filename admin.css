@@ -623,6 +623,34 @@
 
         /* Light column-label row (v15.58) — the old navy bar read as a dated table header
            sitting above the new rounded day-cards. Now a quiet uppercase label strip. */
+        /* The base-roster column's width, in ONE place. It is used by the badge's `min-width` and
+           by the grid template of BOTH the header and the rows — see the two notes below. */
+        .week-grid-header, .day-row, .day-row .col-base .shift-badge { --wg-base-col: 110px; --wg-time-col: 194px; }
+
+        /* ── THE BASE-ROSTER COLUMN IS A COLUMN (v22.22) ────────────────────────────────────────
+           The badges are right-aligned, so their LEFT edge is set by their content — measured at
+           654 / 615 / 613px down one seven-row week, because `REST` is 63px and a time is ~104px.
+           A ragged left edge down a short column reads as untidy rather than as a column, and
+           v22.21 widened the spread from ~7px to ~41px by putting the time in the badge.
+
+           One width for every badge in this column fixes it by construction, and the number is
+           MEASURED, not guessed: every badge variant was rendered into this column and the widest
+           is the NIGHT one at 109.6px — 🦉 has a wider advance than ☀️ or 🌙, which is why 104px
+           (sized off a Late) still left two edges. `tabular-nums` is the other half and is what
+           makes every TIME the same width: without it `1` is narrower than `4`, so `14:45-23:55`
+           measured 104px against `15:15-23:55`'s 102px and the column jittered between rows.
+
+           Night is defensive here — CEAs do not work nights — but sizing for it costs 6px and
+           removes the last variable.
+
+           Scoped to `.col-base`: a calendar cell's badge sizes to its content and must keep doing
+           so, and the roster-review table has its own column rules. */
+        .day-row .col-base .shift-badge {
+            min-width: var(--wg-base-col);
+            justify-content: center;
+            font-variant-numeric: tabular-nums;
+        }
+
         .week-grid-header {
             display: grid;
             grid-template-columns: 32px 100px 92px 1fr auto;
@@ -638,8 +666,13 @@
 
         /* On narrow screens keep the header but collapse to 3 columns (checkbox/day/base) */
         @media (max-width: 680px) {
+            /* `var(--wg-base-col)`, never `auto` (v22.22). The header and the rows are SEPARATE
+               grids, so an `auto` last column sizes to each one's own content — "Base roster" is
+               76.5px and a badge is 110px, so the column the header labels was 34px out of step
+               with the column it labels. They shared only a right edge, and only because both are
+               right-aligned; nothing made them agree. */
             .week-grid-header {
-                grid-template-columns: 32px 1fr auto;
+                grid-template-columns: 32px 1fr var(--wg-base-col);
             }
             .week-grid-header .hdr-pills,
             .week-grid-header .hdr-time { display: none; }
@@ -680,7 +713,7 @@
         /* Narrow: stack */
         @media (max-width: 680px) {
             .day-row {
-                grid-template-columns: 32px 1fr auto;
+                grid-template-columns: 32px 1fr var(--wg-base-col);
                 grid-template-rows: auto auto auto;
                 gap: 8px;
             }
@@ -733,8 +766,12 @@
 
         /* Desktop: widen day and base columns so the date + badge have room */
         @media (min-width: 681px) {
+            /* Both tracks tokenised (v22.22). `auto` in the last column resolved to 62px in the
+               header ("Shift time") and 194px in the row (two time inputs), so the pills column was
+               132px wider in the header than in the rows beneath it — "Record as" did not sit over
+               what it labels. Same defect as the base column, one layout along. */
             .week-grid-header,
-            .day-row { grid-template-columns: 32px 130px 100px 1fr auto; }
+            .day-row { grid-template-columns: 32px 130px var(--wg-base-col) 1fr var(--wg-time-col); }
         }
 
         .col-check {
@@ -774,6 +811,12 @@
             display: flex;
             gap: 4px;
             flex-wrap: wrap;
+            /* CENTRED ONLY WHERE THEY WRAP (v22.22). Six pills do not fit one narrow line, and a
+               centred last row is the tidier way to break them — so this stays for phones. On a
+               wide screen they fit on one line, and centring then made them the ODD BLOCK in the
+               row: measured at 1280px, the day label starts at 159, the time inputs at 119 and the
+               pills at 221. Three left edges inside one row, and the pills' was the only one that
+               was not a padding edge. See the ≥1024px override. */
             justify-content: center;
         }
 
@@ -1771,11 +1814,29 @@
             }
             .col-side .member-context-bar select option { color: var(--text-dark); }
 
-            /* Fix 3: constrain week nav — looks loose stretching across a 600px column */
-            .week-nav { max-width: 480px; margin: 0 auto; }
+            /* THE CARD HAS ONE LEFT EDGE (v22.22). Both rules below were right about their own
+               element and wrong together: the nav was capped AND centred, the save button capped and
+               left-aligned, and everything else — bulk bar, column header, day rows, save hint —
+               starts at the content edge. Four alignments in one card is what "assembled rather than
+               designed" looks like, and it is the same finding `links-design.md` records for the
+               generator card ("anything added to this card must join the one column").
 
-            /* Save button: no need to span the full left column */
-            .btn-save { max-width: 320px; }
+               The nav spans the column with the rest of it. Capping it and merely un-centring it
+               was tried first and is the worst of the three: it fixes the left edge and creates a
+               145px gutter on the RIGHT, so the row is the only block on the card that stops short.
+               A gutter on both sides reads as deliberate; a gutter on one side reads as unfinished.
+               The original "looks loose" worry was about the date field, and the fix for that is a
+               cap on the FIELD, not on the row that positions it. */
+            .week-nav { max-width: none; margin: 0; }
+            .week-date-wrap { max-width: 480px; }
+
+            /* The save button spans the column, like it does on mobile and like Settings' own
+               `.btn-action` since v20.72 — whose 280px cap left "every card ending with a 256px
+               gutter" (css-tokens.md). Here the cap was worse than a gutter: `.save-hint` was NOT
+               capped with it, so the button sat 320px wide on the left while the sentence explaining
+               it was centred across all 624px — the two centres 152px apart, reading as unrelated
+               things. Capping the hint to match would fix the alignment and keep the gutter; this
+               fixes both. */
 
         }
         /* Desktop row density (v18.89). The day row is identical at 390px and 1280px — 69px tall,
@@ -1809,12 +1870,12 @@
            v21.40, which was fixed only for the narrow layout. */
         @media (min-width: 1024px) {
             .week-grid-header {
-                grid-template-columns: 32px 1fr auto;
+                grid-template-columns: 32px 1fr var(--wg-base-col);   /* one template, see v22.22 */
             }
             .week-grid-header .hdr-pills,
             .week-grid-header .hdr-time { display: none; }
             .day-row {
-                grid-template-columns: 32px 1fr auto;
+                grid-template-columns: 32px 1fr var(--wg-base-col);
                 grid-template-rows: auto auto auto;
             }
             .day-row .col-check { grid-column: 1; grid-row: 1; }
@@ -1827,6 +1888,8 @@
                band of blank cream here. */
             .day-row:not(.active):not(.selected) .col-pills { display: none; }
             .day-row:not(.active) .col-time  { display: none; }
+            /* On one line, so they join the row's left edge with the times below them (v22.22). */
+            .col-pills { justify-content: flex-start; }
         }
         /* ≥1400px viewport: the container is now capped at --content-max-width (1100), so the
            left column is ~656px — this wider day-row template keeps the pill column snug rather
@@ -1834,7 +1897,7 @@
         @media (min-width: 1400px) {
             .week-grid-header,
             .day-row {
-                grid-template-columns: 28px 80px 100px minmax(160px, 1fr) 190px;
+                grid-template-columns: 28px 80px var(--wg-base-col) minmax(160px, 1fr) var(--wg-time-col);
             }
 
             /* Tighten week grid spacing */
