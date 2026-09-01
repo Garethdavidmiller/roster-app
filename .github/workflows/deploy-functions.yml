@@ -8,6 +8,17 @@ on:
       - 'functions/**'
   workflow_dispatch:
 
+# ── ONE DEPLOY AT A TIME, AND THE NEWEST ONE LAST (1 Sep 2026) ─────────────────────────────────
+# Same rule and the same reasoning as deploy-hosting.yml, which carries the argument: QUEUE, never
+# cancel, and a group that is per-workflow and ref-independent. Do not copy e2e.yml's
+# `cancel-in-progress: true` here — that one is cancelling a redundant test run.
+# The stakes are highest in THIS one: a functions deploy is not atomic, so a cancelled or
+# overtaken run can leave some functions on the new code and the rest on the old — a split
+# deploy surface, which is the one state no rollback plan describes.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest

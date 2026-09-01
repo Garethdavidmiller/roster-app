@@ -13,6 +13,36 @@ on:
       - '.github/**'
   workflow_dispatch:
 
+# ── ONE DEPLOY AT A TIME, AND THE NEWEST ONE LAST (1 Sep 2026) ─────────────────────────────────
+#
+# Two pushes to main in quick succession used to run two deploys in parallel, each spending ~11
+# minutes on tests before releasing. Nothing orders them, so if the FIRST push's tests happen to
+# run slower it releases second — and main's older tree is what staff get, with both runs green
+# and nothing anywhere saying so. The window is not theoretical: this workflow takes 11m33s.
+#
+# `cancel-in-progress: false` IS THE WHOLE POINT, and it is the opposite of the setting on
+# e2e.yml. Cancelling a superseded TEST run throws away work nobody wanted; cancelling a
+# superseded DEPLOY interrupts one mid-flight. So this queues: the second run waits for the first
+# to finish completely, then runs its own tests against its own tree and releases after it. The
+# cost is real and is the point — the later push waits ~11 minutes longer, and in exchange the
+# thing that is live is always the last tree to arrive.
+#
+# GitHub holds at most ONE pending run per group, so a third push displaces the queued second
+# rather than stacking behind it. That is the behaviour to want: the displaced run's commits are
+# already contained in the one that replaced it, and what deploys is main's tip.
+#
+# THE GROUP IS DELIBERATELY REF-INDEPENDENT. There is one Firebase project, so two deploys racing
+# is a hazard no matter which ref they came from — and `workflow_dispatch` above carries no branch
+# restriction, so a manual dispatch from a branch could otherwise run straight into a main deploy.
+# Keying on `github.ref` would read as more precise and would reintroduce exactly that case.
+#
+# It is keyed per WORKFLOW, not one shared "deploy" group. The three deploy workflows are designed
+# to fire in parallel from one push (they touch different targets, and CLAUDE.md's ordering note
+# depends on it); a shared group would serialise every release for no safety gain.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
