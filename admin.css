@@ -1792,10 +1792,21 @@
             .col-day .day-date { display: inline; margin-left: 6px; }
         }
 
-        /* At 1024–1399px the left column is too narrow for the 5-col template.
+        /* The left column is too narrow for the 5-col template at EVERY desktop width, so this
+           stacked layout applies from 1024px up with no upper bound (v22.11).
            Stacked layout: checkbox/day/base in row 1, pills in row 2, time in row 3.
-           Pills and time are visible on selected/active rows (hidden on inactive rows). */
-        @media (min-width: 1024px) and (max-width: 1399px) {
+           Pills and time are visible on selected/active rows (hidden on inactive rows).
+
+           IT USED TO STOP AT 1399px, and the cap was aimed at a width that cannot occur. Measured:
+           `.col-main` is 656px at 1399 AND at 1400 AND at 1920 — `--content-max-width: 1100px` caps
+           the page, so the column stops growing long before this breakpoint and the 5-col template
+           never gets the room the cap assumed it would. What actually happened above 1399 was the
+           fallback `681px` template, where `.col-time` is only `visibility: hidden` (the base rule)
+           and still reserves its `auto` track — 190px — squeezing `.col-pills` to 168px so six pills
+           wrapped onto three lines. The day row went 52px → 126px and the Change a Shift card
+           518px taller, on the widest screens, for no benefit. Same reserved-blank-time defect as
+           v21.40, which was fixed only for the narrow layout. */
+        @media (min-width: 1024px) {
             .week-grid-header {
                 grid-template-columns: 32px 1fr auto;
             }

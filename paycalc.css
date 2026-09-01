@@ -1017,6 +1017,13 @@
          breaking it. Capping the BOX (not just the paragraph) fixes the reading measure. */
       .setup-banner { max-width: 576px; }
 
+      /* The Settings card's field hints ran to 90ch here — measured, and over the documented
+         ~64–72ch ceiling. Capped at 64ch to match operations' `.card .hint`, the app's existing
+         in-card convention. `ch` IS right for these, unlike the stacked bands above: each hint
+         sits under its own field rather than sharing a right edge with a differently-sized
+         neighbour, which is the case that made `ch` wrong there. */
+      .field-hint, .roster-card-note { max-width: 64ch; }
+
       /* Grid on <main>: the .pc-work wrapper spans the TWO wide work columns (~660px → forms
          wrap far less — the real scroll-reduction lever) beside the col-3 .pc-side sidebar,
          both in one shared row (v18.47). Three columns are kept (not two) so the period band /
