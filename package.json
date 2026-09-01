@@ -31,6 +31,7 @@
     "firebase-tools": "^15.22.2",
     "globals": "^15.15.0",
     "http-server": "^14.1.1",
+    "pdfjs-dist": "^4.10.38",
     "typescript": "^6.0.3"
   }
 }

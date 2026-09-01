@@ -151,20 +151,68 @@ free text — `SEE NATHAN`, `See CEM`, `Assessments`. The last three are the cel
 belong in the review's UNREADABLE state, which is a useful reminder that phase 3's "AI only for the
 unusual cell" is not the same as "AI almost never".
 
-## What it does NOT establish
+## The corpus question — ANSWERED (1 Sep 2026, 12 documents)
 
-Three roster types, but **one week and one generator**. What is now established is that the grid is
-present and identical across the three sheets produced today. What is not: that it survives a
-software change at the roster office, or that older archived PDFs carry the same text layer. Before
-geometry becomes the positional **authority** rather than a witness, run `extract.mjs` over several
-HISTORICAL rosters — the failure to look for is not a moved column (the positions are detected per
-document) but a page with no drawn rules at all, which is what a re-generated or scanned sheet would
-produce.
+This section used to say the evidence was "one week and one generator", and set the test to pass
+before geometry could be a positional **authority**: run `extract.mjs` over several HISTORICAL
+rosters and look for a page with no drawn rules at all, which is what a re-generated or scanned
+sheet would produce.
+
+That has now been done. **12 documents — 3 roster types x 3 week-endings (22 Aug, 5 Sep, 12 Sep),
+DRAFT and FINAL of each.** Result:
+
+    pages rejected for not carrying the 9-column grid:  0 of 12 documents
+    member rows extracted:                              207 (footer rows excluded)
+
+Every page of every document carries the grid, at nine fixed x positions, including the DRAFT
+variants — which matter because a draft is the roster office's own working copy and is the likeliest
+place for a different export path to show up. It does not.
+
+**What this still does not establish.** Three consecutive week-endings from one software version.
+It says nothing about an archive from before a system change, and nothing about a scanned sheet —
+which would have no text layer at all and is the case the import should refuse outright rather than
+mis-read. The honest position is that the grid is now established as STABLE across the material the
+roster office produces today, not as permanent.
+
+## What the geometry says about the domain rules
+
+The point of an independent witness is to check the claims the parser is built on, and here it
+either confirms or corrects three of them. These figures come from the PDF's own text positions, so
+the model had no part in them.
+
+| Claim | Measured across the 12 documents |
+|---|---|
+| A blank Sunday is ordinary | **111 of 207 rows** have a physically empty Sunday cell — 54% |
+| A worked Sunday carries no RDW marker | **80 worked Sundays with NO marker, against 1 with** |
+| Mon-Sat states are written explicitly, so a blank weekday is exceptional | **49 blank cells in 1,242** — 3.9% |
+
+The first two are decisive, and the second is the strongest evidence yet that removing the v22.16
+"an unmarked Sunday time must be RDW" rule at v22.19 was right: 80 counter-examples.
+
+**The third one is where the number moved, and it matters.** Blank weekdays are not spread thinly —
+they are almost entirely one roster type and a handful of people:
+
+    CEA          1 blank weekday cell  in 678   (S. Fayombo, one Friday)
+    Supervisors  0                     in 240
+    Dispatch    48                     in 324   = 15%, across four people
+                 S. Horsman 19 · S Faure 18 · P. Prashanthan 6 · F. Mohamed 5
+
+The v22.19 rule sends every one of those to the review. On CEA and Supervisors that is one row in
+918. On **Dispatch it is roughly a dozen review rows per import on a 14-16 row roster** — because
+these are people who appear on the Dispatch sheet and work most of their week elsewhere, which is
+exactly the case the rule exists for: writing RD across them would overwrite what their primary
+roster's import had just written. The rule is right and the volume is higher than the single-week
+sample suggested. See KNOWN_LIMITATIONS.md.
 
 ## Running it
 
-Needs `pdfjs-dist`, which is **not** a dependency of this repo — adding one is a decision, and this
-is an experiment.
+Needs `pdfjs-dist`, now a **devDependency** (owner decision, 1 Sep 2026 — it is a development tool
+for this experiment, is not served to anyone, and nothing in the app imports it).
+
+**Pinned to v4 deliberately.** `extract.mjs` reads `OPS.constructPath`'s argument shape directly to
+find the drawn rules, and pdfjs 6 changed that encoding: on 6.3.289 every one of the 12 documents
+failed identically with `fns is not iterable`, which looks exactly like a PDF problem and is not
+one. If this is ever upgraded, `rulesOf` is the function to rewrite first.
 
 ```
 npm i pdfjs-dist@4          # in a scratch directory, not the repo
