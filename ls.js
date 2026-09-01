@@ -66,6 +66,36 @@ export function lsMove(fromKey, toKey, value) {
     return true;
 }
 
+/**
+ * Write TWO keys, or neither (v22.19, external review).
+ *
+ * `lsSetVerified(a) && lsSetVerified(b)` returns the right answer and leaves the wrong state: when
+ * the first lands and the second does not, the caller correctly reports failure while the first key
+ * HAS changed. The pay calculator's bulk fill is where that bit — a period saved with Calendar
+ * hours but without its gold roster snapshot reads as hand-entered, which is both a lie about its
+ * provenance and, because an entered period is never re-filled, a state the offered retry cannot
+ * reach.
+ *
+ * Same family as `lsMove` above and the same invariant: **never leave storage in a state no caller
+ * intended**. There the rule is "don't delete the source until the destination is verified"; here
+ * it is "put the first key back if the second will not go".
+ *
+ * The rollback can itself fail — storage that refused a write may refuse the undo. Nothing better is
+ * available from here, and attempting it is strictly better than not: `false` is returned either
+ * way, so a caller is never told a half-write succeeded.
+ *
+ * @param {string} keyA @param {string} valueA
+ * @param {string} keyB @param {string} valueB
+ * @returns {boolean} true only when BOTH keys were written and read back
+ */
+export function lsSetBothVerified(keyA, valueA, keyB, valueB) {
+    const before = lsGet(keyA);                     // null when keyA held nothing
+    if (!lsSetVerified(keyA, valueA)) return false;
+    if (lsSetVerified(keyB, valueB)) return true;
+    if (before === null) lsDel(keyA); else lsSetVerified(keyA, before);
+    return false;
+}
+
 /** Snapshot of all localStorage key names (empty array if storage is unavailable).
  *  Uses the standard length/key(i) enumeration so it never clashes with object
  *  methods, and returns a snapshot so callers can safely delete keys while iterating. */

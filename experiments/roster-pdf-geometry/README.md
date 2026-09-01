@@ -113,13 +113,53 @@ destination.
    the one it removes.
 3. **`Vacant` appears three times** as a legitimate row name, so rows are not uniquely keyed by name.
 
+## The gate is CLEARED — all three roster types, one grid (v22.19)
+
+The Supervisor (CES) and Dispatch rosters for the same week arrived after the first pass, and they
+are the thing that was needed before geometry could be more than a witness. Both carry the
+**identical** vertical rules:
+
+```
+25.3   154.8   250.3   347.0   442.3   537.5   633.5   729.5   822.5
+```
+
+`extract.mjs` reads all three correctly with no change. That is stronger than the caution below
+required: the positions did not merely have to be *detectable* per document, they turn out to be the
+same across roster types produced by the same system.
+
+**What the two new rosters add, and it settles the Sunday question outright:**
+
+| | CEA | Supervisor | Dispatch | total |
+|---|---|---|---|---|
+| Sundays holding a timed duty | 12 | 5 | 4 | **21** |
+| …of which carry an RDW marker | 0 | 0 | 0 | **0** |
+| RDW markers on Mon–Sat | 4 | 0 | 6 | **10** |
+
+So `RDW` means **a rest day being worked**. Sunday is uncontracted, its work is inherently
+overtime, and the sheet never labels it. v22.16's rule — flag a plain-time Sunday as unreadable
+because it lacks RDW — would have sent every one of those 21 to review. It was removed at v22.19.
+
+**And blanks:** over 50 member rows, 24 blank Sundays against 5 blank Mon–Sat cells — all five
+belonging to **S. Horsman**, who appears on the Supervisor roster with a full week and on the
+Dispatch roster working only its Saturday. That is a real, legitimate blank weekday, and it is still
+the right thing to send to an admin: defaulting it to RD would write rest days over the shifts the
+Supervisor import had just written for the same person.
+
+**Vocabulary the deterministic parser will meet**, gathered from all three: `RD` `AL` `SP` `NA` `SC`
+`SN` `OD` `HA` `ML` `TBC`, times with and without a duty number, `06:20-18:20 RDW`, `SUP 1/TRG`, and
+free text — `SEE NATHAN`, `See CEM`, `Assessments`. The last three are the cells that genuinely
+belong in the review's UNREADABLE state, which is a useful reminder that phase 3's "AI only for the
+unusual cell" is not the same as "AI almost never".
+
 ## What it does NOT establish
 
-One PDF, one week, one generator. Before geometry becomes the positional **authority** rather than a
-witness, it has to hold across several historical roster PDFs — the column positions need not be
-*constant* (they are detected per document), but the grid has to be *present*, and the CES and
-Dispatcher rosters have to use the same construction. Until then the safe use is the witness: a day
-the physical cell cannot support is refused, never merely weighed.
+Three roster types, but **one week and one generator**. What is now established is that the grid is
+present and identical across the three sheets produced today. What is not: that it survives a
+software change at the roster office, or that older archived PDFs carry the same text layer. Before
+geometry becomes the positional **authority** rather than a witness, run `extract.mjs` over several
+HISTORICAL rosters — the failure to look for is not a moved column (the positions are detected per
+document) but a page with no drawn rules at all, which is what a re-generated or scanned sheet would
+produce.
 
 ## Running it
 

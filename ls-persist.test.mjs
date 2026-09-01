@@ -115,3 +115,75 @@ describe('it can never break the page', () => {
         assert.equal(calls.length, 0);
     });
 });
+
+// ── WRITING TWO KEYS, OR NEITHER (v22.19, external review) ──────────────────────────────────────
+//
+// `lsSetVerified(a) && lsSetVerified(b)` returns the right ANSWER and leaves the wrong STATE. The
+// caller sees false and reports "couldn't save"; key A has changed anyway. The pay calculator's
+// bulk fill is where it bit: a period holding Calendar hours without its gold roster snapshot reads
+// as hand-entered — a lie about provenance, and (because an entered period is never re-filled) a
+// state the retry the message invites cannot reach.
+//
+// Organised by what each wrong answer COSTS. A missed rollback is silent and permanent; a
+// rollback that fires when it should not would throw away a write that succeeded.
+describe('lsSetBothVerified — two keys or neither', () => {
+    /** A storage that refuses writes to specific keys, as a full disk or a quota would. */
+    const refusing = (initial, refuse) => {
+        const s = fakeStorage(initial);
+        const set = s.setItem.bind(s);
+        s.setItem = (k, v) => { if (refuse.includes(k)) return; set(k, v); };   // silently drops it
+        return s;
+    };
+
+    // ── A HALF-WRITE LEFT BEHIND ────────────────────────────────────────────────────────────────
+
+    test('THE BUG: B fails, so A is put back to what it held', async () => {
+        const store = refusing({ a: 'old-a' }, ['b']);
+        const { mod } = await load({ store, persistImpl: () => Promise.resolve(true) });
+        assert.equal(mod.lsSetBothVerified('a', 'new-a', 'b', 'new-b'), false);
+        assert.equal(store._map().a, 'old-a', 'A must not keep a value the caller was told did not save');
+        assert.equal('b' in store._map(), false);
+    });
+
+    test('and when A held NOTHING, it is removed rather than left empty', async () => {
+        // The difference matters: an absent period key and a period key holding "{}" are different
+        // states to every reader downstream.
+        const store = refusing({}, ['b']);
+        const { mod } = await load({ store, persistImpl: () => Promise.resolve(true) });
+        assert.equal(mod.lsSetBothVerified('a', 'new-a', 'b', 'new-b'), false);
+        assert.equal('a' in store._map(), false, 'restored to absent, not to an empty string');
+    });
+
+    test('a rollback that itself fails still reports failure', async () => {
+        // Storage that refuses everything cannot undo either. The caller must never be told a
+        // half-write succeeded, which is the one guarantee still available here.
+        const store = refusing({ a: 'old-a' }, ['a', 'b']);
+        const { mod } = await load({ store, persistImpl: () => Promise.resolve(true) });
+        assert.equal(mod.lsSetBothVerified('a', 'new-a', 'b', 'new-b'), false);
+    });
+
+    // ── A GOOD WRITE THROWN AWAY ────────────────────────────────────────────────────────────────
+
+    test('both land → true, and both hold their new values', async () => {
+        const store = fakeStorage({ a: 'old-a' });
+        const { mod } = await load({ store, persistImpl: () => Promise.resolve(true) });
+        assert.equal(mod.lsSetBothVerified('a', 'new-a', 'b', 'new-b'), true);
+        assert.equal(store._map().a, 'new-a');
+        assert.equal(store._map().b, 'new-b');
+    });
+
+    test('A failing means B is never attempted', async () => {
+        // Ordering, not tidiness: writing B for a period whose data did not save would leave a
+        // snapshot describing figures that are not there.
+        const store = refusing({}, ['a']);
+        const { mod } = await load({ store, persistImpl: () => Promise.resolve(true) });
+        assert.equal(mod.lsSetBothVerified('a', 'new-a', 'b', 'new-b'), false);
+        assert.equal('b' in store._map(), false, 'B must not be written on its own');
+    });
+
+    test('storage that throws outright is absorbed, not propagated', async () => {
+        const { mod } = await load({ store: fakeStorage({}, { throwOnAccess: true }),
+            persistImpl: () => Promise.resolve(true) });
+        assert.equal(mod.lsSetBothVerified('a', '1', 'b', '2'), false, 'iOS private mode, not a crash');
+    });
+});

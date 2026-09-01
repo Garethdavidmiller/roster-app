@@ -122,12 +122,13 @@ Three phases, in this order, and the first is the one that closes today's bug:
    the sample are already mechanically readable (`RD`, `AL`, `SC`, `SP`, `06:20-14:20 CEA 1`,
    `06:20-18:20 RDW CEA 5`).
 
-**The trigger before phase 1 ships is more PDFs, not more code.** One week, one generator, one
-roster type is not enough to make geometry authoritative — the CES and Dispatcher rosters have to
-use the same construction, and the grid has to be *present* in each (the positions themselves are
-detected per document, so they need not be constant). The prototype's README records what it found
-that nobody predicted, including a print footer that parses as a member row with `Page 1 of 3` in
-the Tuesday column — the hazard geometry introduces in exchange for the one it removes.
+**That gate is now CLEARED for roster TYPE** (v22.19): the Supervisor and Dispatch sheets carry the
+identical grid and extract correctly with no change. What is still open is TIME — one week, one
+generator. Run the prototype over several historical rosters before making geometry authoritative;
+the failure to look for is a page with no drawn rules at all, which is what a re-generated or
+scanned sheet would produce. The README also records what nobody predicted, including a print
+footer that parses as a member row with `Page 1 of 3` in the Tuesday column — the hazard geometry
+introduces in exchange for the one it removes.
 
 **It also needs a dependency decision.** `pdfjs-dist` in the Cloud Functions is a server-side
 addition, not a browser one, so the no-bundler rule does not bear on it — but "a few vetted

@@ -35,7 +35,7 @@ import { getRosterSuggestion, fetchOverridesForPeriod } from './paycalc-roster-s
 import { snapKey, updateRosterHint } from './paycalc-roster-hint.js';
 import { fillYearFromCalendar, fillYearReceipt } from './paycalc-fill-year.js';
 import { fmt, fdList, fdShort } from './paycalc-format.js';
-import { lsGet, lsSetVerified } from './ls.js';
+import { lsGet, lsSetBothVerified } from './ls.js';
 
 /** @type {{ tyLabel: string, lines: string[] }|null} last fill's receipt, shown until the year changes */
 let _receipt = null;
@@ -141,9 +141,15 @@ async function _runFill(btn) {
                 // an unverified bulk write can report "Filled 5" having saved three. BOTH halves
                 // must land — a period whose hours saved but whose gold roster snapshot did not
                 // would show as hand-entered, which is rule 4 lost at the last step.
-                write: (pNum, data, snap) =>
-                    lsSetVerified(periodKey(pNum), JSON.stringify(data))
-                    && lsSetVerified(snapKey(pNum), JSON.stringify(snap)),
+                // FAILURE-ATOMIC (v22.19, external review). `a && b` reported the right answer and
+                // left the wrong state: if the period saved and the snapshot did not, the receipt
+                // correctly said "not filled" while the period HAD changed — and it now holds
+                // Calendar hours with no gold snapshot, so it reads as hand-entered, which is
+                // rule 4 lost at the last step AND makes it ineligible for the retry the message
+                // invites. So the period write is rolled back to whatever was there before.
+                write: (pNum, data, snap) => lsSetBothVerified(
+                    periodKey(pNum), JSON.stringify(data),
+                    snapKey(pNum),   JSON.stringify(snap)),
             },
         });
         // The loop leaves the suggestion module's override map on the LAST period it fetched —

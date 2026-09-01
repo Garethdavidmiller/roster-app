@@ -84,7 +84,33 @@ function harness(opts = {}) {
         where: () => ({}), orderBy: () => ({}), limit: () => ({}),
         getDocs: async () => ({ empty: true, docs: [] }),
         onSnapshot: () => () => {},
-        runTransaction: async () => {},
+        // A REAL transaction, because the CAS retry writes through it (v22.19). It was
+        // `async () => {}` — a no-op that never called its callback — so the moment the retry moved
+        // inside a transaction the write silently stopped happening and two tests failed for a
+        // reason neither was about. `onTxRead` is the seam a competing writer lands in, which is the
+        // interleaving the CAS exists for and which no ordering of real calls can force.
+        runTransaction: async (_db, fn) => {
+            // STAGED, then committed — a transaction's writes do not land until it commits, and
+            // modelling that is what lets the same `setDocFails` injection fail a transactional
+            // attempt the way it fails a plain one. Writing through `tx.set` directly made an
+            // always-failing storage succeed on the retry, which broke a test about the ambiguous
+            // branch for a reason that branch has nothing to do with.
+            const staged = [];
+            const out = await fn({
+                get: async (r) => {
+                    opts.onTxRead?.(store);          // a competing writer lands HERE
+                    const v = store.get(r._key);
+                    return { exists: () => v !== undefined, data: () => v };
+                },
+                set: (r, data) => { staged.push([r._key, data]); },
+            });
+            setDocCalls++;
+            const err = opts.setDocFails?.(setDocCalls);
+            if (err) { log.push(`tx-fail:${err}`); throw Object.assign(new Error('boom'), { code: err }); }
+            for (const [k, d] of staged) store.set(k, d);
+            log.push('tx-commit');
+            return out;
+        },
         serverTimestamp: () => 'TS',
     };
 
@@ -217,6 +243,71 @@ describe('an ambiguous commit is resolved by READING, never by re-issuing blind'
         assert.equal(h.setDocCalls(), 2, 'the write is re-issued');
         assert.ok(h.store.get('huddles/2026-09-01'), 'and it lands');
         assert.deepEqual(h.deleted, [], 'nothing was rolled back');
+    });
+});
+
+// ── THE RETRY IS A COMPARE-AND-SET (v22.19, external review) ────────────────────────────────────
+//
+// The reconciliation read closed the first TOCTOU: a `deadline-exceeded` can be raised AFTER the
+// server committed, so the retry reads before re-issuing. But the read and the write are still two
+// calls, and a competing upload can commit BETWEEN them — the same race, one step later. A blind
+// second `setDoc` there overwrites their file reference with a Storage path their upload has
+// already deleted, so the live document 404s behind the staff Huddle button and nothing errors.
+//
+// `onTxRead` runs the competitor at the exact instant between the transaction's read and its
+// commit, which is the interleaving no ordering of real calls can force.
+describe('the retry cannot overwrite somebody who committed while it was deciding', () => {
+
+    test('THE BUG: a competitor landing inside the retry window is refused, not overwritten', async () => {
+        const theirs = { storagePath: 'huddles/2026-09-01-THEIRS.pdf', fileType: 'pdf', uploadedBy: 'S. Silva' };
+        const h = harness({
+            setDocFails: n => (n === 1 ? 'unavailable' : null),
+            liveAfterFailure: null,                       // the reconciliation read sees nothing live
+            onTxRead: (store) => store.set('huddles/2026-09-01', theirs),   // …and now they commit
+        });
+        await assert.rejects(() => h.client.uploadHuddle('2026-09-01', fakeFile(PDF_BYTES), 'G. Miller'),
+            /** @param {any} e */ (e) => e.code === 'upload/superseded');
+        assert.deepEqual(h.store.get('huddles/2026-09-01'), theirs,
+            'their document is untouched — ours must not overwrite a reference we never saw');
+    });
+
+    test('and our own object is rolled back, because the live document does not name it', async () => {
+        const theirs = { storagePath: 'huddles/2026-09-01-THEIRS.pdf', fileType: 'pdf' };
+        const h = harness({
+            setDocFails: n => (n === 1 ? 'unavailable' : null),
+            liveAfterFailure: null,
+            onTxRead: (store) => store.set('huddles/2026-09-01', theirs),
+        });
+        await assert.rejects(() => h.client.uploadHuddle('2026-09-01', fakeFile(PDF_BYTES), 'G. Miller'));
+        assert.equal(h.deleted.length, 1, 'the orphan goes — superseded is a DEFINITE non-commit');
+        assert.ok(!h.deleted.includes(theirs.storagePath), 'and it is ours, never theirs');
+    });
+
+    test('our OWN write landing in the window is not re-written', async () => {
+        // The first attempt's commit arrives late, after the reconciliation read said nothing was
+        // live. Re-issuing would be harmless here and returning early is still right: it is one
+        // fewer write, and the branch has to exist for the assertion above to mean anything.
+        // `let h` so the hook can read the path THIS upload generated — it carries a random suffix,
+        // so the fixture cannot name it in advance.
+        /** @type {any} */ let h;
+        h = harness({
+            setDocFails: (/** @type {number} */ n) => (n === 1 ? 'unavailable' : null),
+            liveAfterFailure: null,
+            onTxRead: (/** @type {any} */ store) =>
+                store.set('huddles/2026-09-01', { storagePath: h.uploaded[0], fileType: 'pdf' }),
+        });
+        await h.client.uploadHuddle('2026-09-01', fakeFile(PDF_BYTES), 'G. Miller');
+        const ourPath = h.uploaded[0];
+        assert.equal(h.store.get('huddles/2026-09-01').storagePath, ourPath);
+        assert.deepEqual(h.deleted, [], 'nothing rolled back — it committed');
+    });
+
+    test('an uncontested retry still writes, through the transaction', async () => {
+        // The gate is a gate, not a disablement — the counterpart to all three above.
+        const h = harness({ setDocFails: n => (n === 1 ? 'unavailable' : null), liveAfterFailure: null });
+        await h.client.uploadHuddle('2026-09-01', fakeFile(PDF_BYTES), 'G. Miller');
+        assert.ok(h.store.get('huddles/2026-09-01'), 'the document lands');
+        assert.deepEqual(h.deleted, [], 'and nothing is rolled back');
     });
 });
 
