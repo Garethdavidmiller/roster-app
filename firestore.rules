@@ -39,7 +39,9 @@ rules_version = '2';
 // in that block and the reasons are in it: a participant-based member-read rule (no production
 // client would exercise it) and a retention filter (rules are not filters, and it could only ever
 // constrain the reviewer, who is entitled to the data).
-// Last swept v21.04 (Aug 2026): NEW `linkTargetSets` collection (saved generator target sets) —
+// Last swept v22.15 (Sep 2026): linkDesigns create/update accepts the optional `revision` int
+// (>= 1) — the co-editing concurrency identity. BACKEND-FIRST by design: no client writes it in
+// this push. Prior sweep v21.04 (Aug 2026): NEW `linkTargetSets` collection (saved generator target sets) —
 // designer create with createdBy pinned to the writer's own name claim; update/delete only by the
 // creator or admin, createdBy immutable on update. Read matches linkDesigns.
 // Prior sweep v19.41: linkDesigns create/update accepts the optional `deletedAt`/
@@ -384,8 +386,23 @@ service cloud.firestore {
       // {monSat,sun}:{start,end} shape is validated client-side by links-window.js's
       // normaliseWindow, which is also the read path, so a malformed value can never reach the UI
       // as anything but the default.
+      // `revision` is the v22.15 CONCURRENCY IDENTITY, and it ships here BEFORE any client writes
+      // it — the three deploy workflows fire in parallel from one push with no ordering guarantee,
+      // so a schema expansion must always land rules-first or every write in the window
+      // permission-denies against a `hasOnly` that has not caught up (the v21.55 `replacedType`
+      // lesson). Loosening in this direction is always safe: nothing writes the field yet.
+      //
+      // WHY A COUNTER AND NOT THE TIMESTAMP. `updatedAt` is a serverTimestamp, so a client cannot
+      // know its own write's value without reading it back AFTERWARDS — and a colleague's save can
+      // land in that gap, leaving us holding a baseline that points at a revision whose CONTENT we
+      // never took in. Our next save then matches, skips the conflict prompt, and silently
+      // overwrites them. A counter is computed INSIDE the transaction from the value that same
+      // transaction read, so there is no window to lose.
+      //
+      // OPTIONAL, like `window` and the soft-delete pair: every existing design predates it. It is
+      // an int and must be >= 1, so a zero or a negative cannot masquerade as "no revision".
       allow create, update: if isLinksWriter() &&
-        request.resource.data.keys().hasOnly(['name', 'patterns', 'window', 'updatedAt', 'updatedBy', 'deletedAt', 'deletedBy']) &&
+        request.resource.data.keys().hasOnly(['name', 'patterns', 'window', 'revision', 'updatedAt', 'updatedBy', 'deletedAt', 'deletedBy']) &&
         request.resource.data.name is string &&
         request.resource.data.name.size() >= 1 &&
         request.resource.data.name.size() <= 100 &&
@@ -395,6 +412,8 @@ service cloud.firestore {
         request.resource.data.updatedBy.size() <= 100 &&
         (!('deletedAt' in request.resource.data) || request.resource.data.deletedAt is timestamp) &&
         (!('window' in request.resource.data) || request.resource.data.window is map) &&
+        (!('revision' in request.resource.data) ||
+          (request.resource.data.revision is int && request.resource.data.revision >= 1)) &&
         (!('deletedBy' in request.resource.data) ||
           (request.resource.data.deletedBy is string && request.resource.data.deletedBy.size() <= 100));
     }
