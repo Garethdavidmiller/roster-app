@@ -382,6 +382,30 @@ test.describe('member surface', () => {
     });
 });
 
+    test('the all-week shortcut FILLS seven days and submits nothing (v22.05)', async ({ page }) => {
+        // A pre-fill, never a submission: the confirm names the contract, the seven rows fill, and
+        // the ONLY thing that may reach the server is the member's own later Submit press.
+        let submitCalls = 0;
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.route('**/submitOvertimeAvailability', r => {
+            submitCalls++;
+            r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+        });
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-submit')).toContainText('7 days still to answer');
+        await page.locator('.ot-bulk-unavailable').click();
+        // The app-styled confirm (overlay.js confirmDialog) — cancel first: nothing may change.
+        await page.getByRole('button', { name: 'Cancel' }).click();
+        await expect(page.locator('.ot-submit')).toContainText('7 days still to answer');
+        await page.locator('.ot-bulk-unavailable').click();
+        await page.getByRole('button', { name: 'Fill all seven days' }).click();
+        await expect(page.locator('.ot-day--answered')).toHaveCount(7);
+        await expect(page.locator('.ot-submit')).toContainText('Submit availability');
+        await expect(page.locator('.ot-feedback')).toContainText('press Submit');
+        expect(submitCalls, 'the shortcut must never submit by itself').toBe(0);
+    });
+
 test.describe('manager surface', () => {
     test('the planning horizon lists weeks that DO NOT EXIST', async ({ page }) => {
         // The single most important behaviour on this page. A list built from Firestore documents
@@ -392,6 +416,26 @@ test.describe('manager surface', () => {
         await expect(page.locator('.ot-week-row')).toHaveCount(6);
         await expect(page.locator('#otHorizonContent')).toContainText('no form was opened, so nobody was asked');
         await expect(page.locator('#otHorizonChip')).toContainText('5 without a form');
+    });
+
+    test('reminder audit + copy summary: the workspace states the send and copies three named sections (v22.05)', async ({ page }) => {
+        await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+        await seedSession(page, 'H. Croft');
+        const weeks = sixWeeks();
+        const created = weeks.find(w => w.exists);
+        created.reminderSentAt = NOW - 3 * 3600e3;
+        await stubOvertime(page, { weeks });
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otWeekCard')).toBeVisible();
+        await expect(page.locator('.ot-reminder-line')).toContainText('Reminder to non-responders sent');
+        await page.locator('.ot-copy-btn').click();
+        await expect(page.locator('.ot-copy-status')).toContainText('Copied');
+        const text = await page.evaluate(() => navigator.clipboard.readText());
+        expect(text).toContain('Overtime availability — Week ending');
+        // The three sections are named even with nobody in them — absence must never read as all-clear.
+        expect(text).toContain('Available: ');
+        expect(text).toContain('Not available: ');
+        expect(text).toContain('No response: ');
     });
 
     test('a missed week offers no Create; a recoverable one does', async ({ page }) => {

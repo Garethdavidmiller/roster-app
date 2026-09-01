@@ -43,10 +43,11 @@
  * something two code paths have to keep remembering.
  */
 
+import { setStatus } from './status-text.js';
 import {
     shortDate, deadlineLabel, weekSpan, weekLabel, countsCopy, answerCopy, answerTone,
     isUnavailable, isAvailableAnswer, asAtLine, rosterBadge, sameAnswer, answerAnchorStale,
-    declaredAgo, isWithdrawn, withdrawnLine, canRestoreNow,
+    declaredAgo, isWithdrawn, withdrawnLine, canRestoreNow, weekAvailabilitySummary, reminderLine,
 } from './overtime-format.js';
 
 /**
@@ -106,7 +107,37 @@ export function renderWeekDetail(host, win, data,
         wireGrades(host, next => { grade = next; onGrade?.(next); paint(); });
         wireAsk(host, onAsk);
         wireRefresh(host, onRefresh);
+        // The thunk reads the SAME lens state the panels were built from — grade-filtered,
+        // withdrawn-excluded, day-narrowed — so the copied text cannot disagree with the screen.
+        wireCopy(host, () => weekAvailabilitySummary({
+            weekEnding: win.weekEnding, dates,
+            participants: ofGrade((data.participants || []).filter(p => !isWithdrawn(p)), grade),
+            submissions: data.submissions, day,
+        }));
     }
+}
+
+/**
+ * Wire the Copy-summary control — the clerk's bridge to wherever the rostering conversation
+ * actually happens (email, the rostering system, a phone call with a pen). Clipboard only; the
+ * summary text itself is `weekAvailabilitySummary` (overtime-format.js), where its three-sections
+ * rule is argued and tested.
+ * @param {HTMLElement} host @param {() => string} summaryText
+ */
+function wireCopy(host, summaryText) {
+    if (typeof host?.querySelector !== 'function') return;
+    const btn = /** @type {HTMLButtonElement|null} */ (host.querySelector('.ot-copy-btn'));
+    const status = /** @type {HTMLElement|null} */ (host.querySelector('.ot-copy-status'));
+    btn?.addEventListener('click', async () => {
+        try {
+            await navigator.clipboard.writeText(summaryText());
+            if (status) setStatus(status, '✓ Copied');
+        } catch {
+            // Clipboard access can be refused (permissions, non-secure context). The print view
+            // renders the same data selectable, so point there rather than dead-ending.
+            if (status) setStatus(status, '⚠ Couldn\u2019t copy — use Print and copy from there');
+        }
+    });
 }
 
 /**
@@ -233,7 +264,17 @@ function build(win, data, { dates, now, grade, day = 'ALL', canRefresh = false }
                  week and coming back. The line reuses the print head's asAtLine so screen and
                  paper cannot disagree about what "as at" means. -->
             <div class="ot-detail-asat">${esc(asAtLine(now))}${canRefresh
-                ? ' <button type="button" class="ot-refresh-btn">Refresh</button>' : ''}</div>
+                ? ' <button type="button" class="ot-refresh-btn">Refresh</button>' : ''}
+                <button type="button" class="ot-copy-btn">Copy summary</button>
+                <span class="ot-copy-status" role="status"></span></div>
+            ${(() => {
+                // The reminder audit (v22.05): whether the deadline-morning reminder actually went
+                // out, without reading Cloud Function logs. reminderLine owns the four states,
+                // including the deliberate silence on CLOSED weeks (pre-feature windows must not
+                // wear a permanent false alarm).
+                const r = reminderLine(win.phase, win.initialDeadlineAt, win.reminderSentAt);
+                return r ? `<div class="ot-reminder-line ot-reminder-line--${r.tone}">${esc(r.text)}</div>` : '';
+            })()}
             ${win.audience === 'restricted'
                 ? `<div class="ot-detail-audience">Beta audience · ${participants.length} expected `
                   + `${participants.length === 1 ? 'participant' : 'participants'}</div>`

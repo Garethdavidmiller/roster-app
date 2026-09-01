@@ -27,6 +27,7 @@
  */
 
 import * as OTD from './overtime-data.js';
+import { confirmDialog } from './overlay.js';
 import { loadRosterContext, rosterBadge } from './overtime-roster.js';
 import {
     weekLabel, weekSpan, shortDate, answerCopy, answerTone, deadlineLines,
@@ -140,6 +141,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     paintDays();
     updateSubmitState();
     submitBtn?.addEventListener('click', onSubmit);
+    host.querySelector('.ot-bulk-unavailable')?.addEventListener('click', onAllUnavailable);
 
     /**
      * The handle the coordinator holds on this form.
@@ -172,7 +174,17 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
                      row below means something exact rather than inviting a guess. Both sentences
                      are still about the same number, which is why they belong in one line. -->
                 <p class="ot-cap-note">A working day is never planned past 12 hours in total,
-                whatever you answer below.</p>`}
+                whatever you answer below.</p>
+                <!-- The all-week shortcut (v22.05). Answering "Not available" seven separate times,
+                     every week, teaches exactly the people the data most needs to hear from to stop
+                     answering at all. This PRE-FILLS — it never submits: the member still sees seven
+                     filled days and presses Submit themselves, so the all-seven-answered principle
+                     survives with six taps removed. There is deliberately no "copy last week":
+                     "after my duty" is relative to THAT week's duty, and copying it forward
+                     silently changes its meaning under a different roster. -->
+                <div class="ot-bulk-row">
+                    <button type="button" class="ot-bulk-unavailable">Can't do overtime this week? Mark all seven days…</button>
+                </div>`}
             <div class="ot-days"></div>
             ${closed ? `
                 <div class="ot-closed-note">
@@ -585,6 +597,24 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         // NOT disabled on incompleteness — a disabled button explains nothing, and this one has a
         // specific thing to say. It refuses on press and points at the day.
         submitBtn.disabled = false;
+    }
+
+    /**
+     * Fill every day as "Not available" — a PRE-FILL, never a submission. The confirm names both
+     * halves of that contract; existing staged or saved answers are overwritten in the WORKING COPY
+     * only, so Submit (and the dirty-guard on leaving) still stand between this and the server.
+     */
+    async function onAllUnavailable() {
+        const ok = await confirmDialog({
+            title: 'Not available all week?',
+            message: 'This fills all seven days as \u201cNot available\u201d. Nothing is sent until you press Submit.',
+            confirmLabel: 'Fill all seven days',
+        });
+        if (!ok) return;
+        for (const d of dates) answers[d] = buildAnswer('unavailable', ctx.byDate[d], answers[d]);
+        paintDays();
+        updateSubmitState();
+        say('All seven days set to Not available — press Submit to send your answer.', 'ok');
     }
 
     // ── Submit ──────────────────────────────────────────────────────────────────────────────────
