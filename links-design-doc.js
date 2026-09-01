@@ -55,7 +55,7 @@ export const LEGACY_DOC_ID = 'combined-28';
 
 /** A design row read from Firestore, normalised for use in memory.
  * @typedef {{id: string, name: string, patterns: Record<string, any>, window: any,
- *            updatedAt: any, updatedBy: string}} DesignEntry */
+ *            updatedAt: any, updatedBy: string, revision: number|null}} DesignEntry */
 
 /** A design in the Recently-deleted bin.
  * @typedef {{id: string, name: string, patterns: Record<string, any>, window: any,
@@ -90,6 +90,10 @@ export function designFromDoc(id, data) {
         window:    normaliseWindow(data?.window),
         updatedAt: data?.updatedAt ?? null,
         updatedBy: data?.updatedBy || '',
+        // The CONCURRENCY IDENTITY (v22.18), carried through so the coordinator can arm its
+        // baseline from a load without a second read. Absent on every design nobody has saved since
+        // — `conflictOf` falls back to the timestamp for those, and `null` is what says so.
+        revision:  typeof data?.revision === 'number' ? data.revision : null,
     };
 }
 
@@ -145,7 +149,7 @@ export function docPayload(design, { updatedBy, updatedAt }) {
  * Carries no `updatedAt`/`updatedBy`: those describe the SAVED document, and holding them on the
  * working copy is how a sheet ends up printing somebody else's "Last saved by" over your unsaved
  * edits. The coordinator reads them from the `designs[]` entry instead.
- * @param {{id: string, name?: string, patterns?: Record<string, any>, window?: any}} entry
+ * @param {{id: string, name?: string, patterns?: Record<string, any>, window?: any, revision?: number|null}} entry
  */
 export function workingCopy(entry) {
     return {
@@ -159,7 +163,7 @@ export function workingCopy(entry) {
 /**
  * Move a live entry into the bin. Patterns are carried, not dropped: a restore is then a
  * field-clearing merge and can never re-upload a stale copy of the design.
- * @param {{id: string, name?: string, patterns?: Record<string, any>, window?: any}} entry
+ * @param {{id: string, name?: string, patterns?: Record<string, any>, window?: any, revision?: number|null}} entry
  * @param {string} deletedBy
  * @returns {BinEntry}
  */
@@ -177,11 +181,11 @@ export function binEntryFrom(entry, deletedBy) {
 /**
  * Move a binned entry back to the live list. THIS is the v19.55 path — the window has to come with
  * it, or the next save writes the app default over the boundary the design was built to.
- * @param {BinEntry|{id: string, name?: string, patterns?: Record<string, any>, window?: any}} entry
- * @param {{updatedAt: any, updatedBy: string}} meta
+ * @param {BinEntry|{id: string, name?: string, patterns?: Record<string, any>, window?: any, revision?: number|null}} entry
+ * @param {{updatedAt: any, updatedBy: string, revision?: number|null}} meta
  * @returns {DesignEntry}
  */
-export function restoredEntryFrom(entry, { updatedAt, updatedBy }) {
+export function restoredEntryFrom(entry, { updatedAt, updatedBy, revision = null }) {
     return {
         id:        entry.id,
         name:      entry.name ?? '',
@@ -189,6 +193,11 @@ export function restoredEntryFrom(entry, { updatedAt, updatedBy }) {
         window:    normaliseWindow(entry.window),
         updatedAt: updatedAt ?? null,
         updatedBy,
+        // A restore is a WRITE, so the caller passes the revision it committed. Defaulting to null
+        // rather than carrying the bin entry's old one is deliberate: the design has just been
+        // written, and claiming the pre-deletion revision would be a baseline for a version that no
+        // longer exists (v22.18).
+        revision,
     };
 }
 

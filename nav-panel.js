@@ -67,7 +67,7 @@ const NAV_PAGES = [
     { id: 'calendar',   label: '📅 Calendar',   url: './',      colorClass: 'nav-panel-pill--calendar'   },
     { id: 'admin',      label: '📝 Admin',       url: './admin.html',      colorClass: 'nav-panel-pill--admin'      },
     { id: 'paycalc',    label: '💷 Pay',         url: './paycalc.html',    colorClass: 'nav-panel-pill--pay'        },
-    { id: 'operations', label: '🔧 Ops',          url: './operations.html', colorClass: 'nav-panel-pill--operations', adminOnly: true },
+    { id: 'operations', label: '🔧 Operations',   url: './operations.html', colorClass: 'nav-panel-pill--operations', adminOnly: true },
     { id: 'links',      label: '🔗 Links',         url: './links.html',      colorClass: 'nav-panel-pill--links',      linksDesignerOnly: true },
     // Overtime is REVIEWER-ONLY during the restricted live beta, so the pill is filtered the same
     // way Ops and Links are. Hiding it is not the security boundary — the page gates itself and the
@@ -1128,11 +1128,13 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, c
             <div class="nav-panel-body">
                 <div class="nav-panel-pills">${pills}</div>
                 <div class="nav-panel-section">
-                    <!-- "Today" says what the group IS. It replaced "Information" at v20.06, which
-                         classified nothing — every drawer item is information, and the model's
-                         per-group "Workplace" heading was suppressed as a duplicate of it, so the
-                         section carried two headings' worth of markup and one heading's meaning. -->
-                    <p class="nav-panel-section-heading">Today</p>
+                    <!-- "Latest", not "Today" (v22.23, external review). The heading replaced
+                         "Information" at v20.06, which classified nothing — every drawer item is
+                         information. "Today" classified correctly under the zone's own idiom (the
+                         documents you open on a shift), and a reader does not have the idiom: they
+                         see TODAY over a WEEKLY circular and a MONTHLY newsletter, and one of the
+                         three is today's. "Latest" is true of all three and needs no idiom. -->
+                    <p class="nav-panel-section-heading">Latest</p>
                     ${infoGroups}
                 </div>
                 <div class="nav-panel-section">

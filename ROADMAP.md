@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: September 2026 — v22.10 · Updated every 0.10 version*
+*Last updated: September 2026 — v22.20 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -87,6 +87,52 @@ The tool is built. What remains is a **decision and meeting schedule**, not code
 operating-window boundary, the business staffing requirement, a controlled source for the company
 hard limits, and a management review date. The readiness dashboard at the top of that plan is
 authoritative; it now carries latest-safe dates worked backwards from the timetable change.
+
+### Roster import — let the PDF's own grid decide the day
+**Status:** Proven, sequenced, not started · **Owner:** Gareth · **Proof:** `experiments/roster-pdf-geometry/`
+
+The import's day-drift defence has a structural weakness the shipped fixes reduce but cannot close:
+the row read, `sundayScan` and `columnScan` all come from ONE model call looking at ONE PDF, so when
+the model collapses a blank Sunday cell, every cross-check agrees with the wrong answer. The
+circuit breaker added alongside compares against the member's own base roster instead — the one
+witness the PDF cannot influence — but that witness is deliberately WEAK, because a published roster
+legitimately carries leave, absence, overtime and swaps on top of the rotation.
+
+**A strong witness turns out to be in the file already.** Measured on a real roster: the table's
+vertical rules are DRAWN, at nine fixed x positions repeated on every content page, and assigning
+each text run by coordinate placed all 28 member rows × 7 days correctly — 13 physically empty
+Sunday cells and 12 holding a timed duty. On the row that drifts, not one text object falls in the Sunday
+column. The app is currently spending model intelligence rediscovering a grid the file encodes.
+
+Three phases, in this order, and the first is the one that closes today's bug:
+
+1. **A geometry WITNESS beside the AI result.** For each member, whether each physical cell holds
+   any text. An AI day the physical cell cannot support is **refused, not weighed** — no
+   probabilistic reasoning, no second opinion, no base-roster comparison. Deterministic, and it
+   leaves the parser exactly as it is. **Measured on the sample: zero false refusals, and it
+   refuses 13 of 28 simulated one-day shifts** — every member with a blank cell, and none of the 15
+   whose week is fully worked, because a full row offers nothing for a shifted claim to contradict.
+   That is enough to close the REPORTED bug (which is defined by a claim landing in an empty cell)
+   and it is not a general day-drift detector; `assessRosterAlignment` stays alongside it.
+2. **Geometry assigns the days**, and the model is handed already-separated cells. Monday can no
+   longer become Sunday because nothing is left for it to decide — and this is where the fully-worked
+   rows phase 1 cannot speak for are covered, by construction rather than by a check. **That is the
+   argument for treating phase 1 as a step and not a destination.**
+3. **Deterministic parsing first, model as fallback** for the genuinely unusual cell. Most cells in
+   the sample are already mechanically readable (`RD`, `AL`, `SC`, `SP`, `06:20-14:20 CEA 1`,
+   `06:20-18:20 RDW CEA 5`).
+
+**That gate is now CLEARED for roster TYPE** (v22.19): the Supervisor and Dispatch sheets carry the
+identical grid and extract correctly with no change. What is still open is TIME — one week, one
+generator. Run the prototype over several historical rosters before making geometry authoritative;
+the failure to look for is a page with no drawn rules at all, which is what a re-generated or
+scanned sheet would produce. The README also records what nobody predicted, including a print
+footer that parses as a member row with `Page 1 of 3` in the Tuesday column — the hazard geometry
+introduces in exchange for the one it removes.
+
+**It also needs a dependency decision.** `pdfjs-dist` in the Cloud Functions is a server-side
+addition, not a browser one, so the no-bundler rule does not bear on it — but "a few vetted
+libraries" is a discuss-first rule and this would be the fourth.
 
 ### Track E — the authentication decision
 **Status:** Blocked on an owner decision · **Owner:** Gareth · **Design:** `AUTH_PLAN.md` · **Status of record:** `SECURITY_RELEASE_PLAN.md`

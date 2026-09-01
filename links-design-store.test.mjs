@@ -70,7 +70,9 @@ function makeDb({ initial = null, onRead = null, failTx = null } = {}) {
         withClaimRetry: (/** @type {Function} */ fn) => fn(),
         isOnline: () => true,
     };
-    return { api, writes, current: () => store };
+    // `setStore` lets a test move the server at a moment no ordering of real calls can
+    // reach — see the read-back window block at the foot of this file.
+    return { api, writes, current: () => store, setStore: (next) => { store = next; } };
 }
 
 describe('a co-editor\'s save is never lost to a RENAME', () => {
@@ -337,16 +339,27 @@ describe('creating and restoring ARM the baseline', () => {
         // does — a fixture without one made this pass for the wrong reason on the first run.
         const res = await createDesignStore(api).create({ name: 'New', updatedAt: api.serverTimestamp() });
         assert.equal(res.baseline.baselineUnknown, false);
-        assert.equal(res.baseline.loadedUpdatedAt, 9000);
+        // The baseline is the REVISION the create committed (v22.18) — known without a read-back,
+        // which is the whole point: `updatedAt` is a serverTimestamp and cannot be known by its own
+        // writer, so a colleague's save can land between the write and the read.
+        assert.equal(res.baseline.loadedRevision, 1, 'a new design establishes revision 1');
     });
 
     test('a restored design arms it too — it is an OLD document others may hold', async () => {
-        const { api, writes } = makeDb({ initial: { name: 'A', deletedAt: ts(500), deletedBy: ME } });
+        const { api, writes } = makeDb({ initial: { name: 'A', deletedAt: ts(500), deletedBy: ME, revision: 6 } });
         const res = await createDesignStore(api).restore(ID, ME);
         assert.ok(res.updatedAt, 'the server stamp was read back');
         const w = writes[0];
-        assert.equal(w.kind, 'merge', 'a MERGE — a replace would push our load-time copy over theirs');
+        assert.equal(w.kind, 'tx-merge',
+            'a MERGE — a replace would push our load-time copy over theirs — and inside a '
+            + 'TRANSACTION since v22.18, because the revision it bumps is read in the same step');
         assert.equal(w.payload.deletedAt, '__DELETE__', 'the fields are cleared, not set to null');
+        // A restore is a write every co-editor sees, so the counter has to move. Leaving it alone
+        // brought the design back still wearing revision 6, while the restorer's own entry carried
+        // none — so their very next save would be told somebody else had saved it. Not destructive,
+        // and a false conflict is what teaches people to click through the real one.
+        assert.equal(res.revision, 7, 'the restore committed a revision, and says which');
+        assert.equal(w.payload.revision, 7);
     });
 
     test('soft delete is a merge as well', async () => {
@@ -375,5 +388,134 @@ describe('what counts as offline', () => {
     });
     test('and so is the browser saying so, whatever the error', () => {
         assert.equal(isOfflineFailure({ code: 'aborted' }, () => true), true);
+    });
+});
+
+// ── THE READ-BACK WINDOW (v22.18) ───────────────────────────────────────────────────────────────
+//
+// Every rule above is asked with a baseline, and until this release the baseline after a save came
+// from a SEPARATE read of `updatedAt` — because a serverTimestamp cannot be known by its own
+// writer. A colleague's save landing between our commit and that read handed us THEIR timestamp as
+// our own baseline, so our next save matched, skipped the confirm, and destroyed their work.
+//
+// The window is not reachable by ordering real calls: it is between two awaits inside one function.
+// `onWrite` opens it here for the same reason `onRead` opens the transaction's.
+//
+// Organised by what a wrong answer destroys, and the two directions are not symmetrical. MISSING A
+// CONFLICT is silent, permanent, and somebody else's work. INVENTING one costs a dialog.
+describe('the baseline after a save names what the save COMMITTED', () => {
+    /** makeDb, plus a hook that fires after the transaction commits and before the stamp read-back. */
+    function makeRaceDb({ initial = null, afterCommit = null } = {}) {
+        const base = makeDb({ initial });
+        let committed = false;
+        const inner = base.api.getDoc;
+        base.api.getDoc = async (ref) => {
+            if (committed && afterCommit) { afterCommit(base.setStore); committed = false; }
+            return inner(ref);
+        };
+        const innerTx = base.api.runTransaction;
+        base.api.runTransaction = async (db, fn) => { const r = await innerTx(db, fn); committed = true; return r; };
+        return base;
+    }
+
+    // ── MISSING A CONFLICT ──────────────────────────────────────────────────────────────────────
+
+    test('THE BUG: a colleague saving between our commit and our read-back', async () => {
+        const { api } = makeRaceDb({
+            initial: { name: 'A', updatedAt: ts(1000), updatedBy: ME, revision: 4 },
+            afterCommit: (setStore) => setStore(
+                { name: 'A', updatedAt: ts(3000), updatedBy: THEM, revision: 6, patterns: { 1: 'theirs' } }),
+        });
+        const store = createDesignStore(api);
+        const res = await store.save({ id: ID, buildPayload: () => ({ name: 'mine' }),
+            baseline: 1000, loadedRevision: 4, baselineUnknown: false, currentUser: ME });
+
+        assert.equal(res.status, 'saved');
+        // We committed 5. Their save made it 6, and the stamp we read back is THEIRS — which is
+        // exactly why the baseline may not be built from it.
+        assert.equal(res.baseline.loadedRevision, 5, 'the baseline is what WE wrote, not what we read');
+        assert.equal(res.baseline.baselineUnknown, false);
+
+        // And the consequence, which is the only thing that matters: the next save prompts.
+        const next = await store.save({ id: ID, buildPayload: () => ({ name: 'mine again' }),
+            baseline: res.baseline.loadedUpdatedAt, loadedRevision: res.baseline.loadedRevision,
+            baselineUnknown: false, currentUser: ME });
+        assert.equal(next.status, 'conflict', 'their revision 6 is not the 5 we committed');
+        assert.equal(next.conflict.by, THEM);
+    });
+
+    test('a forced overwrite consents to a REVISION, not to whatever arrives', async () => {
+        // The dialog named revision 6. Revision 7 landed while it sat open. Replacing 7 was never
+        // agreed to, so it comes back as a fresh conflict rather than being destroyed.
+        //
+        // The TIMESTAMPS ARE UNREADABLE HERE ON PURPOSE — an unresolved `serverTimestamp()`, which
+        // is what a recent write reads back as. The old check compares null against null, calls
+        // that "nothing moved", and overwrites. Only the revision can see it. The first version of
+        // this case gave the two a different `updatedAt` and passed with the revision check
+        // deleted, which is a test asserting the fallback it was written to make redundant.
+        const { api, current } = makeDb({
+            initial: { name: 'A', updatedAt: null, updatedBy: THEM, revision: 7 },
+        });
+        const res = await createDesignStore(api).save({
+            id: ID, buildPayload: () => ({ name: 'mine' }), baseline: 1000, loadedRevision: 4,
+            baselineUnknown: false, currentUser: ME, forcing: true,
+            forceAgainstRev: 6, forceAgainstRevision: null,
+        });
+        assert.equal(res.status, 'conflict');
+        assert.equal(res.conflict.rev, 7, 'and the fresh conflict names the version it found');
+        assert.equal(current().name, 'A', 'their design is untouched');
+    });
+
+    // ── INVENTING ONE ───────────────────────────────────────────────────────────────────────────
+
+    test('an ordinary second save does not prompt', async () => {
+        const { api } = makeDb({ initial: { name: 'A', updatedAt: ts(1000), updatedBy: ME, revision: 4 } });
+        const store = createDesignStore(api);
+        const first = await store.save({ id: ID, buildPayload: () => ({ name: 'mine' }),
+            baseline: 1000, loadedRevision: 4, baselineUnknown: false, currentUser: ME });
+        assert.equal(first.baseline.loadedRevision, 5);
+        const second = await store.save({ id: ID, buildPayload: () => ({ name: 'again' }),
+            baseline: first.baseline.loadedUpdatedAt, loadedRevision: 5,
+            baselineUnknown: false, currentUser: ME });
+        assert.equal(second.status, 'saved', 'our own committed revision matches');
+        assert.equal(second.baseline.loadedRevision, 6);
+    });
+
+    test('a design nobody has saved since v22.18 still works on the timestamp', async () => {
+        // No revision anywhere. Without this the release would prompt on every legacy design.
+        const { api, current } = makeDb({ initial: { name: 'A', updatedAt: ts(1000), updatedBy: ME } });
+        const res = await createDesignStore(api).save({ id: ID, buildPayload: () => ({ name: 'mine' }),
+            baseline: 1000, loadedRevision: null, baselineUnknown: false, currentUser: ME });
+        assert.equal(res.status, 'saved');
+        assert.equal(res.baseline.loadedRevision, 1, 'and it establishes revision 1 on the way through');
+        assert.equal(current().revision, 1);
+    });
+
+    test('a forced overwrite of a legacy design falls back to the approved TIMESTAMP', async () => {
+        // An in-flight dialog opened before this release names no revision. It must still resolve.
+        const { api, current } = makeDb({ initial: { name: 'A', updatedAt: ts(2000), updatedBy: THEM } });
+        const res = await createDesignStore(api).save({
+            id: ID, buildPayload: () => ({ name: 'mine' }), baseline: 1000, loadedRevision: null,
+            baselineUnknown: false, currentUser: ME, forcing: true,
+            forceAgainstRev: null, forceAgainstRevision: 2000,
+        });
+        assert.equal(res.status, 'saved');
+        assert.equal(current().name, 'mine');
+    });
+
+    test('a rename commits a revision the caller can arm its baseline from', async () => {
+        const { api, current } = makeDb({ initial: { name: 'A', updatedAt: ts(1000), updatedBy: ME, revision: 4 } });
+        const res = await createDesignStore(api).rename({ id: ID, name: 'B', by: ME, preBaseline: 1000, preRevision: 4 });
+        assert.equal(res.baselineFresh, true);
+        assert.equal(res.revision, 5);
+        assert.equal(current().revision, 5, 'a rename moves the counter — to everyone else it IS a save');
+    });
+
+    test('a rename against a moved revision does not advance, whatever the timestamp says', async () => {
+        // The timestamp happens to match — a same-millisecond save, or a clock the writer cannot
+        // see. The revision is the answer that cannot be raced.
+        const { api } = makeDb({ initial: { name: 'A', updatedAt: ts(1000), updatedBy: THEM, revision: 9 } });
+        const res = await createDesignStore(api).rename({ id: ID, name: 'B', by: ME, preBaseline: 1000, preRevision: 4 });
+        assert.equal(res.baselineFresh, false);
     });
 });

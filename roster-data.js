@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '22.16';
+export const APP_VERSION = '22.23';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -884,9 +884,16 @@ export function getShiftClass(timeStr) {
  * layout direction (stacked vs inline) is controlled purely by CSS on the
  * parent .shift-badge — no <br> in flex context needed.
  * @param {string} timeStr  Shift value (e.g. "RD", "06:00-14:00")
+ * @param {{showTime?: boolean}} [opts]  `showTime` renders a WORKED shift's badge as the time
+ *   (`☀️ 06:20-14:20`) rather than its classification (`☀️ Early`), keeping the word in the
+ *   accessible name. Added v22.21 for Admin's Change-a-Shift week grid, where the badge was the
+ *   only thing on the row and "EARLY" does not tell you what the person is rostered to work —
+ *   which is precisely the question you are answering when you decide whether to change it.
+ *   Non-worked values (Rest, AL, Spare, Absent, the Other family) ignore it: they have no time,
+ *   and their word IS the information.
  * @returns {string}  HTML string (safe — no user data interpolated)
  */
-export function getShiftBadge(timeStr) {
+export function getShiftBadge(timeStr, opts = {}) {
     if (!timeStr || timeStr === 'RD' || timeStr === 'OFF') return `<span class="shift-badge badge-rest"><span aria-hidden="true">🏠</span><span>Rest</span></span>`;
     if (timeStr === 'SPARE') return `<span class="shift-badge badge-spare"><span aria-hidden="true">📋</span><span>Spare</span></span>`;
     if (timeStr === 'RDW')   return `<span class="shift-badge badge-rdw" title="Rest day worked — extra shift on your rostered day off"><span aria-hidden="true">💼</span><span>RDW</span></span>`;
@@ -897,10 +904,18 @@ export function getShiftBadge(timeStr) {
     const _trg = parseOtherValue(timeStr);
     if (_trg) return `<span class="shift-badge badge-other"><span aria-hidden="true">🏷️</span><span>${OTHER_FLAVOURS[_trg.flavour].badge}</span></span>`;
     if (!SHIFT_TIME_REGEX.test(timeStr)) return `<span class="shift-badge badge-unknown"><span aria-hidden="true">❓</span><span>Unknown</span></span>`;
-    if (isNightShift(timeStr)) return `<span class="shift-badge badge-night"><span aria-hidden="true">🦉</span><span>Night</span></span>`;
+    // `showTime` puts the TIME in the badge instead of the word, and names the word in the
+    // accessible label so nothing is lost. Admin's week grid asks for it; the calendar does not,
+    // because a calendar cell prints the time beside the badge already and repeating it would eat
+    // the cell. Default false, so every existing caller renders byte-identically.
+    const label = (/** @type {string} */ word) => (opts.showTime
+        ? ` aria-label="${word} shift, ${timeStr.replace('-', ' to ')}"`
+        : '');
+    const body = (/** @type {string} */ word) => (opts.showTime ? timeStr : word);
+    if (isNightShift(timeStr)) return `<span class="shift-badge badge-night"${label('Night')}><span aria-hidden="true">🦉</span><span>${body('Night')}</span></span>`;
     return isEarlyShift(timeStr)
-        ? `<span class="shift-badge badge-early"><span aria-hidden="true">☀️</span><span>Early</span></span>`
-        : `<span class="shift-badge badge-late"><span aria-hidden="true">🌙</span><span>Late</span></span>`;
+        ? `<span class="shift-badge badge-early"${label('Early')}><span aria-hidden="true">☀️</span><span>${body('Early')}</span></span>`
+        : `<span class="shift-badge badge-late"${label('Late')}><span aria-hidden="true">🌙</span><span>${body('Late')}</span></span>`;
 }
 
 // ============================================

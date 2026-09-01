@@ -20,7 +20,6 @@ const {
     mapColumnHeadersToDates,
     buildSafeEntries,
     applySundayScanCorrections,
-    flagUnmarkedSundayTimes,
     applyColumnScanCrossCheck,
     normaliseScanValue,
     parseStrictIsoDate,
@@ -611,18 +610,35 @@ describe('applySundayScanCorrections', () => {
 
 // ── isPayCutoffDay ────────────────────────────────────────────────────────────
 
-// ── THE FAILURE THE THREE CHANNELS CANNOT SEE (v22.16, external review) ──────────────────────
+// ── THE FAILURE THE THREE CHANNELS CANNOT SEE ───────────────────────────────────────────────
 //
-// The row read, sundayScan and columnScan all come from ONE model call looking at ONE PDF. They
-// are not independent evidence. When the model visually collapses the blank Sunday cell and
-// repeats that same positional mistake in all three channels, every server-side check AGREES with
-// the wrong answer and the shifted week survives untouched.
+// The row read, `sundayScan` and `columnScan` all come from ONE model call looking at ONE PDF.
+// They are not independent evidence. When the model visually collapses the blank Sunday cell and
+// repeats that positional mistake in all three, every server-side check AGREES with the wrong
+// answer and the shifted week survives untouched.
 //
-// This block is the reviewer's "regression fixture I'd add first". It does not assert that the
-// server repairs the shift — it CANNOT, and that is the finding: with all three channels agreeing
-// there is nothing left on the server to disagree with. What it pins is that the server does not
-// pretend otherwise, and that the one signal which does not come from the model — a plain-time
-// Sunday with no RDW marker — survives to the client instead of being quietly promoted to RDW.
+// This block does not assert that the server repairs the shift — it CANNOT, and that is the
+// finding. What it pins is that the server does not pretend otherwise, and that it leaves the
+// evidence the CLIENT's circuit breaker needs intact.
+//
+// ── WHAT v22.19 CHANGED, AND WHY THIS BLOCK WAS PART OF THE PROBLEM ─────────────────────────
+//
+// v22.16 added `flagUnmarkedSundayTimes`, on the premise that a genuinely worked Sunday carries an
+// RDW marker on the paper roster. **Three real rosters disproved it**: 21 worked Sundays across
+// the CEA, Supervisor and Dispatch sheets, not one marked, while all 10 RDW markers sit on Mon–Sat.
+// RDW means a REST DAY being worked; Sunday is uncontracted, so its work is inherently overtime and
+// the sheet never labels it. The rule is gone.
+//
+// Two things about how this file failed to catch that are worth keeping:
+//
+//   · **Its `columnScan` fixture was the wrong shape.** Production indexes `columnScan[day][member]`;
+//     the fixture was `{member: {day: …}}`, so `columnScan['Sun']` was undefined, the cross-check
+//     found no signal for anybody, and the test named "all three channels agreeing" was in fact
+//     exercising two. Fixed below, and `colScanOf` builds it so a third shape cannot appear.
+//   · **The removed rule DISARMED the circuit breaker it was written to serve.** `detectShiftedRow`
+//     ignores UNKNOWN cells, and on a left-shifted row the Sunday cell holds Monday's real value —
+//     which is a MATCH at offset +1, i.e. the single strongest piece of drift evidence in the row.
+//     Flagging it to UNKNOWN deleted exactly that. The last test here is the end-to-end proof.
 
 describe('a consistently shifted read — all three channels agreeing on the same wrong alignment', () => {
     const DATES = [
@@ -639,78 +655,143 @@ describe('a consistently shifted read — all three channels agreeing on the sam
     const SHIFTED = { Sun: '06:00-14:00', Mon: '07:00-15:00', Tue: '14:00-22:00',
                       Wed: '06:00-14:00', Thu: '07:00-15:00', Fri: 'RD', Sat: 'RD' };
 
-    function pipeline(rowRead, sundayScan, columnScan) {
-        const entries = buildSafeEntries([{ memberName: 'G. Miller', ...rowRead }], HEADERS, DATES);
+    /**
+     * A columnScan in the shape production actually reads: DAY first, then member.
+     * Built from the same week object the row read uses, because that is what a model reusing its
+     * own interpretation produces — which is the whole point of the fixture.
+     */
+    const colScanOf = (/** @type {Record<string, any>} */ ...weeksByMember) => {
+        const out = {};
+        for (const day of HEADERS) {
+            out[day] = {};
+            for (const [member, week] of weeksByMember) out[day][member] = week[day];
+        }
+        return out;
+    };
+
+    function pipeline(rowRead, sundayScan, columnScan, member = 'G. Miller') {
+        const entries = buildSafeEntries([{ memberName: member, ...rowRead }], HEADERS, DATES);
         applyColumnScanCrossCheck(entries, columnScan, HEADERS, DATES);
         applySundayScanCorrections(entries, sundayScan, true, DATES);
-        flagUnmarkedSundayTimes(entries, true, DATES);
         return entries[0].shifts;
     }
 
+    test('the columnScan fixture is the shape production reads — day first, then member', () => {
+        // Pinned because the wrong shape does not fail: it silently supplies no evidence, and every
+        // assertion in this block still passes while testing one channel fewer than it claims.
+        const cs = colScanOf(['G. Miller', SHIFTED]);
+        assert.deepEqual(Object.keys(cs), HEADERS, 'top level is the DAY');
+        assert.equal(cs.Sun['G. Miller'], '06:00-14:00', 'second level is the member');
+    });
+
     test('the server cannot repair it — every channel says the same wrong thing', () => {
-        // columnScan built FROM the shifted row, which is exactly what a model reusing its own
-        // interpretation produces. sundayScan agrees too.
-        const colScan = { 'G. Miller': { ...SHIFTED } };
-        const shifts = pipeline(SHIFTED, { 'G. Miller': '06:00-14:00' }, colScan);
-        // Monday still carries Tuesday's shift. Nothing server-side could know.
+        const shifts = pipeline(SHIFTED, { 'G. Miller': '06:00-14:00' }, colScanOf(['G. Miller', SHIFTED]));
         assert.equal(shifts[MON], '07:00-15:00',
-            'the shift is NOT repaired — with all three channels agreeing there is nothing to disagree with');
+            'Monday still carries Tuesday\'s shift — with all three channels agreeing there is '
+            + 'nothing server-side to disagree with');
         assert.equal(shifts[TUE], '14:00-22:00');
     });
 
-    test('…but the Sunday cell is FLAGGED, not promoted to a plausible RDW', () => {
-        // THE POINT OF THE FIX. Sunday is uncontracted, so a plain time on one would otherwise
-        // become a perfectly legitimate-looking RDW override — destroying the clearest evidence
-        // that the row moved, and writing Monday's shift onto a Sunday.
-        const shifts = pipeline(SHIFTED, { 'G. Miller': '06:00-14:00' }, { 'G. Miller': { ...SHIFTED } });
-        assert.match(shifts[SUN], /^UNKNOWN\|/, 'an unmarked Sunday time must reach review, never save');
-        assert.match(shifts[SUN], /06:00-14:00/, 'the flag must carry the value the admin has to check');
-        assert.match(shifts[SUN], /alignment/i, 'and say what to look for');
+    test('the shifted Sunday SURVIVES as a plain time — it is the drift evidence, not a defect', () => {
+        // v22.16 turned this into UNKNOWN. That reads as caution and is the opposite: on a
+        // left-shifted row this cell holds MONDAY's real value, so it matches the base roster at
+        // offset +1 and is the strongest single signal `detectShiftedRow` has. Deleting it is how
+        // the safety rule disarmed the safety net.
+        const shifts = pipeline(SHIFTED, { 'G. Miller': '06:00-14:00' }, colScanOf(['G. Miller', SHIFTED]));
+        assert.equal(shifts[SUN], '06:00-14:00', 'passed through, not flagged');
     });
 
-    test('a CORRECT read of the same week is untouched — the flag is not a blanket refusal', () => {
-        const colScan = { 'G. Miller': { ...TRUE_WEEK } };
-        const shifts = pipeline(TRUE_WEEK, { 'G. Miller': 'blank' }, colScan);
-        assert.equal(shifts[SUN], 'RD');
+    test('a CORRECT read of the same week is untouched', () => {
+        const shifts = pipeline(TRUE_WEEK, { 'G. Miller': 'blank' }, colScanOf(['G. Miller', TRUE_WEEK]));
+        assert.equal(shifts[SUN], 'RD', 'a blank Sunday is the sheet saying "not working"');
         assert.equal(shifts[MON], '06:00-14:00');
-        assert.equal(shifts[SAT], 'RD');
         assert.equal(shifts[WED], '14:00-22:00');
+        assert.equal(shifts[SAT], 'RD');
     });
 
-    test('a genuinely worked Sunday with its RDW marker still saves', () => {
-        // The whole point of flagging the UNMARKED case is that the marked one is trustworthy.
-        const week = { ...TRUE_WEEK, Sun: 'RDW 06:00-14:00' };
-        const shifts = pipeline(week, { 'G. Miller': 'RDW 06:00-14:00' }, { 'G. Miller': { ...week } });
-        assert.equal(shifts[SUN], 'RDW|06:00-14:00', 'a marked Sunday is evidence, not a guess');
+    // ── THE REAL ROSTERS (v22.19) ───────────────────────────────────────────────────────────────
+
+    test('a genuinely worked Sunday with NO RDW marker saves as an ordinary worked Sunday', () => {
+        // Twelve of these on the CEA sheet alone — J. Haque 10:30-19:00, M. Okeke 11:25-23:25,
+        // M. Robson 07:15-15:45 … none marked. v22.16 would have sent every one to review.
+        for (const t of ['10:30-19:00', '11:25-23:25', '07:15-15:45', '14:30-23:25']) {
+            const week = { ...TRUE_WEEK, Sun: t };
+            const shifts = pipeline(week, { 'G. Miller': t }, colScanOf(['G. Miller', week]));
+            assert.equal(shifts[SUN], t, `${t} is a valid worked Sunday and must reach the roster`);
+        }
     });
 
-    test('a worked Sunday whose RDW marker is lost in the ROW is recovered by the scan, not flagged', () => {
-        // sundayScan positively saw the RDW: Case B rewrites it, so it is no longer a plain time
-        // by the time the flag runs. That exemption is why the flag needs no special case for it.
+    test('an RDW marker is still honoured wherever it appears', () => {
+        // All 10 real RDW markers are Mon–Sat, which is what RDW MEANS — a rest day being worked.
+        const week = { ...TRUE_WEEK, Mon: 'RDW 06:20-18:20' };
+        const shifts = pipeline(week, { 'G. Miller': 'blank' }, colScanOf(['G. Miller', week]));
+        assert.equal(shifts[MON], 'RDW|06:20-18:20');
+    });
+
+    test('a scan-confirmed Sunday RDW is still rewritten by Case B', () => {
         const week = { ...TRUE_WEEK, Sun: '06:00-14:00' };
-        const shifts = pipeline(week, { 'G. Miller': 'RDW 06:00-14:00' }, { 'G. Miller': { ...week } });
-        assert.equal(shifts[SUN], 'RDW|06:00-14:00');
+        const shifts = pipeline(week, { 'G. Miller': 'RDW 06:00-14:00' }, colScanOf(['G. Miller', week]));
+        assert.equal(shifts[SUN], 'RDW|06:00-14:00', 'positive evidence still wins');
     });
 
-    test('a roster with NO Sunday column is not touched by the flag', () => {
-        const monSatHeaders = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        const entries = buildSafeEntries(
-            [{ memberName: 'G. Miller', Mon: '06:00-14:00', Tue: 'RD', Wed: 'RD', Thu: 'RD', Fri: 'RD', Sat: 'RD' }],
-            monSatHeaders, DATES);
-        const before = { ...entries[0].shifts };
-        flagUnmarkedSundayTimes(entries, false, DATES);
-        assert.deepEqual(entries[0].shifts, before);
-    });
+    // ── MISSING CELLS: SUNDAY IS THE ONLY ONE WITH A DEFAULT (v22.19) ───────────────────────────
 
-    test('the flag reaches EVERY member of a consistently shifted read, not just the first', () => {
-        // The batch signature is the client circuit breaker's input, so the server must not stop
-        // at one — a partial flag would understate how bad the read is.
-        const entries = buildSafeEntries(
-            ['G. Miller', 'S. Silva', 'M. Robson'].map(memberName => ({ memberName, ...SHIFTED })),
+    test('a missing SUNDAY is a rest day; a missing Mon–Sat is not', () => {
+        const entries = buildSafeEntries([{ memberName: 'G. Miller', Mon: '06:00-14:00', Sat: 'RD' }],
             HEADERS, DATES);
-        const n = flagUnmarkedSundayTimes(entries, true, DATES);
-        assert.equal(n, 3);
-        for (const e of entries) assert.match(e.shifts[SUN], /^UNKNOWN\|/);
+        const sh = entries[0].shifts;
+        assert.equal(sh[SUN], 'RD', 'the uncontracted column — a blank there is an answer');
+        assert.equal(sh[MON], '06:00-14:00');
+        assert.equal(sh[SAT], 'RD');
+        for (const [label, d] of [['Tuesday', TUE], ['Wednesday', WED], ['Thursday', THU], ['Friday', FRI]]) {
+            assert.match(sh[d], /^UNKNOWN\|/, `a missing ${label} must not be invented as a rest day`);
+            assert.match(sh[d], new RegExp(label), 'and the sentinel must name the day to check');
+        }
+    });
+
+    test('a Mon–Sat-only roster does NOT give every member an unreadable Sunday', () => {
+        // This asserted the opposite for one iteration, on a rule invented rather than measured:
+        // "the exemption is about the Sunday COLUMN existing". It is not. A roster with no Sunday
+        // column is a FORMAT — `hasSundayColumn` in index.js exists for it — and flagging index 0
+        // there would put ~44 unreadable rows in front of an admin on every upload, for a day the
+        // sheet does not claim to cover. A blank Sunday cell and an absent Sunday column have the
+        // same honest answer: not rostered on Sunday.
+        const monSat = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const entries = buildSafeEntries([{ memberName: 'G. Miller', Mon: 'RD' }], monSat, DATES);
+        assert.equal(entries[0].shifts[SUN], 'RD');
+    });
+
+    test('but a missing WEEKDAY column still floods, because that is a broken read', () => {
+        // The asymmetry, stated so nobody "fixes" it into symmetry: a roster that does not show
+        // Tuesday is not a format, it is a parse that went wrong, and every row being flagged is
+        // the correct amount of noise for that.
+        const noTue = ['Sun', 'Mon', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const entries = buildSafeEntries([{ memberName: 'G. Miller', Mon: 'RD' }], noTue, DATES);
+        assert.match(entries[0].shifts[TUE], /^UNKNOWN\|/);
+        assert.match(entries[0].shifts[TUE], /Tuesday/);
+    });
+
+    // ── THE END-TO-END PROOF: the evidence reaches the client's circuit breaker ─────────────────
+
+    test('THE REGRESSION: flagging the Sunday would have disarmed the circuit breaker', () => {
+        // Three members, all left-shifted — the batch signature `assessRosterAlignment` refuses on.
+        // What matters is that each row still carries SEVEN readable cells, because
+        // `detectShiftedRow` scores only cells that are not UNKNOWN and needs >= 5 of 7 at +/-1.
+        const members = ['G. Miller', 'S. Silva', 'M. Robson'];
+        const cs = colScanOf(...members.map(m => [m, SHIFTED]));
+        const entries = buildSafeEntries(members.map(memberName => ({ memberName, ...SHIFTED })),
+            HEADERS, DATES);
+        applyColumnScanCrossCheck(entries, cs, HEADERS, DATES);
+        applySundayScanCorrections(entries, Object.fromEntries(members.map(m => [m, '06:00-14:00'])),
+            true, DATES);
+        for (const e of entries) {
+            const unknowns = DATES.filter(d => String(e.shifts[d]).startsWith('UNKNOWN|'));
+            assert.deepEqual(unknowns, [],
+                `${e.memberName}: every cell must reach the client readable — an UNKNOWN here is a `
+                + 'cell the alignment detector scores as no-signal, and on a shifted row the Sunday '
+                + 'is the strongest signal there is');
+            assert.equal(e.shifts[SUN], '06:00-14:00', 'Monday\'s value, sitting in Sunday');
+        }
     });
 });
 

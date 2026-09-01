@@ -51,7 +51,7 @@
  * Every Firebase handle is INJECTED (`createDesignStore`). `links-app.js` passes the real ones.
  */
 
-import { conflictOf, baselineAfterWrite, canAdvanceBaseline } from './links-concurrency.js';
+import { conflictOf, baselineAfterWrite, baselineAfterCommit, canAdvanceBaseline, nextRevision } from './links-concurrency.js';
 import { isDeleted } from './links-deletion.js';
 
 /**
@@ -111,15 +111,18 @@ export function createDesignStore(deps) {
          * design carried `updatedAt: null`, the guard treated that as "nothing to compare", and a
          * concurrent edit was clobbered silently.
          * @param {any} payload
-         * @returns {Promise<{ id: string, updatedAt: any, baseline: { loadedUpdatedAt: number|null, baselineUnknown: boolean } }>}
+         * @returns {Promise<{ id: string, updatedAt: any, baseline: { loadedRevision: number|null, loadedUpdatedAt: number|null, baselineUnknown: boolean } }>}
          */
         async create(payload) {
-            const ref = await withClaimRetry(() => addDoc(designsCol, payload));
+            // Revision 1, stamped here rather than discovered by reading back (v22.18). A create has
+            // nothing to race — the document did not exist — so this is the one place the number is
+            // certain without a transaction, and the baseline is exact from the first save onward.
+            const ref = await withClaimRetry(() => addDoc(designsCol, { ...payload, revision: 1 }));
             const updatedAt = await readStamp(ref);
             return {
                 id: ref.id,
                 updatedAt,
-                baseline: baselineAfterWrite(updatedAt?.toMillis?.()),
+                baseline: baselineAfterCommit(1),
             };
         },
 
@@ -136,13 +139,20 @@ export function createDesignStore(deps) {
          * @param {boolean} [o.forcing]        this is the second attempt, after the user accepted
          *                                     an overwrite. `forceAgainstRevision` then names WHICH
          *                                     revision they approved replacing.
+         * @param {number|null} [o.loadedRevision]  the revision we hold — the exact identity (v22.18)
          * @param {number|null} [o.forceAgainstRevision]  the `updatedAt` millis the conflict dialog
          *                                     showed them, or null if it carried no timestamp
+         * @param {number|null} [o.forceAgainstRev]  the REVISION that dialog showed them. Preferred
+         *                                     over the timestamp; the timestamp remains for a design
+         *                                     nobody has saved since v22.18
          * @returns {Promise<{status: 'saved'|'conflict'|'deleted-elsewhere'|'queued', conflict?: any, deletedData?: any, baseline?: any, updatedAt?: any}>}
          */
-        async save({ id, buildPayload, baseline, baselineUnknown, currentUser,
-            forcing = false, forceAgainstRevision = null }) {
+        async save({ id, buildPayload, baseline, baselineUnknown, currentUser, loadedRevision = null,
+            forcing = false, forceAgainstRevision = null, forceAgainstRev = null }) {
             const ref = refFor(id);
+            /** The revision this attempt actually COMMITTED — set inside the transaction, so the
+             *  baseline needs no read-back and has no window in it (v22.18). */
+            let committed = 0;
             if (forcing) {
                 // ── WHAT THE USER ACTUALLY CONSENTED TO ─────────────────────────────────────
                 // "Replace THE VERSION I WAS SHOWN", not "replace whatever exists whenever I get
@@ -167,7 +177,7 @@ export function createDesignStore(deps) {
                 // one line of its copy assumes the bin.
                 let deletedData = null;
                 let gone = false;
-                /** @type {{by: string, at: any}|null} */
+                /** @type {{by: string, at: any, rev: number|null}|null} */
                 let movedOn = null;
                 await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
                     // A retried transaction must not keep the losing attempt's verdict — the same
@@ -179,18 +189,26 @@ export function createDesignStore(deps) {
                     if (!snap.exists()) { gone = true; return; }
                     const d = snap.data() || {};
                     if (isDeleted(d)) { deletedData = d; return; }
+                    // Consent is per VERSION, and the revision names it exactly. Falls back to the
+                    // timestamp for a design nobody has saved since v22.18, so an in-flight dialog
+                    // opened before this release still resolves correctly (v22.18).
+                    const liveRev = typeof d.revision === 'number' ? d.revision : null;
                     const liveRevision = d.updatedAt?.toMillis?.() ?? null;
-                    if (liveRevision !== forceAgainstRevision) {
-                        movedOn = { by: d.updatedBy || 'Someone', at: d.updatedAt || null };
+                    const movedOnFromApproved = (liveRev !== null || forceAgainstRev !== null)
+                        ? liveRev !== forceAgainstRev
+                        : liveRevision !== forceAgainstRevision;
+                    if (movedOnFromApproved) {
+                        movedOn = { by: d.updatedBy || 'Someone', at: d.updatedAt || null, rev: liveRev };
                         return;
                     }
-                    tx.set(ref, buildPayload());
+                    committed = nextRevision(d);
+                    tx.set(ref, { ...buildPayload(), revision: committed });
                 }));
                 if (gone)         return { status: 'deleted-elsewhere', deletedData: null };
                 if (deletedData)  return { status: 'deleted-elsewhere', deletedData };
                 if (movedOn)      return { status: 'conflict', conflict: movedOn };
                 const updatedAt = await readStamp(ref);
-                return { status: 'saved', updatedAt, baseline: baselineAfterWrite(updatedAt?.toMillis?.()) };
+                return { status: 'saved', updatedAt, baseline: baselineAfterCommit(committed) };
             }
             try {
                 await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
@@ -201,9 +219,13 @@ export function createDesignStore(deps) {
                         throw e;
                     }
                     const c = conflictOf(snap.data() || {}, snap.exists(),
-                        { loadedUpdatedAt: baseline, baselineUnknown, currentUser });
+                        { loadedRevision, loadedUpdatedAt: baseline, baselineUnknown, currentUser });
                     if (c) { const e = /** @type {any} */ (new Error('concurrent-edit')); e.conflict = c; throw e; }
-                    tx.set(ref, buildPayload());
+                    // Reassigned on EVERY attempt, from what THIS attempt read — a retried
+                    // transaction that kept the losing attempt's number would write a revision the
+                    // server has already used, and every later comparison would agree wrongly.
+                    committed = nextRevision(snap.data());
+                    tx.set(ref, { ...buildPayload(), revision: committed });
                 }));
             } catch (err) {
                 const e = /** @type {any} */ (err);
@@ -224,15 +246,20 @@ export function createDesignStore(deps) {
                         return { status: 'deleted-elsewhere', deletedData: cached.data() };
                     }
                     const c = conflictOf(cached.data() || {}, cached.exists(),
-                        { loadedUpdatedAt: baseline, baselineUnknown, currentUser });
+                        { loadedRevision, loadedUpdatedAt: baseline, baselineUnknown, currentUser });
                     if (c) return { status: 'conflict', conflict: c };
                 } catch { /* no cached state either — nothing to consult, proceed */ }
-                await withClaimRetry(() => setDoc(ref, buildPayload()));
+                // A queued write increments from what we last KNEW. If we were right, the counter
+                // stays monotonic; if somebody saved while we were offline, theirs is >= ours and
+                // the mismatch surfaces as a conflict on the next save. Both directions are safe,
+                // which is the only claim available here — nothing verified the server.
+                await withClaimRetry(() => setDoc(ref,
+                    { ...buildPayload(), revision: (loadedRevision ?? 0) + 1 }));
                 // Nothing verified what the server held, so the baseline is UNKNOWN, never null.
                 return { status: 'queued', baseline: baselineAfterWrite(null, false) };
             }
             const updatedAt = await readStamp(ref);
-            return { status: 'saved', updatedAt, baseline: baselineAfterWrite(updatedAt?.toMillis?.()) };
+            return { status: 'saved', updatedAt, baseline: baselineAfterCommit(committed) };
         },
 
         /**
@@ -240,18 +267,29 @@ export function createDesignStore(deps) {
          * @param {object} o
          * @param {string} o.id @param {string} o.name @param {string} o.by
          * @param {number|null} o.preBaseline
-         * @returns {Promise<{ baselineFresh: boolean, updatedAt: any, queued: boolean }>}
+         * @param {number|null} [o.preRevision] the revision we hold for that doc (v22.18) — exact,
+         *   where `preBaseline` is the pre-v22.18 fallback
+         * @returns {Promise<{ baselineFresh: boolean, revision: number|null, updatedAt: any, queued: boolean }>}
          */
-        async rename({ id, name, by, preBaseline }) {
+        async rename({ id, name, by, preBaseline, preRevision = null }) {
             const ref = refFor(id);
             let baselineFresh = false;
+            let committed = 0;
             try {
                 await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
                     const snap = await tx.get(ref);
                     // Reassigned on every attempt: a retried transaction must not keep the verdict
                     // of the attempt that lost.
-                    baselineFresh = canAdvanceBaseline(snap.data()?.updatedAt?.toMillis?.() ?? null, preBaseline);
-                    tx.set(ref, { name, updatedAt: serverTimestamp(), updatedBy: by }, { merge: true });
+                    const liveRev = typeof snap.data()?.revision === 'number' ? snap.data().revision : null;
+                    // The REVISION answers "is this still the document we loaded?" exactly; the
+                    // timestamp is the fallback for a design nobody has saved since v22.18. Same
+                    // rule as before — advance our baseline only when nothing moved underneath us —
+                    // asked with a value that cannot be raced.
+                    baselineFresh = (liveRev !== null || preRevision !== null)
+                        ? liveRev === preRevision
+                        : canAdvanceBaseline(snap.data()?.updatedAt?.toMillis?.() ?? null, preBaseline);
+                    committed = nextRevision(snap.data());
+                    tx.set(ref, { name, revision: committed, updatedAt: serverTimestamp(), updatedBy: by }, { merge: true });
                 }));
             } catch (err) {
                 if (!isOffline(err)) throw err;
@@ -260,9 +298,13 @@ export function createDesignStore(deps) {
                 baselineFresh = canAdvanceBaseline(null, preBaseline, false);
                 await withClaimRetry(() => setDoc(ref,
                     { name, updatedAt: serverTimestamp(), updatedBy: by }, { merge: true }));
-                return { baselineFresh, updatedAt: null, queued: true };
+                return { baselineFresh, revision: null, updatedAt: null, queued: true };
             }
-            return { baselineFresh, updatedAt: baselineFresh ? await readStamp(ref) : null, queued: false };
+            // A rename that may advance the baseline advances it to the revision it COMMITTED —
+            // exactly, and with no read-back to race. `updatedAt` is still returned for the picker's
+            // "last saved" line, which is display only.
+            return { baselineFresh, revision: baselineFresh ? committed : null,
+                updatedAt: baselineFresh ? await readStamp(ref) : null, queued: false };
         },
 
         /**
@@ -284,11 +326,22 @@ export function createDesignStore(deps) {
          */
         async restore(id, by) {
             const ref = refFor(id);
-            await withClaimRetry(() => setDoc(ref, {
-                deletedAt: deleteField(), deletedBy: deleteField(),
-                updatedAt: serverTimestamp(), updatedBy: by,
-            }, { merge: true }));
-            return { updatedAt: await readStamp(ref) };
+            // A restore BUMPS the revision, in a transaction, and hands the number back (v22.18).
+            // It is a write everyone else sees, so leaving the counter alone would make the design
+            // reappear still wearing its pre-deletion revision — and the restorer's entry, which
+            // carries no revision, would then disagree with the server on the very next save and
+            // prompt "someone else saved this" about their own restore. Not destructive (the safe
+            // direction), and a false conflict is exactly what teaches people to click through the
+            // one prompt that protects them.
+            let committed = 0;
+            await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
+                committed = nextRevision((await tx.get(ref)).data());
+                tx.set(ref, {
+                    deletedAt: deleteField(), deletedBy: deleteField(), revision: committed,
+                    updatedAt: serverTimestamp(), updatedBy: by,
+                }, { merge: true });
+            }));
+            return { updatedAt: await readStamp(ref), revision: committed };
         },
 
         /**

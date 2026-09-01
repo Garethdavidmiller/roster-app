@@ -586,6 +586,65 @@ describe('isZeroLengthRange', () => {
 // pipeline DID with what the detector said. A perfect helper whose answer is discarded is exactly
 // the failure shape this repo names in CLAUDE.md.
 
+// ── THE SAFETY RULE THAT DISARMED THE SAFETY NET (v22.19) ───────────────────────────────────────
+//
+// v22.16 flagged every plain-time Sunday on the SERVER as UNREADABLE, reasoning that a genuinely
+// worked Sunday carries an RDW marker. Three real rosters disproved the premise (21 worked Sundays,
+// none marked). But the sharper problem is what it did to THIS detector.
+//
+// `detectShiftedRow` scores only cells that are not UNKNOWN. On a left-shifted row the Sunday cell
+// holds MONDAY's real value — which matches the base roster at offset +1, so it is a positive
+// contributor to exactly the score that identifies the drift. Flagging it deleted that.
+//
+// MEASURED over the whole 44-member roster, every row left-shifted: 14 members are detected without
+// the flag and 12 with it. Two detections lost. With a batch threshold of three, losing two can
+// take a read from REFUSED to accepted — which is the hazard, and it is why the fix was to remove
+// the preprocessing rather than to loosen the detector.
+describe('a flagged Sunday is drift evidence deleted', () => {
+    const DATES = ['2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08'];
+    /** `m`'s own base pattern read one day out — the shape a collapsed blank Sunday produces. */
+    const leftShifted = (/** @type {any} */ m) => Object.fromEntries(DATES.map(d => {
+        const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + 1);
+        return [d, getBaseShift(m, x)];
+    }));
+
+    test('the Sunday cell is what makes a left drift detectable at all, for some members', () => {
+        // Not "for every member" — most rows have margin. The point is that some do not, and those
+        // are the ones a threshold of three is counting.
+        const roster = teamMembers.filter(/** @param {any} m */ m => !m.hidden && !m.managerOnly);
+        let withCell = 0, withoutCell = 0;
+        for (const m of roster) {
+            const row = leftShifted(m);
+            if (detectShiftedRow(m, row, DATES)) withCell++;
+            const blinded = { ...row, [DATES[0]]: 'UNKNOWN|flagged' };
+            if (detectShiftedRow(m, blinded, DATES)) withoutCell++;
+        }
+        assert.ok(withCell > 0, 'the fixture must actually produce detectable drift');
+        assert.ok(withoutCell < withCell,
+            `blinding the Sunday must LOSE detections — it lost ${withCell - withoutCell} of ${withCell}. `
+            + 'If this ever reads zero, either the detector stopped scoring Sunday or the roster '
+            + 'changed shape; both are worth knowing before anyone re-adds a Sunday preprocessing rule.');
+    });
+
+    test('an UNKNOWN cell contributes nothing to the score — the mechanism, stated once', () => {
+        // WHICH member loses its detection depends on the week, so the fixture FINDS one rather
+        // than naming one. A hardcoded name here passed on the week it was written against and
+        // would have gone quietly wrong on the next — the same class of staleness the roster
+        // fixtures elsewhere in this file are built from the real detector to avoid.
+        const roster = teamMembers.filter(/** @param {any} m */ m => !m.hidden && !m.managerOnly);
+        const victim = roster.find(/** @param {any} m */ (m) => {
+            const row = leftShifted(m);
+            return detectShiftedRow(m, row, DATES)
+                && !detectShiftedRow(m, { ...row, [DATES[0]]: 'UNKNOWN|flagged' }, DATES);
+        });
+        assert.ok(victim, 'at least one member must lose its detection when the Sunday is blinded');
+        const row = leftShifted(victim);
+        assert.equal(detectShiftedRow(victim, row, DATES), 'left', 'detectable with all seven cells');
+        assert.equal(detectShiftedRow(victim, { ...row, [DATES[0]]: 'UNKNOWN|flagged' }, DATES), null,
+            `and silent with the Sunday blinded (${victim.name})`);
+    });
+});
+
 describe('a shifted read fails closed', () => {
     const MEMBER = teamMembers.find(/** @param {any} m */ m => m.name === 'G. Miller');
     const DATES  = ['2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08'];

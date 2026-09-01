@@ -341,6 +341,51 @@ test('getShiftClass: every training grammar form returns "other-day" (never unkn
     }
 });
 
+// ── `showTime`: the badge says WHAT, not what KIND (v22.21) ─────────────────────────────────────
+//
+// Admin's Change-a-Shift week grid showed `☀️ EARLY` and nothing else, so the one thing an admin
+// needs to decide whether to change a day — what the person is actually rostered to work — was the
+// one thing missing. Owner report, with a screenshot: "you can't see the default shift time as
+// reference, only early or late."
+//
+// The option, rather than a second badge builder, because two builders drift. The direction that
+// matters is the DEFAULT: every existing caller — the calendar cell, the month legend, Team View —
+// must render exactly as before, since a calendar cell prints the time beside the badge already.
+
+test('getShiftBadge showTime: a worked shift shows its TIME instead of Early/Late/Night', () => {
+    assert.match(getShiftBadge('06:20-14:20', { showTime: true }), />06:20-14:20</);
+    assert.match(getShiftBadge('06:20-14:20', { showTime: true }), /badge-early/, 'still classified');
+    assert.match(getShiftBadge('06:20-14:20', { showTime: true }), /☀️/, 'and still carries the icon');
+    assert.match(getShiftBadge('14:30-22:00', { showTime: true }), />14:30-22:00</);
+    assert.match(getShiftBadge('14:30-22:00', { showTime: true }), /badge-late/);
+    assert.match(getShiftBadge('22:00-06:00', { showTime: true }), />22:00-06:00</);
+    assert.match(getShiftBadge('22:00-06:00', { showTime: true }), /badge-night/);
+    // The word is not lost — it moves into the accessible name, which a screen reader gets and
+    // which the icon (aria-hidden) never gave it in the first place.
+    assert.match(getShiftBadge('06:20-14:20', { showTime: true }), /aria-label="Early shift, 06:20 to 14:20"/);
+    assert.match(getShiftBadge('22:00-06:00', { showTime: true }), /aria-label="Night shift, 22:00 to 06:00"/);
+});
+
+test('getShiftBadge showTime: a value with no time is untouched — its word IS the information', () => {
+    for (const v of ['RD', 'OFF', 'SPARE', 'AL', 'SICK', 'RDW', 'TRG', 'IND 08:00-16:00', 'nonsense']) {
+        assert.equal(getShiftBadge(v, { showTime: true }), getShiftBadge(v),
+            `${v} has no time to show, so the option must change nothing`);
+    }
+});
+
+test('getShiftBadge: the DEFAULT is byte-identical — the calendar must not move', () => {
+    // The load-bearing half. `showTime` was added for ONE caller; every other surface renders the
+    // classification and a regression there would be silent, because a badge is a badge.
+    for (const v of ['06:20-14:20', '14:30-22:00', '22:00-06:00', 'RD', 'AL', 'SPARE']) {
+        assert.equal(getShiftBadge(v), getShiftBadge(v, {}), 'an empty options object is the default');
+        assert.equal(getShiftBadge(v), getShiftBadge(v, { showTime: false }));
+        assert.doesNotMatch(getShiftBadge(v), /aria-label/, 'and the default adds no label');
+    }
+    assert.match(getShiftBadge('06:20-14:20'), />Early</);
+    assert.match(getShiftBadge('14:30-22:00'), />Late</);
+    assert.match(getShiftBadge('22:00-06:00'), />Night</);
+});
+
 test('getShiftBadge: Other-family flavours get 🏷️ + the SHORT word (Train/Ind/Assess)', () => {
     assert.match(getShiftBadge('TRG'),    /badge-other/);
     assert.match(getShiftBadge('TRG'),    /🏷️/);

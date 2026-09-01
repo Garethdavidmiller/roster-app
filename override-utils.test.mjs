@@ -1,10 +1,11 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { PILL_TYPES } from './admin-shift-types.js';
 import { tsToMillis, shouldReplaceOverride, reconcileRangeIntoCache, isBeforeMemberStart, isRestShift, computePeriodDeleteIds,
          OTHER_FLAVOURS, OTHER_RDW_DEFAULT_MINS, isOtherValue, parseOtherValue, composeOtherValue, resolveOtherPay,
          isOverrideDisplaySuppressed, mergeBookedPeriods, resolveEffectiveShift, toOverrideRecord,
          buildOverrideWrite, buildOverrideCacheRecord, collectOverrideRecords, SUNDAY_FORBIDDEN_TYPES, isForbiddenOnSunday, sundaySafeValue,
-         CONTRACTED_WORK_TYPES, VOLUNTARY_WORK_TYPES, isContractedWorkOverride, nextReplacedType } from './override-utils.js';
+         CONTRACTED_WORK_TYPES, VOLUNTARY_WORK_TYPES, isContractedWorkOverride, nextReplacedType, manualCellValue } from './override-utils.js';
 
 /** Build a fake Firestore QuerySnapshot from an array of {id, ...data} rows. */
 function fakeSnapshot(rows) {
@@ -977,3 +978,98 @@ describe('nextReplacedType — what a write must remember about the doc it delet
         assert.equal(buildOverrideCacheRecord('id1', { ...base, replacedType: 'shift' }, new Date()).replacedType, 'shift');
     });
 });
+
+
+// ── manualCellValue — the roster review's in-place answer to an unreadable cell (v22.17) ────────
+//
+// ORGANISED BY WHAT A WRONG ANSWER COSTS. This function turns a pill press into a value that goes
+// straight into an override write, so the two directions are:
+//
+//   PRODUCING A VALUE FROM AN INCOMPLETE ENTRY writes a shift the admin never finished typing —
+//     silently, because a half-entered time still looks like a time. That is the dangerous one.
+//   REFUSING A COMPLETE ENTRY is a control that appears to do nothing, which is visible and
+//     annoying but corrects itself the moment somebody reports it.
+
+describe('manualCellValue', () => {
+    it('maps each fixed type to the value the parsed path uses', () => {
+        // These are the parsed-roster VALUES, not the override TYPE ids — the two vocabularies the
+        // module header keeps apart. Getting this mapping wrong writes a valid-looking wrong day.
+        assert.equal(manualCellValue('correction'), 'RD');
+        assert.equal(manualCellValue('annual_leave'), 'AL');
+        assert.equal(manualCellValue('sick'), 'SICK');
+        assert.equal(manualCellValue('spare_shift'), 'SPARE');
+    });
+
+    it('composes a timed shift, and marks an RDW so the type survives', () => {
+        assert.equal(manualCellValue('shift', '06:00', '14:00'), '06:00-14:00');
+        // The RDW| marker is what makes shiftValueToOverrideType write `rdw` rather than `shift`.
+        // Without it a rest-day-worked entry would be saved as an ordinary shift and paid as one.
+        assert.equal(manualCellValue('rdw', '06:00', '14:00'), 'RDW|06:00-14:00');
+    });
+
+    it('refuses an incomplete or malformed time rather than guessing', () => {
+        for (const [from, to] of [['', ''], ['06:00', ''], ['', '14:00'], ['6:00', '14:00'],
+                                  ['0600', '1400'], ['06:0', '14:00'], ['abc', 'def']]) {
+            assert.equal(manualCellValue('shift', from, to), null, `${from}-${to} must not compose`);
+            assert.equal(manualCellValue('rdw', from, to), null);
+        }
+    });
+
+    it('refuses `other`, because its grammar needs controls this surface does not have', () => {
+        // FLAVOUR[" RDW"][" HH:MM-HH:MM"] is composed from a flavour chip, a rest-day tick and
+        // optional times. A second partial implementation is where a wrong value would come from,
+        // so the review refuses and points at Change a Shift instead.
+        assert.equal(manualCellValue('other'), null);
+        assert.equal(manualCellValue('other', '06:00', '14:00'), null);
+    });
+
+    it('refuses a type it does not know, rather than falling through to a shift', () => {
+        for (const t of ['', 'nonsense', 'allocated', 'overtime', 'swap']) {
+            assert.equal(manualCellValue(t, '06:00', '14:00'), null);
+        }
+    });
+
+    it('every PILL_TYPES entry either composes or is refused for a stated reason', () => {
+        // The pills are generated from PILL_TYPES, so a type added there arrives on this control
+        // whether or not anybody taught this function about it. `other` is the one deliberate
+        // refusal; anything else silently unsupported would render a pill that does nothing.
+        const KNOWN_REFUSALS = new Set(['other']);
+        for (const t of PILL_TYPES) {
+            const v = manualCellValue(t, '06:00', '14:00');
+            if (KNOWN_REFUSALS.has(t)) assert.equal(v, null, `${t} is a stated refusal`);
+            else assert.ok(v, `${t} is offered as a pill but composes nothing — teach manualCellValue or exclude it`);
+        }
+    });
+});
+describe('manualCellValue — a real clock time, not the shape of one', () => {
+    // The entry boxes are TEXT (roster-entry-control.js's header measures why), so nothing in the
+    // browser rejects an impossible time. The first cut tested only `\d{2}:\d{2}`, which let
+    // `29:00` and `99:99` compose a shift that every duration and classification helper downstream
+    // reads as nonsense — silently, because a shift-shaped string is what they all expect.
+    // Organised by cost: ACCEPTING an impossible time writes bad roster data; REFUSING a real one
+    // makes a legitimate entry impossible to record.
+
+    it('an impossible hour or minute produces no entry at all', () => {
+        for (const [f, t] of [['99:99', '06:00'], ['25:00', '26:00'], ['24:00', '06:00'],
+                              ['06:60', '14:00'], ['06:00', '24:00']]) {
+            assert.equal(manualCellValue('shift', f, t), null, `${f}-${t} must not compose`);
+        }
+    });
+
+    it('and the shape is still required — a half-typed time writes nothing', () => {
+        for (const [f, t] of [['6:00', '14:00'], ['06:00', ''], ['', '14:00'], ['0600', '1400']]) {
+            assert.equal(manualCellValue('shift', f, t), null);
+        }
+    });
+
+    it('every real time the roster actually uses is accepted', () => {
+        // Including the two boundaries: a midnight FINISH is written `00:00` on the real Supervisor
+        // sheet (`15:00-00:00`), never `24:00`, and an overnight range is end < start, which is
+        // ordinary here and must not be mistaken for an error.
+        assert.equal(manualCellValue('shift', '00:00', '23:59'), '00:00-23:59');
+        assert.equal(manualCellValue('shift', '15:00', '00:00'), '15:00-00:00');
+        assert.equal(manualCellValue('shift', '06:20', '14:20'), '06:20-14:20');
+        assert.equal(manualCellValue('rdw',   '22:30', '07:00'), 'RDW|22:30-07:00');
+    });
+});
+

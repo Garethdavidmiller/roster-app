@@ -50,7 +50,7 @@ import { reorderLines, applyOrder, cost, DEFAULT_BLOCK_TARGET } from './links-ad
 import { normaliseWindow, formatWindow, isDefaultWindow, isValidWindowRow, canonicaliseWindowTime } from './links-window.js';
 import { assessFatigue } from './links-fatigue.js';
 import { initLinksCompare } from './links-compare.js';
-import { baselineAfterWrite } from './links-concurrency.js';
+import { baselineFromEntry } from './links-concurrency.js';
 import { createDesignStore } from './links-design-store.js';
 import { setStatus } from './status-text.js';
 import {
@@ -251,7 +251,11 @@ export function init() {
     let dirty  = false;
     _isDirty = () => dirty;   // point the SW beforeReload at THIS pass's flag (v16.23)
     let loadFailed      = false;
-    /** @type {any} */ let loadedUpdatedAt = null; // millis — for save concurrency check
+    // The concurrency baseline. `loadedRevision` is the exact identity (v22.18) and moves only to
+    // a revision this page committed or read; `loadedUpdatedAt` is the fallback for a design nobody
+    // has saved since. Why a revision at all: links-concurrency.js, `conflictOf` path 0.
+    /** @type {number|null} */ let loadedRevision = null;
+    /** @type {any} */ let loadedUpdatedAt = null;   // millis
     // True when a post-save updatedAt read-back FAILED: the baseline is unknown, not "no doc".
     // The overwrite-confirm guard then falls back to comparing updatedBy — without this, one
     // dropped read-back silently disabled the guard and the next save clobbered a co-designer's
@@ -267,7 +271,7 @@ export function init() {
     let genSpareLines = 0;      // whole LINES that are spare weeks (v19.58) — not a per-day count
 
     // Multi-design state
-    /** @type {Array<{id:string, name:string, patterns:Object, window?:*, updatedAt:*, updatedBy:string}>} */
+    /** @type {Array<{id:string, name:string, patterns:Object, window?:*, updatedAt:*, updatedBy:string, revision?:number|null}>} */
     let designs         = [];
     /** @type {any} */ let activeDesignId  = null; // null = design not yet saved to Firestore
     /** Deleted designs, newest first — the "Recently deleted" bin (v19.41). Held in memory with
@@ -647,10 +651,10 @@ export function init() {
             // store arms the baseline from the server, so the FIRST content-save is guarded;
             // without that a new design carried updatedAt:null, the guard read it as "nothing to
             // compare", and a concurrent edit was clobbered silently.
-            const { id: newId, updatedAt: createdTs } = await store.create(
+            const { id: newId, updatedAt: createdTs, baseline: newBase } = await store.create(
                 docPayload({ name, patterns: {}, window: null },
                            { updatedBy: currentUser, updatedAt: serverTimestamp() }));
-            const d = restoredEntryFrom({ id: newId, name, patterns: {}, window: null }, { updatedAt: createdTs, updatedBy: currentUser });
+            const d = restoredEntryFrom({ id: newId, name, patterns: {}, window: null }, { updatedAt: createdTs, updatedBy: currentUser, revision: newBase.loadedRevision });
             designs.push(d);
             _sortDesigns();
             _activateDesign(d);
@@ -759,10 +763,10 @@ export function init() {
             // An imported design starts on the app default window, like a new one — the paste
             // describes duties, and a window it never mentioned must not be inferred from them.
             // Through the store, so the baseline is armed identically however a design is born.
-            const { id: importedId, updatedAt: ts } = await store.create(
+            const { id: importedId, updatedAt: ts, baseline: impBase } = await store.create(
                 docPayload({ name, patterns, window: null },
                            { updatedBy: currentUser, updatedAt: serverTimestamp() }));
-            const d = restoredEntryFrom({ id: importedId, name, patterns, window: null }, { updatedAt: ts, updatedBy: currentUser });
+            const d = restoredEntryFrom({ id: importedId, name, patterns, window: null }, { updatedAt: ts, updatedBy: currentUser, revision: impBase.loadedRevision });
             designs.push(d);
             _sortDesigns();
             _importLb?.close();
@@ -790,10 +794,10 @@ export function init() {
         // duplicating a moved-boundary proposal is least likely to notice.
         const window = normaliseWindow(design.window);
         try {
-            const { id: dupId, updatedAt: dupTs } = await store.create(
+            const { id: dupId, updatedAt: dupTs, baseline: dupBase } = await store.create(
                 docPayload({ name, patterns, window },
                            { updatedBy: currentUser, updatedAt: serverTimestamp() }));
-            const d = restoredEntryFrom({ id: dupId, name, patterns, window }, { updatedAt: dupTs, updatedBy: currentUser });
+            const d = restoredEntryFrom({ id: dupId, name, patterns, window }, { updatedAt: dupTs, updatedBy: currentUser, revision: dupBase.loadedRevision });
             designs.push(d);
             _sortDesigns();
             _activateDesign(d);
@@ -834,15 +838,20 @@ export function init() {
             // The transaction, the baseline decision and the offline fallback are the store's
             // (v21.87). What stays here is the naming of a thing on screen.
             const _preBaseline = (id === activeDesignId) ? loadedUpdatedAt : (d.updatedAt?.toMillis?.() ?? null);
-            const { baselineFresh, updatedAt: renamedAt } =
-                await store.rename({ id, name, by: currentUser, preBaseline: _preBaseline });
+            const _preRevision = (id === activeDesignId) ? loadedRevision : (d.revision ?? null);
+            const { baselineFresh, updatedAt: renamedAt, revision: renamedRev } = await store.rename(
+                { id, name, by: currentUser, preBaseline: _preBaseline, preRevision: _preRevision });
             d.name = name;
             if (id === activeDesignId && design) design.name = name;
             if (baselineFresh) {
                 d.updatedBy = currentUser;
                 if (renamedAt) d.updatedAt = renamedAt;
+                // The rename COMMITTED a revision it knows, so the entry and the baseline both move
+                // to that rather than to whatever a read-back happened to see (v22.18).
+                if (typeof renamedRev === 'number') d.revision = renamedRev;
                 if (id === activeDesignId) {
                     loadedUpdatedAt = d.updatedAt?.toMillis?.() ?? loadedUpdatedAt;
+                    if (typeof renamedRev === 'number') loadedRevision = renamedRev;
                     updateLastSaved(d.updatedBy, d.updatedAt);
                 }
             }
@@ -929,13 +938,13 @@ export function init() {
         const d = deletedDesigns.find(x => x.id === id);
         if (!d) return;
         try {
-            const { updatedAt: restoredTs } = await store.restore(id, currentUser);
+            const { updatedAt: restoredTs, revision: restoredRev } = await store.restore(id, currentUser);
             deletedDesigns = deletedDesigns.filter(x => x.id !== id);
             // The store armed the baseline from the server. A restored design is an OLD document a
             // co-editor may still hold, so entering it with no baseline is worse than for a new
             // one: the next save would skip the "someone else saved" confirm entirely. A null
             // stamp reads as an UNKNOWN baseline (guard on), never "nothing to compare".
-            designs.push(restoredEntryFrom(d, { updatedAt: restoredTs, updatedBy: currentUser }));
+            designs.push(restoredEntryFrom(d, { updatedAt: restoredTs, updatedBy: currentUser, revision: restoredRev }));
             _sortDesigns();
             renderDesignPicker();
             renderBinList();
@@ -1117,7 +1126,7 @@ export function init() {
         // "safe to overwrite"). It was harmless while every entry came from the server snapshot or
         // from create/duplicate, both of which arm a real timestamp; v19.41's RESTORE added a third
         // producer whose entry can carry null, and selecting it then switched the guard off.
-        ({ loadedUpdatedAt, baselineUnknown } = baselineAfterWrite(d.updatedAt?.toMillis?.()));
+        ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = baselineFromEntry(d));
         dirty           = false;
         // Clear a prior design's "✓ Saved" / "Save failed" status — updateSaveBtn only clears it
         // while dirty, so without this it carried over to the newly selected design, falsely
@@ -2661,9 +2670,9 @@ export function init() {
                 activeDesignId = created.id;
                 design.id = created.id;
                 lsSet(ACTIVE_KEY, created.id);
-                ({ loadedUpdatedAt, baselineUnknown } = created.baseline);
+                ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = created.baseline);
                 const savedAt = created.updatedAt;
-                const newEntry = restoredEntryFrom({ ...design, id: created.id, patterns: deepCopyPatterns(design.patterns) }, { updatedAt: savedAt, updatedBy: currentUser });
+                const newEntry = restoredEntryFrom({ ...design, id: created.id, patterns: deepCopyPatterns(design.patterns) }, { updatedAt: savedAt, updatedBy: currentUser, revision: loadedRevision });
                 designs.push(newEntry);
                 _sortDesigns();
                 dirty = false;
@@ -2740,6 +2749,7 @@ export function init() {
                 id: activeDesignId,
                 buildPayload: buildDoc,
                 baseline: loadedUpdatedAt,
+                loadedRevision,
                 baselineUnknown,
                 currentUser,
             });
@@ -2758,8 +2768,11 @@ export function init() {
                     if (!await confirmOverwrite(pending)) { await declineOrFork(); return; }
                     const forced = await store.save({
                         id: activeDesignId, buildPayload: buildDoc,
-                        baseline: loadedUpdatedAt, baselineUnknown, currentUser,
+                        baseline: loadedUpdatedAt, loadedRevision, baselineUnknown, currentUser,
                         forcing: true,
+                        // BOTH, deliberately: `rev` is exact and `at` is the fallback for a design
+                        // nobody has saved since v22.18. Consent is per version either way.
+                        forceAgainstRev: pending?.rev ?? null,
                         forceAgainstRevision: pending?.at?.toMillis?.() ?? null,
                     });
                     if (forced.status === 'deleted-elsewhere') { await deletedElsewhere(forced.deletedData); return; }
@@ -2768,12 +2781,12 @@ export function init() {
                         pending = forced.conflict;
                         continue;
                     }
-                    ({ loadedUpdatedAt, baselineUnknown } = forced.baseline);
+                    ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = forced.baseline);
                     _applySavedEntry(forced.updatedAt);
                     break;
                 }
             } else {
-                ({ loadedUpdatedAt, baselineUnknown } = res.baseline);
+                ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = res.baseline);
                 _applySavedEntry(res.updatedAt);
             }
             dirty = false;
@@ -2875,7 +2888,7 @@ export function init() {
                 activeDesignId  = d.id;
                 lsSet(ACTIVE_KEY, d.id);
                 design          = workingCopy(d);
-                ({ loadedUpdatedAt, baselineUnknown } = baselineAfterWrite(d.updatedAt?.toMillis?.()));
+                ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = baselineFromEntry(d));
                 updateLastSaved(d.updatedBy, d.updatedAt);
             } else {
                 design = null;

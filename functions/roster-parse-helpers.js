@@ -303,11 +303,15 @@ function mapColumnHeadersToDates(columnHeaders, dates) {
 
 // ── Safe entry builder ───────────────────────────────────────────────────────
 
+/** Day names for the "no <day> cell was read" sentinel, indexed like `dates` (Sunday first). */
+const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
 /**
  * Build safe shift entries from AI parsed output.
  *
  * The AI returns each member as an object with day-name keys.
- * Any missing key is filled with 'RD' (blank = rest day by definition).
+ * A missing SUNDAY is filled with 'RD' — the one column whose blank is an answer. A missing
+ * Mon–Sat day fails closed to the UNREADABLE sentinel (v22.19; the reasoning is inline below).
  * Shift values are normalised via normaliseShift().
  *
  * @param {object[]} parsedMembers  - AI-returned member objects (memberName + day keys)
@@ -334,16 +338,41 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
         }
         seenMembers.add(memberKey);
 
-        // Default all dates to RD — covers any day the AI skips entirely.
-        // REVIEWED + KEPT (v16.95 review Finding #4, owner decision Jul 2026): a blank roster cell
-        // means REST DAY by definition (CLAUDE.md), and the AI omits rest-day cells routinely — so
-        // promoting every missing key to a review-required UNREADABLE row would flood the review table
-        // with false "couldn't read" rows on essentially every upload. The genuine risk this guards
-        // (a DROPPED or MISALIGNED real shift) is already caught by three independent layers:
-        // applyColumnScanCrossCheck, applySundayScanCorrections, and detectShiftedRow (client). The
-        // per-member missingKeys console.warn below keeps the omission observable in the logs.
+        // ── SUNDAY IS THE ONE COLUMN WHOSE BLANK IS AN ANSWER (v22.19) ──────────────────────────
+        //
+        // Until now every absent day defaulted to RD, justified (v16.95) by "a blank roster cell
+        // means REST DAY" and by three "independent layers" catching anything dropped. Both halves
+        // were wrong, and three real rosters settled it.
+        //
+        // The layers are not independent — the row read, `sundayScan` and `columnScan` are three
+        // readings by ONE model of ONE PDF in ONE call, so they agree with each other exactly when
+        // the model has collapsed a cell. That leaves the default carrying the whole weight.
+        //
+        // And the rosters do not blank a rest day. Mon–Sat unworked days are stated explicitly —
+        // RD, AL, SC, SN, OD, HA, ML, NA. Measured over 50 member rows and 350 cells: 24 blank
+        // SUNDAYS, and 5 blank Mon–Sat cells, all five belonging to ONE person who appears on a
+        // second roster and works only its Saturday. Even that case wants an admin, not a default:
+        // writing RD across their Mon–Fri would overwrite the shifts their PRIMARY roster's import
+        // had just written, silently.
+        //
+        // So Sunday keeps the RD default (it is the uncontracted column, and its blank is how the
+        // sheet says "not working"), and Mon–Sat fails closed to the ordinary UNREADABLE sentinel.
+        // The cost is bounded and visible; the thing it prevents is neither.
+        //
+        // **Sunday's exemption does NOT depend on the Sunday COLUMN existing**, and the first cut of
+        // this made it depend on exactly that. A Mon–Sat-only roster — a format `hasSundayColumn` in
+        // index.js exists to handle — would then have given EVERY member an unreadable Sunday, ~44
+        // review rows an admin must dismiss on every upload, for a day the sheet does not claim to
+        // cover. The two cases have the same honest answer: a blank Sunday cell and an absent Sunday
+        // column both mean "not rostered on Sunday", and neither is evidence of a misread.
+        // A missing weekday COLUMN is a different matter and correctly floods — a roster that does
+        // not show Tuesday is a broken read, not a format.
         const shifts = {};
-        for (const date of dates) shifts[date] = 'RD';
+        for (let i = 0; i < dates.length; i++) {
+            shifts[dates[i]] = (i === 0)
+                ? 'RD'
+                : `UNKNOWN|no ${DAY_LABELS[i] || 'day'} cell was read — check the PDF`;
+        }
 
         // Tolerant member-cell lookup (v16.84): the header→date map resolves a header
         // case/abbrev-insensitively (lowercased first-3 chars), but reading the cell with the RAW
@@ -367,19 +396,27 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
 
             const date  = dates[dayIndex];
             const raw   = entry[header] !== undefined ? entry[header] : entryByDay[key.slice(0, 3)];
-            const value = (raw !== undefined && raw !== null && String(raw).trim() !== '')
-                ? String(raw).trim()
-                : 'RD';
+            const blank = raw === undefined || raw === null || String(raw).trim() === '';
 
-            if (raw === undefined || raw === null || String(raw).trim() === '') {
+            if (blank) {
                 missingKeys.push(header);
+                // The same rule as the initialiser above, and it has to be here too: that one only
+                // covers a day whose HEADER the model never listed, and this one a header it listed
+                // with nothing in it. Both were 'RD' until v22.19, so the fix had to be made twice
+                // or it would have been made nowhere the model actually goes.
+                shifts[date] = (dayIndex === 0)
+                    ? 'RD'
+                    : `UNKNOWN|no ${DAY_LABELS[dayIndex] || 'day'} cell was read — check the PDF`;
+                continue;
             }
 
-            shifts[date] = normaliseShift(value);
+            shifts[date] = normaliseShift(String(raw).trim());
         }
 
         if (missingKeys.length > 0) {
-            console.warn(`[parseRosterPDF] ${entry.memberName}: AI omitted key(s) [${missingKeys.join(', ')}] — filled with RD`);
+            const sunOnly = missingKeys.every(h => headerToDayIndex(h) === 0);
+            console.warn(`[parseRosterPDF] ${entry.memberName}: no cell read for [${missingKeys.join(', ')}]`
+                + (sunOnly ? ' — Sunday, so filled with RD' : ' — sent to review rather than assumed to be a rest day'));
         }
 
         safeEntries.push({ memberName: memberKey, shifts });
@@ -453,57 +490,6 @@ function applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, da
     }
 }
 
-/**
- * A plain-time Sunday from a PDF IMPORT is suspicious, not an RDW (v22.16, external review).
- *
- * ── WHY THIS EXISTS ────────────────────────────────────────────────────────────────────────────
- *
- * `shiftValueToOverrideType` promotes a plain worked time on a Sunday to an `rdw` override,
- * because Sunday is uncontracted for every grade — so any time worked on one IS overtime. That is
- * exactly right for a shift an admin types in. It is wrong for a cell an AI read off a PDF, and
- * the difference is provenance rather than arithmetic.
- *
- * On the paper roster a genuinely worked Sunday carries the RDW indication. So an imported Sunday
- * reading `06:00-14:00` rather than `RDW 06:00-14:00` has exactly two explanations:
- *
- *   1. the model dropped the RDW marker, or
- *   2. the model read MONDAY's shift into the Sunday cell.
- *
- * Nothing available here can tell those apart — and the second is the day-shift this whole file
- * defends against. Worse, the RDW promotion actively HIDES it: a shifted Monday time becomes a
- * perfectly legitimate-looking Sunday RDW, destroying the clearest signal that the row moved.
- * The review that prompted this called that out, and it is the sharper half of the finding.
- *
- * So the cell becomes the ordinary skip-only UNREADABLE sentinel, carrying both the value and the
- * reason. It is never written without the admin looking at it.
- *
- * ── WHY IT RUNS LAST ───────────────────────────────────────────────────────────────────────────
- *
- * `applySundayScanCorrections` Case B rewrites a confirmed plain time to `RDW|<time>` when the
- * dedicated Sunday scan positively saw an RDW. That is real evidence, and such a cell is no
- * longer a plain time by the time this runs, so it is exempt without needing a special case here.
- * A plain time that SURVIVES every earlier pass is one nothing confirmed — including the case the
- * review is really about, where the scan agrees with the row because both came from one
- * generation and repeated the same mistake.
- *
- * @param {object[]} safeEntries  - modified in place
- * @param {boolean}  hasSundayColumn
- * @param {string[]} dates        - 7 ISO dates; dates[0] is Sunday
- * @returns {number} how many cells were flagged (for the response's diagnostics)
- */
-function flagUnmarkedSundayTimes(safeEntries, hasSundayColumn, dates) {
-    if (!hasSundayColumn || !Array.isArray(dates) || dates.length < 7) return 0;
-    const sunDate = dates[0];
-    let flagged = 0;
-    for (const entry of safeEntries) {
-        const v = entry.shifts?.[sunDate];
-        if (typeof v !== 'string' || !/^\d{2}:\d{2}-\d{2}:\d{2}$/.test(v)) continue;
-        entry.shifts[sunDate] = `UNKNOWN|Sunday ${v} with no RDW marker — check the row alignment`;
-        flagged++;
-        console.warn(`[parseRosterPDF] ${entry.memberName}: Sunday parsed as a plain time "${v}" with no RDW marker — flagged for review, not written as RDW`);
-    }
-    return flagged;
-}
 
 // ── Column-scan cross-check (the general day-shift defence) ─────────────────
 
@@ -1169,7 +1155,6 @@ module.exports = {
     mapColumnHeadersToDates,
     buildSafeEntries,
     applySundayScanCorrections,
-    flagUnmarkedSundayTimes,
     applyColumnScanCrossCheck,
     normaliseScanValue,
     parseStrictIsoDate,

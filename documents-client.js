@@ -221,7 +221,35 @@ export function buildDocumentClient({
                     amb.code = 'upload/unconfirmed';
                     throw amb;
                 } else {
-                    await setDoc(doc(db, collectionName, date), firestoreDoc);
+                    // verdict === 'retry': the read said nothing of ours committed, so re-issuing is
+                    // right — but the read and the write are two calls, and a competing upload can
+                    // commit between them. That window is the same TOCTOU the read was added to
+                    // close, moved one step later, and a blind `setDoc` here would overwrite their
+                    // file reference with a path they have already deleted (v22.19, external review).
+                    //
+                    // So the retry is a COMPARE-AND-SET: re-read inside a transaction and write only
+                    // if the document is still what the check was made against. The verdict comes
+                    // from the same `resolveUploadCommit`, not a restatement of it — a second copy
+                    // of these rules is how the first one drifted.
+                    await runTransaction(db, async (/** @type {any} */ tx) => {
+                        const ref  = doc(db, collectionName, date);
+                        const snap = await tx.get(ref);
+                        const now  = snap.exists() ? snap.data() : null;
+                        const nowPath = now
+                            ? (now.storagePath ?? legacyDocPath(collectionName, date, now.fileType))
+                            : null;
+                        const again = resolveUploadCommit({
+                            ourPath: newStoragePath, oldPath: oldStoragePath, livePath: nowPath,
+                            readable: true,
+                        });
+                        if (again === 'committed') return;            // ours landed in the gap
+                        if (again === 'superseded') {
+                            const sup = /** @type {any} */ (new Error('A newer upload for this date was saved by someone else.'));
+                            sup.code = 'upload/superseded';
+                            throw sup;
+                        }
+                        tx.set(ref, firestoreDoc);
+                    });
                 }
             }
         } catch (err) {

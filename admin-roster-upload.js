@@ -6,7 +6,13 @@
 
 import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO, isSunday, parseISODate } from './roster-data.js';
 import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
-import { shouldReplaceOverride, isOtherValue, sundaySafeValue, parseOtherValue, buildOverrideWrite, nextReplacedType } from './override-utils.js';
+import { shouldReplaceOverride, parseOtherValue, buildOverrideWrite, nextReplacedType } from './override-utils.js';
+import { entryControlHtml, patchEntryRow, commitEntry } from './roster-entry-control.js';
+import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
+// RE-EXPORTED, not re-implemented: all three moved to roster-cell-rules.js (v22.17/v22.18) and
+// several call sites (and their tests) name this module. The alternative was a rename sweep across
+// three test files for no behavioural gain.
+export { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange };
 import { setStatus } from './status-text.js';
 import { assessRosterAlignment } from './roster-alignment.js';
 
@@ -184,46 +190,6 @@ export async function fetchOverridesForWeek(dates) {
 }
 
 /**
- * Normalise one parsed cell value into the pair the review table compares and saves.
- *
- * Extracted from computeCellStates (v19.32) because a SECOND consumer arrived: an unreadable cell
- * where the two AI reads disagreed now offers both readings as a pick, and a picked value has to
- * pass exactly the same guards a parsed one does. Two copies of these rules would eventually let a
- * pick write a Sunday AL — the one thing the Sunday layer exists to prevent.
- *
- * Both guards are deliberate and documented elsewhere:
- *  · SUNDAY (CLAUDE.md): Sundays are non-contracted for every grade, so a PDF marking one as AL,
- *    Absent, or an Other-family day is invalid — it becomes RD, matches the rest-day base, and is
- *    never written. A worked Sunday TIME is untouched (it becomes RDW downstream).
- *  · BASE REST DAY (v16.19, owner Jul 2026): full-pay absence and AL apply only to days the member
- *    was rostered to WORK. This is the overpay guard for blanket Mon–Fri "OD" markings, and it stops
- *    a week-long "AL" scrawled across the paper roster consuming entitlement for the rest days
- *    inside it. The manual AL path already excludes rest days; this closes the import asymmetry.
- *
- * `display` keeps the "RDW|" marker while `value` is stripped: the stripped form compares correctly
- * against stored plain-time docs (so re-imports don't churn), while the marked form is what gets
- * SAVED — without it a weekday rest-day-worked import writes {type:'shift'} and the overtime is lost
- * from both the calendar badge and paycalc's RDW pre-fill (v16.23).
- *
- * @param {string} rawShift  parsed value, possibly "RDW|HH:MM-HH:MM"
- * @param {string} baseShift the member's base roster value for that date
- * @param {string} date      "YYYY-MM-DD"
- * @returns {{ value: string, display: string }}
- */
-export function normaliseCellValue(rawShift, baseShift, date) {
-    const parsedValue = isRdwEncoded(rawShift) ? stripRdw(rawShift) : rawShift;
-    const isSun       = isSunday(date);
-    const sundaySafe  = isSun ? sundaySafeValue(parsedValue) : parsedValue;
-    const normRest = /** @param {any} s */ s => (s === 'OFF' ? 'RD' : s);
-    const restSafe = ((normRest(sundaySafe) === 'SICK' || normRest(sundaySafe) === 'AL') && normRest(baseShift) === 'RD')
-        ? 'RD' : sundaySafe;
-    return {
-        value:   normRest(restSafe),
-        display: (isRdwEncoded(rawShift) && restSafe !== 'RD') ? `${RDW_PREFIX}${restSafe}` : restSafe,
-    };
-}
-
-/**
  * Compute the state of every (member, date) cell in the review table.
  *
  * Returns a Map keyed by "memberName|date" with values:
@@ -302,6 +268,10 @@ export function computeCellStates(parsedResult, existingOverrides) {
                     : [];
                 states.set(key, {
                     state: 'UNREADABLE',
+                    // The DATE is carried on the state (v22.17). The in-place entry has to apply the
+                    // Sunday guard, and deriving the date by splitting the Map key at the call site
+                    // would be a second place that knows the key's shape.
+                    date,
                     parsedShift, baseShift,
                     manualValue: existing?.value ?? null,
                     manualId:    existing?.id    ?? null,
@@ -316,6 +286,14 @@ export function computeCellStates(parsedResult, existingOverrides) {
                     isManual:    existing ? (existing.source !== 'roster_import') : false,
                     chosen:      null,
                     options:     opts.length > 1 ? opts : null,
+                    /** What the admin typed in, once they have (v22.17). `chosen === 'entered'`
+                     *  selects it; until then it is a draft and writes nothing, exactly like an
+                     *  unpicked reading. */
+                    entered:     null,
+                    /** The in-progress entry: which pill is down and what is in the time boxes.
+                     *  Kept on the state rather than read back off the DOM so a re-render (a tick
+                     *  elsewhere refreshes the whole list) cannot lose a half-typed shift. */
+                    draft:       { type: null, from: '', to: '' },
                 });
                 continue;
             }
@@ -659,6 +637,11 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 // (a fresh base-matching override would be redundant and mask future base changes).
                 toWrite.push({ memberName, date, value: null, baseShift: state.baseShift, replaceId: state.manualId, deleteOnly: true });
             }
+            if (state.state === 'UNREADABLE' && state.chosen === 'entered' && state.entered) {
+                // The admin answered the unreadable cell in place (v22.17). Writes the same shape a
+                // picked reading does, and the value has been through the identical guards.
+                toWrite.push({ memberName, date, value: state.entered.display, baseShift: state.baseShift, replaceId: state.manualId, replacedFrom: state.manualId ? { type: state.manualType, replacedType: state.manualReplacedType } : null });
+            }
             if (state.state === 'UNREADABLE' && typeof state.chosen === 'number' && state.options?.[state.chosen]) {
                 // The admin resolved a two-way "couldn't read" by picking one of the two readings
                 // (v19.32). Writes the option's DISPLAY value — already through normaliseCellValue,
@@ -798,6 +781,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     // A resolved one is an update, not an outstanding "couldn't read" — otherwise the
                     // banner keeps reporting a problem the admin has just fixed.
                     if (typeof st.chosen === 'number' && st.options?.[st.chosen]) updates++;
+                    else if (st.chosen === 'entered' && st.entered) updates++;
                     else unreadable++;
                 }
             }
@@ -870,9 +854,15 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             const ccNote = document.createElement('div');
             ccNote.className = 'roster-crosscheck-note';
             ccNote.setAttribute('role', 'status');
+            // NEVER NAME THE MECHANISM (v22.23, external review). This said "the independent column
+            // check", which was wrong twice: it is implementation language nobody using the uploader
+            // should have to learn, AND — established against three real rosters — that check is not
+            // independent at all. It is a second reading by the same model of the same PDF in the
+            // same call, so it agrees with the row read precisely when the row read is wrong.
+            // Describe what the ADMIN must do, and let OPERATIONS_REFERENCE hold the mechanism.
             setStatus(ccNote, parsedResult.crossCheck === 'unavailable'
-                ? '⚠ The independent column check didn\'t run for this read — review each day carefully against the PDF, or try reading the roster again.'
-                : '⚠ The independent column check only covered some staff on this read — review the days carefully against the PDF.');
+                ? '⚠ These days couldn\'t be double-checked automatically — compare each one with the PDF before saving, or read the roster again.'
+                : '⚠ Some days couldn\'t be double-checked automatically — compare those days with the PDF before saving.');
             changeList.appendChild(ccNote);
         }
         // ---- Missing-member note (Finding #3) ----
@@ -1016,9 +1006,11 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     row.innerHTML = `
                         <div class="roster-choicebox">
                             <div class="roster-cb-day">
-                                <span class="roster-day-abbr">${dayName}</span>
-                                <span class="roster-day-date">${dateStr}</span>
-                                <span class="roster-act act-choice">${picked < 0 ? "Couldn't read" : 'Your choice'}</span>
+                                <div class="roster-chg-day">
+                                    <span class="roster-day-abbr">${dayName}</span>
+                                    <span class="roster-day-date">${dateStr}</span>
+                                </div>
+                                <span class="roster-act act-choice">${picked < 0 && s.chosen !== 'entered' ? "Couldn't read" : 'Your choice'}</span>
                             </div>
                             ${s.isManual && s.manualValue ? `<div class="roster-cb-opt">
                                 <span class="roster-cb-lab">Saved</span>
@@ -1026,24 +1018,36 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                             </div>` : ''}
                             <div class="roster-pick" role="group" aria-label="Choose the correct value">
                                 ${s.options.map(/** @param {any} o @param {number} i */ (o, i) => `<button type="button" class="roster-choice-btn ${picked === i ? 'is-chosen' : ''}" data-key="${esc(key)}" data-opt="${i}" aria-pressed="${picked === i}">${shiftDisplay(o.display, date)}</button>`).join('')}
-                                <button type="button" class="roster-choice-btn roster-choice-btn--skip ${picked < 0 ? 'is-chosen' : ''}" data-key="${esc(key)}" data-opt="skip" aria-pressed="${picked < 0}">Skip</button>
+                                <button type="button" class="roster-choice-btn roster-choice-btn--skip ${picked < 0 && s.chosen !== 'entered' ? 'is-chosen' : ''}" data-key="${esc(key)}" data-opt="skip" aria-pressed="${picked < 0 && s.chosen !== 'entered'}">Skip</button>
+                                <button type="button" class="roster-choice-btn roster-choice-btn--enter ${s.chosen === 'entered' ? 'is-chosen' : ''}${s.draft?.open ? ' is-open' : ''}" data-key="${esc(key)}" data-opt="enter" aria-pressed="${s.chosen === 'entered'}">Neither — enter it</button>
                             </div>
+                            ${s.draft?.open ? entryControlHtml(key, s, date) : ''}
                         </div>`;
                 } else if (s.state === 'UNREADABLE') {
                     // Skip-only: the PDF cell couldn't be parsed. No tick and no write — just surfaces
                     // the unreadable value so it isn't silently lost. The admin fixes the PDF and
                     // re-uploads, or records the shift via Change a Shift.
-                    row.classList.add('roster-change-unreadable');
+                    row.classList.add('roster-change-unreadable', 'roster-change-row--stacked');
+                    // The head keeps the ordinary day/value pairing side by side; the ROW becomes a
+                    // column so the entry control sits underneath at full width. Without the wrapper
+                    // the row's own flex made the pills a ~90px vertical column (measured — the
+                    // layout reads fine in the source, which is why this needed a screenshot).
                     row.innerHTML = `
-                        <div class="roster-chg-day">
-                            <span class="roster-day-abbr">${dayName}</span>
-                            <span class="roster-day-date">${dateStr}</span>
+                        <div class="roster-unread-head">
+                            <div class="roster-chg-day">
+                                <span class="roster-day-abbr">${dayName}</span>
+                                <span class="roster-day-date">${dateStr}</span>
+                            </div>
+                            <span class="roster-act ${s.chosen === 'entered' && s.entered ? 'act-choice' : 'act-read'}">${s.chosen === 'entered' && s.entered ? 'Your entry' : "Couldn't read"}</span>
+                            <div class="roster-chg-vals">
+                                ${shiftDisplay(s.parsedShift)}
+                                <span class="roster-remove-note">${s.chosen === 'entered' && s.entered
+                                    ? '\u2713 you entered the shift below'
+                                    : 'check the paper roster, or enter it below'}</span>
+                            </div>
                         </div>
-                        <div class="roster-chg-vals">
-                            ${shiftDisplay(s.parsedShift)}
-                            <span class="roster-remove-note">couldn't read — check the paper roster</span>
-                        </div>
-                        <span class="roster-act act-read">Not saved</span>`;
+                        <button type="button" class="roster-choice-btn roster-choice-btn--enter ${s.chosen === 'entered' ? 'is-chosen' : ''}${s.draft?.open ? ' is-open' : ''}" data-key="${esc(key)}" data-opt="enter" aria-pressed="${s.chosen === 'entered'}">${s.chosen === 'entered' && s.entered ? 'Entered — change it' : 'Enter the shift'}</button>
+                        ${s.draft?.open ? entryControlHtml(key, s, date) : ''}`;
                 } else {
                     // CONFLICT — you already recorded something that differs from the new roster.
                     // Defaults to keeping yours (chosen='manual', writes nothing); "Use new roster"
@@ -1053,8 +1057,10 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     row.innerHTML = `
                         <div class="roster-choicebox">
                             <div class="roster-cb-day">
-                                <span class="roster-day-abbr">${dayName}</span>
-                                <span class="roster-day-date">${dateStr}</span>
+                                <div class="roster-chg-day">
+                                    <span class="roster-day-abbr">${dayName}</span>
+                                    <span class="roster-day-date">${dateStr}</span>
+                                </div>
                                 <span class="roster-act act-choice">Your choice</span>
                             </div>
                             <div class="roster-cb-opt">
@@ -1176,6 +1182,22 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 return;
             }
 
+            // ---- The in-place entry for an unreadable cell (v22.17) ----
+            // Every change here re-renders the whole table rather than patching the row in place.
+            // The row's shape depends on the pill (times appear only for Shift/RDW), so a patch
+            // would have to rebuild it anyway — and the draft lives on the state, so a full render
+            // cannot lose a half-typed time the way reading values back off the DOM could.
+            const entryPill = /** @type {HTMLElement|null} */ (target.closest('.roster-entry-pill'));
+            if (entryPill) {
+                const s = cellStates.get(entryPill.dataset.key ?? '');
+                if (!s) return;
+                const t = entryPill.dataset.entryType ?? '';
+                s.draft = { ...s.draft, open: true, type: s.draft?.type === t ? null : t };
+                commitEntry(s);
+                renderReviewTable(parsedResult, cellStates);
+                return;
+            }
+
             // Keep yours / Use new roster choice on CONFLICT rows
             const choiceBtn = /** @type {HTMLElement|null} */ (target.closest('.roster-choice-btn'));
             if (choiceBtn) {
@@ -1186,7 +1208,16 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 // than `data-pick` — a picked reading, or back to writing nothing.
                 if (choiceBtn.dataset.opt !== undefined) {
                     const raw = choiceBtn.dataset.opt;
+                    if (raw === 'enter') {
+                        // Toggling the editor SHUT does not discard the entry — a re-render would
+                        // then wipe a value the admin had already committed, which is the one thing
+                        // a disclosure must never do. Only Skip un-chooses.
+                        s.draft = { ...(s.draft || { type: null, from: '', to: '' }), open: !s.draft?.open };
+                        renderReviewTable(parsedResult, cellStates);
+                        return;
+                    }
                     s.chosen = raw === 'skip' ? null : Number(raw);
+                    if (raw === 'skip') { s.entered = null; s.draft = { type: null, from: '', to: '', open: false }; }
                     const box = /** @type {any} */ (choiceBtn.closest('.roster-pick'));
                     box.querySelectorAll('.roster-choice-btn').forEach(/** @param {any} b */ b => {
                         const on = b.dataset.opt === raw;
@@ -1219,6 +1250,24 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             }
         });
 
+        // A time box changes the draft on every keystroke, not on blur: an admin who types a time
+        // and presses Save without leaving the field would otherwise save nothing, with the value
+        // visibly on screen. `input` also fires for the native picker.
+        changeList.addEventListener('input', /** @param {any} e */ e => {
+            const el = /** @type {HTMLInputElement} */ (e.target);
+            if (!el.classList?.contains('roster-entry-time')) return;
+            const s = cellStates.get(el.dataset.key ?? '');
+            if (!s) return;
+            s.draft = { ...s.draft, [el.dataset.part === 'to' ? 'to' : 'from']: el.value };
+            commitEntry(s);
+            // PATCH THE ROW, do not re-render it. A full render on every keystroke would destroy the
+            // input the admin is typing into. But leaving the row alone was worse than it looked:
+            // the head still read "Not saved · couldn't read — check the paper roster" while the
+            // summary above had already counted the entry, so the screen contradicted itself.
+            patchEntryRow(el.closest('.roster-change-row'), s.chosen === 'entered' && !!s.entered);
+            refreshOutcome();
+        });
+
         // ---- Empty state ----
         if (sectionsShown === 0) {
             changeList.innerHTML = `<div class="roster-no-changes"><span aria-hidden="true">✓</span> The roster matches what's already saved — no changes needed.</div>`;
@@ -1243,53 +1292,3 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
     // Card collapse is wired centrally in operations-app.js via initCardCollapse.
 }
 
-/**
- * Is this a worked-time value whose start and end are the SAME clock time?
- *
- * Equal times are the one range shape that is always wrong here: every duration helper in the app
- * treats `end <= start` as an overnight wrap, so a zero-length range is read as TWENTY-FOUR HOURS
- * and reaches pay. `end < start` is deliberately NOT caught — a genuine overnight shift is ordinary
- * on this roster. Accepts the internal `RDW|` encoding as well as a bare time (v20.39).
- * @param {string} value
- * @returns {boolean}
- */
-export function isZeroLengthRange(value) {
-    const m = String(value).replace(/^RDW\|/, '').match(/^(\d{2}):(\d{2})-(\d{2}):(\d{2})$/);
-    return !!m && m[1] === m[3] && m[2] === m[4];
-}
-
-/**
- * Map a shift value to the Firestore override `type` field.
- * This mirrors the existing override type vocabulary.
- * Module-scope + exported (v15.34) so the classification is unit-testable —
- * it is pure (uses only isSunday and the module's value helpers).
- *
- * @param {string} value     - e.g. "05:30-11:30", "SPARE", "AL", "SICK", "RD", "TRG RDW"
- * @param {string} baseShift - the base roster shift for that day (e.g. "RD", "06:00-12:00")
- * @param {string|null} date - ISO date string "YYYY-MM-DD" — used to detect Sunday
- * @returns {string}  override type
- */
-export function shiftValueToOverrideType(value, baseShift, date = null) {
-    // Layer 4 of the Sunday rule — the transformation is `sundaySafeValue` (override-utils.js).
-    // A value it rewrites to RD becomes a correction rather than the type it claimed to be.
-    const isSun = date !== null && isSunday(date);
-    if (isSun && sundaySafeValue(value) === 'RD' && value !== 'RD') return 'correction';
-    if (value === 'AL')    return 'annual_leave';
-    if (value === 'SICK')  return 'sick';
-    if (value === 'SPARE') return 'spare_shift';
-    // Training / Induction / Assessment (OTHER_PLAN.md) — flavour sentinel, optional
-    // " RDW" marker, optional actual times. Checked before RD/RDW: a 'TRG RDW' value must
-    // classify as an Other day, not fall through on its RDW substring (no clash today — the
-    // bare-'RDW' and pipe checks are exact/prefix — but the ordering makes that explicit).
-    if (isOtherValue(value)) return 'other';
-    if (value === 'RD' || value === 'OFF') return 'correction';
-    // Pipe-encoded RDW from AI: "RDW|14:30-22:00" — explicit flag regardless of base shift
-    if (isRdwEncoded(value) || value === 'RDW') return 'rdw';
-    // Sunday is always uncontracted — any shift worked on a Sunday is an RDW.
-    // For all other days, only classify as RDW when the AI explicitly flagged it above.
-    // Staff may swap rest/working days with permission without it being an RDW.
-    const isTime = /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(value);
-    if (isTime && isSun) return 'rdw';
-    // Spare week receiving its actual allocation — semantically distinct from overtime
-    return 'shift';
-}

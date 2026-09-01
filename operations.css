@@ -295,6 +295,86 @@ body.auth-ready .container { display: grid; }
     margin: 6px 0 2px;
     line-height: 1.4;
 }
+/* ── IN-PLACE ENTRY FOR AN UNREADABLE CELL (v22.17) ──────────────────────────────────────────── */
+/* `.roster-change-row` is a flex ROW, so anything appended to it becomes a column. The stacked
+   modifier turns the row into a column and the head keeps the day/value pairing horizontal. */
+.roster-change-row--stacked { flex-direction: column; align-items: stretch; gap: 8px; }
+/* The row's own controls stretch, like the grid cells every other row's choices sit in — an
+   "Enter the shift" button floating narrow and centred was the one control on this page that did
+   not share an edge with anything (v22.17 polish). */
+.roster-change-row--stacked > .roster-choice-btn { width: 100%; }
+/* `order` puts the action tag last visually while it stays early in the DOM, which keeps the
+   day-then-state reading order for a screen reader without a second markup shape. */
+.roster-unread-head { display: flex; align-items: center; gap: 10px; text-align: left; }
+.roster-unread-head .roster-act { order: 2; margin-left: auto; }
+.roster-unread-head .roster-chg-vals { order: 1; flex: 1; min-width: 0; }
+/* An OPEN disclosure is not a CHOSEN value — the two were one class and a merely-open editor wore
+   the green "this will be saved" fill. Open is an outline; chosen keeps the fill. */
+.roster-choice-btn--enter.is-open:not(.is-chosen) {
+    border-color: var(--primary-blue);
+    box-shadow: inset 0 0 0 1px var(--primary-blue);
+}
+.roster-entry {
+    margin-top: 8px;
+    padding: 10px;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+}
+.roster-entry-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.roster-entry-pill {
+    font-family: inherit;
+    font-size: var(--type-small);
+    font-weight: 700;
+    padding: 8px 12px;
+    min-height: 40px;
+    border: 1.5px solid var(--border-mid);
+    border-radius: var(--radius-pill);
+    background: white;
+    color: var(--text-dark);
+    cursor: pointer;
+}
+.roster-entry-pill.is-on {
+    background: var(--primary-blue);
+    border-color: var(--primary-blue);
+    color: white;
+}
+.roster-entry-pill:disabled { opacity: .38; cursor: not-allowed; }
+.roster-entry-pill:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+.roster-entry-times { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.roster-entry-time {
+    /* >=16px, or iOS zooms the page the moment this is focused — the rule the e2e scans for. */
+    font-family: inherit;
+    font-size: var(--type-medium);
+    padding: 8px 10px;
+    border: 1px solid var(--border-mid);
+    border-radius: var(--radius-button);
+    background-color: var(--field-bg);
+    color: var(--text-dark);
+    flex: 1;
+    min-width: 0;
+}
+.roster-entry-time:focus-visible {
+    outline: none;
+    background-color: white;
+    border-color: var(--primary-blue);
+    box-shadow: var(--focus-ring);
+}
+.roster-entry-dash { color: var(--text-mid); }
+/* The times are text, so an incomplete pair is a real state the control must speak for — it writes
+   nothing, and silence would read as a broken button. */
+.roster-entry-hint {
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    margin: 6px 0 0;
+}
+.roster-entry-note {
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    margin: 8px 0 0;
+    line-height: 1.4;
+}
+
 /* Reach the PDF from the review (v22.16). Deliberately quiet — it is a reference, not an action,
    and it sits above a list whose real buttons are the ticks. */
 .roster-view-pdf {
@@ -416,7 +496,13 @@ body.auth-ready .container { display: grid; }
 
 /* Conflict row — "Your choice": what you saved vs the new roster, stacked in one block. */
 .roster-choicebox { display: flex; flex-direction: column; gap: 7px; flex: 1; min-width: 0; }
-.roster-cb-day { display: flex; align-items: center; gap: 6px; }
+.roster-cb-day { display: flex; align-items: center; gap: 10px; }
+/* ONE DAY BLOCK FOR EVERY ROW (v22.17 polish). The five row states rendered the day three different
+   ways — stacked two-line on a DIFF row, inline one-line inside a choicebox, stacked again on an
+   unreadable one — so the single thing every row has in common was the thing that looked least
+   alike. The choicebox now nests the same `.roster-chg-day` the plain rows use, which is why this
+   rule only has to stop it shrinking. */
+.roster-cb-day .roster-chg-day { flex: 0 0 auto; }
 /* "Your choice" tag rides in the day header (right-aligned) rather than a left column,
    so the choicebox content uses the full card width (v15.67). */
 .roster-cb-day .act-choice { margin-left: auto; align-self: center; }
@@ -427,7 +513,16 @@ body.auth-ready .container { display: grid; }
 .cv-dim { opacity: 0.5; text-decoration: line-through; }
 /* Full-width choice row (v15.66): the two buttons share the row 50/50 and wrap to stacked
    full-width if the card is too narrow — they no longer overflow the card's right edge. */
-.roster-pick { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 3px; }
+/* A GRID, NOT A RAGGED FLEX ROW (v22.17 polish). As a wrapping flex row the same control rendered
+   differently on every row — two wide buttons here, three uneven ones there, a narrow Skip stranded
+   beside a wide Neither — because the widths came from the option LABELS, which are data. A grid
+   makes the arrangement a property of the control instead of a property of somebody's shift. */
+.roster-pick {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    gap: 8px;
+    margin-top: 3px;
+}
 .roster-choice-btn {
     flex: 1 1 auto;
     font-size: var(--type-badge); font-weight: 700;
@@ -443,11 +538,10 @@ body.auth-ready .container { display: grid; }
    "this will be saved" when it means exactly the opposite (caught by rendering it, v19.32). Filled
    neutral still says "this is the current selection" without claiming an outcome. */
 .roster-choice-btn--skip.is-chosen { background: var(--text-mid); color: white; border-color: var(--text-mid); }
-/* …and it never stretches. .roster-pick was designed for a CONFLICT row's TWO buttons sharing the
-   width 50/50; a flagged row adds a third (Skip), so on a narrow card the wrap left Skip alone on
-   its own line at full width — a shape no other row in the table has. Fixed width keeps the group
-   reading as one control whether it wraps or not (caught by rendering the real table, v19.32). */
-.roster-choice-btn--skip { flex: 0 0 auto; }
+/* Skip used to need `flex: 0 0 auto` so a three-button row did not strand it alone at full width on
+   a narrow card (v19.32, caught by rendering the real table). `.roster-pick` is a GRID since v22.17
+   and every cell is equal by construction, so the special case is gone — the arrangement no longer
+   depends on how long anybody's shift label happens to be. */
 @media (hover: hover) and (pointer: fine) {
     .roster-choice-btn:not(.is-chosen):hover { border-color: var(--primary-blue); color: var(--primary-blue); }
 }

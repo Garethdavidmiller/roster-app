@@ -88,7 +88,14 @@ const CAPS = {
     // The rest of the reduction is deliberately NOT claimed. This file is still a workspace holding
     // a grid, a paint tool, a generator, a compare mode, an importer and a bin, and the next
     // genuine seam (target-set persistence) is a smaller version of the one just taken.
-    'links-app.js':            3150,   // ← the next Links rule goes in a domain module
+    // 3150 → 3175 at v22.18, deliberately and after extracting first. The revision identity's RULES
+    // all went to links-concurrency.js — `conflictOf` path 0, `baselineAfterCommit`, `nextRevision`
+    // and `baselineFromEntry`, which exists precisely because arming a baseline from a loaded entry
+    // was about to be restated at two call sites here. What stayed is one more piece of state
+    // threaded through the save, rename and select paths that already carried the old one, which is
+    // coordination. Raised by 25 rather than the usual 50: banking the round number as headroom is
+    // the loosening the v21.87 note above refuses.
+    'links-app.js':            3175,   // ← the next Links rule goes in a domain module
     // 2000 → 1900 at v21.89. The sticky take-home bar left for paycalc-sticky-total.js — 1,988
     // measured lines down to 1,888. Of everything in this coordinator it was the piece whose
     // removal cannot affect a figure a member reads: a scroll-position widget that touches no
