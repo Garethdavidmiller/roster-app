@@ -72,6 +72,43 @@
  * excuse for shipping a CSS or layout change without it. Do not add these commands to a script or
  * a hook — they are a one-off per container, and a suite that silently apt-installs is a suite
  * nobody can reason about.
+ *
+ * ── SHARDED IN CI, AND WHY `fullyParallel` COMES WITH IT (v22.23) ──────────────────────────────
+ *
+ * The engine split at v21.80 took the wall clock from both projects to one (~19 min to ~8), and
+ * there it stopped: at 8m12s this was still the job every merge waited on, against siblings
+ * finishing in one to seven. Measured on the desktop-WebKit run, that 8m12s is 1m18s of setup
+ * (checkout, `npm ci`, the browser and its GTK/GStreamer libs) and 6m54s of tests. So the install
+ * is not the problem — the test time is, and it has two causes that have to be fixed together.
+ *
+ * The runner has 4 vCPU and Playwright defaults `workers` to half the CPUs, so TWO. Total serial
+ * work for one project is ~11.6 WebKit-minutes, which puts the 2-worker floor at ~5.8 against the
+ * 6.9 observed. `e2e.yml` therefore shards each project two ways: four jobs instead of two, and
+ * the wall clock falls with the runner count rather than fighting for cores on one machine.
+ *
+ * MORE WORKERS WOULD HAVE BEEN THE WRONG FIX. 4 workers on 4 vCPU nominally gives ~2.9 min, but
+ * this is the job with the documented flake history that the `retries: 1` above exists for, and
+ * CPU contention between browser workers is a flake source. Sharding buys the same time on more
+ * machines instead of less headroom on one.
+ *
+ * `fullyParallel` is here for SHARD BALANCE, not for speed. On its own the flag is worth little:
+ * measured over the full local suite, 8.9m → 8.2m, with 783 passing either way.
+ *
+ * THE IMBALANCE IT FIXES IS IN TIME, NOT IN TEST COUNT — check it the other way and you will
+ * conclude this comment is wrong. Playwright shards by test GROUP and balances the groups by
+ * COUNT, so with the flag off the counts already come out close: measured, 204/190 against the
+ * 197/197 it gives on. But with it off a group is a whole FILE, so every one of `pages.spec.js`'s
+ * 143 tests lands in the same shard AND the same worker, and that shard has a ~4-minute serial
+ * critical path however many shards there are. Turning it on lets those tests spread across both
+ * shards and both workers, which is the only thing that moves the floor.
+ *
+ * The 783-green run is the evidence it is safe to turn on: no spec here uses `beforeAll`,
+ * `afterAll`, `describe.serial` or module-level mutable state, so nothing depends on the order
+ * tests run within a file. That was checked before the flag was set, not after it passed.
+ *
+ * DELIBERATELY SCOPED TO THIS FILE. `playwright.config.mjs` is shared with the DEPLOY gate's
+ * Chromium run and with the visual baselines; changing parallelism under either is a separate
+ * decision with a separate risk, and this file already exists to hold what is true of WebKit only.
  */
 import base from './playwright.config.mjs';
 import { devices } from '@playwright/test';
@@ -79,6 +116,8 @@ import { devices } from '@playwright/test';
 export default {
     ...base,
     retries: process.env.CI ? 1 : 0,
+    // See the sharding note above: this is what stops one 143-test file owning a whole shard.
+    fullyParallel: true,
     projects: [
         { name: 'webkit', use: { ...devices['Desktop Safari'] } },
         // Mobile Safari — the shape most staff would actually hold, if they hold an iPhone at all.
