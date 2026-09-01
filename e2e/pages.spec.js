@@ -4270,3 +4270,54 @@ test('huddle: a table too wide to fit scrolls itself, not the page', async ({ pa
         'showInlineHuddle must call wrapTables immediately after writing the sanitised HTML — '
         + 'without it the tables render unwrapped and the page scrolls sideways again').toBe(true);
 });
+
+// ── The one comparison LATENCY_PLAN.md's open decision is gated on (v22.28) ──────────────────────
+//
+// The plan called it "a reading, not a build", and it was not readable: every dimensional split on
+// this card ran against `domReady`, so the milestone the plan's own evidence names as the wall
+// (`Recognised`) could not be split by connection at all. This drives the real card against samples
+// with the signature in them — `Recognised` spread across connection classes, `Getting ready` flat —
+// and asserts BOTH groups render, because one alone is a row of percentages with nothing to read
+// them against.
+test('operations: App speed can split Recognised by connection, beside Getting ready', async ({ page }) => {
+    await page.addInitScript(() => {
+        window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: {
+            // Recognised: fine on the fast class, bad on the slow one — a network wall's signature.
+            '22_28|calendar|authBoot|lt500ms|standalone|4g':   400,
+            '22_28|calendar|authBoot|over8s|standalone|3g':    120,
+            // Getting ready: the SAME connection classes, and flat across them. This is the half
+            // that makes the block a comparison rather than an observation.
+            '22_28|calendar|appBoot|lt500ms|standalone|4g':    400,
+            '22_28|calendar|appBoot|lt500ms|standalone|3g':    120,
+            // Enough domReady for the Calendar to be the busiest page the block renders for.
+            '22_28|calendar|domReady|lt500ms|standalone|4g':   400,
+            '22_28|calendar|domReady|1-3s|standalone|3g':      120,
+        } } };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const speed = page.locator('#pageSpeedContent');
+    await expect(speed).toContainText('Does the connection slow the start?');
+    await expect(speed).toContainText('Recognised');
+    await expect(speed).toContainText('Getting ready');
+    // The generic connection block must name its own figure now that three blocks split by conn —
+    // an unlabelled third one reads as a third milestone.
+    await expect(speed).toContainText('Whole load — by connection');
+
+    // …and the two groups must say DIFFERENT things, or the block has rendered one metric twice.
+    // Reading the "over 1s" figures directly is what separates "both headings appeared" from "the
+    // metric argument actually reached summarisePerfBy" — the whole defect being fixed.
+    const pcts = await speed.evaluate(() => {
+        const label = [...document.querySelectorAll('.speed-dim-label')]
+            .find(el => el.textContent === 'Recognised');
+        const readGroup = (el) => [...el.nextElementSibling.querySelectorAll('.speed-row--why')]
+            .map(r => r.querySelector('.speed-row-count')?.textContent).filter(Boolean);
+        const authRows = readGroup(label);
+        const appLabel = [...document.querySelectorAll('.speed-dim-label')]
+            .find(el => el.textContent === 'Getting ready');
+        return { authRows, appRows: readGroup(appLabel) };
+    });
+    // Recognised spreads (one class slow, one fast); Getting ready is flat at 0% on both.
+    expect(pcts.authRows.sort()).toEqual(['0%', '100%']);
+    expect(pcts.appRows).toEqual(['0%', '0%']);
+});

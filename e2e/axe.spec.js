@@ -440,6 +440,33 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    // The install strip carries the app's only text colours composited over a TRANSLUCENT white
+    // overlay on the navy canvas — `--on-navy-raised` under an rgba white body and a fainter rgba
+    // white steps line. Contrast there is decided by what is behind it, so no other page's scan
+    // proves anything about it, and it is `display:none` in every other state this file visits.
+    // Both variants get a scan: the button branch and the instruction branch are different markup.
+    for (const [name, ios] of /** @type {Array<[string, boolean]>} */ ([['button', false], ['instructions', true]])) {
+        test(`install strip, ${name} variant (calendar)`, async ({ page }) => {
+            await page.setViewportSize({ width: 390, height: 800 });   // mobile-only by design
+            await seedMember(page);
+            if (ios) await page.addInitScript(() => {
+                Object.defineProperty(navigator, 'userAgent', { get: () =>
+                    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 '
+                    + '(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1' });
+            });
+            await page.goto('/');
+            await expect(page.locator('.calendar-day').first()).toBeVisible();
+            if (!ios) await page.evaluate(() => {
+                const e = new Event('beforeinstallprompt');
+                /** @type {any} */ (e).prompt = () => Promise.resolve();
+                window.dispatchEvent(e);
+            });
+            await expect(page.locator('#installPrompt')).toBeVisible({ timeout: 15_000 });
+            const v = await scan(page, { exclude: ['.other-month'] });
+            expect(v.length, report(v)).toBe(0);
+        });
+    }
+
     // Static guide pages — no auth, no async state.
     for (const guide of ['guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'fip.html', 'rangers-guide.html']) {
         test(`guide (${guide})`, async ({ page }) => {

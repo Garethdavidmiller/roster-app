@@ -294,33 +294,71 @@
         }
         .swipe-hint.fade-out { opacity: 0; pointer-events: none; }
 
-        /* One-off notification prompt strip */
-        .notif-prompt {
+        /* ── The one-off prompt strips: install · notifications (v22.28) ────────────────────────
+           The calendar's only dismissable OFFERS, and they share this one treatment so the two can
+           never look like different kinds of thing. `install-prompt.js` explains why only one of
+           them is ever on screen.
+
+           THE ACTION BUTTON HAD NO FILL. `background: var(--primary-blue)` was the EXACT colour of
+           the body canvas it sits on — measured, byte-identical — so the "Enable" button had shipped
+           since the notification prompt was written as bold white text with an invisible box round
+           it. Nothing on screen said *press this*. It is gold-on-navy now, which is not a new idea:
+           `.notice-cta` has been the app's on-navy primary action all along, and this makes the two
+           agree.
+
+           The strip is a RAISED SURFACE rather than bare text on the canvas for the same reason.
+           The canvas carries chrome (the swipe hint, the pay-period line); cards carry content. An
+           offer you can act on is content, so it gets the on-navy raised surface — the third rung of
+           the three-surface model, which the nav drawer has used for its pills all along. */
+        .top-prompt {
+            /* ── The one flag JS reads off this rule (v22.28) ───────────────────────────────────
+               These strips are MOBILE-ONLY (the desktop override far below), and `install-prompt.js`
+               has to know it BEFORE it decides anything: it calls `preventDefault()` on Chromium's
+               `beforeinstallprompt`, which suppresses the browser's own install promotion. Doing
+               that on a width where we then show nothing would leave a desktop member with no offer
+               from us AND none from Chrome — strictly worse than not having the feature.
+
+               The alternative was `matchMedia('(min-width: 1024px)')` in the module, i.e. the
+               breakpoint written down twice, in two languages, with nothing to keep them in step.
+               A custom property is one declaration that both sides read. */
+            --prompt-available: 1;
             display: flex; align-items: center; justify-content: space-between;
-            gap: 8px; padding: 6px 12px 8px;
+            gap: 10px; padding: 10px 8px 10px 14px; margin-bottom: 16px;
+            background: var(--on-navy-raised);
+            border: 1px solid var(--on-navy-hairline);
+            border-radius: var(--radius-lg);   /* a full-width band, so the CARD corner, not a chip's */
             /* On the navy body canvas — must use on-navy (light) text, not the card greys. */
-            font-size: var(--type-small); color: rgba(255, 255, 255, 0.85);
+            font-size: var(--type-small); color: rgba(255, 255, 255, 0.88);
         }
-        .notif-prompt-text { flex: 1; }
-        .notif-prompt-enable {
-            background: var(--primary-blue); color: white;
-            border: none; border-radius: var(--radius-xs); padding: 9px 14px;
+        /* `min-width: 0` so a long line WRAPS instead of forcing the flex row wider than the page —
+           the iOS variant below is two lines and would otherwise push the dismiss off the edge. */
+        .top-prompt-text { flex: 1; min-width: 0; text-wrap: balance; }
+        /* The iOS second line: what to actually tap. Muted, because it is the method and the line
+           above is the offer. `display: block` is what makes it a line of its own, which is exactly
+           the trap page-visibility-parity.test.mjs guards — hence the companion `[hidden]` rule. */
+        .top-prompt-steps { display: block; margin-top: 2px; color: rgba(255, 255, 255, 0.68); }
+        .top-prompt-steps[hidden] { display: none; }
+        .top-prompt-steps strong { color: rgba(255, 255, 255, 0.92); font-weight: 600; }
+        .top-prompt-action {
+            background: var(--accent-gold); color: var(--primary-blue);
+            border: none; border-radius: var(--radius-button); padding: 9px 16px;
             font-size: var(--type-small); font-weight: 700; cursor: pointer;
             touch-action: manipulation; font-family: inherit; flex-shrink: 0;
-            min-height: 44px;
+            min-height: 44px; transition: transform var(--dur-fast) var(--ease-standard);
         }
-        .notif-prompt-enable:focus-visible {
-            outline: var(--focus-outline-gold);
+        .top-prompt-action:active { transform: scale(var(--press-scale)); }
+        .top-prompt-action:focus-visible {
+            outline: var(--focus-outline);
             outline-offset: 2px;
         }
-        .notif-prompt-dismiss {
+        .top-prompt-dismiss {
             background: none; border: none; padding: 8px 10px;
             font-size: var(--type-large); color: rgba(255, 255, 255, 0.65); cursor: pointer;
             touch-action: manipulation; flex-shrink: 0; line-height: 1;
-            min-height: 44px;
+            min-height: 44px; align-self: center;
         }
-        .notif-prompt-dismiss:focus-visible {
-            outline: var(--focus-outline);
+        .top-prompt-dismiss:focus-visible {
+            outline: var(--focus-outline-gold);
             outline-offset: 2px;
         }
 
@@ -857,8 +895,11 @@
             .legend { gap: 6px 20px; padding: 12px 24px; }
             .legend-text { font-size: var(--type-label); }
 
-            /* Mobile-only UI: hide on desktop */
-            .notif-prompt { display: none !important; }
+            /* Mobile-only UI: hide on desktop. `--prompt-available` is how install-prompt.js
+               LEARNS that, without a second copy of this breakpoint living in JS — see the note on
+               the flag's declaration. The desktop calendar locks body height and hides overflow, so
+               a 60px band here does not just look wrong, it squeezes the grid. */
+            .top-prompt { --prompt-available: 0; display: none !important; }
             .swipe-hint   { display: none !important; }
         }
 
@@ -1573,7 +1614,7 @@
                 page-break-after: avoid !important;
             }
 
-            .controls, #payPeriodStrip, .notif-prompt {
+            .controls, #payPeriodStrip, .top-prompt {
                 display: none !important;
             }
 
@@ -2768,6 +2809,7 @@
            `!important` because two of them (#notifPrompt, #swipeHint) carry an inline `display`,
            which nothing else can outrank. */
         #calendarControls[hidden],
+        #installPrompt[hidden],
         #notifPrompt[hidden],
         #payPeriodStrip[hidden],
         #swipeHint[hidden],

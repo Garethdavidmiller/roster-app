@@ -26,7 +26,7 @@ thing you are about to break. Each states WHAT must hold; the WHY is below, or i
 | 4 | **A tax year's holiday premium is paid on the FIRST JANUARY PAYSLIP OF THE FOLLOWING YEAR** — outside that year's own window. Four hand-rolled copies got this wrong; there is now one. | `paycalc-hpp-schedule.js` |
 | 5 | **Back pay is not fed into HPP.** Whole-year settled pricing already includes the award uplift, so adding the lump double-counts it. | `paycalc-hpp.js` |
 | 6 | **London Allowance does not accrue HPP.** It is a fixed allowance paid every period, including while on leave. | `paycalc-hpp.js` (`_varPayForPeriod`) |
-| 7 | **HPP is never pro-rated for a joiner.** It accrues on actual extras done, so a part-year lump is naturally lower without any scaling term. | `.claude/rules/paycalc.md` → joiners |
+| 7 | **HPP is never pro-rated for a joiner.** It accrues on actual extras done, so a part-year lump is naturally lower without any scaling term. | `paycalc-hpp.js` (`_varPayForPeriod`, which carries no pro-rate term) · this file → *Members with `startDate`* |
 | 8 | **The hourly rate is fixed by grade and never stored.** Deriving it removes the whole stale-saved-rate failure class. | `paycalc-settings.js` |
 | 9 | **Sunday-on-BH: Sunday wins (`dow===0` before `isBH`). BH + RDW is additive.** | `paycalc-calc.js` |
 | 10 | **`validateBackup` is the trust boundary, and restore is a REPLACE, never a merge.** A backup is a file from somewhere; these are pay figures, not approximations. | `paycalc-transfer.js` |

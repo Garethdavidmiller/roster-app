@@ -602,3 +602,84 @@ test('nav drawer: every pill label starts on the same x, including the current p
     const spread = Math.max(...insets) - Math.min(...insets);
     expect(spread, `pill labels start at different x: ${JSON.stringify(xs)}`).toBeLessThanOrEqual(INK_TOLERANCE_PX);
 });
+
+// ── The install strip, and the one thing about it a unit test cannot see (v22.28) ────────────────
+//
+// The rules in `install-prompt.js` are small enough to look obviously right; the WIRING is where
+// this feature can fail, and it fails silently in both directions. So these drive the real page.
+//
+// The precedence rule is the one worth the most care, and the naive version of this test is
+// VACUOUS: headless Chromium has no push service, so `notifSupported()` is false and `#notifPrompt`
+// never shows — an assertion that it is hidden would pass with the suppression line deleted. The
+// test therefore puts the notification strip on screen FIRST and asserts the install strip takes it
+// down, which is the line executing rather than the situation happening not to arise.
+
+/** Put the page in the state the strip is designed for, then fire the browser's install event. */
+async function armInstall(page, { showNotif = false, width = 390 } = {}) {
+    await page.setViewportSize({ width, height: 800 });   // the strip is mobile-only — see below
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await page.waitForSelector('#calendarDisplay table, #calendarDisplay .calendar-container', { timeout: 15_000 });
+    if (showNotif) await page.evaluate(() => { document.getElementById('notifPrompt').style.display = 'flex'; });
+    await page.evaluate(() => {
+        const e = new Event('beforeinstallprompt');
+        /** @type {any} */ (e).prompt = () => { /** @type {any} */ (window).__promptFired = true; return Promise.resolve(); };
+        window.dispatchEvent(e);
+    });
+    await expect(page.locator('#installPrompt')).toBeVisible();
+}
+
+test('install strip: it offers a real Install button once the browser says it can', async ({ page }) => {
+    await armInstall(page);
+    await expect(page.locator('#installPromptAction')).toBeVisible();
+    // The manual iOS steps are the OTHER branch and must not be showing beside a working button.
+    await expect(page.locator('#installPromptSteps')).toBeHidden();
+});
+
+test('install strip: it takes the notification ask off screen WITHOUT marking it done', async ({ page }) => {
+    await armInstall(page, { showNotif: true });
+    await expect(page.locator('#notifPrompt')).toBeHidden();
+    // The whole point of hiding rather than dismissing: the notification ask returns next visit.
+    // Trading one prompt for the other is not what "one at a time" means.
+    expect(await page.evaluate(() => localStorage.getItem('myb_notif_prompt_done'))).toBeNull();
+});
+
+test('install strip: pressing Install fires the browser prompt and does not come back', async ({ page }) => {
+    await armInstall(page);
+    await page.locator('#installPromptAction').click();
+    expect(await page.evaluate(() => /** @type {any} */ (window).__promptFired)).toBe(true);
+    await expect(page.locator('#installPrompt')).toBeHidden();
+    expect(await page.evaluate(() => localStorage.getItem('myb_install_prompt_done'))).toBe('1');
+});
+
+test('install strip: the shared PIN station is never invited to install', async ({ page }) => {
+    // A PIN unlock is a STATION, not a person — nobody should be putting the staff roster onto the
+    // mess-room PC, and there would be no one able to take it off again.
+    await page.setViewportSize({ width: 390, height: 800 });
+    await seedViewerAccess(page);
+    await seedMember(page);            // a chosen member is a DISPLAY choice, not a session
+    await page.goto('/');
+    await expect(page.locator('.month-year')).toBeVisible();
+    await page.evaluate(() => {
+        const e = new Event('beforeinstallprompt');
+        /** @type {any} */ (e).prompt = () => Promise.resolve();
+        window.dispatchEvent(e);
+    });
+    await page.waitForTimeout(600);
+    await expect(page.locator('#installPrompt')).toBeHidden();
+});
+
+test('install strip: on desktop it leaves the browser its OWN install offer', async ({ page }) => {
+    // The strip is hidden at desktop widths, so capturing `beforeinstallprompt` there would suppress
+    // Chrome's omnibox promotion and put nothing in its place. The observable half of that rule is
+    // that the event is NOT preventDefault()ed — which is why this asserts on the event, not the DOM.
+    await armInstall(page, { width: 1280 }).catch(() => { /* the strip never shows; that is the point */ });
+    const prevented = await page.evaluate(() => {
+        const e = new Event('beforeinstallprompt', { cancelable: true });
+        /** @type {any} */ (e).prompt = () => Promise.resolve();
+        window.dispatchEvent(e);
+        return e.defaultPrevented;
+    });
+    expect(prevented).toBe(false);
+    await expect(page.locator('#installPrompt')).toBeHidden();
+});

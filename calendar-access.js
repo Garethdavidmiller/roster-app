@@ -376,7 +376,7 @@ export async function lockCalendar() {
 /** The Calendar workspace: everything that implies usable roster data. The header and the nav
  *  drawer are deliberately NOT in this list — the guides, the Huddle and the documents are reachable
  *  without Calendar access, and locking the whole app to read the Railcard guide would be absurd. */
-const WORKSPACE_IDS = ['calendarControls', 'notifPrompt', 'payPeriodStrip', 'swipeHint', 'calendarDisplay', 'calendarLegend'];
+const WORKSPACE_IDS = ['calendarControls', 'installPrompt', 'notifPrompt', 'payPeriodStrip', 'swipeHint', 'calendarDisplay', 'calendarLegend'];
 
 /** @param {boolean} hidden */
 function setWorkspaceHidden(hidden) {

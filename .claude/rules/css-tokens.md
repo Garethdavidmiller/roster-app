@@ -13,6 +13,14 @@ Depth comes from three layered surfaces, defined in `shared.css :root`:
 - **card** (`--surface` = `oklch(98% 0.004 250deg)`) — a barely-tinted off-white; cards "sit into" the canvas
 - **sunken** (`--surface-sunken` = `oklch(96.3% 0.006 250deg)`) — more visibly cool-tinted off-white for recessed elements *inside* cards
 
+**On the NAVY canvas the third rung is a white overlay, not an off-white fill** (`--on-navy-raised`
+= white 9%, `--on-navy-hairline` = white 12%; `shared.css :root`, v22.28). A card surface would be
+a hole punched in the navy; a translucent overlay reads as the same material lifted. Two things use
+it — the nav drawer's pills and the calendar's install/notification prompt strips — and both once
+carried their own copy of the two literals. `.nav-panel` still declares its scoped `--nav-raised` /
+`--nav-border` names (that explicitness is a documented decision), but their VALUES now come from
+these, so the on-navy depth re-tones from one place.
+
 Form fields rest on `--field-bg` (= sunken, 96.3% L) and **brighten to `white` on `:focus-visible`** — a "fills in when active" cue. **Focus rules use the literal value `white`, NOT `var(--surface)`** — focus must always reach the true white ceiling above the card surface.
 
 Card backgrounds use `var(--surface)` (not hardcoded `white`); lightbox contents, buttons, day cells, and select options stay at `white` (they are Layer 2, raised above the card).
