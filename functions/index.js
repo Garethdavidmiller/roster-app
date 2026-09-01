@@ -381,19 +381,25 @@ If you can see a "Sun" or "Sunday" column header, include it even if every cell 
 
 STEP 2 — For each staff member, write a JSON object where each key is a column header and each value is the shift.
 You MUST include a key for EVERY column header — even if the cell is blank.
-A blank cell = "RD". Write the key, then write "RD". Do not skip it.
+A blank cell = "BLANK". Write the key, then write "BLANK". Do not skip it.
+
+DO NOT DECIDE WHAT A BLANK CELL MEANS. Report that it was empty and stop there.
+A blank cell means different things on different days, and that is decided after you,
+by code that knows which column it was. If you write "RD" for an empty cell you have
+thrown that away, and nothing downstream can tell your guess from a printed RD.
 
 ---
 THE BLANK SUNDAY RULE — THE MOST IMPORTANT RULE IN THIS PROMPT:
 Sunday cells are very often blank on this roster. Blank does not mean absent from the output.
-A blank Sunday cell means the person is on a rest day. You MUST write "Sun": "RD" for it.
+A blank Sunday cell must still appear in your output. You MUST write "Sun": "BLANK" for it.
+(Reporting the empty cell is the point. What it means on each day is decided after you.)
 
 CORRECT example (Sunday column exists, Sunday cell is blank):
   Table row: G. Miller | [blank] | 06:00-14:00 | 06:00-14:00 | RD | 06:00-14:00 | RD | RD
   Correct output:
   {
     "memberName": "G. Miller",
-    "Sun": "RD",
+    "Sun": "BLANK",
     "Mon": "06:00-14:00",
     "Tue": "06:00-14:00",
     "Wed": "RD",
@@ -414,13 +420,13 @@ SUNDAY SCAN — REQUIRED IF THE ROSTER HAS A SUNDAY COLUMN:
 Before producing the main parsed data, scan ONLY the Sunday column.
 Add a "sundayScan" object to your output where each key is a staff member name and
 the value is exactly what you see in their Sunday cell:
-  - Blank, dash, or empty cell → "blank"
+  - Blank, dash, or empty cell → "BLANK"
   - Worked shift with RDW (e.g. "06:00-14:00 RDW") → "RDW 06:00-14:00"
   - SPARE, AL, SICK, or any keyword → the keyword as-is
   - If there is no Sunday column → omit sundayScan from the output entirely
 
 Your "Sun" value for each person in "parsed" MUST match their sundayScan entry:
-  "blank"            → "Sun": "RD"
+  "BLANK"            → "Sun": "BLANK"   ← report the empty cell; do not interpret it
   "RDW HH:MM-HH:MM" → "Sun": "RDW HH:MM-HH:MM"   ← keep the RDW, never strip it
   anything else      → "Sun": that value (normalised per the codes above)
 
@@ -429,7 +435,7 @@ COLUMN SCAN — REQUIRED, ALWAYS:
 After writing "parsed", read the table a SECOND time — one COLUMN at a time, top to bottom.
 For each day column, write what you see in each staff member's cell for that day.
 Add a "columnScan" object: one key per column header, whose value is an object of
-staff member name → that cell's value (same codes as above; a blank cell → "blank").
+staff member name → that cell's value (same codes as above; a blank cell → "BLANK").
 Read the cells fresh from the document — do NOT copy from "parsed". This is a cross-check:
 if a row in "parsed" was misaligned by a day, your column-by-column read will catch it.
 
@@ -453,7 +459,8 @@ WHAT THE CODES MEAN:
 - MTG or MEETING = Meeting day. Return "MEET" (or "MEET RDW" if the cell also says RDW).
 - NA or N/A or NS = Not available. Return "RD".
 - GER = Gerrards Cross station. Extract the shift time next to it (e.g. "GER 06:00-12:00" → "06:00-12:00"). If no time, return "RD".
-- Blank = the cell contains NO text at all (or only a dash) = "RD".
+- Blank = the cell contains NO text at all (or only a dash) = "BLANK". Never "RD" — "RD" is
+  reserved for a cell where the letters R and D are actually printed.
 
 ---
 CELL LAYOUT — READ THIS CAREFULLY. IT IS WHERE MISTAKES HAPPEN:
@@ -479,37 +486,39 @@ RULES:
 1. Only include people from the STAFF NAMES list. Skip "Vacant", agency staff, or anyone not on the list.
 2. If a name in the document differs slightly (initials, spacing), match it to the closest name on the list.
 3. Every member object MUST contain a key for every column header — never omit a key, even for blank cells.
-4. Blank/dashed/empty cells = "RD" — always include them as a named key, never skip.
+4. Blank/dashed/empty cells = "BLANK" — always include them as a named key, never skip.
+   "RD" means you SAW "RD" printed in the cell. An empty cell is "BLANK". These are different
+   answers and must never be merged.
 5. Return ONLY valid JSON — no explanation, no markdown fences, nothing else.
 
 ---
 OUTPUT FORMAT — return exactly this structure:
 {
   "sundayScan": {
-    "L. Springer": "blank",
+    "L. Springer": "BLANK",
     "G. Miller": "RDW 06:00-14:00"
   },
   "columnHeaders": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
   "parsed": [
     {
       "memberName": "L. Springer",
-      "Sun": "RD",
+      "Sun": "BLANK",
       "Mon": "05:30-11:30",
       "Tue": "05:30-11:30",
       "Wed": "SPARE",
       "Thu": "05:30-11:30",
-      "Fri": "RD",
-      "Sat": "RD"
+      "Fri": "BLANK",
+      "Sat": "BLANK"
     }
   ],
   "columnScan": {
-    "Sun": { "L. Springer": "blank" },
+    "Sun": { "L. Springer": "BLANK" },
     "Mon": { "L. Springer": "05:30-11:30" },
     "Tue": { "L. Springer": "05:30-11:30" },
     "Wed": { "L. Springer": "SPARE" },
     "Thu": { "L. Springer": "05:30-11:30" },
-    "Fri": { "L. Springer": "blank" },
-    "Sat": { "L. Springer": "blank" }
+    "Fri": { "L. Springer": "BLANK" },
+    "Sat": { "L. Springer": "BLANK" }
   }
 }
 
