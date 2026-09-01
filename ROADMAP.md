@@ -404,6 +404,26 @@ A single-day column showing who is working, spare or on AL, with a cover-status 
 addressed already:** Team Week View (v8.22) shows the whole team by week, and in practice that may be
 enough — supervisors can see the full week at a glance and identify gaps. No new data needed.
 
+### Today / Next calendar strip — DECLINED
+**Status:** Declined (owner decision, Sep 2026) · **Trigger to revisit:** staff actually asking "what am I doing today/next" faster than the grid answers it · **No work before the trigger**
+
+Proposed by the v22 external review (its "best everyday-staff improvement"): a compact line above
+the month grid — *Today · Late · 14:00–22:30 / Tomorrow: Rest* — tapping through to the day detail.
+
+**Declined because the month view is the product.** Staff read this grid every day and are fluent
+in it; today's cell is already highlighted, and a fluent reader gets "what am I doing today?" in
+one glance at the thing they were already looking at. The strip would spend the app's most valuable
+pixels permanently — pushing the grid down on a 375px phone — to save a glance nobody has reported
+needing. No staff request exists, and the calendar's own surface should not be EASIER to add to
+than WebCal or dark mode below, which both correctly wait for evidence; it is the screen with the
+most to lose. The additions this app has reverted (beta chip, labelled bell row, display typeface)
+were all "helpful" things nobody asked for.
+
+A quieter cost, recorded so a revisit prices it in: the strip would be a second consumer of the
+Calendar's knowledge-state decision (`CALENDAR_DATA.md` — never present the base roster as though
+it were current), which is the invariant class behind previously shipped bugs. It must wait on the
+same display gate as the grid or show its own skeleton — the feature is not even cheap.
+
 ### Dark mode (toggleable)
 **Status:** Idea · **Trigger:** repeated staff request, or evidence of a real low-light usability problem · **Review:** January 2027 · **No work before the trigger**
 
