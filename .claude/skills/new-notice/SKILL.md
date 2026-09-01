@@ -44,7 +44,7 @@ Add the notice lightbox in the page's HTML, grouped with the other `.lb-overlay`
 | Pay calculator | `💷 Pay` | `notice-badge--pay` (green) |
 | Links workspace | `🔗 Links` | `notice-badge--links` (purple) |
 | Settings page | `⚙️ Settings` | `notice-badge--settings` (indigo) |
-| Operations page | `🔧 Operations` | `notice-badge--ops` (orange) |
+| Operations page | `🔧 Ops` | `notice-badge--ops` (orange) — short, like the page badge: a notice lightbox is a narrow box on a phone, so the section pill wants the abbreviation. The nav-drawer pill spells it in full, because a drawer row has the width. |
 | Calendar page | `📅 Calendar` | `notice-badge--calendar` (gold) |
 | General / no specific page | `📣 General` | (no modifier — neutral white tint) |
 
