@@ -48,6 +48,11 @@ import { parseSmartFloatOrNull } from './roster-data.js';
  *
  * @returns {Record<string, any>}
  */
+// isDataEmpty lives in paycalc-format.js (the zero-import pure home — beside HM_PAIRS, the two of
+// them being the schema's field surface); re-exported here because this module OWNS the schema and
+// is where a reader looks for it. paycalc-hpp re-exports it too for its long-standing importers.
+export { isDataEmpty } from './paycalc-format.js';
+
 export function emptyPeriodData() {
     return { satH: 0, satM: 0, bhH: 0, bhM: 0, bhOtH: 0, bhOtM: 0, otH: 0, otM: 0, rdwH: 0, rdwM: 0,
              sunH: 0, sunM: 0, boxH: 0, boxM: 0, peer: 0, slSkip: false, otherAdj: 0, actualNet: null };

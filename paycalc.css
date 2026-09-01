@@ -1661,3 +1661,16 @@ body.role-unsupported .privacy-note-standalone,
 body.role-unsupported #stickyTotal,
 body.role-unsupported .guide-footer-link,
 body.role-unsupported .disclaimer { display: none; }
+
+/* ── Fill-the-year control + receipt (v22.06) — lives in the year-so-far block ─────────────── */
+.yearso-fill { margin: 8px 0 2px; }
+.yearso-fill .btn-action { font-size: var(--type-label); padding: 8px 14px; }
+.yearso-receipt {
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: var(--rd-hint-bg);
+    border-radius: var(--radius-sm);
+    font-size: var(--type-small);
+    color: var(--text-mid);
+}
+.yearso-receipt div + div { margin-top: 4px; }

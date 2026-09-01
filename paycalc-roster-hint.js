@@ -25,15 +25,11 @@ import { setStatus } from './status-text.js';
 // fillCategoryFromRoster here and the two field lists in paycalc-app.js. A suggestion/snapshot
 // object stores each value under its H/M field id, so the value is `source[hId]` / `source[mId]`.
 // (hId is `cat + 'H'`, mId is `cat + 'M'`; kept explicit for grep-ability.)
-export const HM_PAIRS = [
-  { cat: 'sat',  hId: 'satH',  mId: 'satM'  },
-  { cat: 'sun',  hId: 'sunH',  mId: 'sunM'  },
-  { cat: 'bh',   hId: 'bhH',   mId: 'bhM'   },
-  { cat: 'bhOt', hId: 'bhOtH', mId: 'bhOtM' },
-  { cat: 'ot',   hId: 'otH',   mId: 'otM'   },
-  { cat: 'rdw',  hId: 'rdwH',  mId: 'rdwM'  },
-  { cat: 'box',  hId: 'boxH',  mId: 'boxM'  },
-];
+// HM_PAIRS moved to paycalc-format.js at v22.06 (paycalc-fill-year.js needs it and this module's
+// import chain reaches the gstatic SDK, so it cannot load in Node). Re-exported here so every
+// existing importer is untouched.
+export { HM_PAIRS } from './paycalc-format.js';
+import { HM_PAIRS } from './paycalc-format.js';
 
 // ── RENDER CACHE ──────────────────────────────────────────────────────────────
 // Avoids the parse+layout cost of innerHTML when the rendered string is identical

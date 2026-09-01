@@ -1,5 +1,5 @@
 import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, clickInView } from './helpers.js';
 
 
 test('paycalc: shows the in-place login when not signed in (no redirect)', async ({ page }) => {
@@ -123,6 +123,54 @@ for (const { w, h } of [{ w: 1024, h: 900 }, { w: 1280, h: 1000 }, { w: 1366, h:
 // priority rule is exercised from the outside once more. Note what that means: the value of the
 // `toHaveCount(1)` assertion below has been silently zero for seven weeks, and only the note saying
 // so made that recoverable.
+// ── Fill this tax year from Calendar (v22.06) ─────────────────────────────────────────────────
+// The rules are unit-tested (paycalc-fill-year.test.mjs); only a browser can prove the WIRING —
+// that the button the "Not entered yet" line offers runs the real engine against the real
+// storage, that the receipt lands, and that a period the member ENTERED survives the bulk write.
+
+test('paycalc: Fill-the-year fills the empty paid periods, receipts by date, and spares entered data', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page);
+    // One period the member typed by hand — the untouchable one. P2's payday (8 May 2026) is
+    // long paid; 7h of Saturday is unmistakably hand-shaped data.
+    await page.addInitScript(() => {
+        // 'G. Miller' → memberSlug 'gmiller'; the trailing _ is pcPrefix's namespace separator.
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');   // its lightbox would cover the button
+        localStorage.setItem('myb_pc_gmiller_p2', JSON.stringify({
+            satH: 7, satM: 0, bhH: 0, bhM: 0, bhOtH: 0, bhOtM: 0, otH: 0, otM: 0,
+            rdwH: 0, rdwM: 0, sunH: 0, sunM: 0, boxH: 0, boxM: 0, peer: 0,
+            slSkip: false, otherAdj: 0, actualNet: null,
+        }));
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#periodSelect option').first()).toBeAttached();
+
+    // The year block is in its slim or full state, naming what the button fixes.
+    const block = page.locator('#ytdYearSoFar');
+    await expect(block).toContainText('Not entered yet');
+    await clickInView(page.locator('#fillYearBtn'));
+
+    // The receipt: filled payslips BY DATE, plus the review-before-relying line.
+    await expect(block.locator('.yearso-receipt')).toContainText(/Filled \d+ payslips? from your calendar/);
+    await expect(block.locator('.yearso-receipt')).toContainText('Review the suggested hours');
+
+    // The entered period survived byte-for-byte — rule 1, proven against real storage.
+    const p2 = await page.evaluate(() => JSON.parse(localStorage.getItem('myb_pc_gmiller_p2') || 'null'));
+    expect(p2.satH).toBe(7);
+    // …and at least one previously-empty paid period now holds data plus its gold snapshot.
+    const filled = await page.evaluate(() => {
+        const out = [];
+        for (const k of Object.keys(localStorage)) {
+            if (/^myb_pc_gmiller_p\d+$/.test(k) && k !== 'myb_pc_gmiller_p2') out.push(k);
+        }
+        return out.map(k => ({ k, snap: !!localStorage.getItem(k.replace(/_p(\d+)$/, '_snap_$1')) }));
+    });
+    expect(filled.length).toBeGreaterThan(0);
+    expect(filled.every(f => f.snap), 'every bulk fill must carry its roster-suggested snapshot').toBe(true);
+
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
 test('paycalc: the data-ownership prompt opens for legacy data, and alone', async ({ page }) => {
     await seedSession(page);   // signs in as a real member (G. Miller)
     await page.addInitScript(() => {

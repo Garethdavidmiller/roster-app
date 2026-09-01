@@ -27,16 +27,10 @@ import { hppPayslipForTaxYear } from './paycalc-hpp-schedule.js';
  * True when a period-data object has no hours or special flags entered.
  * Exported so coordinator (updateSaveStatus) and paycalc-backpay.js can import it.
  */
-export function isDataEmpty(/** @type {any} */ d) {
-  return !d.satH && !d.satM &&
-         !d.bhH  && !d.bhM  &&
-         !d.bhOtH && !d.bhOtM &&
-         !d.otH  && !d.otM  &&
-         !d.rdwH && !d.rdwM &&
-         !d.sunH && !d.sunM &&
-         !d.boxH && !d.boxM && !d.peer &&
-         !d.slSkip && !d.otherAdj;
-}
+// isDataEmpty moved to paycalc-format.js at v22.06 — the fill-year module needs it in Node while
+// this module's import chain reaches the gstatic SDK. Re-exported unchanged for its importers.
+export { isDataEmpty } from './paycalc-format.js';
+import { isDataEmpty } from './paycalc-format.js';
 
 /**
  * Resolve which HPP figure applies for a tax year's January payslip: a CONFIRMED actual —
