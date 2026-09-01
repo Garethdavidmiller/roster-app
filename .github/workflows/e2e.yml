@@ -11,8 +11,81 @@ on:
       - '.github/**'
   pull_request:
 
+# ── ONE RUN PER BRANCH (1 Sep 2026) ────────────────────────────────────────────────────────────────
+#
+# Without this a branch carried TWO full suites at once and neither knew about the other. Both
+# `push` and `pull_request` fire here, so opening a PR on an already-pushed branch ran all ten
+# jobs a second time over an identical tree — and merging did not stop them: on 1 Sep 2026 a
+# PR-event run was still working through four WebKit jobs minutes after the PR it belonged to had
+# been merged.
+#
+# THE KEY IS `head_ref || ref_name`, AND THE FALLBACK IS THE WHOLE POINT. `github.ref` is
+# `refs/heads/<branch>` on a push and `refs/pull/<n>/merge` on a pull_request, so the recipe
+# everyone reaches for — `${{ github.workflow }}-${{ github.ref }}` — files the two events under
+# DIFFERENT groups and cancels neither. It looks correct, it is the common form, and against this
+# repo's actual duplication it does nothing. `head_ref` is the source branch on a PR and empty on
+# a push; `ref_name` is the bare branch name on a push. Both land on the same string, so the two
+# events finally collide.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
+  # ── A COMMIT ALREADY ON MAIN IS NOT NEWS (1 Sep 2026) ─────────────────────────────────────────────
+  #
+  # The push trigger fires on every branch, which is right for work and wrong for a branch RESET.
+  # The habit after a merge is `git checkout -B <branch> origin/main` and a force-push, so the
+  # branch head becomes a commit that went green minutes ago and is now on main. That push ran the
+  # whole suite again — four WebKit jobs, the Chromium smoke, csp, rules, functions, unit, visual —
+  # over a tree main had already accepted. It happened on 1 Sep 2026, and it is why this job exists.
+  #
+  # One API call, no checkout, so it costs ~15s on the critical path of a real run. The compare
+  # endpoint answers the question directly rather than by inference: `identical` means this IS
+  # main's tip, `behind` means it is an ancestor of main. Anything else — `ahead`, `diverged` — is
+  # work main has not seen, which is precisely what the suite below is for.
+  #
+  # IT FAILS OPEN IN EVERY DIRECTION, and the asymmetry is the design. An unnecessary run costs
+  # runner minutes; a wrongly-SKIPPED run reports a green suite that tested nothing, on a branch
+  # somebody is about to merge — silent, and in the one direction that matters. So an API error
+  # resolves to `unknown` and runs, a pull_request never consults the API at all, and every job
+  # below asks `!= 'true'` rather than `== 'false'`: if this job dies outright its output is the
+  # empty string, and the suite still runs.
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      # The context values go through `env`, not straight into the script. They are all
+      # repo-controlled here, but a `${{ }}` spliced into a shell body is the shape of a script
+      # injection and should not have to be re-audited to know it is safe.
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ "$EVENT" != "push" ]; then
+            echo "a $EVENT event is always tested"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          status=$(gh api "repos/$REPO/compare/main...$SHA" --jq .status 2>/dev/null || echo unknown)
+          echo "compare main...$SHA => $status"
+          case "$status" in
+            identical|behind)
+              echo "this commit is already on main — nothing new to test"
+              echo "skip=true" >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "skip=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+
   unit:
+    needs: guard
+    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -51,6 +124,8 @@ jobs:
   # not the code under test. Left as it was, it meant the handlers were only ever tested on a
   # version they never run on. This job is where that is corrected; do not "align" it back to 20.
   functions:
+    needs: guard
+    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -86,6 +161,8 @@ jobs:
   # config statically.) Separate job so a smoke failure is attributable at a glance and runs
   # in parallel with unit.
   smoke:
+    needs: guard
+    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -169,6 +246,8 @@ jobs:
   # while wall clock comes down. That is the trade being made deliberately — the scarce thing here
   # is a person waiting on a merge, not runner minutes.
   webkit:
+    needs: guard
+    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -218,6 +297,8 @@ jobs:
   # (deploy-rules.yml); running it here gates every branch/PR, so a rules ↔ app contract
   # regression is caught before merge, not at deploy.
   rules:
+    needs: guard
+    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -254,6 +335,8 @@ jobs:
   # counterpart to the static csp-hygiene.test.mjs and closes the gap the http-server smoke job
   # can't (no headers). The Hosting emulator is Node-based, so no Java is needed here.
   csp:
+    needs: guard
+    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -309,6 +392,8 @@ jobs:
   # image, regenerate the baselines on it and promote this to blocking. If they are consistently
   # noisy, that is the answer too, and it stays report-only for good.
   visual:
+    needs: guard
+    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     continue-on-error: true

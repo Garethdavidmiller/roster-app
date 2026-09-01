@@ -214,3 +214,117 @@ describe('a failed deploy is announced, whenever it fails', () => {
         });
     }
 });
+
+// ── THE SUITE MUST NOT RUN TWICE, AND MUST NOT SKIP ITSELF (1 Sep 2026) ────────────────────────────
+//
+// Two separate ways this repo burned a full ten-job suite on nothing, on 1 Sep 2026:
+//
+//   1. `push` and `pull_request` both trigger e2e.yml, so a pushed branch with a PR open ran
+//      everything twice over one tree — and a merge cancelled neither, leaving four WebKit jobs
+//      grinding on a PR that no longer existed.
+//   2. Resetting the branch after a merge (`git checkout -B <branch> origin/main`, force-push)
+//      pushed a commit that had gone green minutes earlier and was already on main. Full re-run.
+//
+// The fixes are a `concurrency` group and a `guard` job. Both are asserted HERE rather than left
+// to review because both fail SILENTLY and in opposite directions — a broken concurrency key just
+// costs money, while a broken guard reports a green suite that ran nothing, on a branch somebody
+// is about to merge.
+//
+// The job list is read FROM THE FILE, never written down here. A hand-kept list is how a job added
+// next year opts out of the guard by simply not being mentioned — the failure mode this repo has
+// hit with the enumerated CSS class list, the `paths:` globs and the hand-listed `node --check`.
+describe('e2e.yml runs once per branch, and only on new work', () => {
+    const E2E = join(WF_DIR, 'e2e.yml');
+    const src = readFileSync(E2E, 'utf8');
+    const jobsAt = src.search(/^jobs:/m);
+    const body = src.slice(jobsAt);
+
+    /** Every top-level job key, taken from the file itself. */
+    const jobs = [...body.matchAll(/^ {2}([A-Za-z_][\w-]*):[ \t]*$/gm)].map(m => m[1]);
+
+    /** @param {string} name */
+    const blockOf = (name) => {
+        const start = body.search(new RegExp(`^ {2}${name}:[ \\t]*$`, 'm'));
+        const rest = body.slice(start + 1);
+        const next = rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m);
+        return next === -1 ? rest : rest.slice(0, next);
+    };
+
+    test('the job list actually parsed', () => {
+        assert.ok(jobs.length >= 5, `expected e2e.yml's jobs, parsed ${jobs.length}`);
+        assert.ok(jobs.includes('guard'), 'no guard job in e2e.yml');
+    });
+
+    test('a superseded run is cancelled', () => {
+        const group = /^concurrency:\n {2}group: (.+)$/m.exec(src);
+        assert.ok(group, 'e2e.yml declares no concurrency group — a push and its PR run in full, twice');
+        assert.match(src, /^ {2}cancel-in-progress: true$/m,
+            'the concurrency group must cancel in progress; queueing them still runs both');
+    });
+
+    test('the concurrency key collides a push with its own pull_request', () => {
+        // The point of the whole change. `github.ref` is refs/heads/<branch> on a push and
+        // refs/pull/<n>/merge on a PR, so keying on it alone puts the two events in different
+        // groups and cancels nothing — a fix that reads as correct and does not work.
+        const group = /^concurrency:\n {2}group: (.+)$/m.exec(src)[1];
+        assert.match(group, /github\.head_ref/,
+            `the concurrency group is ${group} — without github.head_ref a push and its pull_request `
+            + 'land in different groups, which is the duplication this was added to stop');
+        assert.ok(!/github\.ref\s*}}/.test(group),
+            `the concurrency group is ${group} — github.ref carries the refs/pull/<n>/merge form on a `
+            + 'PR, so it can never match the same branch pushed; use github.ref_name as the fallback');
+    });
+
+    test('every job is gated on the guard — including one added later', () => {
+        const ungated = jobs.filter(n => n !== 'guard' && !/^ {4}needs: guard[ \t]*$/m.test(blockOf(n)));
+        assert.deepEqual(ungated, [],
+            `e2e.yml job(s) ${ungated.join(', ')} do not declare 'needs: guard', so they run on a `
+            + 'commit that is already on main. Add the needs + if pair used by every sibling job.');
+    });
+
+    test('the gate reads the guard, and fails OPEN if the guard is missing its answer', () => {
+        // `!= 'true'` and not `== 'false'`: if the guard job errors, its output is the empty
+        // string. Under `!= 'true'` the suite runs anyway (a wasted run). Under `== 'false'`
+        // every job would skip and the run would go green having tested nothing — which is the
+        // one outcome nobody would look at twice.
+        for (const name of jobs.filter(n => n !== 'guard')) {
+            const block = blockOf(name);
+            const gate = /^ {4}if: (.+)$/m.exec(block);
+            assert.ok(gate, `${name}: no job-level if — 'needs: guard' alone skips it when guard fails`);
+            assert.match(gate[1], /needs\.guard\.outputs\.skip\s*!=\s*'true'/,
+                `${name}: the gate is ${gate[1]} — it must be \`needs.guard.outputs.skip != 'true'\`. `
+                + "An `== 'false'` test skips the whole suite whenever the guard cannot answer.");
+            assert.match(gate[1], /!cancelled\(\)/,
+                `${name}: the gate must carry !cancelled() — without it a failed guard skips this job `
+                + 'silently, and with always() instead the job runs on through a cancelled run, '
+                + 'defeating the concurrency group above.');
+        }
+    });
+
+    test('the guard only ever skips a push, and treats an unreadable answer as new work', () => {
+        const block = blockOf('guard');
+        assert.match(block, /"\$EVENT" != "push"/,
+            'the guard must exempt every non-push event outright — a pull_request tests a merge '
+            + 'preview that is not on main by construction, and asking the API about it invites a '
+            + 'wrong skip on the run people actually read');
+        assert.match(block, /\|\|\s*echo unknown/,
+            'the compare call must fall back to `unknown` on failure. Without it a transient API '
+            + 'error makes `status` empty, and an empty case is one careless glob away from '
+            + 'matching the skip branch.');
+        assert.match(block, /identical\|behind\)/,
+            'the guard must skip only `identical` (this IS main) and `behind` (an ancestor of main). '
+            + '`ahead` and `diverged` are work main has not seen.');
+        assert.ok(!/skip=true/.test(block.split(/identical\|behind\)/)[0]),
+            'nothing may set skip=true before the compare has been read');
+    });
+
+    test('the guard is cheap enough to sit on the critical path', () => {
+        // It runs before all seven siblings, so a checkout or an npm install here would be paid by
+        // every real run to catch the rare redundant one. One API call, no repository.
+        const block = blockOf('guard');
+        assert.ok(!/actions\/checkout/.test(block),
+            'the guard must not check out the repository — the compare API answers without it, and '
+            + 'this job delays every genuine run by however long it takes');
+        assert.ok(!/npm ci/.test(block), 'the guard must not install dependencies');
+    });
+});
