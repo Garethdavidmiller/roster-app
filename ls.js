@@ -79,3 +79,47 @@ export function lsKeys() {
         return out;
     } catch(e) { _warnOnce(e); return []; }
 }
+
+/** Device flag: the durability request is one-shot, so a refused request is not re-asked
+ *  on every page open (and, in a browser that prompts for it, not re-prompted). */
+const PERSIST_ASKED_KEY = 'myb_storage_persist_asked';
+
+/**
+ * Ask the browser to make this origin's storage DURABLE, once per device.
+ *
+ * WHY. The pay calculator's figures live in localStorage and nowhere else — never sent to a server,
+ * by design — so they are the one thing in this app that cannot be recreated. Without a persistence
+ * grant that storage is "best-effort": the browser may evict it under storage pressure, and the
+ * member simply finds a year of entries gone. Measured in Chromium: `navigator.storage.persist`
+ * exists, `persisted()` is false and the quota is ~820MB, i.e. the data sits in exactly that
+ * evictable class today, and nothing has ever asked otherwise.
+ *
+ * WHY IT IS AN ANDROID FIX SPECIFICALLY. WebKit exposes no `navigator.storage` at all — measured:
+ * `persist`, `persisted` and `estimate` are all absent and throw on a secure origin — so on iOS
+ * there is nothing to call and installing to the Home Screen is the only lever. On Chromium the API
+ * is there, Chrome grants by heuristic (installed / engaged) without a prompt, and this is a real
+ * request that can be granted. It protects the whole ORIGIN, so the Firestore cache and the saved
+ * session benefit too.
+ *
+ * WHY IT ASKS ONLY WHEN THERE IS SOMETHING TO LOSE. Firefox (unlike Chrome) shows a permission
+ * doorhanger for this, and a first-run visitor with no pay data would meet it having nothing at
+ * stake — a prompt that reads as the app asking for something unexplained. Passing the key prefix
+ * means the request happens on the first open AFTER the member has saved something, which is both
+ * the earliest useful moment and the first moment it can be explained by what they just did.
+ *
+ * Fire-and-forget: the result changes nothing the member can see, a refusal is not an error, and
+ * every branch is wrapped because this whole module exists for browsers that throw on storage.
+ *
+ * @param {string} keyPrefix only ask once this device holds at least one key starting with it
+ * @returns {void}
+ */
+export function requestPersistentStorage(keyPrefix) {
+    try {
+        if (!keyPrefix || lsGet(PERSIST_ASKED_KEY)) return;
+        if (!lsKeys().some(k => k.startsWith(keyPrefix))) return;   // nothing worth protecting yet
+        lsSet(PERSIST_ASKED_KEY, '1');                              // one-shot, before the await
+        const s = /** @type {any} */ (navigator).storage;
+        if (!s || typeof s.persist !== 'function') return;          // WebKit: no API at all
+        s.persist().catch(() => { /* refused or unsupported — nothing to do */ });
+    } catch { /* storage unavailable — the member has no saved data here anyway */ }
+}

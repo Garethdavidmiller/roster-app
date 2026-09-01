@@ -1642,6 +1642,7 @@ Safe localStorage wrappers for all app pages (iOS Safari private mode compatibil
 - `lsKeys()` — snapshot of all key names via the `length`/`key(i)` enumeration (safe to delete while iterating); returns `[]` when storage is unavailable (v14.11)
 - On the first failure, emits a single `console.warn` (visible in DevTools) — subsequent failures are silent
 - **Never call `localStorage` directly** in `calendar-app.js`, `admin-app.js`, or `paycalc-app.js` — always use these wrappers
+- `requestPersistentStorage(keyPrefix)` (v22.13) — asks the browser to make this origin's storage DURABLE, once per device, and only once a key under `keyPrefix` exists. The pay calculator's figures are localStorage-only and, without a grant, sit in the browser's evictable class (measured in Chromium: `persisted()` false, quota ~820MB). WebKit exposes no `navigator.storage` at all, so this is a Chromium-side fix and installing remains the only lever on iOS. Called by `paycalc-app.js` with `pcPrefix()`. Tested by `ls-persist.test.mjs`
 
 ### `ls.js` — the checked writes (v21.86)
 `lsGet`/`lsSet`/`lsDel`/`lsKeys` are unchanged: `lsSet` swallows a storage exception on purpose,

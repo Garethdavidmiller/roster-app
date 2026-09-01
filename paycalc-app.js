@@ -20,7 +20,7 @@ import {
   isPreAwardPeriod, getRateForPeriod,
 } from './paycalc-calc.js';
 import { resetOverrides, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js';
-import { lsGet, lsSet, lsDel } from './ls.js';
+import { lsGet, lsSet, lsDel, requestPersistentStorage } from './ls.js';
 import { getSession, clearSession, ensureNamedSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
@@ -54,7 +54,7 @@ import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
-import { SK, periodKey, hppEstKey, hppActualKey, hppIncKey, ytdSrcKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
+import { SK, pcPrefix, periodKey, hppEstKey, hppActualKey, hppIncKey, ytdSrcKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
 import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
 import { fd, fdShort, fdLong, fmt, decimalToHM } from './paycalc-format.js';
 import { initYearCard, renderYearCard } from './paycalc-year-card.js';
@@ -1840,6 +1840,8 @@ export function init() {
     // ── BACK UP YOUR PAY DATA ─────────────────────────────────────────────────────
     // Runs late: it reads the per-member namespace runMigrations() activated above.
     initTransferCard();
+    // Pay data is localStorage-only and evictable until asked otherwise — see ls.js (v22.13).
+    requestPersistentStorage(pcPrefix());
     // The year card's fill control (v22.06). After a bulk fill: reload the visible form ONLY if
     // it was one of the filled periods (loadPeriodData re-reads storage and restores the gold
     // roster-suggested state), then recalculate — which re-renders the year block, receipt and

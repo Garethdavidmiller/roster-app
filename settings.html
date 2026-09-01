@@ -182,6 +182,16 @@
                 <button type="button" class="btn-action btn-primary" id="notifEnableBtn" style="display:none">Enable notifications</button>
                 <button type="button" class="btn-action btn-secondary" id="notifDisableBtn" style="display:none">Disable notifications</button>
                 <p id="notifDeniedMsg"></p>
+                <!-- INSTALL — hidden unless the browser actually offers one (v22.13). It lives in
+                     this card because installing is what makes notifications possible on iOS and
+                     what makes this device's stored pay data durable on both platforms, and those
+                     are the two things Settings already talks about. Deliberately NOT on the
+                     calendar: that page is meant to stay one thing. -->
+                <div id="installRow" hidden>
+                    <p class="install-note">Installing puts the roster on your home screen, and keeps
+                        this device's saved pay data safe from being cleared to free up space.</p>
+                    <button type="button" class="btn-action btn-secondary" id="installBtn">Install the app</button>
+                </div>
             </div>
         </div>
     </div>

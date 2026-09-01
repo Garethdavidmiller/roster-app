@@ -68,6 +68,31 @@ const SERVED = readdirSync(new URL('.', import.meta.url))
     .filter(f => !f.includes('.test.') && f !== 'purify.es.mjs');
 
 describe('"MYB" never names the app', () => {
+    // THE MANIFEST IS SERVED TOO, and was outside this guard until v22.13 — it filters on
+    // `.html|.js`, so `manifest.json` was never read while carrying "MYB Roster" in BOTH `name`
+    // and `short_name`. That is not a stray: `short_name` is the label under the icon on every
+    // ANDROID home screen, i.e. the app named itself MYB on the primary platform, and CLAUDE.md
+    // said MYB "survives only in the iOS apple-mobile-web-app-title meta and in comments" —
+    // a sentence made false by a file the checker could not see.
+    //
+    // `short_name` is EXEMPT, structurally, by key. It is the same argument the iOS meta rests on:
+    // a home-screen label truncates at ~12 characters, so "Marylebone Roster" arrives as something
+    // nobody recognises. `name` has no such limit — it is the install prompt and the app-info
+    // screen — so the rule applies to it in full.
+    test('the manifest does not call the software MYB anything', () => {
+        const m = JSON.parse(read('./manifest.json'));
+        const { short_name: _exempt, ...rest } = m;
+        const offenders = [];
+        for (const [k, v] of Object.entries(rest)) {
+            if (typeof v !== 'string') continue;
+            for (const hit of v.matchAll(RE)) offenders.push(`manifest.json ${k}: "${hit[0]}"`);
+        }
+        assert.deepEqual(offenders, [],
+            'MYB may name the STATION, never the SOFTWARE — short_name is the one exempt key');
+        assert.match(m.short_name, /^MYB /,
+            'if short_name stops needing the truncation exemption, drop it from this test too');
+    });
+
     test('no served file calls the software MYB anything', () => {
         /** @type {string[]} */
         const offenders = [];

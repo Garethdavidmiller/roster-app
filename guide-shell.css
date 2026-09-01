@@ -47,8 +47,14 @@
 /* Force-dark opt-out — the guides don't import shared.css, so this is their belt-and-braces
    CSS signal (alongside the <meta name="color-scheme" content="only light"> on each page).
    The `only` keyword forbids a conforming browser from algorithmically inverting the off-white
-   surfaces. Mirrors shared.css:`html { color-scheme: only light }`. */
-html { color-scheme: only light; }
+   surfaces. Mirrors shared.css:`html { color-scheme: only light }`.
+
+   `text-size-adjust` mirrors the OTHER root declaration the guides were missing (v22.13): shared.css
+   sets it for the seven app pages, and all five guides had nothing, so the pair that travels together
+   had come apart. 100% rather than `none` — it stops a browser inflating text on its own while
+   leaving the reader's own font-size preference working. With `width=device-width` Chrome should not
+   autosize anyway, so this is the belt to that braces rather than a live fix. */
+html { color-scheme: only light; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 /* Typography polish — mirrors shared.css for the guides (which don't import it): balance
    multi-line headings, avoid orphan lines in prose. Additive; degrades to normal wrapping on
