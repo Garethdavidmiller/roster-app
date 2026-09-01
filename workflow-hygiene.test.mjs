@@ -328,3 +328,91 @@ describe('e2e.yml runs once per branch, and only on new work', () => {
         assert.ok(!/npm ci/.test(block), 'the guard must not install dependencies');
     });
 });
+
+// ── A DEPLOY QUEUES; IT IS NEVER CANCELLED, AND NEVER RACES ITSELF (1 Sep 2026) ────────────────
+//
+// Two pushes to main used to deploy in parallel, each spending ~11 minutes on tests first. Nothing
+// ordered them, so the slower-testing FIRST push released second and staff got the older tree —
+// both runs green, nothing anywhere reporting it. A `concurrency` group with
+// `cancel-in-progress: false` serialises them, so the last tree to arrive is the last one live.
+//
+// EVERY CONTRACT HERE IS ABOUT A ONE-WORD EDIT THAT LOOKS LIKE TIDYING:
+//   `false` → `true`      interrupts a deploy mid-flight (and a functions deploy is not atomic —
+//                         some functions on the new code, the rest on the old).
+//   adding `github.ref`   reads as more precise and re-admits the race, because `workflow_dispatch`
+//                         carries no branch restriction and there is only one Firebase project.
+//   one shared group      serialises three deploys that are designed to run in parallel — slower
+//                         every release, safer in no respect.
+// None of the three fails anything at the time it is made, which is why they are pinned rather
+// than reviewed.
+describe('the deploy workflows serialise rather than race', () => {
+    const DEPLOYS = ['deploy-hosting.yml', 'deploy-functions.yml', 'deploy-rules.yml'];
+
+    /** @param {string} file */
+    const concurrencyOf = (file) => {
+        const src = readFileSync(join(WF_DIR, file), 'utf8');
+        const m = /^concurrency:\n {2}group: (.+)\n {2}cancel-in-progress: (\S+)/m.exec(src);
+        return m ? { group: m[1].trim(), cancel: m[2].trim() } : null;
+    };
+
+    for (const file of DEPLOYS) {
+        test(`${file}: declares a concurrency group`, () => {
+            assert.ok(concurrencyOf(file),
+                `${file} has no concurrency group, so two pushes to main deploy in parallel and the `
+                + 'one that finishes its tests last is the one that goes live — which is not '
+                + 'necessarily the newer tree.');
+        });
+
+        test(`${file}: QUEUES — it must never cancel a deploy in flight`, () => {
+            const { cancel } = concurrencyOf(file);
+            assert.equal(cancel, 'false',
+                `${file}: cancel-in-progress is '${cancel}'. A superseded TEST run is worth `
+                + 'cancelling (e2e.yml does); a superseded DEPLOY is not — cancelling interrupts a '
+                + 'release that is already going out. Queue instead, and let the newer run follow.');
+        });
+
+        test(`${file}: the group is ref-independent`, () => {
+            const { group } = concurrencyOf(file);
+            assert.ok(!/github\.(ref|ref_name|sha|head_ref)/.test(group),
+                `${file}: the group is ${group}. There is one Firebase project, so two deploys `
+                + 'racing is a hazard whatever ref they came from — and workflow_dispatch here has '
+                + 'no branch restriction, so a manual dispatch off a branch would run straight into '
+                + 'a main deploy. Keying on the ref looks more precise and reopens exactly that.');
+        });
+    }
+
+    test('the three deploys do NOT share one group', () => {
+        // They touch different targets and are meant to fire together; CLAUDE.md's backend-first
+        // ordering note is written against them running in parallel. A shared "deploy" group would
+        // serialise all three on every release and buy nothing.
+        //
+        // RESOLVE `github.workflow` BEFORE COMPARING. The first version of this test compared the
+        // group strings verbatim and failed against correct workflows: all three read
+        // `${{ github.workflow }}`, which is one string here and three different values at run
+        // time. Comparing the template rather than what GitHub computes tests the wrong thing —
+        // and it would have gone on being wrong in the other direction too, passing happily on
+        // three groups that all resolved to the same value by some other route.
+        const groups = DEPLOYS.map((f) => {
+            const src = readFileSync(join(WF_DIR, f), 'utf8');
+            const name = /^name:\s*(.+)$/m.exec(src)[1].trim();
+            return concurrencyOf(f).group.replace(/\$\{\{\s*github\.workflow\s*\}\}/g, name);
+        });
+        assert.equal(new Set(groups).size, DEPLOYS.length,
+            `the deploy workflows resolve to a shared concurrency group (${groups.join(' | ')}), `
+            + 'which serialises three deploys that are designed to run in parallel');
+    });
+
+    test('a deploy can never queue behind, or be cancelled by, a test run', () => {
+        // The groups are distinguished by github.workflow, i.e. each workflow's `name:`. Two
+        // workflows sharing a name would collapse into one group — and e2e.yml cancels, so a
+        // collision there would let a test run cancel a release.
+        const names = readdirSync(WF_DIR).filter(f => /\.ya?ml$/.test(f)).map(f => {
+            const n = /^name:\s*(.+)$/m.exec(readFileSync(join(WF_DIR, f), 'utf8'));
+            return n ? n[1].trim() : f;
+        });
+        assert.equal(new Set(names).size, names.length,
+            `two workflows share a 'name:' (${names.join(' | ')}), so their \${{ github.workflow }} `
+            + 'concurrency groups collapse into one. e2e.yml cancels in progress, so a collision '
+            + 'with it would let a test run cancel a deploy.');
+    });
+});

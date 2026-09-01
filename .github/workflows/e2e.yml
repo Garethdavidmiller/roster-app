@@ -11,7 +11,7 @@ on:
       - '.github/**'
   pull_request:
 
-# ── ONE RUN PER BRANCH (1 Sep 2026) ────────────────────────────────────────────────────────────────
+# ── ONE RUN PER BRANCH (1 Sep 2026) ────────────────────────────────────────────────────────────
 #
 # Without this a branch carried TWO full suites at once and neither knew about the other. Both
 # `push` and `pull_request` fire here, so opening a PR on an already-pushed branch ran all ten
@@ -31,7 +31,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ── A COMMIT ALREADY ON MAIN IS NOT NEWS (1 Sep 2026) ─────────────────────────────────────────────
+  # ── A COMMIT ALREADY ON MAIN IS NOT NEWS (1 Sep 2026) ────────────────────────────────────────
   #
   # The push trigger fires on every branch, which is right for work and wrong for a branch RESET.
   # The habit after a merge is `git checkout -B <branch> origin/main` and a force-push, so the
