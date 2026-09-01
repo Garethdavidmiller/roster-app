@@ -230,9 +230,11 @@ export const ROSTER_REVIEW_PARSE = {
  * Drive the real Operations roster upload to a rendered review table. The caller seeds the session
  * (and viewport/clock) first; this does the navigation.
  * @param {import('@playwright/test').Page} page
+ * @param {any} [parseOverride] a whole replacement parse response — for the cases that need a
+ *   DIFFERENT read rather than the standard row-state spread (e.g. a shifted-week fixture).
  * @returns {Promise<{ wasParseCalled: () => boolean }>}
  */
-export async function openRosterReview(page) {
+export async function openRosterReview(page, parseOverride = null) {
     // A seeded MANUAL override on the Tuesday gives the CONFLICT row something to conflict with.
     await page.addInitScript(() => {
         /** @type {any} */ (window).__E2E = /** @type {any} */ (window).__E2E || {};
@@ -250,7 +252,8 @@ export async function openRosterReview(page) {
     let called = false;
     await page.route('**/parseRosterPDF*', route => {
         called = true;
-        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ROSTER_REVIEW_PARSE) });
+        return route.fulfill({ status: 200, contentType: 'application/json',
+            body: JSON.stringify(parseOverride || ROSTER_REVIEW_PARSE) });
     });
 
     await page.goto('/operations.html');

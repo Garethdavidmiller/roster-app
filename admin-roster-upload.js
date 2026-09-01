@@ -8,6 +8,7 @@ import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, format
 import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { shouldReplaceOverride, isOtherValue, sundaySafeValue, parseOtherValue, buildOverrideWrite, nextReplacedType } from './override-utils.js';
 import { setStatus } from './status-text.js';
+import { assessRosterAlignment } from './roster-alignment.js';
 
 const RDW_PREFIX   = 'RDW|';
 const isRdwEncoded = /** @param {any} v */ v => typeof v === 'string' && v.startsWith(RDW_PREFIX);
@@ -56,53 +57,6 @@ export function shiftDisplay(shiftStr, date = null) {
     return isTime
         ? `${badge}<span class="review-shift-time">${escapeHtml(shiftStr)}</span>`
         : badge;
-}
-
-/**
- * Detect a parsed row that looks shifted by ONE DAY against the member's own base roster —
- * the one signal fully independent of the AI (both the row read AND the column-scan cross-check
- * come from the same model looking at the same PDF, so they can, rarely, misread identically;
- * the base rotating pattern cannot).
- *
- * Correlates the parsed week against the base roster at offsets −1 / 0 / +1: if a ±1 alignment
- * matches ≥ 3 MORE days than the correct alignment (and ≥ 5 of 7 overall), the row very probably
- * drifted a day in the parse. Rotating rosters make adjacent days differ most weeks, so a genuine
- * override-heavy week (sparse changes) doesn't correlate at ±1 — while a drifted row mismatches
- * nearly everywhere at offset 0 and snaps into place at ±1. Fixed-pattern members (same time all
- * week) score similarly at every offset, so the ≥3 improvement bar keeps them silent.
- *
- * Pure (no DOM); returns 'left' (values belong one day LATER — row slid left), 'right', or null.
- *
- * @param {any} member       teamMembers entry
- * @param {Record<string,string>} shifts   parsed { date: value }
- * @param {string[]} dates   the week's 7 ISO dates
- * @returns {'left'|'right'|null}
- */
-export function detectShiftedRow(member, shifts, dates) {
-    if (!member || !shifts || !Array.isArray(dates) || dates.length < 7) return null;
-    const normRest = (/** @type {string} */ v) => (v === 'OFF' ? 'RD' : v);
-    const parsedAt = (/** @type {string} */ date) => {
-        const v = shifts[date];
-        if (typeof v !== 'string' || v === '' ) return null;
-        if (isUnknownEncoded(v)) return null;            // already flagged — no signal
-        return normRest(isRdwEncoded(v) ? stripRdw(v) : v);
-    };
-    const baseAt = (/** @type {string} */ date, /** @type {number} */ offset) => {
-        const d = parseISODate(date);
-        d.setDate(d.getDate() + offset);
-        return normRest(getBaseShift(member, d));
-    };
-    const score = (/** @type {number} */ offset) => dates.reduce((n, date) => {
-        const p = parsedAt(date);
-        return (p !== null && p === baseAt(date, offset)) ? n + 1 : n;
-    }, 0);
-    const s0 = score(0);
-    // Row slid LEFT → each parsed value is really the NEXT day's → matches base at offset +1.
-    const sLeft  = score(1);
-    const sRight = score(-1);
-    if (sLeft  - s0 >= 3 && sLeft  >= 5 && sLeft  >= sRight) return 'left';
-    if (sRight - s0 >= 3 && sRight >= 5) return 'right';
-    return null;
 }
 
 /**
@@ -303,10 +257,16 @@ export function computeCellStates(parsedResult, existingOverrides) {
         }
     }
 
+    // The alignment verdict is taken ONCE, here, because `chosen` is decided here — it used to be
+    // computed at render time under a banner while every change stayed ticked. Rules and reasoning:
+    // roster-alignment.js.
+    const alignment = assessRosterAlignment(parsedResult);
+
     for (const entry of parsedResult.parsed) {
         // Only process names that exist in teamMembers (not hidden)
         const member = teamMembers.find(m => m.name === entry.memberName && !m.hidden);
         if (!member) continue;
+        const drift = alignment.byMember.get(entry.memberName) || null;
 
         for (const date of parsedResult.dates) {
             let parsedShift  = entry.shifts?.[date] || 'RD';
@@ -439,9 +399,18 @@ export function computeCellStates(parsedResult, existingOverrides) {
                 manualType:  existing?.type  ?? null,
                 manualReplacedType: existing?.replacedType ?? null,
                 manualId:    existing?.id    ?? null,
-                chosen:      (state === 'DIFF' || state === 'REMOVE_IMPORT') ? true : null,
+                // FAIL CLOSED ON A SUSPECT ROW (v22.16): a member whose week looks a day out — or
+                // anyone at all once the breaker has tripped — starts UNTICKED, so the default
+                // action on a misread week stops being "save it".
+                chosen:      (drift || alignment.blocked) ? false
+                    : ((state === 'DIFF' || state === 'REMOVE_IMPORT') ? true : null),
                 // 'chosen' for DIFF / REMOVE_IMPORT = true (approved) or false (skipped)
                 // 'chosen' for CONFLICT = 'manual' (default) or 'pdf'
+                /** 'left'/'right' when THIS member's row looks a day out; null otherwise. */
+                drift,
+                /** True on every cell of a read the circuit breaker has refused. Per-cell on
+                 *  purpose: the save path reads cell states, so it cannot write past this. */
+                rosterBlocked: alignment.blocked,
             });
         }
     }
@@ -675,6 +644,10 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         for (const [key, state] of _cellStates) {
             const [memberName, date] = key.split('|');
 
+            // THE HARD GATE (v22.16) — defence in depth beneath the inert ticks, and the reason
+            // it is pinned statically rather than behaviourally (admin-roster-upload.test.mjs).
+            if (state.rosterBlocked) continue;
+
             if (state.state === 'DIFF' && state.chosen !== false) {
                 // Write the value the row DISPLAYED (displayShift — Sunday/rest-day-normalised):
                 // what the admin approved is what gets written. manualId = any existing override
@@ -797,6 +770,25 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         // the plain-language outcome summary above the list. Presentation only — the state
         // machine (computeCellStates) and the `chosen` model are unchanged.
         function refreshOutcome() {
+            // A refused read has no outcome to summarise (v22.16): "Save 41 changes" beside
+            // "nothing has been selected" is what makes a safety gate read as a suggestion.
+            if ([...cellStates.values()].some(st => st.rosterBlocked)) {
+                // The Save button is REMOVED, not relabelled (v22.16 polish). Leaving it in place
+                // reading "Read the roster again" put an instruction on a dead control while the
+                // button that actually does that — "Upload a different file" — sat underneath it
+                // as the quiet secondary. A disabled control telling you what to do is the worst
+                // of both: it looks like the way forward and it is not.
+                applyBtn.hidden = true;
+                applyBtn.disabled = true;
+                cancelBtn?.classList.add('roster-cancel-btn--primary');
+                if (cancelBtn) cancelBtn.textContent = 'Read the roster again';
+                outcomeEl.hidden = true;
+                outcomeEl.innerHTML = '';
+                return;
+            }
+            applyBtn.hidden = false;
+            cancelBtn?.classList.remove('roster-cancel-btn--primary');
+            if (cancelBtn) cancelBtn.textContent = 'Upload a different file';
             let updates = 0, clears = 0, conflictsTotal = 0, conflictsSwitched = 0, unreadable = 0;
             for (const st of cellStates.values()) {
                 if      (st.state === 'DIFF')          { if (st.chosen !== false) updates++; }
@@ -828,10 +820,23 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             if (unreadable > 0)
                 lines.push(`<div class="ro-line ro-read"><span class="ro-k">⚠</span><span><strong>${unreadable}</strong> cell${unreadable !== 1 ? 's' : ''} couldn't be read — nothing saved</span></div>`);
 
+            // SAY WHAT IS BEING WITHHELD (v22.16 polish). A suspect member's rows are unticked, so
+            // they contribute to no count above — and the summary went silent about the one thing
+            // that had changed. A withheld row is an outcome; "nothing will happen to these" is
+            // exactly what the admin needs to read before they scroll past them.
+            const heldBack = [...cellStates.values()].filter(st =>
+                st.drift && (st.state === 'DIFF' || st.state === 'REMOVE_IMPORT')).length;
+            if (heldBack > 0)
+                lines.push(`<div class="ro-line ro-read"><span class="ro-k">⚠</span><span><strong>${heldBack}</strong> `
+                    + `day${heldBack !== 1 ? 's' : ''} held back — the week may be a day out, so nothing there is selected</span></div>`);
+
             if (lines.length === 0) { outcomeEl.hidden = true; outcomeEl.innerHTML = ''; return; }
             outcomeEl.hidden = false;
+            const anySuspect = [...cellStates.values()].some(st => st.drift);
             const hint = (updates > 0 || clears > 0)
-                ? '<p class="ro-hint">Ticked rows will save — tap a ✓ to skip that row.</p>' : '';
+                ? `<p class="ro-hint">Ticked rows will save — tap a ✓ to skip that row.${
+                    anySuspect ? ' Rows flagged as possibly a day out start unticked; tick only what you have checked against the PDF.' : ''}</p>`
+                : '';
             outcomeEl.innerHTML = `<h4 class="ro-h">When you tap “Save changes”</h4>${lines.join('')}${hint}`;
         }
 
@@ -841,6 +846,26 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         // when the (new) field is present and not 'complete', so an older deployed Function stays
         // silent rather than false-alarming.
         changeList.innerHTML = '';
+
+        // ---- "View the original roster" (v22.16) ----
+        // Failing closed is only fair if the admin can go and look: every message this release adds
+        // ends in "check it against the PDF", and the file had left the workflow the moment the
+        // parse returned. The object URL is built at CLICK time (a real gesture, so never
+        // pop-up-blocked) and revoked on a timer, like the pay-data download.
+        const pdfFile = fileInput?.files?.[0];
+        if (pdfFile) {
+            const view = document.createElement('button');
+            view.type = 'button';
+            view.className = 'roster-view-pdf';
+            view.textContent = `📄 View the original roster (${pdfFile.name})`;
+            view.addEventListener('click', () => {
+                const url = URL.createObjectURL(pdfFile);
+                window.open(url, '_blank', 'noopener');
+                setTimeout(() => URL.revokeObjectURL(url), 60_000);
+            });
+            changeList.appendChild(view);
+        }
+
         if (parsedResult.crossCheck && parsedResult.crossCheck !== 'complete') {
             const ccNote = document.createElement('div');
             ccNote.className = 'roster-crosscheck-note';
@@ -863,6 +888,35 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             mmNote.innerHTML = `<span aria-hidden="true">⚠</span> <strong>Not found in this read:</strong> ${names}. If they should be on this roster, check the PDF — the read may have skipped a row — or read the roster again.`;
             changeList.appendChild(mmNote);
         }
+        // ---- THE CIRCUIT BREAKER (v22.16) ---- Why several same-direction drifts mean a parser
+        // failure rather than a coincidence of rotas: roster-alignment.js.
+        const alignment = assessRosterAlignment(parsedResult);
+        if (alignment.blocked) {
+            const stop = document.createElement('div');
+            stop.className = 'roster-alignment-stop';
+            stop.setAttribute('role', 'alert');
+            // NAME THEM, BUT CAP THE LIST. On a fifteen-person roster this can be eight names, and a
+            // banner that runs to four lines of names buries the sentence that matters.
+            const shown = alignment.suspects.slice(0, 4).map(/** @param {string} n */ n => esc(n)).join(', ');
+            const more  = alignment.suspects.length - 4;
+            const who   = more > 0 ? `${shown} and ${more} more` : shown;
+            // The CAUSE is stated as a possibility, not a diagnosis. A left shift is usually the
+            // blank Sunday column being skipped, and saying so helps — but the same signature can
+            // come from any dropped cell, and on a RIGHT shift the Sunday explanation is simply
+            // wrong. A confident wrong cause sends the admin looking in the wrong place, which is
+            // worse than no cause at all.
+            const likely = alignment.direction === 'left'
+                ? 'usually the blank Sunday column being skipped when the roster is read'
+                : 'a sign a cell was misread when the roster was read';
+            stop.innerHTML = `<span aria-hidden="true">⛔</span> <strong>This read looks one day out and has not been saved.</strong>`
+                + ` ${alignment.suspects.length} staff line up with their usual pattern shifted a day`
+                + ` ${alignment.direction === 'left' ? 'earlier' : 'later'} — ${who}.`
+                + ` That is ${likely} — not everyone changing their week at once.`
+                + ` <strong>Nothing has been selected for saving.</strong>`
+                + ` Read the roster again; if it happens twice, check the PDF against this week by hand.`;
+            changeList.appendChild(stop);
+        }
+
         // ---- Build per-person sections ----
         let sectionsShown = 0;
 
@@ -877,7 +931,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             if (changedDates.length === 0) continue;
 
             const section = document.createElement('div');
-            section.className = 'roster-person-section';
+            section.className = 'roster-person-section' + (alignment.blocked ? ' roster-blocked' : '');
             section.dataset.member = entry.memberName;
 
             // Person header
@@ -888,18 +942,19 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     <button class="roster-skip-all-btn" data-member="${esc(entry.memberName)}" aria-pressed="false">Skip all</button>
                 </div>`;
 
-            // Day-drift warning: this row correlates with the member's OWN base pattern one day
-            // out — the independent check on the AI read (see detectShiftedRow). Warn ONLY: the
-            // admin decides against the PDF; nothing is auto-changed at this stage.
+            // Day-drift: the one check that does NOT come from the model (roster-alignment.js).
+            // WARN-ONLY until v22.16; the rows now start unticked — computeCellStates owns that
+            // decision, this states it.
             // Direction wording: 'left' = each parsed value really belongs to the NEXT day
             // (parsed[d] matches base[d+1]) — i.e. the usual pattern appears a day EARLIER than
             // it should. (The first wording had this inverted — v16.69 review fix.)
-            const drift = detectShiftedRow(member, entry.shifts, dates);
-            if (drift) {
+            const drift = alignment.byMember.get(entry.memberName) || null;
+            if (drift && !alignment.blocked) {
+                section.classList.add('roster-person-suspect');
                 const warn = document.createElement('div');
                 warn.className = 'roster-shift-warning';
                 warn.setAttribute('role', 'alert');
-                warn.innerHTML = `<span aria-hidden="true">⚠️</span> <strong>These days may be one day out.</strong> ${esc(entry.memberName)}'s week lines up better with their usual pattern shifted a day ${drift === 'left' ? 'earlier' : 'later'} — check each day against the PDF before saving, or Skip all and re-upload.`;
+                warn.innerHTML = `<span aria-hidden="true">⚠️</span> <strong>These days may be one day out — nothing here is selected.</strong> ${esc(entry.memberName)}'s week lines up better with their usual pattern shifted a day ${drift === 'left' ? 'earlier' : 'later'}, which usually means a column was skipped when the roster was read. Check each day against the PDF and tick only what you have confirmed, or read the roster again.`;
                 section.appendChild(warn);
             }
 
@@ -1035,6 +1090,9 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             if (tickBtn) {
                 const s = cellStates.get(tickBtn.dataset.key ?? '');
                 if (!s) return;
+                // A refused read has NO per-row override (v22.16) — a live tick is exactly the
+                // escape hatch the breaker exists to close.
+                if (s.rosterBlocked) return;
                 s.chosen = !s.chosen;
                 const approved = s.chosen !== false;
                 tickBtn.classList.toggle('off', !approved);
@@ -1044,6 +1102,10 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 refreshOutcome();
                 return;
             }
+
+            // A refused read has no per-row anything: conflict choices and Skip-all are as inert as
+            // the ticks. Placed here rather than in each branch so a control added later inherits it.
+            if (target.closest('.roster-blocked')) return;
 
             // Skip all / Restore for a person — applies to DIFF/REMOVE and CONFLICT rows alike
             const skipAllBtn = /** @type {HTMLElement|null} */ (target.closest('.roster-skip-all-btn'));
