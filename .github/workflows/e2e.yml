@@ -39,10 +39,12 @@ jobs:
   # whole suite again — four WebKit jobs, the Chromium smoke, csp, rules, functions, unit, visual —
   # over a tree main had already accepted. It happened on 1 Sep 2026, and it is why this job exists.
   #
-  # One API call, no checkout, so it costs ~15s on the critical path of a real run. The compare
-  # endpoint answers the question directly rather than by inference: `identical` means this IS
-  # main's tip, `behind` means it is an ancestor of main. Anything else — `ahead`, `diverged` — is
-  # work main has not seen, which is precisely what the suite below is for.
+  # One API call and no checkout. MEASURED on its first live run (1 Sep 2026): the job itself took
+  # 2s, of which the `gh api` call was 0.7s, and the seven siblings were dispatched 4s after it —
+  # so that is the cost on the critical path of a genuine run, not the ~15s first guessed here.
+  # The compare endpoint answers the question directly rather than by inference: `identical` means
+  # this IS main's tip, `behind` means it is an ancestor of main. Anything else — `ahead`,
+  # `diverged` — is work main has not seen, which is precisely what the suite below is for.
   #
   # IT FAILS OPEN IN EVERY DIRECTION, and the asymmetry is the design. An unnecessary run costs
   # runner minutes; a wrongly-SKIPPED run reports a green suite that tested nothing, on a branch
