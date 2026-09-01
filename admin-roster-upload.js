@@ -8,11 +8,11 @@ import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, format
 import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { shouldReplaceOverride, parseOtherValue, buildOverrideWrite, nextReplacedType } from './override-utils.js';
 import { entryControlHtml, patchEntryRow, commitEntry } from './roster-entry-control.js';
-import { normaliseCellValue, shiftValueToOverrideType } from './roster-cell-rules.js';
-// RE-EXPORTED, not re-implemented: both moved to roster-cell-rules.js at v22.17 and several call
-// sites (and their tests) name this module. The alternative was a rename sweep across three test
-// files for no behavioural gain.
-export { normaliseCellValue, shiftValueToOverrideType };
+import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
+// RE-EXPORTED, not re-implemented: all three moved to roster-cell-rules.js (v22.17/v22.18) and
+// several call sites (and their tests) name this module. The alternative was a rename sweep across
+// three test files for no behavioural gain.
+export { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange };
 import { setStatus } from './status-text.js';
 import { assessRosterAlignment } from './roster-alignment.js';
 
@@ -1284,20 +1284,5 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
     }
 
     // Card collapse is wired centrally in operations-app.js via initCardCollapse.
-}
-
-/**
- * Is this a worked-time value whose start and end are the SAME clock time?
- *
- * Equal times are the one range shape that is always wrong here: every duration helper in the app
- * treats `end <= start` as an overnight wrap, so a zero-length range is read as TWENTY-FOUR HOURS
- * and reaches pay. `end < start` is deliberately NOT caught — a genuine overnight shift is ordinary
- * on this roster. Accepts the internal `RDW|` encoding as well as a bare time (v20.39).
- * @param {string} value
- * @returns {boolean}
- */
-export function isZeroLengthRange(value) {
-    const m = String(value).replace(/^RDW\|/, '').match(/^(\d{2}):(\d{2})-(\d{2}):(\d{2})$/);
-    return !!m && m[1] === m[3] && m[2] === m[4];
 }
 

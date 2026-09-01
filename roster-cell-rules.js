@@ -108,3 +108,18 @@ export function shiftValueToOverrideType(value, baseShift, date = null) {
     // Spare week receiving its actual allocation — semantically distinct from overtime
     return 'shift';
 }
+
+/**
+ * Is this a worked-time value whose start and end are the SAME clock time?
+ *
+ * Equal times are the one range shape that is always wrong here: every duration helper in the app
+ * treats `end <= start` as an overnight wrap, so a zero-length range is read as TWENTY-FOUR HOURS
+ * and reaches pay. `end < start` is deliberately NOT caught — a genuine overnight shift is ordinary
+ * on this roster. Accepts the internal `RDW|` encoding as well as a bare time (v20.39).
+ * @param {string} value
+ * @returns {boolean}
+ */
+export function isZeroLengthRange(value) {
+    const m = String(value).replace(/^RDW\|/, '').match(/^(\d{2}):(\d{2})-(\d{2}):(\d{2})$/);
+    return !!m && m[1] === m[3] && m[2] === m[4];
+}

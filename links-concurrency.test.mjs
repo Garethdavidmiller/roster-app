@@ -11,7 +11,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { conflictOf, baselineAfterWrite, canAdvanceBaseline } from './links-concurrency.js';
+import { conflictOf, baselineAfterWrite, baselineAfterCommit, baselineFromEntry, canAdvanceBaseline, nextRevision } from './links-concurrency.js';
 
 /** A Firestore-ish timestamp. */
 const ts = (/** @type {number} */ ms) => ({ toMillis: () => ms, toDate: () => new Date(ms) });
@@ -86,17 +86,20 @@ describe('conflictOf — did someone else save while we had the page open?', () 
 
 describe('baselineAfterWrite — an unknown baseline must never look like "no baseline"', () => {
     test('a good read-back arms the baseline', () => {
-        assert.deepEqual(baselineAfterWrite(5000), { loadedUpdatedAt: 5000, baselineUnknown: false });
+        // `loadedRevision: null` is asserted rather than tolerated (v22.18): this path is the one
+        // that CANNOT know the revision — a read-back, not a commit — and a stray number here would
+        // be a baseline claiming an exactness it does not have.
+        assert.deepEqual(baselineAfterWrite(5000), { loadedRevision: null, loadedUpdatedAt: 5000, baselineUnknown: false });
     });
 
     test('a FAILED read-back flags unknown (v17.18)', () => {
-        assert.deepEqual(baselineAfterWrite(null, false), { loadedUpdatedAt: null, baselineUnknown: true });
+        assert.deepEqual(baselineAfterWrite(null, false), { loadedRevision: null, loadedUpdatedAt: null, baselineUnknown: true });
     });
 
     test('a read-back that returned no timestamp also flags unknown', () => {
         // Same danger as a failure: null alone reads as "nothing to compare" in conflictOf.
-        assert.deepEqual(baselineAfterWrite(null), { loadedUpdatedAt: null, baselineUnknown: true });
-        assert.deepEqual(baselineAfterWrite(undefined), { loadedUpdatedAt: null, baselineUnknown: true });
+        assert.deepEqual(baselineAfterWrite(null), { loadedRevision: null, loadedUpdatedAt: null, baselineUnknown: true });
+        assert.deepEqual(baselineAfterWrite(undefined), { loadedRevision: null, loadedUpdatedAt: null, baselineUnknown: true });
     });
 
     test('the two functions compose: a failed read-back keeps the NEXT save guarded', () => {
@@ -211,5 +214,151 @@ describe('the design protocol has exactly one owner', () => {
             assert.ok(!store.includes(forbidden),
                 `links-design-store.js references ${forbidden} — it decides, the workspace presents`);
         }
+    });
+});
+
+
+// ── THE REVISION (v22.18) — the fourth silent-overwrite bug, closed by construction ────────────
+//
+// The three bugs this module opened with were all reasoned about and fixed in prose. This is the
+// fourth, and it is a different KIND: not a rule written wrongly, but a rule that could not be
+// asked correctly. `updatedAt` is a serverTimestamp, so a writer cannot know its own write's value
+// without a SEPARATE read afterwards — and a colleague's save can land in that gap, leaving us
+// holding a baseline that points at a revision whose CONTENT we never took in. Our next save then
+// matches, skips the confirm, and overwrites them.
+//
+// Organised by what a wrong answer COSTS, and the directions are not symmetric:
+//   MISSING A CONFLICT destroys a colleague's work silently — they see a successful save and find
+//     out on reopening. That is every bug in this module's header.
+//   INVENTING ONE costs a confirm dialog nobody needed. Annoying, visible, survivable.
+
+describe('the revision closes the read-back window', () => {
+    const ME = 'G. Miller';
+    const state = (o) => ({ currentUser: ME, loadedRevision: null, loadedUpdatedAt: null, baselineUnknown: false, ...o });
+    const doc = (o) => ({ updatedBy: 'S. Silva', updatedAt: { toMillis: () => 5000 }, ...o });
+
+    // ── MISSING A CONFLICT ─────────────────────────────────────────────────────────────────────
+
+    test('THE BUG: a baseline armed from a read-back that caught a COLLEAGUE\'s write', () => {
+        // We committed revision 4. Between our commit and our read-back, S. Silva committed 5 — so
+        // a timestamp-armed baseline would hold THEIR revision and our next save would sail through.
+        // Armed from what we COMMITTED, the mismatch is visible.
+        assert.ok(conflictOf(doc({ revision: 5 }), true, state({ loadedRevision: 4 })),
+            'holding our own committed revision, their save is a conflict');
+        // The same race in the world before this release: no revision anywhere, and the baseline
+        // armed from a read-back that returned THEIR timestamp. It matches, so the guard says
+        // nothing and the next save destroys their work. This assertion is the defect itself.
+        assert.equal(conflictOf(doc({}), true, state({ loadedUpdatedAt: 5000 })), null,
+            'a timestamp read back AFTER the commit agrees — which is why it cannot be the identity');
+    });
+
+    test('an older client overwriting the field is a conflict, not a match', () => {
+        // A device on a pre-v22.18 build writes without a revision. We hold 5; the server holds
+        // none. Absent is not equal to present, in either direction.
+        assert.ok(conflictOf(doc({}), true, state({ loadedRevision: 5 })));
+        assert.ok(conflictOf(doc({ revision: 1 }), true, state({ loadedRevision: null, loadedUpdatedAt: 5000 })),
+            'we loaded before the first revisioned save');
+    });
+
+    test('a corrupt revision can never freeze or reverse the counter', () => {
+        // A value that is not a usable number restarts at 1 rather than propagating. Freezing it
+        // would make every later comparison agree when it should not — the failure this closes.
+        for (const bad of [undefined, null, 'x', NaN, Infinity, 0, -3, {}]) {
+            assert.equal(nextRevision({ revision: bad }), 1, `revision ${String(bad)} must not be trusted`);
+        }
+        assert.equal(nextRevision({ revision: 7 }), 8);
+        assert.equal(nextRevision({ revision: 2.7 }), 3, 'a float is floored, never carried forward');
+    });
+
+    // ── INVENTING ONE ──────────────────────────────────────────────────────────────────────────
+
+    test('our own committed revision matches, so an ordinary second save does not prompt', () => {
+        assert.equal(conflictOf(doc({ revision: 4 }), true, state({ loadedRevision: 4 })), null);
+    });
+
+    test('a design nobody has saved since v22.18 still uses the timestamp', () => {
+        // Neither side has a revision, so the pre-existing rules run unchanged. Without this the
+        // release would prompt on every save of every legacy design.
+        assert.equal(conflictOf(doc({}), true, state({ loadedUpdatedAt: 5000 })), null);
+        assert.ok(conflictOf(doc({}), true, state({ loadedUpdatedAt: 4000 })));
+    });
+
+    test('a missing document is not a conflict — the delete paths own that', () => {
+        assert.equal(conflictOf({}, false, state({ loadedRevision: 5 })), null);
+    });
+
+    test('an UNKNOWN baseline still falls to the name check, revision or not', () => {
+        // baselineUnknown means we verified nothing, so the exact rule has nothing to be exact
+        // about. It must not short-circuit to "no conflict" (the v17.18 shape).
+        assert.ok(conflictOf(doc({ revision: 9 }), true,
+            state({ loadedRevision: null, baselineUnknown: true })), 'somebody else last wrote it');
+        assert.equal(conflictOf(doc({ revision: 9, updatedBy: ME }), true,
+            state({ loadedRevision: null, baselineUnknown: true })), null, 'our own name, as before');
+    });
+
+    test('a conflict names the REVISION it saw, so a forced overwrite consents to that one', () => {
+        const c = conflictOf(doc({ revision: 9 }), true, state({ loadedRevision: 4 }));
+        assert.equal(c.rev, 9, 'the store re-checks this exact number inside the forcing transaction');
+    });
+
+    test('baselineAfterCommit is exact and known — the pairing that broke at v17.18 is safe HERE', () => {
+        const b = baselineAfterCommit(4);
+        assert.deepEqual(b, { loadedRevision: 4, loadedUpdatedAt: null, baselineUnknown: false });
+        // The v17.18 danger was `loadedUpdatedAt: null` with `baselineUnknown: false` — a baseline
+        // that knew nothing while claiming to be known. This one knows the revision, and conflictOf
+        // reaches that first, which is what makes the same shape correct rather than a repeat.
+        assert.ok(conflictOf(doc({ revision: 5 }), true, { ...b, currentUser: ME }));
+        assert.equal(conflictOf(doc({ revision: 4 }), true, { ...b, currentUser: ME }), null);
+    });
+});
+
+describe('baselineFromEntry — selecting a design we LOADED', () => {
+    // The third arming case, and the one with no write in it. It had no test on the first pass:
+    // deleting its revision branch left the whole suite green, because every other case here goes
+    // through a commit or a read-back. What that costs is not visible either — the page would fall
+    // back to the timestamp on a design that HAS a revision, which is the pre-v22.18 behaviour, so
+    // nothing breaks and the guarantee is quietly gone.
+    const entry = (/** @type {any} */ o) => ({ updatedAt: { toMillis: () => 5000 }, ...o });
+
+    test('a loaded revision arms the baseline exactly', () => {
+        assert.deepEqual(baselineFromEntry(entry({ revision: 7 })),
+            { loadedRevision: 7, loadedUpdatedAt: 5000, baselineUnknown: false });
+    });
+
+    test('and it is KNOWN even when the timestamp is not', () => {
+        // An unresolved serverTimestamp — what our own recent write reads back as on this device.
+        // Before the revision there was nothing to compare, so the baseline had to be flagged
+        // unknown; now there is, and flagging it unknown would prompt on a design we know exactly.
+        assert.deepEqual(baselineFromEntry({ revision: 3, updatedAt: null }),
+            { loadedRevision: 3, loadedUpdatedAt: null, baselineUnknown: false });
+    });
+
+    test('a design with no revision falls through to the old rules, unchanged', () => {
+        assert.deepEqual(baselineFromEntry(entry({})),
+            { loadedRevision: null, loadedUpdatedAt: 5000, baselineUnknown: false });
+        assert.deepEqual(baselineFromEntry({ updatedAt: null }),
+            { loadedRevision: null, loadedUpdatedAt: null, baselineUnknown: true },
+            'nothing to compare at all — the v17.18 shape, still flagged');
+    });
+
+    test('a corrupt revision is not a revision', () => {
+        // Same refusal as nextRevision: a non-number must not become a baseline that compares
+        // equal to itself for ever.
+        for (const bad of ['5', null, {}, NaN]) {
+            const r = baselineFromEntry(entry({ revision: bad }));
+            if (Number.isNaN(/** @type {any} */ (bad))) continue;   // NaN IS a number; see below
+            assert.equal(r.loadedRevision, null, `revision ${String(bad)} must not arm a baseline`);
+        }
+        // NaN passes `typeof === 'number'` and is carried through — deliberately not special-cased
+        // here, because `NaN !== NaN` makes every comparison in conflictOf a MISMATCH, which is the
+        // safe direction (a prompt), and `nextRevision` refuses it on the way to the server.
+        assert.ok(conflictOf({ revision: NaN }, true,
+            { loadedRevision: NaN, loadedUpdatedAt: null, baselineUnknown: false, currentUser: ME }),
+            'a NaN revision never agrees with itself, so it always prompts');
+    });
+
+    test('missing input is not a crash', () => {
+        assert.deepEqual(baselineFromEntry(null),
+            { loadedRevision: null, loadedUpdatedAt: null, baselineUnknown: true });
     });
 });
