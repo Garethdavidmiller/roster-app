@@ -264,6 +264,14 @@ const ingestHuddle = onRequest(
             // set is idempotent, so an internal retry recomputes createdNew against the latest committed
             // state — if a concurrent run created the doc meanwhile, createdNew flips false and we don't
             // double-notify, consistent with "a missed notification is safer than spamming staff").
+            //
+            // READ THAT NARROWLY (v22.13). What makes the retry safe is that it happens INSIDE the
+            // transaction, which re-reads and recomputes; idempotence alone does not make a rewrite
+            // safe, and generalising this sentence is how you get the opposite. The browser side is
+            // the proof: `upload-commit.js` exists because a commit-ambiguous metadata write was
+            // re-issued outside any transaction, and an equally idempotent `set` then overwrote a
+            // competing upload's file reference. Same operation, no transaction, real data loss.
+            // Do not cite this comment when reasoning about a write that is not in one.
             let createdNew = false;
             const huddleRef = getFirestore().collection('huddles').doc(date);
             try {

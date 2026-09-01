@@ -1506,10 +1506,12 @@ production.
 **Still not covered at handler level**, in the order they are worth doing:
 - **`getSignInStats`** — the one Auth handler left. Deliberately last: it is a READ, it returns four
   integers and no identity, and its aggregation is already pinned by `summariseSignIns`.
-- **The Documents domain** (`ingestHuddle`, the three `onDocumentCreated` triggers, the scheduled pay
-  reminder). Higher stakes than the figure above suggests — these fan out to every staff device —
-  but the same technique applies unchanged. `push-transport.test.mjs` (v21.85) now covers the
-  senders both triggers end in, so what is left untested is the DECISION to send.
+- ~~**The Documents domain**~~ — **CLOSED v22.02.** `documents-endpoints.test.mjs` executes
+  `ingestHuddle`, the three `onDocumentCreated` triggers and the scheduled pay reminder against a
+  fake Firestore, a fake Storage and a recording transport, organised by cost: a DOUBLE push (both
+  halves of the guard — the atomic create-vs-resend transaction and the trigger's power-automate
+  skip), a SILENT non-push, and a write that should not exist. Teeth-verified by six mutations.
+  This entry said the DECISION to send was what remained untested; it is now the covered part.
 
 Also still untested: the coordinator wiring in `calendar-app.js` / `admin-app.js` (the extracted
 `calendar-renderer.js` / `calendar-*` state modules have unit tests; the coordinators themselves do

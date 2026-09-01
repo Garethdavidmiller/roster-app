@@ -151,6 +151,7 @@ export function init() {
 
         // Notifications card
         initHuddleNotifications();
+        initInstallRow();
 
         // Pay Calculator Data — a pointer card, so collapse is the only behaviour it has.
         initCardCollapse('payDataToggleHeader', 'payDataBody', 'payDataChevron');
@@ -589,4 +590,44 @@ export function init() {
         // Android Back, focus trap). Do not re-wire it here — a duplicate handler used to
         // live in this function and left the nav-panel state flags out of sync (v11.50).
     }
+}
+
+/**
+ * The install affordance, wired to the browser's own offer (v22.13).
+ *
+ * `beforeinstallprompt` fires on Chromium when the app is installable and NOT already installed —
+ * so on Android in a browser tab, which is exactly the population this helps and no one else. It
+ * never fires on WebKit (iOS has no such event; the Home Screen route is what the notifications
+ * copy above already explains) and never fires inside an installed PWA. The row therefore stays
+ * `hidden` for everybody the offer would be meaningless to, rather than being conditionally
+ * reasoned about — nothing is drawn unless the browser has told us it can act.
+ *
+ * WHY IT EARNS A PLACE IN SETTINGS. Installing is what makes push possible on iOS and what makes
+ * this device's stored pay data durable on both platforms — the two subjects this page is already
+ * about. It is deliberately NOT on the calendar, which is meant to stay one thing.
+ *
+ * The event must be `preventDefault()`ed to keep the deferred prompt usable, and a saved prompt is
+ * single-use: after `prompt()` the reference is spent, so the row goes away whichever way the
+ * member answers. `appinstalled` hides it too, for the case where they install from Chrome's own
+ * menu while this page is open.
+ */
+function initInstallRow() {
+    const row = document.getElementById('installRow');
+    const btn = document.getElementById('installBtn');
+    if (!row || !btn) return;
+    /** @type {any} */
+    let deferred = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();          // keep it; without this Chrome shows its own mini-infobar instead
+        deferred = e;
+        row.hidden = false;
+    });
+    window.addEventListener('appinstalled', () => { deferred = null; row.hidden = true; });
+    btn.addEventListener('click', () => {
+        if (!deferred) { row.hidden = true; return; }
+        const p = deferred;
+        deferred = null;             // single-use: a spent prompt cannot be shown again
+        row.hidden = true;
+        try { p.prompt(); } catch { /* the browser withdrew it — nothing to recover */ }
+    });
 }

@@ -35,7 +35,7 @@ import { getRosterSuggestion, fetchOverridesForPeriod } from './paycalc-roster-s
 import { snapKey, updateRosterHint } from './paycalc-roster-hint.js';
 import { fillYearFromCalendar, fillYearReceipt } from './paycalc-fill-year.js';
 import { fmt, fdList, fdShort } from './paycalc-format.js';
-import { lsGet, lsSet } from './ls.js';
+import { lsGet, lsSetVerified } from './ls.js';
 
 /** @type {{ tyLabel: string, lines: string[] }|null} last fill's receipt, shown until the year changes */
 let _receipt = null;
@@ -137,10 +137,13 @@ async function _runFill(btn) {
                 readSaved: readSavedPeriod,
                 fetchOverrides: (p, name) => fetchOverridesForPeriod(p, name),
                 suggest: (p) => getRosterSuggestion(p, member),
-                write: (pNum, data, snap) => {
-                    lsSet(periodKey(pNum), JSON.stringify(data));
-                    lsSet(snapKey(pNum), JSON.stringify(snap));
-                },
+                // Verified, not fire-and-forget (v22.13): `lsSet` swallows a storage failure, so
+                // an unverified bulk write can report "Filled 5" having saved three. BOTH halves
+                // must land — a period whose hours saved but whose gold roster snapshot did not
+                // would show as hand-entered, which is rule 4 lost at the last step.
+                write: (pNum, data, snap) =>
+                    lsSetVerified(periodKey(pNum), JSON.stringify(data))
+                    && lsSetVerified(snapKey(pNum), JSON.stringify(snap)),
             },
         });
         // The loop leaves the suggestion module's override map on the LAST period it fetched —

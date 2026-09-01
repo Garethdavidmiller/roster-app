@@ -20,6 +20,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { fillablePeriods, fillYearFromCalendar, fillYearReceipt } from './paycalc-fill-year.js';
 import { emptyPeriodData, isDataEmpty } from './paycalc-form-data.js';
+import { HM_PAIRS } from './paycalc-format.js';
 
 const NOW = new Date(2026, 8, 1);
 const P = (num, payday, over = {}) => ({ num, payday, ...over });
@@ -134,4 +135,131 @@ describe('rule 4 — fills are marked, and the written shape is the schema\'s', 
 test('the all-clear receipt exists — a tap with nothing eligible must say so, not go quiet', () => {
     assert.match(fillYearReceipt({ filled: [], unreached: [], nothing: [], corrupt: [] }, d => '')[0],
         /already has entries — nothing to fill/);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// RULE 5 — THE FILL OWNS THE CALENDAR'S FIELDS AND NOTHING ELSE (v22.13)
+//
+// The bug this pins, reported by an external review and reproduced against the shipped code:
+// `isDataEmpty` deliberately means "has no CALCULATION INPUTS", and it is right to — a period
+// holding only a payslip figure genuinely cannot produce an estimate. But the fill read that as
+// "has nothing worth keeping" and then wrote a FRESH `emptyPeriodData()`. So a historical period
+// holding actual gross/net/tax/NI, or a custom pension, and no premium hours was judged empty,
+// overwritten, and the member's own typed figures were gone with no message.
+//
+// Two features, each correct alone — v22.06 (bulk fill) and v22.07 (the payslip actuals) — met over
+// one saved object with nothing stating who owns which field.
+//
+// The fix is NOT to widen `isDataEmpty`: other callers correctly need "can this be calculated?".
+// It is for the fill to PRESERVE the saved period and replace only what the calendar owns.
+describe('rule 5 — a fill preserves every field the calendar does not own', () => {
+    /** A period holding only payslip actuals + a custom pension: no hours at all. */
+    const actualsOnly = () => ({
+        ...emptyPeriodData(),
+        actualGross: 3800.44, actualNet: 2900.12, actualTax: 512.30, actualNi: 205.10,
+        actualPension: 151.86, pension: 123.45,
+    });
+
+    test('a period with payslip figures and no hours is still FILLABLE', () => {
+        // It has no calculation inputs, so filling it is right — it is the WRITE that must not destroy.
+        const { fillable } = fillablePeriods({
+            periods: [PERIODS[0]], now: NOW, proRateFactor: () => 1,
+            readSaved: () => ({ data: actualsOnly() }),
+        });
+        assert.equal(fillable.length, 1);
+    });
+
+    test('actuals-only: the fill adds hours and KEEPS every payslip figure', async () => {
+        const { deps, writes } = makeDeps(
+            { 1: { data: actualsOnly() } },
+            { suggestions: { 1: { satH: 8, satM: 0 } } },
+        );
+        await fillYearFromCalendar({ periods: [PERIODS[0]], member: { name: 'G. Miller' }, now: NOW, deps });
+        assert.equal(writes.length, 1, 'the period should have been filled');
+        const d = writes[0].data;
+        assert.equal(d.satH, 8, 'the calendar-owned field is written');
+        for (const [k, v] of Object.entries({
+            actualGross: 3800.44, actualNet: 2900.12, actualTax: 512.30,
+            actualNi: 205.10, actualPension: 151.86, pension: 123.45,
+        })) {
+            assert.equal(d[k], v, `${k} is the member's own figure and must survive the fill`);
+        }
+    });
+
+    test('a custom pension alone survives a fill', async () => {
+        const { deps, writes } = makeDeps(
+            { 1: { data: { ...emptyPeriodData(), pension: 99.01 } } },
+            { suggestions: { 1: { sunH: 7, sunM: 30 } } },
+        );
+        await fillYearFromCalendar({ periods: [PERIODS[0]], member: { name: 'G. Miller' }, now: NOW, deps });
+        assert.equal(writes[0].data.pension, 99.01);
+        assert.equal(writes[0].data.sunH, 7);
+    });
+
+    test('a period with NOTHING saved still fills against the full empty schema', async () => {
+        // The preserve must not depend on there BEING a saved object to preserve.
+        const { deps, writes } = makeDeps({}, { suggestions: { 1: { satH: 4, satM: 0 } } });
+        await fillYearFromCalendar({ periods: [PERIODS[0]], member: { name: 'G. Miller' }, now: NOW, deps });
+        assert.equal(writes[0].data.satH, 4);
+        assert.equal(writes[0].data.actualNet, null, 'absent actuals stay null, not undefined');
+        for (const k of Object.keys(emptyPeriodData())) {
+            assert.ok(k in writes[0].data, `${k} must be present so a later read cannot see a hole`);
+        }
+    });
+
+    test('every calendar-owned field is one isDataEmpty checks — the merge\'s safety condition', () => {
+        // WHY THIS AND NOT A BEHAVIOURAL CASE. The obvious other-direction test — "a stale hour the
+        // suggestion no longer reports is zeroed" — is UNREACHABLE: every HM_PAIRS field is one
+        // `isDataEmpty` looks at, so a period holding one is not fillable and never reaches the
+        // write. That relationship is exactly what makes `{...empty, ...saved}` safe rather than a
+        // way of preserving stale hours, and it holds by coincidence of two separate lists.
+        //
+        // So it is asserted structurally. Add a calendar-owned field that `isDataEmpty` ignores and
+        // the merge would silently start carrying a stale value forward — this fails first.
+        for (const { hId, mId } of HM_PAIRS) {
+            for (const id of [hId, mId]) {
+                const withOne = { ...emptyPeriodData(), [id]: 1 };
+                assert.equal(isDataEmpty(withOne), false,
+                    `${id} is written by the fill, so isDataEmpty must count it — otherwise a period `
+                    + 'holding it is judged fillable and the saved value is carried forward stale');
+            }
+        }
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// RULE 6 — A RECEIPT COUNTS ONLY A VERIFIED WRITE (v22.13)
+//
+// `lsSet` swallows a storage exception on purpose: iOS private mode, a full quota and a
+// locked-down browser all throw, and a preference that fails to save is not worth crashing a page
+// over. A BULK write onto pay data reads that silence as success — so the fill could say
+// "Filled 5 payslips" having stored three, and the member would believe the other two were done.
+// The same shape as the migration defect `lsSetVerified` was written for.
+describe('rule 6 — a write that did not persist is never counted as filled', () => {
+    test('a refused write lands in `unsaved`, not `filled`', async () => {
+        const { deps } = makeDeps({}, { suggestions: { 1: { satH: 8, satM: 0 }, 3: { sunH: 4, sunM: 0 } } });
+        deps.write = (/** @type {number} */ pNum) => pNum !== 1;      // period 1's storage refuses
+        const r = await fillYearFromCalendar({ periods: PERIODS, member: { name: 'G. Miller' }, now: NOW, deps });
+        assert.deepEqual(r.unsaved.map((/** @type {any} */ p) => p.num), [1]);
+        assert.ok(!r.filled.some((/** @type {any} */ p) => p.num === 1), 'a refused write must not be reported as filled');
+        assert.deepEqual(r.filled.map((/** @type {any} */ p) => p.num), [3]);
+    });
+
+    test('the receipt NAMES what could not be saved, and does not claim it', async () => {
+        const { deps } = makeDeps({}, { suggestions: { 1: { satH: 8, satM: 0 } } });
+        deps.write = () => false;                                     // storage refuses everything
+        const r = await fillYearFromCalendar({ periods: PERIODS, member: { name: 'G. Miller' }, now: NOW, deps });
+        const text = fillYearReceipt(r, (/** @type {Date} */ d) => `D${d.getDate()}`).join(' ');
+        assert.match(text, /Couldn't save/, 'the failure must be stated, not swallowed');
+        assert.doesNotMatch(text, /^Filled/, 'nothing was filled, so nothing may be claimed');
+        assert.match(text, /Nothing was lost/, 'and the member needs to know the old data survived');
+    });
+
+    test('an all-refused run still reports the OTHER outcomes truthfully', async () => {
+        const { deps } = makeDeps({}, { suggestions: {} });           // no suggestions anywhere
+        deps.write = () => false;
+        const r = await fillYearFromCalendar({ periods: PERIODS, member: { name: 'G. Miller' }, now: NOW, deps });
+        assert.equal(r.unsaved.length, 0, 'a period with nothing to add is never written, so never unsaved');
+        assert.ok(r.nothing.length > 0);
+    });
 });

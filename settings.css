@@ -210,3 +210,13 @@ body {
     line-height: 1.4;
     margin-bottom: 12px;
 }
+
+/* Install affordance (v22.13) — the row is `hidden` until `beforeinstallprompt` fires, so it
+   renders on Android/Chromium in a browser tab and nowhere else: never on iOS (no such event),
+   never in an already-installed PWA. Nothing to hide for those, so nothing is drawn. */
+.install-note {
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    margin: 10px 0 8px;
+    max-width: 64ch;
+}
