@@ -1349,6 +1349,44 @@ test('admin: "All staff" fetches everyone rather than listing whoever happened t
             .toHaveText('This member only');
     });
 
+test('admin: the BASE ROSTER column shows the time, not just Early/Late', async ({ page }) => {
+    // Owner report with a screenshot: "you can't see the default shift time as reference, only
+    // early or late." The badge was the only thing on an untouched row, so the question an admin is
+    // there to answer — what is this person rostered to work? — had no answer on screen.
+    //
+    // A WIRING test, deliberately. `getShiftBadge`'s option is unit-tested both ways; what only a
+    // browser can show is that the week grid PASSES it, and that the time fits the row it lives in.
+    await page.setViewportSize({ width: 390, height: 900 });
+    await seedSession(page);
+    await page.goto('/admin.html');
+    await page.locator('#fieldMember').selectOption('L. Atrakimaviciene');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    const worked = await page.evaluate(() => [...document.querySelectorAll('.day-row')]
+        .map((r) => {
+            const b = r.querySelector('.shift-badge');
+            const rect = b.getBoundingClientRect();
+            return { text: b.innerText.replace(/\s+/g, ' ').trim(), aria: b.getAttribute('aria-label'),
+                     right: rect.right, rowRight: r.getBoundingClientRect().right,
+                     h: rect.height, rowH: r.getBoundingClientRect().height };
+        })
+        .filter(x => /badge/.test('') === false));
+
+    const timed = worked.filter(x => /\d{2}:\d{2}-\d{2}:\d{2}/.test(x.text));
+    expect(timed.length, 'this member works most of the week — the fixture must contain worked days').toBeGreaterThan(2);
+    for (const b of timed) {
+        expect(b.aria, 'the classification moves into the accessible name, it is not dropped')
+            .toMatch(/^(Early|Late|Night) shift, \d{2}:\d{2} to \d{2}:\d{2}$/);
+        expect(b.right, 'the wider badge must stay inside its row').toBeLessThanOrEqual(b.rowRight);
+        expect(b.h, 'and must not wrap onto a second line — that would add ~14px to all seven rows')
+            .toBeLessThan(28);
+    }
+    // A non-worked day keeps its word: REST has no time, and "Rest" IS the information.
+    expect(worked.some(x => /REST/i.test(x.text) && !x.aria), 'rest days are untouched').toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth))
+        .toBe(true);
+});
+
 test('admin: selecting a pill with hours causes no horizontal blowout (touch layout)', async ({ page }) => {
     // 360px = the most common Android CSS width (1080 physical ÷ 3, e.g. Samsung) — the
     // width where the second-round residue (the nowrap bulk-time-group) actually clipped.
