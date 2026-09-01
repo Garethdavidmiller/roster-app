@@ -613,7 +613,11 @@ columnScan: one key per column header; every staff member appears in every colum
         console.log(`[parseRosterPDF] Columns: ${parsed.columnHeaders.join(', ')} → ${columnDates.join(', ')}`);
 
         // ---- Build safe entries — map named day keys to dated shifts ----
-        // Any missing key is filled with 'RD' (blank = rest day by definition).
+        // A day the model did not report — or reported as BLANK — is resolved by COLUMN, not by a
+        // blanket default: Sunday is uncontracted so its blank means a rest day, and every other
+        // day goes to the review as unreadable. (v22.19 for the rule, v22.25 for the BLANK token
+        // that finally let the model tell us a cell was empty rather than deciding for us.) This
+        // comment said "any missing key is filled with 'RD'" — the pre-v22.19 behaviour.
         const safeEntries = buildSafeEntries(parsed.parsed, parsed.columnHeaders, dates);
 
         if (safeEntries.length === 0) {

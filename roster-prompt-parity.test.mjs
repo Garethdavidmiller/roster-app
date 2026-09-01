@@ -120,11 +120,32 @@ describe('every code the parser accepts is documented in the prompt', () => {
 // WHY THIS IS A TEST AND NOT A COMMENT. Both halves of this prompt's history are the same lesson:
 // the deterministic code was right both times, and prose upstream of it quietly disagreed. Prose
 // has no compiler. This is the only thing in the repo that can see the contradiction.
-describe('the prompt never asks the AI to interpret a blank cell', () => {
-    const FULL = INDEX;
+/**
+ * The WHOLE prompt template literal — `const prompt = \`…\`;` — not the file around it.
+ *
+ * Scoping matters and the first cut got it wrong: it scanned all of functions/index.js, so a code
+ * COMMENT explaining the blank-cell rule ("Sunday is uncontracted so its blank means a rest day")
+ * tripped the guard meant for the INSTRUCTION. A check that fires on documentation of the rule it
+ * protects is one somebody eventually deletes.
+ */
+function fullPrompt() {
+    const start = INDEX.indexOf('const prompt = `');
+    if (start < 0) throw new Error('roster-prompt-parity: the prompt literal was not found in functions/index.js');
+    const from = INDEX.indexOf('`', start) + 1;
+    const end  = INDEX.indexOf('`;', from);
+    if (end < 0) throw new Error('roster-prompt-parity: the prompt literal has no closing backtick');
+    return INDEX.slice(from, end);
+}
 
-    test('the prompt region is being read', () => {
-        assert.ok(promptSection().length > 200, 'prompt section did not extract');
+describe('the prompt never asks the AI to interpret a blank cell', () => {
+    const FULL = fullPrompt();
+
+    test('the prompt literal is being read, and is the prompt', () => {
+        assert.ok(FULL.length > 2000, `the prompt extracted as ${FULL.length} chars — anchors broken`);
+        assert.match(FULL, /STAFF NAMES TO LOOK FOR/, 'that is not the roster prompt');
+        assert.ok(!FULL.includes('res.status(502)'),
+            'the extraction is swallowing surrounding CODE, so every check below is scanning the '
+            + 'handler as well as the instruction');
         assert.match(FULL, /BLANK/, 'the prompt no longer mentions a BLANK token at all');
     });
 

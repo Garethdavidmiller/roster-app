@@ -322,6 +322,10 @@ export function createDesignStore(deps) {
          * replace would push our load-time copy over whatever the design carried when it was
          * deleted. Re-arms the baseline, which matters MORE here than for a new design: this is an
          * old document a co-editor may still hold open.
+         * Returns `{ status }`: `ok` with the new revision, `gone` (removed for good by someone
+         * else) or `already-live` (someone restored it first). The two failure statuses exist so
+         * the workspace can say what happened instead of blaming the network for a state no retry
+         * will change.
          * @param {string} id @param {string} by
          */
         async restore(id, by) {
@@ -334,14 +338,35 @@ export function createDesignStore(deps) {
             // direction), and a false conflict is exactly what teaches people to click through the
             // one prompt that protects them.
             let committed = 0;
-            await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
-                committed = nextRevision((await tx.get(ref)).data());
-                tx.set(ref, {
-                    deletedAt: deleteField(), deletedBy: deleteField(), revision: committed,
-                    updatedAt: serverTimestamp(), updatedBy: by,
-                }, { merge: true });
-            }));
-            return { updatedAt: await readStamp(ref), revision: committed };
+            try {
+                await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
+                    const snap = await tx.get(ref);
+                    // WHAT IS ACTUALLY THERE, asked inside the transaction — the same rule `purge`
+                    // already follows, and for the same reason: the row that was pressed came from
+                    // a bin loaded some time ago, and a colleague may have acted on it since.
+                    //
+                    // Without this the merge write RECREATES a hard-deleted design as a skeleton —
+                    // no name, no patterns. The Firestore rules refuse that shape, so production
+                    // never actually resurrects one; what the designer gets instead is "check your
+                    // connection and try again", about a design that is not coming back however
+                    // many times they retry. The rules make it a wording problem rather than a
+                    // data-integrity one, which is why this is a small fix and not an urgent one.
+                    if (!snap.exists()) throw new Error('design-gone');
+                    // Already live: someone restored it first. Bumping the revision here would be a
+                    // write nobody asked for, and would prompt THEM with a false conflict.
+                    if (!isDeleted(snap.data())) throw new Error('design-already-live');
+                    committed = nextRevision(snap.data());
+                    tx.set(ref, {
+                        deletedAt: deleteField(), deletedBy: deleteField(), revision: committed,
+                        updatedAt: serverTimestamp(), updatedBy: by,
+                    }, { merge: true });
+                }));
+            } catch (err) {
+                if (err instanceof Error && err.message === 'design-gone')         return { status: 'gone' };
+                if (err instanceof Error && err.message === 'design-already-live') return { status: 'already-live' };
+                throw err;
+            }
+            return { status: 'ok', updatedAt: await readStamp(ref), revision: committed };
         },
 
         /**

@@ -12,8 +12,8 @@
  *
  * An unreadable cell with no candidate readings was a DEAD END: the row said "check the paper
  * roster" and the only way to act on it was to finish the review, leave for the Admin page, and
- * remember the person and the day. v22.16 made that worse rather than better — an unmarked Sunday
- * time is now routed into the same state deliberately, so the traffic through the dead end went up.
+ * remember the person and the day. The real Supervisor roster contains cells like `SEE NATHAN` and
+ * `See CEM`, which no parser will ever read as a shift, so the dead end is not a rare corner.
  *
  * ── THE THREE RULES ────────────────────────────────────────────────────────────────────────────
  *
@@ -58,9 +58,9 @@ const HINT_TODO = 'Enter both times in 24-hour form, e.g. 06:20';
  *
  * WHY IT EXISTS. An unreadable cell with no candidate readings was a dead end: the row said
  * "check the paper roster" and the only way to act was to finish the review, leave for the
- * Admin page, and remember the person and the day. v22.16 made that worse rather than better —
- * an unmarked Sunday time is now routed here deliberately, so the traffic through the dead end
- * went up. Answering it where the question is asked is the fix.
+ * Admin page, and remember the person and the day. The real Supervisor roster carries cells like
+ * `SEE NATHAN` and `See CEM`, which no parser will read as a shift, so this is not a rare corner.
+ * Answering the question where it is asked is the fix.
  *
  * The pills are generated from `PILL_TYPES` — the ONE declaration of which pills exist and in
  * what order — so this row and Change a Shift cannot drift apart, and `other` is dropped
