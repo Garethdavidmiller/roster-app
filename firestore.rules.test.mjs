@@ -613,6 +613,37 @@ describe('linkDesigns — designer-write enforcement (H2)', () => {
         const { updatedAt, ...noTs } = DESIGN();
         await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), noTs));
     });
+    // `revision` — the v22.15 concurrency identity, shipped rules-first (no client writes it yet).
+    // Both directions matter and they are not symmetric: rejecting a legitimate revision would
+    // permission-deny every Links save the moment the client half lands, while accepting a bad one
+    // lets a value through that the co-editing guard then compares against. A design with NO
+    // revision must keep working, because every design that exists today is one.
+    test('a designer CAN write a revision', async () => {
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', uid()), { ...DESIGN(), revision: 1 }));
+    });
+    test('a design with NO revision still writes — every existing design is one', async () => {
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', uid()), DESIGN()));
+    });
+    test('a designer CANNOT write a revision of 0 — it would read as "no revision"', async () => {
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), { ...DESIGN(), revision: 0 }));
+    });
+    test('a designer CANNOT write a negative revision', async () => {
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), { ...DESIGN(), revision: -3 }));
+    });
+    test('a designer CANNOT write a non-integer revision', async () => {
+        // A float would break monotonic comparison; a string would compare as text.
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), { ...DESIGN(), revision: 1.5 }));
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), { ...DESIGN(), revision: '2' }));
+    });
+    test('a revision survives alongside the soft-delete pair and the window', async () => {
+        // The four optional fields must be able to coexist — hasOnly is a ceiling, and a design in
+        // the bin that also carries a window and a revision is an ordinary state, not a corner.
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', uid()), {
+            ...DESIGN(), revision: 7, window: { monSat: {} },
+            deletedAt: serverTimestamp(), deletedBy: 'S. Silva',
+        }));
+    });
+
     // A HARD DELETE IS ONLY LEGITIMATE AGAINST A DESIGN ALREADY IN THE BIN (v19.84, external
     // review P1). This test used to assert the opposite — that a designer could hard-delete a LIVE
     // design — which is exactly the hole that let a stale "Remove for good" destroy a design a
