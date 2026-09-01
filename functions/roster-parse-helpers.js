@@ -319,6 +319,29 @@ const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Fri
  * @param {string[]} dates          - 7 ISO dates (Sun → Sat) from buildWeekDates()
  * @returns {object[]} safeEntries: [{ memberName: string, shifts: { date: value } }]
  */
+// ── WHAT THE MODEL WRITES FOR A PHYSICALLY EMPTY CELL ──────────────────────────────────────────
+//
+// One token, and the model's ONLY job with an empty cell is to report it. Until v22.25 the prompt
+// said "a blank cell = RD", so the row read arrived carrying a decision the model was not equipped
+// to make and the code below could not tell it from a printed RD. The day rule underneath was
+// correct and unreachable: five physically blank weekdays became five explicit Rest Days, and on
+// the duplicate-sheet case that proposes overwriting the shifts the primary roster just wrote.
+//
+// It is matched CASE-INSENSITIVELY and the scan set below shares it, so `parsed`, `sundayScan` and
+// `columnScan` cannot end up with three subtly different ideas of what empty looks like.
+const BLANK_CELL_TOKEN = 'BLANK';
+
+/**
+ * Did the model report this cell as physically empty? True for a missing key, an empty string and
+ * the BLANK token — the three ways "there was nothing there" arrives.
+ * @param {any} raw
+ */
+function isPhysicallyBlank(raw) {
+    if (raw === undefined || raw === null) return true;
+    const s = String(raw).trim();
+    return s === '' || s.toUpperCase() === BLANK_CELL_TOKEN;
+}
+
 function buildSafeEntries(parsedMembers, columnHeaders, dates) {
     const safeEntries = [];
     const seenMembers = new Set();
@@ -396,7 +419,11 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
 
             const date  = dates[dayIndex];
             const raw   = entry[header] !== undefined ? entry[header] : entryByDay[key.slice(0, 3)];
-            const blank = raw === undefined || raw === null || String(raw).trim() === '';
+            // An explicit BLANK counts here, not just an absent key: since v22.25 the prompt asks
+            // the model to REPORT an empty cell rather than interpret it, so "the model said this
+            // was empty" and "the model never mentioned this day" are the same fact and must take
+            // the same branch. Before that they could not be told apart, and this rule was dead.
+            const blank = isPhysicallyBlank(raw);
 
             if (blank) {
                 missingKeys.push(header);
@@ -494,7 +521,7 @@ function applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, da
 // ── Column-scan cross-check (the general day-shift defence) ─────────────────
 
 // Scan tokens that mean "this cell is empty" — mirrors the Case-A blank set above.
-const BLANK_SCAN_TOKENS = new Set(['BLANK', '', 'RD', 'EMPTY', '-', 'N/A', 'NA', 'OFF']);
+const BLANK_SCAN_TOKENS = new Set([BLANK_CELL_TOKEN, '', 'RD', 'EMPTY', '-', 'N/A', 'NA', 'OFF']);
 
 /**
  * Normalise a raw columnScan cell value to the same vocabulary as the row read,
@@ -587,6 +614,30 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
             const v = normaliseScanValue(colObj[entry.memberName]);
             if (v !== null) colRead[dates[dayIndex]] = v;
         }
+
+        // ── WHY THE COLUMN SCAN IS NOT A WITNESS TO BLANKNESS (tried and refused, 1 Sep 2026) ──
+        //
+        // The v22.25 blank-cell contract asks the model to REPORT an empty cell rather than call it
+        // a rest day, and `buildSafeEntries` then applies the day rule. That leaves one gap: it
+        // works only while the model does as it is told, and this whole finding exists because
+        // "the AI complied" had been the safety mechanism for six versions.
+        //
+        // The obvious hardening is to ask the OTHER pass — if the column scan saw an empty weekday
+        // where the row read printed a rest day, flag it. It was built, and the fixtures in
+        // roster-parse-helpers.test.mjs refused it, which is the fixtures doing their job.
+        //
+        // The CES case is the proof: a single real row scans as
+        //     ['blank', '06:00-14:00', 'OFF', 'blank', '07:00-15:00', '-', 'blank']
+        // against a row read of OFF for every one of those non-worked days. The scan uses 'blank',
+        // 'OFF' and '-' INTERCHANGEABLY for the same kind of cell, within one row. So a scan
+        // 'blank' is not evidence that the cell is physically empty, and a rule built on it would
+        // flag ordinary rest days across a whole CES roster — which is what that test is named for.
+        //
+        // Do not rebuild this on the column scan. The independent witness this needs is the PDF's
+        // own text geometry (experiments/roster-pdf-geometry), where occupancy is a physical fact
+        // the model cannot influence. Until then the residual is real and documented in
+        // KNOWN_LIMITATIONS.md rather than papered over with a check that cries wolf.
+
         const signalDates = Object.keys(colRead);
         if (signalDates.length >= 5) stats.checked++;
         if (signalDates.length === 0) continue;
@@ -1154,6 +1205,8 @@ module.exports = {
     headerToDayIndex,
     mapColumnHeadersToDates,
     buildSafeEntries,
+    BLANK_CELL_TOKEN,
+    isPhysicallyBlank,
     applySundayScanCorrections,
     applyColumnScanCrossCheck,
     normaliseScanValue,

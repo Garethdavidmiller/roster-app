@@ -89,10 +89,18 @@ export function lsMove(fromKey, toKey, value) {
  * @returns {boolean} true only when BOTH keys were written and read back
  */
 export function lsSetBothVerified(keyA, valueA, keyB, valueB) {
-    const before = lsGet(keyA);                     // null when keyA held nothing
+    const beforeA = lsGet(keyA);                    // null when the key held nothing
+    const beforeB = lsGet(keyB);
     if (!lsSetVerified(keyA, valueA)) return false;
     if (lsSetVerified(keyB, valueB)) return true;
-    if (before === null) lsDel(keyA); else lsSetVerified(keyA, before);
+    // B did not VERIFY, which is not the same as B did not LAND. `lsSetVerified` writes and then
+    // reads back, and a write that succeeded under a read that failed is indistinguishable from a
+    // write that never happened. Rolling back only A would then leave exactly the half-state this
+    // function exists to prevent — the OTHER half of it: old A beside new B. So both keys are put
+    // back. Restoring a key that never changed is a no-op, which is the cheap direction to be
+    // wrong in. (v22.26, external review.)
+    if (beforeA === null) lsDel(keyA); else lsSetVerified(keyA, beforeA);
+    if (beforeB === null) lsDel(keyB); else lsSetVerified(keyB, beforeB);
     return false;
 }
 

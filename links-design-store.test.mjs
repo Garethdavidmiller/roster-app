@@ -362,6 +362,38 @@ describe('creating and restoring ARM the baseline', () => {
         assert.equal(w.payload.revision, 7);
     });
 
+    // ── RESTORE ANSWERS ABOUT THE ROW AS IT IS NOW, NOT AS THE BIN REMEMBERS IT ────────────────
+    //
+    // Same stale-row race as "Remove for good" above, from the other side: A opens the bin, B acts,
+    // A presses Restore. `purge` had re-read inside its transaction since v21.87; `restore` had not
+    // (external review, 1 Sep 2026).
+    //
+    // The damage was BOUNDED BY THE RULES rather than by this code, and that distinction is worth
+    // keeping straight. A merge write against a hard-deleted id recreates a skeleton — no name, no
+    // patterns — which `firestore.rules` refuses, so production never resurrected one. What the
+    // designer actually got was "check your connection and try again" about a design that is not
+    // coming back however many times they press it. A wording problem standing on a schema rule.
+    //
+    // These are unit tests of the STORE, so they prove the outcome is now distinguishable at all;
+    // that the workspace then says it in words is links-app.js's half.
+    test('restoring a design somebody removed for good reports it GONE, and writes nothing', async () => {
+        const { api, writes, current } = makeDb({ initial: null });
+        const res = await createDesignStore(api).restore(ID, ME);
+        assert.equal(res.status, 'gone');
+        assert.deepEqual(writes, [],
+            'nothing may be written — a merge here recreates the document as a nameless skeleton, '
+            + 'and relying on the rules to bounce it is relying on a control that lives elsewhere');
+        assert.equal(current(), null, 'the design stays gone');
+    });
+
+    test('the ordinary restore still reports ok and its revision', async () => {
+        const { api } = makeDb({ initial: { name: 'A', deletedAt: ts(500), deletedBy: ME, revision: 6 } });
+        const res = await createDesignStore(api).restore(ID, ME);
+        assert.equal(res.status, 'ok', 'the success path must carry a status too, or the caller '
+            + 'cannot tell the three outcomes apart without checking for absent fields');
+        assert.equal(res.revision, 7);
+    });
+
     test('soft delete is a merge as well', async () => {
         const { api, writes } = makeDb({ initial: { name: 'A', patterns: { 1: 'theirs' } } });
         await createDesignStore(api).softDelete(ID, ME);

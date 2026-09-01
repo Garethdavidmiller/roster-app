@@ -938,7 +938,18 @@ export function init() {
         const d = deletedDesigns.find(x => x.id === id);
         if (!d) return;
         try {
-            const { updatedAt: restoredTs, revision: restoredRev } = await store.restore(id, currentUser);
+            const res = await store.restore(id, currentUser);
+            // Both are states no retry can change, and both used to read "check your connection" —
+            // which sends a designer back to a dead button and blames the network for a colleague's
+            // deliberate act. (Store outcomes; the wording is the workspace's, as it should be.)
+            if (res.status === 'gone') {
+                deletedDesigns = deletedDesigns.filter(x => x.id !== id);
+                renderBinList();
+                await loadDesigns();      // re-renders the picker and grid itself
+                _binStatus(`“${d.name}” was already removed for good by someone else, so there was nothing to restore.`);
+                return;
+            }
+            const { updatedAt: restoredTs, revision: restoredRev } = res;
             deletedDesigns = deletedDesigns.filter(x => x.id !== id);
             // The store armed the baseline from the server. A restored design is an OLD document a
             // co-editor may still hold, so entering it with no baseline is worse than for a new

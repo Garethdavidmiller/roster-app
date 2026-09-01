@@ -181,6 +181,63 @@ describe('lsSetBothVerified — two keys or neither', () => {
         assert.equal('b' in store._map(), false, 'B must not be written on its own');
     });
 
+    // ── THE OTHER HALF-STATE: B LANDED, ITS READ-BACK DID NOT ──────────────────────────────────
+    //
+    // `lsSetVerified` writes and then reads back, so it reports failure in two different worlds: B
+    // never landed, and B landed under a storage layer that then would not read it. They are
+    // indistinguishable from here — and until v22.26 the rollback covered only the first, putting A
+    // back while leaving B changed. That is the same half-state this function exists to prevent,
+    // arrived at from the opposite side, and it is worse than the one it was written for: the
+    // paycalc period reverts while the Calendar snapshot that describes it does not.
+    //
+    // Found by external review. It needs a store that WRITES faithfully and lies on read, which no
+    // existing helper here does — `refusing` refuses the write itself.
+    /**
+     * A store that writes faithfully but fails ONE nominated read of `key` — the read-back that
+     * `lsSetVerified` uses to confirm the write. Transient on purpose: a permanently unreadable key
+     * is a different (and unrecoverable) world, because the prior value could never have been read
+     * either, so there is nothing to restore. The first version of this fake was that harsher store
+     * and it asserted the wrong thing — it made the pre-write snapshot null too, so "restore B"
+     * became "delete B", and the test failed against a correct fix.
+     */
+    function failsNthRead(initial, key, n) {
+        const inner = fakeStorage(initial);
+        let reads = 0;
+        return {
+            get length() { return inner.length; },
+            key(i) { return inner.key(i); },
+            getItem(k) {
+                if (k !== key) return inner.getItem(k);
+                reads += 1;
+                return reads === n ? null : inner.getItem(k);
+            },
+            setItem(k, v) { inner.setItem(k, v); },
+            removeItem(k) { inner.removeItem(k); },
+            _map: inner._map,
+        };
+    }
+
+    test('B lands but its read-back blips → BOTH keys are put back, not just A', async () => {
+        // Reads of 'b': 1 = the pre-write snapshot, 2 = the verification, 3 = the rollback's own
+        // verification. Only the second fails.
+        const store = failsNthRead({ a: 'old-a', b: 'old-b' }, 'b', 2);
+        const { mod } = await load({ store, persistImpl: () => Promise.resolve(true) });
+        assert.equal(mod.lsSetBothVerified('a', 'new-a', 'b', 'new-b'), false,
+            'an unverifiable B is still a failure — the caller must never be told it worked');
+        assert.equal(store._map().a, 'old-a', 'A must be rolled back');
+        assert.equal(store._map().b, 'old-b',
+            'B must be rolled back too. It LANDED, and leaving it gives old-A beside new-B — the '
+            + 'same half-state this function promises never to leave, reached from the other side.');
+    });
+
+    test('a B that held nothing before is REMOVED, not left carrying the new value', async () => {
+        const store = failsNthRead({ a: 'old-a' }, 'b', 2);
+        const { mod } = await load({ store, persistImpl: () => Promise.resolve(true) });
+        assert.equal(mod.lsSetBothVerified('a', 'new-a', 'b', 'new-b'), false);
+        assert.equal(store._map().a, 'old-a');
+        assert.equal('b' in store._map(), false, 'B held nothing before, so it must hold nothing after');
+    });
+
     test('storage that throws outright is absorbed, not propagated', async () => {
         const { mod } = await load({ store: fakeStorage({}, { throwOnAccess: true }),
             persistImpl: () => Promise.resolve(true) });

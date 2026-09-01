@@ -1062,6 +1062,42 @@ extension, not from `Content-Type`.
 
 ## Roster data
 
+### A blank weekday is safe only while the AI reports it as blank (v22.25) — residual, and it is the geometry programme's case
+
+**What is fixed.** v22.19 established the domain rule from three real rosters — a blank cell is an
+ANSWER on Sunday (the uncontracted column; its blank is how the sheet says "not working") and a
+QUESTION every other day, because Mon–Sat unworked days are always stated explicitly (RD, AL, SC,
+SN, OD, HA, ML, NA). `buildSafeEntries` implements exactly that, and until v22.25 it was **dead
+code**: the prompt told the model "a blank cell = RD" in three places, so an obedient model returned
+an explicit `"RD"`, the key arrived present and non-empty, and the fail-closed branch never ran.
+Reproduced through the real helpers — five physically blank weekdays became five explicit Rest Days
+with nothing warning. Found by external review, 1 Sep 2026. The prompt now asks for a `BLANK` token
+and forbids the model from interpreting it; `roster-prompt-parity.test.mjs` stops the instruction
+coming back.
+
+**What is NOT fixed.** The safety now rests on the model doing as it is told. If it writes `"RD"`
+for a physically empty weekday anyway, nothing downstream can distinguish that from a printed RD,
+and the day imports as a rest day.
+
+**A cross-check on the column scan was built to close it, and refused.** The obvious hardening is to
+ask the other pass: if the column scan saw an empty weekday where the row read printed a rest day,
+flag it. It was implemented and the existing fixtures rejected it, correctly. One real CES row scans
+as `['blank', '06:00-14:00', 'OFF', 'blank', '07:00-15:00', '-', 'blank']` against a row read of
+`OFF` for every one of those days — the scan uses `blank`, `OFF` and `-` **interchangeably for the
+same kind of cell, inside one row**. So a scan `blank` is not evidence the cell is physically empty,
+and the rule would have flagged ordinary rest days across a whole CES roster. The test that caught
+it is named for preventing exactly that flood.
+
+**So the column scan cannot be the independent witness**, and neither can the row read or the Sunday
+scan — all three are one model looking at one PDF in one call. The witness this needs is the PDF's
+own text geometry, where cell occupancy is a physical fact the model cannot influence
+(`experiments/roster-pdf-geometry`, which measured 24 blank Sundays and 5 blank Mon–Sat cells across
+the real set, all five being the one duplicate-sheet member). Until that lands this residual stands,
+and it is bounded by the review table: every import is shown to an admin before it is written.
+
+**Do not rebuild the cross-check on the column scan.** The reasoning is repeated in
+`applyColumnScanCrossCheck`'s own header, beside the code, so it is met by whoever tries.
+
 ### Cloud Function payday constant duplicated from `roster-data.js`
 `functions/roster-parse-helpers.js` contains its own `FIRST_PAYDAY_MS` and `INTERVAL_DAYS`
 constants (inside `isPayCutoffDay()`, which `functions/index.js` imports) for the pay-reminder

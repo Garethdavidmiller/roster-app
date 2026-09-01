@@ -19,6 +19,7 @@ const {
     headerToDayIndex,
     mapColumnHeadersToDates,
     buildSafeEntries,
+    isPhysicallyBlank,
     applySundayScanCorrections,
     applyColumnScanCrossCheck,
     normaliseScanValue,
@@ -1785,4 +1786,98 @@ test('normaliseShift: genuine overnight and same-clock-hour ranges still work', 
     assert.equal(normaliseShift('RDW 22:00-06:00'), 'RDW|22:00-06:00');
     // One minute apart is a real (if odd) range and must survive — the rule is equality, not brevity.
     assert.equal(normaliseShift('08:00-08:01'), '08:00-08:01');
+});
+
+// ── A PHYSICALLY BLANK WEEKDAY, ALL THE WAY THROUGH THE PIPELINE (1 Sep 2026, external review) ──
+//
+// v22.19 established that a blank cell is an ANSWER on Sunday and a QUESTION every other day, and
+// wrote that rule into `buildSafeEntries`. The rule was correct and unreachable: the prompt still
+// told the model "a blank cell = RD" in three places, so an obedient model returned an explicit
+// "RD" for a physically empty Wednesday, the key arrived present and non-empty, and the fail-closed
+// branch never ran. Reproduced through these very helpers: five blank weekdays, five explicit Rest
+// Days, nothing warned. On the duplicate-sheet case — one person on a second roster who works only
+// its Saturday — that is a second import proposing to overwrite the shifts the primary import just
+// wrote.
+//
+// WHY THESE CASES AND NOT A UNIT TEST OF ONE FUNCTION. Every function involved was already correct
+// in isolation; the defect was in what the pipeline was FED. So each case drives the real sequence
+// the handler runs — buildSafeEntries → applyColumnScanCrossCheck → applySundayScanCorrections —
+// and asserts on the days that come out of it.
+//
+// The DISOBEDIENT case is the one that matters. A prompt is a request, not a guarantee, and this
+// whole finding is what it costs to let "the AI complied" be the safety mechanism. If only the
+// obedient case were pinned, the suite would be asserting our own instructions back at us.
+describe('a physically blank weekday never becomes a rest day', () => {
+    const DATES = ['2026-08-30', '2026-08-31', '2026-09-01',
+                   '2026-09-02', '2026-09-03', '2026-09-04', '2026-09-05'];
+    const HEADERS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const WEEKDAYS = DATES.slice(1, 6);          // Mon–Fri
+    const [SUN, , , , , , SAT] = DATES;
+
+    /** Drive the real server sequence, in the order index.js runs it. */
+    function pipeline(parsedRow, colVals) {
+        const safe = buildSafeEntries([{ memberName: 'S. Horsman', ...parsedRow }], HEADERS, DATES);
+        const columnScan = {};
+        HEADERS.forEach((h, i) => { columnScan[h] = { 'S. Horsman': colVals[i] }; });
+        applyColumnScanCrossCheck(safe, columnScan, HEADERS, DATES);
+        applySundayScanCorrections(safe, { 'S. Horsman': colVals[0] }, true, DATES);
+        return safe[0].shifts;
+    }
+    const unreadable = (shifts, dates) =>
+        dates.filter(d => String(shifts[d]).startsWith('UNKNOWN|'));
+
+    test('the model reports the blanks: every weekday goes to review, Sunday does not', () => {
+        const shifts = pipeline(
+            { Sun: 'BLANK', Mon: 'BLANK', Tue: 'BLANK', Wed: 'BLANK', Thu: 'BLANK', Fri: 'BLANK', Sat: '07:00-15:00' },
+            ['BLANK', 'BLANK', 'BLANK', 'BLANK', 'BLANK', 'BLANK', '07:00-15:00']);
+        assert.equal(unreadable(shifts, WEEKDAYS).length, 5,
+            'a physically blank Mon–Fri must reach the admin, not be written as five Rest Days');
+        assert.equal(shifts[SUN], 'RD',
+            'Sunday is the uncontracted column — its blank IS the answer, and flooding it into '
+            + 'review would put ~44 dismissable rows on every upload');
+        assert.equal(shifts[SAT], '07:00-15:00', 'the one real duty must survive untouched');
+    });
+
+    // NO CASE HERE FOR "THE MODEL IGNORES THE INSTRUCTION". It was written, and it asserted a
+    // cross-check that has since been removed as unsound — see the long note in
+    // applyColumnScanCrossCheck. The residual is real: if the model writes "RD" for a physically
+    // empty weekday, nothing downstream can tell that from a printed RD, and the day is imported as
+    // a rest day. It is recorded in KNOWN_LIMITATIONS.md rather than asserted here, because a test
+    // that pins today's shortfall as the expected answer is how this repo ended up defending the
+    // ambiguous-commit defect for ten versions.
+
+    test('a genuine printed rest-day week is left completely alone', () => {
+        // The failure direction a hasty fix produces. Rest days are the commonest cell on the
+        // roster; flagging them would make the review table useless and train the admin to skip it.
+        const shifts = pipeline(
+            { Sun: 'BLANK', Mon: 'RD', Tue: 'RD', Wed: '06:00-14:00', Thu: 'RD', Fri: 'RD', Sat: 'RD' },
+            ['BLANK', 'RD', 'RD', '06:00-14:00', 'RD', 'RD', 'RD']);
+        assert.deepEqual(unreadable(shifts, DATES), [],
+            'printed rest days must not be flagged — the column scan agreed they were printed');
+        assert.equal(shifts.Wed ?? shifts[DATES[3]], '06:00-14:00');
+    });
+
+    test('an absent Sunday COLUMN is still not a blank weekday problem', () => {
+        // A Mon–Sat-only roster is a supported FORMAT, not a misread. Guarding this because the
+        // v22.19 rule's first cut made Sunday's exemption depend on the column existing, which
+        // would have put an unreadable Sunday on every member of every such upload.
+        const H6 = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const safe = buildSafeEntries(
+            [{ memberName: 'S. Horsman', Mon: 'RD', Tue: 'RD', Wed: 'RD', Thu: 'RD', Fri: 'RD', Sat: 'RD' }],
+            H6, DATES);
+        assert.equal(safe[0].shifts[SUN], 'RD',
+            'no Sunday column means not rostered on Sunday — not an unreadable cell');
+    });
+
+    test('isPhysicallyBlank treats "never mentioned" and "reported empty" as one fact', () => {
+        // The two ways nothing arrives. Before the BLANK token they could not be told apart, which
+        // is precisely why the day rule sat dead for six versions.
+        for (const v of [undefined, null, '', '   ', 'BLANK', 'blank', ' Blank ']) {
+            assert.equal(isPhysicallyBlank(v), true, `expected ${JSON.stringify(v)} to read as empty`);
+        }
+        for (const v of ['RD', 'AL', '06:00-14:00', 'SPARE', 'OFF']) {
+            assert.equal(isPhysicallyBlank(v), false,
+                `${v} is printed text — treating it as empty would send real data to review`);
+        }
+    });
 });
