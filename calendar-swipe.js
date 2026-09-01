@@ -126,6 +126,16 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
     // eliminating the jank spike that occurred when panels were built mid-swipe.
     calendarDisplay.addEventListener('pointerdown', (e) => {
         if (!e.isPrimary || _swipeCooldown || isTeamViewMode()) return;
+        // NO left-edge guard here, and the asymmetry with admin-week-swipe.js is deliberate
+        // (v22.12). That module skips `e.clientX < 24` to stay clear of the iOS back-swipe region,
+        // and copying it looked like an obvious parity fix — but the two grids sit differently.
+        // MEASURED at 390px: `.week-grid` starts at x=26, so the guard costs admin nothing;
+        // `#calendarDisplay` starts at x=3, so the same 24px would swallow 21px of real grid —
+        // the left of the Sunday column — on every device. What the guard buys is only that iOS
+        // Safari does not begin an animation it is about to take over, and Safari takes that
+        // gesture whether or not we look at it. Paying a permanent strip of the app's signature
+        // gesture on the Android phones the staff actually use, to tidy one browser's edge case,
+        // is the wrong trade.
 
         gestureCurrentPanel = /** @type {HTMLElement|null} */ (document.querySelector('.calendar-container:not(.carousel-panel)'));
         if (!gestureCurrentPanel) return;

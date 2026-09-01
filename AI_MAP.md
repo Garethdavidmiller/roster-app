@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: August 2026 — v22.00 · Updated every 0.10 version*
+*Last updated: September 2026 — v22.10 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -181,6 +181,7 @@ Pointer Events swipe carousel for `index.html` — extracted from `calendar-app.
 - `initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, updateLegend, updateNavButtonState, navigateToPaycalc, openDayDetail, onRetryMonth })` — wires all pointer events on `#calendarDisplay`
 - `isSwipeCooldown()` — returns true while a swipe animation is in flight; coordinator uses this to suppress button clicks
 - Adjacent panels built in `pointerdown` (not `pointermove`) to avoid mid-swipe jank; setPointerCapture deferred to `pointermove` (iOS Safari fix)
+- **Deliberately NO left-edge guard**, unlike `admin-week-swipe.js` (v22.12). Measured at 390px: `.week-grid` starts at x=26 so its `clientX < 24` skip costs nothing, while `#calendarDisplay` starts at x=3 — the same number would swallow 21px of real grid on every device to tidy an iOS-Safari-only edge case Safari wins anyway.
 - RAF-throttled transform writes; haptic feedback on threshold cross
 
 ### `calendar-al-lightbox.js`

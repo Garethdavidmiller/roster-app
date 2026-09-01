@@ -257,7 +257,13 @@
       <div class="field hidden" id="slPaidOffField">
         <label for="slPaidOffFrom">Student loan stopped being deducted?</label>
         <select id="slPaidOffFrom">
-          <option value="">No — still deducted from my payslip</option>
+          <!-- "No — still deducted", NOT "…from my payslip" (v22.10). The longer label needed 276px
+               and a 360px phone gives this control 264, so a native select silently cut it mid-word
+               to "…from my pays" — which still reads as words, so it looks deliberate rather than
+               broken. Reported from a staff screenshot. The label above already asks "Student loan
+               stopped being deducted?", so the short form is a complete answer; it now has 74px of
+               slack at 320px, against 40px for the longest payslip option beside it. -->
+          <option value="">No — still deducted</option>
         </select>
         <div class="field-hint">If your payslip <strong>stopped</strong> showing a student loan deduction — repaid in full, or moved to direct debit — pick the <strong>first payslip that had no deduction</strong>. Earlier payslips keep theirs, so they still match. This is one-way: if deductions later <strong>restart</strong>, leave this as No and instead tick "not deducted this period" on each payslip in the gap.</div>
       </div>

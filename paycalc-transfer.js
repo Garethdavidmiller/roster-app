@@ -273,9 +273,12 @@ export function applyRestore({ get, set, del, existing, entries }) {
         return { ok: false, reason: 'write-failed', restored };
     }
 
-    // Only now remove what the backup does not contain. `Object.hasOwn`, not `k in entries`: `in`
-    // walks the prototype chain, so a key named `constructor` would report as present and survive.
-    const surplus = [...existing].filter(k => !Object.hasOwn(entries, k));
+    // Only now remove what the backup does not contain. An own-property check, not `k in entries`:
+    // `in` walks the prototype chain, so a key named `constructor` would report as present and
+    // survive. `hasOwnProperty.call`, NOT `Object.hasOwn` (Safari 15.4+) — same call auth-policy.js
+    // makes for the same reason: this module is the pay-data trust boundary, and it is the last
+    // place that should hard-throw on an iPhone stuck below iOS 15.4 (v22.12).
+    const surplus = [...existing].filter(k => !Object.prototype.hasOwnProperty.call(entries, k));
     for (const k of surplus) del(k);
 
     // …and verify it. A swallowed delete would otherwise be reported as a successful replace.

@@ -2061,6 +2061,7 @@ button.nav-panel-link--notices {
     line-height: 1;
     color: white;
     background: var(--nav-raised);
+    -webkit-user-select: none;
     user-select: none;
 }
 
@@ -2377,6 +2378,7 @@ button.nav-panel-link--notices {
     justify-content: center;
     gap: 10px;
     min-height: 40vh;
+    min-height: 40dvh;
     /* The on-navy muted value the nav drawer uses (0.70 alpha ≈ 7:1 on --primary-blue, which is
        what makes it AA). Not `var(--nav-text-muted)` — that token is scoped to `.nav-panel`, so the
        reference would silently fall through to the fallback and the pairing would only LOOK
@@ -2469,7 +2471,7 @@ body.auth-ready .boot-placeholder { display: none; }
    collapse toggle is the ARROW/CHEVRON, never a header that wraps another button — initCardCollapse
    enforces this. */
 .card-header-toggle {
-    cursor: pointer; user-select: none;
+    cursor: pointer; -webkit-user-select: none; user-select: none;
     display: flex; flex-direction: row; align-items: flex-start; justify-content: space-between;
     -webkit-tap-highlight-color: transparent; touch-action: manipulation;
 }
@@ -2663,6 +2665,7 @@ body.auth-ready .boot-placeholder { display: none; }
     padding: 28px 28px 24px;
     width: min(var(--modal-standard), var(--modal-cap));
     max-height: 85vh;
+    max-height: 85dvh;
     box-shadow: var(--shadow-3);
 }
 .tips-lb-title {

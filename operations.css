@@ -486,6 +486,7 @@ select:focus-visible, input:focus-visible {
     padding: 20px;
     width: min(340px, calc(100vw - 40px));
     max-height: 88vh;
+    max-height: 88dvh;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
 }
 .dp-close { color: var(--text-light); }
@@ -514,6 +515,7 @@ select:focus-visible, input:focus-visible {
     display: flex; align-items: center; justify-content: center;
     border: none; background: none; font-family: inherit; font-size: var(--type-label);
     color: var(--text-dark); cursor: pointer; position: relative;
+    -webkit-user-select: none;
     user-select: none; -webkit-tap-highlight-color: transparent;
 }
 @media (hover: hover) and (pointer: fine) {
@@ -992,6 +994,7 @@ select:focus-visible, input:focus-visible {
     font-size: var(--type-small);
     color: var(--text-mid);
     cursor: pointer;
+    -webkit-user-select: none;
     user-select: none;
 }
 .error-stack {

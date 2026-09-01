@@ -399,6 +399,7 @@
     padding: 28px 24px 24px;
     width: min(340px, 88vw);
     max-height: 78vh;
+    max-height: 78dvh;
   }
   .help-lightbox-title {
     color: white; font-size: var(--type-large); font-weight: 700;   /* unified overlay title (v18.29) */
@@ -551,6 +552,7 @@
     .stepper-val {
       min-width: 38px; text-align: center;
       font-size: var(--type-medium); font-weight: 700; color: var(--primary-blue);
+      -webkit-user-select: none;
       user-select: none; padding: 0 2px;
     }
 
@@ -1017,6 +1019,13 @@
          breaking it. Capping the BOX (not just the paragraph) fixes the reading measure. */
       .setup-banner { max-width: 576px; }
 
+      /* The Settings card's field hints ran to 90ch here — measured, and over the documented
+         ~64–72ch ceiling. Capped at 64ch to match operations' `.card .hint`, the app's existing
+         in-card convention. `ch` IS right for these, unlike the stacked bands above: each hint
+         sits under its own field rather than sharing a right edge with a differently-sized
+         neighbour, which is the case that made `ch` wrong there. */
+      .field-hint, .roster-card-note { max-width: 64ch; }
+
       /* Grid on <main>: the .pc-work wrapper spans the TWO wide work columns (~660px → forms
          wrap far less — the real scroll-reduction lever) beside the col-3 .pc-side sidebar,
          both in one shared row (v18.47). Three columns are kept (not two) so the period band /
@@ -1203,6 +1212,7 @@
       border-radius: var(--radius-xl); padding: 36px 40px 32px;
       width: min(300px, 85vw); text-align: center;
       max-height: 80vh;
+      max-height: 80dvh;
       transform: scale(0.85);
     }
     #noticeYtdLightbox.open #noticeYtdContent { transform: scale(1); }
