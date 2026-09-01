@@ -1241,6 +1241,24 @@ body.lb-open #stickyTotal { display: none !important; }
     line-height: 1;
 }
 
+/* A LONG BADGE NAME NEEDS A SHORT FORM ON A PHONE.
+   The badge sits at the right edge of a header whose middle is the app name, and on a phone those
+   two compete: "Operations" renders at ~104px against a 126px "Marylebone Roster", so the section
+   label reads as loud as the app itself. Nothing overflows and nothing collides — which is why
+   measuring only for overflow passed it — but the balance is wrong, and balance is what a reader
+   sees. Below the 768px desktop-header line the badge says "Ops"; at or above it, where the header
+   has room to spare, it says "Operations" in full.
+
+   Both forms are real text, and exactly one is ever rendered, so the accessible name always matches
+   what is on screen — do NOT "improve" this with an aria-label carrying the long form, which would
+   make a screen reader announce a word no sighted reader can see. */
+.badge-name-full { display: none; }
+
+@media (min-width: 768px) {
+    .badge-name-short { display: none; }
+    .badge-name-full  { display: inline; }
+}
+
 /* Header back button removed (v10.63) — navigation is via the nav drawer.
    .btn-back still lives in fip.html / railcard-guide.html (their own CSS). */
 /* Sign-out moved to nav panel footer (v10.59) */

@@ -3720,6 +3720,57 @@ test('operations: no account-status name is truncated at phone width', async ({ 
     expect(clipped, 'account names clipped at 375px — the row cannot be identified').toEqual([]);
 });
 
+/**
+ * THE PAGE BADGE SHORTENS ON A PHONE, AND THE POINT IS PROPORTION, NOT OVERFLOW.
+ *
+ * v22.23 spelled this badge "Operations" in full on every width. Nothing overflowed, nothing
+ * collided, and no test failed — which is precisely why it shipped: the check that was run asked
+ * whether it FITS. It does. Measured on a phone it rendered 104px against a 126px "Marylebone
+ * Roster", so the section label was 83% the width of the app's own name and read as loud as it,
+ * which is what the owner reported from a real handset.
+ *
+ * So this asserts the CONTRACT (which form renders on which side of the 768px desktop-header line)
+ * rather than a ratio threshold, because a threshold is a number nobody can defend. The ratio is
+ * recorded in the failure message instead, so a regression says how bad it got.
+ */
+test('operations: the page badge is short on a phone and full on desktop, and never crowds the title', async ({ page }) => {
+    const read = async (w) => {
+        await page.setViewportSize({ width: w, height: 800 });
+        await seedSession(page, 'G. Miller');
+        await page.goto('/operations.html');
+        await page.locator('#opsBadge').waitFor({ state: 'visible' });
+        return page.evaluate(() => {
+            const badge = document.getElementById('opsBadge');
+            const h1 = document.querySelector('.app-header-brand h1');
+            const hdr = document.querySelector('.app-header');
+            const bb = badge.getBoundingClientRect(), tb = h1.getBoundingClientRect(), hb = hdr.getBoundingClientRect();
+            return {
+                text: badge.innerText.replace(/\s+/g, ' ').trim(),
+                bw: Math.round(bb.width), tw: Math.round(tb.width),
+                over: Math.round(bb.right) > Math.round(hb.right) + 1,
+                coll: Math.round(tb.right) > Math.round(bb.left),
+                doc: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+            };
+        });
+    };
+
+    // Below the 768px desktop-header line: the short form, and it must stay a modest fraction of
+    // the title. 0.42 measured; 0.6 is the line at which it starts reading as a competing heading.
+    for (const w of [320, 360, 390, 412, 767]) {
+        const r = await read(w);
+        expect(r.text, `@${w}px the badge should read "Ops", not the full word`).toMatch(/^🔧\s*OPS$/i);
+        expect(r.over || r.coll || r.doc, `@${w}px the header overflowed or collided`).toBe(false);
+        expect(r.bw / r.tw, `@${w}px badge ${r.bw}px vs title ${r.tw}px — it is crowding the app name`).toBeLessThan(0.6);
+    }
+
+    // At and above it there is room to spare, and the full word is clearer.
+    for (const w of [768, 1280]) {
+        const r = await read(w);
+        expect(r.text, `@${w}px the badge should read "Operations" in full`).toMatch(/^🔧\s*OPERATIONS$/i);
+        expect(r.over || r.coll || r.doc, `@${w}px the header overflowed or collided`).toBe(false);
+    }
+});
+
 test('operations: no App Speed row label is truncated at phone width', async ({ page }) => {
     /*
      * The same fault as the account-status one above, on the card that had just gained a block.

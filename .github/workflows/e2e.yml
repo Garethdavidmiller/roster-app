@@ -130,7 +130,7 @@ jobs:
   # It runs HERE and not in deploy-hosting.yml on purpose: a second engine in the deploy gate would
   # double the critical path and let a WebKit-only flake keep staff on a stale version, which is the
   # failure that had production four releases behind on 14 Aug 2026.
-  # ── ONE JOB PER ENGINE (v21.80) ────────────────────────────────────────────────────────────────
+  # ── ONE JOB PER ENGINE (v21.80), THEN SHARDED (v22.23) ─────────────────────────────────────────
   #
   # This was a single job running the whole smoke suite TWICE — desktop WebKit, then Mobile Safari —
   # sequentially, and it had become the thing every merge waited on: 18m48s of test time on the last
@@ -139,20 +139,45 @@ jobs:
   # job reads exactly like a failed one.
   #
   # The matrix runs the two engines as separate jobs in parallel, so the wall clock is one engine
-  # (~9 minutes) rather than both. `fail-fast: false` because the whole point is which ENGINE broke:
-  # cancelling Mobile Safari the moment desktop fails would throw away the more interesting half.
+  # rather than both. `fail-fast: false` because the whole point is which ENGINE broke: cancelling
+  # Mobile Safari the moment desktop fails would throw away the more interesting half.
   #
   # v21.78 had raised the single job's cap 20 → 35 and left a note to split it "if it ever
   # approaches 35 minutes". Waiting for that would have been the wrong trigger — the cap was never
   # the problem, the wall clock was.
+  #
+  # AND ONE ENGINE WAS STILL THE LONG POLE. Measured on the desktop-WebKit run at v22.23: 8m12s
+  # total, of which 1m18s is setup (checkout, `npm ci`, the browser and its GTK/GStreamer libs) and
+  # 6m54s is tests. The install is not the cost; the tests are. The runner has 4 vCPU and Playwright
+  # defaults `workers` to half the CPUs, so two — against ~11.6 WebKit-minutes of serial work, a
+  # 2-worker floor of ~5.8 min.
+  #
+  # So the second axis shards each engine two ways: four jobs of roughly half the tests. The wall
+  # clock now falls with the RUNNER count instead of fighting for cores on one machine — which is
+  # why this was chosen over raising `workers` to 4. That would nominally reach ~2.9 min on paper,
+  # but this is the job carrying the documented flake history that `retries: 1` in
+  # playwright.webkit.mjs exists for, and CPU contention between browser workers is a flake source.
+  # A job that is intermittently red teaches everyone to stop reading it, which spends the whole
+  # value of running the engine at all.
+  #
+  # Sharding only pays with `fullyParallel: true`, which is set in playwright.webkit.mjs and NOT in
+  # the shared config: Playwright shards by test GROUP, and with that flag off a group is a whole
+  # FILE, so pages.spec.js's 143 tests would pin one shard at ~4 minutes no matter how many shards
+  # there are. The reasoning and the measurement behind that flag live beside it, in that file.
+  #
+  # THE COST, STATED: four jobs pay the ~1m18s setup instead of two, so total runner minutes go up
+  # while wall clock comes down. That is the trade being made deliberately — the scarce thing here
+  # is a person waiting on a merge, not runner minutes.
   webkit:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         project: [webkit, mobile-safari]
-    # Each job now carries ONE engine, so half the work — 20 is generous. The cap exists to stop a
-    # hung job burning a runner for six hours, not to police the suite's length.
+        shard: [1, 2]
+    # Each job now carries ONE engine and HALF its tests, so a quarter of the original work — 20 is
+    # very generous. The cap exists to stop a hung job burning a runner for six hours, not to police
+    # the suite's length, so it is deliberately not retuned every time the suite gets faster.
     timeout-minutes: 20
     permissions:
       contents: read
@@ -174,7 +199,7 @@ jobs:
         run: npx playwright install --with-deps webkit
 
       - name: Run the smoke suite under WebKit
-        run: npm run test:webkit -- --project=${{ matrix.project }}
+        run: npm run test:webkit -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/2
         env:
           CI: true
 
@@ -182,7 +207,9 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: playwright-report-webkit-${{ matrix.project }}
+          # Shard in the name too: four jobs upload here, and a colliding artifact name fails the
+          # upload of whichever lands second — losing the report for the half that broke.
+          name: playwright-report-webkit-${{ matrix.project }}-shard${{ matrix.shard }}
           path: playwright-report/
           retention-days: 7
 
