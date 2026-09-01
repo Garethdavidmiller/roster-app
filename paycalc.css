@@ -466,6 +466,10 @@
     /* Badge sits on its own line between the title and sub-description */
     .h-info > .rate-badge { margin: 4px 0 3px; }
     .h-sub { font-size: var(--type-small); color: var(--text-light); margin-top: 3px; line-height: 1.45; }
+    /* The payslip-name tail on its own quieter line (v22.09): "Shows as X on your payslip" serves
+       a different moment from the sentence above it — reconciling a payslip later, not choosing a
+       row now — and inline it made every explainer read one sentence longer than it is. */
+    .h-payslip { display: block; margin-top: 2px; color: var(--text-faint); }
 
     /* Rate badges — pill-shaped, colour-coded to match the roster's shift system */
     .rate-badge {

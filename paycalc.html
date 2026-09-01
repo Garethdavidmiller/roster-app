@@ -335,12 +335,19 @@
       <div class="joiner-notice" id="joinerNotice" style="display:none"></div>
 
       <!-- ── BASIC PAY ADJUSTMENTS ── -->
+      <!-- Group labels (v22.09): the list used to OPEN unlabelled and grow a divider
+           mid-way, so the first four rows read as "the default stuff" and the divider as
+           an afterthought. Sunday moved up beside Saturday in the same change — both are
+           weekend premium days, and it sat among the overtime rows only by accident of
+           when it was added. DOM order is presentation here: nothing reads these rows
+           positionally (HM_PAIRS keys by id; CONDITIONAL_ROWS by id). -->
+      <div class="sec-hd">Weekend &amp; Bank Holiday Days</div>
       <!-- Saturday -->
       <div class="hours-row">
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">🗓️</span> Rostered Saturday</div>
           <span class="rate-badge badge-sat" id="badge-sat">1.25×  ·  £26.86/hr</span>
-          <div class="h-sub">A Saturday that was in your regular roster. If you weren't scheduled to work that Saturday, use Rest Day Working instead. Shows as "Ord Basic Pay @1.25" on your payslip.</div>
+          <div class="h-sub">A Saturday that was in your regular roster. If you weren't scheduled to work that Saturday, use Rest Day Working instead. <span class="h-payslip">Shows as "Ord Basic Pay @1.25" on your payslip.</span></div>
           <div class="val-warn" id="satWarn" role="alert"><span aria-hidden="true">⚠</span> You've entered more Saturday hours than your roster allows — check the total</div>
         </div>
         <div>
@@ -358,12 +365,34 @@
         </div>
       </div>
 
+      <!-- Sunday RDW -->
+      <div class="hours-row">
+        <div class="h-info">
+          <div class="h-title"><span aria-hidden="true">☀️</span> Sunday Working</div>
+          <span class="rate-badge badge-sun" id="badge-sun">1.5×  ·  £32.24/hr</span>
+          <div class="h-sub">Any hours you worked on a Sunday. <span class="h-payslip">Shows as "RDW Sun 1.5" on your payslip.</span></div>
+        </div>
+        <div>
+          <div class="hhmm-wrap">
+            <div class="hhmm-field">
+              <input type="text" id="sunH" aria-label="Sunday working hours" placeholder="0" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+              <span class="hhmm-lbl">hrs</span>
+            </div>
+            <span class="hhmm-sep">:</span>
+            <div class="hhmm-field">
+              <input type="text" id="sunM" aria-label="Sunday working minutes" maxlength="2" placeholder="00" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done">
+              <span class="hhmm-lbl">mins</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Bank Holiday rows — both hidden when period has no bank holidays -->
       <div class="hours-row hidden" id="bhRow">
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">🏛️</span> Bank Holiday Rostered</div>
           <span class="rate-badge badge-bh" id="badge-bh">1.25×  ·  £26.86/hr</span>
-          <div class="h-sub">You were rostered to work, and it fell on a bank holiday (Easter, May Day, etc.). Shows as "Bank Holiday Rostered 1.25" on your payslip.</div>
+          <div class="h-sub">You were rostered to work, and it fell on a bank holiday (Easter, May Day, etc.). <span class="h-payslip">Shows as "Bank Holiday Rostered 1.25" on your payslip.</span></div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -385,7 +414,7 @@
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">🏛️</span> Bank Holiday Overtime</div>
           <span class="rate-badge badge-bh" id="badge-bhot">1.25×  ·  £26.86/hr</span>
-          <div class="h-sub">Hours worked on a bank holiday beyond your rostered shift, or your rest day fell on a bank holiday and you worked it. Shows as "Bank Holiday Overtime 1.25" on your payslip.</div>
+          <div class="h-sub">Hours worked on a bank holiday beyond your rostered shift, or your rest day fell on a bank holiday and you worked it. <span class="h-payslip">Shows as "Bank Holiday Overtime 1.25" on your payslip.</span></div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -416,7 +445,7 @@
           <span class="rate-badge badge-ot" id="badge-ot">1.25×  ·  £26.86/hr</span>
           <!-- Prose lives here ONLY (v18.46 — sweep item 12): JS fills just the cut-off date span,
                so the copy can't drift between HTML and a JS duplicate (it used to exist in both). -->
-          <div class="h-sub">Extra hours on top of a rostered shift. Shows as "Overtime 1.25" on your payslip.</div>
+          <div class="h-sub">Extra hours on top of a rostered shift. <span class="h-payslip">Shows as "Overtime 1.25" on your payslip.</span></div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -438,7 +467,7 @@
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">💼</span> Rest Day Working</div>
           <span class="rate-badge badge-rdw" id="badge-rdw">1.25×  ·  £26.86/hr</span>
-          <div class="h-sub">Came in on a rest day, or worked a Saturday that wasn't in your roster. Shows as "RDW 1.25" on your payslip.</div>
+          <div class="h-sub">Came in on a rest day, or worked a Saturday that wasn't in your roster. <span class="h-payslip">Shows as "RDW 1.25" on your payslip.</span></div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -455,34 +484,14 @@
         </div>
       </div>
 
-      <!-- Sunday RDW -->
-      <div class="hours-row">
-        <div class="h-info">
-          <div class="h-title"><span aria-hidden="true">☀️</span> Sunday Working</div>
-          <span class="rate-badge badge-sun" id="badge-sun">1.5×  ·  £32.24/hr</span>
-          <div class="h-sub">Any hours you worked on a Sunday. Shows as "RDW Sun 1.5" on your payslip.</div>
-        </div>
-        <div>
-          <div class="hhmm-wrap">
-            <div class="hhmm-field">
-              <input type="text" id="sunH" aria-label="Sunday working hours" placeholder="0" inputmode="decimal" autocomplete="off" enterkeyhint="done">
-              <span class="hhmm-lbl">hrs</span>
-            </div>
-            <span class="hhmm-sep">:</span>
-            <div class="hhmm-field">
-              <input type="text" id="sunM" aria-label="Sunday working minutes" maxlength="2" placeholder="00" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done">
-              <span class="hhmm-lbl">mins</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <div class="sec-hd">Occasional Days</div>
 
       <!-- Boxing Day -->
       <div class="hours-row hidden" id="boxingRow">
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">🎁</span> Boxing Day Working</div>
           <span class="rate-badge badge-box" id="badge-box">3×  ·  £64.47/hr</span>
-          <div class="h-sub">Hours worked on 26 December — the highest pay rate of the year. Shows as "Bank Holiday Overtime 3.0" on your payslip.</div>
+          <div class="h-sub">Hours worked on 26 December — the highest pay rate of the year. <span class="h-payslip">Shows as "Bank Holiday Overtime 3.0" on your payslip.</span></div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -509,7 +518,7 @@
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">🎓</span> Training Days</div>
           <span class="rate-badge badge-peer">+2 hrs pay</span>
-          <div class="h-sub">Each day you trained a colleague adds 2 hours' pay at your basic rate. Shows as extra basic pay on your payslip.</div>
+          <div class="h-sub">Each day you trained a colleague adds 2 hours' pay at your basic rate. <span class="h-payslip">Shows as extra basic pay on your payslip.</span></div>
         </div>
         <div class="stepper">
           <button type="button" id="peerMinus" aria-label="Decrease peer-training sessions">−</button>
