@@ -1083,6 +1083,16 @@ Staff Firebase Auth account setup (admin only).
 - Wires up the Staff Login Accounts card; calls `setupRosterAuth` Cloud Function
 - Sends a fresh Firebase ID token (`getIdTokenResult(true)`) as the bearer token — no client-side secret since v9.88
 
+### `roster-alignment.js`
+Is a roster read trustworthy, or is it a day out? (v22.16, external review.) Extracted from `admin-roster-upload.js`, which the ratchet had pushed 135 lines over its cap — and rightly, because this is a domain RULE, not coordination.
+- **Why it is the important module in the import path.** The row read, `sundayScan` and `columnScan` all come from ONE model call looking at ONE PDF. They are not independent witnesses. When the model visually collapses the blank Sunday cell and repeats that positional mistake across all three channels, every server-side check AGREES with the wrong answer and a whole week is written onto the wrong days — silently, because a shifted week still looks like an ordinary roster. What this module compares against is not the model at all: it is the member's own rotating base pattern, which the PDF cannot influence.
+- `detectShiftedRow` — MOVED to `roster-alignment.js` at v22.16. Old signature for reference: `detectShiftedRow(member, shifts, dates)` → `'left'｜'right'｜null` — correlates the parsed week against the base roster at offsets −1/0/+1; a ±1 alignment must beat the correct one by ≥3 days and score ≥5/7. Deliberately conservative: a member whose pattern looks similar on adjacent days scores the same at every offset and stays silent rather than false-alarm. (Unchanged in behaviour; moved.)
+- `assessRosterAlignment(parsedResult)` → `{byMember, blocked, direction, suspects}` — the CIRCUIT BREAKER. Counts by DIRECTION, not by total: a parser that drops a leading blank moves every row the same way, so two members drifting opposite ways is noise. Fails OPEN on absent evidence — an empty or malformed result is never a refusal.
+- `ALIGNMENT_BLOCK_THRESHOLD` (3) — one member can genuinely have an unusual week; two is a coincidence; three separate employees whose weeks all match their own base pattern shifted one day the same way, in one upload, is a parser failure. The per-member bar is already high, so three of those is not a near-miss.
+- **What the verdict DOES**, in `admin-roster-upload.js`: a drifted member's rows start unticked; a blocked read unticks everyone, makes every tick inert, replaces the Save button with "Read the roster again", and is skipped in the save loop. No per-row override and no "save anyway" — a systematic misread makes the whole read untrustworthy, including the rows that look unremarkable, which is exactly what a shifted row looks like where it happens to agree.
+- Imports **no Firebase**, which is a second payoff: the detector loads in Node, so a test (unit and e2e alike) builds a shifted-week fixture from the real roster instead of hard-coding member names that go stale.
+- Tested by `admin-roster-upload.test.mjs`; the wiring by `e2e/pages.spec.js`.
+
 ### `admin-roster-upload.js`
 The Weekly Roster Upload pipeline.
 - `isZeroLengthRange(s, e)` — equal start/end is the one range shape always wrong here: every duration helper reads `end <= start` as an overnight wrap, so a zero-length range prices as TWENTY-FOUR HOURS.
@@ -1991,6 +2001,7 @@ Pure helper functions — no Firebase, no HTTP, no secrets. Fully testable with 
 - `headerToDayIndex(header)` (v17.13) — resolves a raw AI header (trim + lowercase + `HEADER_TO_INDEX` lookup with a 3-char fallback) to a 0–6 index or `undefined`. SINGLE source for the three parse layers that resolve headers (`mapColumnHeadersToDates`, `buildSafeEntries`, `applyColumnScanCrossCheck`). Tested by `roster-parse-helpers.test.mjs`.
 - `mapColumnHeadersToDates(headers, dates)` — returns `{ columnDates, error }` — validates and maps AI column headers to ISO dates
 - `buildSafeEntries(parsedMembers, headers, dates)` — fills missing AI day keys with 'RD', normalises values
+- `flagUnmarkedSundayTimes(safeEntries, hasSundayColumn, dates)` → count (v22.16) — an unmarked plain-time Sunday from a PDF import becomes an UNREADABLE review cell rather than an RDW override. Runs LAST, after the Sunday corrections, so a scan-confirmed `RDW|<time>` is no longer a plain time and is exempt without a special case. Provenance, not arithmetic: the promotion is right for a shift an admin types in and wrong for a cell an AI read, because a genuinely worked Sunday carries its RDW marker on the paper roster — so a plain one means either a dropped marker or Monday's shift read into Sunday, and the promotion would hide the second.
 - `applySundayScanCorrections(entries, sundayScan, hasSundayCol, dates)` — fixes blank-Sunday misreads (Case A) and RDW stripping (Case B)
 - `isPayCutoffDay(date)` — mirrors isCutoffDate() from roster-data.js
 - `nameToEmail(fullName)` / `nameToPassword(fullName)` — Firebase Auth credential derivation

@@ -295,6 +295,76 @@ body.auth-ready .container { display: grid; }
     margin: 6px 0 2px;
     line-height: 1.4;
 }
+/* Reach the PDF from the review (v22.16). Deliberately quiet — it is a reference, not an action,
+   and it sits above a list whose real buttons are the ticks. */
+.roster-view-pdf {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font-family: inherit;
+    font-size: var(--type-small);
+    color: var(--primary-blue);
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin: 0 0 10px;
+    cursor: pointer;
+}
+.roster-view-pdf:hover { background: var(--bg-faint); }
+.roster-view-pdf:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+
+/* THE CIRCUIT BREAKER (v22.16). Louder than the per-row warning on purpose — it is not a caution
+   about one row, it is a refusal of the whole read, and the two must not be mistaken for each
+   other at a glance. Filled rather than tinted, so it reads as a stop and not as another note. */
+.roster-alignment-stop {
+    font-size: var(--type-body);
+    color: white;
+    background: var(--error-red);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin: 0 0 14px;
+    line-height: 1.5;
+}
+/* Ticks on a refused read are inert, and must LOOK inert — a control that silently ignores a tap
+   reads as a bug, which is the opposite of what a safety gate should communicate. */
+.roster-blocked .roster-tick { opacity: .35; cursor: not-allowed; }
+
+/* A member whose row is suspect but whose read was not refused outright.
+   TINT, NOT A RULE — and the difference was measured on a screenshot rather than reasoned about.
+   A `border-left` needs `padding-left` to clear it, which indents every row inside the section by
+   the same amount, so the suspect member's rows no longer line up with the sections above and
+   below. That misalignment reads as a rendering bug, which is the opposite of "this state is
+   deliberate". A background tint says the same thing and moves nothing.
+   The `.roster-shift-warning` inside already states "nothing here is selected", so this only has to
+   bound the section it applies to. */
+.roster-person-suspect {
+    background: color-mix(in oklch, var(--error-red) 4%, transparent);
+    border-radius: 10px;
+    padding: 2px 8px 8px;
+}
+/* On a REFUSED read every row is evidence to check, not a change to approve — so the whole list
+   recedes. Without this the page still reads "here are your changes" with a red note on top, which
+   is the shape of a warning, not of a refusal. Action labels are hidden outright rather than
+   dimmed: "UPDATE" beside a row that will not update is a statement, and it is untrue.
+   The dim is DELIBERATELY light. The first pass used .62 and it worked against itself — these rows
+   are exactly what the admin has been told to check against the PDF, so making the shift badges
+   hard to read is the opposite of the intent. Removing the affordances is what says "not
+   actionable"; the opacity only has to stop the list reading as a to-do. */
+.roster-blocked { opacity: .78; }
+.roster-blocked .roster-act,
+.roster-blocked .roster-skip-all-btn { visibility: hidden; }
+.roster-blocked .roster-tick { cursor: not-allowed; }
+/* A conflict row's choice pair keeps SHOWING both values — that is the evidence — but the chosen
+   one loses its fill. A solid green "Keep saved" on a read that will not be saved reads as a live
+   decision, and it is the one control on this page that looks pressed rather than available. */
+.roster-blocked .roster-choice-btn { cursor: not-allowed; }
+.roster-blocked .roster-choice-btn.is-chosen {
+    background: var(--surface-sunken);
+    color: var(--text-mid);
+    border-color: var(--border-mid);
+}
+
 .roster-change-row {
     display: flex; align-items: center; gap: 10px;
     padding: 10px 12px;
@@ -405,6 +475,17 @@ body.auth-ready .container { display: grid; }
     font-size: var(--type-button); font-weight: 600; cursor: pointer;
     margin-top: 10px; font-family: inherit;
     transition: border-color var(--dur-med), color var(--dur-med);
+}
+/* When the read is refused, the remedy stops being the quiet secondary.
+   DECLARED AFTER `.roster-cancel-btn`, and that is load-bearing rather than tidy: both are single
+   class selectors, so the later one wins. The first cut put this 109 lines EARLIER in the file and
+   it rendered as an ordinary secondary button — the exact cascade trap `.claude/rules/css-tokens.md`
+   describes, found by looking at a screenshot rather than by reading the file, which reads fine. */
+.roster-cancel-btn--primary {
+    background: var(--primary-blue);
+    color: white;
+    border-color: var(--primary-blue);
+    font-weight: 700;
 }
 @media (hover: hover) and (pointer: fine) {
     .roster-cancel-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }

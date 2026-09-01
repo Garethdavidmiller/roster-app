@@ -36,6 +36,7 @@ const {
     mapColumnHeadersToDates,
     buildSafeEntries,
     applySundayScanCorrections,
+    flagUnmarkedSundayTimes,
     applyColumnScanCrossCheck,
     parseStrictIsoDate,
     fileSignatureMatches,
@@ -627,6 +628,16 @@ columnScan: one key per column header; every staff member appears in every colum
         // Catches blank-misread-as-Monday (Case A) and RDW-stripped (Case B).
         const hasSundayColumn = parsed.columnHeaders.some(h => ['sun', 'sunday'].includes(String(h).trim().toLowerCase()));
         applySundayScanCorrections(safeEntries, parsed.sundayScan, hasSundayColumn, dates);
+
+        // ---- Post-processing: an unmarked Sunday time is EVIDENCE, not an RDW (v22.16) ----
+        // LAST, deliberately: Case B above rewrites a scan-confirmed plain time to `RDW|<time>`,
+        // so a confirmed working Sunday is no longer a plain time here and is exempt without a
+        // special case. A plain time that survives every earlier pass is one nothing confirmed —
+        // and on the paper roster a genuinely worked Sunday carries its RDW marker, so the value
+        // means either a dropped marker or Monday's shift read into Sunday. The client's
+        // uncontracted-Sunday rule would otherwise promote it to a plausible-looking RDW and
+        // destroy the clearest evidence the row moved. Full reasoning in the helper.
+        const _sunFlagged = flagUnmarkedSundayTimes(safeEntries, hasSundayColumn, dates);
 
         // ---- Filter to known staff names only ----
         // The AI could hallucinate a name not in the prompt list — strip any entry

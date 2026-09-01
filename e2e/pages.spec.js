@@ -3878,3 +3878,89 @@ test('admin: the week arrows and the swipe move the same state', async ({ page }
     await expect.poll(() => dateField.inputValue(), { timeout: 5000 }).toBe(start);
     expect(Math.round((Date.parse(afterBtn) - Date.parse(start)) / 86400000)).toBe(7);
 });
+
+
+// ── A SHIFTED READ IS REFUSED, IN A REAL BROWSER (v22.16, external review) ─────────────────────
+//
+// The rules are unit-tested in admin-roster-upload.test.mjs. What only a browser can answer is
+// whether the WIRING holds: that the refusal reaches the screen, that the Save button stops
+// offering to save, and — the one that matters — that pressing it writes NOTHING. The batch mock
+// records every `set()` payload (`window.__E2E.batchWrites`), so this asserts on what was actually
+// written rather than on a summary line claiming a count. Those are two separate passes over the
+// same state, and asserting the counter alone has no teeth: that lesson is already recorded in
+// this file for the roster review picker.
+test('operations: a roster read that looks a day out is refused, and writes nothing', async ({ page }) => {
+    // The fixture is built from the REAL detector against the REAL roster, not hard-coded names
+    // that go stale the next time somebody joins. That is possible because the alignment rules left
+    // the coordinator at v22.16 — `roster-alignment.js` imports no Firebase, so it loads in Node,
+    // where `admin-roster-upload.js` cannot (it reaches the gstatic SDK).
+    const { teamMembers, getBaseShift } = await import('../roster-data.js');
+    const { detectShiftedRow } = await import('../roster-alignment.js');
+    const DATES = ['2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08'];
+    const rowFor = (/** @type {any} */ m, /** @type {number} */ off) => Object.fromEntries(DATES.map(d => {
+        const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + off);
+        return [d, getBaseShift(m, x)];
+    }));
+    // Members the detector can actually SEE drifting — it is deliberately conservative, and a
+    // member whose pattern looks the same on adjacent days stays silent by design.
+    const drifted = teamMembers
+        .filter(/** @param {any} m */ m => !m.hidden && !m.managerOnly && m.rosterType === 'main'
+            && detectShiftedRow(m, rowFor(m, 1), DATES) === 'left')
+        .slice(0, 3)
+        .map(/** @param {any} m */ m => ({ memberName: m.name, shifts: rowFor(m, 1) }));
+    expect(drifted.length, 'fixture needs three detectably-drifted members').toBe(3);
+
+    await seedSession(page, 'G. Miller');
+
+    await openRosterReview(page, {
+        weekEnding: '2026-08-08', rosterType: 'cea', dates: DATES,
+        crossCheck: 'complete', missingMembers: [], choices: {},
+        parsed: drifted,
+    });
+
+    // The refusal is stated, and names who.
+    const stop = page.locator('.roster-alignment-stop');
+    await expect(stop).toBeVisible();
+    await expect(stop).toContainText('has not been saved');
+    await expect(stop).toContainText(drifted[0].memberName);
+
+    // Nothing is ticked, and the Save button is GONE rather than relabelled — a disabled control
+    // reading "Read the roster again" put the instruction on the one thing that could not carry it
+    // out, while the button that can sat underneath as the quiet secondary.
+    await expect(page.locator('.roster-tick:not(.off)')).toHaveCount(0);
+    await expect(page.locator('#rosterApplyBtn')).toBeHidden();
+    const remedy = page.locator('#rosterCancelBtn');
+    await expect(remedy).toBeVisible();
+    await expect(remedy).toHaveText('Read the roster again');
+    await expect(remedy).toHaveClass(/roster-cancel-btn--primary/);
+
+    // No per-row escape hatch: a tick on a refused read does nothing at all.
+    const firstTick = page.locator('.roster-tick').first();
+    await firstTick.click();
+    await expect(page.locator('.roster-tick:not(.off)')).toHaveCount(0);
+
+    // THE HARD GATE, ISOLATED. Everything above is satisfied by `chosen: false` alone — deleting
+    // the `rosterBlocked` guard in the save loop left this test green, which is how it was found.
+    // So this case forces the state a future renderer (or a stray handler) could produce: every
+    // row ticked, the button enabled, the click pressed. The write is what is asserted, not the
+    // label, because the batch mock records payloads and a summary count is a separate pass.
+    await page.evaluate(() => {
+        document.querySelectorAll('.roster-tick').forEach(t => /** @type {HTMLElement} */ (t).click());
+        const b = /** @type {HTMLButtonElement} */ (document.getElementById('rosterApplyBtn'));
+        if (b) { b.disabled = false; b.click(); }
+    });
+    await page.waitForTimeout(500);
+    const writes = await page.evaluate(() => (/** @type {any} */ (window).__E2E?.batchWrites || []).length);
+    expect(writes, 'a refused read must write nothing even if every row is forced on').toBe(0);
+});
+
+test('operations: the review offers the original PDF to check against', async ({ page }) => {
+    // Every message this release adds ends in "check it against the PDF". Until v22.16 the file had
+    // effectively left the workflow once the parse returned, so failing closed asked the admin to
+    // consult something they could no longer reach.
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+    const view = page.locator('.roster-view-pdf');
+    await expect(view).toBeVisible();
+    await expect(view).toContainText('roster.pdf');
+});

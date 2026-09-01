@@ -120,7 +120,16 @@ const CAPS = {
     // file is for. The guard did its job: it made the extraction happen before the raise.
     'calendar-app.js':         1350,
     'roster-data.js':          1300,   // mostly data, not logic
-    'admin-roster-upload.js':  1250,
+    // 1250 → 1300 at v22.16, deliberately and AFTER extracting first — which is the whole point of
+    // the ratchet and it worked exactly as designed here. Failing closed on a shifted roster read
+    // took the file to 1385, and the 135 lines were not all coordination: the drift detector, the
+    // block threshold and the batch-signature verdict are a RULE about whether a read can be
+    // trusted, so they left for roster-alignment.js. A second payoff the ratchet did not promise —
+    // that module imports no Firebase, so the detector now loads in Node and a test can build a
+    // shifted-week fixture from the real roster instead of hard-coding names that go stale.
+    // What remains above the old cap is review UI: the refusal banner, the inert ticks, the
+    // outcome branch, and the control that reaches the original PDF. That is what this file is for.
+    'admin-roster-upload.js':  1300,
     'nav-panel.js':            1250,
     'operations-app.js':        965,
     // Crossed the 900 uncapped-file threshold at v22.03 (914 measured): the Needs-attention strip

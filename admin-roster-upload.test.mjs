@@ -11,6 +11,7 @@
 
 import { test, describe, mock, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 // ── Mock-controllable state for the roster-upload save-path tests ───────────────
 let   _idTokenRefreshes = 0;
@@ -68,9 +69,12 @@ mock.module('./firebase-client.js', {
     },
 });
 
-const { shiftValueToOverrideType, _saveOverrideBatches, fetchOverridesForWeek, computeCellStates, detectShiftedRow,
+const { shiftValueToOverrideType, _saveOverrideBatches, fetchOverridesForWeek, computeCellStates,
         shiftDisplay, manualShiftDisplay, isZeroLengthRange } = await import('./admin-roster-upload.js');
 const { teamMembers, getBaseShift } = await import('./roster-data.js');
+// The alignment rules moved OUT of the coordinator at v22.16 (roster-alignment.js) — a Firebase-free
+// module, so this import needs none of the mocking above.
+const { detectShiftedRow, assessRosterAlignment, ALIGNMENT_BLOCK_THRESHOLD } = await import('./roster-alignment.js');
 
 // 2026-06-21 is a Sunday; 2026-06-15 is a Monday.
 const SUN = '2026-06-21';
@@ -558,6 +562,174 @@ describe('isZeroLengthRange', () => {
         // start dropping them.
         for (const v of ['AL', 'SICK', 'SPARE', 'RD', 'TRG RDW', 'UNKNOWN|08:00', '']) {
             assert.equal(isZeroLengthRange(v), false, `${v} must not be treated as a zero-length range`);
+        }
+    });
+});
+
+
+// ── FAILING CLOSED ON A SHIFTED READ (v22.16, external review) ────────────────────────────────
+//
+// ORGANISED BY WHAT EACH WRONG ANSWER COSTS, and the two directions are not remotely symmetric.
+//
+//   ACCEPTING A SHIFTED READ writes an entire week onto the wrong days for real staff — silently,
+//     because a shifted row still looks like a perfectly ordinary roster. It is then acted on:
+//     people come in on the wrong day and pay is calculated from it. That is the shipped defect,
+//     and it survived because the last line of defence was a WARNING above a fully-ticked list.
+//
+//   REFUSING A GOOD READ costs the admin a re-upload. Annoying, visible, and instantly correctable.
+//
+// So these tests lean hard on the first and keep only enough of the second to stop the gate
+// becoming one nobody can get past.
+//
+// Driven through `computeCellStates` — the ENTRY POINT — not through `detectShiftedRow`, which is
+// already tested above and was already correct. The defect was never the detector; it was what the
+// pipeline DID with what the detector said. A perfect helper whose answer is discarded is exactly
+// the failure shape this repo names in CLAUDE.md.
+
+describe('a shifted read fails closed', () => {
+    const MEMBER = teamMembers.find(/** @param {any} m */ m => m.name === 'G. Miller');
+    const DATES  = ['2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08'];
+    const baseAt = (/** @type {string} */ d, off = 0) => {
+        const dt = new Date(d + 'T12:00:00'); dt.setDate(dt.getDate() + off);
+        return getBaseShift(MEMBER, dt);
+    };
+    /** A week for `name` whose values are their own base pattern read `off` days out. */
+    const rowFor = (/** @type {any} */ m, off) => {
+        const dts = DATES.map(d => { const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + off); return x; });
+        return Object.fromEntries(DATES.map((d, i) => [d, getBaseShift(m, dts[i])]));
+    };
+    /**
+     * The members whose drift is DETECTABLE at all — 13 of the 20 main-roster lines.
+     *
+     * Not cherry-picking: `detectShiftedRow` is deliberately conservative, because a member whose
+     * pattern looks similar on adjacent days scores the same at every offset and must stay silent
+     * rather than false-alarm. Building the scenario out of members the detector can actually see
+     * is what makes these tests about the GATE. A fixture that quietly included a silent member
+     * would fail for a reason that has nothing to do with what is under test — which is exactly
+     * what the first version of this block did.
+     */
+    const DRIFTABLE = teamMembers.filter(/** @param {any} m */ m =>
+        !m.hidden && !m.managerOnly && m.rosterType === 'main'
+        && detectShiftedRow(m, rowFor(m, 1), DATES) === 'left');
+
+    /** The same, for the OTHER direction. Detectability is per-direction and per-member — a member
+     *  the detector sees drifting left is not automatically one it sees drifting right, which the
+     *  first version of the opposite-directions case below assumed and got wrong. */
+    const RIGHT_DRIFTABLE = teamMembers.filter(/** @param {any} m */ m =>
+        !m.hidden && !m.managerOnly && m.rosterType === 'main'
+        && detectShiftedRow(m, rowFor(m, -1), DATES) === 'right');
+
+    const states = (/** @type {any[]} */ parsed) => computeCellStates({ parsed, dates: DATES }, []);
+    /** Only the cells that would actually be written. */
+    const writable = (/** @type {Map<string,any>} */ st) =>
+        [...st.values()].filter(c => (c.state === 'DIFF' || c.state === 'REMOVE_IMPORT') && c.chosen !== false);
+
+    // ── ACCEPTING A SHIFTED READ ───────────────────────────────────────────────────────────────
+
+    test('a drifted member\'s rows are NOT selected for saving', () => {
+        const st = states([{ memberName: 'G. Miller', shifts: rowFor(MEMBER, 1) }]);
+        assert.equal(writable(st).length, 0, 'a week that looks a day out must not default to save');
+        assert.ok([...st.values()].every(c => c.drift === 'left'), 'and every cell must say why');
+    });
+
+    test('three members drifting the same way REFUSE the whole read', () => {
+        const three = DRIFTABLE.slice(0, ALIGNMENT_BLOCK_THRESHOLD);
+        assert.equal(three.length, ALIGNMENT_BLOCK_THRESHOLD, 'fixture must match the threshold it is testing');
+        const st = states(three.map(m => ({ memberName: m.name, shifts: rowFor(m, 1) })));
+        assert.ok([...st.values()].every(c => c.rosterBlocked), 'every cell of a refused read is marked');
+        assert.equal(writable(st).length, 0);
+    });
+
+    test('a refused read blocks EVERY member, including one that reads perfectly', () => {
+        // THE CASE THE REVIEWER INSISTED ON, and the one a per-row gate would miss. A systematic
+        // misread makes the whole read untrustworthy — and a shifted row is at its most invisible
+        // exactly where it happens to agree with the base pattern.
+        const three = DRIFTABLE.slice(0, ALIGNMENT_BLOCK_THRESHOLD);
+        const clean = DRIFTABLE[ALIGNMENT_BLOCK_THRESHOLD];
+        const parsed = three.map(m => ({ memberName: m.name, shifts: rowFor(m, 1) }));
+        parsed.push({ memberName: clean.name, shifts: rowFor(clean, 0) });
+        const st = states(parsed);
+        const cleanCells = [...st.entries()].filter(([k]) => k.startsWith(`${clean.name}|`)).map(([, v]) => v);
+        assert.ok(cleanCells.length > 0);
+        assert.ok(cleanCells.every(c => c.rosterBlocked), 'the clean member is blocked too');
+        assert.equal(writable(st).length, 0);
+    });
+
+    test('drift in OPPOSITE directions is noise, not a systematic misread', () => {
+        // A parser that drops a leading blank moves every row the SAME way. Counting bare drift
+        // totals rather than per-direction would refuse reads over unrelated coincidences.
+        const rightward = RIGHT_DRIFTABLE.find(/** @param {any} m */ m =>
+            m.name !== DRIFTABLE[0].name && m.name !== DRIFTABLE[1].name);
+        assert.ok(rightward, 'fixture needs a member the detector can see drifting RIGHT');
+        const parsed = [
+            { memberName: DRIFTABLE[0].name, shifts: rowFor(DRIFTABLE[0], 1) },
+            { memberName: DRIFTABLE[1].name, shifts: rowFor(DRIFTABLE[1], 1) },
+            { memberName: rightward.name,    shifts: rowFor(rightward, -1) },
+        ];
+        const a = assessRosterAlignment({ parsed, dates: DATES });
+        assert.equal(a.blocked, false, 'two left and one right is not three in one direction');
+        assert.equal(a.byMember.size, 3, 'but all three are still individually suspect');
+    });
+
+    // ── REFUSING A GOOD READ ───────────────────────────────────────────────────────────────────
+
+    test('an ordinary aligned week is untouched — ticked, unblocked, no drift', () => {
+        const parsed = DRIFTABLE.slice(0, 4).map(m => ({ memberName: m.name, shifts: rowFor(m, 0) }));
+        const st = states(parsed);
+        assert.ok([...st.values()].every(c => !c.rosterBlocked && c.drift === null));
+        assert.equal(assessRosterAlignment({ parsed, dates: DATES }).blocked, false);
+    });
+
+    test('ONE drifted member does not refuse the read for everybody else', () => {
+        // One person can genuinely have an unusual week. The gate is per-row until the batch
+        // signature appears; conflating the two would make a single odd rota unimportable.
+        const other = DRIFTABLE[1];
+        const st = states([
+            { memberName: DRIFTABLE[0].name, shifts: rowFor(DRIFTABLE[0], 1) },
+            { memberName: other.name,        shifts: rowFor(other, 0) },
+        ]);
+        assert.ok([...st.values()].every(c => !c.rosterBlocked), 'one suspect row is not a refused read');
+        const otherCells = [...st.entries()].filter(([k]) => k.startsWith(`${other.name}|`)).map(([, v]) => v);
+        assert.ok(otherCells.every(c => c.drift === null));
+    });
+
+    test('an unknown name contributes nothing to the verdict', () => {
+        const a = assessRosterAlignment({ parsed: [{ memberName: 'Nobody At All', shifts: {} }], dates: DATES });
+        assert.equal(a.byMember.size, 0);
+        assert.equal(a.blocked, false);
+    });
+
+    test('the SAVE LOOP itself refuses a blocked cell — a STATIC contract, and here is why', () => {
+        // This one case is not behavioural, and the reason is worth stating rather than leaving to
+        // look like laziness. There are TWO guards on a refused read and they protect different
+        // futures: the tick handler ignores a click (`s.rosterBlocked` → return), and the save loop
+        // skips the cell (`state.rosterBlocked` → continue). The e2e proves the first — clicking
+        // every tick leaves them all off. It CANNOT reach the second, because with the first in
+        // place `chosen` can never become true, so deleting the save-loop guard leaves the whole
+        // browser suite green. That was found by mutation, not by reading.
+        //
+        // The save-loop guard is the one that survives a future renderer, a bulk "select all", or
+        // a Skip-all/Restore path setting `chosen` without going through the tick handler — i.e.
+        // exactly the kind of change that gets made when the breaker is no longer fresh in mind.
+        // It is defence in depth, it is unreachable from the UI today, and a static assertion is
+        // the only form of protection available to it. Anchored on the two identifiers together so
+        // a rename cannot quietly satisfy it.
+        const src = readFileSync('./admin-roster-upload.js', 'utf8');
+        const loop = src.slice(src.indexOf('for (const [key, state] of _cellStates)'));
+        assert.ok(/if \(state\.rosterBlocked\) continue;/.test(loop.slice(0, 1200)),
+            'the save loop must skip a cell from a refused read, before any state check');
+        // …and it must come BEFORE the first thing that can queue a write.
+        assert.ok(loop.indexOf('state.rosterBlocked') < loop.indexOf('toWrite.push'),
+            'the guard is worthless below the first push');
+    });
+
+    test('an empty or malformed result is not a refusal', () => {
+        // The breaker must fail OPEN on absence of evidence — refusing a read nobody has parsed
+        // yet would be a gate that fires on nothing.
+        for (const bad of [{}, { parsed: [], dates: [] }, { parsed: null, dates: null }]) {
+            const a = assessRosterAlignment(/** @type {any} */ (bad));
+            assert.equal(a.blocked, false);
+            assert.equal(a.suspects.length, 0);
         }
     });
 });

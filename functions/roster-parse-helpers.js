@@ -453,6 +453,58 @@ function applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, da
     }
 }
 
+/**
+ * A plain-time Sunday from a PDF IMPORT is suspicious, not an RDW (v22.16, external review).
+ *
+ * ── WHY THIS EXISTS ────────────────────────────────────────────────────────────────────────────
+ *
+ * `shiftValueToOverrideType` promotes a plain worked time on a Sunday to an `rdw` override,
+ * because Sunday is uncontracted for every grade — so any time worked on one IS overtime. That is
+ * exactly right for a shift an admin types in. It is wrong for a cell an AI read off a PDF, and
+ * the difference is provenance rather than arithmetic.
+ *
+ * On the paper roster a genuinely worked Sunday carries the RDW indication. So an imported Sunday
+ * reading `06:00-14:00` rather than `RDW 06:00-14:00` has exactly two explanations:
+ *
+ *   1. the model dropped the RDW marker, or
+ *   2. the model read MONDAY's shift into the Sunday cell.
+ *
+ * Nothing available here can tell those apart — and the second is the day-shift this whole file
+ * defends against. Worse, the RDW promotion actively HIDES it: a shifted Monday time becomes a
+ * perfectly legitimate-looking Sunday RDW, destroying the clearest signal that the row moved.
+ * The review that prompted this called that out, and it is the sharper half of the finding.
+ *
+ * So the cell becomes the ordinary skip-only UNREADABLE sentinel, carrying both the value and the
+ * reason. It is never written without the admin looking at it.
+ *
+ * ── WHY IT RUNS LAST ───────────────────────────────────────────────────────────────────────────
+ *
+ * `applySundayScanCorrections` Case B rewrites a confirmed plain time to `RDW|<time>` when the
+ * dedicated Sunday scan positively saw an RDW. That is real evidence, and such a cell is no
+ * longer a plain time by the time this runs, so it is exempt without needing a special case here.
+ * A plain time that SURVIVES every earlier pass is one nothing confirmed — including the case the
+ * review is really about, where the scan agrees with the row because both came from one
+ * generation and repeated the same mistake.
+ *
+ * @param {object[]} safeEntries  - modified in place
+ * @param {boolean}  hasSundayColumn
+ * @param {string[]} dates        - 7 ISO dates; dates[0] is Sunday
+ * @returns {number} how many cells were flagged (for the response's diagnostics)
+ */
+function flagUnmarkedSundayTimes(safeEntries, hasSundayColumn, dates) {
+    if (!hasSundayColumn || !Array.isArray(dates) || dates.length < 7) return 0;
+    const sunDate = dates[0];
+    let flagged = 0;
+    for (const entry of safeEntries) {
+        const v = entry.shifts?.[sunDate];
+        if (typeof v !== 'string' || !/^\d{2}:\d{2}-\d{2}:\d{2}$/.test(v)) continue;
+        entry.shifts[sunDate] = `UNKNOWN|Sunday ${v} with no RDW marker — check the row alignment`;
+        flagged++;
+        console.warn(`[parseRosterPDF] ${entry.memberName}: Sunday parsed as a plain time "${v}" with no RDW marker — flagged for review, not written as RDW`);
+    }
+    return flagged;
+}
+
 // ── Column-scan cross-check (the general day-shift defence) ─────────────────
 
 // Scan tokens that mean "this cell is empty" — mirrors the Case-A blank set above.
@@ -1117,6 +1169,7 @@ module.exports = {
     mapColumnHeadersToDates,
     buildSafeEntries,
     applySundayScanCorrections,
+    flagUnmarkedSundayTimes,
     applyColumnScanCrossCheck,
     normaliseScanValue,
     parseStrictIsoDate,
