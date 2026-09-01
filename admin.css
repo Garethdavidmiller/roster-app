@@ -361,6 +361,7 @@
             overflow: hidden;        /* clip date text if wrap is narrower than content */
             text-overflow: ellipsis; /* show … rather than abrupt cut */
             pointer-events: none;
+            -webkit-user-select: none;
             user-select: none;
         }
         /* Calendar icon sits at the right edge of the label — purely decorative indicator

@@ -2741,8 +2741,14 @@ test('every page renders in Inter, not a browser default', async ({ page }) => {
 //
 // A static CSS test could not catch either: both are cascade outcomes, not text. This measures the
 // COMPUTED size on a real coarse-pointer device, which is the only thing that answers the question.
+//
+// IT RUNS ON WEBKIT TOO (v22.12). The rule exists because of iOS, and it was gated to mobile-chrome
+// alone — so the guard for an iOS behaviour never once ran on the iOS engine, while mobile-safari sat
+// in CI as a full job. Verified passing on both BEFORE the gate was widened, so this records a
+// coverage gap rather than fixing a defect. The 24px tap-target test below stays mobile-chrome-only:
+// it is WCAG 2.2 and engine-neutral, so it has no equivalent reason to cross.
 test('no focusable field falls below 16px on a touch device @a11y', async ({ page }, info) => {
-    test.skip(info.project.name !== 'mobile-chrome', 'needs a real coarse pointer');
+    test.skip(!['mobile-chrome','mobile-safari'].includes(info.project.name), 'needs a real coarse pointer');
     await page.setViewportSize({ width: 390, height: 900 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
@@ -2852,7 +2858,7 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
 // every visual test green. A screenshot could not police it anyway, since re-baselining just records
 // whatever it wrapped to.
 test('links: a numeric objective clause does not come apart on a phone', async ({ page }, info) => {
-    test.skip(info.project.name !== 'mobile-chrome', 'needs a real coarse pointer');
+    test.skip(!['mobile-chrome','mobile-safari'].includes(info.project.name), 'needs a real coarse pointer');
     // 360, not the suite's usual 390 — that is the reported device (1080px at DPR 3), and it is the
     // 30px that decided this. The clause fits at 390 and fragments at 360.
     await page.setViewportSize({ width: 360, height: 900 });

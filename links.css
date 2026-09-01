@@ -1494,6 +1494,7 @@ body.auth-ready .container { display: grid; }
     padding: 28px 28px 24px;
     width: min(var(--modal-wide), var(--modal-cap));
     max-height: 85vh;
+    max-height: 85dvh;
     box-shadow: var(--shadow-3);
     text-align: left;
 }
