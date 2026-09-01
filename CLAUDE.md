@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: September 2026 — v22.10 · Updated every 0.10 version*
+*Last updated: September 2026 — v22.20 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `22.10` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `22.20` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; **primary install + notification target** since v14.29). A GitHub Pages mirror is still served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path**, NOT the bare origin (which is a separate empty repo that 404s) — kept alive only for staff who already installed from it. `STAFF_SITE_URL` in `functions/index.js` is now the bare `https://myb-roster.web.app` (no sub-path). It only sets the notification payload's path/hash — each device's service worker discards the origin and re-bases the page onto its own scope, so existing github.io installs keep working. See API key note below. |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -540,6 +540,7 @@ roster-app/
 ├── package.json            ← dev dependencies only
 ├── eslint.config.js        ← flat ESLint config (browser globals); run on staged JS by the pre-commit hook and `npm run check`
 ├── scripts/
+│   ├── run-tests.mjs             ← every `node --test` script goes through this, and it exists for ONE failure node does not report: a `describe` whose body THROWS while being built is printed as `not ok N - <suite>`, contributes nothing to the counts, and **exits 0**. `# pass N · # fail 0`, green in `npm test`, `npm run check` and CI — with a whole block of assertions missing. Not hypothetical: it is how three clock-time assertions written on 1 Sep 2026 never ran, in a file that imports `it` while the new block said `test`. Same shape as the staleness `doc-parity.test.mjs` guards — a suite that passes by not existing — and this closes the runtime half. It forwards `process.execArgv`, or the child loses `--experimental-test-module-mocks`
 │   ├── bump-version.mjs          ← `npm run bump <version>` — updates APP_VERSION in the 2 runtime locations (roster-data.js + service-worker.js)
 │   ├── generate-roster-members.mjs ← `npm run generate:roster-members` — rebuilds functions/roster-members.json
 │   ├── generate-guide-index.mjs    ← `npm run generate:guide-index` — rebuilds guide-index.js from the five guide pages (extraction shared with the parity test via scripts/guide-index-lib.mjs)

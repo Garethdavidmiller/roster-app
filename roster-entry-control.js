@@ -37,8 +37,9 @@
  * badges beside this control read `13:30-21:00`, so a 12-hour box in the one place the admin TYPES
  * is both inconsistent and genuinely ambiguous.
  *
- * Text does not weaken the guard: `manualCellValue` requires `HH:MM` on both boxes, so a half-typed
- * or malformed time simply produces no entry and writes nothing. What it needs instead is to SAY
+ * Text does not weaken the guard: `manualCellValue` requires a REAL clock time on both boxes —
+ * the shape AND hours 00–23, minutes 00–59 — so a half-typed or impossible time produces no entry
+ * and writes nothing. (It checked only the shape for one release, which let `29:00` through.) What it needs instead is to SAY
  * so, which is what the hint under the boxes is for — and what `patchEntryRow` keeps true as the
  * admin types, because a re-render would destroy the field they are typing into.
  */

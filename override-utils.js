@@ -778,7 +778,16 @@ export function manualCellValue(type, from = '', to = '') {
     if (type === 'sick')         return 'SICK';
     if (type === 'spare_shift')  return 'SPARE';
     if (type !== 'shift' && type !== 'rdw') return null;   // incl. `other` — see above
-    const t = /** @param {string} v */ v => /^\d{2}:\d{2}$/.test(v);
+    // A REAL clock time, not merely the shape of one. The boxes are text (the entry control's
+    // header says why), so nothing in the browser rejects `29:00` or `99:99` — and the shape test
+    // this replaced let both through to compose a shift that every duration and classification
+    // helper downstream would then read as nonsense. `24:00` is refused with them: the roster
+    // writes a midnight finish as `00:00` (`15:00-00:00` appears on the real Supervisor sheet),
+    // and an overnight range is expressed by end < start, which is ordinary here.
+    const t = /** @param {string} v */ (v) => {
+        const m = /^(\d{2}):(\d{2})$/.exec(v);
+        return !!m && +m[1] <= 23 && +m[2] <= 59;
+    };
     if (!t(from) || !t(to)) return null;
     const range = `${from}-${to}`;
     return type === 'rdw' ? `RDW|${range}` : range;

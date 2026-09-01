@@ -749,11 +749,26 @@ describe('a consistently shifted read — all three channels agreeing on the sam
         }
     });
 
-    test('a roster with no Sunday column gets no Sunday exemption either', () => {
+    test('a Mon–Sat-only roster does NOT give every member an unreadable Sunday', () => {
+        // This asserted the opposite for one iteration, on a rule invented rather than measured:
+        // "the exemption is about the Sunday COLUMN existing". It is not. A roster with no Sunday
+        // column is a FORMAT — `hasSundayColumn` in index.js exists for it — and flagging index 0
+        // there would put ~44 unreadable rows in front of an admin on every upload, for a day the
+        // sheet does not claim to cover. A blank Sunday cell and an absent Sunday column have the
+        // same honest answer: not rostered on Sunday.
         const monSat = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         const entries = buildSafeEntries([{ memberName: 'G. Miller', Mon: 'RD' }], monSat, DATES);
-        assert.match(entries[0].shifts[SUN], /^UNKNOWN\|/,
-            'the exemption is about the Sunday COLUMN existing, not about index 0');
+        assert.equal(entries[0].shifts[SUN], 'RD');
+    });
+
+    test('but a missing WEEKDAY column still floods, because that is a broken read', () => {
+        // The asymmetry, stated so nobody "fixes" it into symmetry: a roster that does not show
+        // Tuesday is not a format, it is a parse that went wrong, and every row being flagged is
+        // the correct amount of noise for that.
+        const noTue = ['Sun', 'Mon', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const entries = buildSafeEntries([{ memberName: 'G. Miller', Mon: 'RD' }], noTue, DATES);
+        assert.match(entries[0].shifts[TUE], /^UNKNOWN\|/);
+        assert.match(entries[0].shifts[TUE], /Tuesday/);
     });
 
     // ── THE END-TO-END PROOF: the evidence reaches the client's circuit breaker ─────────────────

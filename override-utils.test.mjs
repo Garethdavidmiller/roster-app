@@ -1041,3 +1041,35 @@ describe('manualCellValue', () => {
         }
     });
 });
+describe('manualCellValue — a real clock time, not the shape of one', () => {
+    // The entry boxes are TEXT (roster-entry-control.js's header measures why), so nothing in the
+    // browser rejects an impossible time. The first cut tested only `\d{2}:\d{2}`, which let
+    // `29:00` and `99:99` compose a shift that every duration and classification helper downstream
+    // reads as nonsense — silently, because a shift-shaped string is what they all expect.
+    // Organised by cost: ACCEPTING an impossible time writes bad roster data; REFUSING a real one
+    // makes a legitimate entry impossible to record.
+
+    it('an impossible hour or minute produces no entry at all', () => {
+        for (const [f, t] of [['99:99', '06:00'], ['25:00', '26:00'], ['24:00', '06:00'],
+                              ['06:60', '14:00'], ['06:00', '24:00']]) {
+            assert.equal(manualCellValue('shift', f, t), null, `${f}-${t} must not compose`);
+        }
+    });
+
+    it('and the shape is still required — a half-typed time writes nothing', () => {
+        for (const [f, t] of [['6:00', '14:00'], ['06:00', ''], ['', '14:00'], ['0600', '1400']]) {
+            assert.equal(manualCellValue('shift', f, t), null);
+        }
+    });
+
+    it('every real time the roster actually uses is accepted', () => {
+        // Including the two boundaries: a midnight FINISH is written `00:00` on the real Supervisor
+        // sheet (`15:00-00:00`), never `24:00`, and an overnight range is end < start, which is
+        // ordinary here and must not be mistaken for an error.
+        assert.equal(manualCellValue('shift', '00:00', '23:59'), '00:00-23:59');
+        assert.equal(manualCellValue('shift', '15:00', '00:00'), '15:00-00:00');
+        assert.equal(manualCellValue('shift', '06:20', '14:20'), '06:20-14:20');
+        assert.equal(manualCellValue('rdw',   '22:30', '07:00'), 'RDW|22:30-07:00');
+    });
+});
+

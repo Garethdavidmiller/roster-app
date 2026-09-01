@@ -322,10 +322,6 @@ const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Fri
 function buildSafeEntries(parsedMembers, columnHeaders, dates) {
     const safeEntries = [];
     const seenMembers = new Set();
-    // Derived here rather than passed in, so the default cannot disagree with the header list the
-    // cell lookup below uses. A Mon–Sat-only roster has no Sunday column and no Sunday exemption.
-    const hasSunday = Array.isArray(columnHeaders)
-        && columnHeaders.some(h => headerToDayIndex(h) === 0);
     for (const entry of parsedMembers) {
         // Guard against a non-object array element (e.g. the AI returns `"parsed": [null]`):
         // `entry.memberName` on null throws a TypeError, and this runs OUTSIDE the AI-call
@@ -362,9 +358,18 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
         // So Sunday keeps the RD default (it is the uncontracted column, and its blank is how the
         // sheet says "not working"), and Mon–Sat fails closed to the ordinary UNREADABLE sentinel.
         // The cost is bounded and visible; the thing it prevents is neither.
+        //
+        // **Sunday's exemption does NOT depend on the Sunday COLUMN existing**, and the first cut of
+        // this made it depend on exactly that. A Mon–Sat-only roster — a format `hasSundayColumn` in
+        // index.js exists to handle — would then have given EVERY member an unreadable Sunday, ~44
+        // review rows an admin must dismiss on every upload, for a day the sheet does not claim to
+        // cover. The two cases have the same honest answer: a blank Sunday cell and an absent Sunday
+        // column both mean "not rostered on Sunday", and neither is evidence of a misread.
+        // A missing weekday COLUMN is a different matter and correctly floods — a roster that does
+        // not show Tuesday is a broken read, not a format.
         const shifts = {};
         for (let i = 0; i < dates.length; i++) {
-            shifts[dates[i]] = (i === 0 && hasSunday)
+            shifts[dates[i]] = (i === 0)
                 ? 'RD'
                 : `UNKNOWN|no ${DAY_LABELS[i] || 'day'} cell was read — check the PDF`;
         }
@@ -399,7 +404,7 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
                 // covers a day whose HEADER the model never listed, and this one a header it listed
                 // with nothing in it. Both were 'RD' until v22.19, so the fix had to be made twice
                 // or it would have been made nowhere the model actually goes.
-                shifts[date] = (dayIndex === 0 && hasSunday)
+                shifts[date] = (dayIndex === 0)
                     ? 'RD'
                     : `UNKNOWN|no ${DAY_LABELS[dayIndex] || 'day'} cell was read — check the PDF`;
                 continue;
