@@ -18,7 +18,8 @@
  * or a live localStorage.
  */
 
-import { DEVICE_KEYS, memberSlug } from './paycalc-migrations.js';
+import { DEVICE_KEYS, memberSlug, PAY_DATA_GENERATION } from './paycalc-migrations.js';
+import { inventoryOf, damagedEntries } from './paycalc-inventory.js';
 
 /** Identifies our own blobs. A file that does not carry this is not ours, whatever its extension. */
 export const BACKUP_FORMAT = 'myb-paycalc-backup';
@@ -54,17 +55,22 @@ export function selectBackupKeys(allKeys, prefix) {
 
 /**
  * Summarise a set of keys in terms a member recognises — payslips and tax years, not key counts.
+ *
+ * Delegates to `inventoryOf`, which classifies against the ONE key table. Until v22.14 this
+ * counted tax years from a hand-written regex naming five of the nine per-year key types, so a
+ * year whose only data was a confirmed setup, a recorded HPP or a Year-to-Date source simply did
+ * not appear — an undercount on the card that exists to say what you are carrying to a new phone.
+ *
+ * The RETURN SHAPE is deliberately the flat one it has always been (`taxYears` a count, not a
+ * list): it is written into every backup blob as `counts`, and a blob field is read by app
+ * versions that do not exist yet. The card asks `inventoryOf` directly for the rich form.
+ *
  * @param {string[]} keys
  * @param {string} prefix
  */
 export function summarise(keys, prefix) {
-    const tail = (/** @type {string} */ k) => k.slice(prefix.length);
-    const periods = keys.filter(k => /^p\d+$/.test(tail(k))).length;
-    const years = new Set(
-        keys.map(k => (/(?:hpp_est|hpp_mode|bp_state|ytd_pay|ytd_tax)_(\d{4}_\d{2})$/.exec(tail(k)) || [])[1])
-            .filter(Boolean),
-    );
-    return { periods, taxYears: years.size, keys: keys.length };
+    const inv = inventoryOf(keys, prefix);
+    return { periods: inv.periods, taxYears: inv.taxYears.length, keys: inv.keys };
 }
 
 /**
@@ -78,6 +84,9 @@ export function buildBackup({ entries, member, slug, appVersion, exportedAt, pre
     return {
         format: BACKUP_FORMAT,
         version: BACKUP_VERSION,
+        // The FILE's shape (`version`) and the DATA's shape (`dataGeneration`) are separate
+        // questions and have always moved independently — see PAY_DATA_GENERATION.
+        dataGeneration: PAY_DATA_GENERATION,
         appVersion,
         member,
         slug,               // the SOURCE namespace segment — makes re-keying unambiguous (see rekeyEntries)
@@ -97,7 +106,9 @@ export function buildBackup({ entries, member, slug, appVersion, exportedAt, pre
  * @param {string} text the pasted or uploaded file contents
  * @param {{ currentSlug: string }} ctx the namespace of the member doing the importing
  * @returns {{ ok: false, error: string }
- *          | { ok: true, blob: any, unnamespaced: boolean, counts: {periods:number,taxYears:number,keys:number} }}
+ *          | { ok: true, blob: any, unnamespaced: boolean, counts: {periods:number,taxYears:number,keys:number},
+ *              inventory: ReturnType<typeof inventoryOf>,
+ *              damaged: {key:string,tail:string,label:string}[] }}
  */
 export function validateBackup(text, { currentSlug }) {
     // FAIL CLOSED ON IDENTITY, before anything else is considered. Every rule below is about whose
@@ -124,6 +135,13 @@ export function validateBackup(text, { currentSlug }) {
     }
     if (typeof blob.version !== 'number' || blob.version > BACKUP_VERSION) {
         return { ok: false, error: 'That backup was made by a newer version of the app. Update this device first.' };
+    }
+    // A blob whose FILE shape we understand can still hold values written by a later paycalc —
+    // a pension timeline in a shape this version cannot read, say. Refuse rather than write it:
+    // the values would be restored faithfully and then silently misread. Absent on every backup
+    // written before v22.14, and absence means "no later than us", which is what those are.
+    if (typeof blob.dataGeneration === 'number' && blob.dataGeneration > PAY_DATA_GENERATION) {
+        return { ok: false, error: 'That backup holds pay figures from a newer version of the app. Update this device first.' };
     }
     if (!blob.data || typeof blob.data !== 'object' || Array.isArray(blob.data)) {
         return { ok: false, error: 'That backup has no pay data in it.' };
@@ -169,7 +187,17 @@ export function validateBackup(text, { currentSlug }) {
         return { ok: false, error: `That backup is inconsistent (${stray}). Nothing was changed.` };
     }
 
-    return { ok: true, blob, unnamespaced, counts: summarise(keys, srcPrefix) };
+    // SEMANTIC PREFLIGHT. Everything above is about the file's SHAPE; this is the first question
+    // about its CONTENTS — do the entries that are supposed to be JSON actually parse? It NAMES
+    // rather than refuses, for the reason argued in damagedEntries: a backup is often the only
+    // copy left, and a corrupt period restored is visible and recoverable where a refused restore
+    // leaves the member with nothing.
+    return {
+        ok: true, blob, unnamespaced,
+        counts: summarise(keys, srcPrefix),
+        inventory: inventoryOf(keys, srcPrefix),
+        damaged: damagedEntries(blob.data, srcPrefix),
+    };
 }
 
 /**

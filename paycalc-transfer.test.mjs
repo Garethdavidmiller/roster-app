@@ -14,21 +14,35 @@ import {
     selectBackupKeys, summarise, buildBackup, validateBackup, rekeyEntries, backupFilename,
     applyRestore,
 } from './paycalc-transfer.js';
+import { PAY_DATA_GENERATION } from './paycalc-migrations.js';
 
 const PREFIX = 'myb_pc_gmiller_';
 const SLUG = 'gmiller';
 
-/** A representative spread: periods, settings, per-tax-year state, a roster snapshot. */
+/**
+ * A representative spread: periods, settings, per-tax-year state, a roster snapshot.
+ *
+ * **KEEP THIS CURRENT WITH THE APP'S OWN SCHEMA** (v22.14, external review). A backup fixture that
+ * describes an older paycalc still passes every assertion here — it exercises the rules, which do
+ * not care what a value means — while quietly proving nothing about the fields staff actually have.
+ * It had drifted to the v19 vocabulary: no pension TIMELINE (the v21.78 shape that replaced a
+ * boolean, and the one whose mis-handling put £115.92 onto a historical take-home), no payslip
+ * COMPARISON figures (`actualGross`/`actualTax`/`actualNi`/`actualPension`, v22.06), and no
+ * device-local actuals map. Those are exactly the values a member would lose on a new phone.
+ */
 const SAMPLE = {
-    [`${PREFIX}p16`]: '{"satH":7,"satM":30,"pension":null,"actualNet":1234.56}',
+    [`${PREFIX}p16`]: '{"satH":7,"satM":30,"pension":null,"actualNet":1234.56,'
+                    + '"actualGross":2100.10,"actualTax":312.40,"actualNi":148.22,"actualPension":151.86}',
     [`${PREFIX}p20`]: '{"satH":0,"satM":0,"pension":0}',
     [`${PREFIX}grade`]: 'cea',
     [`${PREFIX}code`]: '1257L',
     [`${PREFIX}sl_paid_off`]: '20',
+    [`${PREFIX}pension_timeline`]: '[{"at":53,"inScheme":false}]',
     [`${PREFIX}hpp_est_2026_27`]: '1843.01',
     [`${PREFIX}bp_state_2026_27`]: '{"inc":true}',
     [`${PREFIX}ytd_pay_2026_27`]: '21758.94',
     [`${PREFIX}snap_16`]: '{"sat":1}',
+    [`${PREFIX}actuals`]: '{"2026-07-03":{"gross":2100.1,"net":1638.4}}',
 };
 
 const makeBlob = (over = {}) => JSON.stringify({
@@ -76,6 +90,95 @@ describe('summary — stated in payslips, not key counts', () => {
         assert.equal(s.periods, 2);
         assert.equal(s.taxYears, 1);
         assert.equal(s.keys, Object.keys(SAMPLE).length);
+    });
+
+    test('a tax year is counted whatever kind of key reveals it (v22.14)', () => {
+        // THE SHIPPED DEFECT. The old regex named five of the nine per-year key types, so a year
+        // whose only data was a confirmed setup, a recorded HPP actual, an HPP opt-in or a
+        // Year-to-Date source was invisible — and the card that exists to say what you are
+        // carrying to a new phone simply reported a smaller number, with nothing to say so.
+        for (const tail of ['setup_2024_25', 'hpp_actual_2024_25', 'hpp_inc_2024_25', 'ytd_src_2024_25']) {
+            assert.equal(summarise([PREFIX + tail], PREFIX).taxYears, 1, `${tail} did not count as a tax year`);
+        }
+        // …and together with a fifth year's key, all five are seen at once.
+        const mixed = ['setup_2024_25', 'hpp_actual_2025_26', 'ytd_src_2026_27'].map(t => PREFIX + t);
+        assert.equal(summarise(mixed, PREFIX).taxYears, 3);
+    });
+
+    test('the blob COUNTS shape stays flat — it is read by app versions that do not exist yet', () => {
+        const s = summarise(Object.keys(SAMPLE), PREFIX);
+        assert.deepEqual(Object.keys(s).sort(), ['keys', 'periods', 'taxYears']);
+        assert.equal(typeof s.taxYears, 'number', 'counts.taxYears is a NUMBER in the file format');
+    });
+});
+
+describe('the data generation — the shape of the VALUES, not of the file', () => {
+    test('a backup records the generation its values were written by', () => {
+        const blob = JSON.parse(makeBlob());
+        assert.equal(blob.dataGeneration, PAY_DATA_GENERATION);
+        assert.notEqual(blob.dataGeneration, blob.version,
+            'if these two ever coincide the test proves nothing — pick a case where they differ');
+    });
+
+    test('values from a NEWER paycalc are refused, even in a file shape we understand', () => {
+        const res = validateBackup(makeBlob({ dataGeneration: PAY_DATA_GENERATION + 1 }), { currentSlug: SLUG });
+        assert.equal(res.ok, false);
+        assert.match(res.error, /newer version/);
+    });
+
+    test('an older generation restores — that is the entire point of recording it', () => {
+        const res = validateBackup(makeBlob({ dataGeneration: 1 }), { currentSlug: SLUG });
+        assert.equal(res.ok, true);
+    });
+
+    test('a backup written before v22.14 has no generation and is not refused for it', () => {
+        // Absence means "no later than us", which is true of every backup that predates the field.
+        const blob = JSON.parse(makeBlob());
+        delete blob.dataGeneration;
+        assert.equal(validateBackup(JSON.stringify(blob), { currentSlug: SLUG }).ok, true);
+    });
+});
+
+describe('the semantic preflight — what is damaged, named before it is written', () => {
+    test('a healthy backup reports nothing damaged', () => {
+        const res = validateBackup(makeBlob(), { currentSlug: SLUG });
+        assert.equal(res.ok, true);
+        assert.deepEqual(res.damaged, []);
+    });
+
+    test('an unparseable payslip is named, and the restore is still ALLOWED', () => {
+        // Deliberately not a refusal: a backup is routinely the only copy left, and a corrupt
+        // period restores visibly (parseSavedPeriod surfaces it) where a refusal leaves the
+        // member with nothing at all. See damagedEntries in paycalc-inventory.js.
+        const blob = JSON.parse(makeBlob());
+        blob.data[`${PREFIX}p16`] = '{"satH":7,';
+        const res = validateBackup(JSON.stringify(blob), { currentSlug: SLUG });
+        assert.equal(res.ok, true, 'damage must not refuse the restore');
+        assert.deepEqual(res.damaged.map(d => d.label), ['payslip 16']);
+    });
+
+    test('the pension TIMELINE is checked, and the pension AMOUNT is not', () => {
+        // A mixed kind, and the fixture now carries both. The timeline is a JSON array whose
+        // mis-reading is a money bug (v21.78); the amount is `151.86`, which is not JSON at all.
+        const blob = JSON.parse(makeBlob());
+        blob.data[`${PREFIX}pension_timeline`] = '[{"at":53,';
+        const res = validateBackup(JSON.stringify(blob), { currentSlug: SLUG });
+        assert.equal(res.ok, true);
+        assert.deepEqual(res.damaged.map(d => d.label), ['your pension history']);
+    });
+
+    test('a tax code is never called damaged', () => {
+        // `code` holds `1257L` and `rate` holds `21.49`. Parsing those as JSON would report every
+        // healthy member in the app as corrupt — the preflight asks only the structured kinds.
+        const res = validateBackup(makeBlob(), { currentSlug: SLUG });
+        assert.ok(res.ok && !res.damaged.some(d => /code|rate/.test(d.tail)));
+    });
+
+    test('the result carries the rich inventory the card names both sides with', () => {
+        const res = validateBackup(makeBlob(), { currentSlug: SLUG });
+        assert.equal(res.ok, true);
+        assert.equal(res.inventory.periods, 2);
+        assert.deepEqual(res.inventory.taxYears, ['2026/27']);
     });
 });
 

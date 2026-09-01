@@ -49,9 +49,10 @@ const memberName = () => getLoggedMember()?.name || '';
 import { APP_VERSION } from './roster-data.js';
 import { confirmDialog } from './overlay.js';
 import {
-    selectBackupKeys, summarise, buildBackup, validateBackup, rekeyEntries, backupFilename,
+    selectBackupKeys, buildBackup, validateBackup, rekeyEntries, backupFilename,
     applyRestore as applyStorageRestore,
 } from './paycalc-transfer.js';
+import { inventoryOf, inventoryLines } from './paycalc-inventory.js';
 
 /**
  * How long the `#payTransferCard` deep link keeps WATCHING for the page to move under it.
@@ -78,7 +79,9 @@ export function initTransferCard() {
     if (!card) return;
 
     const summaryEl = document.getElementById('ptSummary');
+    const invEl     = document.getElementById('ptInventory');
     const statusEl  = document.getElementById('ptStatus');
+    const saveEl    = document.getElementById('ptSaveStatus');
     const dlBtn     = /** @type {HTMLButtonElement|null} */ (document.getElementById('ptDownload'));
     const copyBtn   = /** @type {HTMLButtonElement|null} */ (document.getElementById('ptCopy'));
     const restoreBtn= /** @type {HTMLButtonElement|null} */ (document.getElementById('ptRestore'));
@@ -89,12 +92,18 @@ export function initTransferCard() {
      *  what left the destructive path live for an unidentifiable member (v19.17). */
     const allControls = [dlBtn, copyBtn, restoreBtn, pasteBtn, pasteText];
 
-    /** @param {string} msg @param {'ok'|'warn'|''} [tone] */
-    function status(msg, tone = '') {
-        if (!statusEl) return;
-        statusEl.textContent = msg;
-        statusEl.className = 'pt-status' + (tone ? ` pt-status--${tone}` : '');
+    /** Write one of the two feedback lines. Each half of the card has its own, because a
+     *  confirmation that renders off the bottom of the screen is not a confirmation.
+     *  @param {HTMLElement|null} el @param {string} msg @param {'ok'|'warn'|''} [tone] */
+    function write(el, msg, tone = '') {
+        if (!el) return;
+        el.textContent = msg;
+        el.className = 'pt-status' + (tone ? ` pt-status--${tone}` : '');
     }
+    /** Feedback for the RESTORE half (the card's foot). @param {string} msg @param {'ok'|'warn'|''} [tone] */
+    const status = (msg, tone = '') => write(statusEl, msg, tone);
+    /** Feedback for the SAVE half, beside its own buttons. @param {string} msg @param {'ok'|'warn'|''} [tone] */
+    const saveStatus = (msg, tone = '') => write(saveEl, msg, tone);
 
     /** "1 payslip" / "2 payslips" — the restore messages state a count the member reads back to us.
      *  @param {number} n @param {string} word */
@@ -103,6 +112,18 @@ export function initTransferCard() {
     /** Current member's keys, or [] when signed out (the namespace would be wrong). */
     function ownKeys() {
         return selectBackupKeys(lsKeys(), pcPrefix());
+    }
+
+    /** Render an inventory as the card's detail list. @param {string[]} lines */
+    function paintInventory(lines) {
+        if (!invEl) return;
+        invEl.textContent = '';
+        invEl.hidden = !lines.length;
+        for (const line of lines) {
+            const li = document.createElement('li');
+            li.textContent = line;
+            invEl.appendChild(li);
+        }
     }
 
     function refreshSummary() {
@@ -116,6 +137,7 @@ export function initTransferCard() {
             // Say what is actually wrong rather than "sign in", which they already have.
             summaryEl.textContent = "This device can't tell whose pay data is saved here, so saving and "
                 + 'restoring are turned off. Contact the admin.';
+            paintInventory([]);
             allControls.forEach(b => { if (b) b.disabled = true; });
             return;
         }
@@ -123,21 +145,21 @@ export function initTransferCard() {
         const keys = ownKeys();
         if (!keys.length) {
             summaryEl.textContent = 'Nothing saved on this device yet.';
+            paintInventory([]);
             if (dlBtn) dlBtn.disabled = true;
             if (copyBtn) copyBtn.disabled = true;
             return;
         }
-        // Say what is actually here. A flat "N payslips across M tax years" reads as "0 payslips
-        // across 1 tax year" for someone who has only ever opened the back-pay card — the first
-        // line of a card whose whole job is to tell you what you would be backing up.
-        const s = summarise(keys, pcPrefix());
-        let what;
-        if (s.periods && s.taxYears)  what = `${plural(s.periods, 'payslip')} across ${plural(s.taxYears, 'tax year')}`;
-        else if (s.periods)           what = plural(s.periods, 'payslip');
-        else if (s.taxYears)          what = `${plural(s.taxYears, 'tax year')} of figures`;
-        summaryEl.textContent = what
-            ? `On this device: ${what}, plus your settings.`
-            : 'On this device: your settings. No payslip figures saved yet.';
+        // ITEMISE, don't total (v22.14, external review). The old single line — "N payslips across
+        // M tax years, plus your settings" — was the whole answer this card gave to "what am I
+        // about to carry to my new phone?", and "your settings" silently stood for the pension
+        // timeline, the back-pay figures, the Year-to-Date totals and the payslip comparison. A
+        // member checking whether their old tax year is in there could not tell, and the count
+        // itself was under-reading years (see summarise in paycalc-transfer.js).
+        // "On this device", not "Saved on this device" — under a SAVE A COPY heading the past
+        // tense reads as "already backed up", which is the opposite of what the list means.
+        summaryEl.textContent = 'On this device:';
+        paintInventory(inventoryLines(inventoryOf(keys, pcPrefix())));
     }
 
     /** Serialise the current member's data. @returns {{text: string, name: string}|null} */
@@ -161,7 +183,7 @@ export function initTransferCard() {
 
     dlBtn?.addEventListener('click', () => {
         const b = makeBackup();
-        if (!b) { status('There is nothing to save yet.', 'warn'); return; }
+        if (!b) { saveStatus('There is nothing to save yet.', 'warn'); return; }
         const url = URL.createObjectURL(new Blob([b.text], { type: 'application/json' }));
         const a = document.createElement('a');
         a.href = url;
@@ -171,26 +193,27 @@ export function initTransferCard() {
         a.remove();
         // Revoking immediately can cancel the download on some Android builds — give it a moment.
         setTimeout(() => URL.revokeObjectURL(url), 10_000);
-        // SAY WHAT IS IN THE FILE (v19.86, external review P3). "Keep it somewhere you can find it" is
-        // filing advice; this is a readable JSON file containing pay, hours, pension, tax code and
-        // year-to-date figures, and a member who does not know that has no reason to treat it
-        // carefully — emailing it to themselves is the obvious thing to do next.
-        status(`Saved as ${b.name}. It contains your pay figures in readable text — keep it private, `
-             + 'don\u2019t send it to anyone, and delete old copies.', 'ok');
+        // NAME THE FILE, DON'T RE-ARGUE THE WARNING (v19.86 for the warning; trimmed v22.14). The
+        // full "readable text holding your pay figures" statement is now the paragraph directly
+        // above the button, ~100px away, so repeating it here was the card saying one fact twice
+        // in one glance — the thing the v18.48 back-pay pass exists to stop. What this line has to
+        // add is the FILENAME, which the paragraph cannot know, plus the one-clause reminder of
+        // how to treat it.
+        saveStatus(`Saved as ${b.name} — treat that file like a payslip.`, 'ok');
     });
 
     copyBtn?.addEventListener('click', async () => {
         const b = makeBackup();
-        if (!b) { status('There is nothing to save yet.', 'warn'); return; }
+        if (!b) { saveStatus('There is nothing to save yet.', 'warn'); return; }
         try {
             await navigator.clipboard.writeText(b.text);
             // The clipboard deserves the SHARPER warning of the two: clipboard history and
             // cross-device sync (Windows, Android, iCloud) can retain it well after the paste, on
             // machines the member never thought about.
-            status('Copied. Paste it into the Restore box on the new web address, then copy something '
+            saveStatus('Copied. Paste it into the Restore box on the new web address, then copy something '
                  + 'else — this is your pay data in readable text and some devices keep clipboard history.', 'ok');
         } catch {
-            status("Couldn't copy — use Download backup instead.", 'warn');
+            saveStatus("Couldn't copy — use Download backup instead.", 'warn');
         }
     });
 
@@ -224,16 +247,49 @@ export function initTransferCard() {
             if (!ok) { status('Nothing was changed.'); return; }
         }
 
+        // SAY WHAT IS DAMAGED BEFORE THEY AGREE, and let them agree anyway (v22.14, external
+        // review). The preflight parses only the entries that are supposed to be JSON; anything it
+        // cannot read will restore faithfully and then fail to open. Refusing the whole file was
+        // the reviewer's suggestion and is the wrong call here — see damagedEntries — because a
+        // backup is routinely the only copy left, so refusing hands the member nothing at all.
+        const damagedNote = res.damaged.length
+            ? `\n\n${plural(res.damaged.length, 'saved figure')} in this backup ${res.damaged.length === 1 ? 'is' : 'are'} `
+              + `damaged and will not open after restoring (${res.damaged.map(d => d.label).slice(0, 4).join(', ')}`
+              + `${res.damaged.length > 4 ? ', and more' : ''}). Everything else will restore normally.`
+            : '';
+
         // Replace, never merge — a half-merged pay history is worse than either version.
+        //
+        // NAME BOTH SIDES. Until v22.14 this dialog stated one number about the incoming file
+        // ("the 12 payslips in the backup will take over") and NOTHING about what was being
+        // destroyed, which is the half the member is actually deciding about — and the payslip
+        // count alone described neither side, since a namespace also holds pension history,
+        // back-pay figures and Year-to-Date totals that no payslip count mentions.
         const existing = ownKeys();
+        const arriving = inventoryLines(res.inventory).map(l => `• ${l}`).join('\n');
         if (existing.length) {
+            const here = inventoryLines(inventoryOf(existing, pcPrefix())).map(l => `• ${l}`).join('\n');
             const ok = await confirmDialog({
                 title: 'Replace your pay data?',
-                message: `You already have pay data on this device. Restoring will replace it — the `
-                       + `${plural(res.counts.periods, 'payslip')} in the backup will take over, and anything you `
-                       + 'have entered here will be lost.',
+                // THE DECISION LEADS, THE DETAIL FOLLOWS. The message can genuinely outgrow the
+                // dialog — it is capped at 86vh and scrolls (shared.css) — and the first draft
+                // put the two sentences that matter, the consequence and the damage warning,
+                // BELOW the two inventories and therefore below the fold on a 640px phone. A
+                // member could reach Replace without ever seeing them. Detail may be scrolled
+                // to; a consequence may not.
+                message: 'Restoring replaces what is here — anything on this device that is not in '
+                       + `the backup will be lost.${damagedNote}\n\n`
+                       + `The backup holds:\n${arriving}\n\nThis device currently holds:\n${here}`,
                 confirmLabel: 'Replace',
                 danger: true,
+            });
+            if (!ok) { status('Nothing was changed.'); return; }
+        } else if (damagedNote) {
+            // Nothing to lose, but the damage still has to be said before it is written.
+            const ok = await confirmDialog({
+                title: 'Some of this backup is damaged',
+                message: `${damagedNote.trimStart()}\n\nThe backup holds:\n${arriving}`,
+                confirmLabel: 'Restore anyway',
             });
             if (!ok) { status('Nothing was changed.'); return; }
         }
