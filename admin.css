@@ -339,6 +339,19 @@
             background: var(--accent-gold);
             color: var(--primary-blue);
             font-size: var(--type-micro);
+            gap: 4px;
+        }
+        /* AN ICON THAT NEEDS THE GUIDE IS A WEAKER CONTROL THAN A WORD (v22.23, external review).
+           The pin was icon-only everywhere, and "📍" does not say "jump to the current week" to
+           anyone who has not been told. It says it now wherever there is room — and there is only
+           room on the wide layout, where the nav spans the column: at 390px the four controls share
+           a 338px row whose date label is already the first thing to lose (see the `gap: 4px` note
+           on `.week-nav`), so a word here would be paid for by the label that names the week.
+           `aria-label` carried the meaning to screen readers all along; this is for everyone else. */
+        .week-today-word { display: none; }
+        @media (min-width: 1024px) {
+            .week-today-word { display: inline; }
+            .week-nav-today  { min-width: 84px; }
         }
         @media (hover: hover) and (pointer: fine) { .week-nav-today:hover { background: var(--accent-gold-dark); } }
 

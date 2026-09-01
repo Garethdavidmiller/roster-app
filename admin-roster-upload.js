@@ -854,9 +854,15 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             const ccNote = document.createElement('div');
             ccNote.className = 'roster-crosscheck-note';
             ccNote.setAttribute('role', 'status');
+            // NEVER NAME THE MECHANISM (v22.23, external review). This said "the independent column
+            // check", which was wrong twice: it is implementation language nobody using the uploader
+            // should have to learn, AND — established against three real rosters — that check is not
+            // independent at all. It is a second reading by the same model of the same PDF in the
+            // same call, so it agrees with the row read precisely when the row read is wrong.
+            // Describe what the ADMIN must do, and let OPERATIONS_REFERENCE hold the mechanism.
             setStatus(ccNote, parsedResult.crossCheck === 'unavailable'
-                ? '⚠ The independent column check didn\'t run for this read — review each day carefully against the PDF, or try reading the roster again.'
-                : '⚠ The independent column check only covered some staff on this read — review the days carefully against the PDF.');
+                ? '⚠ These days couldn\'t be double-checked automatically — compare each one with the PDF before saving, or read the roster again.'
+                : '⚠ Some days couldn\'t be double-checked automatically — compare those days with the PDF before saving.');
             changeList.appendChild(ccNote);
         }
         // ---- Missing-member note (Finding #3) ----

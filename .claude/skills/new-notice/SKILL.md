@@ -44,7 +44,7 @@ Add the notice lightbox in the page's HTML, grouped with the other `.lb-overlay`
 | Pay calculator | `💷 Pay` | `notice-badge--pay` (green) |
 | Links workspace | `🔗 Links` | `notice-badge--links` (purple) |
 | Settings page | `⚙️ Settings` | `notice-badge--settings` (indigo) |
-| Operations page | `🔧 Ops` | `notice-badge--ops` (orange) |
+| Operations page | `🔧 Operations` | `notice-badge--ops` (orange) |
 | Calendar page | `📅 Calendar` | `notice-badge--calendar` (gold) |
 | General / no specific page | `📣 General` | (no modifier — neutral white tint) |
 
