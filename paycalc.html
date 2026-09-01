@@ -87,6 +87,7 @@
   <link rel="modulepreload" href="./paycalc-inputs.js">
   <link rel="modulepreload" href="./paycalc-form-data.js">
   <link rel="modulepreload" href="./paycalc-transfer.js">
+  <link rel="modulepreload" href="./paycalc-inventory.js">
   <link rel="modulepreload" href="./paycalc-transfer-card.js">
   <link rel="modulepreload" href="./paycalc-lightboxes.js">
   <link rel="modulepreload" href="./paycalc-fill-year.js">
@@ -969,14 +970,34 @@
       </div>
     </div>
     <div class="card-body collapsible-body" id="payTransferBody">
-      <p class="card-explainer">Your pay calculator is saved on <strong>this device only</strong> — it doesn't move with your account, so it won't follow you to a new phone or to a different web address. Save a copy before you switch.</p>
-      <p class="card-explainer">A backup is <strong>readable text</strong> holding your pay, hours, pension, tax code and year-to-date figures. Keep it private, don't send it to anyone, and delete old copies when you no longer need them.</p>
+      <!-- The opening line says the ONE thing the header hint does not (v22.14 polish pass 2). It
+           used to be two sentences, and the second — "it won't follow you to a new phone or to a
+           different web address" — is word-for-word what the hint above already says, 20px away.
+           Same rule as the v18.48 back-pay pass: say each fact once. What was missing is WHY the
+           app makes you do this by hand at all, which is a deliberate privacy decision and worth
+           stating rather than reading as an oversight. -->
+      <p class="card-explainer">Your pay figures are kept on <strong>this device only</strong>, never on the server — so unlike the rest of the app, they don't follow your account. Save a copy before you switch phone or web address.</p>
+
+      <div class="sec-hd first">Save a copy</div>
       <p class="pt-summary" id="ptSummary"></p>
+      <ul class="pt-inventory" id="ptInventory" hidden></ul>
+      <p class="card-explainer">The file is <strong>readable text</strong>. It holds your hours, tax code, pension and Year to Date figures &mdash; and, for any payslip you have checked against the real one, your actual <strong>gross pay, tax, National Insurance and take-home</strong>. Keep it private and delete old copies.</p>
       <div class="pt-actions">
         <button type="button" class="btn-action btn-primary" id="ptDownload">Download backup</button>
         <button type="button" class="btn-action btn-secondary" id="ptCopy">Copy as text</button>
       </div>
-      <hr class="pt-rule">
+      <!-- The SAVE half's own feedback line (v22.14 polish pass 2). With one shared status at the
+           foot of the card, the download confirmation — which carries the privacy warning about
+           the file just created — rendered 409px below the button that produced it: measured at
+           390x900, entirely off the screen, so pressing Download appeared to do nothing at all.
+           Two live regions is safe because exactly one is ever written per action. -->
+      <p class="pt-status" id="ptSaveStatus" role="status" aria-live="polite"></p>
+
+      <!-- Two jobs, one destructive, previously separated by nothing but an <hr>. The section
+           eyebrow is the app's own idiom for this (the Hours card uses it three times), and it
+           puts the "replaces, does not merge" warning directly under the heading it belongs to
+           instead of floating between two button rows. -->
+      <div class="sec-hd">Restore a backup</div>
       <p class="card-explainer">Restoring <strong>replaces</strong> what is on this device — it does not merge.</p>
       <div class="pt-actions">
         <button type="button" class="btn-action btn-secondary" id="ptRestore">Restore from a file</button>

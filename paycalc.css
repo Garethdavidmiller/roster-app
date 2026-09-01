@@ -985,6 +985,11 @@
 
       /* Buttons: stop at 280px — no need to span a 720px card */
       .btn-primary { max-width: 280px; }
+      /* …but the SIDEBAR is ~400px, not 720, and its one primary button ("Download backup") sat
+         280px wide directly above a full-width secondary ("Copy as text") — a mismatched pair
+         under one heading, which reads as a rendering fault rather than a hierarchy (v22.14).
+         The cap is about the wide work column; this card is not in it. */
+      #payTransferBody .btn-primary { max-width: none; }
 
       /* Help lightbox: wider at tablet */
       #helpLightboxContent { width: min(520px, 88vw); }
@@ -1616,17 +1621,40 @@
 .pt-summary {
     font-size: var(--type-small);
     color: var(--text-mid);
+    margin: 0 0 6px;
+}
+/* The itemised inventory under that line (v22.14). Marker-less: these are the contents of one
+   thing, not a list of choices, and a bullet column would indent them away from the line they
+   belong to. `hidden` still hides it — page-visibility-parity would fail on a `display:` here. */
+.pt-inventory {
+    list-style: none;
     margin: 0 0 12px;
+    padding: 0;
+    font-size: var(--type-small);
+    color: var(--text-mid);
+}
+.pt-inventory li {
+    padding-left: 14px;
+    position: relative;
+    line-height: 1.5;
+}
+.pt-inventory li::before {
+    content: '·';
+    position: absolute;
+    left: 4px;
+    color: var(--gold);
 }
 /* A plain block, NOT a flex row: .btn-action is width:100% so a flex row would wrap to a
    stack anyway — and its `gap` would then stack on top of the shared
    `.btn-action + .btn-action { margin-top: 8px }`, double-spacing the buttons. */
 .pt-actions { margin-bottom: 12px; }
-.pt-rule {
-    border: 0;
-    border-top: 1px solid var(--border-light);
-    margin: 16px 0 12px;
-}
+/* `.pt-rule` was removed at v22.14: the two halves of this card now carry `.sec-hd` section
+   eyebrows, which already draw the dividing line AND name what is on either side of it. A rule
+   plus a heading is two dividers doing one job. */
+/* The card's section headings need a little more air above them than the Hours card's do —
+   there a heading follows a field row, here it follows a paragraph of prose. */
+#payTransferBody .sec-hd { margin-top: 6px; margin-bottom: 10px; }
+#payTransferBody .sec-hd.first { margin-top: 0; }
 .pt-paste-label {
     display: block;
     font-size: var(--type-small);

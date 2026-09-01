@@ -357,6 +357,106 @@ test('paycalc: the Settings deep link lands on the backup card OPEN', async ({ p
     expect(box.y, `card landed at y=${Math.round(box.y)} of ${vh}`).toBeLessThan(vh / 3);
 });
 
+test('paycalc: a long confirm dialog keeps its own buttons on screen', async ({ page }) => {
+    // A SHARED-OVERLAY rule, exercised here because this is where a genuinely long message occurs.
+    // `.dialog-lb-content` had no height cap while every message was two lines; the restore
+    // confirmation now itemises both sides of a replace, and measured at 360x640 with a full
+    // namespace it reached 616px of 640 — one more tax year from putting Cancel and Replace off
+    // the bottom with no way to scroll to them. A modal nobody can dismiss is the worst failure a
+    // modal has. No static test can see this: it is a rendered height against a viewport.
+    await page.setViewportSize({ width: 360, height: 640 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(PT_QUIET);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_gmiller_p16', '{"satH":7}');
+        localStorage.setItem('myb_pc_gmiller_bp_state_2025_26', '{}');
+        localStorage.setItem('myb_pc_gmiller_pension_timeline', '[]');
+        localStorage.setItem('myb_pc_gmiller_actuals', '{}');
+        localStorage.setItem('myb_pc_gmiller_snap_16', '{}');
+    });
+    await page.goto('/paycalc.html#payTransferCard');
+    await expect(page.locator('#payTransferBody')).toHaveClass(/open/);
+
+    // A deliberately maximal backup: many payslips, four tax years, and damage to report.
+    await page.locator('#ptPaste').fill(JSON.stringify({
+        format: 'myb-paycalc-backup', version: 1, member: 'G. Miller', slug: 'gmiller',
+        data: Object.fromEntries([
+            ...Array.from({ length: 13 }, (_, i) => [`myb_pc_gmiller_p${20 + i}`, '{"satH":1']),
+            ['myb_pc_gmiller_setup_2022_23', '1'], ['myb_pc_gmiller_bp_state_2023_24', '{}'],
+            ['myb_pc_gmiller_ytd_src_2024_25', '5'], ['myb_pc_gmiller_hpp_actual_2026_27', '1'],
+        ]),
+    }));
+    await page.locator('#ptPasteGo').click();
+    const confirm = page.locator('.dialog-btn-confirm');
+    await expect(confirm).toBeVisible();
+    const btn = await confirm.boundingBox();
+    expect(btn.y + btn.height, `confirm button bottom at ${Math.round(btn.y + btn.height)} of 640`)
+        .toBeLessThanOrEqual(640);
+
+    // The consequence and the damage warning must be READ, not scrolled to. Detail may sit below
+    // the fold; a consequence may not, so both lead the message.
+    const msg = page.locator('.dialog-message');
+    const top = (await msg.innerText()).slice(0, 260);
+    expect(top, top).toMatch(/Restoring replaces what is here/);
+    expect(top, top).toMatch(/damaged and will not open/);
+
+    await page.locator('.dialog-btn-cancel').click();
+    await expect(page.locator('#ptStatus')).toContainText('Nothing was changed');
+});
+
+test('paycalc: the card itemises what is here, and the dialog names BOTH sides', async ({ page }) => {
+    // The inventory RULES are unit-tested in paycalc-inventory.test.mjs. What only a browser can
+    // show is that the card asks them at all, and that the destructive dialog states what is being
+    // destroyed — which until v22.14 it did not: it named one count about the incoming file and
+    // nothing whatsoever about the pay history it was replacing.
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(PT_QUIET);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_gmiller_p16', '{"satH":7,"satM":30}');
+        localStorage.setItem('myb_pc_gmiller_bp_state_2025_26', '{"inc":true}');
+        localStorage.setItem('myb_pc_gmiller_pension_timeline', '[]');
+    });
+    await page.goto('/paycalc.html#payTransferCard');
+    await expect(page.locator('#payTransferBody')).toHaveClass(/open/);
+
+    // The card no longer folds four features into "plus your settings".
+    const items = page.locator('#ptInventory li');
+    await expect(items).not.toHaveCount(0);
+    const listed = (await items.allTextContents()).join(' | ');
+    expect(listed, listed).toMatch(/1 payslip of entered figures/);
+    // The app confirms the CURRENT tax year during boot, so the device legitimately holds two
+    // years here — which is itself the fix working: `setup_<year>` was one of the four kinds the
+    // old count could not see at all.
+    expect(listed, listed).toMatch(/Tax years? .*2025\/26/);
+    expect(listed, listed).toMatch(/Back pay/);
+    expect(listed, listed).toMatch(/Pension/);
+
+    // A backup of a DIFFERENT shape — one payslip, a different tax year — so the two halves of the
+    // dialog cannot both be satisfied by the same string.
+    await page.locator('#ptPaste').fill(JSON.stringify({
+        format: 'myb-paycalc-backup', version: 1, member: 'G. Miller', slug: 'gmiller',
+        data: {
+            'myb_pc_gmiller_p20': '{"satH":1,"satM":0}',
+            'myb_pc_gmiller_p21': '{"satH":2,"satM":0}',
+            'myb_pc_gmiller_hpp_actual_2026_27': '1843.01',
+        },
+    }));
+    await page.locator('#ptPasteGo').click();
+    const msg = page.locator('.dialog-message');
+    await expect(msg).toContainText('The backup holds:');
+    await expect(msg).toContainText('2 payslips of entered figures');
+    // "Tax year 2026/27" — singular, and only true of the backup half: the incoming file's one
+    // year is revealed solely by an `hpp_actual` key, which the pre-v22.14 count could not see.
+    await expect(msg).toContainText('Tax year 2026/27');
+    await expect(msg).toContainText('This device currently holds:');
+    await expect(msg).toContainText('2025/26');   // present only on the device side
+
+    // Cancel: nothing written, and the card says so.
+    await page.locator('.dialog-btn-cancel').click();
+    await expect(page.locator('#ptStatus')).toContainText('Nothing was changed');
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_p20'))).toBeNull();
+});
+
 test('paycalc: backup → restore round trip survives the reload', async ({ page }) => {
     await seedSession(page, 'G. Miller');
     // The payload key is written AFTER load, never in an init script: addInitScript re-runs on the

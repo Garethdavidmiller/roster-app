@@ -30,6 +30,37 @@ import { lsGet, lsSet, lsDel, lsKeys, lsMove, lsSetVerified } from './ls.js';
 //   With no member (default / unit tests) the segment is empty, so keys are exactly
 //   the legacy `myb_pc_*` names and behaviour is unchanged.
 
+/**
+ * The GENERATION of the stored pay data — what SHAPE the values are in, as opposed to what shape
+ * the backup FILE is in (that is `BACKUP_VERSION` in paycalc-transfer.js, and the two answer
+ * different questions: a file format can change without a single stored value moving, and every
+ * migration below changed values without touching the file format).
+ *
+ * A backup carries this so a restore knows which of the migrations below the incoming values have
+ * already been through. Without it the only available signal is the DEVICE's own one-shot
+ * migration flags — which describe the browser, are deliberately excluded from every backup, and
+ * would therefore say "already migrated" about data that has never been near this device.
+ *
+ * The generations, each a change to what a stored value MEANS:
+ *   1  `cea_*` keys                                          (pre-`myb_pc_`)
+ *   2  `myb_pc_*`, single shared namespace                   (_migrateCeaKeys)
+ *   3  per-member namespace `myb_pc_<slug>_*`                (v14.11)
+ *   4  `sl: 'postgrad'` split into plan + separate PGL flag  (v17.17)
+ *      back-pay `bp_state` split per tax year                (v17.86)
+ *   5  pension opt-out boolean replaced by a timeline        (v21.78)
+ *
+ * BUMP IT when a migration changes the meaning of a value that a backup can carry — not when a
+ * new key is merely added, which needs no migration to read.
+ *
+ * Nothing consumes it yet, and that is deliberate rather than unfinished: every live migration
+ * over backed-up keys is DATA-gated (`if (sl === 'postgrad')`, `if (timeline === null && flag)`),
+ * so each already re-runs correctly over restored values. The device-flag-gated ones operate only
+ * on legacy device-local keys no backup carries. The generation is recorded now so that the first
+ * migration which is NOT data-gated has an honest anchor to gate on, instead of inferring one from
+ * the app version string.
+ */
+export const PAY_DATA_GENERATION = 5;
+
 /** Active member segment, e.g. 'gmiller_' or '' (unnamespaced). @type {string} */
 let _nsSeg = '';
 

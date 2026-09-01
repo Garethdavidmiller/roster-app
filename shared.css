@@ -623,6 +623,14 @@ body.lb-open #stickyTotal { display: none !important; }
     padding: 22px 22px 18px;
     width: min(var(--modal-wide), var(--modal-cap));
     text-align: left;
+    /* NEVER TALLER THAN THE VIEWPORT (v22.14). This dialog had no height cap at all, which was
+       harmless while every message was two lines — and stopped being so the moment the restore
+       confirmation began itemising both sides of a replace. Measured at 360x640 with a full
+       namespace: 616px of 640, i.e. one more tax year from putting Cancel and Replace off the
+       bottom of the screen with no way to scroll to them. A modal that cannot be dismissed is
+       the worst failure available to a modal, so the cap is structural rather than a limit on
+       what a caller may say. */
+    max-height: 86vh;
 }
 .dialog-title {
     font-size: var(--type-large);
@@ -637,6 +645,13 @@ body.lb-open #stickyTotal { display: none !important; }
     line-height: 1.5;
     margin: 0;
     white-space: pre-line;   /* preserve the paragraph break in the overwrite-conflict message */
+    /* The panel's one FLEXIBLE part: the title and the buttons stay put and a long message
+       scrolls between them. `overflow-y: auto` is doing two jobs here — it scrolls, AND it is
+       what lets the item shrink at all, because a flex item's automatic minimum size is zero
+       once its overflow is anything but `visible`. The obvious companion `min-height: 0` was
+       written here first and then MUTATED OUT to check: removing it changes nothing, so it is
+       gone rather than sitting in the file as a line whose purpose cannot be demonstrated. */
+    overflow-y: auto;
 }
 .dialog-input {
     font-size: var(--type-medium);   /* >=16px — never trip iOS focus-zoom on a focusable field */
