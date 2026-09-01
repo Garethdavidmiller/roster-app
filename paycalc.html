@@ -643,6 +643,15 @@
     </div>
   </div>
 
+  <!-- "This tax year so far": summed from the year's ENTERED payslips (a headless re-run of the
+       calculator per payslip — paycalc-year-summary.js) + a rough full-year projection, plus the
+       fill-the-year control. Rendered by paycalc-year-card.js after every calculate(); hidden when
+       the year holds nothing and nothing is fillable. STANDS ALONE since v22.08 — it lived inside
+       the Year to Date card's collapsible body, where the fill control shipped invisible: the card
+       is collapsed by default, and a bulk action nobody can see fixes nothing. It is an OUTPUT
+       (a year summary) beside the result, not a YTD input, so this is also the honest home. -->
+  <div class="ytd-yearso" id="ytdYearSoFar" hidden></div>
+
   <!-- ── FROM YOUR LAST PAYSLIP ── -->
   <div class="content-card" id="payslipCard">
     <div class="card-header card-header-toggle" id="payslipCardToggle">
@@ -691,11 +700,6 @@
         <select id="ytdSrcSelect"></select>
       </div>
 
-      <!-- "This tax year so far" (v18.41 — review item 11): summed from the year's ENTERED payslips
-           (a headless re-run of the calculator per payslip — paycalc-year-summary.js) + a rough
-           full-year projection. Rendered by the coordinator after every calculate(); hidden when
-           no payslip of the year has hours yet. -->
-      <div class="ytd-yearso" id="ytdYearSoFar" hidden></div>
       <!-- January-only HPP pointer (v18.49 moved the old always-on paragraph into the ? help;
            v18.50 re-adds it PERIOD-GATED): calculate() unhides it only while the viewed payslip
            is the January one that carries HPP (_hppTy) — as a permanent paragraph it read wrong

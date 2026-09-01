@@ -185,7 +185,12 @@ test('paycalc: Fill-the-year fills the empty paid periods, receipts by date, and
 
     // The year block is in its slim or full state, naming what the button fixes.
     const block = page.locator('#ytdYearSoFar');
+    // VISIBLE, not merely present (v22.08): this block used to live inside the YTD card's
+    // collapsed body, where toContainText passed and clickInView clicked — against a control no
+    // human could see. The assertion class this test now belongs to is "a member can do this".
+    await expect(block).toBeVisible();
     await expect(block).toContainText('Not entered yet');
+    await expect(page.locator('#fillYearBtn')).toBeVisible();
     await clickInView(page.locator('#fillYearBtn'));
 
     // The receipt: filled payslips BY DATE, plus the review-before-relying line.
