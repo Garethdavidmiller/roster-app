@@ -418,8 +418,16 @@ test.describe('manager surface', () => {
         await expect(page.locator('#otHorizonChip')).toContainText('5 without a form');
     });
 
-    test('reminder audit + copy summary: the workspace states the send and copies three named sections (v22.05)', async ({ page }) => {
-        await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    test('reminder audit + copy summary: the workspace states the send and copies three named sections (v22.05)', async ({ page, browserName }) => {
+        // 'clipboard-read'/'clipboard-write' are CHROMIUM permission names — WebKit throws
+        // "Unknown permission" on the grant (this failed webkit CI, v22.09) and instead allows a
+        // write on user activation, which the real click below provides. So every engine drives
+        // the write path and asserts the visible "✓ Copied" receipt (the failure path renders a
+        // different message, so this has teeth); only Chromium can additionally READ the
+        // clipboard back to pin the summary's shape.
+        if (browserName === 'chromium') {
+            await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+        }
         await seedSession(page, 'H. Croft');
         const weeks = sixWeeks();
         const created = weeks.find(w => w.exists);
@@ -430,12 +438,14 @@ test.describe('manager surface', () => {
         await expect(page.locator('.ot-reminder-line')).toContainText('Reminder to non-responders sent');
         await page.locator('.ot-copy-btn').click();
         await expect(page.locator('.ot-copy-status')).toContainText('Copied');
-        const text = await page.evaluate(() => navigator.clipboard.readText());
-        expect(text).toContain('Overtime availability — Week ending');
-        // The three sections are named even with nobody in them — absence must never read as all-clear.
-        expect(text).toContain('Available: ');
-        expect(text).toContain('Not available: ');
-        expect(text).toContain('No response: ');
+        if (browserName === 'chromium') {
+            const text = await page.evaluate(() => navigator.clipboard.readText());
+            expect(text).toContain('Overtime availability — Week ending');
+            // The three sections are named even with nobody in them — absence must never read as all-clear.
+            expect(text).toContain('Available: ');
+            expect(text).toContain('Not available: ');
+            expect(text).toContain('No response: ');
+        }
     });
 
     test('a missed week offers no Create; a recoverable one does', async ({ page }) => {
