@@ -942,13 +942,11 @@ export function init() {
             // Both are states no retry can change, and both used to read "check your connection" —
             // which sends a designer back to a dead button and blames the network for a colleague's
             // deliberate act. (Store outcomes; the wording is the workspace's, as it should be.)
-            if (res.status === 'gone' || res.status === 'already-live') {
+            if (res.status === 'gone') {
                 deletedDesigns = deletedDesigns.filter(x => x.id !== id);
                 renderBinList();
                 await loadDesigns();      // re-renders the picker and grid itself
-                _binStatus(res.status === 'gone'
-                    ? `“${d.name}” was already removed for good by someone else, so there was nothing to restore.`
-                    : `“${d.name}” had already been restored by someone else — it is back in the list.`);
+                _binStatus(`“${d.name}” was already removed for good by someone else, so there was nothing to restore.`);
                 return;
             }
             const { updatedAt: restoredTs, revision: restoredRev } = res;

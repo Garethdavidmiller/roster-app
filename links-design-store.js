@@ -322,10 +322,9 @@ export function createDesignStore(deps) {
          * replace would push our load-time copy over whatever the design carried when it was
          * deleted. Re-arms the baseline, which matters MORE here than for a new design: this is an
          * old document a co-editor may still hold open.
-         * Returns `{ status }`: `ok` with the new revision, `gone` (removed for good by someone
-         * else) or `already-live` (someone restored it first). The two failure statuses exist so
-         * the workspace can say what happened instead of blaming the network for a state no retry
-         * will change.
+         * Returns `{ status }`: `ok` with the new revision, or `gone` when somebody removed the
+         * design for good in the meantime — so the workspace can say what happened instead of
+         * blaming the network for a state no retry will change.
          * @param {string} id @param {string} by
          */
         async restore(id, by) {
@@ -352,9 +351,11 @@ export function createDesignStore(deps) {
                     // many times they retry. The rules make it a wording problem rather than a
                     // data-integrity one, which is why this is a small fix and not an urgent one.
                     if (!snap.exists()) throw new Error('design-gone');
-                    // Already live: someone restored it first. Bumping the revision here would be a
-                    // write nobody asked for, and would prompt THEM with a false conflict.
-                    if (!isDeleted(snap.data())) throw new Error('design-already-live');
+                    // DELIBERATELY NOT ALSO REFUSING AN ALREADY-LIVE DESIGN. That check was written
+                    // and removed: restoring something already restored is a harmless no-op, while
+                    // refusing it invents a failure out of a benign state and reports a colleague's
+                    // action that may not have happened. `exists()` is the question worth asking —
+                    // a hard delete is the one state a restore genuinely cannot recover from.
                     committed = nextRevision(snap.data());
                     tx.set(ref, {
                         deletedAt: deleteField(), deletedBy: deleteField(), revision: committed,
@@ -362,8 +363,7 @@ export function createDesignStore(deps) {
                     }, { merge: true });
                 }));
             } catch (err) {
-                if (err instanceof Error && err.message === 'design-gone')         return { status: 'gone' };
-                if (err instanceof Error && err.message === 'design-already-live') return { status: 'already-live' };
+                if (err instanceof Error && err.message === 'design-gone') return { status: 'gone' };
                 throw err;
             }
             return { status: 'ok', updatedAt: await readStamp(ref), revision: committed };

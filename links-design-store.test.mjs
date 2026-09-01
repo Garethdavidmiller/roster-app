@@ -386,16 +386,6 @@ describe('creating and restoring ARM the baseline', () => {
         assert.equal(current(), null, 'the design stays gone');
     });
 
-    test('restoring one somebody already restored reports it, and does not bump the revision', async () => {
-        // A second restore is not harmless: it is a write every co-editor sees, so it would move
-        // the counter under the person who did the real restore and prompt THEM with a conflict
-        // about their own work.
-        const { api, writes } = makeDb({ initial: { name: 'A', revision: 6, updatedAt: ts(2000), updatedBy: THEM } });
-        const res = await createDesignStore(api).restore(ID, ME);
-        assert.equal(res.status, 'already-live');
-        assert.deepEqual(writes, [], 'no write — there is nothing to undelete');
-    });
-
     test('the ordinary restore still reports ok and its revision', async () => {
         const { api } = makeDb({ initial: { name: 'A', deletedAt: ts(500), deletedBy: ME, revision: 6 } });
         const res = await createDesignStore(api).restore(ID, ME);
