@@ -966,3 +966,65 @@ export function weekSummary(days) {
     if (available === values.length) return 'Available on every day';
     return `Available on ${available} of ${values.length} days`;
 }
+
+/**
+ * The reviewer's clipboard summary — the whole week or one day, as PLAIN TEXT for the rostering
+ * conversation the clerk is about to have somewhere else (email, the rostering system, a phone
+ * call). A formatter over EXACTLY what the workspace renders: the caller hands in the same
+ * (already grade-filtered, withdrawn-excluded) participants and submissions the panels were built
+ * from, so the copy can never disagree with the screen.
+ *
+ * THE THREE SECTIONS ARE ALWAYS NAMED, EMPTY OR NOT. "No response" absent from a summary reads as
+ * "nobody outstanding" — the exact merge the whole feature forbids (see the module's three-answer
+ * rule). An empty section says "nobody", in words.
+ *
+ * @param {{ weekEnding: string, dates: string[], participants: any[],
+ *   submissions: Map<string, any>, day?: string }} arg  `day` narrows to one date ('ALL' = week)
+ * @returns {string}
+ */
+export function weekAvailabilitySummary({ weekEnding, dates, participants, submissions, day = 'ALL' }) {
+    const scope = (day && day !== 'ALL') ? [day] : dates;
+    const lines = [`Overtime availability — ${weekLabel(weekEnding)}`];
+    for (const date of scope) {
+        /** @type {string[]} */ const avail = [];
+        /** @type {string[]} */ const unavail = [];
+        /** @type {string[]} */ const none = [];
+        for (const p of participants) {
+            const sub = submissions.get(p.memberName);
+            const d = sub?.days?.[date];
+            // The same three-valued, positively-asked split as the By-day panels — a day neither
+            // answer claims is No response, never Available.
+            if (isAvailableAnswer(d)) avail.push(`${p.memberName} (${answerCopy(d).replace(/^Available /, '')})`);
+            else if (isUnavailable(d)) unavail.push(p.memberName);
+            else none.push(p.memberName);
+        }
+        lines.push('', shortDate(date),
+            `  Available: ${avail.length ? avail.join(' · ') : 'nobody'}`,
+            `  Not available: ${unavail.length ? unavail.join(' · ') : 'nobody'}`,
+            `  No response: ${none.length ? none.join(' · ') : 'nobody'}`);
+    }
+    return lines.join('\n');
+}
+
+/**
+ * The reminder-audit line: did the deadline-morning reminder to non-responders actually go out?
+ * `reminderSentAt` is stamped server-side by the scheduler (functions/overtime.js) and reaches the
+ * horizon row via getOvertimeManagerOverview; until v22.05 nothing displayed it, so "did the
+ * reminder fire?" meant reading Cloud Function logs.
+ *
+ * Three honest states and one deliberate silence:
+ *  - sent            → state it, with when.
+ *  - due but not yet → say when it is expected (INITIAL_OPEN only — it fires that deadline's morning).
+ *  - overdue, unsent → warn, while the week is still live (FINAL_OPEN) and the fact is actionable.
+ *  - CLOSED, unsent  → nothing. The week is history, and every window created before the reminder
+ *                      feature existed would otherwise wear a permanent false alarm.
+ *
+ * @param {string} phase @param {number} initialDeadlineAt @param {number|null|undefined} reminderSentAt
+ * @returns {{ text: string, tone: 'ok'|'note'|'warn' }|null}
+ */
+export function reminderLine(phase, initialDeadlineAt, reminderSentAt) {
+    if (reminderSentAt) return { text: `Reminder to non-responders sent ${deadlineLabel(reminderSentAt)}.`, tone: 'ok' };
+    if (phase === 'INITIAL_OPEN') return { text: 'Non-responders are reminded on the morning of the initial deadline.', tone: 'note' };
+    if (phase === 'FINAL_OPEN') return { text: 'No non-responder reminder is recorded for this week.', tone: 'warn' };
+    return null;
+}

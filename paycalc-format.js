@@ -70,3 +70,37 @@ export function decimalToHM(val) {
     if (m >= 60) { h += 1; m = 0; }
     return { h, m };
 }
+
+/**
+ * The seven premium hour/minute field pairs — the ONE table tying a fill category to its two DOM
+ * ids, which double as the saved-period data keys. Lived in paycalc-roster-hint.js until v22.06;
+ * moved here (the pure shared home) so paycalc-fill-year.js can load in Node — the hint module's
+ * import chain reaches the gstatic SDK.
+ */
+export const HM_PAIRS = [
+    { cat: 'sat',  hId: 'satH',  mId: 'satM'  },
+    { cat: 'sun',  hId: 'sunH',  mId: 'sunM'  },
+    { cat: 'bh',   hId: 'bhH',   mId: 'bhM'   },
+    { cat: 'bhOt', hId: 'bhOtH', mId: 'bhOtM' },
+    { cat: 'ot',   hId: 'otH',   mId: 'otM'   },
+    { cat: 'rdw',  hId: 'rdwH',  mId: 'rdwM'  },
+    { cat: 'box',  hId: 'boxH',  mId: 'boxM'  },
+];
+
+/**
+ * Is a saved period the empty shape — nothing the member (or a fill) has put there? The gate the
+ * "Not entered yet" list and the fill-year eligibility share. Lived in paycalc-hpp.js until
+ * v22.06; it sits here beside HM_PAIRS because the two together are the schema's field surface,
+ * and this is the paycalc cluster's zero-import home (Node-loadable from anywhere).
+ * @param {any} d @returns {boolean}
+ */
+export function isDataEmpty(d) {
+    return !d.satH && !d.satM &&
+        !d.bhH && !d.bhM &&
+        !d.bhOtH && !d.bhOtM &&
+        !d.otH && !d.otM &&
+        !d.rdwH && !d.rdwM &&
+        !d.sunH && !d.sunM &&
+        !d.boxH && !d.boxM && !d.peer &&
+        !d.slSkip && !d.otherAdj;
+}

@@ -1003,6 +1003,12 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                 planningWeeks.push({
                     ...milestones,
                     exists: !!doc,
+                    // The reminder audit (v22.05): whether the deadline-morning reminder to
+                    // non-responders was attempted. Stamped by the scheduler above; surfaced so the
+                    // workspace can answer "did it fire?" without anyone reading function logs.
+                    // Absent/null on weeks created before the reminder feature — the client's
+                    // reminderLine deliberately stays silent for those once they close.
+                    reminderSentAt: doc ? (toMillis(doc.reminderSentAt) || null) : null,   // toMillis maps absent to 0
                     state: OT.windowRowState(milestones, nowMs, !!doc, overdue.has(weekEnding)),
                     audience: doc ? doc.audience : null,
                     canAdd,

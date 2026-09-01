@@ -466,6 +466,10 @@
     /* Badge sits on its own line between the title and sub-description */
     .h-info > .rate-badge { margin: 4px 0 3px; }
     .h-sub { font-size: var(--type-small); color: var(--text-light); margin-top: 3px; line-height: 1.45; }
+    /* The payslip-name tail on its own quieter line (v22.09): "Shows as X on your payslip" serves
+       a different moment from the sentence above it — reconciling a payslip later, not choosing a
+       row now — and inline it made every explainer read one sentence longer than it is. */
+    .h-payslip { display: block; margin-top: 2px; color: var(--text-faint); }
 
     /* Rate badges — pill-shaped, colour-coded to match the roster's shift system */
     .rate-badge {
@@ -678,12 +682,13 @@
       background: var(--success-green-bg); color: var(--success-text);
       border-color: color-mix(in oklch, var(--green) 40%, white);
     }
-    /* "This tax year so far" block (v18.41 — review item 11): a sunken summary inside the YTD
-       card — recessed reference data, not an input, so it sits on --surface-sunken like other
-       read-only insets. Rows mirror the result card's label/value rhythm at hint scale. */
+    /* "This tax year so far": a STANDALONE quiet card after the result since v22.08 — it lived
+       inside the YTD card's collapsible body, where the fill-the-year control shipped invisible
+       (the card is collapsed by default). An output summary wears the card surface, at a calmer
+       register than the result beside it. */
     .ytd-yearso {
-      background: var(--surface-sunken); border: 1px solid var(--border-light);
-      border-radius: var(--radius-sm); padding: 10px 12px; margin: 12px 0 4px;
+      background: var(--surface); border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-2); padding: 14px 16px; margin: 0;
     }
     .yearso-head {
       font-size: var(--type-small); font-weight: 700; color: var(--text-dark); margin-bottom: 6px;
@@ -1661,3 +1666,60 @@ body.role-unsupported .privacy-note-standalone,
 body.role-unsupported #stickyTotal,
 body.role-unsupported .guide-footer-link,
 body.role-unsupported .disclaimer { display: none; }
+
+/* ── Fill-the-year control + receipt (v22.06) — lives in the year-so-far block ─────────────── */
+.yearso-fill { margin: 8px 0 2px; }
+.yearso-fill .btn-action {
+    font-size: var(--type-label); padding: 8px 14px; width: 100%;
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+}
+.yearso-receipt {
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: var(--rd-hint-bg);
+    border-radius: var(--radius-sm);
+    font-size: var(--type-small);
+    color: var(--text-mid);
+}
+.yearso-receipt div + div { margin-top: 4px; }
+
+/* ── Estimate-vs-payslip comparison (v22.07) ────────────────────────────────────────────────── */
+.check-more-btn {
+    background: none;
+    border: none;
+    padding: 6px 0 2px;
+    font-family: var(--font-sans);
+    font-size: var(--type-small);
+    font-weight: 600;
+    color: var(--text-light);
+    cursor: pointer;
+}
+.check-more-btn:hover { color: var(--primary-blue); }
+.check-more-btn[aria-expanded="true"] .bd-arrow { display: inline-block; transform: rotate(180deg); }
+.check-more-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 10px;
+    margin: 6px 0 4px;
+}
+.check-more-field {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    font-weight: 600;
+}
+.actual-cmp {
+    width: 100%;
+    margin-top: 8px;
+    border-collapse: collapse;
+    font-size: var(--type-small);
+    font-variant-numeric: tabular-nums;
+}
+.actual-cmp th, .actual-cmp td { padding: 4px 6px; text-align: right; }
+.actual-cmp th[scope="row"] { text-align: left; font-weight: 600; color: var(--text-mid); }
+.actual-cmp thead th { color: var(--text-light); font-weight: 600; border-bottom: 1px solid var(--border-light); }
+.actual-cmp tbody tr + tr { border-top: 1px solid var(--border-light); }
+.actual-cmp .cmp-same { color: var(--text-faint); }
+.actual-cmp .cmp-diff { font-weight: 700; color: var(--primary-blue); }

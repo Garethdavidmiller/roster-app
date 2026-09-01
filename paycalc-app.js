@@ -46,8 +46,7 @@ import {
 } from './paycalc-roster-hint.js';
 import { isDataEmpty, calcHPP, updatePriorHpp, resolveHppForPeriod, applyHppMode, restoreHppState, saveHppState } from './paycalc-hpp.js';
 import { prefillBackPay, calcBackPay, restoreBpState, _bpAwardTaxYear, _backdatedFromPNum, raiseByPercent, applyBpMode } from './paycalc-backpay.js';
-import { computeYearSoFar } from './paycalc-year-summary.js';
-import { hppTaxYearForPayslip, hppPaidInTaxYear } from './paycalc-hpp-schedule.js';
+import { hppTaxYearForPayslip } from './paycalc-hpp-schedule.js';
 import { initNavPanel } from './nav-panel.js';
 import { initCardCollapse } from './overlay.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -57,11 +56,12 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import { SK, periodKey, hppEstKey, hppActualKey, hppIncKey, ytdSrcKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
 import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
-import { fd, fdShort, fdLong, fdList, fmt, decimalToHM } from './paycalc-format.js';
+import { fd, fdShort, fdLong, fmt, decimalToHM } from './paycalc-format.js';
+import { initYearCard, renderYearCard } from './paycalc-year-card.js';
 import { numVal, numValOr, hhmmDec, clampMins, _decHintEl, decPreview, wireIosTap } from './paycalc-inputs.js';
 import { emptyPeriodData, readFormData, writeFormData } from './paycalc-form-data.js';
 import { initTransferCard } from './paycalc-transfer-card.js';
-import { buildSummaryRows, buildBreakdownRows, buildActualCheck, buildProvChips } from './paycalc-breakdown.js';
+import { buildSummaryRows, buildBreakdownRows, buildActualCheck, buildActualComparison, buildProvChips } from './paycalc-breakdown.js';
 
 import { setStatus } from './status-text.js';
 import { initPaycalcStickyTotal } from './paycalc-sticky-total.js';
@@ -1008,6 +1008,21 @@ export function init() {
         const _caActual = _caPaid ? Math.max(0, parseSmartFloat(_caEl?.value ?? '') || 0) : 0;
         const _caV = document.getElementById('actualVerdict');
         if (_caV) _caV.innerHTML = buildActualCheck(_caActual, net);
+        // The other payslip lines (v22.07): a per-line comparison against the SAME figures the
+        // summary rows display. Estimates never guess causes — buildActualComparison's header.
+        const _cmpEl = document.getElementById('actualCompare');
+        if (_cmpEl) {
+          const _av = /** @param {string} id */ (id) => {
+            const _e = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
+            return (_e && _e.value.trim() !== '') ? parseSmartFloat(_e.value) : null;
+          };
+          _cmpEl.innerHTML = _caPaid ? buildActualComparison({
+            actual: { gross: _av('actualGrossInput'), pension: _av('actualPensionInput'),
+                      tax: _av('actualTaxInput'), ni: _av('actualNiInput'),
+                      net: _caActual > 0 ? _caActual : null },
+            estimate: { gross: grossWithBp, pension, tax, ni, net },
+          }) : '';
+        }
       }
 
       // Provenance chips under the take-home £ (v18.44 — review item 1): what fed THIS number.
@@ -1160,52 +1175,15 @@ export function init() {
       // _bpVarAmount in as well double-counted it (v16.89). The tick still adds the lump to
       // _bpThisPeriod's take-home above.
       calcHPP();
-      _renderYearSoFar(_ty, plan, pgLoan, _slPaidOffFromP);
+      renderYearCard({
+        ty: _ty, plan, pgLoan, slPaidOffFromP: _slPaidOffFromP,
+        // The OPT-IN back-pay lump, so year-so-far agrees with the result card (see the module).
+        bpLump: (_bpIncluded && _bpPNum > 0 && _bpAmount > 0) ? { pNum: _bpPNum, amount: _bpAmount } : null,
+      });
     }
 
-    /**
-     * "This tax year so far" in the Year to Date card (v18.41 — review item 11): sums the year's
-     * ENTERED payslips (headless per-payslip re-run — paycalc-year-summary.js) + a rough full-year
-     * projection. Runs after every calculate() like calcHPP, so it tracks edits live. Hidden until
-     * at least one payslip of the year has hours (quiet default).
-     * @param {any} ty @param {string} plan @param {boolean} pgLoan @param {number} slPaidOffFromP
-     */
-    function _renderYearSoFar(ty, plan, pgLoan, slPaidOffFromP) {
-      const el = document.getElementById('ytdYearSoFar');
-      if (!el) return;
-      const taxCode = (/** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value || '1257L');
-      // Pass the OPT-IN lumps so the year-so-far take-home agrees with the result card, which adds
-      // them to the payslip they land on (bp → _bpPNum; HPP → the year's first January payslip).
-      // Only when their include-tick is on — an un-ticked/estimated lump inflates neither surface.
-      const bpLump = (_bpIncluded && _bpPNum > 0 && _bpAmount > 0) ? { pNum: _bpPNum, amount: _bpAmount } : null;
-      // The HPP landing INSIDE this tax year is the PRIOR year's premium — a year's HPP is paid the
-      // January AFTER it ends — so read the flags for THAT year, not the viewed one (v18.84: reading
-      // hppIncKey(ty) asked the viewed year, whose own premium isn't paid until a year later, so the
-      // tick came off the wrong year and the lump never joined these totals). Same single source as
-      // the result card's _hppTy above, asked from the other direction.
-      const _ysHpp = hppPaidInTaxYear(ty, getPeriods(), CONFIG.TAX_YEARS);
-      const _ysHppTy = _ysHpp ? _ysHpp.taxYear : null;
-      const _ysHppIncluded = !!_ysHppTy && lsGet(hppIncKey(_ysHppTy)) === '1';
-      const _ysHppAmount = _ysHppIncluded
-        ? resolveHppForPeriod(lsGet(hppActualKey(_ysHppTy)), lsGet(hppEstKey(_ysHppTy))).amount : 0;
-      const hppLump = (_ysHppIncluded && _ysHppAmount > 0) ? { amount: _ysHppAmount } : null;
-      const y = computeYearSoFar(ty, { taxCode, plan, pgLoan, slPaidOffFromP, bpLump, hppLump });
-      if (!y.entered && !y.skipped) { el.hidden = true; el.innerHTML = ''; return; }
-      el.hidden = false;
-      const row = /** @param {string} lbl @param {number} val */ (lbl, val) =>
-        `<div class="yearso-row"><span class="lbl">${lbl}</span><span class="val">≈ ${fmt(val)}</span></div>`;
-      el.innerHTML =
-        `<div class="yearso-head">This tax year so far <span class="yearso-count">${y.entered} of ${y.paid} paid payslip${y.paid !== 1 ? 's' : ''} entered</span></div>` +
-        row('Taxable pay', y.taxable) + row('Tax', y.tax) + row('National Insurance', y.ni) +
-        (y.sl > 0 ? row('Student Loan', y.sl) : '') +
-        row('Take-home', y.net) +
-        // Paid-but-empty payslips are NAMED (v18.42 — review item 2) so "N of M" is actionable.
-        (y.missing.length ? `<div class="yearso-proj">Not entered yet: ${fdList(y.missing)}.</div>` : '') +
-        // The projection is deliberately labelled rough — it assumes the rest of the year looks
-        // like the entered payslips (premiums vary period to period).
-        `<div class="yearso-proj">If the rest of ${ty.label} looks similar: take-home ≈ <strong>${fmt(y.projectedNet)}</strong> for the year (rough — based on your entered payslips).</div>` +
-        (y.skipped ? `<div class="yearso-proj pay-skip-warn">⚠️ Couldn't read ${y.skipped} saved payslip${y.skipped > 1 ? 's' : ''}, so these totals may be too low.</div>` : '');
-    }
+    // "This tax year so far" moved to paycalc-year-card.js at v22.06 (the fill-year control
+    // needed a home this coordinator's ratchet rightly had no room for — the render went WITH it).
 
     // isDataEmpty, calcHPP, updatePriorHpp imported from paycalc-hpp.js.
     // _decodeHours, _varPayForPeriod are in paycalc-hpp.js but only imported by paycalc-backpay.js.
@@ -1483,6 +1461,16 @@ export function init() {
     // Payslip self-check figure (v18.42) — persists with the period like every other field;
     // autosave() recalculates, which re-renders the verdict.
     document.getElementById('actualNetInput')?.addEventListener('input', autosave);
+    for (const _id of ['actualGrossInput', 'actualPensionInput', 'actualTaxInput', 'actualNiInput'])
+      document.getElementById(_id)?.addEventListener('input', autosave);
+    // The disclosure for the extra payslip lines — plain aria-expanded/hidden, no state class.
+    document.getElementById('actualMoreBtn')?.addEventListener('click', () => {
+      const _b = /** @type {HTMLButtonElement} */ (document.getElementById('actualMoreBtn'));
+      const _w = document.getElementById('actualMoreWrap');
+      const _open = _b.getAttribute('aria-expanded') === 'true';
+      _b.setAttribute('aria-expanded', _open ? 'false' : 'true');
+      if (_w) _w.hidden = _open;
+    });
 
     // Decimal auto-correction — if someone types "7.5" into an hours field, split it
     // into 7h 30m on blur instead of silently truncating to 7. A live "= 7h 30m"
@@ -1852,6 +1840,16 @@ export function init() {
     // ── BACK UP YOUR PAY DATA ─────────────────────────────────────────────────────
     // Runs late: it reads the per-member namespace runMigrations() activated above.
     initTransferCard();
+    // The year card's fill control (v22.06). After a bulk fill: reload the visible form ONLY if
+    // it was one of the filled periods (loadPeriodData re-reads storage and restores the gold
+    // roster-suggested state), then recalculate — which re-renders the year block, receipt and
+    // all, plus the HPP figures the new hours feed.
+    initYearCard({
+      afterFill: (r) => {
+        if (r.filled.some((/** @type {any} */ p) => p.num === currentPeriodNum())) loadPeriodData(currentPeriodNum());
+        calculate();
+      },
+    });
 
     // ── PRINT HEADER STAMP ────────────────────────────────────────────────────────
     // iOS Safari does not fire beforeprint when AirPrint is invoked, so we also stamp

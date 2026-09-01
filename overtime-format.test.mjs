@@ -24,6 +24,7 @@ import {
     modesFor, offersFullTwelve, submitFailureCopy, shiftSpanMinutes, sameAnswer, deadlineLines, receiptLine,
     declaredAgo, deriveHistory,
     dayUnfinished, unfinishedDates, reconcileVerdict, conflictIsOurs,
+    weekAvailabilitySummary, reminderLine,
 } from './overtime-format.js';
 
 describe('the corrected clock', () => {
@@ -1051,5 +1052,71 @@ describe('whose write the server is refusing', () => {
     test('a pending id the server did not name is not a match', () => {
         assert.equal(conflictIsOurs('mut-1', undefined), false);
         assert.equal(conflictIsOurs('mut-1', null), false);
+    });
+});
+
+// ── weekAvailabilitySummary (v22.05) — the clerk's clipboard text ──────────────────────────────
+// The one invariant that matters most: the three sections are ALWAYS NAMED, empty or not — a
+// summary without "No response" answers "anyone outstanding?" with silence, which reads as no.
+describe('weekAvailabilitySummary', () => {
+    const P = [{ memberName: 'A. Smith' }, { memberName: 'B. Jones' }, { memberName: 'C. Brown' }];
+    const subs = new Map([
+        ['A. Smith', { days: { '2026-09-09': { mode: 'after', from: '15:00' } } }],
+        ['B. Jones', { days: { '2026-09-09': { mode: 'unavailable' } } }],
+        // C. Brown never submitted — No response, and never Available.
+    ]);
+    const arg = { weekEnding: '2026-09-12', dates: ['2026-09-09'], participants: P, submissions: subs };
+
+    test('all three sections are named, with the right people under each', () => {
+        const text = weekAvailabilitySummary(arg);
+        assert.match(text, /Week ending/);
+        assert.match(text, /Available: A\. Smith \(/);
+        assert.match(text, /Not available: B\. Jones/);
+        assert.match(text, /No response: C\. Brown/);
+    });
+
+    test('an EMPTY section still appears and says nobody — absence must never look like all-clear', () => {
+        const text = weekAvailabilitySummary({ ...arg, participants: [{ memberName: 'B. Jones' }] });
+        assert.match(text, /Available: nobody/);
+        assert.match(text, /No response: nobody/);
+        assert.match(text, /Not available: B\. Jones/);
+    });
+
+    test('the day lens narrows to one date; ALL covers the whole week', () => {
+        const week = weekAvailabilitySummary({ ...arg, dates: ['2026-09-08', '2026-09-09'] });
+        assert.equal((week.match(/Available:/g) || []).length, 2);
+        const one = weekAvailabilitySummary({ ...arg, dates: ['2026-09-08', '2026-09-09'], day: '2026-09-09' });
+        assert.equal((one.match(/Available:/g) || []).length, 1);
+        assert.match(one, /9 Sep/);
+    });
+
+    test('a day the submission does not mention is No response — the positive-answer rule', () => {
+        const text = weekAvailabilitySummary({ ...arg, dates: ['2026-09-10'] });
+        assert.match(text, /No response: A\. Smith · B\. Jones · C\. Brown/);
+    });
+});
+
+// ── reminderLine (v22.05) — the audit row's four states ────────────────────────────────────────
+describe('reminderLine', () => {
+    const DL = Date.UTC(2026, 8, 1, 11);
+    test('sent → stated with when, whatever the phase', () => {
+        for (const phase of ['INITIAL_OPEN', 'FINAL_OPEN', 'CLOSED']) {
+            const r = reminderLine(phase, DL, DL - 3 * 3600e3);
+            assert.equal(r?.tone, 'ok');
+            assert.match(r?.text || '', /sent/);
+        }
+    });
+    test('not yet sent while INITIAL_OPEN → expectation, not alarm', () => {
+        const r = reminderLine('INITIAL_OPEN', DL, null);
+        assert.equal(r?.tone, 'note');
+        assert.match(r?.text || '', /morning of the initial deadline/);
+    });
+    test('unsent past the deadline while the week is LIVE → a warning someone can act on', () => {
+        const r = reminderLine('FINAL_OPEN', DL, null);
+        assert.equal(r?.tone, 'warn');
+    });
+    test('unsent on a CLOSED week → silence — pre-feature history must not wear a false alarm', () => {
+        assert.equal(reminderLine('CLOSED', DL, null), null);
+        assert.equal(reminderLine('CLOSED', DL, undefined), null);
     });
 });

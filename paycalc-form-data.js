@@ -48,9 +48,22 @@ import { parseSmartFloatOrNull } from './roster-data.js';
  *
  * @returns {Record<string, any>}
  */
+// isDataEmpty lives in paycalc-format.js (the zero-import pure home — beside HM_PAIRS, the two of
+// them being the schema's field surface); re-exported here because this module OWNS the schema and
+// is where a reader looks for it. paycalc-hpp re-exports it too for its long-standing importers.
+export { isDataEmpty } from './paycalc-format.js';
+
 export function emptyPeriodData() {
     return { satH: 0, satM: 0, bhH: 0, bhM: 0, bhOtH: 0, bhOtM: 0, otH: 0, otM: 0, rdwH: 0, rdwM: 0,
-             sunH: 0, sunM: 0, boxH: 0, boxM: 0, peer: 0, slSkip: false, otherAdj: 0, actualNet: null };
+             sunH: 0, sunM: 0, boxH: 0, boxM: 0, peer: 0, slSkip: false, otherAdj: 0, actualNet: null,
+             actualGross: null, actualTax: null, actualNi: null, actualPension: null };
+}
+
+/** A payslip-actual field: a typed figure, or null for blank/garbage — never a phantom 0.
+ * @param {string} id @returns {number|null} */
+function _readActual(id) {
+    const _el = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
+    return (_el && _el.value.trim() !== '') ? parseSmartFloatOrNull(_el.value) : null;
 }
 
 /**
@@ -98,10 +111,15 @@ export function readFormData({ adjNegative = false, periodDefaultPension = null 
         // Real take-home from the payslip (v18.42 — review item 3): null when blank/garbage, like
         // pension — mid-edit autosaves must not store a phantom £0 "actual". Deliberately NOT in
         // isDataEmpty: a period with only this figure has no hours to compute from.
-        actualNet: (() => {
-            const _el = /** @type {HTMLInputElement|null} */ (document.getElementById('actualNetInput'));
-            return (_el && _el.value.trim() !== '') ? parseSmartFloatOrNull(_el.value) : null;
-        })(),
+        actualNet: _readActual('actualNetInput'),
+        // The other payslip lines (v22.07 — the estimate-vs-payslip comparison). Same null-when-
+        // blank rule as actualNet, for the same reason: a mid-edit autosave storing £0 "actual
+        // tax" would render a confident, wrong difference row. None of them joins isDataEmpty —
+        // a period holding only payslip actuals has no hours to compute from.
+        actualGross:   _readActual('actualGrossInput'),
+        actualTax:     _readActual('actualTaxInput'),
+        actualNi:      _readActual('actualNiInput'),
+        actualPension: _readActual('actualPensionInput'),
     };
 }
 
@@ -140,5 +158,20 @@ export function writeFormData(d) {
     if (pa && d.pension != null) pa.value = d.pension;
     const an = /** @type {HTMLInputElement|null} */ (document.getElementById('actualNetInput'));
     if (an) an.value = d.actualNet != null ? d.actualNet : '';
+    const _actuals = [['actualGrossInput', d.actualGross], ['actualTaxInput', d.actualTax],
+        ['actualNiInput', d.actualNi], ['actualPensionInput', d.actualPension]];
+    for (const [id, v] of _actuals) {
+        const _el = /** @type {HTMLInputElement|null} */ (document.getElementById(String(id)));
+        if (_el) _el.value = v != null ? String(v) : '';
+    }
+    // Saved payslip lines must not be restored into a CLOSED disclosure — the member's own figures
+    // (and the comparison table) would be on the page and invisible. Open it when any exist; a
+    // period without them leaves the member's open/closed choice alone.
+    if (_actuals.some(([, v]) => v != null)) {
+        const _btn = document.getElementById('actualMoreBtn');
+        const _wrap = document.getElementById('actualMoreWrap');
+        if (_btn) _btn.setAttribute('aria-expanded', 'true');
+        if (_wrap) _wrap.hidden = false;
+    }
     return { adjNegative };
 }

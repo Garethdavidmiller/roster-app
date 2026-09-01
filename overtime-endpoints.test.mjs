@@ -542,6 +542,27 @@ describe('getOvertimeManagerOverview — the missing window is the point', () =>
         assert.equal(rows.find(w => w.weekEnding === '2026-08-22').state, 'missed');
     });
 
+    test('reminderSentAt reaches the horizon row — the audit line cannot say what nobody sends (v22.05)', async () => {
+        // The workspace's reminder-audit line reads this field off the row; before v22.05 the stamp
+        // existed server-side and nothing carried it out, so "did the reminder fire?" meant reading
+        // function logs. One window with the stamp, one without: millis through, null for absent —
+        // absent is what every pre-feature window has, and the client's CLOSED-week silence
+        // depends on it arriving as null rather than vanishing from the row.
+        const NOW = Date.parse('2026-08-19T09:00:00Z');
+        freeze(NOW);
+        const due = OT.weeksNeedingWindows(OT.lastSchedulerRun(NOW), [], { maxRosterYear: 2030 });
+        const [withStamp, withoutStamp] = due;
+        const SENT = Date.parse('2026-08-18T07:02:00Z');
+        const { eps } = build({
+            [`overtimeWindows/${withStamp}`]:    { ...OT.deriveMilestones(withStamp), audience: 'restricted', reminderSentAt: { toMillis: () => SENT } },
+            [`overtimeWindows/${withoutStamp}`]: { ...OT.deriveMilestones(withoutStamp), audience: 'restricted' },
+        });
+        const rows = (await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager'))).body.planningWeeks;
+        unfreeze();
+        assert.equal(rows.find(w => w.weekEnding === withStamp).reminderSentAt, SENT);
+        assert.equal(rows.find(w => w.weekEnding === withoutStamp).reminderSentAt, null);
+    });
+
     test('a week that only entered the horizon AFTER the last run is not called overdue', async () => {
         // The one false positive worth designing against. The horizon rolls over at midnight on a
         // Sunday and the job runs at 05:00, so for five hours a week exists on the page that no run

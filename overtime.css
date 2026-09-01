@@ -1514,3 +1514,39 @@ body {
     .ot-person-btn { display: none !important; }
     .ot-day-panel--muted { opacity: 1; }
 }
+
+/* ── The all-week shortcut (v22.05) — a quiet text control, deliberately NOT a pill: it must not
+   compete with the seven day rows it fills. ─────────────────────────────────────────────────── */
+.ot-bulk-row { margin: 2px 0 0; }
+.ot-bulk-unavailable {
+    background: none;
+    border: none;
+    padding: 4px 2px;
+    font-family: var(--font-sans);
+    font-size: var(--type-small);
+    font-weight: 600;
+    color: var(--text-light);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+}
+.ot-bulk-unavailable:hover { color: var(--primary-blue); }
+
+/* ── Copy summary + reminder audit (v22.05) ─────────────────────────────────────────────────── */
+.ot-copy-btn {
+    margin-left: 8px;
+    padding: 3px 10px;
+    font-family: var(--font-sans);
+    font-size: var(--type-small);
+    font-weight: 600;
+    color: var(--primary-blue);
+    background: var(--field-bg);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+}
+.ot-copy-btn:hover { background: white; }
+.ot-copy-status { margin-left: 6px; font-size: var(--type-small); color: var(--text-light); }
+.ot-reminder-line { font-size: var(--type-small); color: var(--text-light); margin-top: 2px; }
+.ot-reminder-line--warn { color: var(--al-warning); font-weight: 600; }
+@media print { .ot-copy-btn, .ot-copy-status { display: none; } }
