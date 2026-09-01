@@ -589,6 +589,17 @@ npm run typecheck     # tsc --noEmit on all root JS modules
 npm run test:hygiene  # the no-emulator, no-mock suites — the authoritative list is package.json `test:hygiene`. It is NOT enumerated here: this line used to list most-but-not-all of them while naming package.json as authoritative in its own parenthetical — a 1,085-character restatement asking not to be trusted.
 npm run test:parse    # module-parse (--experimental-vm-modules)
 npm run test:unit     # all --experimental-test-module-mocks tests
+# EVERY SUITE THAT NEEDS NOTHING INSTALLED — for a reviewer working from a GitHub ZIP.
+# The great majority of this estate runs on a bare checkout with no node_modules at all, on nothing
+# but a Node binary. An external reviewer reported they could not count it as executed because the
+# archive "doesn't contain the necessary installed dependency trees" — true of a handful of files
+# and false of nearly all the rest, and the repo had never said so. Only three things need an
+# install: the Cloud Functions handler suites (`functions/node_modules`), the two rules suites (the
+# emulator), and lint/typecheck/Playwright (the root install). The command PRINTS how many suites
+# it is running and which it is skipping, so the figures are never written down here to go stale,
+# and its exclusion list is DERIVED from the test:functions and test:rules scripts below:
+npm run test:nodeps
+
 npm run test:functions # Cloud Functions tests (roster-parse-helpers.test.mjs + functions-surface.test.mjs, which requires functions/index.js and pins the deploy surface, + overtime-endpoints.test.mjs + auth-endpoints.test.mjs + push-transport.test.mjs + documents-endpoints.test.mjs) — not part of npm test (needs functions/node_modules)
                        # GATES EVERY BRANCH AND PR since v21.82, as the `functions` job in e2e.yml, ON NODE 22 — the runtime
                        # functions/package.json declares. Until then it ran ONLY in deploy-functions.yml, which fires on a push
