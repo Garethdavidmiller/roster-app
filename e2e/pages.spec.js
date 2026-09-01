@@ -2754,7 +2754,14 @@ test('no focusable field falls below 16px on a touch device @a11y', async ({ pag
         await page.evaluate(() => document.querySelectorAll('.card-collapsible-body')
             .forEach(el => el.classList.add('open')));
         await page.waitForTimeout(250);
-        const bad = await page.evaluate(() => {
+        const bad = await page.evaluate(async () => {
+            // A member's name is DATA, not copy — see the header. Derived from the roster so it
+            // follows a new starter instead of going stale.
+            let names = new Set();
+            try {
+                const rd = await import('./roster-data.js');
+                names = new Set((rd.teamMembers || []).map(/** @param {any} m */ m => m.name));
+            } catch { /* page without the module graph — check every option */ }
             const out = [];
             document.querySelectorAll('input, select, textarea').forEach(el => {
                 const t = /** @type {any} */ (el).type;
@@ -3650,6 +3657,95 @@ test('operations: no App Speed row label is truncated at phone width', async ({ 
         .map(el => el.textContent));
     expect(clipped, 'App Speed labels clipped at 390px — the row cannot be read').toEqual([]);
 });
+
+test('no select option is cut off at 360px', async ({ page }) => {
+    /*
+     * A NATIVE SELECT TRUNCATES SILENTLY, AND THE USUAL PROBE CANNOT SEE IT.
+     *
+     * Reported from a staff screenshot (v22.10): the student-loan cutover control read
+     * "No — still deducted from my pays" on a 360px phone. The source says "…from my payslip" —
+     * the option was being cut mid-word into something that still reads as words, so it looked
+     * like deliberate (if ungrammatical) copy rather than a rendering fault.
+     *
+     * The two truncation guards above ask `scrollWidth > clientWidth`, which IS the ellipsis on an
+     * ordinary element. Measured on this select while the bug was live: scrollWidth 304,
+     * clientWidth 304, naive check says "not clipped" — because the option text is painted by the
+     * control, not laid out as overflowing content. So the shape that catches a clipped table cell
+     * is structurally blind here, and this needs its own probe: render the option's text in a span
+     * at the control's own font and compare against its usable width.
+     *
+     * 360, not the suite's usual 390 — that is the reported device (1080px at DPR 3), and it is
+     * the 30px that decided this one: the offending label needed 276px, which fits the 294px a
+     * 390px phone gives and not the 264px a 360px phone does. The same 30px decided the links
+     * objective-clause bug above.
+     *
+     * Deliberately NOT gated to one project, and font metrics differ per engine — which is the
+     * whole point. It found a second offender on mobile-chrome that desktop Chromium could not see
+     * (the links generator's `Custom time…`, clipped only because the coarse-pointer rule correctly
+     * raises that select to 16px to stop iOS zooming), and a third on WebKit alone.
+     *
+     * IT CHECKS COPY, NOT DATA. That third one is `#fieldMember` on admin showing
+     * "R. Forrester-Blackstock" — the longest name on the roster — over by TWO pixels in WebKit and
+     * fitting in Chromium. A person's name cannot be shortened, and `.member-context-bar select`
+     * shrinks on purpose (see the comment on its `min-width: 0`), so the only fixes would be to
+     * redesign the bar or to shave a gap to satisfy a test — and the next long surname breaks it
+     * again either way. So option text that IS a member name is skipped, and the skip is derived
+     * from `teamMembers` rather than an id allowlist: a hand-kept list of "selects full of names"
+     * is the thing that goes stale, whereas this follows the roster. What remains covered is every
+     * label the app AUTHORS, which is where both real defects were.
+     */
+    await page.setViewportSize({ width: 360, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        localStorage.setItem('myb_links_welcome_seen', '1');
+    });
+    const offenders = [];
+    for (const url of APP_URLS) {
+        await page.goto(url);
+        await page.waitForTimeout(1100);
+        await page.evaluate(() => {
+            document.querySelectorAll('.card-collapsible-body').forEach(el => el.classList.add('open'));
+            // Pick a loan plan — the real user action that reveals the cutover select.
+            const sl = /** @type {HTMLSelectElement|null} */ (document.getElementById('studentLoan'));
+            if (sl) { sl.value = 'plan2'; sl.dispatchEvent(new Event('change', { bubbles: true })); }
+        });
+        await page.waitForTimeout(400);
+        const bad = await page.evaluate(async () => {
+            // A member's name is DATA, not copy — see the header. Derived from the roster so it
+            // follows a new starter instead of going stale.
+            let names = new Set();
+            try {
+                const rd = await import('./roster-data.js');
+                names = new Set((rd.teamMembers || []).map(/** @param {any} m */ m => m.name));
+            } catch { /* page without the module graph — check every option */ }
+            const out = [];
+            document.querySelectorAll('select').forEach(el => {
+                const box = el.getBoundingClientRect();
+                if (!box.width || /** @type {HTMLElement} */ (el).offsetParent === null) return;
+                const cs = getComputedStyle(el);
+                const usable = box.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+                const probe = document.createElement('span');
+                probe.style.cssText = `position:absolute;visibility:hidden;white-space:nowrap;font:${cs.font};letter-spacing:${cs.letterSpacing}`;
+                document.body.appendChild(probe);
+                for (const o of el.options) {
+                    const label = (o.textContent || '').trim();
+                    if (names.has(label)) continue;   // a person's name, not authored copy
+                    probe.textContent = o.textContent;
+                    // 1px of tolerance for sub-pixel text measurement, nothing more.
+                    if (probe.getBoundingClientRect().width > usable + 1) {
+                        out.push(`${el.id || '(no id)'}: "${label}"`);
+                    }
+                }
+                probe.remove();
+            });
+            return out;
+        });
+        offenders.push(...bad.map(b => `${url} → ${b}`));
+    }
+    expect(offenders, 'select options cut off at 360px — a native select cuts mid-word, silently').toEqual([]);
+});
+
 
 // ── ADMIN WEEK SWIPE ────────────────────────────────────────────────────────────────────────────
 //

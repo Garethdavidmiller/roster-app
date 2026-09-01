@@ -479,7 +479,9 @@ export function init() {
                 `<optgroup label="Late${includeRdSpare ? ' (starting 11:00 or after)' : ''}">`,
                 ...LATE_OPTIONS.map(s => opt(s, s)), '</optgroup>',
             ] : []),
-            opt('__custom__', 'Custom time…'),
+            // 'Custom…' — the brush chip's label: on a phone this select is 16px (the iOS-zoom
+            // rule) in a deliberately narrow column, so the longer text cut itself mid-word.
+            opt('__custom__', 'Custom…'),
         ].join('');
     }
 

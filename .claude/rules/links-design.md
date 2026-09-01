@@ -246,7 +246,7 @@ Deriving them from the design fixes it by construction and keeps fixing it: an i
 
 **A duty that does run past midnight is read in ONE place — `endMinutesAbs`** (v19.47). Before it, `calcHourlyCoverage` and `runDesignChecks` each carried their own inline expression and both erred the same way, towards *safer than the truth*: the heat map clamped the end to 24:00 and simply lost the post-midnight hours, and the turnaround check computed `(1440 − end) + start`, so a 00:30 finish before an 06:20 start reported ~26h of rest instead of 5h50 — the most dangerous turnaround the module can express, scored as compliant. The heat map now counts such a duty on **both** days (Sat spills round to Sun) and `links-fatigue.js`'s `dutyMinutes` delegates here. This is only reachable through legacy/imported data — the same route `canonicaliseShift` exists for — which is exactly why it is worth keeping correct: nothing exercises it, so nothing would tell you.
 
-**Shift option lists:** `EARLY_SHIFTS` / `LATE_SHIFTS` derived from `weeklyRoster` + `bilingualRoster` at module load — never a static list. **Custom time…** validated by `normaliseCustomShift()`.
+**Shift option lists:** `EARLY_SHIFTS` / `LATE_SHIFTS` derived from `weeklyRoster` + `bilingualRoster` at module load — never a static list. **Custom…** (shortened v22.10 — it clipped at 16px in the narrow phone column) validated by `normaliseCustomShift()`.
 
 ### The staffed operating window (v19.54)
 
