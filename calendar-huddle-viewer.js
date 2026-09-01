@@ -76,6 +76,34 @@ async function sanitiseHtml(html) {
     });
 }
 
+/**
+ * Give every table its own horizontal scroll box.
+ *
+ * WHY, from two staff screenshots on a 412px phone (v22.27). The Huddle grew a fifth column and
+ * stopped fitting. `#huddleViewerBody` was the only scroll container, so reading the Late column
+ * scrolled the WHOLE document sideways: the date heading slid off ("Wednesday 2nd September 2026"
+ * showing as "nd September 2026") and the Shift and Call Sign columns — the ones that say whose
+ * row you are reading — went with it. Nothing errored. It was simply unusable.
+ *
+ * Done HERE rather than in the sanitiser or server-side, deliberately. The HTML arrives from
+ * mammoth via the Cloud Function and `style` is stripped (see sanitiseHtml), so there is no markup
+ * hook to target — and adding a wrapper element inside the ALLOWED_TAGS list would mean trusting
+ * the document to carry its own layout. This wraps what actually rendered, after sanitising, and
+ * touches nothing else.
+ *
+ * @param {HTMLElement} root
+ */
+export function wrapTables(root) {
+    for (const table of [...root.querySelectorAll('table')]) {
+        // Idempotent: showInlineHuddle can re-render the memoised HTML on reopen.
+        if (table.parentElement?.classList.contains('huddle-table-wrap')) continue;
+        const wrap = document.createElement('div');
+        wrap.className = 'huddle-table-wrap';
+        table.replaceWith(wrap);
+        wrap.appendChild(table);
+    }
+}
+
 /** Wire up the Huddle viewer overlay and start the Firestore subscription. Call once on page load. */
 /**
  * @param {{ authReady?: Promise<any> }} [deps] authReady — resolves once a Firebase session exists.
@@ -177,6 +205,7 @@ export function initHuddleViewer({ authReady = Promise.resolve() } = {}) {
                 _sanitisedUrl  = huddle.storageUrl;
             }
             body.innerHTML = _sanitisedHtml;
+            wrapTables(body);
             openViewer();
             close?.focus();
         } catch (err) {

@@ -71,7 +71,7 @@ before deleting anything, because the number alone has now been wrong once.
 | The Calendar page's one-time notices — wiring for sign-in-2026 + backpay-2026 | `calendar-notices.js` |
 | Calendar member selection — getSelectedMemberIndex, getCurrentMember, populateTeamMemberDropdown, validateTeamMembers | `calendar-member.js` |
 | Calendar rendering — buildCalendarContainer, createCalendarHeader, createDayCell, getSwipeDirection | `calendar-renderer.js` |
-| Huddle viewer overlay, _triggerAutoOpen, hashchange, subscription | `calendar-huddle-viewer.js` |
+| Huddle viewer overlay, _triggerAutoOpen, hashchange, subscription, wrapTables (each table gets its own horizontal scroll box, so a wide Huddle cannot drag the whole document sideways) | `calendar-huddle-viewer.js` |
 | Circular/Newsletter in-app viewer (#circular/#newsletter notification deep link) | `calendar-doc-viewer.js` |
 | Team Week View — initTeamView (grid, navigation, Firestore fetch, toggle) | `calendar-team-view.js` |
 | Override priority, member-start, rest-shift helpers — tsToMillis, shouldReplaceOverride, reconcileRangeIntoCache (authoritative range refresh), isBeforeMemberStart, isRestShift, isOverrideDisplaySuppressed, resolveEffectiveShift (shared display ladder), computePeriodDeleteIds; training value grammar + pay resolver | `override-utils.js` |
