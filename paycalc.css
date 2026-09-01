@@ -1674,3 +1674,44 @@ body.role-unsupported .disclaimer { display: none; }
     color: var(--text-mid);
 }
 .yearso-receipt div + div { margin-top: 4px; }
+
+/* ── Estimate-vs-payslip comparison (v22.07) ────────────────────────────────────────────────── */
+.check-more-btn {
+    background: none;
+    border: none;
+    padding: 6px 0 2px;
+    font-family: var(--font-sans);
+    font-size: var(--type-small);
+    font-weight: 600;
+    color: var(--text-light);
+    cursor: pointer;
+}
+.check-more-btn:hover { color: var(--primary-blue); }
+.check-more-btn[aria-expanded="true"] .bd-arrow { display: inline-block; transform: rotate(180deg); }
+.check-more-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 10px;
+    margin: 6px 0 4px;
+}
+.check-more-field {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    font-weight: 600;
+}
+.actual-cmp {
+    width: 100%;
+    margin-top: 8px;
+    border-collapse: collapse;
+    font-size: var(--type-small);
+    font-variant-numeric: tabular-nums;
+}
+.actual-cmp th, .actual-cmp td { padding: 4px 6px; text-align: right; }
+.actual-cmp th[scope="row"] { text-align: left; font-weight: 600; color: var(--text-mid); }
+.actual-cmp thead th { color: var(--text-light); font-weight: 600; border-bottom: 1px solid var(--border-light); }
+.actual-cmp tbody tr + tr { border-top: 1px solid var(--border-light); }
+.actual-cmp .cmp-same { color: var(--text-faint); }
+.actual-cmp .cmp-diff { font-weight: 700; color: var(--primary-blue); }

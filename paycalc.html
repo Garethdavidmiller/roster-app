@@ -600,6 +600,30 @@
         </div>
       </div>
       <div class="check-actual-verdict" id="actualVerdict" aria-live="polite"></div>
+      <!-- The other payslip lines (v22.07): optional, behind a disclosure — the net check stays
+           the one-field quick path. Labels are the payslip's own line names; each figure autosaves
+           into this period's blob like actualNet (null when blank — never a phantom £0). The
+           comparison table renders only when a line beyond the net is entered. -->
+      <button type="button" class="check-more-btn" id="actualMoreBtn" aria-expanded="false" aria-controls="actualMoreWrap">
+        Compare more payslip lines <span class="bd-arrow" aria-hidden="true">▼</span>
+      </button>
+      <div class="check-more" id="actualMoreWrap" hidden>
+        <div class="check-more-grid">
+          <label class="check-more-field">Total pay
+            <span class="pfx"><span class="pfx-sym">£</span><input type="text" id="actualGrossInput" inputmode="decimal" autocomplete="off" placeholder="Gross"></span>
+          </label>
+          <label class="check-more-field">Pension contribution
+            <span class="pfx"><span class="pfx-sym">£</span><input type="text" id="actualPensionInput" inputmode="decimal" autocomplete="off" placeholder="Pension"></span>
+          </label>
+          <label class="check-more-field">Income Tax
+            <span class="pfx"><span class="pfx-sym">£</span><input type="text" id="actualTaxInput" inputmode="decimal" autocomplete="off" placeholder="Tax"></span>
+          </label>
+          <label class="check-more-field">National Insurance
+            <span class="pfx"><span class="pfx-sym">£</span><input type="text" id="actualNiInput" inputmode="decimal" autocomplete="off" placeholder="NI"></span>
+          </label>
+        </div>
+        <div id="actualCompare"></div>
+      </div>
     </div>
     <button type="button" class="bd-btn" id="bdBtn" aria-expanded="false" aria-controls="bdBody">
       Full pay breakdown &nbsp;<span class="bd-arrow">▼</span>

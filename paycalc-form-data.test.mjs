@@ -26,7 +26,8 @@ const { emptyPeriodData, readFormData, writeFormData } = await import('./paycalc
 
 // ── Minimal fake DOM: just the fields this module touches ─────────────────────
 const INPUT_IDS = ['satH','satM','bhH','bhM','bhOtH','bhOtM','otH','otM','rdwH','rdwM',
-                   'sunH','sunM','boxH','boxM','otherAdj','pensionAmt','actualNetInput'];
+                   'sunH','sunM','boxH','boxM','otherAdj','pensionAmt','actualNetInput',
+                   'actualGrossInput','actualTaxInput','actualNiInput','actualPensionInput'];
 /**
  * A field that coerces like the real thing. `HTMLInputElement.value` and `Node.textContent` are
  * DOMString-typed, so the platform stringifies whatever you assign — and writeFormData does assign
@@ -182,5 +183,46 @@ describe('actualNet — the same shape, found later (v18.42)', () => {
         assert.equal(readFormData().actualNet, 1234.56);
         _els.actualNetInput.value = '0';
         assert.equal(readFormData().actualNet, 0);
+    });
+});
+
+// ── The other payslip lines (v22.07) — actualNet's shape, four more times ──────────────────────
+describe('payslip-actual lines — the phantom-£0 rule holds for every one of them', () => {
+    const KEYS = /** @type {const} */ ([
+        ['actualGross', 'actualGrossInput'], ['actualTax', 'actualTaxInput'],
+        ['actualNi', 'actualNiInput'], ['actualPension', 'actualPensionInput'],
+    ]);
+
+    test('blank reads as null on every line — a mid-edit autosave must not store a £0 actual', () => {
+        const d = readFormData();
+        for (const [key] of KEYS) assert.equal(d[key], null, key);
+    });
+
+    test('typed figures round-trip exactly, and garbage collapses to null rather than 0', () => {
+        const saved = { ...emptyPeriodData(), actualGross: 3808.87, actualTax: 540.20, actualNi: 215.48, actualPension: 151.86 };
+        const d = roundTrip(saved);
+        for (const [key] of KEYS) assert.equal(d[key], saved[key], key);
+        _els.actualTaxInput.value = 'not money';
+        assert.equal(readFormData().actualTax, null);
+    });
+
+    test('a period with only payslip actuals still counts as EMPTY — they are checks, not entries', async () => {
+        const { isDataEmpty } = await import('./paycalc-format.js');
+        assert.equal(isDataEmpty({ ...emptyPeriodData(), actualGross: 3808.87, actualNet: 2907.23 }), true,
+            'actuals must not make a period look entered — the fill-year eligibility reads this');
+    });
+
+    test('restoring saved actuals OPENS the disclosure; a period without them leaves it alone', () => {
+        const btn = { attrs: /** @type {Record<string, string>} */ ({}),
+            setAttribute(/** @type {string} */ k, /** @type {string} */ v) { this.attrs[k] = v; },
+            getAttribute(/** @type {string} */ k) { return this.attrs[k]; } };
+        const wrap = { hidden: true };
+        _els.actualMoreBtn = btn; _els.actualMoreWrap = wrap;
+        writeFormData({ ...emptyPeriodData(), actualGross: 3808.87 });
+        assert.equal(wrap.hidden, false, 'saved figures must not restore into a closed section');
+        assert.equal(btn.attrs['aria-expanded'], 'true');
+        wrap.hidden = true; btn.attrs['aria-expanded'] = 'false';
+        writeFormData(emptyPeriodData());
+        assert.equal(wrap.hidden, true, 'no actuals → the member\'s own open/closed choice stands');
     });
 });

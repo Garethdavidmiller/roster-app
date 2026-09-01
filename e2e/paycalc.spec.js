@@ -123,6 +123,44 @@ for (const { w, h } of [{ w: 1024, h: 900 }, { w: 1280, h: 1000 }, { w: 1366, h:
 // priority rule is exercised from the outside once more. Note what that means: the value of the
 // `toHaveCount(1)` assertion below has been silently zero for seven weeks, and only the note saying
 // so made that recoverable.
+// ── Estimate vs payslip (v22.07) ──────────────────────────────────────────────────────────────
+// The builder and the round trip are unit-tested; a browser proves the WIRING — the disclosure,
+// the table appearing as figures are typed, and saved figures surviving a reload INTO AN OPEN
+// section (restored values hidden behind a closed disclosure was the designed-against failure).
+
+test('paycalc: the payslip comparison renders per typed line and survives a reload', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page);
+    await page.addInitScript(() => { localStorage.setItem('myb_pc_ytd_notice_2_shown', '1'); });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#periodSelect option').first()).toBeAttached();
+    // A PAID period — the check block only renders for one. P2's payday is long past.
+    await page.locator('#periodSelect').selectOption({ index: 1 });
+    await expect(page.locator('#checkActualWrap')).toBeVisible();
+
+    await clickInView(page.locator('#actualMoreBtn'));
+    await expect(page.locator('#actualMoreWrap')).toBeVisible();
+    await page.locator('#actualGrossInput').fill('3808.87');
+    await page.locator('#actualTaxInput').fill('540.20');
+    const table = page.locator('#actualCompare table.actual-cmp');
+    await expect(table).toBeVisible();
+    await expect(table).toContainText('Total pay');
+    await expect(table).toContainText('Income Tax');
+    await expect(table).toContainText('£3,808.87');
+    // Only the typed lines render — an absent figure is not a £0 claim.
+    await expect(table).not.toContainText('National Insurance');
+
+    // Reload: the figures persisted into the period blob, and the section restored OPEN.
+    await page.reload();
+    await expect(page.locator('#periodSelect option').first()).toBeAttached();
+    await page.locator('#periodSelect').selectOption({ index: 1 });
+    await expect(page.locator('#actualMoreWrap')).toBeVisible();
+    await expect(page.locator('#actualGrossInput')).toHaveValue('3808.87');
+    await expect(page.locator('#actualCompare table.actual-cmp')).toBeVisible();
+
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
 // ── Fill this tax year from Calendar (v22.06) ─────────────────────────────────────────────────
 // The rules are unit-tested (paycalc-fill-year.test.mjs); only a browser can prove the WIRING —
 // that the button the "Not entered yet" line offers runs the real engine against the real

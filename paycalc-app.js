@@ -61,7 +61,7 @@ import { initYearCard, renderYearCard } from './paycalc-year-card.js';
 import { numVal, numValOr, hhmmDec, clampMins, _decHintEl, decPreview, wireIosTap } from './paycalc-inputs.js';
 import { emptyPeriodData, readFormData, writeFormData } from './paycalc-form-data.js';
 import { initTransferCard } from './paycalc-transfer-card.js';
-import { buildSummaryRows, buildBreakdownRows, buildActualCheck, buildProvChips } from './paycalc-breakdown.js';
+import { buildSummaryRows, buildBreakdownRows, buildActualCheck, buildActualComparison, buildProvChips } from './paycalc-breakdown.js';
 
 import { setStatus } from './status-text.js';
 import { initPaycalcStickyTotal } from './paycalc-sticky-total.js';
@@ -1008,6 +1008,21 @@ export function init() {
         const _caActual = _caPaid ? Math.max(0, parseSmartFloat(_caEl?.value ?? '') || 0) : 0;
         const _caV = document.getElementById('actualVerdict');
         if (_caV) _caV.innerHTML = buildActualCheck(_caActual, net);
+        // The other payslip lines (v22.07): a per-line comparison against the SAME figures the
+        // summary rows display. Estimates never guess causes — buildActualComparison's header.
+        const _cmpEl = document.getElementById('actualCompare');
+        if (_cmpEl) {
+          const _av = /** @param {string} id */ (id) => {
+            const _e = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
+            return (_e && _e.value.trim() !== '') ? parseSmartFloat(_e.value) : null;
+          };
+          _cmpEl.innerHTML = _caPaid ? buildActualComparison({
+            actual: { gross: _av('actualGrossInput'), pension: _av('actualPensionInput'),
+                      tax: _av('actualTaxInput'), ni: _av('actualNiInput'),
+                      net: _caActual > 0 ? _caActual : null },
+            estimate: { gross: grossWithBp, pension, tax, ni, net },
+          }) : '';
+        }
       }
 
       // Provenance chips under the take-home £ (v18.44 — review item 1): what fed THIS number.
@@ -1446,6 +1461,16 @@ export function init() {
     // Payslip self-check figure (v18.42) — persists with the period like every other field;
     // autosave() recalculates, which re-renders the verdict.
     document.getElementById('actualNetInput')?.addEventListener('input', autosave);
+    for (const _id of ['actualGrossInput', 'actualPensionInput', 'actualTaxInput', 'actualNiInput'])
+      document.getElementById(_id)?.addEventListener('input', autosave);
+    // The disclosure for the extra payslip lines — plain aria-expanded/hidden, no state class.
+    document.getElementById('actualMoreBtn')?.addEventListener('click', () => {
+      const _b = /** @type {HTMLButtonElement} */ (document.getElementById('actualMoreBtn'));
+      const _w = document.getElementById('actualMoreWrap');
+      const _open = _b.getAttribute('aria-expanded') === 'true';
+      _b.setAttribute('aria-expanded', _open ? 'false' : 'true');
+      if (_w) _w.hidden = _open;
+    });
 
     // Decimal auto-correction — if someone types "7.5" into an hours field, split it
     // into 7h 30m on blur instead of silently truncating to 7. A live "= 7h 30m"

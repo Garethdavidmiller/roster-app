@@ -172,6 +172,46 @@ export function buildActualCheck(actual, estimated) {
 }
 
 /**
+ * The estimate-vs-payslip comparison table (v22.07) — the four other payslip lines beside the
+ * long-standing net check. One row per line the member has actually typed; a line left blank
+ * renders nothing, because an absent figure is not a £0 claim.
+ *
+ * THE DIFFERENCE STATES ITSELF AND EXPLAINS NOTHING. A row says the payslip's tax is £1.40 more
+ * — it never guesses why, because a confident wrong cause is worse than an honest gap. The one
+ * place causes are (carefully) discussed stays the net verdict line, which has owned that wording
+ * since v18.42.
+ *
+ * @param {{ actual: {gross: number|null, pension: number|null, tax: number|null,
+ *   ni: number|null, net: number|null},
+ *   estimate: {gross: number, pension: number, tax: number, ni: number, net: number} }} d
+ * @returns {string} '' when no line beyond net is entered
+ */
+export function buildActualComparison({ actual, estimate }) {
+    const LINES = /** @type {const} */ ([
+        ['gross',   'Total pay'],
+        ['pension', 'Pension contribution'],
+        ['tax',     'Income Tax'],
+        ['ni',      'National Insurance'],
+        ['net',     'Take-home'],
+    ]);
+    // Only worth a TABLE when something beyond the net was typed — net alone already has its
+    // verdict line, and a one-row table under it would say the same thing twice.
+    const beyondNet = LINES.some(([k]) => k !== 'net' && actual[k] != null);
+    if (!beyondNet) return '';
+    const rows = LINES.filter(([k]) => actual[k] != null).map(([k, lbl]) => {
+        const a = /** @type {number} */ (actual[k]);
+        const e = estimate[k];
+        const d = a - e;
+        const cls = Math.abs(d) < 0.005 ? 'cmp-same' : 'cmp-diff';
+        const dTxt = Math.abs(d) < 0.005 ? '—' : `${d > 0 ? '+' : '−'}${fmt(Math.abs(d))}`;
+        return `<tr><th scope="row">${lbl}</th><td>${fmt(e)}</td><td>${fmt(a)}</td><td class="${cls}">${dTxt}</td></tr>`;
+    }).join('');
+    return `<table class="actual-cmp"><caption class="sr-only">Estimate compared with your payslip</caption>
+        <thead><tr><th scope="col"></th><th scope="col">Estimate</th><th scope="col">Payslip</th><th scope="col">Difference</th></tr></thead>
+        <tbody>${rows}</tbody></table>`;
+}
+
+/**
  * The provenance chips under the take-home £ (v18.44 — review item 1): quiet labels naming what
  * fed THIS number, rendered on the navy hero. A normal payslip renders NOTHING (empty string —
  * the row costs no space); a chip appears only when something noteworthy is inside the figure:

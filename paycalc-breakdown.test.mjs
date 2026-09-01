@@ -2,10 +2,11 @@
 // (review item 20). These lock the result-card markup so a future edit to the summary/breakdown
 // can't silently change what staff see. No mocks, no DOM; part of test:hygiene.
 
-import { test } from 'node:test';
+import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { fmtHrsMins, buildSummaryRows, buildBreakdownRows, buildActualCheck, buildProvChips } from './paycalc-breakdown.js';
+import { fmtHrsMins, buildSummaryRows, buildBreakdownRows, buildActualCheck, buildProvChips, buildActualComparison,
+} from './paycalc-breakdown.js';
 
 test('fmtHrsMins formats decimal hours as "Nh"/"Nh Mm"', () => {
     assert.equal(fmtHrsMins(8), '8h');
@@ -225,4 +226,36 @@ test('paycalc.css never lets a summary figure wrap or shrink', () => {
     assert.ok(rule, '.sum-row .val rule not found');
     assert.match(rule[0], /white-space:\s*nowrap/);
     assert.match(rule[0], /flex-shrink:\s*0/);
+});
+
+// ── buildActualComparison (v22.07) — the estimate-vs-payslip table ─────────────────────────────
+describe('buildActualComparison', () => {
+    const EST = { gross: 3808.87, pension: 151.86, tax: 538.80, ni: 215.48, net: 2907.23 };
+
+    test('net alone renders NOTHING — the verdict line owns that case, and a one-row echo of it is noise', () => {
+        assert.equal(buildActualComparison({ actual: { gross: null, pension: null, tax: null, ni: null, net: 2907.23 }, estimate: EST }), '');
+    });
+
+    test('only the lines the member typed render — an absent figure is not a £0 claim', () => {
+        const html = buildActualComparison({ actual: { gross: 3808.87, pension: null, tax: 540.20, ni: null, net: null }, estimate: EST });
+        assert.match(html, /Total pay/);
+        assert.match(html, /Income Tax/);
+        assert.ok(!/Pension contribution/.test(html));
+        assert.ok(!/National Insurance/.test(html));
+        assert.ok(!/Take-home/.test(html));
+    });
+
+    test('the difference is signed actual-minus-estimate, and an exact match reads as a dash', () => {
+        const html = buildActualComparison({ actual: { gross: 3808.87, pension: null, tax: 540.20, ni: 210.48, net: null }, estimate: EST });
+        assert.match(html, /cmp-same">—</);                       // gross matches → dash, muted
+        assert.match(html, /cmp-diff">\+£1\.40</);               // payslip tax is MORE
+        assert.match(html, /cmp-diff">−£5\.00</);                 // payslip NI is LESS
+    });
+
+    test('the table explains NOTHING — no cause words ever appear', () => {
+        const html = buildActualComparison({ actual: { gross: 3500, pension: 100, tax: 600, ni: 200, net: 2600 }, estimate: EST });
+        for (const banned of ['usually', 'check', 'because', 'adjust', 'correction']) {
+            assert.ok(!html.toLowerCase().includes(banned), `cause-guessing word "${banned}" leaked into the table`);
+        }
+    });
 });
