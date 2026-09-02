@@ -618,7 +618,15 @@ export function getSession() {
         const raw = lsGet(AUTH_KEY);
         if (!raw) return null;
         const s = JSON.parse(raw);
-        if (Date.now() > s.expiry) { lsDel(AUTH_KEY); return null; }
+        // FAIL CLOSED ON AN UNREADABLE EXPIRY (v22.43). `Date.now() > undefined` is false, and so
+        // is every comparison against NaN — so a session missing its `expiry`, or carrying a
+        // non-numeric one, used to pass this check and then NEVER expire. The 60-day cap is the
+        // app's only automatic revocation (nothing else ends a session but an explicit sign-out or
+        // a disabled account), so the one shape that must not slip through is the one that
+        // disables it. `saveSession` always writes a good value; this is about storage that has
+        // been corrupted, truncated or hand-edited, and an unreadable session is treated as an
+        // expired one rather than an eternal one.
+        if (!Number.isFinite(s.expiry) || Date.now() > s.expiry) { lsDel(AUTH_KEY); return null; }
         if ((s.ver || 1) < SESSION_VER) { lsDel(AUTH_KEY); return null; }
         // `expiry` is absolute and set once at sign-in, so nothing here extends it. A session that
         // has run its 60 days ends on the next read wherever the member is — no separate clock, and

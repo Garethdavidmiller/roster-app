@@ -329,6 +329,34 @@ describe('getSession', () => {
         assert.equal(getSession(), null);
     });
 
+    // AN UNREADABLE EXPIRY IS AN EXPIRED ONE, NEVER AN ETERNAL ONE (v22.43).
+    //
+    // `Date.now() > undefined` is false, and so is every comparison against NaN — so each of these
+    // used to pass the expiry check and hand back a session that could never expire. The 60-day cap
+    // is the app's ONLY automatic revocation: nothing else ends a session but an explicit sign-out
+    // or a disabled account. So of all the shapes corrupt storage can take, the one that must not
+    // slip through is the one that switches that cap off.
+    for (const [label, expiry] of [
+        ['missing',        undefined],
+        ['NaN',            NaN],
+        ['a junk string',  'soon'],
+        ['an ISO string',  new Date(Date.now() + 1000).toISOString()],
+        ['an object',      {}],
+        ['Infinity',       Infinity],
+    ]) {
+        test(`an expiry that is ${label} is treated as expired`, () => {
+            writeSession({ expiry });
+            assert.equal(getSession(), null, `expiry ${JSON.stringify(expiry)} must not grant a session`);
+            assert.equal(store.get(AUTH_KEY), undefined, 'and the unusable session is cleared');
+        });
+    }
+
+    test('…while a normal session is completely unaffected', () => {
+        // The other direction: this must not become a fail-closed that closes on everybody.
+        writeSession();
+        assert.equal(getSession()?.name, 'G. Miller');
+    });
+
     test('returns null for an absolutely expired session', () => {
         writeSession({ expiry: Date.now() - 1 });
         assert.equal(getSession(), null);
