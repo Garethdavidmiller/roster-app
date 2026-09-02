@@ -33,6 +33,7 @@ changed once.
 | **Pay calculator** | `.claude/rules/paycalc.md` | Rates, payroll rules, state, layout |
 | **Links designer** | `.claude/rules/links-design.md` | Grid, generator, coverage, fatigue, concurrency |
 | **Guide pages** | `.claude/rules/guide-pages.md` | The five guides' shell, design principles, factual standards |
+| **Firestore collections** | `docs/DATA_MODEL.md` | What every collection holds and what its fields mean. Access is summarised there and OWNED by `firestore.rules` |
 | **CSS tokens & surfaces** | `.claude/rules/css-tokens.md` | Colour, type, spacing, focus, overlays |
 | **Notifications** | `.claude/rules/notifications.md` | Push payload grammar and the single builder |
 | **Roster data shape** | `.claude/rules/roster-data.md` | Member fields, cycles, entitlement |

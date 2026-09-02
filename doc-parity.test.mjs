@@ -243,6 +243,12 @@ const OWNED_COUNTS = [
 
 /** The docs a staff member or a session actually reads. Plans record history and are exempt. */
 const LIVE_DOCS = ['./CLAUDE.md', './docs/AI_MAP.md', './docs/ROADMAP.md', './docs/KNOWN_LIMITATIONS.md',
+    // DATA_MODEL.md joined on the day it was split out of CLAUDE.md. Material does not stop being
+    // live because it moved to a quieter file, and a schema document is exactly where a hardcoded
+    // count would go unread for longest — it is consulted a field at a time, so nobody reads far
+    // enough to notice the total is wrong. It passed the rule on arrival, which is the moment to
+    // adopt one rather than after it has drifted.
+    './docs/DATA_MODEL.md',
     './docs/OPERATIONS_REFERENCE.md', './.claude/rules/links-design.md', './.claude/rules/css-tokens.md',
     // README.md is the only one of these written for somebody who has never seen the repo, which
     // makes it the one most likely to be believed and the least likely to be reread. It joined at
