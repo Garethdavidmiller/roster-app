@@ -38,10 +38,28 @@ const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url),
 function namedIn(script) {
     return [...(pkg.scripts?.[script] ?? '').matchAll(/[\w.-]+\.test\.mjs/g)].map(m => m[0]);
 }
-// roster-parse-helpers runs in test:functions for convenience, but needs nothing — keep it here.
+
+/**
+ * A SUITE DECLARES ITS OWN DEPENDENCY CONTRACT (v22.45, external review). Being listed in
+ * `test:functions` used to be the whole answer, and that is too coarse in both directions:
+ * `roster-parse-helpers.test.mjs` is listed there purely for convenience and needs nothing, and
+ * `roster-geometry.test.mjs` is listed there because ONE block drives the real pdfjs — but that
+ * block skips itself by name on a bare checkout, so thirty pure assertions were being left on the
+ * table by a runner whose entire job is to run everything that can run. The reviewer measured that
+ * by invoking the suite directly, which is exactly the gap.
+ *
+ * The old answer was a hard-coded exception here, and the header above rightly forbids a
+ * hand-kept second list. So the marker lives in the SUITE, next to the `skip:` that makes it true,
+ * and this file only reads it: a fact about a file belongs in that file. The exception that was
+ * already written down is gone with it, so this is one fewer place to drift, not one more.
+ */
+const NODEPS_MARKER = '@nodeps-safe';
+const selfSkips = (f) => {
+    try { return readFileSync(new URL(`../${f}`, import.meta.url), 'utf8').includes(NODEPS_MARKER); }
+    catch { return false; }
+};
 const NEEDS_DEPS = new Set(
-    [...namedIn('test:functions'), ...namedIn('test:rules')]
-        .filter(f => f !== 'roster-parse-helpers.test.mjs'));
+    [...namedIn('test:functions'), ...namedIn('test:rules')].filter(f => !selfSkips(f)));
 
 const all = readdirSync(new URL('..', import.meta.url))
     .filter(f => f.endsWith('.test.mjs'))

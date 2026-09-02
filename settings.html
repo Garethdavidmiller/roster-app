@@ -281,8 +281,14 @@
             <!-- WebKit fires no install event, so on iPhone the app says what to tap instead.
                  Hidden by default and revealed only on that path — the same two-mode shape the
                  calendar's install strip already uses. -->
+            <!-- BROWSER-NEUTRAL, deliberately (v22.45, external review). This said "Tap Share at the
+                 bottom of Safari": every iOS browser is WebKit underneath, so Chrome, Edge and
+                 Firefox on an iPhone all reach this branch and all offer Add to Home Screen — but
+                 none of them is Safari and none of them puts the button in the same place. Naming
+                 the browser and the position made the one instruction that matters read as wrong to
+                 anybody not in Safari. Name the CONTROL, not its chrome. -->
             <ol class="install-steps" id="installSteps" hidden>
-                <li>Tap <strong>Share</strong> at the bottom of Safari.</li>
+                <li>Tap your browser’s <strong>Share</strong> button.</li>
                 <li>Choose <strong>Add to Home Screen</strong>.</li>
                 <li>Open the roster from your Home Screen from now on.</li>
             </ol>
