@@ -13,7 +13,7 @@
 // installed — otherwise the SDK-dependent pages never render and the scan can't reach them.
 import { test, expect, enableCalendarPin } from './fixtures.js';
 import AxeBuilder from '@axe-core/playwright';
-import { seedSession, seedMember, seedViewerAccess, stubPinExchange, enterPin } from './helpers.js';
+import { seedSession, seedMember, seedMemberSession, seedViewerAccess, stubPinExchange, enterPin } from './helpers.js';
 
 // ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
 // Since v20.12 the Calendar opens only for a member session or the shared staff PIN, so a spec that
@@ -448,7 +448,10 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     for (const [name, ios] of /** @type {Array<[string, boolean]>} */ ([['button', false], ['instructions', true]])) {
         test(`install strip, ${name} variant (calendar)`, async ({ page }) => {
             await page.setViewportSize({ width: 390, height: 800 });   // mobile-only by design
-            await seedMember(page);
+            // A NAMED session, not the file's default viewer: the strip refuses a PIN-unlocked
+            // station by design, so scanning it there would scan nothing and pass. The seed ranks
+            // above `seedViewerAccess` in the stub exactly as `decideAccess` does.
+            await seedMemberSession(page);
             if (ios) await page.addInitScript(() => {
                 Object.defineProperty(navigator, 'userAgent', { get: () =>
                     'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 '
