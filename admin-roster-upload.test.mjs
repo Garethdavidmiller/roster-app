@@ -74,7 +74,7 @@ const { shiftValueToOverrideType, _saveOverrideBatches, fetchOverridesForWeek, c
 const { teamMembers, getBaseShift } = await import('./roster-data.js');
 // The alignment rules moved OUT of the coordinator at v22.16 (roster-alignment.js) — a Firebase-free
 // module, so this import needs none of the mocking above.
-const { detectShiftedRow, assessRosterAlignment, ALIGNMENT_BLOCK_THRESHOLD } = await import('./roster-alignment.js');
+const { detectShiftedRow, assessRosterAlignment, ALIGNMENT_BLOCK_THRESHOLD, driftCopy, stopCopy } = await import('./roster-alignment.js');
 
 // 2026-06-21 is a Sunday; 2026-06-15 is a Monday.
 const SUN = '2026-06-21';
@@ -642,6 +642,101 @@ describe('a flagged Sunday is drift evidence deleted', () => {
         assert.equal(detectShiftedRow(victim, row, DATES), 'left', 'detectable with all seven cells');
         assert.equal(detectShiftedRow(victim, { ...row, [DATES[0]]: 'UNKNOWN|flagged' }, DATES), null,
             `and silent with the Sunday blinded (${victim.name})`);
+    });
+});
+
+// ── The PDF's own grid, folded into the same verdict (v22.31) ──────────────────────────────────
+//
+// The server (functions/roster-geometry.js) refuses a row whose AI-read day lands in a physically
+// EMPTY cell and returns those names as `geometryRefused`. These pin that the client treats such a
+// row exactly as it treats a base-roster drift — unticked, explained, counted by the breaker —
+// through ONE wiring, and that the words never borrow a direction geometry does not have.
+describe('a row the PDF\'s own grid refused fails closed the same way', () => {
+    const MEMBER = teamMembers.find(/** @param {any} m */ m => m.name === 'G. Miller');
+    const DATES  = ['2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08'];
+    /** An HONEST week — the base pattern read on the right days — so the base-roster detector is silent. */
+    const honest = (/** @type {any} */ m) => Object.fromEntries(DATES.map(d => [d, getBaseShift(m, new Date(d + 'T12:00:00'))]));
+    const others = teamMembers.filter(/** @param {any} m */ m => !m.hidden && !m.managerOnly && m.rosterType === 'main' && m.name !== 'G. Miller');
+    const states = (/** @type {any} */ parsedResult) => computeCellStates(parsedResult, []);
+    const writable = (/** @type {Map<string,any>} */ st) =>
+        [...st.values()].filter(c => (c.state === 'DIFF' || c.state === 'REMOVE_INPUT' || c.state === 'REMOVE_IMPORT') && c.chosen !== false);
+
+    test('a geometry-refused member\'s rows start UNTICKED even though the base roster sees no drift', () => {
+        const parsed = [{ memberName: 'G. Miller', shifts: { ...honest(MEMBER), [DATES[1]]: '22:00-06:00' } }];
+        assert.equal(assessRosterAlignment({ parsed, dates: DATES }).byMember.get('G. Miller'), undefined, 'fixture: the detector must be silent');
+        const st = states({ parsed, dates: DATES, geometryRefused: ['G. Miller'] });
+        assert.equal(writable(st).length, 0, 'nothing selected');
+        assert.ok([...st.values()].filter(c => c.state === 'DIFF').every(c => c.drift === 'geometry'), 'and every cell says which witness');
+    });
+
+    test('without the field, the same read is saved as before — the fold-in is inert when the server says nothing', () => {
+        const parsed = [{ memberName: 'G. Miller', shifts: { ...honest(MEMBER), [DATES[1]]: '22:00-06:00' } }];
+        const st = states({ parsed, dates: DATES });
+        assert.ok(writable(st).length > 0);
+    });
+
+    test('a base-roster verdict keeps its DIRECTION when geometry also refuses the row', () => {
+        const rowFor = (/** @type {any} */ m, off) => Object.fromEntries(DATES.map(d => {
+            const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + off); return [d, getBaseShift(m, x)]; }));
+        const drifter = teamMembers.find(/** @param {any} m */ m => !m.hidden && !m.managerOnly && m.rosterType === 'main'
+            && detectShiftedRow(m, rowFor(m, 1), DATES) === 'left');
+        const a = assessRosterAlignment({ parsed: [{ memberName: drifter.name, shifts: rowFor(drifter, 1) }], dates: DATES, geometryRefused: [drifter.name] });
+        assert.equal(a.byMember.get(drifter.name), 'left', 'the more specific verdict wins');
+        assert.deepEqual(a.geometryRefused, [drifter.name], 'but the refusal is still recorded');
+    });
+
+    test('geometry refusals count toward the breaker, and three of them REFUSE the whole read', () => {
+        const names = [MEMBER, ...others.slice(0, ALIGNMENT_BLOCK_THRESHOLD - 1)];
+        const parsed = names.map(m => ({ memberName: m.name, shifts: honest(m) }));
+        const a = assessRosterAlignment({ parsed, dates: DATES, geometryRefused: names.map(m => m.name) });
+        assert.equal(a.blocked, true);
+        assert.equal(a.direction, null, 'no directional evidence → no direction claimed');
+        assert.deepEqual([...a.suspects].sort(), names.map(m => m.name).sort());
+        const st = states({ parsed, dates: DATES, geometryRefused: names.map(m => m.name) });
+        assert.ok([...st.values()].every(c => c.rosterBlocked));
+    });
+
+    test('two refusals plus one drift the breaker can see is also three', () => {
+        const rowFor = (/** @type {any} */ m, off) => Object.fromEntries(DATES.map(d => {
+            const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + off); return [d, getBaseShift(m, x)]; }));
+        const drifter = others.find(/** @param {any} m */ m => detectShiftedRow(m, rowFor(m, 1), DATES) === 'left');
+        const [g1, g2] = others.filter(m => m !== drifter);
+        const a = assessRosterAlignment({
+            parsed: [{ memberName: drifter.name, shifts: rowFor(drifter, 1) }, { memberName: g1.name, shifts: honest(g1) }, { memberName: g2.name, shifts: honest(g2) }],
+            dates: DATES, geometryRefused: [g1.name, g2.name],
+        });
+        assert.equal(a.blocked, true);
+        assert.equal(a.direction, 'left', 'the one directional verdict names the direction');
+    });
+
+    test('a name the server refused that is not on this roster is ignored, not counted', () => {
+        const a = assessRosterAlignment({ parsed: [{ memberName: 'G. Miller', shifts: honest(MEMBER) }], dates: DATES, geometryRefused: ['Nobody Here', 'G. Miller'] });
+        assert.deepEqual(a.suspects, ['G. Miller']);
+    });
+
+    // ── the words ──
+    test('the per-row warning for a geometry refusal never claims "shifted a day later"', () => {
+        const g = driftCopy('geometry', 'G. Miller');
+        assert.match(g, /empty cell/);
+        assert.doesNotMatch(g, /shifted a day (earlier|later)/);
+        assert.match(driftCopy('left', 'G. Miller'), /shifted a day earlier/);
+        assert.match(driftCopy('right', 'G. Miller'), /shifted a day later/);
+        for (const d of /** @type {const} */ (['left', 'right', 'geometry'])) {
+            assert.match(driftCopy(d, 'X'), /nothing here is selected/, d);
+            assert.match(driftCopy(d, 'X'), /read the roster again/, d);
+        }
+    });
+
+    test('the stop banner with NO direction speaks of the PDF\'s own table, not of a shift', () => {
+        const none = stopCopy({ direction: null, suspects: ['A', 'B', 'C'], geometryRefused: ['A', 'B', 'C'] }, 'A, B, C');
+        assert.match(none, /empty cell/);
+        assert.doesNotMatch(none, /shifted a day/);
+        assert.match(none, /has not been saved/);
+        const left = stopCopy({ direction: 'left', suspects: ['A', 'B', 'C'], geometryRefused: ['C'] }, 'A, B, C');
+        assert.match(left, /shifted a day earlier/);
+        assert.match(left, /On 1 of those rows the PDF/);
+        assert.match(left, /blank Sunday/);
+        assert.doesNotMatch(stopCopy({ direction: 'right', suspects: ['A'], geometryRefused: [] }, 'A'), /blank Sunday|of those rows/);
     });
 });
 

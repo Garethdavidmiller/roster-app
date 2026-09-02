@@ -4097,6 +4097,62 @@ test('operations: a roster read that looks a day out is refused, and writes noth
     expect(writes, 'a refused read must write nothing even if every row is forced on').toBe(0);
 });
 
+// The PDF's OWN GRID as a witness (v22.31, ROADMAP "Roster import" phase 1). The server refuses a row
+// whose AI-read day lands in a physically empty cell and names it in `geometryRefused`; the client
+// must treat that row exactly like a base-roster drift — unticked, explained — through the same
+// wiring, and its words must not borrow a direction geometry does not have. The unit tests own the
+// verdict; this owns that the verdict reaches the screen with the right sentence on it.
+test('operations: a row the PDF\'s own grid refused starts unticked, and says so in its own words', async ({ page }) => {
+    const { teamMembers, getBaseShift } = await import('../roster-data.js');
+    const { detectShiftedRow } = await import('../roster-alignment.js');
+    const DATES = ['2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08'];
+    const honest = (/** @type {any} */ m) => Object.fromEntries(DATES.map(d => [d, getBaseShift(m, new Date(d + 'T12:00:00'))]));
+    // An HONEST week with one changed day, so the base-roster detector is silent and the only
+    // reason the row is held back is the server's refusal.
+    const m = teamMembers.find(/** @param {any} x */ x => x.name === 'G. Miller');
+    const shifts = { ...honest(m), [DATES[1]]: '22:00-06:00' };
+    expect(detectShiftedRow(m, shifts, DATES), 'fixture: the detector must be silent').toBeNull();
+
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page, {
+        weekEnding: '2026-08-08', rosterType: 'cea', dates: DATES,
+        crossCheck: 'complete', missingMembers: [], choices: {},
+        geometry: { status: 'complete', checked: 1, total: 1, pagesRead: 1, pagesRejected: 0 },
+        geometryRefused: ['G. Miller'],
+        parsed: [{ memberName: 'G. Miller', shifts }],
+    });
+
+    const warn = page.locator('.roster-shift-warning');
+    await expect(warn).toBeVisible();
+    await expect(warn).toContainText("PDF's own table has an empty cell");
+    await expect(warn).not.toContainText('shifted a day');
+    await expect(page.locator('.roster-person-suspect')).toHaveCount(1);
+    await expect(page.locator('.roster-tick:not(.off)')).toHaveCount(0);
+    // The withheld count names the outcome, as it does for a base-roster drift.
+    await expect(page.locator('#rosterOutcome')).toContainText('held back');
+});
+
+test('operations: three rows the PDF\'s own grid refused REFUSE the read, without claiming a direction', async ({ page }) => {
+    const { teamMembers, getBaseShift } = await import('../roster-data.js');
+    const DATES = ['2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08'];
+    const honest = (/** @type {any} */ m) => Object.fromEntries(DATES.map(d => [d, getBaseShift(m, new Date(d + 'T12:00:00'))]));
+    const three = teamMembers.filter(/** @param {any} m */ m => !m.hidden && !m.managerOnly && m.rosterType === 'main').slice(0, 3);
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page, {
+        weekEnding: '2026-08-08', rosterType: 'cea', dates: DATES,
+        crossCheck: 'complete', missingMembers: [], choices: {},
+        geometryRefused: three.map(m => m.name),
+        parsed: three.map(m => ({ memberName: m.name, shifts: { ...honest(m), [DATES[1]]: '22:00-06:00' } })),
+    });
+    const stop = page.locator('.roster-alignment-stop');
+    await expect(stop).toBeVisible();
+    await expect(stop).toContainText('has not been saved');
+    await expect(stop).toContainText("PDF's own table has an empty cell");
+    await expect(stop).not.toContainText('shifted a day');
+    await expect(page.locator('.roster-tick:not(.off)')).toHaveCount(0);
+    await expect(page.locator('#rosterApplyBtn')).toBeHidden();
+});
+
 test('operations: the review offers the original PDF to check against', async ({ page }) => {
     // Every message this release adds ends in "check it against the PDF". Until v22.16 the file had
     // effectively left the workflow once the parse returned, so failing closed asked the admin to

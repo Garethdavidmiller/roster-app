@@ -40,6 +40,7 @@ const {
     parseStrictIsoDate,
     fileSignatureMatches,
 } = require('./roster-parse-helpers');
+const { extractRosterGeometry, applyGeometryWitness } = require('./roster-geometry');
 const {
     CALENDAR_VIEWER_UID,
     isValidPinShape,
@@ -533,6 +534,11 @@ columnScan: one key per column header; every staff member appears in every colum
         // visual layout of the roster table — preserving column structure.
         // This is far more reliable than extracting text first (which destroys
         // the table structure and causes day-column misalignment).
+        // ---- The geometry witness (roster-geometry.js), started NOW and awaited after the model ----
+        // It reads the same bytes the model is about to, so running the two in parallel costs no
+        // latency — and it can never fail the request: extractRosterGeometry does not throw.
+        const geometryPromise = extractRosterGeometry(pdfBuffer);
+
         let parsed;
         try {
             const { Anthropic } = require('@anthropic-ai/sdk'); // M8: lazy-loaded here only
@@ -650,6 +656,22 @@ columnScan: one key per column header; every staff member appears in every colum
         // review, and (worse) it fed the client's own circuit breaker an UNKNOWN where the strongest
         // drift evidence had been. See experiments/roster-pdf-geometry/.
 
+        // ---- THE FINAL GATE: the PDF's own grid (roster-geometry.js — ROADMAP "Roster import", phase 1) ----
+        // Runs LAST, on the row exactly as repaired above, and it is the only check in this pipeline
+        // that does not come from the model: a claim landing in a physically EMPTY cell is REFUSED —
+        // the cell becomes UNREADABLE and the row is reported so the client unticks all of it. It
+        // only ever turns a value into UNKNOWN, so it cannot reverse a repair made above. Fails open
+        // (no grid, no pdfjs, a name the PDF spells differently → no signal) and says so in the
+        // response, because a fail-open the admin cannot see is the v16.70 lesson.
+        const geometry = await geometryPromise;
+        const geoStats = applyGeometryWitness(safeEntries, geometry, dates);
+        if (geoStats.status !== 'complete') {
+            console.warn(`[parseRosterPDF] geometry witness ${geoStats.status}: ${geoStats.checked}/${geoStats.total} members matched`
+                + (geoStats.unmatched.length ? ` — unmatched: ${geoStats.unmatched.join(', ')}` : '')
+                + (geometry.reason ? ` (${geometry.reason})` : ''));
+        }
+        if (geoStats.refused.length) console.warn(`[parseRosterPDF] geometry witness REFUSED ${geoStats.refused.length} row(s): ${geoStats.refused.map(r => r.memberName).join(', ')}`);
+
         // ---- Filter to known staff names only ----
         // The AI could hallucinate a name not in the prompt list — strip any entry
         // whose memberName is not in the relevant staff list for this roster type.
@@ -702,6 +724,15 @@ columnScan: one key per column header; every staff member appears in every colum
             // review table offer a pick instead of a dead "couldn't read" row. Keyed
             // "memberName|date"; keys for names filtered out above are harmless (never looked up).
             choices: _ccStats.choices || {},
+            // The PDF's own grid (v22.31): whether the witness ran, and which rows it refused. A refused
+            // row starts unticked in the review — roster-alignment.js folds these names in beside the
+            // base-roster drift so the client has ONE wiring for "this row is a day out" — and the
+            // refused cells are already UNREADABLE in `parsed`.
+            geometry: { status: geoStats.status, checked: geoStats.checked, total: geoStats.total,
+                pagesRead: geometry.pagesRead, pagesRejected: geometry.pagesRejected },
+            // …only for rows that survived the name filter above: a hallucinated name the witness
+            // happened to refuse is not on the review and must not be counted by its breaker.
+            geometryRefused: geoStats.refused.map(r => r.memberName).filter(n => knownNamesSet.has(n)),
             parsed: filteredEntries,
         });
     }

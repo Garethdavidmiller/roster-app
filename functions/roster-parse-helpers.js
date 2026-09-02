@@ -1228,6 +1228,7 @@ module.exports = {
     applySundayScanCorrections,
     applyColumnScanCrossCheck,
     normaliseScanValue,
+    reviewLabel,
     parseStrictIsoDate,
     isPayCutoffDay,
     nameToEmail,
