@@ -94,6 +94,34 @@ test('settings: an iPhone in a browser is told to install, not that it is all se
     await expect(page.locator('#notifStatusChip')).toHaveText(/not available/i);
 });
 
+for (const [label, missingId, chipId, noPush] of [
+    // `noPush` false for notifications ON PURPOSE: with push unsupported the card answers 'n/a' at
+    // the SUPPORT check and never reaches the markup guard, so the test would pass without
+    // exercising anything. Push has to be available for the guard to be the thing that fires.
+    ['notifications', 'notifStatusMsg',  'notifStatusChip',    false],
+    ['work email',    'workEmailInput',  'contactStatusChip',  true],
+    ['password',      'pwCurrent',       'passwordStatusChip', true],
+]) {
+    test(`settings: a broken ${label} card must not freeze the whole summary`, async ({ page }) => {
+        // Each card bails when its markup is missing. Bailing SILENTLY leaves that card `unknown`,
+        // and `unknown` outranks every other state — so one missing element does not cost one chip,
+        // it holds the summary on "Checking your settings…" for the life of the page and hides a
+        // genuine to-do on a card that is perfectly fine. The rule was always right in
+        // settings-status.js; the wiring could produce a permanent unknown, which is this repo's
+        // named blind spot ("the rule tested, the wiring not").
+        await page.addInitScript((id) => {
+            const real = document.getElementById.bind(document);
+            document.getElementById = (x) => (x === id ? null : real(x));
+        }, missingId);
+        await openSettings(page, { configured: true, noPush });
+
+        await expect(page.locator('#settingsSummaryLine')).not.toHaveText(/Checking/i);
+        await expect(page.locator('#settingsSummary')).toHaveAttribute('data-tone', 'error');
+        await expect(page.locator('#settingsSummaryLine')).toContainText(/could not be checked/i);
+        await expect(page.locator(`#${chipId}`)).toHaveText(/couldn/i);
+    });
+}
+
 test('settings: an install OFFER on Android is not a thing to finish', async ({ page }) => {
     // The other direction. An Android member loses nothing by never installing, so the summary
     // must not put a to-do in front of them — a false alarm costs exactly the attention this page
