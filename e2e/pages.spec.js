@@ -1525,6 +1525,57 @@ test('admin: the AL banner counts leave that is already on record', async ({ pag
         .toBe(booked.entitlement - booked.taken - booked.booked);
 });
 
+// ── "Recording for <name>" on the AL and Absence cards (v22.45) ──────────────────────────────
+// The wiring, not the rule: `_syncMemberFor` is three lines and trivially right, and the defect it
+// guards against is that nothing calls it, or that CSS renders the row for the people it was built
+// to spare. Both are invisible to a unit test — and the CSS half is the exact `[hidden]` trap
+// page-visibility-parity.test.mjs catalogues, where the row draws EMPTY and nothing throws.
+test('admin: the leave and absence cards name the person a manager is recording for', async ({ page }) => {
+    await seedSession(page, 'G. Miller');           // admin — can point the cards at anybody
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#sickToggleHeader').click();
+
+    // The LONGEST name on the roster, deliberately: this row is the reason the chip did not go in
+    // the header cluster, and a 23-character name is where a width mistake shows up.
+    await page.locator('#fieldMember').selectOption('R. Forrester-Blackstock');
+    await expect(page.locator('#alMemberFor')).toBeVisible();
+    await expect(page.locator('#sickMemberFor')).toBeVisible();
+    await expect(page.locator('#alMemberForName')).toHaveText('R. Forrester-Blackstock');
+    await expect(page.locator('#sickMemberForName')).toHaveText('R. Forrester-Blackstock');
+
+    // It must FOLLOW the selector. A row that names whoever was selected when the page loaded is
+    // worse than none: it is a confident label on the wrong person.
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await expect(page.locator('#alMemberForName')).toHaveText('G. Miller');
+    await expect(page.locator('#sickMemberForName')).toHaveText('G. Miller');
+
+    // It sits OUTSIDE #alBanner deliberately: the banner hides itself whenever the entitlement is
+    // unknown (v22.45), and the state where a manager most needs to know who they are looking at
+    // must not be the state that removes the name. Pinned structurally rather than by selecting a
+    // Management member, because none is selectable — every Management row carries `hidden: true`,
+    // which is exactly why the null-entitlement guard is a guard and not a fix.
+    const nested = await page.evaluate(() =>
+        !!document.getElementById('alBanner')?.contains(document.getElementById('alMemberFor')));
+    expect(nested, 'the name must not be inside the banner that hides itself').toBe(false);
+});
+
+test('admin: a member booking their own leave is not told whose leave it is', async ({ page }) => {
+    // Not a cosmetic preference. This member cannot change the selector, so the row could only ever
+    // say their own name back to them — and an empty `.card-member-for` (the failure mode if the
+    // `[hidden]` rule is ever out-specified) is a gold-edged box with nothing in it.
+    await seedSession(page, 'S. Silva');            // an ordinary CEA: neither admin nor manager
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#sickToggleHeader').click();
+    await expect(page.locator('#alMemberFor')).toBeHidden();
+    await expect(page.locator('#sickMemberFor')).toBeHidden();
+    // ...and their own card still works, so this is a hidden row and not a broken page.
+    await expect(page.locator('#alBanner')).toBeVisible();
+});
+
 test('admin: saving reports the DAYS it changed, not just how many', async ({ page }) => {
     // executeSave refuses without a Firebase user ("You've been signed out"), which is right — so
     // opt the stub in, the way every other spec that reaches a real write does.

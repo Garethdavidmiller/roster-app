@@ -153,6 +153,17 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
         }
       }
       const entitlement = getALEntitlement(member, year, memberOverrides);
+      // NO ENTITLEMENT ON RECORD → the em-dash state this panel already uses for "no member"
+      // (v22.45). Unreachable from the calendar (a Management account is excluded from the member
+      // selector), but `renderALStats` would otherwise do `null - taken - booked` and paint a
+      // NEGATIVE remaining as confidently as a real one — null coerces to 0, so the arithmetic
+      // that looks like it would fail loudly instead succeeds quietly.
+      if (entitlement === null) {
+        takenEl.textContent = bookedEl.textContent = remEl.textContent = entEl.textContent = '—';
+        remEl.className = 'al-lb-val';
+        if (breakdownEl) breakdownEl.hidden = true;
+        return;
+      }
       // getALEntitlement returns proRatedAL[year] BEFORE the Dispatcher branch, so a pro-rated
       // dispatcher's entitlement is NOT 22+lieu — the "22 base + N lieu" split would show a
       // negative lieu figure (e.g. "22 base + -10 BH lieu"). Hide the breakdown for a pro-rated

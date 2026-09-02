@@ -176,6 +176,42 @@
            own min-width:0 and the label's overflow:hidden + ellipsis). */
         .selectors .field-group { min-width: 0; }
 
+        /* ---- "Recording for <name>" — the AL and Absence cards' owner line (v22.45) ----
+           Shown ONLY to a manager or admin, because only they can change the selected member; a
+           self-service member has one possible answer and a row stating it would be noise. Both
+           cards use this one component: they ask the same question, so they must not answer it in
+           two shapes.
+
+           `display: flex` out-specifies the `hidden` attribute's UA rule, so the `[hidden]` line
+           below is load-bearing — without it the row renders empty for every self-service member
+           and nothing throws. That is the trap page-visibility-parity.test.mjs exists for, and the
+           .al-banner rule directly beneath hit it first.
+
+           Gold, not the AL or absence colour: it is a statement about WHO, shared by two cards with
+           different palettes, and it must not read as part of the banner it sits above. The name
+           wraps rather than truncating (`overflow-wrap: anywhere`) — the longest roster name is 23
+           characters and an ellipsised person is not identified. */
+        .card-member-for {
+            display: flex;
+            align-items: baseline;
+            flex-wrap: wrap;
+            gap: 3px 8px;
+            background: var(--rd-hint-bg);
+            border-left: 3px solid var(--accent-gold);
+            border-radius: var(--radius-sm);
+            padding: 7px 11px;
+            margin-bottom: 12px;
+        }
+        .card-member-for[hidden] { display: none !important; }
+        .card-member-for .cmf-label {
+            font-size: var(--type-micro); font-weight: 700; color: var(--text-mid);
+            text-transform: uppercase; letter-spacing: 0.5px; flex-shrink: 0;
+        }
+        .card-member-for .cmf-name {
+            font-size: var(--type-label); font-weight: 700; color: var(--primary-blue);
+            min-width: 0; overflow-wrap: anywhere;
+        }
+
         /* ---- Annual Leave balance banner ---- */
         .al-banner {
             display: flex;
