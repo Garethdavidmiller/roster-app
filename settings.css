@@ -215,15 +215,28 @@ body {
     margin-bottom: 12px;
 }
 
-/* Install affordance (v22.13) — the row is `hidden` until `beforeinstallprompt` fires, so it
-   renders on Android/Chromium in a browser tab and nowhere else: never on iOS (no such event),
-   never in an already-installed PWA. Nothing to hide for those, so nothing is drawn. */
+/* Install affordance (v22.13; iPhone branch v22.40) — the card is `hidden` until there is an
+   install to offer. On Android/Chromium that is when `beforeinstallprompt` fires. WebKit fires no
+   such event and gives a browser page no push at all, so on an iPhone the card shows itself and
+   states the taps instead. Never in an already-installed PWA, and never on the Pages mirror. */
 .install-note {
     font-size: var(--type-small);
     color: var(--text-mid);
     margin: 10px 0 8px;
     max-width: 64ch;
 }
+
+/* No `display` here on purpose: the UA's own `[hidden] { display: none }` is then the only rule
+   in play, so the steps really do hide (page-visibility-parity.test.mjs). */
+.install-steps {
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    line-height: 1.7;
+    margin: 4px 0 0;
+    padding-left: 20px;
+    max-width: 64ch;
+}
+.install-steps strong { color: var(--text-dark); font-weight: 600; }
 
 /* ── THE SUMMARY STRIP (v22.37) ─────────────────────────────────────────────────────────────────
    The one line at the top that answers "is my account and this device set up properly?" before

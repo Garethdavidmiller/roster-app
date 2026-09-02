@@ -53,7 +53,8 @@ const REAL_PDFJS_SKIP = (!pdfjsLoads && !pdfjsInstalled)
     && 'needs pdfjs-dist — run `cd functions && npm ci`, or `npm run test:functions`';
 const {
     GRID_COLUMNS, rulesFromOperatorList, assignRunsToGrid, extractRosterGeometry,
-    matchGeometryRow, applyGeometryWitness, _isClaim, _nameTokens,
+    matchGeometryRow, applyGeometryWitness, awaitGeometryWithin,
+    GEOMETRY_WAIT_BUDGET_MS, GEOMETRY_WORK_BUDGET_MS, _isClaim, _nameTokens,
 } = require('./functions/roster-geometry.js');
 
 // The measured grid from experiments/roster-pdf-geometry — the same nine x positions on every
@@ -360,14 +361,79 @@ function rosterPage(rowSpecs, { top = 700, rowH = 50, vx = VX } = {}) {
     return lines;
 }
 
+// An OPTIONAL check that can extend the critical path without bound is not optional (v22.39
+// external review). Organised by what each wrong answer costs, and they are opposite in kind:
+//
+//   WAITING FOR EVER holds a finished parse — the model has already answered, the review is ready
+//   to render — until the Cloud Function's own 120s timeout kills the whole request. The admin
+//   gets an error for an import that actually worked.
+//
+//   GIVING UP TOO EASILY loses the only witness the model cannot influence, on a file that would
+//   have been read a moment later. That is why the budget is on the WAIT and not on the work: the
+//   extraction has already had the entire model call for free before the clock starts.
+/** The hand-built roster both the budget block and the pdfjs block read. Hoisted so a fixture is
+ *  not duplicated: it is the same document either way. */
+const ROSTER_FIXTURE = [
+    ['Sunday', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+    ['G. Miller', '', 'RD', '06:20-14:20', '06:20-14:20', 'RD', '07:00-16:00', '07:00-15:00'],
+    ['S. Silva', '08:00-16:00', 'RD', 'RD', '08:00-16:00', '08:00-16:00', '08:00-16:00', '08:00-16:00'],
+    ['Vacant', '', '', '', '', '', '', ''],
+    ['Print Date: 27/08/2026', '', '09:52', 'Page 1 of 2', '', '', '', ''],
+];
+
+describe('the budgets — an optional witness may not hold the request open', () => {
+    test('a witness that never settles is given up on, and says so', async () => {
+        const never = new Promise(() => {});
+        const g = await awaitGeometryWithin(/** @type {any} */ (never), 20);
+        assert.equal(g.available, false);
+        assert.equal(g.reason, 'wait-timeout');
+        // The shape must be the one applyGeometryWitness already handles, or the timeout lands as
+        // a crash instead of as the fail-open it is meant to be.
+        const stats = applyGeometryWitness([{ memberName: 'G. Miller', shifts: {} }], g, DATES);
+        assert.equal(stats.status, 'unavailable');
+        assert.deepEqual(stats.refused, []);
+    });
+
+    test('a witness that answers in time is returned untouched', async () => {
+        const real = { available: true, rows: [{ name: 'G. Miller', cells: [], occupancy: [true] }], pagesRead: 1, pagesRejected: 0 };
+        assert.deepEqual(await awaitGeometryWithin(Promise.resolve(/** @type {any} */ (real)), 1000), real);
+    });
+
+    test('a witness that REJECTS fails open rather than failing the import', async () => {
+        // It is documented never to throw. If that is ever untrue, the import must still proceed —
+        // the whole design says this check can be absent.
+        const g = await awaitGeometryWithin(Promise.reject(new Error('boom')), 1000);
+        assert.equal(g.available, false);
+        assert.equal(g.reason, 'threw');
+    });
+
+    test('the wait budget sits below the function\u2019s own 120s timeout, with room to spare', () => {
+        // If it did not, it would never fire and the guard would be decorative.
+        assert.ok(GEOMETRY_WAIT_BUDGET_MS > 0 && GEOMETRY_WAIT_BUDGET_MS <= 30_000,
+            `${GEOMETRY_WAIT_BUDGET_MS}ms is not a bound on a 120s request`);
+        assert.ok(GEOMETRY_WORK_BUDGET_MS > GEOMETRY_WAIT_BUDGET_MS,
+            'the work budget bounds CPU and must outlive the wait, which bounds the request');
+    });
+
+    // The only test in this block that needs pdfjs: the other three are pure. Skipped on the
+    // same terms as the real-pdfjs block below, so a bare checkout reports a skip rather than
+    // an assertion failure a reviewer has to judge as environmental.
+    test('the work budget stops between pages and KEEPS what it read', { skip: REAL_PDFJS_SKIP }, async () => {
+        // Partial evidence is real evidence about the rows it covers — and `partial` is now stated
+        // in the review, so stopping early is reported rather than silently narrowed.
+        const pdf = buildPdf([rosterPage(ROSTER_FIXTURE), rosterPage(ROSTER_FIXTURE)]);
+        let calls = 0;
+        // A clock that jumps past the deadline once the first page has been read.
+        const now = () => (calls++ < 2 ? 0 : 10_000);
+        const g = await extractRosterGeometry(pdf, { workBudgetMs: 5_000, now });
+        assert.equal(g.pagesRead, 1, 'the first page is kept');
+        assert.equal(g.reason, 'work-budget');
+        assert.ok(g.rows.length > 0, 'and so are its rows');
+    });
+});
+
 describe('extractRosterGeometry — the real pdfjs, a hand-built roster', { skip: REAL_PDFJS_SKIP }, () => {
-    const ROSTER = [
-        ['Sunday', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-        ['G. Miller', '', 'RD', '06:20-14:20', '06:20-14:20', 'RD', '07:00-16:00', '07:00-15:00'],
-        ['S. Silva', '08:00-16:00', 'RD', 'RD', '08:00-16:00', '08:00-16:00', '08:00-16:00', '08:00-16:00'],
-        ['Vacant', '', '', '', '', '', '', ''],
-        ['Print Date: 27/08/2026', '', '09:52', 'Page 1 of 2', '', '', '', ''],
-    ];
+    const ROSTER = ROSTER_FIXTURE;
 
     test('reads the grid, the rows, and the empty Sunday — and skips the empty page and the footer', async () => {
         const pdf = buildPdf([rosterPage(ROSTER), []]);     // page 2 is completely empty

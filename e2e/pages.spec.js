@@ -1,5 +1,5 @@
 import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, seedMemberSession, ROSTER_REVIEW_DATES } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, seedMemberSession, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the literal 22 — and `links: the rotation
 // length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
@@ -20,10 +20,10 @@ import { ROTATING_LINES } from '../links-design.js';
 
 /** Put Settings in a chosen state. The single-doc read serves both the work email and the password
  *  status, so one seed decides both — which is why `configured` is one flag, not two. */
-async function openSettings(page, { configured = false, payKeys = 0, noPush = false } = {}) {
+async function openSettings(page, { configured = false, payKeys = 0, noPush = false, iphone = false } = {}) {
     await page.setViewportSize({ width: 390, height: 844 });
     await seedMemberSession(page, 'G. Miller');
-    await page.addInitScript(({ configured, payKeys, noPush }) => {
+    await page.addInitScript(({ configured, payKeys, noPush, iphone }) => {
         for (let i = 0; i < payKeys; i++) localStorage.setItem(`myb_pc_gmiller_p${40 + i}`, '{}');
         const e = globalThis.__E2E || (globalThis.__E2E = {});
         if (configured) e.getDocData = {
@@ -34,7 +34,18 @@ async function openSettings(page, { configured = false, payKeys = 0, noPush = fa
             delete window.PushManager;
             Object.defineProperty(window, 'Notification', { value: undefined, configurable: true });
         }
-    }, { configured, payKeys, noPush });
+        if (iphone) {
+            // `isIOS()` reads the UA string, and that is the whole of what the app tests — so the
+            // app's own detector is what runs here, not a stub of it. Push is removed too, because
+            // that is the real consequence being modelled: WebKit gives a browser page none.
+            Object.defineProperty(navigator, 'userAgent', {
+                value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15',
+                configurable: true,
+            });
+            delete window.PushManager;
+            Object.defineProperty(window, 'Notification', { value: undefined, configurable: true });
+        }
+    }, { configured, payKeys, noPush, iphone });
     await page.goto('/settings.html');
     await expect(page.locator('#settingsSummary')).toBeVisible();
 }
@@ -55,6 +66,60 @@ test('settings: a configured account collapses its cards and says so', async ({ 
     await expect(page.locator('#passwordStatusChip')).toHaveText('✓ Password set');
     // The collapsed card answers WHICH address without being opened.
     await expect(page.locator('#contactHint')).toHaveText('g.miller@chilternrailways.co.uk');
+});
+
+test('settings: an iPhone in a browser is told to install, not that it is all set', async ({ page }) => {
+    // WebKit gives a browser page no push until the app is on the Home Screen, so Notifications
+    // correctly reports "not available" — and the summary used to close over that with
+    // "✓ You're all set", hiding the one instruction that would change the answer (v22.39 review).
+    await openSettings(page, { configured: true, iphone: true });
+    await expect(page.locator('#settingsSummary')).toHaveAttribute('data-tone', 'todo');
+    await expect(page.locator('#settingsSummaryItems li')).toHaveText(['Add the app to your Home Screen']);
+
+    // The card that says how must be VISIBLE and showing the taps, not the button WebKit can't fire.
+    await expect(page.locator('#deviceCard')).toBeVisible();
+    await expect(page.locator('#installSteps')).toBeVisible();
+    await expect(page.locator('#installSteps')).toContainText('Add to Home Screen');
+    await expect(page.locator('#installBtn')).toBeHidden();
+
+    // Notifications is still honestly unavailable — the fix names the prerequisite, it does not
+    // pretend the card can be turned on.
+    await expect(page.locator('#notifStatusChip')).toHaveText(/not available/i);
+});
+
+test('settings: an install OFFER on Android is not a thing to finish', async ({ page }) => {
+    // The other direction. An Android member loses nothing by never installing, so the summary
+    // must not put a to-do in front of them — a false alarm costs exactly the attention this page
+    // was redesigned to stop spending.
+    await openSettings(page, { configured: true, noPush: true });
+    await expect(page.locator('#settingsSummaryLine')).toHaveText('✓ You’re all set');
+    await expect(page.locator('#deviceCard')).toBeHidden();
+});
+
+test('settings: the work email field holds the local part, not the whole address', async ({ page }) => {
+    // The v22.37 redesign put `@chilternrailways.co.uk` beside the field but kept loading the
+    // COMPLETE address into it, so a member with a saved email opened the card and read
+    // `g.miller@chilternrailways.co.uk @chilternrailways.co.uk`. The existing test above passed
+    // throughout, because it only ever read the COLLAPSED hint — the defect is one tap further in.
+    await openSettings(page, { configured: true, noPush: true });
+    await page.locator('#contactToggleHeader').click();
+    expect(await cardOpen(page, 'contactBody')).toBe(true);
+    await expect(page.locator('#workEmailInput')).toHaveValue('g.miller');
+    await expect(page.locator('#workEmailDomain')).toHaveText('@chilternrailways.co.uk');
+
+    // And a complete address arriving by paste or autofill is stripped back, rather than
+    // rendering the domain twice again.
+    await page.locator('#workEmailInput').fill('s.silva@chilternrailways.co.uk');
+    await page.locator('#workEmailInput').blur();
+    await expect(page.locator('#workEmailInput')).toHaveValue('s.silva');
+
+    // A FOREIGN domain is left visible so the save can refuse it — stripping it would save a
+    // Chiltern address the member never gave.
+    await page.locator('#workEmailInput').fill('g.miller@gmail.com');
+    await page.locator('#workEmailInput').blur();
+    await expect(page.locator('#workEmailInput')).toHaveValue('g.miller@gmail.com');
+    await page.locator('#workEmailSaveBtn').click();
+    await expect(page.locator('#contactFeedback')).toContainText('Chiltern work email');
 });
 
 test('settings: a card that needs attention opens ITSELF, and is named at the top', async ({ page }) => {
@@ -4311,6 +4376,32 @@ test('operations: three rows the PDF\'s own grid refused REFUSE the read, withou
     await expect(stop).not.toContainText('shifted a day');
     await expect(page.locator('.roster-tick:not(.off)')).toHaveCount(0);
     await expect(page.locator('#rosterApplyBtn')).toBeHidden();
+});
+
+test('operations: the review says when the PDF layout check did not run', async ({ page }) => {
+    // THE WIRING, which is what escaped: `geometry.status` had been in the response for nine
+    // versions and no client code read it, so a fail-open witness produced a review that looked
+    // exactly like one where the grid agreed with every cell (v22.39 external review). The words
+    // are unit-tested in admin-roster-upload.test.mjs; only a rendered page proves they arrive.
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page, {
+        ...ROSTER_REVIEW_PARSE,
+        geometry: { status: 'unavailable', checked: 0, total: 1, pagesRead: 0, pagesRejected: 1 },
+    });
+    await expect(page.locator('.roster-crosscheck-note', { hasText: 'PDF layout check' }))
+        .toContainText('one method only');
+});
+
+test('operations: a complete PDF layout check adds no banner at all', async ({ page }) => {
+    // The other direction. On this surface an absence of warnings IS the good state, so a green
+    // "✓ layout checked" would be one more thing to read past on every single import.
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page, {
+        ...ROSTER_REVIEW_PARSE,
+        geometry: { status: 'complete', checked: 1, total: 1, pagesRead: 1, pagesRejected: 0 },
+    });
+    await expect(page.locator('.roster-change-row').first()).toBeVisible();   // the review really rendered
+    await expect(page.locator('.roster-crosscheck-note', { hasText: 'PDF layout check' })).toHaveCount(0);
 });
 
 test('operations: the review offers the original PDF to check against', async ({ page }) => {

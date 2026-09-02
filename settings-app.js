@@ -7,11 +7,12 @@
  * a user already signed in on admin.html will arrive here without seeing the login overlay.
  */
 
-import { CONFIG, isValidEmail, isChilternWorkEmail } from './roster-data.js';
+import { CONFIG, isValidEmail, isChilternWorkEmail, workEmailLocalPart, workEmailFrom } from './roster-data.js';
 import { getStaffContact, saveStaffContact, deleteStaffContact, getPasswordStatus, reauthenticateWithPassword, setOwnPassword } from './firebase-client.js';
 import { isPasswordMigrated, isCredentialRejection, validateNewPassword } from './auth-identity.js';
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
+import { isIOS } from './notif.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, canOpenOvertime } from './auth-policy.js';
@@ -223,7 +224,9 @@ export function init() {
         _cardHandles['notifications'] = initHuddleNotifications({
             onState: (state, chip) => reportSetting('notifications', state, chip),
         });
-        initDeviceCard();
+        // Install. Not collapsible and it has no chip — it is either an offer or, on an iPhone
+        // in a browser, the prerequisite for the card above it. Either way it reports at once.
+        initDeviceCard((state, chip) => reportSetting('install', state, chip));
 
         // Pay Calculator Data — a pointer card, so collapse and the inventory are all it has.
         _cardHandles['pay-data'] = initCardCollapse('payDataToggleHeader', 'payDataBody', 'payDataChevron');
@@ -297,9 +300,13 @@ export function init() {
         const markUserTyped = () => { userHasTyped = true; };
         emailInput.addEventListener('input',  markUserTyped);
         emailInput.addEventListener('change', markUserTyped);
+        // The field owns the LOCAL PART only — the domain sits beside it. Autofill and a
+        // pasted address both arrive complete, so strip our own domain back off rather than
+        // rendering it twice. 'change' as well as 'blur' because autofill fires change.
+        const stripDomain = () => { emailInput.value = workEmailLocalPart(emailInput.value); };
+        emailInput.addEventListener('change', stripDomain);
         emailInput.addEventListener('blur', () => {
-            const v = emailInput.value.trim();
-            if (v && !v.includes('@')) emailInput.value = v + '@' + CONFIG.WORK_EMAIL_DOMAIN;
+            stripDomain();
         });
 
         function setFeedback(/** @type {any} */ msg, /** @type {any} */ state) {
@@ -321,11 +328,14 @@ export function init() {
         const hintEl = document.getElementById('contactHint');
         const WHY_HINT = 'Save your Chiltern work email for account recovery';
 
-        function showSavedState(/** @type {any} */ dateStr) {
+        // The hint takes the FULL address explicitly: the field holds only the local part now,
+        // so reading it back would put a half-address on the collapsed card — which is the one
+        // place that has to answer "which address is saved?" without being opened.
+        function showSavedState(/** @type {any} */ dateStr, /** @type {string} */ fullEmail) {
             userSaved = true;
             setFeedback(dateStr ? `✓ Saved — last updated ${dateStr}` : '✓ Saved', 'ok');
             if (removeBtn) removeBtn.style.display = '';
-            if (hintEl && emailInput.value.trim()) hintEl.textContent = emailInput.value.trim();
+            if (hintEl && fullEmail) hintEl.textContent = fullEmail;
             reportSetting('work-email', 'ok', '✓ Saved');
         }
 
@@ -344,8 +354,8 @@ export function init() {
             // entirely (the saved state on screen is newer than this read) (v16.69 review fix).
             if (userSaved) return;
             if (data?.workEmail && !userHasTyped) {
-                emailInput.value = data.workEmail;
-                showSavedState(formatDate(data.updatedAt));
+                emailInput.value = workEmailLocalPart(data.workEmail);
+                showSavedState(formatDate(data.updatedAt), data.workEmail);
             } else if (data?.workEmail && userHasTyped) {
                 // User started typing before the load finished — keep their input,
                 // just clear the loading message.
@@ -367,9 +377,7 @@ export function init() {
         });
 
         saveBtn.addEventListener('click', async () => {
-            const raw = emailInput.value.trim();
-            if (raw && !raw.includes('@')) emailInput.value = raw + '@' + CONFIG.WORK_EMAIL_DOMAIN;
-            const email = emailInput.value.trim();
+            const email = workEmailFrom(emailInput.value);
             setFeedback('', '');
 
             if (!email) {
@@ -394,7 +402,8 @@ export function init() {
                 await sessionReady;
                 await saveStaffContact(currentUser, email);
                 const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-                showSavedState(today);
+                emailInput.value = workEmailLocalPart(email);
+                showSavedState(today, email);
             } catch (err) {
                 console.warn('[staffContact] Save failed:', err);
                 setFeedback(
@@ -783,16 +792,44 @@ export function init() {
  * install to offer and disappears the moment there is not. A permanent "✓ Installed" row would be
  * a card that never does anything again, which is the opposite of what this page is becoming.
  */
-function initDeviceCard() {
-    const row = document.getElementById('deviceCard');
-    const btn = document.getElementById('installBtn');
-    if (!row || !btn) return;
+function initDeviceCard(/** @type {(state: import('./settings-status.js').CardState, chip?: string) => void} */ report) {
+    const row   = document.getElementById('deviceCard');
+    const btn   = /** @type {HTMLElement|null} */ (document.getElementById('installBtn'));
+    const steps = /** @type {HTMLElement|null} */ (document.getElementById('installSteps'));
+    // A card whose markup is not there cannot be a thing to finish — and must not hold the
+    // summary on "Checking…" for ever by never reporting at all.
+    if (!row || !btn || !steps) { report('n/a'); return; }
+
+    // Already installed, or the Pages mirror — the same two populations the calendar's install
+    // strip refuses, for the same reasons: there is nothing to install, and installing FROM the
+    // mirror would pin a member to the address we are migrating off.
+    const installed = window.matchMedia?.('(display-mode: standalone)').matches
+        || /** @type {any} */ (window.navigator).standalone === true;
+    const onMirror  = /github\.io$/i.test(window.location.hostname);
+
+    // **The report is synchronous and definite, and that is load-bearing.** The summary waits on
+    // every card it speaks for, so a state that only arrives when `beforeinstallprompt` fires
+    // would leave a member whose browser never fires it reading "Checking your settings…" for
+    // ever. There is exactly one case where installing is a THING TO FINISH rather than an offer:
+    // an iPhone in a browser, where WebKit gives the page no push until it is on the Home Screen.
+    // Everywhere else the card is an offer and reports 'n/a', so an Android member is never told
+    // to finish something they lose nothing by skipping.
+    const iosNeedsInstall = isIOS() && !installed && !onMirror;
+    report(iosNeedsInstall ? 'action' : 'n/a');
+
+    if (iosNeedsInstall) {
+        btn.hidden   = true;         // WebKit fires no event, so there is nothing to press
+        steps.hidden = false;        // say what to tap instead
+        row.hidden   = false;
+    }
+
     /** @type {any} */
     let deferred = null;
     window.addEventListener('beforeinstallprompt', (e) => {
+        if (installed || onMirror) return;
         e.preventDefault();          // keep it; without this Chrome shows its own mini-infobar instead
         deferred = e;
-        row.hidden = false;
+        row.hidden = false;          // …but still 'n/a': an offer, not a to-do
     });
     window.addEventListener('appinstalled', () => { deferred = null; row.hidden = true; });
     btn.addEventListener('click', () => {

@@ -74,7 +74,7 @@ const { shiftValueToOverrideType, _saveOverrideBatches, fetchOverridesForWeek, c
 const { teamMembers, getBaseShift } = await import('./roster-data.js');
 // The alignment rules moved OUT of the coordinator at v22.16 (roster-alignment.js) — a Firebase-free
 // module, so this import needs none of the mocking above.
-const { detectShiftedRow, assessRosterAlignment, ALIGNMENT_BLOCK_THRESHOLD, driftCopy, stopCopy } = await import('./roster-alignment.js');
+const { detectShiftedRow, assessRosterAlignment, ALIGNMENT_BLOCK_THRESHOLD, driftCopy, stopCopy, geometryCopy } = await import('./roster-alignment.js');
 
 // 2026-06-21 is a Sunday; 2026-06-15 is a Monday.
 const SUN = '2026-06-21';
@@ -712,6 +712,49 @@ describe('a row the PDF\'s own grid refused fails closed the same way', () => {
     test('a name the server refused that is not on this roster is ignored, not counted', () => {
         const a = assessRosterAlignment({ parsed: [{ memberName: 'G. Miller', shifts: honest(MEMBER) }], dates: DATES, geometryRefused: ['Nobody Here', 'G. Miller'] });
         assert.deepEqual(a.suspects, ['G. Miller']);
+    });
+
+    // ── did the witness run at all? ──
+    // Organised by what each wrong answer COSTS, and the two directions are not symmetrical.
+    // SAYING NOTHING when the check did not run is the shipped defect: it is silent, it is
+    // indistinguishable from the check having agreed with every cell, and the admin then saves a
+    // week believing two independent readings matched. SAYING SOMETHING when it ran on everybody
+    // is noise on the surface whose whole discipline is that no warning means no exception.
+    describe('geometryCopy — the fail-open check must be visible when it fails open', () => {
+        test('a complete run says nothing at all', () => {
+            assert.equal(geometryCopy({ status: 'complete', checked: 15, total: 15 }), '');
+        });
+
+        test('an unavailable run says the check did not happen', () => {
+            const c = geometryCopy({ status: 'unavailable', checked: 0, total: 15 });
+            assert.match(c, /couldn\u2019t run/);
+            assert.match(c, /one method only/, 'it must say WHY that matters, not merely that it happened');
+            assert.match(c, /before saving/);
+        });
+
+        test('a MISSING geometry field reads as did-not-run, never as passed', () => {
+            // The direction that matters. An older server, a response shape change, a field lost
+            // in a refactor — every one of those must land on "we could not check", because the
+            // alternative is a review that silently claims a witness it never had.
+            for (const g of [undefined, null, {}, { status: undefined }, { status: 'weird' }]) {
+                assert.match(geometryCopy(/** @type {any} */ (g)), /couldn\u2019t run/,
+                    `${JSON.stringify(g)} must not read as a clean run`);
+            }
+        });
+
+        test('a partial run states the arithmetic, which no row can state for itself', () => {
+            const c = geometryCopy({ status: 'partial', checked: 12, total: 15 });
+            assert.match(c, /12 of 15/);
+            assert.match(c, /not checked/);
+            // Never a bare "3 rows" — the admin has to know which side the number is on.
+            assert.doesNotMatch(c, /couldn\u2019t run/);
+        });
+
+        test('a partial run with unusable counts still warns rather than printing NaN', () => {
+            const c = geometryCopy(/** @type {any} */ ({ status: 'partial' }));
+            assert.doesNotMatch(c, /NaN|undefined/);
+            assert.match(c, /0 of 0/);
+        });
     });
 
     // ── the words ──

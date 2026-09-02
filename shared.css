@@ -2619,6 +2619,12 @@ body.auth-ready .boot-placeholder { display: none; }
 }
 
 /* ── Action buttons ─────────────────────────────────────────────── */
+/* `display: inline-flex` out-specifies the UA's `[hidden] { display: none }`, so a button the
+   code has hidden by ATTRIBUTE would otherwise render in full while every line around it believes
+   it is gone — no error, no warning. Found by page-visibility-parity.test.mjs the first time an
+   install button was hidden that way (v22.40). */
+.btn-action[hidden] { display: none !important; }
+
 .btn-action {
     display: inline-flex;
     align-items: center;

@@ -163,6 +163,49 @@ export function assessRosterAlignment(parsedResult) {
 }
 
 /**
+ * Did the PDF's own grid actually get consulted, and what does the admin need to know if it did
+ * not?
+ *
+ * **The witness is fail-open by design, and a fail-open check nobody can see is indistinguishable
+ * from one that passed.** The server has reported `geometry.status` since the witness shipped, and
+ * for nine versions no client read it: a file with no text layer, a page pdf.js could not parse, a
+ * `pdfjs-dist` that failed to load — every one of those produced a review that looked exactly like
+ * a review where the grid had agreed with every cell (v22.39 external review).
+ *
+ * The three answers are deliberately not symmetrical:
+ *
+ * · `complete` says NOTHING. It ran on every row, so there is no exception to report — and a green
+ *   "✓ layout checked" badge would be a claim the admin never asked for, on a surface whose whole
+ *   discipline is that an absence of warnings is the good state.
+ * · `partial` names the arithmetic. The refusals it DID find are already on the rows; what this
+ *   adds is that some rows were never asked about, which is the part no row can say for itself.
+ * · `unavailable`, **including a response with no `geometry` field at all**, says the check did
+ *   not happen. Absence is read as "did not run" rather than "ran and found nothing", because the
+ *   alternative is the exact failure this function exists to end.
+ *
+ * It deliberately does NOT untick anything. Whether a missing second witness should also fail the
+ * whole read closed is a real question and an owner decision — the base-roster detector is still
+ * running, so the import is no weaker than it was before geometry existed, and quietly promoting
+ * "we could not check" to "we refuse" would block imports on any PDF pdf.js dislikes.
+ *
+ * @param {{ status?: string, checked?: number, total?: number }} [geometry]
+ * @returns {string} HTML, or '' when there is nothing to say
+ */
+export function geometryCopy(geometry) {
+    const status = geometry?.status;
+    if (status === 'complete') return '';
+    const lead = '<span aria-hidden="true">⚠</span> ';
+    if (status === 'partial') {
+        const checked = Number(geometry?.checked) || 0;
+        const total   = Number(geometry?.total) || 0;
+        return `${lead}<strong>The PDF layout check read ${checked} of ${total} staff rows.</strong> `
+            + 'The rest were not checked against the PDF\u2019s own table — compare those against the roster before saving.';
+    }
+    return `${lead}<strong>The extra PDF layout check couldn\u2019t run for this file.</strong> `
+        + 'The days below were read by one method only, so compare the changes against the original roster before saving.';
+}
+
+/**
  * Per-member warning for a row that starts unticked. Returns HTML; `escapedName` is already escaped
  * by the caller. Lives beside the verdict so a third kind of drift cannot silently wear the wording
  * of the first two — 'geometry' rendered "shifted a day later" until this existed.
