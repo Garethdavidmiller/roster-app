@@ -2930,6 +2930,19 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
                 }
                 return n;
             };
+            /** Is `el` scrolled outside any ancestor that clips its overflow? */
+            const clippedByScroller = (el) => {
+                const r = el.getBoundingClientRect();
+                for (let p = el.parentElement; p; p = p.parentElement) {
+                    const st = getComputedStyle(p);
+                    if (!/auto|scroll|hidden/.test(st.overflowX + ' ' + st.overflowY)) continue;
+                    const pr = p.getBoundingClientRect();
+                    // 1px of tolerance: sub-pixel layout puts a flush edge a fraction over.
+                    if (r.left < pr.left - 1 || r.right > pr.right + 1
+                        || r.top < pr.top - 1 || r.bottom > pr.bottom + 1) return true;
+                }
+                return false;
+            };
             const out = [];
             document.querySelectorAll('button, select, [role=button]').forEach(el => {
                 const r = el.getBoundingClientRect();
@@ -2938,6 +2951,21 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
                 // Must be fully on screen to probe outward from, or the walk stops at the edge and
                 // reports a false failure for a control that is merely scrolled out of view.
                 if (r.top < 26 || r.top > innerHeight - 26) return;
+                // …and the same for a control its own SCROLL CONTAINER has clipped, which the
+                // viewport test above cannot see (v22.37). The generator's slot table is wider
+                // than the card at 390px and scrolls inside its wrapper, so the ✕ that removes a
+                // shift row sat at left 371 of a 390 viewport: `elementFromPoint` at its centre
+                // returns the page behind it and the probe reports 1x1, for a control that
+                // measures 30x44 and reaches a full 30x44 the moment its table is scrolled across
+                // — measured both ways. Nothing about that button had changed; shortening the
+                // prose above the table moved it up into the vertical band this guard does check.
+                //
+                // Tested by CLIPPING and not by nearness to the screen edge, which was the first
+                // fix and was too blunt: at 390px a left-aligned control sits at about x=24, so
+                // `r.left < 26` skipped it, and a deliberately shrunken "+ Add another shift"
+                // then sailed through this test. A guard that hides the failure it was widened
+                // for is worse than the false positive it was meant to remove.
+                if (clippedByScroller(el)) return;
                 const w = reach(el, -1, 0) + reach(el, 1, 0) + 1;
                 const h = reach(el, 0, -1) + reach(el, 0, 1) + 1;
                 if (w < 24 || h < 24) {
