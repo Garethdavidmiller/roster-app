@@ -130,7 +130,19 @@ export default {
      * failure does not move between tests and vanish when the machine is idle.
      *
      * Chromium keeps the 5s default. It is the deploy gate, it is not contended the same way, and a
-     * regression that only Chromium can see should still be caught by the tighter budget. */
+     * regression that only Chromium can see should still be caught by the tighter budget.
+     *
+     * **15s IS THE CEILING. DO NOT RAISE IT AGAIN** (v22.38, external review — a fair point about
+     * the direction rather than the number). A generous assertion budget buys quiet at the cost of
+     * the thing the budget is for: at 15s a WebKit-only slowdown severe enough to matter to a
+     * member on an iPhone can still sit green, and at 30s that is close to guaranteed. Each
+     * widening also makes the next one easier to argue for, which is how a budget stops being a
+     * measurement and becomes a habit.
+     *
+     * If WebKit flakes again, the lever is CONTENTION, not patience: shard further so fewer
+     * workers share the runner, or drop `fullyParallel` for the specs that flake. Both cost CI
+     * minutes and neither costs sensitivity. Widening this number costs sensitivity and nothing
+     * else, which is exactly the wrong trade to make twice. */
     expect: { timeout: 15_000 },
     // See the sharding note above: this is what stops one 143-test file owning a whole shard.
     fullyParallel: true,

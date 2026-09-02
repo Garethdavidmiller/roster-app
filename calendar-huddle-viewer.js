@@ -114,8 +114,24 @@ export function wrapTables(root) {
         // grid walk the browser does — and only genuine column-1 cells are classed. A row that
         // writes no column-1 cell classes nothing and is covered by the spanning cell above it,
         // which is what the rendered table does anyway.
+        //
+        // `table.rows` is FLAT — it concatenates thead, every tbody and tfoot — and flattening is
+        // what loses the row-group boundary a span cannot cross. Measured: a `rowspan="5"` header
+        // cell in a one-row `<thead>` leaves the first `<tbody>` cell in column 1, so without the
+        // boundaries below that cell would be reported as column 2 and lose its pin. Found in the
+        // v22.36 external review as the narrower `rowspan="0"` case.
         const rows = [...table.rows];
-        const mask = firstColumnMask(rows.map(r => [...r.cells].map(c => ({ rowSpan: c.rowSpan, colSpan: c.colSpan }))));
+        const groupStarts = [];
+        let seen = 0;
+        for (const section of [table.tHead, ...table.tBodies, table.tFoot]) {
+            if (!section) continue;
+            groupStarts.push(seen);
+            seen += section.rows.length;
+        }
+        const mask = firstColumnMask(
+            rows.map(r => [...r.cells].map(c => ({ rowSpan: c.rowSpan, colSpan: c.colSpan }))),
+            { groupStarts },
+        );
         rows.forEach((row, r) => {
             [...row.cells].forEach((cell, c) => {
                 if (mask[r]?.[c]) cell.classList.add('huddle-shift-col');
