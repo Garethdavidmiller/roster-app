@@ -27,15 +27,23 @@ export function initHuddleUpload({ currentIsAdmin, currentUser }) {
 /**
  * Initialises the Notifications card only.
  * Used by settings.html where notifications are available to all staff.
+ *
+ * @param {{ onState?: (state: 'ok'|'action'|'blocked'|'n/a', chip: string) => void }} [opts]
+ *   `onState` is called whenever the card learns what state this device is in. It exists so
+ *   Settings can put a chip in the header and count the card in its summary WITHOUT this module
+ *   importing anything from that page — the words below are already the authority on what each
+ *   state means, and a second reading of `peekNotifState` elsewhere could disagree with them.
+ * @returns {{ setOpen(open: boolean): void }} the card's collapse handle, so a caller can open it
+ *   once it knows the state warrants it.
  */
-export function initHuddleNotifications() {
+export function initHuddleNotifications({ onState } = {}) {
     const statusMsg  = /** @type {HTMLElement|null} */ (document.getElementById('notifStatusMsg'));
     const enableBtn  = /** @type {HTMLButtonElement|null} */ (document.getElementById('notifEnableBtn'));
     const disableBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('notifDisableBtn'));
     const deniedMsg  = /** @type {HTMLElement|null} */ (document.getElementById('notifDeniedMsg'));
 
     // Shared collapse helper — adds aria-expanded, role="button", and keyboard nav
-    initCardCollapse('notifToggleHeader', 'notifBody', 'notifChevron');
+    const collapse = initCardCollapse('notifToggleHeader', 'notifBody', 'notifChevron');
 
     // notifSupported() returns false on iOS outside a standalone PWA — show
     // the add-to-home-screen message rather than a misleading "not supported".
@@ -45,10 +53,13 @@ export function initHuddleNotifications() {
             : 'Push notifications are not supported on this device or browser.';
         if (enableBtn)  enableBtn.style.display  = 'none';
         if (disableBtn) disableBtn.style.display = 'none';
-        return;
+        // Not a to-do and not a fault: this device cannot do it at all, so it must neither nag
+        // nor hold back a summary that is otherwise complete.
+        onState?.('n/a', 'Not available');
+        return collapse;
     }
 
-    if (!statusMsg || !enableBtn || !disableBtn || !deniedMsg) return;
+    if (!statusMsg || !enableBtn || !disableBtn || !deniedMsg) return collapse;
 
     const _statusMsg  = /** @type {HTMLElement} */ (statusMsg);
     const _enableBtn  = /** @type {HTMLButtonElement} */ (enableBtn);
@@ -67,11 +78,13 @@ export function initHuddleNotifications() {
         _enableBtn.textContent  = 'Enable notifications';
         _disableBtn.textContent = 'Disable notifications';
         if (state === 'on') {
-            _statusMsg.textContent    = 'Notifications are on — you\'ll be alerted when the Daily Huddle is ready or payday is approaching.';
+            _statusMsg.textContent    = 'Notifications are on — you\'ll be alerted when a new document arrives and before the pay cut-off.';
             _disableBtn.style.display = 'block';
+            onState?.('ok', '✓ On');
         } else if (state === 'off-lapsed') {
             _statusMsg.textContent   = 'Notifications were switched on but have stopped. Tap Enable to turn them back on.';
             _enableBtn.style.display = 'block';
+            onState?.('action', 'Off');
         } else if (state === 'denied') {
             _statusMsg.textContent   = 'Notifications are blocked. To re-enable, check your browser or device settings.';
             if (isIOS()) {
@@ -82,9 +95,13 @@ export function initHuddleNotifications() {
                 _deniedMsg.textContent = 'In Chrome: click the padlock in the address bar → Site settings → Notifications → Allow.';
             }
             _deniedMsg.style.display = 'block';
+            // BLOCKED, not off. The member cannot fix this from here — the browser will refuse
+            // to ask again — so the summary must name it rather than telling them to tap Enable.
+            onState?.('blocked', 'Blocked');
         } else {
-            _statusMsg.textContent   = 'Tap Enable to get an alert when the Daily Huddle is ready or payday is approaching.';
+            _statusMsg.textContent   = 'Tap Enable to get an alert when a new document arrives and before the pay cut-off.';
             _enableBtn.style.display = 'block';
+            onState?.('action', 'Off');
         }
     }
 
@@ -105,6 +122,7 @@ export function initHuddleNotifications() {
     });
 
     safeRefresh();
+    return collapse;
 }
 
 // ============================================

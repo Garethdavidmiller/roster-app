@@ -578,7 +578,9 @@ export function promptDialog({ message, title, defaultValue = '', placeholder, m
 export function initCardCollapse(headerId, bodyId, chevronId, onToggle) {
     const header  = document.getElementById(headerId);
     const body    = document.getElementById(bodyId);
-    if (!header || !body) return;
+    // A no-op handle rather than `undefined`, so a caller that wants to open the card later does
+    // not have to guard every call site against a card that was not on the page.
+    if (!header || !body) return { setOpen() {} };
 
     // The element whose `.open` class drives the chevron/arrow rotation — unchanged: a distinct
     // chevron span for most cards; the header itself for paycalc's cards (which pass
@@ -622,11 +624,22 @@ export function initCardCollapse(headerId, bodyId, chevronId, onToggle) {
         if (name) ctrl.setAttribute('aria-label', `Toggle ${name}`);
     }
 
-    function toggle() {
-        const open = /** @type {HTMLElement} */ (body).classList.toggle('open');
+    /**
+     * The ONE place a card's open state is written (v22.37). `toggle()` and the returned
+     * `setOpen` both come through here, because Settings now decides a card's state AFTER the
+     * card is wired — its data arrives asynchronously — and a second copy of these three lines is
+     * how `aria-expanded` ends up disagreeing with the `.open` class it is meant to describe.
+     * @param {boolean} open
+     */
+    function apply(open) {
+        /** @type {HTMLElement} */ (body).classList.toggle('open', open);
         if (stateEl && stateEl !== body) stateEl.classList.toggle('open', open);
         ctrl.setAttribute('aria-expanded', String(open));
         onToggle?.(open);
+    }
+
+    function toggle() {
+        apply(!(/** @type {HTMLElement} */ (body).classList.contains('open')));
     }
 
     // Initialise aria-expanded from the current DOM state
@@ -649,4 +662,8 @@ export function initCardCollapse(headerId, bodyId, chevronId, onToggle) {
             toggle();
         });
     }
+
+    // Lets a caller set the state directly — Settings opens a card once it learns the setting
+    // needs attention, which is after this ran. Same code path as a tap.
+    return { setOpen: apply };
 }

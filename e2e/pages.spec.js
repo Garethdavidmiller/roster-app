@@ -1,5 +1,5 @@
 import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, ROSTER_REVIEW_DATES } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, seedMemberSession, ROSTER_REVIEW_DATES } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the literal 22 — and `links: the rotation
 // length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
@@ -8,6 +8,156 @@ import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword
 import { ROTATING_LINES } from '../links-design.js';
 
 // ── SETTINGS (settings.html) ──────────────────────────────────────────────
+
+// ── SETTINGS AS A STATUS PAGE (v22.37, owner review) ────────────────────────────────────────────
+//
+// The RULES are unit-tested in settings-status.test.mjs and they are the easy half: `summarise` is
+// trivially right about every state it is handed. What only a browser can answer is whether the
+// four cards actually REPORT — a card that reads its data and forgets to say so leaves a summary
+// that is permanently "Checking…", or worse, leaves a tick on a card nobody looked at.
+//
+// So these drive the real page in the states staff are actually in, and assert what is on screen.
+
+/** Put Settings in a chosen state. The single-doc read serves both the work email and the password
+ *  status, so one seed decides both — which is why `configured` is one flag, not two. */
+async function openSettings(page, { configured = false, payKeys = 0, noPush = false } = {}) {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedMemberSession(page, 'G. Miller');
+    await page.addInitScript(({ configured, payKeys, noPush }) => {
+        for (let i = 0; i < payKeys; i++) localStorage.setItem(`myb_pc_gmiller_p${40 + i}`, '{}');
+        const e = globalThis.__E2E || (globalThis.__E2E = {});
+        if (configured) e.getDocData = {
+            workEmail: 'g.miller@chilternrailways.co.uk',
+            passwordSetAt: { toMillis: () => Date.parse('2026-08-01') },
+        };
+        if (noPush) {
+            delete window.PushManager;
+            Object.defineProperty(window, 'Notification', { value: undefined, configurable: true });
+        }
+    }, { configured, payKeys, noPush });
+    await page.goto('/settings.html');
+    await expect(page.locator('#settingsSummary')).toBeVisible();
+}
+
+const cardOpen = (page, id) => page.evaluate(
+    id => document.getElementById(id)?.classList.contains('open'), id);
+
+test('settings: a configured account collapses its cards and says so', async ({ page }) => {
+    // The whole point of the change. A returning member used to meet four expanded forms including
+    // a large password form they had already dealt with.
+    await openSettings(page, { configured: true, payKeys: 3, noPush: true });
+    await expect(page.locator('#settingsSummaryLine')).toHaveText('✓ You’re all set');
+    await expect(page.locator('#settingsSummary')).toHaveAttribute('data-tone', 'all-set');
+    for (const id of ['contactBody', 'passwordBody', 'notifBody', 'payDataBody']) {
+        expect(await cardOpen(page, id), `${id} must stay collapsed when there is nothing to do`).toBe(false);
+    }
+    await expect(page.locator('#contactStatusChip')).toHaveText('✓ Saved');
+    await expect(page.locator('#passwordStatusChip')).toHaveText('✓ Password set');
+    // The collapsed card answers WHICH address without being opened.
+    await expect(page.locator('#contactHint')).toHaveText('g.miller@chilternrailways.co.uk');
+});
+
+test('settings: a card that needs attention opens ITSELF, and is named at the top', async ({ page }) => {
+    // The other direction — a summary that only ever reassures is worth nothing.
+    await openSettings(page, { configured: false, noPush: true });
+    await expect(page.locator('#settingsSummary')).toHaveAttribute('data-tone', 'todo');
+    await expect(page.locator('#settingsSummaryItems li')).toHaveText([
+        'Set your own password', 'Add your work email',
+    ]);
+    expect(await cardOpen(page, 'passwordBody'), 'the password card must open itself').toBe(true);
+    expect(await cardOpen(page, 'contactBody'), 'and so must the work email card').toBe(true);
+    // …but a card with nothing wrong is left alone even on a page that has to-dos.
+    expect(await cardOpen(page, 'payDataBody')).toBe(false);
+});
+
+test('settings: a read that FAILED never reads as all set', async ({ page }) => {
+    // The dangerous direction, and the one nothing on screen would otherwise contradict: a member
+    // told "all set" over a password status nobody managed to read closes the page.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedMemberSession(page, 'G. Miller');
+    await page.addInitScript(() => { (globalThis.__E2E || (globalThis.__E2E = {})).failGetDoc = true; });
+    await page.goto('/settings.html');
+    await expect(page.locator('#settingsSummary')).toBeVisible();
+    await expect(page.locator('#settingsSummaryLine')).not.toHaveText('✓ You’re all set');
+    await expect(page.locator('#contactStatusChip')).toHaveText('Couldn’t check');
+    expect(await cardOpen(page, 'contactBody'), 'an unreadable setting must be shown, not hidden').toBe(true);
+});
+
+test('settings: the password form is behind a door once there is nothing to fix', async ({ page }) => {
+    await openSettings(page, { configured: true, noPush: true });
+    await page.locator('#passwordChevron').click();          // open the card by hand
+    await expect(page.locator('#pwSettled')).toBeVisible();
+    await expect(page.locator('#pwCurrent')).toBeHidden();
+    await page.locator('#pwChangeBtn').click();
+    await expect(page.locator('#pwCurrent')).toBeVisible();
+    await expect(page.locator('#pwSettled')).toBeHidden();
+    // Where forgetting it actually stops you — it used to be in the `?` panel only.
+    await expect(page.locator('.pw-forgot')).toContainText('Ask the admin');
+});
+
+test('settings: Show passwords reveals all THREE fields, not two', async ({ page }) => {
+    // The old control sat beside New and silently also governed Confirm. Current — where a
+    // mistyped password most often comes from — was never covered.
+    await openSettings(page, { configured: false, noPush: true });
+    const types = () => page.evaluate(() =>
+        ['pwCurrent', 'pwNew', 'pwConfirm'].map(id => document.getElementById(id).type));
+    expect(await types()).toEqual(['password', 'password', 'password']);
+    await page.locator('#pwShowAll').check();
+    expect(await types()).toEqual(['text', 'text', 'text']);
+    await page.locator('#pwShowAll').uncheck();
+    expect(await types()).toEqual(['password', 'password', 'password']);
+});
+
+test('settings: the pay data card counts what is actually on the device', async ({ page }) => {
+    // "Saved on this device only" is a warning about nothing until it says how much.
+    await openSettings(page, { configured: true, payKeys: 3, noPush: true });
+    await expect(page.locator('#payDataStatusChip')).toHaveText('3 payslips');
+    await expect(page.locator('#payDataInventory')).toContainText('3 payslips');
+    await expect(page.locator('#payDataInventory')).toContainText('saved on this device');
+});
+
+test('settings: a shared device does not count a colleague’s payslips as yours', async ({ page }) => {
+    // NOT hypothetical — staff share the station PC, and the pay data of everyone who has used it
+    // is sitting in the same localStorage. The count is per-member because it is built from
+    // `selectBackupKeys`, which filters to this member's prefix; handing `inventoryOf` the raw key
+    // list instead slices every key by the prefix LENGTH, so a colleague whose slug happens to be
+    // the same length has their payslips classified as this member's. Measured: 5 against 2.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedMemberSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        for (const k of ['p43', 'p44']) localStorage.setItem('myb_pc_gmiller_' + k, '{}');
+        // Same slug LENGTH as gmiller, which is what makes the unfiltered slice line up.
+        for (const k of ['p60', 'p61', 'p62']) localStorage.setItem('myb_pc_smiller_' + k, '{}');
+        const e = globalThis.__E2E || (globalThis.__E2E = {});
+        e.getDocData = { workEmail: 'g.miller@chilternrailways.co.uk',
+                         passwordSetAt: { toMillis: () => Date.parse('2026-08-01') } };
+    });
+    await page.goto('/settings.html');
+    await expect(page.locator('#payDataStatusChip')).toHaveText('2 payslips');
+});
+
+test('settings: a device with no pay data says so, rather than saying nothing', async ({ page }) => {
+    await openSettings(page, { configured: true, payKeys: 0, noPush: true });
+    await expect(page.locator('#payDataInventory')).toHaveText('No pay calculator history saved yet');
+    await expect(page.locator('#payDataStatusChip')).toHaveText('None saved');
+});
+
+test('settings: the install card exists only while there is an install to offer', async ({ page }) => {
+    // It moved OUT of Notifications, where nobody would have looked for it. The whole card is
+    // conditional — a permanent "✓ Installed" row would be one that never does anything again.
+    await openSettings(page, { configured: true, noPush: true });
+    await expect(page.locator('#deviceCard')).toBeHidden();
+    await page.evaluate(() => {
+        const e = new Event('beforeinstallprompt');
+        e.prompt = () => { window.__promptFired = true; return Promise.resolve(); };
+        window.dispatchEvent(e);
+    });
+    await expect(page.locator('#deviceCard')).toBeVisible();
+    await page.locator('#installBtn').click();
+    expect(await page.evaluate(() => window.__promptFired)).toBe(true);
+    await expect(page.locator('#deviceCard')).toBeHidden();
+});
+
 
 // ── The boot placeholder (v20.80) ───────────────────────────────────────────────────────────────
 
@@ -1759,38 +1909,11 @@ test('operations without the hash leaves the queue card collapsed', async ({ pag
 // ── SETTINGS: Password card reveal toggle (v18.95) ─────────────────────────────────────────────
 // The login overlay and the forced overlay both offer a reveal; this card asked for an 8+ character
 // password TWICE with no way to see either, which is where a mistyped password comes from.
-test('settings password card: Show reveals BOTH new and confirm, and toggles back', async ({ page }) => {
-    await seedSession(page, 'G. Miller');
-    await page.goto('/settings.html');
+// REMOVED at v22.37: 'Show reveals BOTH new and confirm'. It pinned the OLD control — a `Show`
+// button beside New that silently also governed Confirm — and its successor covers strictly more:
+// 'Show passwords reveals all THREE fields, not two' asserts Current as well, which is where a
+// mistyped password most often comes from and which the old control never reached.
 
-    const toggle  = page.locator('#pwNewToggle');
-    const newEl   = page.locator('#pwNew');
-    const confirm = page.locator('#pwConfirm');
-    await expect(newEl).toHaveAttribute('type', 'password');
-    await expect(confirm).toHaveAttribute('type', 'password');
-
-    await toggle.click();
-    // Confirm flips too — checking the two against each other is the whole reason to reveal.
-    await expect(newEl).toHaveAttribute('type', 'text');
-    await expect(confirm).toHaveAttribute('type', 'text');
-    await expect(toggle).toHaveText('Hide');
-    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
-
-    await toggle.click();
-    await expect(newEl).toHaveAttribute('type', 'password');
-    await expect(confirm).toHaveAttribute('type', 'password');
-    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
-});
-
-// ── SETTINGS: retiring the calendar's password notice ACROSS DEVICES (v19.91) ──────────────────
-// ── THE PASSWORD STATUS IS A PROPERTY OF THE ACCOUNT, NOT THE DEVICE ────────────────────────────
-//
-// What survives of the v19.89 P3 review tests. Those existed for a cross-page coupling that is gone
-// at v21.84 — Settings used to reach across and retire the Calendar's password notice, and the
-// replacement notice retires itself by audience, so there is no flag to write and nothing to
-// assert about one. Deleting them wholesale would have taken a second, unrelated claim with them:
-// that a member who set their password on their PHONE is correctly told so on a TABLET, which is a
-// server read, a paint and a status chip, and is worth a browser regardless of any notice.
 test('settings: a member migrated on ANOTHER device is told so here', async ({ page }) => {
     await seedSession(page, 'G. Miller');
     // The server says migrated; this device has never been told. `toMillis` because that is the
@@ -1801,7 +1924,7 @@ test('settings: a member migrated on ANOTHER device is told so here', async ({ p
         /** @type {any} */ (window).__E2E.getDocData = { passwordSetAt: { toMillis: () => 1_760_000_000_000 } };
     });
     await page.goto('/settings.html');
-    await expect(page.locator('#passwordStatusChip')).toHaveText(/your own password/);
+    await expect(page.locator('#passwordStatusChip')).toHaveText(/password set/i);
 });
 
 test('settings: an UN-migrated member is told that instead', async ({ page }) => {
@@ -1810,7 +1933,7 @@ test('settings: an UN-migrated member is told that instead', async ({ page }) =>
     // them a security job is done when it is not.
     await seedSession(page, 'G. Miller');
     await page.goto('/settings.html');
-    await expect(page.locator('#passwordStatusChip')).toHaveText(/using surname/);
+    await expect(page.locator('#passwordStatusChip')).toHaveText(/using surname/i);
 });
 
 test('settings: the forced overlay\'s success updates the chip without a reload', async ({ page }) => {
@@ -1819,25 +1942,17 @@ test('settings: the forced overlay\'s success updates the chip without a reload'
     // so the chip must move on the event alone.
     await seedSession(page, 'G. Miller');
     await page.goto('/settings.html');
-    await expect(page.locator('#passwordStatusChip')).toHaveText(/using surname/);
+    await expect(page.locator('#passwordStatusChip')).toHaveText(/using surname/i);
 
     await page.evaluate(() => document.dispatchEvent(new CustomEvent('myb:password-set')));
-    await expect(page.locator('#passwordStatusChip')).toHaveText(/your own password/);
+    await expect(page.locator('#passwordStatusChip')).toHaveText(/password set/i);
 });
 
-test('settings password card: the typed value is not hidden under the Show button', async ({ page }) => {
-    await seedSession(page, 'G. Miller');
-    await page.goto('/settings.html');
-    // shared.css reserves the button's room via a `.login-field` selector this card does not match,
-    // so without settings.css's own padding rule the text would run underneath "Show".
-    const gap = await page.evaluate(() => {
-        const input  = /** @type {HTMLElement} */ (document.getElementById('pwNew'));
-        const button = /** @type {HTMLElement} */ (document.getElementById('pwNewToggle'));
-        const pr = parseFloat(getComputedStyle(input).paddingRight);
-        return { pr, btnW: button.getBoundingClientRect().width };
-    });
-    expect(gap.pr, 'padding-right must clear the Show button').toBeGreaterThanOrEqual(gap.btnW);
-});
+// REMOVED at v22.37: 'the typed value is not hidden under the Show button'. It measured that the
+// New Password field reserved enough padding-right for the `Show` button overlaid on it — a real
+// hazard, and one that cannot arise any more, because there is no overlaid button. The reveal is
+// now a labelled checkbox BELOW the three fields ('Show passwords reveals all THREE fields' above),
+// which is both the accessibility fix and the end of that whole class of collision.
 
 // ── OPERATIONS: exact unique-account sign-in counts on the Usage card (v18.96) ──────────────────
 // The counterpart to the device-deduped "active accounts" figure. It comes from a SECOND network
@@ -1953,6 +2068,10 @@ test('settings (signed in): the Pay Calculator Data pointer card renders and lin
     await page.goto('/settings.html');
     const card = page.locator('#payDataCard');
     await expect(card).toBeVisible();
+    // The card starts COLLAPSED now (v22.37) — it has no wrong state to warn about, so it shows a
+    // count and waits to be asked. Its link is behind that, which is the journey a member takes.
+    await expect(card.locator('a[href*="paycalc.html#payTransferCard"]')).toBeHidden();
+    await page.locator('#payDataChevron').click();
     await expect(card.locator('a[href*="paycalc.html#payTransferCard"]')).toBeVisible();
 });
 
