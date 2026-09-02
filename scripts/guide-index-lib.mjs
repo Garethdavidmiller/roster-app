@@ -34,7 +34,7 @@ export const PROVISIONAL_MARKERS = {
 const CARD_RULES = {
     'railcard-guide.html': { open: /<div class="rc[^"]*" id="(rc-[a-z0-9-]+)"/g,                    close: null },
     'rangers-guide.html':  { open: /<div class="rr-(?:card|no-item)[^"]*" id="(rr-[a-z0-9-]+)"/g,   close: null },
-    'fip.html':            { open: /<details id="([a-z0-9-]+)"/g,                                   close: '</details>' },
+    'fip-guide.html':            { open: /<details id="([a-z0-9-]+)"/g,                                   close: '</details>' },
 };
 
 /** @param {string} html strip tags + entities to visible text */
@@ -165,7 +165,7 @@ export function extractGuideUnits(html, page) {
 }
 
 /** The five guides, in the drawer's own order. */
-export const GUIDE_PAGES = ['guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'rangers-guide.html', 'fip.html'];
+export const GUIDE_PAGES = ['staff-guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'rangers-guide.html', 'fip-guide.html'];
 
 /**
  * @param {(name: string) => string} readPage

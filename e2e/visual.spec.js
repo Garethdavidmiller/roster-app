@@ -701,14 +701,14 @@ test('guide — rangers & rovers mobile 390', async ({ page }) => {
 
 test('guide — fip mobile 390', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 6200 });
-    await page.goto('/fip.html');
+    await page.goto('/fip-guide.html');
     await guideSettle(page, '.chip-bar, .section-label');
     await expect(page).toHaveScreenshot('fip-guide-mobile-390.png');
 });
 
 test('guide — staff/admin desktop 900', async ({ page }) => {
     await page.setViewportSize({ width: 900, height: 3600 });
-    await page.goto('/guide.html');
+    await page.goto('/staff-guide.html');
     await guideSettle(page, '.content, main, .guide-header');
     await expect(page).toHaveScreenshot('staff-guide-desktop-900.png');
 });

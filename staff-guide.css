@@ -1,7 +1,7 @@
-/* MYB Roster — Staff & Admin Guide page styles (guide.html).
+/* MYB Roster — Staff & Admin Guide page styles (staff-guide.html).
    Shared document-guide styles (print, banner, steps, table, info, footer,
    two-column layout, shift-badge chips, palette) live in guide-doc.css,
-   linked BEFORE this file. Only guide.html-specific components below. */
+   linked BEFORE this file. Only staff-guide.html-specific components below. */
 
 /* Two pages. On screen the sticky page-header carries identity, so
    the FIRST in-document banner (staff page) is hidden; the second (admin)

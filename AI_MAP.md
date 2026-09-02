@@ -123,12 +123,12 @@ before deleting anything, because the number alone has now been wrong once.
 | Cross-file localStorage key constants (SELECTED_MEMBER + legacy alias, VIEWED_MONTH/YEAR) | `storage-keys.js` |
 | Push notifications, Huddle ingest, auth setup | `functions/index.js` |
 | Railcard at-work reference — cards, GroupSave, season tickets, gateline checks | `railcard-guide.html` + `railcard-guide.js` + `railcard-guide.css` |
-| Print button for guide.html and paycalc-guide.html | `guide-print.js` |
+| Print button for staff-guide.html and paycalc-guide.html | `guide-print.js` |
 | Guide back-arrow retarget (`?from=` → the page you came from, all 5 guides) | `guide-back.js` |
 | Shared guide chrome — header, back/PDF buttons, print banner (all 5 guides) | `guide-shell.css` |
-| Page-specific styles for guide.html | `guide.css` |
+| Page-specific styles for staff-guide.html | `staff-guide.css` |
 | Page-specific styles for paycalc-guide.html | `paycalc-guide.css` |
-| FIP travel guide — country reference; jump links open the target section | `fip.html` + `fip.js` + `fip.css` |
+| FIP travel guide — country reference; jump links open the target section | `fip-guide.html` + `fip-guide.js` + `fip-guide.css` |
 | HTML sanitisation for Huddle viewer (self-hosted) | `purify.es.mjs` |
 
 ---
@@ -1553,7 +1553,7 @@ Shared uncaught-error reporter (v13.31). Only export is `initErrorReporter()` �
 ### `usage-reporter.js`
 Anonymous usage recorder (v14.14) — the usage analogue of `error-reporter.js`. `recordUsage(page, identity?)`: records an anonymous page-view counter, and — whenever the acting member can be identified — counts that account toward the active-account metric, deduped client-side via localStorage flags keyed by member name (`myb_usage_m_*`, `myb_usage_d30_*`) so the server only ever receives `increment(1)` and never learns who was active. **Records nothing when `identity` is in `CONFIG.ADMIN_NAMES`** — the developer's own test loads are excluded so figures reflect real staff (v14.95). **ONE identity argument since v19.95, and ANONYMOUS VISITS NOW COUNT.** There were two: `member` (the signed-in name) gated the account metric, so the calendar — which has no Auth session — passed `member: null` and a member who only ever reads the roster incremented the page counter and nothing else. That is most of the staff (`password-force.js` reaches only people who sign in; AUTH_PLAN.md Track E's whole premise is that a roster-only viewer never does), so "Accounts active" counted the minority who open an authenticated page while reading as though it counted everybody. `_recordOrigin` had already worked around precisely this by keying on `identity` (v19.23) — its comment says so — and rather than leave one metric compensating for the gate above it, the gate keys on `identity` too and the parameters collapse. Consequences to know: the figures **step up at v19.95 and are not comparable either side of it**; the dedup keys are shared across the calendar and authenticated routes on purpose (one member reading the roster and then opening Settings is ONE account); and a FIRST-RUN device still records only a page view, because there is no identity to dedup on and the "selection" at that moment is the default member, an admin. Called once per page from each coordinator at the same point as `initErrorReporter()`. Imports the I/O from `firebase-client.js`, the dedup maths from `usage-stats.js`, `lsGet`/`lsSet` from `ls.js`, and `CONFIG` from `roster-data.js`. Fire-and-forget — never throws.
 
-- `recordOpen(itemId, identity?)` (v18.20) — anonymous "opened" counter for documents/guides, sharing the pv_ counts map and the admin exclusion; ids `huddle`/`circular`/`newsletter`/`guide-staff`/`guide-paycalc`/`guide-railcard`/`guide-fip`/`guide-rangers` (allowlisted in firestore.rules). **Every guide has been counted since v19.95**, and the Rangers guide arrived at v20.05 already carrying one — the Staff & Admin Guide and the Pay Calculator Guide had no counter before that, so the "Documents & guides" group answered "which of the two REFERENCE guides is read more" while reading as "which guides are read". The id lives on the `NAV_GUIDES` entry and is stamped onto the link as `data-open-id`, never matched from the href: `'./paycalc-guide.html'.includes('guide.html')` is TRUE, so a substring test would have counted every Pay Calculator Guide open as a Staff Guide open with both bars still looking plausible. `firestore-contract-parity.test.mjs` fails if an entry has no `openId` or the list drifts from `OPEN_META`. No dedup — every open counts. Called from `nav-panel.js` (drawer doc opens + guide-link taps; identity = `usageIdentity` opt, the calendar passes its selected member), `calendar-huddle-viewer.js` (viewer auto-open), `calendar-doc-viewer.js` (notification-tap Open button). Rendered by the Usage card's "Documents & guides — opens" group.
+- `recordOpen(itemId, identity?)` (v18.20) — anonymous "opened" counter for documents/guides, sharing the pv_ counts map and the admin exclusion; ids `huddle`/`circular`/`newsletter`/`guide-staff`/`guide-paycalc`/`guide-railcard`/`guide-fip`/`guide-rangers` (allowlisted in firestore.rules). **Every guide has been counted since v19.95**, and the Rangers guide arrived at v20.05 already carrying one — the Staff & Admin Guide and the Pay Calculator Guide had no counter before that, so the "Documents & guides" group answered "which of the two REFERENCE guides is read more" while reading as "which guides are read". The id lives on the `NAV_GUIDES` entry and is stamped onto the link as `data-open-id`, never matched from the href: `'./paycalc-guide.html'.includes('staff-guide.html')` is TRUE, so a substring test would have counted every Pay Calculator Guide open as a Staff Guide open with both bars still looking plausible. `firestore-contract-parity.test.mjs` fails if an entry has no `openId` or the list drifts from `OPEN_META`. No dedup — every open counts. Called from `nav-panel.js` (drawer doc opens + guide-link taps; identity = `usageIdentity` opt, the calendar passes its selected member), `calendar-huddle-viewer.js` (viewer auto-open), `calendar-doc-viewer.js` (notification-tap Open button). Rendered by the Usage card's "Documents & guides — opens" group.
 
 ### `usage-stats.js`
 Pure date-bucketing + aggregation for the usage analytics — no DOM, no Firebase. Imported by `firebase-client.js` and `usage-reporter.js`; tested by `usage-stats.test.mjs`.
@@ -1729,15 +1729,15 @@ Interactive behaviours for `railcard-guide.html` (extracted v10.84 — CSP compl
 - Chip-bar click navigation (smooth scroll to target section)
 - Offset calculation runs after `document.fonts.ready` (v12.58; falls back to `requestAnimationFrame`) so the sticky `.page-header` height is measured with Inter applied — sets `.chip-bar` `top` to match it, then `scrollMarginTop` on every `.rc` and `.section` so sticky bars don't overlap anchored content
 
-### `fip.js`
-Interactive behaviour for `fip.html` (v16.59 — CSP compliance; plain `defer` script, no modules; every part is progressive enhancement — JS off leaves the page usable, all countries visible).
+### `fip-guide.js`
+Interactive behaviour for `fip-guide.html` (v16.59 — CSP compliance; plain `defer` script, no modules; every part is progressive enhancement — JS off leaves the page usable, all countries visible).
 - **Country finder** (v17.64): a search box (`#countrySearch`) live-filters the country cards AND the A–Z jump chips by country name OR operator/train text — `applyCountryFilter(raw)` matches against each card's full text, toggles `.hidden`, and updates the count / no-match live regions. **The card set is `[id^="country-"]` and the number of cards is never written down** — this line said "the 25 country cards" until v20.32, by which point there were 33. That is also why `#booking-table` (v20.31) is *not* named `country-…`: it is a `<details>` in the booking section, and an id starting `country-` would let a search for one country hide the very table that says whether that country can be booked from the UK.
 - **Open-on-jump** (C1): opens the target country `<details>` when navigated to, so a jump / deep link lands on an **open** section instead of a collapsed one (native `<details>` with the `id` on the element don't auto-expand on anchor-scroll). `openHashTarget()` on first load + every `hashchange`; a `.country-jump` click handler also covers re-tapping the already-current country (fires no `hashchange`). If the target was filtered out, the search is cleared first so the jump lands. All idempotent.
 - **Sticky section chip-bar** (v17.66) + **scrollspy** (v17.68) — mirrors `railcard-guide.js`; measures the header height after `document.fonts.ready`, sets the chip-bar `top` + `scrollMarginTop`, honours `prefers-reduced-motion`.
 - **Print** (v18.71): `beforeprint` force-opens every `<details>` (and un-hides any card the finder filtered), `afterprint` restores — because modern Chromium collapses a closed `<details>`'s body via `::details-content`, which the print CSS can't override, so without this each country printed as an empty bordered strip.
 
 ### `guide-print.js`
-Shared print button handler for `guide.html` and `paycalc-guide.html` (extracted v10.84 — CSP compliance).
+Shared print button handler for `staff-guide.html` and `paycalc-guide.html` (extracted v10.84 — CSP compliance).
 - Wires `click → window.print()` on `.btn-print` in whichever guide page loads it
 - No modules; plain script with `defer`
 
@@ -1995,17 +1995,17 @@ Page-specific CSS for each page — extracted from inline `<style>` blocks (inde
 - All are stale-while-revalidate in the service worker (v16.10 — same strategy and freshness lifecycle as their HTML and the app JS)
 
 ### `guide-shell.css`
-Shared chrome for the five guide pages (`guide.html`, `paycalc-guide.html`, `railcard-guide.html`, `fip.html`, `rangers-guide.html`) — added v11.48.
+Shared chrome for the five guide pages (`staff-guide.html`, `paycalc-guide.html`, `railcard-guide.html`, `fip-guide.html`, `rangers-guide.html`) — added v11.48.
 - Holds common header/back-button/PDF-button/print rules and defines shared brand palette tokens (`--navy`, `--navy-dark`, `--navy-mid`, `--gold`) in its own `:root` (v11.85) — guide pages no longer define these themselves
 - This is the one place to change guide chrome — do not re-inline it into the pages
 - NOT the app's `shared.css` (which the guides deliberately don't import) — see CLAUDE.md "Unified guide shell"
 
 ### `guide-doc.css`
-Shared styles for the two document-style guides (`guide.html`, `paycalc-guide.html`) — loaded between `guide-shell.css` and page CSS in those two pages. NOT linked by `railcard-guide.html` or `fip.html`.
+Shared styles for the two document-style guides (`staff-guide.html`, `paycalc-guide.html`) — loaded between `guide-shell.css` and page CSS in those two pages. NOT linked by `railcard-guide.html` or `fip-guide.html`.
 - Two-column print layout, info/warning/tip boxes, numbered steps, data tables, callout banners
 - Changes here affect both the Staff & Admin Guide and the Pay Calculator Guide simultaneously; check both in print preview before committing
 
-### `guide.css` / `paycalc-guide.css` / `railcard-guide.css` / `fip.css`
+### `staff-guide.css` / `paycalc-guide.css` / `railcard-guide.css` / `fip-guide.css`
 Page-specific CSS for each guide page — extracted from inline `<style>` blocks at v12.04.
 - Edit the corresponding file for any visual change specific to that guide page
 - All four are stale-while-revalidate in the service worker (v16.10 — same strategy and freshness lifecycle as their HTML and the app JS)

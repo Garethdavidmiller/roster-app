@@ -17,9 +17,9 @@ paths:
 
 ## Shared rules (all FIVE guide pages)
 
-- Guide pages do **not** import the app's `shared.css` (nav panel / lightbox / login chrome they don't use). All five share `guide-shell.css`; the two **document-style** guides (`guide.html`, `paycalc-guide.html`) additionally load `guide-doc.css` (the shared two-column print layout + 760px content wrapper) between the shell and their own CSS. Each page then has its own external CSS file (`guide.css`, `paycalc-guide.css`, `railcard-guide.css`, `fip.css`, `rangers-guide.css`) — extracted from inline `<style>` blocks at v12.04. Do not add a `shared.css` import to any guide.
-- Guide pages use **no inline `<script>` or `onclick` handlers** — Firebase Hosting CSP (`script-src 'self'`) blocks them. All guide JS is in external files: `railcard-guide.js` (v10.84), `guide-print.js` (v10.84, shared by `guide.html`, `paycalc-guide.html` and `fip.html`), `fip.js` (v16.59, opens the target country `<details>` on jump/deep-link), and `guide-back.js` (v18.84, loaded by EVERY guide — the back-arrow retarget). Do not add inline scripts or `onclick` attributes.
-- Back buttons on `railcard-guide.html` and `fip.html` link to `./index.html` (not `./admin.html`) — guides are accessed from the nav panel. **`guide-back.js` retargets that arrow at runtime** when the guide was opened from the nav drawer: `nav-panel.js` appends `?from=<page>` and the guide points `←` back at that page instead of its hardcoded default. Needed since v18.81 made guide links navigate in the SAME tab (a new tab used to preserve the page you left). `from` is allowlisted against the app's own pages; an absent or unknown value leaves the authored href alone.
+- Guide pages do **not** import the app's `shared.css` (nav panel / lightbox / login chrome they don't use). All five share `guide-shell.css`; the two **document-style** guides (`staff-guide.html`, `paycalc-guide.html`) additionally load `guide-doc.css` (the shared two-column print layout + 760px content wrapper) between the shell and their own CSS. Each page then has its own external CSS file (`staff-guide.css`, `paycalc-guide.css`, `railcard-guide.css`, `fip-guide.css`, `rangers-guide.css`) — extracted from inline `<style>` blocks at v12.04. Do not add a `shared.css` import to any guide.
+- Guide pages use **no inline `<script>` or `onclick` handlers** — Firebase Hosting CSP (`script-src 'self'`) blocks them. All guide JS is in external files: `railcard-guide.js` (v10.84), `guide-print.js` (v10.84, shared by `staff-guide.html`, `paycalc-guide.html` and `fip-guide.html`), `fip-guide.js` (v16.59, opens the target country `<details>` on jump/deep-link), and `guide-back.js` (v18.84, loaded by EVERY guide — the back-arrow retarget). Do not add inline scripts or `onclick` attributes.
+- Back buttons on `railcard-guide.html` and `fip-guide.html` link to `./index.html` (not `./admin.html`) — guides are accessed from the nav panel. **`guide-back.js` retargets that arrow at runtime** when the guide was opened from the nav drawer: `nav-panel.js` appends `?from=<page>` and the guide points `←` back at that page instead of its hardcoded default. Needed since v18.81 made guide links navigate in the SAME tab (a new tab used to preserve the page you left). `from` is allowlisted against the app's own pages; an absent or unknown value leaves the authored href alone.
 
 ## Unified guide shell (v11.47)
 
@@ -33,7 +33,7 @@ All five guide pages share one chrome for consistent behaviour on iOS, Android, 
 
 **Still per-page in each page's own CSS file (keep aligned by eye):**
 - **Background:** flat `#f4f5f8` edge-to-edge. No white "page" card.
-- **Content width:** `max-width: 760px`, centred. For `guide.html`/`paycalc-guide.html` the 760px wrapper **and** the two-column `.cols` print grid live in the shared **`guide-doc.css`** (not the page's own file); `railcard-guide.html`/`fip.html` set their own 760px single-column width in their page CSS.
+- **Content width:** `max-width: 760px`, centred. For `staff-guide.html`/`paycalc-guide.html` the 760px wrapper **and** the two-column `.cols` print grid live in the shared **`guide-doc.css`** (not the page's own file); `railcard-guide.html`/`fip-guide.html` set their own 760px single-column width in their page CSS.
 - **Safe-area:** side insets `max(16px, env(safe-area-inset-*))` on the content wrapper; bottom `max(40px, env(safe-area-inset-bottom))`.
 - **PDF button markup:** `<button id="savePdfBtn" class="btn-print btn-pdf">⤓ PDF</button>`. Wired by `guide-print.js` (`.btn-print`) on guide/paycalc/fip; `railcard-guide.js` wires `#savePdfBtn` itself because it also owns the chip-bar.
 
@@ -89,7 +89,7 @@ gap the v17.45 audit flagged can't silently reopen.
 
 ## FIP guide
 
-`fip.html` is a low-frequency educational reference — not a core workflow. Judge it as an
+`fip-guide.html` is a low-frequency educational reference — not a core workflow. Judge it as an
 article-like reference page. Do not flag reference-page format as a design defect. Care about
 factual accuracy, source links, mobile layout, and the navy/gold palette.
 

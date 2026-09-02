@@ -60,7 +60,7 @@ from `OTHER_FLAVOURS` and the server uses an explicit alias lookup, so neither n
    rules accept/reject rows (`firestore.rules.test` TYPE_VALUE_MAP loop covers the happy path),
    one pay-engine case each, badge words (`roster-data.test`).
 6. Copy strings that enumerate the flavours (only if wording should change): Sunday pill title
-   (`admin-overrides.js`), Sunday save error (`admin-app.js`), admin CARD_TIPS, `guide.html` badge row,
+   (`admin-overrides.js`), Sunday save error (`admin-app.js`), admin CARD_TIPS, `staff-guide.html` badge row,
    `paycalc-help.js` — plus the docs sweep (CLAUDE.md shift-types row, AI_MAP, OPERATIONS_REFERENCE).
 7. One version bump; verify a new-flavour day at 375px in a private window.
 

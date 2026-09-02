@@ -113,17 +113,17 @@ const NAV_INFORMATION = [
  * lives on the ENTRY and is stamped onto the rendered link as `data-open-id`, so the click handler
  * reads it off the element rather than inferring it from the href. That is not tidiness: the two
  * ids added at v19.95 are the exact case a href test gets wrong, because
- * `'./paycalc-guide.html'.includes('guide.html')` is TRUE — a substring match would have counted
+ * `'./paycalc-guide.html'.includes('staff-guide.html')` is TRUE — a substring match would have counted
  * every Pay Calculator Guide open as a Staff Guide open, and both bars would still have looked
  * plausible. A guide added here without an `openId` simply is not counted, which
  * firestore-contract-parity.test.mjs fails on rather than leaving to be noticed.
  */
 const NAV_GUIDES = [
-    { icon: '📘', label: 'Staff & Admin Guide',  url: './guide.html',          openId: 'guide-staff'    },
+    { icon: '📘', label: 'Staff & Admin Guide',  url: './staff-guide.html',          openId: 'guide-staff'    },
     { icon: '💷', label: 'Pay Calculator Guide', url: './paycalc-guide.html',  openId: 'guide-paycalc'  },
     { icon: '🎫', label: 'Railcard Guide',       url: './railcard-guide.html', openId: 'guide-railcard' },
     { icon: '🗺️', label: 'Rangers & Rovers',    url: './rangers-guide.html',  openId: 'guide-rangers'  },
-    { icon: '🇪🇺', label: 'FIP Travel Guide',     url: './fip.html',            openId: 'guide-fip'      },
+    { icon: '🇪🇺', label: 'FIP Travel Guide',     url: './fip-guide.html',            openId: 'guide-fip'      },
 ];
 
 /**
@@ -530,7 +530,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             // The id is READ OFF THE ELEMENT (`data-open-id`, stamped from NAV_GUIDES at render).
             // It was matched from the href until v19.95, which covered only two of the four guides
             // — and adding the other two that way would have been wrong, because
-            // `'./paycalc-guide.html'.includes('guide.html')` is true.
+            // `'./paycalc-guide.html'.includes('staff-guide.html')` is true.
             const _countGuideOpen = () => {
                 const openId = guideLink.dataset.openId;
                 if (openId) recordOpen(openId, _usageId);

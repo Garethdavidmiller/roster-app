@@ -1,15 +1,15 @@
 /* ──────────────────────────────────────────────────────────────────────────
    guide-doc.css — shared styles for the two DOCUMENT-style guides: the
-   Staff & Admin Guide (guide.html) and the Pay Calculator Guide
+   Staff & Admin Guide (staff-guide.html) and the Pay Calculator Guide
    (paycalc-guide.html). Both share the same two-column print layout, navy
    in-document banner, numbered steps, info boxes, tables,
    shift-badge chips, and footer.
 
-   NOT linked by railcard-guide.html or fip.html — those are single-column
+   NOT linked by railcard-guide.html or fip-guide.html — those are single-column
    card pages with their own structure.
 
    Load order per page: guide-shell.css → guide-doc.css → page CSS
-   (guide.css / paycalc-guide.css). The page CSS is linked LAST so its
+   (staff-guide.css / paycalc-guide.css). The page CSS is linked LAST so its
    page-specific rules still win on equal specificity.
    ────────────────────────────────────────────────────────────────────────── */
 

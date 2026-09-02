@@ -91,7 +91,7 @@ test('every guide in the nav drawer has an open counter, and every guide counter
         'NAV_GUIDES openIds and OPEN_META guide ids have drifted');
 
     // …and the handler must read the id off the element rather than guessing it from the href.
-    // `'./paycalc-guide.html'.includes('guide.html')` is TRUE, so a substring test would count the
+    // `'./paycalc-guide.html'.includes('staff-guide.html')` is TRUE, so a substring test would count the
     // Pay Calculator Guide as the Staff Guide and both bars would still look plausible.
     assert.match(NAV, /data-open-id="\$\{g\.openId\}"/,
         'the guide link no longer carries data-open-id — the open counter has lost its id source');
