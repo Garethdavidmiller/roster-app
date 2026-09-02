@@ -671,7 +671,25 @@ test('the guide-count guard still matches the form that shipped — guard the gu
 // rule with no gate is how the tree reached 136k characters and 208 version references in the first
 // place. Two cheap, objective limits — neither is a style opinion:
 //
-//   · no single entry may exceed ~1,600 characters. Past that it has stopped being a pointer.
+//   · no single entry may exceed the cap below. Past that it has stopped being a pointer.
+//
+// THE CAP IS A RATCHET, AND IT CAME DOWN ON 2 Sep 2026 (1,600 -> 900). 1,600 was set when the tree
+// was being rescued from 136k characters, and it did its job — but it was so far above the tree's
+// own behaviour that only SIX entries ever touched it, so in practice it enforced nothing while
+// reading as though it did. An external review then measured what that permitted: 361 entries,
+// 155,386 characters, 52% of a file loaded into EVERY session, with 113,742 of those characters
+// sitting in entries over 400 when routing needs about 80.
+//
+// Thirty-seven entries were rewritten as routing lines. Every one was checked first against its own
+// module header — the v20.11 discipline, that reasoning moves BEFORE the pointer is cut — and the
+// five whose reasoning was NOT already beside the code were handled separately rather than trimmed
+// blind. The measurement that sorted them took three attempts and got it wrong twice, in opposite
+// directions; the working version is in the commit message.
+//
+// 900 is deliberately just above the largest survivor, not a round number: a cap with slack is a
+// cap nobody meets. Shrinking an entry is free. RAISING this number is a decision somebody makes
+// and defends, exactly like `coordinator-ratchet.test.mjs`. The next pass should bring it to ~600.
+const TREE_ENTRY_CAP = 900;
 //   · the tree may not accumulate release history. A handful of version stamps is fine (they date
 //     a decision); dozens means the changelog has moved back in.
 test('the CLAUDE.md file tree stays a routing table', () => {
@@ -682,7 +700,7 @@ test('the CLAUDE.md file tree stays a routing table', () => {
     assert.ok(entries.length > 150, `expected >150 routed entries, found ${entries.length}`);
 
     const tooLong = entries
-        .filter(l => l.length > 1600)
+        .filter(l => l.length > TREE_ENTRY_CAP)
         .map(l => `${l.replace(/^[│├└─\s]+/, '').split('←')[0].trim()} (${l.length} chars)`);
     assert.deepEqual(tooLong, [],
         'these entries have stopped being pointers. Move the reasoning into the module header and ' +
