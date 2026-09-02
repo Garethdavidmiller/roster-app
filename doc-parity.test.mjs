@@ -97,7 +97,7 @@ const CLOSED_HEADING_EXEMPT = [
     'Mixed-version cache window',
 ];
 test('KNOWN_LIMITATIONS.md headings state what is still true', () => {
-    const doc = read('./KNOWN_LIMITATIONS.md');
+    const doc = read('./docs/KNOWN_LIMITATIONS.md');
     const offenders = doc.split('\n')
         .filter(l => /^#{2,3} /.test(l))
         .filter(l => CLOSED_WORDS.test(l) || l.includes('~~'))

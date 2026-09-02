@@ -171,6 +171,28 @@ test('admin — mobile 390 (signed in)', async ({ page }) => {
     await expect(page).toHaveScreenshot('admin-mobile-390.png');
 });
 
+// THE AL AND ABSENCE CARDS, OPEN, WITH THE LONGEST NAME ON THE ROSTER (2 Sep 2026).
+// The two admin baselines above capture the page with every card COLLAPSED, so anything inside a
+// card body has no pixel coverage at all — which is how the "Recording for <name>" row shipped at
+// v22.45 with a new component, new CSS and a baseline that could not see it. The gap was found the
+// same day, by an external reviewer chasing an unrelated stale baseline.
+//
+// 390px and the longest roster name together, because that pairing is the whole reason the row is
+// in the card BODY rather than the header cluster: at 23 characters it either wrapped the card
+// title or ellipsised to something that no longer identifies a person. A layout change that
+// reintroduced either would be invisible to every behavioural test — they assert the text, and the
+// text would still be right.
+test('admin — the AL and Absence cards open, longest name (mobile 390)', async ({ page }) => {
+    await prep(page, { width: 390, height: 1600 });
+    await page.goto('/admin.html');
+    await settle(page, '.card');
+    await page.locator('#fieldMember').selectOption('R. Forrester-Blackstock');
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#sickToggleHeader').click();
+    await settle(page, '#alMemberFor');
+    await expect(page).toHaveScreenshot('admin-cards-open-mobile-390.png');
+});
+
 test('operations — desktop 1280 (signed in)', async ({ page }) => {
     await prep(page, { width: 1280, height: 900 });
     await page.goto('/operations.html');
