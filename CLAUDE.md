@@ -894,7 +894,7 @@ replacement.
 |------|-------|
 | main | 20 |
 | bilingual | 8 |
-| fixed | 1 per member, no rotation — `currentWeek` selects which fixed pattern in `fixedRoster` (1 = C. Reen 12:00–19:00; 2 = S. Boyle / K. Jedlinski 09:00–16:00) |
+| fixed | 1 per member, no rotation — `currentWeek` selects which fixed pattern in `fixedRoster` (1 = C. Reen 12:00–19:00; 2 = the Mon–Fri 09:00–16:00 line, 35 hours: S. Boyle, plus anyone temporarily off a rotating link — K. Jedlinski before Jun 2026, B. Toth's three training weeks, and S. Faure's maternity row from Jun 2026). **A pattern is SHARED, so editing one member's hours here edits everyone on that line.** |
 | ces | 10 |
 | dispatcher | 10 |
 

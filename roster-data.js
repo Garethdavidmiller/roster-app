@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '22.40';
+export const APP_VERSION = '22.41';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -279,13 +279,36 @@ export const teamMembers = [
     { name: 'D. Minto',                currentWeek: 1,  rosterType: 'dispatcher', role: 'Dispatcher' },
     { name: 'A. Targanov',             currentWeek: 2,  rosterType: 'dispatcher', role: 'Dispatcher' },
     { name: 'S. Warman',               currentWeek: 3,  rosterType: 'dispatcher', role: 'Dispatcher' },
-    { name: 'S. Faure',                currentWeek: 4,  rosterType: 'dispatcher', role: 'Dispatcher' },
+    // S. Faure — MATERNITY LEAVE from Mon 29 Jun 2026. She comes OFF the rotating link on that
+    // date (B. Toth took line 4) and onto her own Mon–Fri row: `fixedRoster[2]`, 09:00–16:00, the
+    // 35 contracted hours a week she is credited with, weekends RD. The base fields still describe
+    // her BEFORE 29 Jun, so every shift she actually worked up to then still displays correctly.
+    // The absence itself is override data (🪑 Absent, Mon–Fri) — this only decides what those
+    // overrides sit on, and what her weekends read when they are absent.
+    // NOTE she shares `fixedRoster[2]` with S. Boyle and K. Jedlinski: change those hours and you
+    // change hers.
+    { name: 'S. Faure',                currentWeek: 4,  rosterType: 'dispatcher', role: 'Dispatcher',
+      rosterChanges: [{ from: new Date(2026, 5, 29), rosterType: 'fixed', currentWeek: 2 }] },
     { name: 'L. Szpejer',              currentWeek: 5,  rosterType: 'dispatcher', role: 'Dispatcher' },
     { name: 'K. Porter',               currentWeek: 6,  rosterType: 'dispatcher', role: 'Dispatcher' },
     { name: 'A. Murray',               currentWeek: 7,  rosterType: 'dispatcher', role: 'Dispatcher' },
     { name: 'S. Clarke',               currentWeek: 8,  rosterType: 'dispatcher', role: 'Dispatcher' },
     { name: 'A. Atkins',               currentWeek: 9,  rosterType: 'dispatcher', role: 'Dispatcher' },
     { name: 'K. Yeboah',               currentWeek: 10, rosterType: 'dispatcher', role: 'Dispatcher' },
+
+    // B. Toth — started Mon 29 Jun 2026 on S. Faure's line (4), after THREE weeks of initial
+    // training: Mon–Fri 09:00–16:00, nothing at weekends. That is exactly `fixedRoster[2]`, so the
+    // training weeks are the BASE roster rather than fifteen overrides propping up a base that
+    // would otherwise show turns he never worked — the calendar is right whether or not the
+    // training days are ever recorded, and recording them only adds the 🏷️ Train badge on top.
+    // He joins the link on Mon 20 Jul 2026. `currentWeek: 4` there is REFERENCE-ANCHORED (see
+    // .claude/rules/roster-data.md) — the same value S. Faure carries, i.e. her line.
+    // `proRatedAL` is 22 × 186/365 rounded up. It is a FLAT figure and it suppresses the dynamic
+    // Dispatcher calculation, so the three remaining 2026 bank holidays (31 Aug, 25 Dec, 28 Dec)
+    // earn him no lieu day this year. Owner decision, Sep 2026. 2027 reverts to 22 + lieu on its own.
+    { name: 'B. Toth',                 currentWeek: 2,  rosterType: 'fixed',      role: 'Dispatcher',
+      startDate: new Date(2026, 5, 29), proRatedAL: { 2026: 12 },
+      rosterChanges: [{ from: new Date(2026, 6, 20), rosterType: 'dispatcher', currentWeek: 4 }] },
 
     // CES — Customer Experience Supervisors (reference: w/c 15 Feb 2026)
     { name: 'F. Mohamed',              currentWeek: 1,  rosterType: 'ces',        role: 'CES' },
