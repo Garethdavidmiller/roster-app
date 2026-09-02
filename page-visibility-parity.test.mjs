@@ -62,7 +62,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 
 const read = (/** @type {string} */ f) => readFileSync(new URL(f, import.meta.url), 'utf8');
 
-const GUIDES = new Set(['guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'fip.html', 'rangers-guide.html']);
+const GUIDES = new Set(['staff-guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'fip-guide.html', 'rangers-guide.html']);
 const APP_PAGES = readdirSync(new URL('.', import.meta.url))
     .filter(f => f.endsWith('.html') && !GUIDES.has(f)).sort();
 

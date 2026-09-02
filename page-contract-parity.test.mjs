@@ -39,7 +39,7 @@ const read = (/** @type {string} */ f) => readFileSync(new URL(f, import.meta.ur
  * a served HTML page at the repo root is an APP page and owes the full contract.
  */
 const GUIDES = new Set([
-    'guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'fip.html', 'rangers-guide.html',
+    'staff-guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'fip-guide.html', 'rangers-guide.html',
 ]);
 
 const APP_PAGES = readdirSync(new URL('.', import.meta.url))

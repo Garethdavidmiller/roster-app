@@ -71,7 +71,7 @@ const isIgnorable = (/** @type {{ blocked: string, directive: string }} */ v) =>
 const PAGES = [
     '/', '/admin.html', '/paycalc.html', '/operations.html', '/settings.html', '/links.html',
     '/overtime.html',
-    '/guide.html', '/paycalc-guide.html', '/railcard-guide.html', '/fip.html', '/rangers-guide.html',
+    '/staff-guide.html', '/paycalc-guide.html', '/railcard-guide.html', '/fip-guide.html', '/rangers-guide.html',
 ];
 
 for (const path of PAGES) {

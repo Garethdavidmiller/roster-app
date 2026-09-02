@@ -112,7 +112,7 @@ describe('"MYB" never names the app', () => {
         // Guard the guard, and guard the distinction. If this ever fails, the rule above has been
         // broadened into the blanket version that would have people "correcting" a correct railway
         // station code out of an operational reference sheet.
-        const guides = ['./guide.html', './railcard-guide.html'].map(read).join('\n');
+        const guides = ['./staff-guide.html', './railcard-guide.html'].map(read).join('\n');
         assert.match(guides, /MYB Station/, 'the guide masthead lost the station code');
         assert.ok(/\bMYB\b/.test(code(read('./railcard-guide.html'))),
             'the railcard guide no longer uses the station code in its journey guidance');

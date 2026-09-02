@@ -1,4 +1,4 @@
-/* MYB Roster — FIP Travel Guide page styles. Linked by fip.html after guide-shell.css. */
+/* MYB Roster — FIP Travel Guide page styles. Linked by fip-guide.html after guide-shell.css. */
 
 :root {
     /* --navy / --navy-dark / --gold defined in guide-shell.css */
@@ -72,7 +72,7 @@ a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decor
 }
 .section-label:first-child { margin-top: 0; }
 /* Jump/finder links scroll to section + #country-* anchors — clearance for the sticky header +
-   chip-bar. fip.js refines this to the measured height; this is the pre-JS / JS-off fallback. */
+   chip-bar. fip-guide.js refines this to the measured height; this is the pre-JS / JS-off fallback. */
 .section-label[id], details[id], div[id] { scroll-margin-top: 100px; }
 
 /* Section chip-bar (.chip-bar / .chip, incl. .chip[aria-current]) is defined in
@@ -433,7 +433,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
 .mb-0  { margin-bottom: 0; }
 .mb-8  { margin-bottom: 8px; }
 .mb-12 { margin-bottom: 12px; }
-/* `.mt-0` and `.mt-12` went at v21.94 — nothing in fip.html has ever used them. A spacing
+/* `.mt-0` and `.mt-12` went at v21.94 — nothing in fip-guide.html has ever used them. A spacing
    utility nobody applies is not a spare part; it is a rule the next reader has to check for
    before changing a margin. The four that ARE used stay. */
 .mt-8  { margin-top: 8px; }

@@ -1805,12 +1805,12 @@ test('admin: selecting a pill with hours causes no horizontal blowout (touch lay
         .toBeLessThanOrEqual(m.innerW + 2);
 });
 
-// ── FIP GUIDE (fip.html) — jump-to-open + malformed-hash safety ──────────────
+// ── FIP GUIDE (fip-guide.html) — jump-to-open + malformed-hash safety ──────────────
 
 test('fip: a country jump-link opens that country section (C1)', async ({ page }) => {
     const errors = collectFatalErrors(page);
-    await page.goto('/fip.html#country-fr');   // deep-link straight to France
-    // fip.js opens the target <details> on load; without it the row stays collapsed.
+    await page.goto('/fip-guide.html#country-fr');   // deep-link straight to France
+    // fip-guide.js opens the target <details> on load; without it the row stays collapsed.
     await expect(page.locator('#country-fr')).toHaveAttribute('open', '');
     // And an in-page jump (hashchange) opens another one.
     await page.locator('.country-jump a[href="#country-be"]').click();
@@ -1821,7 +1821,7 @@ test('fip: a country jump-link opens that country section (C1)', async ({ page }
 test('fip: a malformed hash does not throw (safeDecode)', async ({ page }) => {
     const errors = collectFatalErrors(page);
     // A lone "%" is an invalid percent-escape — decodeURIComponent would throw uncaught without the guard.
-    await page.goto('/fip.html#%');
+    await page.goto('/fip-guide.html#%');
     // Page still renders (the jump bar exists) and nothing crashed.
     await expect(page.locator('.country-jump')).toBeVisible();
     expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
@@ -1830,7 +1830,7 @@ test('fip: a malformed hash does not throw (safeDecode)', async ({ page }) => {
 // Country finder (v17.64): search filters the country cards + A–Z chips; clear + no-match + popular.
 test('fip: the country finder filters cards, shows a no-match, and clears', async ({ page }) => {
     const errors = collectFatalErrors(page);
-    await page.goto('/fip.html');
+    await page.goto('/fip-guide.html');
     const search = page.locator('#countrySearch');
     await expect(search).toBeVisible();
     // On an empty field the clear ✕ and the count are hidden (regression guard: an author `display`
@@ -1865,7 +1865,7 @@ test('fip: the country finder filters cards, shows a no-match, and clears', asyn
 
 test('fip: the section chip-bar jumps to a section and marks it current', async ({ page }) => {
     const errors = collectFatalErrors(page);
-    await page.goto('/fip.html');
+    await page.goto('/fip-guide.html');
     const chip = page.locator('.chip-bar .chip[data-target="sec-mistakes"]');
     await expect(chip).toBeVisible();
     await chip.click();
@@ -1880,7 +1880,7 @@ test('fip: the section chip-bar jumps to a section and marks it current', async 
 });
 
 test('fip: scrollspy marks the chip for the section scrolled into view', async ({ page }) => {
-    await page.goto('/fip.html');
+    await page.goto('/fip-guide.html');
     // A mid-page section scrolled under the sticky stack becomes current.
     await page.evaluate(() => document.getElementById('sec-ferries').scrollIntoView({ block: 'start' }));
     await page.waitForTimeout(350);
@@ -1896,7 +1896,7 @@ test('fip: scrollspy marks the chip for the section scrolled into view', async (
 });
 
 test('fip: a "popular" shortcut opens its country, clearing an active filter first', async ({ page }) => {
-    await page.goto('/fip.html');
+    await page.goto('/fip-guide.html');
     // Filter so France is hidden, then tap the popular France shortcut: it must clear the filter,
     // reveal France, and open it.
     await page.locator('#countrySearch').fill('spain');
@@ -1924,7 +1924,7 @@ test('fip: a "popular" shortcut opens its country, clearing an active filter fir
 //      a whole one. The stacked layout is a CSS media query over generated content: a static test
 //      cannot see it and a unit test has no layout, so it takes a real browser at a real width.
 test('fip: the booking-reach table answers per country, and the finder leaves it alone', async ({ page }) => {
-    await page.goto('/fip.html');
+    await page.goto('/fip-guide.html');
     const table = page.locator('#booking-table');
     await table.evaluate(el => { el.open = true; });
 
@@ -1953,7 +1953,7 @@ test('fip: the booking-reach table answers per country, and the finder leaves it
 
 test('fip: the booking table stacks with labelled cells on a phone', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 900 });
-    await page.goto('/fip.html');
+    await page.goto('/fip-guide.html');
     await page.locator('#booking-table').evaluate(el => { el.open = true; });
 
     // The stacked layout announces each column per cell. Read the generated content, because that
@@ -1982,7 +1982,7 @@ test('fip: the booking table stacks with labelled cells on a phone', async ({ pa
 // PRESENT in the markup and that its date matches the register; this proves it is actually VISIBLE
 // once the card is open — a static check cannot tell an evidence line from one a stylesheet hides.
 test('fip: an opened country card shows its checked date', async ({ page }) => {
-    await page.goto('/fip.html');
+    await page.goto('/fip-guide.html');
     await page.locator('#country-cz').evaluate(el => { el.open = true; });
     const line = page.locator('#country-cz .country-reviewed');
     await expect(line).toBeVisible();

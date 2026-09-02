@@ -239,7 +239,7 @@ describe('Contract B — the PIN is not in the repository', () => {
     test('the documentation tells the developer to set it INTERACTIVELY', () => {
         // A doc that records the value is the same leak as a source file that does. The instruction
         // has to exist somewhere a future maintainer will look before deploying.
-        const docs = ['./OPERATIONS_REFERENCE.md', './CLAUDE.md'].map(read).join('\n');
+        const docs = ['./docs/OPERATIONS_REFERENCE.md', './CLAUDE.md'].map(read).join('\n');
         assert.match(docs, /functions:secrets:set CALENDAR_VIEWER_PIN/,
             'no doc explains how to set the PIN without committing it');
     });

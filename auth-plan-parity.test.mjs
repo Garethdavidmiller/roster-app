@@ -24,9 +24,9 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const AUTH = readFileSync('AUTH_PLAN.md', 'utf8');
-const SEC  = readFileSync('SECURITY_RELEASE_PLAN.md', 'utf8');
-const CRED = readFileSync('CREDENTIAL_LIFECYCLE.md', 'utf8');
+const AUTH = readFileSync('docs/AUTH_PLAN.md', 'utf8');
+const SEC  = readFileSync('docs/SECURITY_RELEASE_PLAN.md', 'utf8');
+const CRED = readFileSync('docs/CREDENTIAL_LIFECYCLE.md', 'utf8');
 
 const EXPECTED_PHASES = ['E0', 'E1', 'E2', 'E3', 'E4', 'E5', 'E6'];
 
@@ -96,7 +96,7 @@ const AUTH_PHASES = authPhases(AUTH);
 const SEC_PHASES  = secPhases(SEC);
 
 describe('Track E parity — both plans describe the same phases', () => {
-    for (const [label, phases] of [['AUTH_PLAN.md', AUTH_PHASES], ['SECURITY_RELEASE_PLAN.md', SEC_PHASES]]) {
+    for (const [label, phases] of [['docs/AUTH_PLAN.md', AUTH_PHASES], ['docs/SECURITY_RELEASE_PLAN.md', SEC_PHASES]]) {
         test(`${label} declares E0–E6, each exactly once`, () => {
             const ids = phases.map(p => p.id);
             const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);
@@ -140,7 +140,7 @@ describe('Track E parity — both plans describe the same phases', () => {
 const CANONICAL_SEQUENCE = 'E0 → E1 → PIN (v20.12, in place of E2) → decision gate → E3 + E4 → E5';
 
 describe('Track E parity — the canonical rollout sequence', () => {
-    for (const [label, src] of [['AUTH_PLAN.md', AUTH], ['SECURITY_RELEASE_PLAN.md', SEC]]) {
+    for (const [label, src] of [['docs/AUTH_PLAN.md', AUTH], ['docs/SECURITY_RELEASE_PLAN.md', SEC]]) {
         test(`${label} states the canonical sequence verbatim`, () => {
             assert.ok(src.includes(CANONICAL_SEQUENCE),
                 `${label} does not contain "${CANONICAL_SEQUENCE}". Both Track E documents must state ` +
@@ -264,10 +264,12 @@ describe('the credential lifecycle programme', () => {
         // AUTH_AND_SESSIONS.md rows normally name the module that holds the reasoning. 15 and 16
         // describe things that do not exist yet, so they must route to the design instead — a row
         // pointing at a file that does not implement it is worse than one that says so.
-        const contract = readFileSync('AUTH_AND_SESSIONS.md', 'utf8');
+        const contract = readFileSync('docs/AUTH_AND_SESSIONS.md', 'utf8');
         for (const n of [15, 16]) {
             const row = contract.split('\n').find(l => l.startsWith(`| ${n} |`)) || '';
             assert.ok(row, `AUTH_AND_SESSIONS.md has no invariant ${n}`);
+            // A CONTENT matcher, not a path: docs sit together in docs/ and refer to each other by
+            // bare filename, so this must stay bare even though the file moved.
             assert.ok(row.includes('CREDENTIAL_LIFECYCLE.md') && /not yet built/.test(row),
                 `invariant ${n} must route to CREDENTIAL_LIFECYCLE.md and say it is not yet built — ` +
                 'when it IS built, repoint it at the module and drop the marker here.');

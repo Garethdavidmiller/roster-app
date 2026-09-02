@@ -276,10 +276,10 @@ test('service-worker.js cross-version fallback uses matchNewestManagedCache, not
 // swept every 0.10 version — this test enforces that for all of them, not just one.
 const DOC_STAMPS = [
     { file: 'CLAUDE.md',               re: /Current app version[^`]*`(\d+\.\d+)`/, label: '"Current app version" line' },
-    { file: 'AI_MAP.md',               re: /Last updated:[^\n]*?v(\d+\.\d+)/,       label: '"Last updated" header' },
-    { file: 'OPERATIONS_REFERENCE.md', re: /Last updated:[^\n]*?v(\d+\.\d+)/,       label: '"Last updated" header' },
-    { file: 'KNOWN_LIMITATIONS.md',    re: /Last updated:[^\n]*?v(\d+\.\d+)/,       label: '"Last updated" header' },
-    { file: 'ROADMAP.md',              re: /Last updated:[^\n]*?v(\d+\.\d+)/,       label: '"Last updated" header' },
+    { file: 'docs/AI_MAP.md',               re: /Last updated:[^\n]*?v(\d+\.\d+)/,       label: '"Last updated" header' },
+    { file: 'docs/OPERATIONS_REFERENCE.md', re: /Last updated:[^\n]*?v(\d+\.\d+)/,       label: '"Last updated" header' },
+    { file: 'docs/KNOWN_LIMITATIONS.md',    re: /Last updated:[^\n]*?v(\d+\.\d+)/,       label: '"Last updated" header' },
+    { file: 'docs/ROADMAP.md',              re: /Last updated:[^\n]*?v(\d+\.\d+)/,       label: '"Last updated" header' },
 ];
 
 test('every versioned .md doc is current to the latest 0.10 milestone', () => {
@@ -390,10 +390,10 @@ test('no unused CSS custom properties defined in :root', () => {
         'operations.css', 'settings.css', 'links.css'];
     const LINK_GROUPS = [
         APP_GROUP,
-        ['guide-shell.css', 'guide-doc.css', 'guide.css'],
+        ['guide-shell.css', 'guide-doc.css', 'staff-guide.css'],
         ['guide-shell.css', 'guide-doc.css', 'paycalc-guide.css'],
         ['guide-shell.css', 'railcard-guide.css'],
-        ['guide-shell.css', 'fip.css'],
+        ['guide-shell.css', 'fip-guide.css'],
     ];
     // Any css file not named in a group (a future addition) falls back to the app group,
     // so a brand-new stylesheet can never silently dodge the check.
@@ -591,7 +591,7 @@ for (const [page, entry] of PRELOAD_PAGES) {
  *  rather than listed, so a page added later joins these checks by existing — the same reason
  *  page-contract-parity.test.mjs enumerates rather than lists. */
 const GUIDE_PAGES = new Set([
-    'guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'fip.html', 'rangers-guide.html',
+    'staff-guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'fip-guide.html', 'rangers-guide.html',
 ]);
 const APP_PAGES = readdirSync(ROOT)
     .filter(f => f.endsWith('.html') && !GUIDE_PAGES.has(f))

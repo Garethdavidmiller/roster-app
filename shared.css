@@ -1276,7 +1276,7 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 
 /* Header back button removed (v10.63) — navigation is via the nav drawer.
-   .btn-back still lives in fip.html / railcard-guide.html (their own CSS). */
+   .btn-back still lives in fip-guide.html / railcard-guide.html (their own CSS). */
 /* Sign-out moved to nav panel footer (v10.59) */
 
 @media (max-width: 768px) {

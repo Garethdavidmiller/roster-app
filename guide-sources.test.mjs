@@ -16,7 +16,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const SRC = readFileSync(new URL('./GUIDE_SOURCES.md', import.meta.url), 'utf8');
+const SRC = readFileSync(new URL('./docs/GUIDE_SOURCES.md', import.meta.url), 'utf8');
 
 // `Draft` (v20.05) means RECORDED BUT NOT VERIFIED — the source is identified and the claim is
 // written down, but nobody has read it at that source. It exists because the Rangers & Rovers guide
@@ -204,7 +204,7 @@ test('the railcard time-rule cards flagged in the audit are present and classifi
 
 // Which guide file each Guide value lives in. Rows in other guides (paycalc) are exempt from
 // the HTML-block requirement — they render on a different surface with no data-guide-source blocks.
-const GUIDE_FILES = { railcard: 'railcard-guide.html', fip: 'fip.html', rangers: 'rangers-guide.html' };
+const GUIDE_FILES = { railcard: 'railcard-guide.html', fip: 'fip-guide.html', rangers: 'rangers-guide.html' };
 
 /**
  * Pull every `data-guide-source="a b c"` value out of an HTML file, space-splitting so one
@@ -311,7 +311,7 @@ test('every rendered "Checked <Mon> <Year>" matches its register row Reviewed da
 // line, or this fails. Adding a new card means deciding its evidence state, which is the decision
 // that was being skipped.
 test('every FIP country and ferry card states its evidence state', () => {
-    const html = readFileSync(new URL('./fip.html', import.meta.url), 'utf8');
+    const html = readFileSync(new URL('./fip-guide.html', import.meta.url), 'utf8');
     const cards = [...html.matchAll(/<details id="((?:country-|ferry-)[^"]+)"[^>]*>([\s\S]*?)<\/details>/g)];
     assert.ok(cards.length >= 30,
         `expected the country/ferry cards to be found, got ${cards.length} — has the markup changed?`);
@@ -337,7 +337,7 @@ test('every FIP country and ferry card states its evidence state', () => {
 // ── WHY "COUNTRY CARDS" AND NOT "EVERY fip ROW" (v19.96) ────────────────────────────────────────
 // It was every fip row, and that made the guard demand a false statement. Reviewing the FERRY cards
 // (fip-stena, corrected Aug 2026) pushed the newest fip row forward, so the test then required
-// fip.html to say the COUNTRY cards had been reviewed in August — which nobody had done. A guard
+// fip-guide.html to say the COUNTRY cards had been reviewed in August — which nobody had done. A guard
 // against over-claiming a freshness date must not itself force one.
 //
 // Which rows back the country cards is derived from the HTML rather than listed here: a row counts
@@ -357,7 +357,7 @@ test('the FIP country-finder note makes NO page-wide checked claim', () => {
     // verified, and this test guards the absence rather than the value. Per-card parity between
     // the visible date and the register is enforced by its own test above — that is where a date
     // claim belongs, because there it is bounded by the card making it.
-    const html = readFileSync(new URL('./fip.html', import.meta.url), 'utf8');
+    const html = readFileSync(new URL('./fip-guide.html', import.meta.url), 'utf8');
     assert.doesNotMatch(html, /country cards were last reviewed/,
         'the page-wide "last reviewed" claim is back — one date cannot speak for every card');
     const note = html.match(/<p class="cf-note">([\s\S]*?)<\/p>/);
@@ -386,8 +386,8 @@ test('the FIP country-finder note makes NO page-wide checked claim', () => {
 // not), and it has now been wrong TWICE in opposite directions. It guards the CONCEPT — a year of
 // continuous service — and the source, not a form of words.
 test('FIP eligibility states the published one-year qualifying period, cited to the RST FAQ', () => {
-    const html = readFileSync(new URL('./fip.html', import.meta.url), 'utf8');
-    const rows = readFileSync(new URL('./GUIDE_SOURCES.md', import.meta.url), 'utf8')
+    const html = readFileSync(new URL('./fip-guide.html', import.meta.url), 'utf8');
+    const rows = readFileSync(new URL('./docs/GUIDE_SOURCES.md', import.meta.url), 'utf8')
         .split('\n').filter(l => l.startsWith('| fip-eligibility '));
     assert.equal(rows.length, 1, 'exactly one fip-eligibility row');
 
@@ -408,7 +408,7 @@ test('FIP eligibility states the published one-year qualifying period, cited to 
         '"continuous" is the load-bearing word: broken service does not accrue');
 
     // And the specific false claim must never return, in the guide or the register.
-    for (const [what, text] of [['fip.html', html], ['GUIDE_SOURCES.md', rows[0]]]) {
+    for (const [what, text] of [['fip-guide.html', html], ['docs/GUIDE_SOURCES.md', rows[0]]]) {
         assert.doesNotMatch(text, /no published qualifying period/i,
             `${what}: the v20.32 claim that no qualifying period is published is FALSE — RST's FAQ states one`);
     }

@@ -18,7 +18,7 @@ date, and — critically — whether it is a **National** rule, a **Local** inte
 - **Before changing a high-risk guide claim:** find its row, open the Source, confirm the wording,
   update the guide, then bump `Reviewed` (and push `Next` out).
 - **Every railcard/fip row is wired to the block it certifies** via a `data-guide-source="<id>"`
-  attribute on that block in `railcard-guide.html` / `fip.html` (v17.59). `guide-sources.test.mjs`
+  attribute on that block in `railcard-guide.html` / `fip-guide.html` (v17.59). `guide-sources.test.mjs`
   enforces the two-way contract: no attribute may point at a missing row, and no railcard/fip row
   may lack a block. So when you **add a high-risk row you must anchor it** with a
   `data-guide-source` attribute (and vice-versa) — the build fails otherwise. A block may cite
@@ -188,7 +188,7 @@ belongs.
   Germany, Austria, Italy, Spain, Switzerland — now each carry their **own** dated row (`fip-fr` …
   `fip-ch`), anchored to their country card, so each has an individual review record. The remaining
   (lower-use) country cards stay under the sampled, high-churn `fip-carrier-accept` row. Either way,
-  treat the country cards in `fip.html` as "check before travel", not gospel — each sourced card now
+  treat the country cards in `fip-guide.html` as "check before travel", not gospel — each sourced card now
   shows its own "Checked" date to make that freshness visible.
 - **THE RANGERS & ROVERS GUIDE IS NOW PER-PRODUCT, NOT PAGE-WIDE DRAFT** (v20.10, owner). It shipped
   at v20.05 entirely `Draft`: its content had been triangulated across public summaries because the

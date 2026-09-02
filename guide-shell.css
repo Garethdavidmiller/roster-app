@@ -1,7 +1,7 @@
 /* ──────────────────────────────────────────────────────────────────────────
    Shared shell for the four guide pages — the single source of truth for their
-   common chrome. Linked by guide.html, paycalc-guide.html, railcard-guide.html
-   and fip.html. Edit the shell HERE once instead of duplicating across four
+   common chrome. Linked by staff-guide.html, paycalc-guide.html, railcard-guide.html
+   and fip-guide.html. Edit the shell HERE once instead of duplicating across four
    CSS files.
 
    This is NOT the app's shared.css (nav panel, lightbox, login). The guides
@@ -130,7 +130,7 @@ html { color-scheme: only light; -webkit-text-size-adjust: 100%; text-size-adjus
 }
 
 /* ── Section chip-bar (shared v17.72) ────────────────────────────────────────
-   Sticky quick-nav used by railcard-guide.html and fip.html (guide/paycalc have
+   Sticky quick-nav used by railcard-guide.html and fip-guide.html (guide/paycalc have
    no chip-bar — these rules are simply unused there). Unified here from the two
    byte-identical per-page copies; the fip variant is the canonical one, so
    railcard now also gets the `.chip[aria-current]` active-chip highlight it

@@ -256,7 +256,7 @@ openHashTarget();   // first load: honour a deep link (defer → the DOM is alre
 // the ::details-content pseudo (content-visibility), which the print CSS `.detail-body{display:block}`
 // cannot reach — so a printed FIP guide showed each country as an empty bordered strip. Force every
 // <details> OPEN (and un-hide any card the finder filtered out) for the print run, then restore the
-// on-screen state afterwards, so the printout is the full country reference the fip.css @media print
+// on-screen state afterwards, so the printout is the full country reference the fip-guide.css @media print
 // block already intends. beforeprint/afterprint fire for Ctrl+P and the ⤓ PDF button on every browser.
 /** @type {Array<[HTMLDetailsElement, boolean]>} */
 var _fipOpenRestore = [];

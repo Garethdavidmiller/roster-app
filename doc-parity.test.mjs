@@ -34,7 +34,7 @@ import { createRequire } from 'node:module';
 
 const read = (/** @type {string} */ f) => readFileSync(new URL(f, import.meta.url), 'utf8');
 const CLAUDE = read('./CLAUDE.md');
-const AI_MAP = read('./AI_MAP.md');
+const AI_MAP = read('./docs/AI_MAP.md');
 
 /** Strip fenced code and inline code so a name inside an example is not read as a listing. */
 const prose = (/** @type {string} */ s) => s.replace(/```[\s\S]*?```/g, ' ');
@@ -69,7 +69,7 @@ const tests = rootFiles.filter(f => f.includes('.test.'));
 test('every root MODULE is listed in CLAUDE.md and AI_MAP.md', () => {
     const missing = modules
         .filter(f => !CLAUDE.includes(f) || !AI_MAP.includes(f))
-        .map(f => `${f} — missing from ${!CLAUDE.includes(f) ? 'CLAUDE.md' : ''}${!CLAUDE.includes(f) && !AI_MAP.includes(f) ? ' + ' : ''}${!AI_MAP.includes(f) ? 'AI_MAP.md' : ''}`);
+        .map(f => `${f} — missing from ${!CLAUDE.includes(f) ? 'CLAUDE.md' : ''}${!CLAUDE.includes(f) && !AI_MAP.includes(f) ? ' + ' : ''}${!AI_MAP.includes(f) ? 'docs/AI_MAP.md' : ''}`);
     assert.deepEqual(missing, [],
         'these modules are not routed from both docs, so nothing points a reader at them:\n  ' +
         missing.join('\n  '));
@@ -104,7 +104,7 @@ test('a doc that says "`symbol` in `file.js`" is right about the file', () => {
     // up to three intervening words was measured over both docs before landing: it adds exactly one
     // new match — the defect itself — and no false positives.
     const claims = [];
-    for (const doc of ['./CLAUDE.md', './AI_MAP.md']) {
+    for (const doc of ['./CLAUDE.md', './docs/AI_MAP.md']) {
         for (const m of read(doc).matchAll(/`([A-Za-z_$][\w$]*)`\s*(?:\([^)]*\)\s*)?(?:[a-z]+\s+){0,3}in\s+`([\w.-]+\.(?:js|mjs))`/g))
             claims.push({ doc, sym: m[1], file: m[2] });
     }
@@ -242,8 +242,8 @@ const OWNED_COUNTS = [
 ];
 
 /** The docs a staff member or a session actually reads. Plans record history and are exempt. */
-const LIVE_DOCS = ['./CLAUDE.md', './AI_MAP.md', './ROADMAP.md', './KNOWN_LIMITATIONS.md',
-    './OPERATIONS_REFERENCE.md', './.claude/rules/links-design.md', './.claude/rules/css-tokens.md',
+const LIVE_DOCS = ['./CLAUDE.md', './docs/AI_MAP.md', './docs/ROADMAP.md', './docs/KNOWN_LIMITATIONS.md',
+    './docs/OPERATIONS_REFERENCE.md', './.claude/rules/links-design.md', './.claude/rules/css-tokens.md',
     // README.md is the only one of these written for somebody who has never seen the repo, which
     // makes it the one most likely to be believed and the least likely to be reread. It joined at
     // v22.32, when it was written to tell an external reviewer which lanes run with nothing
@@ -811,9 +811,9 @@ test('no doc writes down the size of a roster-owned list', () => {
     ];
     const WORD = { ten: 10, eleven: 11, twelve: 12 };
     const wrong = [];
-    for (const doc of ['./CLAUDE.md', './AI_MAP.md', './KNOWN_LIMITATIONS.md', './OPERATIONS_REFERENCE.md',
-                       './SECURITY_RELEASE_PLAN.md', './AUTH_PLAN.md', './PASSWORD_PLAN.md',
-                       './ARCHITECTURE.md', './.claude/rules/paycalc.md']) {
+    for (const doc of ['./CLAUDE.md', './docs/AI_MAP.md', './docs/KNOWN_LIMITATIONS.md', './docs/OPERATIONS_REFERENCE.md',
+                       './docs/SECURITY_RELEASE_PLAN.md', './docs/AUTH_PLAN.md', './docs/PASSWORD_PLAN.md',
+                       './docs/ARCHITECTURE.md', './.claude/rules/paycalc.md']) {
         const lines = read(doc).split('\n');
         lines.forEach((line, i) => {
             for (const [re, key, what] of CLAIMS) {
@@ -850,8 +850,8 @@ test('no doc writes down the size of a roster-owned list', () => {
 // from the FILESYSTEM here rather than from a hand list, because a hand-maintained checker of a
 // hand-maintained index is two lists that can drift together.
 
-const REGISTER = read('./VALIDATION_REGISTER.md');
-const INDEX = read('./ARCHITECTURE.md');
+const REGISTER = read('./docs/VALIDATION_REGISTER.md');
+const INDEX = read('./docs/ARCHITECTURE.md');
 
 /** Docs that are deliberately not in the index: the index itself, and the two the repo generates. */
 const INDEX_EXEMPT = new Set(['ARCHITECTURE.md']);
@@ -869,9 +869,9 @@ test('every VAL-* and EXC-* id cited anywhere resolves to a declared row', () =>
         `only ${declared.size} ids declared — the row pattern has changed and this test is ` +
         'checking nothing');
 
-    const docs = [...LIVE_DOCS, './VALIDATION_REGISTER.md', './ARCHITECTURE.md',
-        './MAINTENANCE_CALENDAR.md', './AUTH_AND_SESSIONS.md', './CALENDAR_DATA.md',
-        './OVERTIME_AVAILABILITY.md', './.claude/rules/paycalc.md'];
+    const docs = [...LIVE_DOCS, './docs/VALIDATION_REGISTER.md', './docs/ARCHITECTURE.md',
+        './docs/MAINTENANCE_CALENDAR.md', './docs/AUTH_AND_SESSIONS.md', './docs/CALENDAR_DATA.md',
+        './docs/OVERTIME_AVAILABILITY.md', './.claude/rules/paycalc.md'];
 
     /** @type {string[]} */ const dangling = [];
     for (const doc of docs) {
@@ -895,8 +895,12 @@ test('no id is declared twice — an ambiguous citation is not a citation', () =
         'closed row keeps its id and moves to Closed.');
 });
 
-test('every top-level .md is routed from ARCHITECTURE.md — the index cannot fall behind', () => {
-    const mdFiles = readdirSync(new URL('.', import.meta.url))
+test('every doc is routed from ARCHITECTURE.md — the index cannot fall behind', () => {
+    // Scans `docs/`, where the documentation moved. It scanned the repo ROOT until then, and
+    // leaving it there would have been the worst kind of pass: the root now holds README.md and
+    // CLAUDE.md alone, both exempt, so the guard would have gone green over an empty list while
+    // twenty-four documents went unchecked. The `> 15` floor below is what would have caught it.
+    const mdFiles = readdirSync(new URL('./docs/', import.meta.url))
         .filter(f => f.endsWith('.md') && !INDEX_EXEMPT.has(f));
     assert.ok(mdFiles.length > 15, `found only ${mdFiles.length} docs — the scan is wrong`);
 
@@ -933,7 +937,7 @@ test('the roster-parse example obeys the week contract it illustrates', () => {
     const require = createRequire(import.meta.url);
     const { buildWeekDates } = require('./functions/roster-parse-helpers.js');
 
-    const doc = readFileSync('./OPERATIONS_REFERENCE.md', 'utf8');
+    const doc = readFileSync('./docs/OPERATIONS_REFERENCE.md', 'utf8');
     const block = doc.match(/```json\n(\{[\s\S]*?"weekEnding"[\s\S]*?)\n```/);
     assert.ok(block, 'the parseRosterPDF response example has moved or lost its json fence');
     const example = JSON.parse(block[1]);

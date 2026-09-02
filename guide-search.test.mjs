@@ -26,7 +26,7 @@ const IDX = [
     UNIT({ page: 'rangers-guide.html', id: 'rr-thames', t: 'Thames Rover — 7 Day', tt: 'thames rover day',
         k: 'reading oxford operator geography', e: ['conflict'], p: 'rr-elsewhere' }),
     UNIT({ page: 'rangers-guide.html', id: 'rr-elsewhere', t: 'Valid elsewhere', tt: 'valid elsewhere', k: 'thames rover reading oxford' }),
-    UNIT({ page: 'fip.html', id: 'country-fr', t: '🇫🇷 France', tt: 'france', k: 'eurostar sncf paris coupon', e: ['draft', 'unconfirmed'] }),
+    UNIT({ page: 'fip-guide.html', id: 'country-fr', t: '🇫🇷 France', tt: 'france', k: 'eurostar sncf paris coupon', e: ['draft', 'unconfirmed'] }),
 ];
 
 test('tokeniser: case, punctuation and accents fold; short fragments drop; order and dedupe hold', () => {
@@ -63,7 +63,7 @@ test('a card beats its own section: the parent row is dropped when both match', 
 test('parent suppression is per PAGE — a same-named id in another guide is not anybody\'s parent', () => {
     const idx = [
         UNIT({ id: 'shared', t: 'Gold section', tt: 'gold section' }),
-        UNIT({ page: 'fip.html', id: 'card', t: 'Gold thing', tt: 'gold thing', p: 'shared' }),
+        UNIT({ page: 'fip-guide.html', id: 'card', t: 'Gold thing', tt: 'gold thing', p: 'shared' }),
     ];
     // fip's card names a parent id that exists in ANOTHER page; the railcard section must survive.
     assert.equal(searchGuideIndex(idx, 'gold').length, 2);
