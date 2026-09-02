@@ -261,6 +261,17 @@ candidate for its OWN token, never for being forced onto an existing one. Genuin
 (9px, 20px, 22px …) remain legal and unguarded; the current repeat counts are 9px ×16, 20px ×9, 22px ×6,
 which are the next token candidates if anyone wants them named.
 
+**The scale deliberately ENDS at `--type-xl` — do not add a display step (decided v22.32).** It was
+proposed, and measured before being declined. Above 24px the app has eight text sizes: the month heading
+at 26px on desktop, the splash title and the Usage stat figures at 28px, the AL-lightbox balance at 36px,
+the HPP amount at 38px and 42px, the take-home figure at 52px and 60px on desktop. Every one is a hero
+figure sized to its own container, and none of them should move when another does — a token is a
+promise that the things sharing it change together, and the only repeated value (28px) is shared by a
+brand splash word and a statistic. Naming that pair would be a false coupling; putting the month heading
+and the take-home figure on one step would resize one of them, which is an aesthetic change, not
+hygiene. If a size above 24px is ever repeated across components that genuinely ARE the same element,
+that is the `--type-badge` precedent above and it earns its own token then.
+
 ## Self-hosted Inter typeface (v11.53)
 
 `fonts/inter-latin.woff2` is served from origin, NOT Google Fonts CDN. CSP is `font-src 'self'` — a CDN would mean loosening it, and self-hosting keeps the app offline-first (SW precaches the file) with no third-party request. One variable woff2 (latin, wght 100–900) covers every weight.
@@ -427,10 +438,18 @@ than the purity gain.
 - **`--blue-sky` = Late shift AND assorted admin accents** (source pill, overwrite-active) — same
   rationale: labelled, low co-visibility.
 
-**Box-shadows are deliberately NOT routed through `--shadow-1/2/3`** (reviewed v17.58): ~120
-hand-rolled `rgba()` shadows exist with varied values; forcing them onto the three presets would
-visibly restyle depth across the app — a redesign, not hygiene. Use the `--shadow-*` tokens for NEW
-shadows; leave existing ones unless intentionally redesigning that surface.
+**Box-shadows are deliberately NOT routed through `--shadow-1/2/3`** (reviewed v17.58): the
+eight app stylesheets carry **28** hand-rolled `rgba()` shadows with varied values, and forcing them
+onto the three presets would visibly restyle depth across the app — a redesign, not hygiene. Use the
+`--shadow-*` tokens for NEW shadows; leave existing ones unless intentionally redesigning that
+surface. **The figure is measured, not remembered** — `shadow-parity.test.mjs` counts the recipes
+and fails if this sentence disagrees with the stylesheets or if a new one-off is added (a ratchet:
+migrate one to a token and bring the number down; add one and the build says no). This paragraph
+said "~120" from v17.58 to v22.32, which was every `box-shadow` declaration in the tree — 27 of
+them already on the presets, 21 focus rings on their own tokens, and a dozen `none`s — rather than
+the hand-rolled recipes it was describing. A reader was told the migration was four times its size.
+The guide stylesheets carry 15 more and are out of scope: they do not load `shared.css`, so there
+is no token there to route to.
 
 ## Density is a POINTER-vs-TOUCH decision, not a width one (v18.89)
 
