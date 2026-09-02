@@ -17,10 +17,13 @@ import { test, expect } from './fixtures.js';
 import { seedMember, seedMemberSession, seedSession, seedSessionOnce, stubPinExchange, enterPin, collectFatalErrors, seedViewerAccess, clearNoticeFlags } from './helpers.js';
 import { disableCalendarPin, enableCalendarPin } from './fixtures.js';
 
-// The shipped default is OFF while the feature is deployed dark (v20.17), so every test here that
-// exercises the unlock card turns it on explicitly. That is the right way round: these describe the
-// configuration the feature is FOR, and the flag's current value is a deployment decision rather
-// than a product one — the suite should not quietly stop testing the card the day it ships dark.
+// Every test here sets `CONFIG.CALENDAR_PIN_ACCESS` explicitly rather than inheriting it, and the
+// value it ships with is deliberately NOT restated in this file — `roster-data.js` owns that, and
+// a comment carrying a second copy is the defect this repo records most often. (This comment was
+// one: it read "the shipped default is OFF … deployed dark" for the five weeks after the flag went
+// live, i.e. it told a reader the Calendar was still open when the rules had already closed it.)
+// The reasoning survives the value either way: these describe the configuration the FEATURE is
+// for, so the suite must not quietly stop testing the card because a deployment flag moved.
 // The four "switched OFF" tests below call disableCalendarPin, which writes the same map key, so
 // the later call simply wins.
 test.beforeEach(async ({ page }) => { await enableCalendarPin(page); });

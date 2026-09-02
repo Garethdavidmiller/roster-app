@@ -144,6 +144,29 @@ test('every root TEST file is listed in CLAUDE.md', () => {
         'these test files exist but CLAUDE.md does not list them:\n  ' + missing.join('\n  '));
 });
 
+// The same rule for the BROWSER suite, which contract 1 above cannot see: it walks the repo root,
+// and every Playwright spec lives in `e2e/`. So an e2e spec could exist, run on every branch, and
+// be absent from the routing table with nothing to say so — which is exactly what happened to
+// `calendar-pin.spec.js`. It shipped 35 tests covering the staff PIN (the app's one access
+// boundary that a rendered page can check: no roster data in a locked DOM, the splash coming down
+// on the locked path, a viewer refused by the protected pages) and was the ONLY spec of eleven
+// missing from CLAUDE.md's tree. Found by inventory, not by review, which is the argument for
+// checking it mechanically rather than trusting the next reader to notice.
+//
+// Routing only — this says nothing about whether a spec is RUN, because Playwright discovers specs
+// by directory rather than by a list, so there is no second place for one to fall out of.
+test('every e2e spec is routed in CLAUDE.md', () => {
+    let specs = [];
+    try {
+        specs = readdirSync(new URL('./e2e/', import.meta.url))
+            .filter(f => f.endsWith('.spec.js')).sort();
+    } catch { /* no e2e directory in this checkout */ }
+    assert.ok(specs.length > 0, 'no e2e specs found — the guard would pass vacuously');
+    const missing = specs.filter(f => !CLAUDE.includes(f));
+    assert.deepEqual(missing, [],
+        'these e2e specs exist but CLAUDE.md does not list them:\n  ' + missing.join('\n  '));
+});
+
 // A test file that is LISTED and never RUN is worse than one that is neither, because the listing
 // is what a reader checks. `links-contract.test.mjs` shipped at v20.98 as the gate on a money-
 // affecting rule, was teeth-verified by mutation, was written up in CLAUDE.md as "Part of
