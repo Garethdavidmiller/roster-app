@@ -15,9 +15,22 @@ on:
 #
 # Without this a branch carried TWO full suites at once and neither knew about the other. Both
 # `push` and `pull_request` fire here, so opening a PR on an already-pushed branch ran all ten
-# jobs a second time over an identical tree — and merging did not stop them: on 1 Sep 2026 a
+# jobs a second time over a tree that is USUALLY the same — and merging did not stop them: on 1 Sep 2026 a
 # PR-event run was still working through four WebKit jobs minutes after the PR it belonged to had
 # been merged.
+#
+# "USUALLY the same" is the honest word (v22.32, external review — it said "identical"). A `push`
+# run checks out the BRANCH HEAD; a `pull_request` run checks out the synthetic MERGE COMMIT of that
+# head with the base. They are the same tree only while `main` has not moved. When it has, the
+# merge-result run is the more informative of the two — it tests what merging would actually
+# produce — and the group does NOT encode that preference: whichever fires later wins, which is
+# ordinarily the PR `synchronize` run and therefore ordinarily the one we want.
+#
+# Left as it is deliberately. Encoding "merge-result beats branch-head" would mean not cancelling
+# across events, i.e. paying for both suites on every push to an open PR, to protect against a base
+# that moved in the seconds between two runs of the same commit. The cost is a stale-base pass that
+# the deploy workflow's own gate would catch before anything shipped. Documented rather than fixed,
+# so the next reader knows it was weighed.
 #
 # THE KEY IS `head_ref || ref_name`, AND THE FALLBACK IS THE WHOLE POINT. `github.ref` is
 # `refs/heads/<branch>` on a push and `refs/pull/<n>/merge` on a pull_request, so the recipe

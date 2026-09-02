@@ -652,6 +652,41 @@ test('install strip: pressing Install fires the browser prompt and does not come
     expect(await page.evaluate(() => localStorage.getItem('myb_install_prompt_done'))).toBe('1');
 });
 
+// ── AN UNREADABLE `--prompt-available` FAILS CLOSED (v22.32, external review) ───────────────────
+//
+// `canBeSeen` read `!== '0'` first, which meant an UNREADABLE property ('' from a browser with no
+// custom-property support) counted as "yes": we would capture `beforeinstallprompt`, suppressing
+// the browser's own install promotion, while the strip stayed CSS-hidden. No offer from anyone —
+// the one outcome the width check exists to prevent.
+//
+// No shipping browser does this (Chromium supports both), so the mutation is invisible in a normal
+// run and no ordinary test can have teeth on it. Removing the property is what makes the branch
+// reachable, and the assertion is on `defaultPrevented`: failing closed means we never registered,
+// so the browser keeps its own offer.
+test('install strip: an unreadable width flag leaves the browser its own offer', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 800 });
+    await seedMemberSession(page, 'G. Miller');
+    // Serve the stylesheet with the declaration REMOVED, so the property is undefined from the
+    // first paint. Injecting a style after load is too late: the module reads the flag as it runs.
+    await page.route('**/index.css', async route => {
+        const res = await route.fetch();
+        const css = (await res.text()).replace('--prompt-available: 1;', '');
+        await route.fulfill({ response: res, body: css, headers: { ...res.headers(), 'content-type': 'text/css' } });
+    });
+    await page.goto('/');
+    await page.waitForSelector('#calendarDisplay table, #calendarDisplay .calendar-container', { timeout: 15_000 });
+    const prevented = await page.evaluate(() => {
+        const e = new Event('beforeinstallprompt', { cancelable: true });
+        /** @type {any} */ (e).prompt = () => Promise.resolve();
+        window.dispatchEvent(e);
+        return e.defaultPrevented;
+    });
+    expect(prevented,
+        'an unreadable flag must NOT be read as "yes" — capturing here suppresses the browser\'s '
+        + 'own offer while our strip stays hidden').toBe(false);
+    await expect(page.locator('#installPrompt')).toBeHidden();
+});
+
 test('install strip: the shared PIN station is never invited to install', async ({ page }) => {
     // A PIN unlock is a STATION, not a person — nobody should be putting the staff roster onto the
     // mess-room PC, and there would be no one able to take it off again.

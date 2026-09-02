@@ -105,13 +105,19 @@ function isDeprecatedMirror() {
 
 /**
  * Can this strip be seen at this width at all? Read from the stylesheet's own `--prompt-available`,
- * so the breakpoint is declared once, in CSS. Fails OPEN on a browser that cannot read the property
- * — an offer nobody can see is a smaller harm than silently swallowing the browser's own.
+ * so the breakpoint is declared once, in CSS.
+ *
+ * **Requires the flag to be exactly `'1'`, and fails CLOSED otherwise** (v22.32, external review).
+ * It read `!== '0'` first, on the reasoning that an offer nobody sees is a smaller harm than
+ * swallowing the browser's own — which had it backwards. An unreadable property returns `''`, and
+ * `'' !== '0'` is true, so a browser that fired `beforeinstallprompt` but could not report a custom
+ * property would have had its own install offer suppressed while our strip stayed CSS-hidden: no
+ * offer from anyone, which is the one outcome this whole check exists to prevent. Failing closed
+ * costs at most our strip on a browser that cannot read CSS variables, and the browser keeps its.
  * @param {HTMLElement} strip
  */
 function canBeSeen(strip) {
-    const flag = getComputedStyle(strip).getPropertyValue('--prompt-available').trim();
-    return flag !== '0';
+    return getComputedStyle(strip).getPropertyValue('--prompt-available').trim() === '1';
 }
 
 /**

@@ -939,14 +939,19 @@ export function init() {
         if (!d) return;
         try {
             const res = await store.restore(id, currentUser);
-            // Both are states no retry can change, and both used to read "check your connection" —
-            // which sends a designer back to a dead button and blames the network for a colleague's
-            // deliberate act. (Store outcomes; the wording is the workspace's, as it should be.)
-            if (res.status === 'gone') {
+            // TWO OUTCOMES A COLLEAGUE ALREADY SETTLED — neither changed by retrying, and both
+            // once read "check your connection", blaming the network for somebody's deliberate
+            // act. One handler: the reaction is identical and only the sentence differs. The store
+            // reports the state; the wording is the workspace's.
+            const settledElsewhere = {
+                gone: `“${d.name}” was already removed for good by someone else, so there was nothing to restore.`,
+                'already-restored': `“${d.name}” had already been restored by someone else — it is back in the list.`,
+            }[res.status];
+            if (settledElsewhere) {
                 deletedDesigns = deletedDesigns.filter(x => x.id !== id);
                 renderBinList();
                 await loadDesigns();      // re-renders the picker and grid itself
-                _binStatus(`“${d.name}” was already removed for good by someone else, so there was nothing to restore.`);
+                _binStatus(settledElsewhere);
                 return;
             }
             const { updatedAt: restoredTs, revision: restoredRev } = res;

@@ -965,6 +965,19 @@ test('links: a deleted design can be restored from the bin', async ({ page }) =>
     await expect(page.locator('.design-chip')).toHaveCount(1);
 
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.setWrites = []; });
+    // TELL THE STUB THE SERVER NOW AGREES THE DESIGN IS DELETED (v22.32). The fake applies no
+    // writes to its seed, so after the soft delete above its transaction still hands back the
+    // ORIGINAL live document — a state production cannot be in, and one the restore now reads
+    // correctly as "already restored, write nothing". `txDocs` is the fixture's own mechanism for
+    // "what the SERVER says", which is the thing a transaction is there to consult.
+    //
+    // Without this the test asserts a write that only happened because the harness had lost track
+    // of the delete it had just made.
+    await page.evaluate(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E.txDocs = (w.__E2E.docs || []).map((/** @type {any} */ d) =>
+            d.id === 'd1' ? { ...d, deletedAt: { seconds: 1 }, deletedBy: 'G. Miller' } : d);
+    });
     await page.locator('#designBinBtn').click();
     await expect(page.locator('#designBinList .bin-row')).toHaveCount(1);
     await page.locator('.bin-restore').click();
