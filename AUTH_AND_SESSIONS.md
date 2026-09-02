@@ -15,8 +15,15 @@ rules written out somewhere else, that copy is the defect.
 the code, where it cannot drift from the thing it describes. Every row points at its home.
 
 For the plan-level view — what is shipped, what is sequenced, what is still undecided — the canonical
-track status is `SECURITY_RELEASE_PLAN.md`. Design lives in `PASSWORD_PLAN.md` (credentials) and
-`AUTH_PLAN.md` (Track E, the app-wide read question).
+track status is `SECURITY_RELEASE_PLAN.md`. Design lives in `PASSWORD_PLAN.md` (credentials as
+built), `AUTH_PLAN.md` (Track E, the app-wide read question) and `CREDENTIAL_LIFECYCLE.md` (how a
+credential is issued, recovered and eventually retired — the ORDER those changes go in, and the one
+open decision about what retiring the surname should mean).
+
+**Invariants 15 and 16 describe things that are not built.** They are here rather than only in the
+plan because both are rules an implementation could plausibly skip and still appear to work: an
+unverified address accepts a reset perfectly well, and a client-side step-up timer looks exactly
+like a server-side one until somebody calls the endpoint directly.
 
 ---
 
@@ -38,6 +45,8 @@ track status is `SECURITY_RELEASE_PLAN.md`. Design lives in `PASSWORD_PLAN.md` (
 | 12 | **Identity derivation exists twice and may not drift.** `normaliseSurname` and `nameToEmail` are duplicated across the ESM/CommonJS boundary; a drifted email provisions an account that does not exist while "Set up accounts" reports success. | `auth-identity.js` · `functions/roster-parse-helpers.js` · `surname-parity.test.mjs` |
 | 13 | **`initErrorReporter()` needs an auth context.** Called bare, every write is silently rejected by the rules — so the error log looks healthy because it is broken. Three canonical call sites. | CLAUDE.md → architecture decisions |
 | 14 | **Overtime has two audiences, and reviewing is not participating.** `isOvertimeReviewer` (admin/manager) sees everyone's declarations; a beta participant answers only for themselves. Never widen the first to make the nav pill work. | `auth-policy.js` (`isOvertimeReviewer`/`canOpenOvertime`) · `roster-data.js` |
+| 15 | **A saved work email is an ADDRESS, not a credential.** `staffContact.workEmail` is what somebody typed; nothing has shown that anyone can receive mail there. It may recover an account only after possession is proven and recorded server-side. Wiring "send a reset here" to an unverified address is account takeover by mistyping. | `CREDENTIAL_LIFECYCLE.md` §8 (design) · not yet built |
+| 16 | **A step-up check is the SERVER reading `auth_time`.** A client that remembers when it last asked is an affordance, not a control — invariant 6, arriving by a second route. Fails closed: no `auth_time`, no elevated operation. | `CREDENTIAL_LIFECYCLE.md` §3 (design) · not yet built |
 
 ---
 

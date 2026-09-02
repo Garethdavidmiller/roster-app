@@ -17,6 +17,12 @@ import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSess
 import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
+import { summarise, shouldOpen } from './settings-status.js';
+import { setStatus } from './status-text.js';
+import { inventoryOf } from './paycalc-inventory.js';
+import { selectBackupKeys } from './paycalc-transfer.js';
+import { pcPrefix, setPaycalcNamespace } from './paycalc-migrations.js';
+import { lsKeys } from './ls.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -33,6 +39,68 @@ import { recordPageLatency, markPageReady } from './perf-reporter.js';
  * same order, one indent level in.
  */
 export function init() {
+    // ── IS THIS ACCOUNT AND THIS DEVICE SET UP? (v22.37) ──────────────────────────
+    //
+    // Each card reports its own state as its own data lands; this paints the chip, opens the card
+    // if it needs looking at, and repaints the one line at the top. The RULES are in
+    // settings-status.js and nothing here duplicates them — in particular, nothing here decides
+    // that an unreported card is fine.
+    //
+    // `_cardHandles` holds the collapse handles so a card can be opened AFTER it was wired, which
+    // is the whole difficulty: three of the four states arrive over the network or from the
+    // browser, long after the page has drawn.
+
+    /** @type {Record<string, import('./settings-status.js').CardState>} */
+    const _states = {};
+    /** @type {Record<string, { setOpen(open: boolean): void }>} */
+    const _cardHandles = {};
+    /** Chip element id per card. @type {Record<string, string>} */
+    const _CHIP_IDS = {
+        'work-email':    'contactStatusChip',
+        'password':      'passwordStatusChip',
+        'notifications': 'notifStatusChip',
+        'pay-data':      'payDataStatusChip',
+    };
+
+    /**
+     * A card tells the page what it found.
+     *
+     * @param {string} id one of settings-status.js's card ids.
+     * @param {import('./settings-status.js').CardState} state
+     * @param {string} [chip] the chip text. Omitted leaves the chip untouched, which is what a
+     *   card wants while it is still reading — an empty chip renders as nothing (`:empty`).
+     */
+    function reportSetting(id, state, chip) {
+        _states[id] = state;
+        if (chip !== undefined) {
+            const el = document.getElementById(_CHIP_IDS[id]);
+            // Through `setStatus`, not `.textContent`: a chip reading "✓ Saved" in a header a
+            // screen reader walks would otherwise announce the tick as a word (status-text.js).
+            if (el) setStatus(el, chip);
+        }
+        // Opening is one-way. A card the member has been shown must not shut under them because a
+        // later report improved — they may be typing in it.
+        if (shouldOpen(state)) _cardHandles[id]?.setOpen(true);
+        _paintSummary();
+    }
+
+    function _paintSummary() {
+        const box   = document.getElementById('settingsSummary');
+        const line  = document.getElementById('settingsSummaryLine');
+        const items = document.getElementById('settingsSummaryItems');
+        if (!box || !line || !items) return;
+        const s = summarise(_states);
+        box.hidden = false;
+        box.setAttribute('data-tone', s.tone);
+        setStatus(line, s.headline);
+        items.textContent = '';
+        for (const t of s.items) {
+            const li = document.createElement('li');
+            li.textContent = t;
+            items.appendChild(li);
+        }
+    }
+
     // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
     // direct deep-link to this page can't keep an old credential live (review item 7 / Finding #9).
     // Fire-and-forget, login-safe: no-op on a valid session, stands down if a login supersedes it.
@@ -149,15 +217,62 @@ export function init() {
         // Password card (PASSWORD_PLAN.md — chosen password + migration status)
         initPasswordCard();
 
-        // Notifications card
-        initHuddleNotifications();
-        initInstallRow();
+        // Notifications card. It reports its own state — the words in huddle.js are already the
+        // authority on what each one means, and a second read of `peekNotifState` here could
+        // disagree with the sentence on screen.
+        _cardHandles['notifications'] = initHuddleNotifications({
+            onState: (state, chip) => reportSetting('notifications', state, chip),
+        });
+        initDeviceCard();
 
-        // Pay Calculator Data — a pointer card, so collapse is the only behaviour it has.
-        initCardCollapse('payDataToggleHeader', 'payDataBody', 'payDataChevron');
+        // Pay Calculator Data — a pointer card, so collapse and the inventory are all it has.
+        _cardHandles['pay-data'] = initCardCollapse('payDataToggleHeader', 'payDataBody', 'payDataChevron');
+        initPayDataCard();
 
         // Icon lightbox
         initIconLightbox();
+    }
+
+    // ── Pay Calculator Data — what this device is actually holding ────────────────
+    //
+    // "Saved on this device only" is a warning about nothing until it says how much. The engine
+    // that already answers this for the backup card is `paycalc-inventory.js`, so it answers here
+    // too rather than a second count being written — the whole point of that module is that the
+    // summary, the itemised list and the damage preflight cannot disagree.
+    //
+    // It reports `n/a`: there is no wrong amount of pay data, so this card can never be a to-do
+    // and can never delay "all set". The chip is information, not a verdict.
+    function initPayDataCard() {
+        const line = document.getElementById('payDataInventory');
+        try {
+            // The keys are namespaced per member, so the namespace has to be set before they can
+            // be found — Settings never opens the pay calculator, which is where that normally
+            // happens. `lsKeys` is the iOS-safe enumerator (ls.js); a private-mode SecurityError
+            // returns an empty list rather than throwing.
+            setPaycalcNamespace(currentUser || undefined);
+            // `periods` is the payslip count; `taxYears` is a LIST, not a count — naming the
+            // years is what answers "is my old year in here?", which is why that module returns
+            // them rather than a number.
+            // `selectBackupKeys` is the ONE selector — it filters to this member's prefix and
+            // drops the device-level flags. Handing `inventoryOf` unfiltered keys would slice
+            // every unrelated key by the prefix length and classify the wreckage as 'unknown',
+            // so a phone with no pay data at all would report a pile of it.
+            const inv  = inventoryOf(selectBackupKeys(lsKeys(), pcPrefix()), pcPrefix());
+            const bits = [];
+            if (inv.periods)         bits.push(`${inv.periods} payslip${inv.periods === 1 ? '' : 's'}`);
+            if (inv.taxYears.length) bits.push(inv.taxYears.length === 1
+                ? `tax year ${inv.taxYears[0]}`
+                : `${inv.taxYears.length} tax years (${inv.taxYears.join(', ')})`);
+            if (line) line.textContent = bits.length
+                ? `${bits.join(' · ')} saved on this device`
+                : 'No pay calculator history saved yet';
+            reportSetting('pay-data', 'n/a',
+                inv.periods ? `${inv.periods} payslip${inv.periods === 1 ? '' : 's'}` : 'None saved');
+        } catch (err) {
+            console.warn('[payData] Inventory failed:', err);
+            if (line) line.textContent = '';
+            reportSetting('pay-data', 'n/a');
+        }
     }
 
     // ── Work Email card ───────────────────────────────────────────────────────────
@@ -168,7 +283,11 @@ export function init() {
         const feedback   = /** @type {HTMLElement} */ (document.getElementById('contactFeedback'));
         if (!emailInput || !saveBtn) return;
 
-        initCardCollapse('contactToggleHeader', 'contactBody', 'contactChevron');
+        _cardHandles['work-email'] = initCardCollapse('contactToggleHeader', 'contactBody', 'contactChevron');
+
+        // The domain, beside the field rather than appended in silence on blur.
+        const domainEl = document.getElementById('workEmailDomain');
+        if (domainEl) domainEl.textContent = '@' + CONFIG.WORK_EMAIL_DOMAIN;
 
         // Guard against a slow Firestore load overwriting text the user has already typed.
         // Listen to both 'input' and 'change' — some browsers (Chrome on Android) fire
@@ -196,15 +315,25 @@ export function init() {
             } catch { return null; }
         }
 
+        // The subtitle earns its line twice over: before saving it says WHY to save an address,
+        // after saving it says WHICH address is saved — which is the question a collapsed card
+        // has to answer without being opened.
+        const hintEl = document.getElementById('contactHint');
+        const WHY_HINT = 'Save your Chiltern work email for account recovery';
+
         function showSavedState(/** @type {any} */ dateStr) {
             userSaved = true;
             setFeedback(dateStr ? `✓ Saved — last updated ${dateStr}` : '✓ Saved', 'ok');
             if (removeBtn) removeBtn.style.display = '';
+            if (hintEl && emailInput.value.trim()) hintEl.textContent = emailInput.value.trim();
+            reportSetting('work-email', 'ok', '✓ Saved');
         }
 
         function clearSavedState() {
             setFeedback('', '');
             if (removeBtn) removeBtn.style.display = 'none';
+            if (hintEl) hintEl.textContent = WHY_HINT;
+            reportSetting('work-email', 'action', 'Not saved');
         }
 
         // Load existing email; show a loading message while waiting.
@@ -221,12 +350,16 @@ export function init() {
                 // User started typing before the load finished — keep their input,
                 // just clear the loading message.
                 setFeedback('', '');
+                reportSetting('work-email', 'ok', '✓ Saved');
             } else {
                 clearSavedState();
             }
         }).catch(err => {
             console.warn('[staffContact] Load failed:', err);
             setFeedback('Couldn\'t check your saved email — check your connection.', 'err');
+            // NOT 'action': nothing was learnt, so the summary must not count it as a to-do and
+            // must not count it as done either. `error` opens the card and holds back "all set".
+            reportSetting('work-email', 'error', 'Couldn’t check');
         });
 
         emailInput.addEventListener('keydown', e => {
@@ -384,23 +517,30 @@ export function init() {
         const chip    = document.getElementById('passwordStatusChip');
         const nudge   = document.getElementById('passwordNudge');
         if (!curEl || !newEl || !confEl || !saveBtn || !feedback) return;
-        initCardCollapse('passwordToggleHeader', 'passwordBody', 'passwordChevron');
+        _cardHandles['password'] = initCardCollapse('passwordToggleHeader', 'passwordBody', 'passwordChevron');
 
-        // Reveal toggle — same behaviour as the login and forced overlays (v18.95): flips New AND
-        // Confirm together, because reading them against each other is the whole reason to reveal.
-        // Optional in the DOM, so a missing button is a no-op rather than a dead card.
-        const pwToggle = /** @type {HTMLButtonElement|null} */ (document.getElementById('pwNewToggle'));
+        // ONE reveal control, covering all THREE fields (v22.37, owner review). The old `Show`
+        // button sat beside New and also governed Confirm — defensible, and not what its placement
+        // said. A labelled checkbox states which of its two positions it is in, and reaches Current
+        // as well, which is where a mistyped password most often comes from.
+        const pwShow = /** @type {HTMLInputElement|null} */ (document.getElementById('pwShowAll'));
         /** @param {boolean} reveal */
         const setRevealed = (reveal) => {
-            newEl.type = confEl.type = reveal ? 'text' : 'password';
-            if (!pwToggle) return;
-            pwToggle.textContent = reveal ? 'Hide' : 'Show';
-            pwToggle.setAttribute('aria-pressed', String(reveal));
-            pwToggle.setAttribute('aria-label', reveal ? 'Hide password' : 'Show password');
+            curEl.type = newEl.type = confEl.type = reveal ? 'text' : 'password';
+            if (pwShow) pwShow.checked = reveal;
         };
-        pwToggle?.addEventListener('click', () => {
-            setRevealed(newEl.type === 'password');
-            newEl.focus();
+        pwShow?.addEventListener('change', () => setRevealed(!!pwShow.checked));
+
+        // The two halves of the card body, and the latch that keeps the form open once opened.
+        const settled   = document.getElementById('pwSettled');
+        const form      = document.getElementById('pwForm');
+        const changeBtn = document.getElementById('pwChangeBtn');
+        let _pwFormOpened = false;
+        changeBtn?.addEventListener('click', () => {
+            _pwFormOpened = true;
+            if (settled) settled.hidden = true;
+            if (form)    form.hidden    = false;
+            curEl.focus();
         });
 
         const member = currentUser;
@@ -430,12 +570,26 @@ export function init() {
                 // card's own save and from the forced overlay's `myb:password-set`). No branch
                 // paints migrated on a guess, which is why this can live here rather than at each
                 // call site.
-                if (chip) chip.textContent = migrated ? '✓ your own password' : 'using surname';
+                // Through `setStatus`: this chip leads with a tick, and a live header a screen
+                // reader walks would otherwise announce it as a word (status-text.js).
+                if (chip) setStatus(chip, migrated ? '✓ Password set' : 'Using surname');
                 if (nudge) {
                     nudge.hidden = migrated;
                     if (!migrated) nudge.textContent =
                         'You’re still using your surname as your password — anyone who knows your name could guess it. Set a password only you know below.';
                 }
+                // THE FORM IS BEHIND A DOOR ONCE THERE IS NOTHING TO FIX (v22.37, owner review).
+                // A migrated member met three empty password fields on every visit, which reads as
+                // a form they have to fill in rather than as a setting that is already right.
+                // `_pwFormOpened` makes this ONE-WAY: once Change password has been pressed, a
+                // later refresh (the optimistic repaint after a successful save, say) must not
+                // fold the form away under someone who is typing in it.
+                if (settled && form) {
+                    settled.hidden = !migrated || _pwFormOpened;
+                    form.hidden    = migrated && !_pwFormOpened;
+                }
+                reportSetting('password', migrated ? 'ok' : 'action',
+                    migrated ? '✓ Password set' : 'Using surname');
             };
             if (optimisticMigrated) paint(true);
             try {
@@ -445,7 +599,12 @@ export function init() {
                 const st = await getPasswordStatus(member);
                 // isPasswordMigrated (auth-identity.js) is the single, unit-tested source (§6).
                 paint(isPasswordMigrated(st) || optimisticMigrated);
-            } catch { /* leave the chip/nudge as-is (optimistic paint, or blank) on a read failure */ }
+            } catch {
+                // Leave the chip/nudge as the optimistic paint left them — but the SUMMARY must
+                // hear about it. Silence here would let "✓ You’re all set" appear over a password
+                // status nobody actually read, which is the one thing that line must never do.
+                if (!optimisticMigrated) reportSetting('password', 'error', 'Couldn’t check');
+            }
         }
         refreshStatus();
         // The forced overlay (password-force.js) can change the password AFTER this card has already
@@ -611,8 +770,21 @@ export function init() {
  * member answers. `appinstalled` hides it too, for the case where they install from Chrome's own
  * menu while this page is open.
  */
-function initInstallRow() {
-    const row = document.getElementById('installRow');
+/**
+ * The conditional "Install on this device" card (v22.37, owner review).
+ *
+ * It used to be a row inside Notifications, because installing is what makes notifications
+ * possible on iOS and what makes this device's saved pay data durable. Both true, and neither is
+ * something a member knows — so somebody looking for "how do I put this on my home screen?" would
+ * never have thought to open Notifications, and the control was undiscoverable to exactly the
+ * person it was for.
+ *
+ * The whole CARD is conditional rather than just the button: it appears only while there is an
+ * install to offer and disappears the moment there is not. A permanent "✓ Installed" row would be
+ * a card that never does anything again, which is the opposite of what this page is becoming.
+ */
+function initDeviceCard() {
+    const row = document.getElementById('deviceCard');
     const btn = document.getElementById('installBtn');
     if (!row || !btn) return;
     /** @type {any} */

@@ -179,6 +179,14 @@ what `password-force.js` still follows).
 
 ## 5. The admin reset (break-glass)
 
+> **⚠️ INTERIM. Superseded in design by C6 — one-time recovery codes (`CREDENTIAL_LIFECYCLE.md` §1),
+> which is proposed and not started.** What is described below is live and stays live until C6
+> ships, because break-glass may not have a gap. But the mechanism has a flaw worth naming where a
+> reader meets it: **it makes the surname a valid credential again**, so the repair mechanism for
+> the migration re-creates the exact condition the migration exists to remove — at the moment the
+> account is least attended. C6 replaces the surname with a random, single-use, 24-hour, hashed
+> code, and the admin never learns a working credential at all.
+
 A new admin-only Cloud Function **`resetMemberPassword`**, mirroring `setupRosterAuth` exactly:
 
 - Same shell: `onRequest({ region: 'europe-west2', cors: ADMIN_FUNCTION_ORIGINS })`, POST-only,
@@ -323,9 +331,14 @@ canonical track table.*
 
 ## Passkeys — POSSIBLE, not planned (recorded 10 Aug 2026)
 
+> The survey, the domain-binding blocker and the four options are below and are authoritative.
+> **The ORDER they sit in relative to everything else** — migration, then one canonical origin,
+> then a spike, then additive passkeys alongside passwords — is `CREDENTIAL_LIFECYCLE.md` §9, which
+> is the file that holds sequencing. Nothing here is restated there.
+
 *Owner-raised after the v20.53 merge: "give me the options for making the app compatible with
 passkeys." Recorded here with its costs and its one hard blocker attached — **as a possibility, not
-as scheduled work**, and not given a C-number: the track list is C1–C5 and the canonical table in
+as scheduled work**, and not given a C-number: the track list is C1–C6 and the canonical table in
 `SECURITY_RELEASE_PLAN.md` owns it. If this is ever committed to, it is the successor to C5, not a
 track of its own.*
 

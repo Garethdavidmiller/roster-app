@@ -86,6 +86,19 @@
 
 <main class="app">
 
+    <!-- ── THE ONE LINE PEOPLE ARRIVE FOR (v22.37) ────────────────────────────────────────────
+         Nobody opens Settings to configure something abstract; they open it to find out whether
+         notifications are on, whether their password is their own, whether their email is saved.
+         This answers that before anything has to be opened.
+
+         It states "Checking…" until every card has reported, and NEVER says all-set over silence
+         or over a failed read — the rule and the reasoning live in settings-status.js. It is a
+         live region because it changes under the reader as those answers land. -->
+    <div id="settingsSummary" class="settings-summary" role="status" aria-live="polite" hidden>
+        <span class="settings-summary-line" id="settingsSummaryLine"></span>
+        <ul class="settings-summary-items" id="settingsSummaryItems"></ul>
+    </div>
+
     <!-- Two column WRAPPERS, not two columns' worth of grid placement (v20.72). They are
          `display: contents` below 1024px, so the mobile page is exactly the stack it was and this
          markup costs nothing there. On desktop they become the flex columns the app already uses on
@@ -95,26 +108,48 @@
          not do that. -->
     <div class="col-main">
 
+    <h2 class="settings-section-label">Your account</h2>
+
+    <!-- ── THE CARDS START CLOSED (v22.37, owner review) ──────────────────────────────────────
+         A returning member met four expanded forms, including a large password form they had
+         already dealt with. The default is now closed, and a card OPENS ITSELF when its own state
+         says it needs looking at — a to-do, a block, or a read that failed.
+
+         Closed-then-open rather than open-then-closed, deliberately: the common case is a
+         configured account, so this way the common case never reflows, and the uncommon one
+         expands once. `settings-status.js` owns which states qualify, and `unknown` is not one of
+         them — a card that opened while the answer was still arriving would flap. -->
     <!-- Work Email -->
     <div class="card" id="contactCard">
         <div class="card-header card-header-toggle" id="contactToggleHeader">
             <div>
                 <h2><span aria-hidden="true">📧</span> Work Email</h2>
-                <span class="hint">Add your work email now — it will be used for self-service password reset (in a future update)</span>
+                <span class="hint" id="contactHint">Save your Chiltern work email for account recovery</span>
             </div>
             <div class="card-header-actions">
+                <span class="card-year-chip" id="contactStatusChip"></span>
                 <button type="button" class="btn-card-tips" data-card="work-email" aria-label="Tips for work email" title="Tips for work email">?</button>
-                <span class="collapse-chevron open" id="contactChevron">▾</span>
+                <span class="collapse-chevron" id="contactChevron">▾</span>
             </div>
         </div>
-        <div class="card-collapsible-body open" id="contactBody">
+        <div class="card-collapsible-body" id="contactBody">
             <div class="card-body">
+                <p class="card-explainer">Self-service recovery isn’t available yet. For now, ask
+                the admin if you forget your password — saving your email means it will be ready when
+                it is. Only you and the admin can see it.</p>
                 <label class="contact-label" for="workEmailInput">Work email address</label>
-                <input type="email" id="workEmailInput" class="contact-email-input"
-                       inputmode="email"
-                       autocomplete="email" autocapitalize="off" autocorrect="off"
-                       spellcheck="false" placeholder="firstname.surname"
-                       enterkeyhint="done">
+                <!-- The domain is SHOWN rather than silently appended (v22.37, owner review). Every
+                     valid address is on the one domain, so the field asked a question it already
+                     knew the answer to — "do I type the whole thing?" — and both answers worked,
+                     which is exactly the kind of thing a member gets wrong once and never mentions. -->
+                <div class="contact-email-row">
+                    <input type="email" id="workEmailInput" class="contact-email-input"
+                           inputmode="email"
+                           autocomplete="email" autocapitalize="off" autocorrect="off"
+                           spellcheck="false" placeholder="firstname.surname"
+                           enterkeyhint="done">
+                    <span class="contact-email-domain" id="workEmailDomain"></span>
+                </div>
                 <button type="button" class="btn-action btn-primary" id="workEmailSaveBtn">Save email</button>
                 <button type="button" class="btn-contact-remove" id="workEmailRemoveBtn" style="display:none">Remove saved email</button>
                 <div class="contact-feedback" id="contactFeedback" aria-live="polite"></div>
@@ -127,34 +162,60 @@
         <div class="card-header card-header-toggle" id="passwordToggleHeader">
             <div>
                 <h2><span aria-hidden="true">🔑</span> Password</h2>
-                <span class="hint">Set a password only you know — replaces your surname default</span>
+                <span class="hint">The password you sign in with</span>
             </div>
             <div class="card-header-actions">
                 <span class="card-year-chip" id="passwordStatusChip"></span>
                 <button type="button" class="btn-card-tips" data-card="password" aria-label="Tips for password" title="Tips for password">?</button>
-                <span class="collapse-chevron open" id="passwordChevron">▾</span>
+                <span class="collapse-chevron" id="passwordChevron">▾</span>
             </div>
         </div>
-        <div class="card-collapsible-body open" id="passwordBody">
+        <div class="card-collapsible-body" id="passwordBody">
             <div class="card-body">
                 <div class="pw-nudge" id="passwordNudge" hidden></div>
-                <label class="contact-label" for="pwCurrent">Current password</label>
-                <input type="password" id="pwCurrent" class="contact-email-input"
-                       autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next">
-                <label class="contact-label" for="pwNew">New password <span class="pw-req">(at least 8 characters)</span></label>
-                <!-- Reveal toggle (v18.95). The login overlay and the forced overlay both offer one;
-                     this card asked for an 8+ character password TWICE with no way to see either, which
-                     is where a mistyped password most often comes from. Toggles New and Confirm
-                     together — checking them against each other is the point. -->
-                <div class="login-pw-wrap">
+
+                <!-- ── THE FORM IS BEHIND A DOOR ONCE THERE IS NOTHING TO FIX (v22.37) ──────────
+                     A member who has already chosen a password met three empty password fields
+                     every time they opened Settings, which reads as "here is a form you apparently
+                     need to fill in" rather than "your password is fine; this is where you change
+                     it". The settled state is now a sentence and a button.
+
+                     A member still on the surname default gets the opposite: the warning above and
+                     the form already open, because for them it IS a form they need to fill in.
+                     `#pwSettled` and `#pwForm` are the two halves; settings-app.js picks. -->
+                <div id="pwSettled" hidden>
+                    <p class="card-explainer">Your account is using a password only you know.</p>
+                    <button type="button" class="btn-action btn-secondary" id="pwChangeBtn">Change password</button>
+                </div>
+
+                <div id="pwForm">
+                    <label class="contact-label" for="pwCurrent">Current password</label>
+                    <input type="password" id="pwCurrent" class="contact-email-input"
+                           autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next">
+                    <!-- Where it is needed. Forgetting the current password is the exact moment
+                         this form stops working, and the answer was in the `?` panel — which is
+                         the last place somebody looks when the thing in front of them has failed. -->
+                    <p class="pw-forgot">Forgotten it? Ask the admin for a reset.</p>
+
+                    <label class="contact-label" for="pwNew">New password <span class="pw-req">(at least 8 characters)</span></label>
                     <input type="password" id="pwNew" class="contact-email-input"
                            autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next">
-                    <button type="button" id="pwNewToggle" class="login-pw-toggle" aria-label="Show password" aria-pressed="false">Show</button>
+                    <label class="contact-label" for="pwConfirm">Confirm new password</label>
+                    <input type="password" id="pwConfirm" class="contact-email-input"
+                           autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
+
+                    <!-- ONE control for all three fields (v22.37, owner review). The old `Show`
+                         button sat beside New and silently also revealed Confirm — defensible, and
+                         not what the placement said, which is a small thing to learn for no reason.
+                         A labelled checkbox under the fields says what it does and covers Current
+                         too, which is where a mistyped password most often comes from. -->
+                    <label class="pw-show-row">
+                        <input type="checkbox" id="pwShowAll">
+                        <span>Show passwords</span>
+                    </label>
+
+                    <button type="button" class="btn-action btn-primary" id="pwSaveBtn">Set password</button>
                 </div>
-                <label class="contact-label" for="pwConfirm">Confirm new password</label>
-                <input type="password" id="pwConfirm" class="contact-email-input"
-                       autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
-                <button type="button" class="btn-action btn-primary" id="pwSaveBtn">Set password</button>
                 <div class="contact-feedback" id="pwFeedback" aria-live="polite"></div>
             </div>
         </div>
@@ -164,37 +225,63 @@
 
     <div class="col-side">
 
+    <h2 class="settings-section-label">This device</h2>
+
     <!-- Push notifications -->
     <div class="card" id="notificationsCard">
         <div class="card-header card-header-toggle" id="notifToggleHeader">
             <div>
                 <h2><span aria-hidden="true">🔔</span> Notifications</h2>
-                <span class="hint">Get an alert when the Daily Huddle is ready or payday is approaching</span>
+                <!-- The old subtitle named two of the four things it sends. The `?` panel had the
+                     full list, so the card under-described what the member was agreeing to receive
+                     — and the fix is shorter as well as truer (v22.37, owner review). -->
+                <span class="hint">Get alerts for staff updates and pay reminders</span>
             </div>
             <div class="card-header-actions">
+                <span class="card-year-chip" id="notifStatusChip"></span>
                 <button type="button" class="btn-card-tips" data-card="notifications" aria-label="Tips for notifications" title="Tips for notifications">?</button>
-                <span class="collapse-chevron open" id="notifChevron">▾</span>
+                <span class="collapse-chevron" id="notifChevron">▾</span>
             </div>
         </div>
-        <div class="card-collapsible-body open" id="notifBody">
+        <div class="card-collapsible-body" id="notifBody">
             <div class="card-body">
+                <p class="card-explainer">You’ll get: Daily Huddle · Retail Circular · Newsletter · Pay reminder</p>
                 <div id="notifStatusMsg" aria-live="polite"></div>
                 <button type="button" class="btn-action btn-primary" id="notifEnableBtn" style="display:none">Enable notifications</button>
                 <button type="button" class="btn-action btn-secondary" id="notifDisableBtn" style="display:none">Disable notifications</button>
                 <p id="notifDeniedMsg"></p>
-                <!-- INSTALL — hidden unless the browser actually offers one (v22.13). It lives in
-                     this card because installing is what makes notifications possible on iOS and
-                     what makes this device's stored pay data durable on both platforms, and those
-                     are the two things Settings already talks about. Deliberately NOT on the
-                     calendar: that page is meant to stay one thing. -->
-                <div id="installRow" hidden>
-                    <p class="install-note">Installing puts the roster on your home screen, and keeps
-                        this device's saved pay data safe from being cleared to free up space.</p>
-                    <button type="button" class="btn-action btn-secondary" id="installBtn">Install the app</button>
-                </div>
             </div>
         </div>
     </div>
+
+    <!-- ── INSTALL IS A DEVICE SETTING, NOT A NOTIFICATION SETTING (v22.37, owner review) ──────
+         It lived inside Notifications because installing is what makes notifications possible on
+         iOS and what makes this device's stored pay data durable — both true, and neither is
+         something a member knows. Somebody looking for "how do I put this on my home screen?" does
+         not think Notifications, so the control was effectively undiscoverable to the one person
+         it was for.
+
+         The whole CARD is conditional, not just the button: it exists only while there is an
+         install to offer, and disappears once the app is installed or the browser has no offer to
+         make. A permanent card reading "✓ Installed" would be a row that never does anything again.
+
+         `hidden` is used and MUST actually hide — `.card` carries no author `display`, so the UA
+         rule wins; page-visibility-parity.test.mjs is what keeps that true. -->
+    <div class="card" id="deviceCard" hidden>
+        <div class="card-header">
+            <div>
+                <h2><span aria-hidden="true">📱</span> Install on this device</h2>
+                <span class="hint">Put the roster on your home screen</span>
+            </div>
+        </div>
+        <div class="card-body">
+            <p class="install-note">Installing puts the roster on your home screen, and keeps
+                this device’s saved pay data safe from being cleared to free up space.</p>
+            <button type="button" class="btn-action btn-secondary" id="installBtn">Install the app</button>
+        </div>
+    </div>
+
+    <h2 class="settings-section-label">Your data</h2>
 
     <!-- Pay data backup — a POINTER, not a second copy of the card. The controls live on the
          pay calculator because that is where the data is and where the member already is when
@@ -207,15 +294,21 @@
                 <span class="hint">Saved on this device only — keep a copy before you switch</span>
             </div>
             <div class="card-header-actions">
+                <span class="card-year-chip" id="payDataStatusChip"></span>
                 <button type="button" class="btn-card-tips" data-card="pay-data" aria-label="Tips for pay calculator data" title="Tips for pay calculator data">?</button>
-                <span class="collapse-chevron open" id="payDataChevron">▾</span>
+                <span class="collapse-chevron" id="payDataChevron">▾</span>
             </div>
         </div>
-        <div class="card-collapsible-body open" id="payDataBody">
+        <div class="card-collapsible-body" id="payDataBody">
             <div class="card-body">
-                <p class="card-explainer">Everything else in this app follows your account. Your pay
-                calculator figures do not — they are stored on <strong>this device</strong>, so they
+                <!-- "Everything ELSE follows your account" was an overstatement (v22.37, owner
+                     review): notification permission, the install, and cached device state are all
+                     device-specific too. Naming what DOES follow the account is both accurate and
+                     the thing the member needs to know. -->
+                <p class="card-explainer">Your roster and account details follow your account. Your
+                pay calculator history does not — it stays on <strong>this device</strong>, so it
                 will not appear on a new phone or at a different web address.</p>
+                <p class="pay-data-inventory" id="payDataInventory"></p>
                 <a class="btn-action btn-secondary" href="./paycalc.html#payTransferCard">Move your pay&nbsp;data →</a>
             </div>
         </div>
