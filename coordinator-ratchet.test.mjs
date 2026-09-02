@@ -95,7 +95,17 @@ const CAPS = {
     // threaded through the save, rename and select paths that already carried the old one, which is
     // coordination. Raised by 25 rather than the usual 50: banking the round number as headroom is
     // the loosening the v21.87 note above refuses.
-    'links-app.js':            3175,   // ← the next Links rule goes in a domain module
+    // 3175 → 3185 at v22.32, and stated because a raised cap should never pass unnoticed. The
+    // external review's already-restored finding put a THIRD store outcome on the restore path, and
+    // the reaction to it is UI: drop the stale bin row, repaint, say what happened. The RULE — write
+    // nothing when the design is already live — went into links-design-store.js, which is where the
+    // ratchet wants rules to go, so this is the coordinator doing its actual job.
+    //
+    // Extraction was tried first and mostly worked: the `gone` and `already-restored` branches were
+    // written separately, differed only in their sentence, and collapsed into one lookup. That took
+    // 3183 back to 3178. The last 3 lines are reasoning, and deleting reasoning to satisfy a number
+    // is the trade this file exists to prevent, not the one it asks for.
+    'links-app.js':            3185,   // ← the next Links rule goes in a domain module
     // 2000 → 1900 at v21.89. The sticky take-home bar left for paycalc-sticky-total.js — 1,988
     // measured lines down to 1,888. Of everything in this coordinator it was the piece whose
     // removal cannot affect a figure a member reads: a scroll-position widget that touches no

@@ -345,6 +345,29 @@ describe('creating and restoring ARM the baseline', () => {
         assert.equal(res.baseline.loadedRevision, 1, 'a new design establishes revision 1');
     });
 
+    // ── RESTORING AN ALREADY-RESTORED DESIGN WRITES NOTHING (v22.32, external review) ──────────
+    //
+    // Alice's bin is stale; Bob has already restored the design. Alice presses Restore. The old
+    // code did the merge anyway — clearing already-clear fields and BUMPING THE REVISION — which
+    // the comment called a harmless no-op. It is not one: an editor holding the immediately
+    // preceding revision then meets a "someone else saved this" conflict about a design whose
+    // content nobody touched, which is precisely the false conflict the test below argues teaches
+    // people to click through the real one.
+    //
+    // Asserting on WRITES, not on the return value: a status can be returned while the write still
+    // happens, and it is the write that manufactures the conflict.
+    test('restoring one somebody else already restored writes nothing at all', async () => {
+        const { api, writes } = makeDb({ initial: { name: 'A', revision: 6 } });   // no deletedAt
+        const res = await createDesignStore(api).restore(ID, ME);
+        assert.equal(writes.length, 0,
+            'no write — clearing already-clear fields still bumps the revision, and that '
+            + 'manufactures a conflict for anyone holding revision 6');
+        assert.equal(res.status, 'already-restored',
+            'a distinct status, so the workspace can report success without advancing a baseline '
+            + 'to a revision no write produced');
+        assert.equal(res.revision, undefined, 'there is no committed revision to hand back');
+    });
+
     test('a restored design arms it too — it is an OLD document others may hold', async () => {
         const { api, writes } = makeDb({ initial: { name: 'A', deletedAt: ts(500), deletedBy: ME, revision: 6 } });
         const res = await createDesignStore(api).restore(ID, ME);
