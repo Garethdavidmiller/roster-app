@@ -60,6 +60,52 @@ gap the v17.45 audit flagged can't silently reopen.
   commits). Review cadence is manual, driven by the `Next` column — re-check a section when its month
   arrives; full pass ≥ yearly (railcards each spring; tax before 6 April).
 
+## What adding a guide page touches
+
+Adding a guide is not "write a page". Seventeen places know how many guides there are, and most fail
+loudly — which is the good case. Listed so the work is estimated honestly.
+
+**This arrived here from `RANGERS_ROVERS_PLAN.md` when that plan was retired (2 Sep 2026).** It was
+written for the FIFTH guide and every row was checked against the code rather than assumed — which
+is exactly why it outlived the plan that produced it. A checklist for adding a guide belongs beside
+the rules for writing one, not in the history of the page that happened to need it first; filed as
+history it would have been invisible to whoever adds a sixth.
+
+| # | File | What |
+|---|---|---|
+| 1 | `nav-panel.js` | `NAV_GUIDES` entry — icon, label, url, **`openId`** |
+| 2 | `firestore.rules` | analytics counter id, in **two** places (the `hasOnly` allowlist and the per-id int check) |
+| 3 | `firestore-contract-parity.test.mjs` | asserts `NAV_GUIDES` openIds match the rules list, both ways |
+| 4 | `service-worker.js` | precache: `.html` + `.css` (+ `.js` if any) |
+| 5 | `sw-asset-check.test.mjs` | asset-list parity, and the `noindex` meta contract |
+| 6 | `csp-meta-parity.test.mjs` | the page's `<meta http-equiv="Content-Security-Policy">` must mirror the header |
+| 7 | the page itself | `noindex` meta + `color-scheme: only light` meta |
+| 8 | `e2e/axe.spec.js` | accessibility scan (blocking gate) |
+| 9 | `e2e/csp.spec.js` | deployed-CSP proof |
+| 10 | `e2e/calendar.spec.js` | each guide records its **own** open id, driven through the real drawer |
+| 11 | `GUIDE_SOURCES.md` | a register row per high-risk claim |
+| 12 | `guide-sources.test.mjs` | the two-way `data-guide-source` contract — a row with no block fails, and vice-versa |
+| 13 | `guide-shell.css` | nothing to change, but confirm nothing new is needed |
+| 14 | `guide-back.js` | already generic; confirm the new page is in scope |
+| 15 | `e2e/visual.spec.js` + baselines | the four static guides are baselined; a fifth should be |
+| 16 | `.claude/rules/guide-pages.md` | its `paths:` globs **and** its per-guide section (this file) |
+| 17 | `CLAUDE.md` + `AI_MAP.md` | file structure, same-commit rule |
+
+Every row above was checked against the code, not assumed: `firestore-contract-parity.test.mjs`
+reads `NAV_GUIDES` and the rules allowlist and compares them **both ways**; `e2e/calendar.spec.js`
+drives each guide's drawer link and asserts the id it records; each guide page carries three
+`noindex`/`color-scheme` metas; and the four guides that existed when this was written were visually baselined (two at
+desktop 900, two at mobile 390 — pick the width that shows this page's densest state). The Rangers
+guide has since joined them at mobile 390.
+
+Note #10 and #12 specifically: the analytics open-id mapping has already produced a real defect class
+(a substring match filed every Pay Calculator Guide open under the Staff Guide), and the register's
+two-way contract is what stops a high-risk claim losing its source.
+
+---
+
+---
+
 ## Railcard guide
 
 `railcard-guide.html` is an at-work quick reference for staff at the **gateline** and **ticket office**. Not a customer-facing page — judge every decision against "can a staff member glance at this mid-transaction and get the right answer fast?"
@@ -379,7 +425,9 @@ reasoning is unactionable — that every Conflict row's claim text describes **b
 **To settle a product:** re-check it at source *and* in the retail system, then flip its row and drop
 its marker. The banner goes when the last provisional row does.
 
-**Design decisions, argued in `RANGERS_ROVERS_PLAN.md`:**
+**Design decisions** (argued here since the plan was retired, when `RANGERS_ROVERS_PLAN.md` was retired into
+`ROADMAP_HISTORY.md` (2 Sep 2026); the reasoning below was always written out in this file rather than merely
+cited, which is what made the plan safe to retire):
 
 - **It leads with "usually no" — but the five are a SHORTLIST, never a rule of exclusion** (v20.08,
   external review). ~90 products exist nationally and a handful touch Chiltern, so a page that opens

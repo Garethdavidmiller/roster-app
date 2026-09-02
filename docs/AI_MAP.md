@@ -869,7 +869,9 @@ The **Rangers & Rovers guide** (v20.05) — the ranger/rover area passes staff a
 - **`Conflict` is the register class that matters here** — *the source contradicts itself*. Re-reading fixes an unchecked claim and cannot fix a publisher disagreeing with its own page, so the two must never wear one marker: a reader sent back to a page they have already read learns nothing and loses time at a gateline. Two rows hold it, and since v20.37 each is a CLAIM rather than a product — `rr-shakespeare-boj` (break of journey permitted in the description, not permitted in the detailed conditions on the same page) and `rr-thames-7-operator` (the current 7-Day promotion page lists Chiltern; the older TR3/TR7 terms page says GWR only). Their products keep their own states (`rr-shakespeare-core` is **Draft** — no readable page at all, an absence rather than a disagreement; `rr-thames-7-geography` is **National**), because one unresolved secondary condition must not make a whole card read as doubtful. **A Conflict card may never be used to refuse travel** — it says check the retail system, and the register row has to describe the disagreement, which is its own test.
 - **Leads with "usually no".** A staff member who cannot find their ticket in a long list cannot tell *not valid* from *not listed*, so the page is the Chiltern-relevant products and the near-misses, stated as non-exhaustive — never a count of the national set, which is re-set upstream and stale the moment it is written down. The near-misses section is the point of the page, not an appendix.
 - **No prices** — annually re-set, three-way variable, and a stale one is a mis-sell. Stricter than the railcard guide on purpose.
-- Design + the unblock path: `RANGERS_ROVERS_PLAN.md`.
+- Design: `.claude/rules/guide-pages.md`; per-product evidence: `GUIDE_SOURCES.md`. The plan that
+  produced the page was retired into `ROADMAP_HISTORY.md` on 2 Sep 2026 — the feature shipped, and its
+  rules had already been written out in the rule file rather than merely cited there.
 
 ### `links-seed.js`
 

@@ -33,6 +33,7 @@ changed once.
 | **Pay calculator** | `.claude/rules/paycalc.md` | Rates, payroll rules, state, layout |
 | **Links designer** | `.claude/rules/links-design.md` | Grid, generator, coverage, fatigue, concurrency |
 | **Guide pages** | `.claude/rules/guide-pages.md` | The five guides' shell, design principles, factual standards |
+| **Firestore collections** | `docs/DATA_MODEL.md` | What every collection holds and what its fields mean. Access is summarised there and OWNED by `firestore.rules` |
 | **CSS tokens & surfaces** | `.claude/rules/css-tokens.md` | Colour, type, spacing, focus, overlays |
 | **Notifications** | `.claude/rules/notifications.md` | Push payload grammar and the single builder |
 | **Roster data shape** | `.claude/rules/roster-data.md` | Member fields, cycles, entitlement |
@@ -71,7 +72,6 @@ live anchors:
 | `LOGIN_INCIDENT.md` | Resolved | `CLAUDE.md` sends you here before touching login |
 | `LATENCY_PLAN.md` | **Two open items and a close-out rule** — the identity decision (owner) and the Phase 2 reading (~end Sept); Phase 3 measured and declined, Phase 4's trigger unfired | Holds the readings, the field-confirmation check gating the identity decision, and the terms on which it closes |
 | `LINKS_DEC2026_PLAN.md` | Live | Holds the links modules' release history |
-| `RANGERS_ROVERS_PLAN.md` | Shipped, 2 open claims | The open claims are `VAL` rows |
 | `BRASS_PLAN.md` | **Gated on owner answers** | The Part 2 payslip questions decide the design; nothing ships before them |
 | `ROADMAP_HISTORY.md` | Historical | **The archive.** Everything `ROADMAP.md` used to say about the past |
 | `A11Y_FINDINGS.md` | Live baseline | The axe triage the gate is measured against |

@@ -66,6 +66,49 @@ const tests = rootFiles.filter(f => f.includes('.test.'));
 // concession: AI_MAP hangs a test off the module it covers ("Tested by x.test.mjs"), which the
 // cross-cutting parity suites have no module to hang from. Requiring them there would force a
 // fictional owner for each, which is worse than not listing them.
+// ── KNOWN_LIMITATIONS.md STATES WHAT IS STILL TRUE ─────────────────────────────────────────────
+//
+// The file promises "intentional constraints and deferred work", so a reader must be able to take
+// every heading as: this is still the case and I need to know about it. By 2 Sep 2026 about a fifth
+// of it was not — twelve sections explicitly closed, fixed or superseded, the largest of them 14,063
+// characters describing a boundary shut since August. A closed limitation left in place does not
+// merely waste the reader's time; it makes the whole file's headings unreliable, so the ones that
+// ARE live stop being believed.
+//
+// ARCHITECTURE.md already works this way for its `EXC-*` register: a closed exception is deleted,
+// not struck through. This applies the same rule where it was not being applied.
+//
+// **The exemption list is the important half, and it is by NAME rather than by pattern.** Two
+// headings legitimately read as closed:
+//
+//   · the `apis.google.com` CSP section says "(fixed v17.82)" and is a STANDING CONSTRAINT — the
+//     policy must go on allowing those hosts, and it records a false pass where a local
+//     `npm run test:csp` is green while CI is red. A rule that deleted it would delete a warning.
+//   · the mixed-version cache window is "mitigated, not fully closed (accepted)" — a live trade.
+//
+// So this guard cannot be a blanket ban on the words: it needs a reason per exemption, written
+// down, which is the only form that stays honest. Adding to EXEMPT is a decision somebody makes.
+const CLOSED_WORDS = /\b(CLOSED|FIXED|SUPERSEDED|RESOLVED|no longer a limitation|RESTORED)\b/i;
+const CLOSED_HEADING_EXEMPT = [
+    // "(fixed v17.82)" — the FIX is history, the CONSTRAINT is permanent: CSP must keep allowing
+    // apis.google.com and the auth iframe, and the section carries the local-green/CI-red false pass.
+    'must allow Firebase Auth',
+    // "mitigated, not fully closed (accepted)" — the word is there to say it is NOT closed.
+    'Mixed-version cache window',
+];
+test('KNOWN_LIMITATIONS.md headings state what is still true', () => {
+    const doc = read('./docs/KNOWN_LIMITATIONS.md');
+    const offenders = doc.split('\n')
+        .filter(l => /^#{2,3} /.test(l))
+        .filter(l => CLOSED_WORDS.test(l) || l.includes('~~'))
+        .filter(l => !CLOSED_HEADING_EXEMPT.some(e => l.includes(e)));
+    assert.deepEqual(offenders, [],
+        'these headings read as closed, so a reader cannot take the file at its word. Move the\n' +
+        'section to ROADMAP_HISTORY.md (or let git hold it), keep any durable lesson in the contract\n' +
+        'or module header that owns it, and add a NAMED exemption here only if the heading is\n' +
+        'genuinely still live:\n  ' + offenders.join('\n  '));
+});
+
 test('every root MODULE is listed in CLAUDE.md and AI_MAP.md', () => {
     const missing = modules
         .filter(f => !CLAUDE.includes(f) || !AI_MAP.includes(f))
@@ -243,6 +286,12 @@ const OWNED_COUNTS = [
 
 /** The docs a staff member or a session actually reads. Plans record history and are exempt. */
 const LIVE_DOCS = ['./CLAUDE.md', './docs/AI_MAP.md', './docs/ROADMAP.md', './docs/KNOWN_LIMITATIONS.md',
+    // DATA_MODEL.md joined on the day it was split out of CLAUDE.md. Material does not stop being
+    // live because it moved to a quieter file, and a schema document is exactly where a hardcoded
+    // count would go unread for longest — it is consulted a field at a time, so nobody reads far
+    // enough to notice the total is wrong. It passed the rule on arrival, which is the moment to
+    // adopt one rather than after it has drifted.
+    './docs/DATA_MODEL.md',
     './docs/OPERATIONS_REFERENCE.md', './.claude/rules/links-design.md', './.claude/rules/css-tokens.md',
     // README.md is the only one of these written for somebody who has never seen the repo, which
     // makes it the one most likely to be believed and the least likely to be reread. It joined at
@@ -665,7 +714,25 @@ test('the guide-count guard still matches the form that shipped — guard the gu
 // rule with no gate is how the tree reached 136k characters and 208 version references in the first
 // place. Two cheap, objective limits — neither is a style opinion:
 //
-//   · no single entry may exceed ~1,600 characters. Past that it has stopped being a pointer.
+//   · no single entry may exceed the cap below. Past that it has stopped being a pointer.
+//
+// THE CAP IS A RATCHET, AND IT CAME DOWN ON 2 Sep 2026 (1,600 -> 900). 1,600 was set when the tree
+// was being rescued from 136k characters, and it did its job — but it was so far above the tree's
+// own behaviour that only SIX entries ever touched it, so in practice it enforced nothing while
+// reading as though it did. An external review then measured what that permitted: 361 entries,
+// 155,386 characters, 52% of a file loaded into EVERY session, with 113,742 of those characters
+// sitting in entries over 400 when routing needs about 80.
+//
+// Thirty-seven entries were rewritten as routing lines. Every one was checked first against its own
+// module header — the v20.11 discipline, that reasoning moves BEFORE the pointer is cut — and the
+// five whose reasoning was NOT already beside the code were handled separately rather than trimmed
+// blind. The measurement that sorted them took three attempts and got it wrong twice, in opposite
+// directions; the working version is in the commit message.
+//
+// 900 is deliberately just above the largest survivor, not a round number: a cap with slack is a
+// cap nobody meets. Shrinking an entry is free. RAISING this number is a decision somebody makes
+// and defends, exactly like `coordinator-ratchet.test.mjs`. The next pass should bring it to ~600.
+const TREE_ENTRY_CAP = 900;
 //   · the tree may not accumulate release history. A handful of version stamps is fine (they date
 //     a decision); dozens means the changelog has moved back in.
 test('the CLAUDE.md file tree stays a routing table', () => {
@@ -676,7 +743,7 @@ test('the CLAUDE.md file tree stays a routing table', () => {
     assert.ok(entries.length > 150, `expected >150 routed entries, found ${entries.length}`);
 
     const tooLong = entries
-        .filter(l => l.length > 1600)
+        .filter(l => l.length > TREE_ENTRY_CAP)
         .map(l => `${l.replace(/^[│├└─\s]+/, '').split('←')[0].trim()} (${l.length} chars)`);
     assert.deepEqual(tooLong, [],
         'these entries have stopped being pointers. Move the reasoning into the module header and ' +

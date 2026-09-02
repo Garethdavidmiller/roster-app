@@ -87,6 +87,880 @@ part.**
 ---
 
 
+## Rangers & Rovers guide — the plan, retired (2 Sep 2026)
+
+**`RANGERS_ROVERS_PLAN.md` in full, moved here VERBATIM apart from two changes named in place:** §6
+went to `.claude/rules/guide-pages.md` because it is a reusable checklist rather than history, and the
+heading levels are demoted one so they nest under this section.
+
+**Why it was retired.** The feature shipped at v20.05 and was rebuilt Marylebone-first at v20.37. Its
+durable rules were already written out in `.claude/rules/guide-pages.md` — which *cited* this plan but
+did not depend on it — and its evidence lives in `GUIDE_SOURCES.md` as fifteen `rr-*` rows plus
+`VAL-GUIDE-001`. Nothing in the code, the tests or `doc-parity.test.mjs`'s `LIVE_DOCS` referenced it.
+Meanwhile `ROADMAP.md` carried it under **NEXT — likely, but a trigger is required** with a status of
+**SHIPPED**, which is the smell that prompted the retirement: the two unsettled source conflicts are
+evidence questions, and an unresolved railway claim is not a feature waiting to be built.
+
+**Where its subjects live now:** current design → `.claude/rules/guide-pages.md`; per-product
+evidence and the two conflicts → `GUIDE_SOURCES.md`; the validation question → `VALIDATION_REGISTER.md`
+(`VAL-GUIDE-001`); the "what a guide page touches" checklist → `.claude/rules/guide-pages.md`.
+
+---
+
+## RANGERS_ROVERS_PLAN.md — a Rangers & Rovers guide for Marylebone staff
+
+*Planning document, opened August 2026. Not version-stamped; not a runtime asset. Companion to
+`.claude/rules/guide-pages.md` (how guide pages are built) and `GUIDE_SOURCES.md` (how their claims
+are governed).*
+
+**Status: SHIPPED, AND SOURCE-CHECKED PER PRODUCT (v20.05 built; v20.10 checked).** The page exists
+and is wired into every contract in §6. The owner has checked its products against the live National
+Rail pages (Aug 2026) — see §9c — so the page is **no longer uniformly Draft**: most products are
+`National`, and two carry the new `Conflict` class because National Rail's own pages disagree with
+themselves. WP2–WP5 are done; what remains is settling those two conflicts through Chiltern/retail
+guidance, and capturing four product-page URLs (§9c).
+
+⚠️ **§1 below is the record of why the page shipped Draft, and it is still true about THIS
+environment** — `nationalrail.co.uk` remains unreachable from here, so nothing on the page has been
+read at source *by me*. What changed at v20.10 is the route, not the standard: the evidence came from
+the owner. Read §1 as the constraint on automated verification, not as the current state of the page.
+
+---
+
+### 1. The gating constraint — read this before anything else
+
+**Every substantive claim in this guide is a rule a passenger could be refused travel by.** Not some
+of them: the whole page. "Valid after 09:00 Monday to Friday", "not valid on Chiltern beyond
+Banbury", "the holder must date the next box before travelling" — each one, stated wrongly, either
+puts a passenger through a gateline they should not pass or refuses one who should.
+
+ROADMAP.md → Evidence class is unambiguous about what that requires:
+
+> **Anything rendered to a manager as "must be met", or to staff as a rule they could be refused
+> travel or pay by, requires A or B.** C and D may inform a tool; they may not be printed as a
+> requirement.
+
+So this guide is an **evidence-class-A page end to end** — sourced to National Rail, RDG, or the
+operator's own published terms. There is no version of it that runs on recollection.
+
+**And I cannot reach class-A sources from this environment.** The session's network policy blocks the
+rail industry domains outright:
+
+| Domain | Result |
+|---|---|
+| `www.nationalrail.co.uk` | `EGRESS_BLOCKED` |
+| `support.chilternrailways.co.uk` | `EGRESS_BLOCKED` |
+
+Web *search* still returns third-party summaries of those pages, and §9 uses them — but a summary of
+an authoritative page is **not** the authoritative page. `GUIDE_SOURCES.md` already carries this exact
+warning for the railcard and FIP rows, written after the same thing happened there:
+
+> The July 2026 source review reached the official railcard subdomains and the RDG/RST FIP pages via
+> **indexed/summarised T&C content**, not a live full-page fetch (those hosts blocked automated
+> fetch). … before any **National** row is treated as counter-final, open its Source and lift the
+> exact clause.
+
+**This is the whole reason the plan stops here rather than proceeding to a draft.** The repo has
+already shipped materially-wrong guide content once — the v17.45 railcard audit — and the register,
+the classification system and the two-way `data-guide-source` contract all exist because of it.
+Writing a Rangers & Rovers page from search summaries would reproduce that failure at a larger scale,
+because unlike railcards there is no staff intuition to catch an error: nobody at the gateline knows
+off-hand whether the Cotswolds & Malverns Rover is valid to Banbury.
+
+**Two ways to unblock, and they are not equivalent:**
+
+| | What it gives | Cost |
+|---|---|---|
+| **(a) Widen the environment's egress policy** to `nationalrail.co.uk`, `chilternrailways.co.uk` and the relevant operator domains | I can fetch, quote verbatim, and populate the register properly | An environment setting the owner controls (see the Claude Code on the web docs → environments) |
+| **(b) Gareth supplies the source material** — the retail system's ranger/rover listing, or PDFs/screenshots of the National Rail product pages | Same evidence class, and adds the Chiltern-specific reality no public page states | Gareth's time, at a machine with retail access |
+
+**(b) is needed regardless.** The single most valuable thing this guide can contain — *is it valid on
+us, and between which stations* — is a retail/operator fact, not something the National Rail
+consumer pages answer. Option (a) only removes my dependence on being handed the national half.
+
+---
+
+### 2. The job to be done
+
+Judged the same way `.claude/rules/guide-pages.md` judges the railcard guide: *can a staff member
+glance at this mid-transaction and get the right answer fast?*
+
+There are **two** transactions, and they are different jobs:
+
+| | Where | The question | Shape of the answer |
+|---|---|---|---|
+| **Selling** | ticket office | "They want three days around the West Midlands — what do I sell?" | browse by area, compare durations |
+| **Checking** | gateline, platform | "They've handed me a Heart of England Rover. Is it valid, here, now?" | one product → yes/no + why |
+
+**The checking job wins.** Three reasons, and they should survive any later redesign:
+
+1. It is the mid-transaction glance the guide system is already designed around.
+2. It is where the cost of being wrong lands on a passenger — a wrongly-refused rover is a complaint
+   and a wrongly-accepted one is revenue loss and an awkward conversation later.
+3. The retail system already does the selling job well; it does not help at a gateline, and neither
+   does a phone with no signal on platform 3.
+
+The selling job is served as a by-product (the same list, browsable) but never at the expense of the
+checking job's scan speed.
+
+---
+
+### 3. The scoping decision that makes this guide usable
+
+There are on the order of **90 Ranger and Rover products across Great Britain**. Almost none of them
+are valid on Chiltern.
+
+A page listing 90 products at a gateline is worse than no page: the staff member scrolls, does not
+find the one in their hand, and cannot tell whether that means *not valid* or *not listed*. That
+ambiguity is the failure mode — silence and absence look identical, which is the same trap
+`links-fatigue.js` is written around.
+
+**So the guide is scoped to what can actually be presented at a Chiltern gateline, and it leads with
+the negative case.**
+
+- **Tier 1 — valid on us.** The short list. Each gets a full card: area, days, time bar, and the
+  Chiltern reading (which of our stations are in and out).
+- **Tier 2 — commonly presented, NOT valid on us.** The near misses: products whose area map
+  includes Birmingham or Oxford but which exclude Chiltern services, and products a customer might
+  reasonably assume cover us. Each gets one line saying *no*, and what they need instead. **This tier
+  is the point of the page** — it is the answer staff cannot get anywhere else quickly.
+- **Everything else** is deliberately absent, and the page must say so in one sentence, so absence
+  reads as "out of scope" rather than "not valid".
+
+Tier 2 cannot be written from national sources. It is (b) in §1.
+
+---
+
+### 4. The content model
+
+One card per product. Rows chosen to answer the checking question in the order it is asked:
+
+| Row | Answers | Notes |
+|---|---|---|
+| **Area** | "does it cover where they are going?" | Named end stations on OUR route, not a region name. "Valid to Banbury and Kings Sutton" beats "the West Midlands" — the railcard guide's `rc-chiltern` block already proves this reads better |
+| **Days** | "is today one of their days?" | 1 day · 3 in 7 · 7 consecutive · 8 in 15 — and for flexi products, **the box-dating rule** (below) |
+| **When** | "is it too early?" | Reuse the railcard guide's colour stripe + `⊘` token exactly — green = any time, amber = morning restriction. Do **not** invent a new vocabulary |
+| **On us?** | the whole point | Explicit yes/no/partial, never inferred from the Area row |
+
+**Superseded at v20.37: "On us?" was the wrong question, and the page proved it.** One column
+cannot hold the answer, because there are two questions and a product can split them: the **West
+Midlands Day Ranger** names Chiltern as an operator — a true `On us? ✓ Yes` — and is *unusable at
+Marylebone*, because its area stops at Leamington Spa. A staff member at this barrier read the ✓,
+and the fact that undid it was four rows down inside the card.
+
+So the model is now **two states per product, and neither is derivable from the other**:
+
+| | Question | Attribute |
+|---|---|---|
+| **Marylebone** | can the person in front of me use this, here? | `data-myb-validity` |
+| **Chiltern** | is it a real ticket on our network at all, and where? | `data-chiltern-validity` |
+
+`✓ Area only` is the value that did not exist before and carries most of the page's worth: *yes, it
+is ours; no, not from London*. The top-level sections ARE that pair — Valid at Marylebone → Valid on
+Chiltern but not at Marylebone → Not valid on Chiltern at all — so the section heading answers
+before any badge is read. Tier 1 / Tier 2 in §3 survive as the *scoping* rule; they are no longer
+the page's shape.
+
+Two further rules the same pass established, both recorded in `.claude/rules/guide-pages.md`:
+**state a boundary, never an exhaustive station list** (the list is a claim about an intersection,
+and only one side of it is sourceable from the product page), and **a rule that belongs to a class
+does not sit on one card** (the Rover advance-sale limit was on the All Line Rover as though it were
+that ticket's own).
+
+**The flexi-rover box-dating rule deserves its own treatment.** On a flexi product the holder writes
+the date in the next box themselves before travelling. That makes it the one ranger/rover rule a
+gateline can actually *enforce* — an undated box is the check — and it is the rule most likely to be
+unknown to staff who have never handled one. It is a strong candidate for the page's single
+`.gotcha`-style callout, in the way the railcard guide handles the minimum-fare mechanic.
+
+#### What the guide must NOT print: prices
+
+Ranger and Rover fares are re-set annually (the 2026 figures carry an "as of 1 March 2026" stamp).
+There are dozens of them, and they are three-way variable — adult / child / railcard.
+
+A stale price on a staff-facing page is a **mis-sell**, and a page with thirty prices on it will be
+stale within a year whatever the review cadence says. The retail system is authoritative and is
+already open in front of the person selling.
+
+**Decision: no prices.** State the *shape* (child half price, a third off with some railcards — where
+class-A sourced) and point at the retail system for the number. This is deliberately stricter than the
+railcard guide, which does print the £12/£13 minimum fares — the difference is that those are two
+figures reviewed each spring, not thirty reviewed against thirty product pages.
+
+---
+
+### 5. Page and design system
+
+`rangers-guide.html` — a **fifth guide page**, not a section of the railcard guide. Different product
+family, different question, and `railcard-guide.html` is already 452 lines of deliberately glanceable
+cards that a second family would dilute.
+
+It inherits the shell wholesale — that is what the shell is for:
+
+- `guide-shell.css` (sticky navy header, gold rule, `←` / `⤓ PDF`, print rules, palette tokens, Inter)
+- its own `rangers-guide.css`, single-column 760px, matching `railcard-guide.css`'s conventions
+- **no `shared.css`**, **no inline script or `onclick`** (CSP `script-src 'self'`)
+- `guide-back.js` for the `?from=` back-arrow retarget
+- `guide-print.js` for the PDF button — unless it needs a chip bar, in which case follow
+  `railcard-guide.js`, which wires `#savePdfBtn` itself because it owns the chips
+
+**Reuse, do not re-invent:** the colour stripe, the `⊘`/`£` tokens, the `.rc-chiltern` amber callout,
+the three-layer `official` / `local` / `check` block for any rule that is really a local reading of a
+national one. Every one of those is an answer this guide system has already paid for.
+
+---
+
+### 6. What a fifth guide actually touches
+
+*Moved to `.claude/rules/guide-pages.md` → "What adding a guide page touches" when this plan
+was retired (2 Sep 2026). It is a checklist for adding ANY guide, it was checked against the code
+row by row, and a sixth guide would need it — so it is current rules, not history.*
+
+---
+
+### 7. Work packages, in order
+
+**WP0 — unblock the evidence (§1).** Nothing downstream is safe without it. Either widen egress or
+have Gareth supply the source material. *Owner: Gareth.*
+
+**WP1 — the Chiltern answer.** For each candidate product: is it valid on Chiltern, and between which
+stations? This is the irreplaceable content and it is a retail/operator question. Produces Tier 1 and
+Tier 2. *Owner: Gareth, with retail access.* **Evidence class B or A required — not C.** An
+owner-recollected validity boundary is exactly the class-C claim this repo now refuses to print as a
+rule, and getting it wrong refuses a passenger travel.
+
+**WP2 — the national half, verbatim.** For each Tier 1 product: area, durations, time bar, railcard
+discounts, child rules, flexi box-dating. Lift exact clauses; populate `GUIDE_SOURCES.md` with a row
+per claim, each anchored by `data-guide-source`. *Owner: me, once WP0 lands.*
+
+**WP3 — build the page.** Shell, cards, colour stripe, callout, print. Follow §5. *Owner: me.*
+
+**WP4 — wire the seventeen contracts (§6), gates, baselines, docs.** *Owner: me.*
+
+**WP5 — a staff read-through before it ships.** Someone who works a gateline reads it and tries to
+answer three real questions with it. The railcard guide's worst errors were fluent and plausible;
+fluency is not the check.
+
+---
+
+### 8. Open questions for the owner
+
+1. **Which products actually turn up at Marylebone?** The candidate list in §9 is inferred from
+   Chiltern's route, not observed. If in practice it is only ever two or three, the guide gets smaller
+   and better.
+2. **Is this a real gap?** How often does a ranger/rover get presented, and what happens now — is it
+   guesswork, a phone call, or does the gateline just wave them through? That answer changes whether
+   Tier 2 or Tier 1 is the headline.
+3. **Ticket office or gateline first?** §2 assumes gateline. Worth confirming.
+4. **Does Chiltern publish its own list?** The support-site article found in §9 suggests yes. If it
+   exists, it may be the class-A source for WP1 and shortcut the whole package.
+5. **Prices in or out?** §4 says out. It is a defensible call either way and it is the owner's.
+
+---
+
+### 9. Candidate products — UNVERIFIED, for WP1/WP2 to confirm or delete
+
+> ⚠ **This table is research scaffolding, not content.** Every row came from a web *search summary*
+> of a page I could not fetch (§1). It is **evidence class D**. Nothing here may reach the guide
+> without being re-sourced. It is recorded only so WP1 starts from a list rather than a blank page.
+
+| Candidate | Why it might matter at Marylebone | To check |
+|---|---|---|
+| **All Line Rail Rover** | Valid everywhere by definition, so it *is* valid on us. Sold from any staffed station | 7/14-day durations; railcard discounts; child rate |
+| **Heart of England Rover** | Area reported as West Midlands/Central England incl. Stratford, Oxford, Birmingham — overlaps our route | Whether Chiltern services are included; 3-in-7 vs 7-consecutive; the 09:00 Mon–Fri bar; the box-dating rule |
+| **West Midlands Day Ranger** | Named on Chiltern's own support article per search results | Whether it covers our Birmingham stations; reported not valid before 09:00 Mon–Fri |
+| **Shakespeare Explorer** | Stratford-upon-Avon; plausible for our Warwickshire stations | Existence and current name — search returned no detail |
+| **Cotswolds & Malverns Rover** | Adjacent territory; may be presented in error | Almost certainly Tier 2 (a *no*), which is still worth a line |
+| **Freedom of Severn & Solent Rover** | Reported area reaches Worcester/Malvern | Almost certainly Tier 2 |
+| **Oxfordshire Day Ranger** | We serve Oxford via Bicester | Existence, area, and whether Chiltern's Oxford services are in it |
+
+**General rules to confirm** (same caveat — all class D as recorded here):
+
+- Ranger ≈ one day; Rover ≈ multiple. Common shapes: 3 consecutive, 3-in-7, 4-in-8, 7 consecutive,
+  8-in-15, 14 days.
+- A morning bar (≈09:00) Mon–Fri is common but **product-specific**; any time Sat/Sun/BH.
+- Railcard discount (often a third) applies to many but **not all** — varies by product and operator.
+- Buying with a **Two Together Railcard** was reported to impose an 09:30 Mon–Fri bar. If true this is
+  a gateline-relevant interaction and needs its own register row.
+- Children usually half price.
+- Some include local bus travel; some have a First Class option.
+- Flexi rovers: the holder **writes the date in the next box** for each day travelled.
+
+**Useful non-authoritative index:** `railrover.org` maintains per-product pages and was the most
+complete third-party listing found. Good for *finding* products; never a source for a claim.
+
+#### 9c. v20.10 — the owner checked the sources, and the governance changed shape
+
+§1 said the whole page had to be Draft because the official pages are unreachable from the build
+environment. That was right about the *environment* and wrong to conclude from it that the page must
+stay uniformly unverified: the constraint is on **this environment's reach**, not on whether the
+evidence can be obtained. The owner checked the products against the live National Rail pages
+(Aug 2026) and supplied the findings, which is class-A evidence arriving by a different route.
+
+**What that revealed is that a page-wide banner cannot express what we now know.** Eight products
+read cleanly; two came back with the source contradicting itself. Presented under one "Draft"
+banner, those are indistinguishable — and the reader loses precisely the thing the banner was for.
+
+So the register gained a **`Conflict`** class (checked, and the source will not settle it) and the
+page gained a status per product. The two unresolved ones are unresolved for opposite-shaped
+reasons, and neither is closer to being fixed by looking again:
+
+- **Shakespeare Explorer** — National Rail's own page permits break of journey in its description
+  and forbids it in the detailed outward/return conditions. One page, two answers.
+- **Thames Rover 7 Day** — the current 7-Day promotion lists Chiltern (with Banbury and Bicester
+  Village); the older TR3/TR7 formal page says GWR only. Two pages, two answers. **And the duration
+  is load-bearing**: the 3-Day promotion lists GWR only, so a card headed "Thames Rover" would carry
+  the 7-Day finding onto a product the current source says is not ours.
+
+Three products moved from *named without rules* (§9b) to full cards: Thames Rover 7 Day, West
+Midlands Family Day Ranger, and **Chiltern Friends & Family** — which turns out to be the most
+gateline-relevant of the lot, being ours, and whose e-ticket deliberately does not open the barriers.
+
+**Still outstanding:** the product-page URLs for Chiltern Friends & Family, the West Midlands Family
+Day Ranger, and the two conflicting Thames pages. Their register rows cite the parent/landing page
+and say so explicitly, rather than carrying a URL pattern-guessed from the others — a fabricated
+citation in a source register is the exact failure the register exists to prevent, and it would look
+more authoritative than the honest gap.
+
+#### 9b. What the v20.08 external review changed — and the one lesson worth carrying
+
+A review of the shipped page (Aug 2026) returned five corrections. Four were **over-claims**, and
+every one was fixed by claiming less rather than by asserting something new: All Line Rover's area
+("all of Great Britain" → the National Rail network, with the exclusions named), its purchase window
+(a flat 3 days → 3 at a station, reported 5 via telesales/online), the Shakespeare break-of-journey
+permission (→ unresolved; National Rail's own page contradicts itself), and the Cotswolds operator
+list (→ unresolved; the refusal stands, the list stops being quoted). None needed a source I could
+not reach, because **removing a claim needs no evidence**.
+
+The fifth is the one that mattered most and is not about any product. The page said a ticket outside
+its five "almost certainly" does not cover Chiltern — **a shortlist doing duty as a rule of
+exclusion** — and the review named three more products reported to reach us. That framing produces
+the worse of the two available failures: refusing a valid pass to a passenger who is right and
+cannot argue it. §3's scoping decision (lead with the five, answer the rest by exclusion) is still
+correct as *layout*; what was wrong was letting it become an *inference*. Not on the list now means
+CHECK, and step 1 of "How to check one" routes there rather than to a no.
+
+**The three reported products were named on the page and given no rules.** That was deliberate and is
+the whole distinction this plan is built on: a card states days, area, time bars and break of
+journey, and each of those is a rule a passenger could be refused travel by — §1's class A/B gate. A
+third party's summary is class C at best, and is precisely the sourcing behind the v17.45 railcard
+errors. What was supportable, and what a gateline needs, is: these exist, do not refuse one.
+
+| Reported | What it needed before it could become a card | Status |
+|---|---|---|
+| **Thames Rover (7 Day)** | Area, whether our Marylebone corridor is in it, the time bar | **Carded v20.10.** Its own applicable-station list settles the area (Marylebone absent) and the time bar was read at source at v20.37; the operator question stays a recorded conflict |
+| **West Midlands Family Day Ranger** | Same as the Day Ranger already carded, plus the group composition rule | **Carded v20.10**, and sourced to its OWN product page at v20.37 (`minAdultPassengers`/`minChildPassengers` give the 1–2 + 1–2 rule directly) |
+| **Chiltern Friends & Family** | **Ours, if it exists** — so it needs the retail system, not just a national page. Highest priority of the three | **Carded v20.10.** It does exist and has a National Rail product page of its own; London Marylebone is in its applicable-station list, which is the direct evidence for its `MYB ✓` |
+
+**All three are now full cards**, so `#rr-reported` no longer names them — what survives at that id is
+the *rule* that made the list necessary: a product missing from this page is out of scope, not
+invalid. Do not re-add a names-only list; a product either earns a card or is covered by that rule.
+
+---
+
+### 10. Won't-do
+
+- **No prices** (§4).
+- **No national completeness.** This is a Marylebone guide, not a catalogue. `railrover.org` and
+  National Rail already do the catalogue and do it better.
+- **No customer-facing framing.** Same as the railcard guide — staff-facing, at work, mid-transaction.
+- **No content from memory or from search summaries**, however plausible. That is §1, and it is the
+  only rule here that cannot be traded off.
+
+---
+
+### Sources consulted for this plan
+
+All reached via web search only; none fetched directly (§1).
+
+- [Ranger tickets and Rover tickets — National Rail](https://www.nationalrail.co.uk/tickets-railcards-and-offers/ticket-types/ranger-tickets-and-rover-tickets/)
+- [What rail ranger/rover tickets are available? — Chiltern Railways support](https://support.chilternrailways.co.uk/hc/en-gb/articles/9800506732317-What-rail-ranger-rover-tickets-are-available)
+- [West Midlands Day Ranger — National Rail](https://www.nationalrail.co.uk/tickets-railcards-offers/promotions/west-midlands-day-ranger/)
+- [Heart of England Rover — National Rail](https://www.nationalrail.co.uk/ticket-types/tickets/he7/)
+- [Freedom of Severn & Solent Rover — National Rail](https://www.nationalrail.co.uk/ticket-types/tickets/s37/)
+- [Rangers & Rovers — West Midlands Railway](https://www.westmidlandsrailway.co.uk/tickets-discounts/ticket-types/rangers-rovers-train-tickets)
+- [Rovers and Rangers — GWR](https://www.gwr.com/your-tickets/choosing-your-ticket/rangers-and-rovers)
+- [GB Rail Rover Guide (third-party index)](http://www.railrover.org/)
+
+---
+
+## Closed limitations, moved out of KNOWN_LIMITATIONS.md (2 Sep 2026)
+
+From an external review of the Markdown estate. `KNOWN_LIMITATIONS.md` promises "intentional
+constraints and deferred work", so every heading in it should read as **still true** — and about a
+fifth of it did not. Twelve sections below were explicitly closed, fixed or superseded, and the
+largest single one (the public-override-access section, 14,063 characters) described a boundary that
+has been shut since 26 August.
+
+**They were moved by JUDGEMENT, not by matching on "CLOSED" or "FIXED".** Two headings that read as
+closed were deliberately KEPT, and one of them is the argument for reading rather than scanning:
+`script-src`/`frame-src` must allow `apis.google.com` says "(fixed v17.82)" and is a standing
+constraint — the CSP has to go on allowing those hosts, and the section documents a false pass where
+a local `npm run test:csp` stays green while CI is red. Deleting it would have removed a live
+warning. The other is the mixed-version cache window, "mitigated, not fully closed (accepted)",
+which is a live accepted trade.
+
+Nothing below was rewritten. Where a durable lesson exists it already lives in the contract or the
+module header that owns it — the staff-PIN invariants in `CALENDAR_DATA.md` and
+`AUTH_AND_SESSIONS.md`, the AL rest-day rule in `al-entitlement.js`, the pension-timeline reasoning
+in `paycalc-pension.js`, the `replacedType` field in `DATA_MODEL.md` — so this is the record of what
+happened, not the authority on what is true.
+
+---
+
+### Override data is publicly readable — CLOSED 26 Aug 2026 (staff PIN access)
+> ✅ **CLOSED.** Both brakes are off: `CONFIG.CALENDAR_PIN_ACCESS` has been `true` since v20.51, and
+> the `allow read;` hold line on the `overrides` read rule was deleted at v21.78. Reads now require a
+> `name` claim, `admin`, or the `calendarViewer` capability, and the SERVER refuses anything else —
+> so the PIN card is protection now, not friction in front of an open collection. The exposure had
+> stood since the app's first Firestore write.
+>
+> **Two things that did NOT change with it.** A device that unlocked before the tightening still
+> holds every override it cached — Firestore evaluates rules server-side, so a local cache hit never
+> reaches one, which is why `calendar-overrides.js` refuses those reads separately and why tightening
+> the rule alone would have looked secure and leaked (measured: `experiments/firestore-offline-proof/`).
+> And `CALENDAR_PIN_ACCESS: false` is **no longer a rollback** — the rollback is reverting the step-4
+> rules push. Kept here rather than deleted because the entry records an exposure that was real for
+> years, and the two caveats outlive the fix.
+>
+> **⛔ INCIDENT, 10 Aug 2026 — step 3 was taken and ROLLED BACK the same morning.** The flag went
+> `true` at v20.46 and back to `false` at v20.50, roughly two hours later, because **a correct PIN
+> could not unlock the Calendar**: `unlockCalendarViewer` returned 500 from its token-mint block, so
+> a member entering the right code saw "Calendar couldn't be unlocked. Try again shortly." and no
+> roster. The secret, the client, the throttle and CORS were all fine and all verified. The rollback
+> itself behaved exactly as the runbook promised — one line, hosting only, rules untouched.
+>
+> **The pre-flight is what failed, and it is the part to change.** Step 2 was signed off on two live
+> probes: `GET` → 405, and a deliberately WRONG PIN → 401. Both passed; both stop short of the only
+> part of the endpoint that does any work. `getUser`/`createUser`, `setCustomUserClaims` and
+> `createCustomToken` are reachable ONLY by a correct PIN, so the minting path — the point of the
+> function — had never once run in production. CI cannot cover it either: `stubPinExchange` replaces
+> the endpoint, rightly, because a test must not hold the secret. **A verification that deliberately
+> avoids the success path has not verified the feature.** RECOVERY_RUNBOOK now carries a step 2b that
+> says so.
+>
+> **Most likely cause — an IAM gap, not app code.** `admin.initializeApp()` uses Application Default
+> Credentials; under ADC `createCustomToken` signs through the IAM Credentials API, which needs the
+> Cloud Run runtime service account to hold `roles/iam.serviceAccountTokenCreator` **on itself**.
+> Gen-2 does not grant that by default. The function logs the exact code:
+> `[unlockCalendarViewer] token mint failed <code> <message>` — read that before assuming.
+>
+> **RESOLVED and CONFIRMED, 10 Aug 2026 (v20.51).** The owner granted
+> `roles/iam.serviceAccountTokenCreator` to `532910998075-compute@developer.gserviceaccount.com` on
+> itself and enabled `iamcredentials.googleapis.com`; the flag went back on and **step 2b passed** —
+> a human holding the PIN unlocked the live Calendar and got their roster. The IAM gap was the cause.
+> (The diagnosis was reached by inference rather than from the function log, and the by-hand test is
+> what turned it into a fact. Had it failed, the log line was the next step and remains the right one
+> for any future failure.)
+>
+> **The grant is a STANDING PREREQUISITE, not a repair that is now done.** It lives in GCP IAM, not
+> in this repository, so no test can see it and no deploy re-applies it. It must be re-applied if the
+> runtime service account changes, if the function is given its own service account, or if the
+> project is rebuilt — see RECOVERY_RUNBOOK's project facts.
+>
+> **Runbook position: the whole sequence is COMPLETE.** Steps 1, 2, 2b and 3 landed by 10 Aug 2026;
+> step 4 (deleting the `allow read;` hold line) shipped on **26 Aug 2026** and step 5 confirmed it in
+> production the next morning — RECOVERY_RUNBOOK.md → "The Calendar PIN". The exposure statement
+> below was deliberately present-tense while the rule was permissive, and was flipped to the past
+> when step 4 shipped. The
+> `CALENDAR_VIEWER_PIN` secret is set (owner, 9 Aug 2026) and confirmed present, non-empty and
+> four-digit-shaped. The other activation blockers all remain closed: Lock Calendar fail-closed
+> (v20.39), secret shape-validated (v20.39), Calendar data readiness (v20.40–41), throttle-store
+> failure fail-closed (v20.45).
+>
+> Written this way on purpose. An entry that read "CLOSED at v20.12" while the rule was still
+> permissive would have been worse than no entry: this is the one document someone checks to decide
+> whether the roster is exposed, and it would have answered no when the answer was yes.
+> **`firestore.rules` now says so, and the wording followed on 28 Aug 2026** — two days late, which
+> is the other half of the same lesson. "Do not re-word until the rules say so" needs a matching
+> "and re-word it the moment they do", or the entry answers wrongly in the opposite direction and
+> does it for longer, because nothing prompts a re-read of a paragraph that has stopped being
+> alarming.
+
+The `overrides` collection — annual leave, absence and shift changes for every member — **was**
+readable with no authentication at all: `allow read;`, so anyone who found the app URL could read
+all of it. That stood from the app's first Firestore write until **26 Aug 2026**. Reads now require
+**either** a real member `name` claim **or** the shared `calendarViewer` capability, minted
+server-side by the `unlockCalendarViewer` Cloud Function in exchange for a four-digit staff PIN.
+
+**Why it stayed open for so long, and what changed.** Requiring auth was tried at v12.04 using an
+anonymous session and reverted at v12.05, correctly: an anonymous session is obtainable by anyone,
+so it was complexity with no security. The real alternative — a full named login before viewing the
+Calendar — was declined because it puts a name, a grade and a password in front of a thirty-second
+glance, and staff at Marylebone take that glance on shared office PCs where signing into a corporate
+Windows account gives them a fresh browser every time.
+
+The staff PIN is the thing that was missing: a **server-validated** shared credential, low enough
+friction for a shared PC and real enough to hang a security rule on. It is the whole reason this
+entry can now be closed rather than restated.
+
+**Be precise about what it is, because overstating it would be worse than the old note.** It is a
+shared code, not individual authentication. Everyone at Marylebone has it, it cannot attribute an
+action, it cannot be revoked for one person, and it will eventually be known outside the station.
+What it buys is that the roster is no longer readable by the open internet, and that the reader must
+at minimum be someone who has been told the code. It buys nothing else, and nothing in the app
+claims otherwise.
+
+**One residual defect was NOT deliberate, and is closed (found Aug 2026, fixed v21.21).** The
+session-only lifetime — the property everything above leans on — held only until the first reload.
+`authReady` applied the member persistence chain unconditionally at module init on every page, and
+Firebase's `setPersistence` MIGRATES the current user between stores: one ordinary reload of an
+unlocked Calendar moved the shared viewer out of sessionStorage into IndexedDB, where it survived
+the browser closing, so the next person at a shared office PC got the roster with no PIN. Found by
+line-by-line reading during a latency review, proven in a real Chromium against the Auth emulator
+(`experiments/viewer-persistence-proof/` — both arms, with storage dumps), and fixed by making the
+boot persistence decision viewer-aware. The fix **self-heals machines the old behaviour already
+leaked into**: re-asserting session persistence migrates the viewer back out of IndexedDB, so it
+dies at that browser's next close — no manual cleanup and no token-revocation sweep needed. Shape
+pinned by `calendar-viewer-parity.test.mjs` Contract C; no unit or e2e test can observe the property
+itself, because it only exists across a genuine browser exit.
+
+**Residual limitations now that it is switched on, all deliberate:**
+- **Rotation is manual.** Changing the PIN is a Secret Manager update (no client release —
+  OPERATIONS_REFERENCE.md → "Rotating the Calendar PIN"). Existing viewer sessions survive a
+  rotation until their browser closes unless the viewer account's refresh tokens are revoked.
+- **A calendar-only member now has to unlock, or sign in.** Before this, a member who never signed
+  in anywhere could use the Calendar indefinitely. Now they either sign in once (a 60-day session,
+  and no PIN thereafter) or enter the PIN each browser session. On a personal phone signing in is
+  clearly the better deal, and the `sign-in-2026` notice (v21.84) exists to say so — it replaced `pw-own-2026`, which nudged this same group towards a password when what they actually needed to hear was that signing in ends the code — but it
+  IS a change for the largest group of users and should be expected in support questions.
+- **Viewer sessions cannot subscribe to push**, by rule as well as by UI. Every office PC unlocking
+  with the PIN signs in as the same uid, so a subscription written under it would be owned by an
+  identity fifty people share.
+- **Telemetry is quiet on a locked Calendar.** With no identity, the error reporter, the usage
+  counter and the latency sampler cannot write — so a failing PIN exchange does NOT appear in the
+  Operations Error Log. Diagnose one from the Cloud Function logs.
+- **App Check is still the missing integrity control** for the write side (below, task #4).
+
+**Search engines** were excluded separately at v19.00 (`X-Robots-Tag: noindex` plus a mirrored
+`<meta name="robots">`, with a `robots.txt` that deliberately permits crawling so the noindex can
+be read). That closed the casual half of the exposure; this closes the deliberate half.
+
+**Rollback**, if viewer authentication fails catastrophically in production: restore `allow read;`
+on the `overrides` block and redeploy rules. That re-opens the data and restores availability, which
+is the right order of preference — an unreadable Calendar is obvious, whereas a Calendar showing the
+base roster without overrides shows somebody a shift they are not working. See RECOVERY_RUNBOOK.md.
+
+
+**Re-reviewed July 2026 (A2 / F-SEC-2) — decision stands, and its PREMISE has since inverted
+(corrected v21.63).** This paragraph told future reviewers "the calendar now *does* establish an
+anonymous session (added v13.78), so an `allow read: if request.auth != null` gate would be
+near-free". **That is no longer true and must not be acted on**: the Calendar's anonymous bootstrap
+was REMOVED at v20.12, and `calendar-app.js` explicitly forbids restoring it ("Do not re-add it 'so
+telemetry keeps working'"). `signInAnonymously` now runs on the Calendar only under the
+`CONFIG.CALENDAR_PIN_ACCESS === false` rollback path, and that flag is on.
+
+The conclusion survives the inversion, by a stronger route. An `auth != null` gate was declined
+because its value is marginal — an anonymous token is as freely obtainable as the app obtains it,
+so it blocks only a token-less REST read — and **now it would be actively wrong**: with no anonymous
+bootstrap, `request.auth != null` would re-admit exactly the population v20.12 closed out
+(`AUTH_AND_SESSIONS.md` invariant 9: *ask for a claim, never for a session*). The real gate is the
+`name`/`calendarViewer` rule, which has been the ONLY rule on `overrides` reads since 26 Aug 2026.
+Do not re-propose the anon-gate as a "quick win" — it never was one, and it is now the wrong shape.
+
+**The "read strictly after its session resolves" risk — found v19.00, ADDRESSED v19.01–19.10 (E1).** The
+paragraph above is right and `SECURITY_RELEASE_PLAN.md` → Track E was wrong to call the anon-gate
+"≈ zero cost — already satisfied" (that text is now corrected). `calendarAuthReady`
+(`calendar-app.js`) gated only *writes* — error reporter, usage counter, push renewal — while four read
+paths took whatever auth state happened to exist: `calendar-initial-fetch.js` (the 3-month override
+fetch), `calendar-huddle-viewer.js`, `calendar-doc-viewer.js`, and `nav-panel.js`'s Circular/Newsletter
+open. Harmless under `allow read;`, but the moment reads require a session all four would race
+`signInAnonymously` on a cold start — an empty calendar, or a notification tap that opens nothing.
+
+**E1 shipped that preparation (v19.01), and the shape it settled on matters more than the fix.** The
+calendar's load became **two-phase** — paint from the local Firestore cache with no network and no
+auth, THEN the authoritative server read once a session exists — so requiring auth for reads can never
+put a sign-in round-trip in front of data the device already holds. The three tap paths wait for auth
+**with a deadline**. That last part was learned the hard way: v19.01 used a plain `await authReady` on
+all of them, and v19.07/v19.08 had to bound every one after a review found the notification document
+viewer could spin on "Loading…" indefinitely. The rule that came out of it, now recorded in
+`AUTH_PLAN.md` → E1: **no user-facing path may await auth without a deadline, and every failure state
+needs a control rather than only text — while the render path must not wait at all.** v19.10 completed
+it by moving the failed-sync state out of the chip DOM, so first-run and Team View (which have no
+`.calendar-header`) get a retry offered the moment one appears instead of never.
+
+**What E1 did NOT do: it is not a security boundary.** It changes no rule and does not stop a direct
+Firestore REST read. The first phase that is a boundary at all is **E2** (`request.auth != null`),
+which remains undecided — see `AUTH_PLAN.md`.
+
+---
+
+### ~~AL booked over a REST DAY THAT WAS BEING WORKED spends a day that later counts as none~~ (found v21.46) — **FIXED at v21.55 (`replacedType`)**
+
+Kept, struck through, because this section said "not being fixed now" for nine releases and then the
+fix shipped — deleting it would leave the next reader of an old checkout or diff with half the story,
+and the DIAGNOSIS below is still the reason the fix took the shape it did.
+
+The problem, as found: for a member whose base shift on a date is a rest day, with a worked override
+on that date, booking annual leave over it gave two different answers — the confirm bar counted the
+day (`isWorkingDate` saw the override), every later count did not (`consumesEntitlement` saw only the
+base rest day). The root cause was the data model, not either calculation: an override is one
+document per member per date, so the moment AL replaces the worked override, **the evidence that the
+day was going to be worked no longer existed**.
+
+**The fix (v21.55–56) is exactly the data-model change this section once declined:** every override
+write now stamps `replacedType` — the type of the document it replaced — via `nextReplacedType`
+(`override-utils.js`), which inherits on a re-save and chains THROUGH absences, so swap → sick → AL
+still remembers the `shift`. `consumesEntitlement` (`al-entitlement.js`) consults it through
+`isContractedWorkOverride`: a replaced **contracted** shift (`shift`) charges a day, a replaced
+voluntary **RDW deliberately does not**. Pre-v21.55 documents lack the field and fall back to the
+base roster — the old behaviour, so no migration. What genuinely remains open is narrower and lives
+in the Overtime/AL section below: *deleting* the AL doc still destroys the swap evidence it carried,
+because only the TYPE was preserved, never the time (see "Deleting an AL doc destroys the swap
+evidence it carried", v21.56).
+
+---
+
+### 2026/27 pay rates — ✅ CONFIRMED AND SHIPPED (closed Aug 2026)
+
+This entry said the 2026/27 rates were placeholders and that the UI showed a yellow
+"rate unconfirmed" notice. **Both stopped being true and the entry was not updated.** The
+3.6% RMT award was settled (informed Jul 2026) and is applied automatically from the
+**28 Aug 2026 payslip**: `AWARD_RATES` in `paycalc-calc.js` carries CEA **£21.49** / CES
+**£22.60** with the previous rates as `pre`, the `TAX_YEARS` 2026/27 row carries the
+stepped London allowance (£286.10, `londonAllowFrom` 28 Aug 2026), and that row has **no
+`rateUnconfirmed` flag** — so no notice renders. Periods paid before 28 Aug stay on the
+2025/26 rates via `getRateForPeriod`.
+
+**The recurring instruction this entry existed for is now in the code**, next to the thing it
+governs — see the `NEXT award:` comment above `TAX_YEARS`: add the new tax year with
+`rateUnconfirmed: true` until its payslip lands, then set `londonAllow`/`londonAllowPre`/
+`londonAllowFrom` + `AWARD_RATES.rate` and drop the flag. Chiltern awards are typically not
+decided until August, so expect to do that around then.
+
+Left as a closed record rather than deleted, because "the rates are placeholders" is exactly the
+kind of claim a future maintainer would act on.
+
+---
+
+### Back pay lump sum vs HPP (v10.73 — SUPERSEDED at v16.89)
+The v10.73 fix fed `calcBackPay()`'s variable-pay portion (`_bpVarAmount`) into `calcHPP()`.
+That coupling was later found to DOUBLE-COUNT the award uplift (calcHPP already prices the
+whole year at the settled post-award rate) and was deliberately removed at v16.89 — the lump
+no longer feeds HPP. Current rule: `.claude/rules/paycalc.md` → "The lump is deliberately NOT
+added into the HPP estimate (v16.89)". See task #3 above for the original payslip confirmation.
+
+---
+
+### ~~The Calendar can show the BASE roster before it knows about overrides~~ — CLOSED (flagged v20.39, fixed v20.40)
+
+**Was:** the highest-value item outstanding — it could show a member a shift they were not working.
+
+`_startCalendarWorkspace()` started the three-month override fetch and then called `renderCalendar()`
+synchronously. The v19.01 two-phase load paints from the local Firestore cache first, so a returning
+device was fine — but on a **fresh browser there is no cache**, phase 1 painted nothing, and the base
+roster went up while the authoritative read was still in flight. `.calendar-fetching` shimmers the
+cells, which reads as *loading*, not as *this may be wrong*: the shift times underneath stayed
+legible. Someone on annual leave, absent, or moved to a different shift could see their old shift
+presented as current. The case that mattered was the **failed** read, where the base roster stayed
+indefinitely beside a "Couldn't update" chip — and `calendar-initial-fetch.js` said so in as many
+words: *"Initial override fetch failed — base roster will be used"*. The same gap applied to a month
+navigated outside the fetched window, and to Team View.
+
+**Fixed by making the invariant explicit rather than by adding a delay.** *Cache absence is not
+evidence that no override exists.* `calendar-data-state.js` holds a four-state model per month —
+`unknown` / `cached` / `authoritative` / `error` — recorded by the two fetch paths and read by the two
+renderers, and a month may only be drawn when a read has settled or the device holds cached data. The
+withheld states draw a wait or failure panel in place of the grid, keeping `.calendar-header` (and so
+the sync chip) in every state. Team View takes the WORST knowledge across the months its week
+straddles. Both withheld failure states carry a "Try again".
+
+**What is deliberately NOT withheld:** a `cached` month renders its grid with no added banner. Hiding
+good data behind a spinner is its own failure, and a staleness banner would flash on every single app
+open — phase 1 marks `cached` and phase 2 overrules it a moment later. The sync chip is the honest
+running commentary there, and it already existed.
+
+**Residual, accepted:** a device whose local Firestore cache is empty *because the member genuinely
+has no overrides in the window* is indistinguishable from one with no cache at all, so it waits for
+phase 2 rather than painting at once. That is the safe direction and the wait is the length of one
+Firestore read.
+
+---
+
+### ~~Tax band model is approximate for 0T and K codes~~ — CLOSED (flagged v12.49, fixed since)
+
+**Closed.** This described `computeTax()` deriving the basic-rate band as
+`threshold − personal allowance`, which is right for ordinary `nL` codes and wrong for **0T** and
+**K** codes — there HMRC applies the bands to *taxable pay*, so the old model made the 20% band a
+full personal allowance too wide and under-taxed anyone on those codes who crossed into 40%.
+
+`paycalc-calc.js` now handles both explicitly (`0T`/`S0T` take a zero allowance; `Kn` adds its
+negative allowance to taxable pay; the band arithmetic works from taxable pay, not from the code's
+own PA), and `paycalc.test.mjs` pins it — 0T, K500, the Welsh `C`-prefixed equivalents and the
+month-1/cumulative paths all have cases.
+
+**Recorded as closed rather than deleted** because the entry survived its own fix by several
+releases and was still being read as a live defect at the v20.32 audit. That is the failure mode
+this file has to guard against: an old finding is indistinguishable from a current one, so a stale
+entry costs more here than a missing one.
+
+---
+
+### ~~The pension default assumed everybody is in the scheme~~ — CLOSED v21.64, then FIXED PROPERLY at v21.78
+
+**First closed at v21.64.** A member who has withdrawn from the RPS could not set her pension to £0:
+the zero held on the payslip she typed it into and reverted to the scheme rate on every other, because
+four sites resolved "what should this payslip's pension be?" through `getPensionDefault()` and being
+IN the scheme was assumed rather than asked. Her take-home was understated by the whole contribution,
+and her tax and NI with it (the sacrifice comes off gross before both).
+
+**That first fix was itself a money bug, and the entry said otherwise for four releases.** v21.64
+shipped a single member-level boolean, `SK.pensionOptOut`, and this paragraph claimed it "changes the
+DEFAULT and never a stored figure — payslips from when she WAS contributing keep their own amount".
+It does not: `readFormData` stores `null` whenever a period's pension equals the period default (so
+periods keep healing as the app learns real historic rates), and a timeless boolean made that default
+£0 for **every payslip there has ever been**. Found by external review and reproduced — a 2025/26
+payslip's deduction went £160.78 → £0.00 and its take-home rose **£115.92**.
+
+**The shipped shape is a TIMELINE (v21.78).** `SK.pensionTimeline` records the changes,
+`paycalc-pension.js` holds the rules, and `getPensionDefault(pObj)` asks `isPensionOptedOut(pObj)`
+per period — so a member names the first payslip with no deduction and everything earlier is
+untouched. A timeline rather than one date because auto-enrolment re-enrols opted-out staff about
+every three years, so a rejoin is expected rather than hypothetical. Design: `.claude/rules/paycalc.md`
+invariant 12 and the `paycalc-pension.js` header.
+
+---
+
+### ~~Pension default is frozen onto a period once it is touched~~ — CLOSED v18.43
+
+**Closed (v18.43),** with the pension cut-overs this deferral prescribed as its trigger (the historic
+`PENSION_STEPS` table — review item 8): `readFormData` now stores `null` when the pension field still
+equals the period's default (default × pro-rate, 2dp, ±0.005 — mirroring `_hasCustomPension`), so a
+merely-touched period keeps self-healing to default changes while a genuinely custom pension
+persists. Periods frozen BEFORE v18.43 keep their stored value (indistinguishable from a deliberate
+entry — the per-payslip pension design); re-saving them heals them. Original finding below for the record.
+
+**Original finding:** Pension default is frozen onto a period once it is touched (defer to the next pension change)
+`loadPeriodData` writes the period-appropriate pension default into `#pensionAmt` when a period
+has no saved pension (`d.pension == null`), and `readFormData` then persists whatever is in the
+field — so the first edit to that period saves the default as a concrete value, and the period no
+longer "self-heals" to a *future* pension-default change (the self-heal the `loadPeriodData` comment
+intends for pension rate cut-overs). **Impact today is zero**: there is only one pension value
+(£147.36), so default == stored for every period and nothing can diverge. It becomes real only when
+(a) a pension **cut-over** is configured in `getPensionDefault` (like the rate `pensionPre`/`pensionFrom`
+pattern) *and* (b) a **future** period was edited before that cut-over — then that period shows the
+old pension. **Fix belongs with the next pension-rate change** (that's when it matters and when it can
+be tested against a real cut-over): make `readFormData` store `null` when the field still equals the
+period's default — `Math.abs(fieldValue − getPensionDefault(period)×proRate) < 0.005`, mirroring the
+existing `_hasCustomPension` check — so a pre-touched period self-heals while a genuinely-custom pension
+is preserved. Do NOT fix speculatively now (unverifiable without a cut-over; risks the historical-accuracy
+case). Surfaced by the v15.70 whole-page paycalc review (finding #6).
+
+---
+
+---
+
+### ~~firebase-admin upgrade to v14 blocked on firebase-functions compatibility~~ — CLOSED v22.01
+
+Shipped: `firebase-admin@13.10.0 → 14.3.0`, `firebase-functions@7.2.5 → 7.3.2`. The peer range that
+blocked it (`^11 || ^12 || ^13`) widened to include `^14` in `firebase-functions@7.3.x`.
+
+**What the bump actually was, because this entry understated it.** The old step 2 said to "audit
+`admin.firestore.FieldValue.serverTimestamp()` usage in `functions/index.js`". The real scope was
+**59 call sites across five modules** — v14 removes the namespaced API wholesale, so `admin.auth()`,
+`admin.firestore()`, `admin.storage()` and `admin.firestore.FieldValue`/`.Timestamp` all cease to
+exist; the root export is now app lifecycle (of which we use only `initializeApp`), credentials and
+errors. Verified against the published `firebase-admin@14.3.0` tarball, not the release notes.
+
+It was done as **two separately-verifiable commits, and that order is the lesson**: the modular
+entry points (`firebase-admin/auth`, `firebase-admin/firestore`, `firebase-admin/storage`,
+`firebase-admin/app`) already exist on v13, so every call site was migrated and the full 350-test
+functions suite run GREEN before a single version moved. The version bump then changed no code and
+had one job — proving the migration was complete.
+
+Two things a future major will hit again:
+
+- **The three endpoint harnesses inject their fakes by resolved path.** They stubbed
+  `require.resolve('firebase-admin')`; after the migration nothing requires that path, so a fake
+  left there would have been loaded by nobody and the whole suite would have run against the real
+  SDK — passing or failing for reasons unconnected to the code. They now stub
+  `firebase-admin/auth` and `firebase-admin/firestore`, and both were mutation-checked (remove the
+  stub, or repoint it at the old root: 9 and 10 failures respectively).
+- **v14 declares `engines: {"node": ">=22"}`.** The deployed runtime already is 22, and the PR-side
+  `functions` job in `e2e.yml` has been on 22 since v21.82 — but `deploy-functions.yml` pins Node
+  **20** for firebase-tools auth, so it would have installed a package it declares unsupported
+  (npm's `engines` is advisory without `engine-strict`) and then exercised every handler on a Node
+  the SDK does not support. That job now opens a Node 22 window around the functions install and
+  tests and steps back to 20 for the deploy tool, satisfying both constraints in sequence rather
+  than choosing between them.
+
+The scoped `overrides: { "uuid": "^11.1.1" }` **is still needed** and was re-checked here, not
+assumed: `@google-cloud/storage@7.22.0` still pulls `gaxios@6.7.1`, which declares `uuid ^9.0.1`.
+`npm audit --omit=dev` in `functions/` is 0.
+
+---
+
+### E2E smoke tests — REMOVED v12.75, RESTORED v13.95 (no longer a limitation)
+
+**Resolved v13.95.** Restored once Chromium became available pre-installed in the
+dev environment (`/opt/pw-browsers`), giving back the local iteration loop whose
+absence forced the v12.75 removal. The suite (`e2e/`, `npm run test:e2e`) runs in CI
+and gates the hosting deploy; `@playwright/test` is pinned to `1.56.1` to match the
+pre-installed browser revision. Full restoration notes: ROADMAP_HISTORY.md → "Completed phases and everything shipped since" (E2E smoke tests).
+The original removal rationale is preserved below.
+
+Playwright smoke tests were added to verify that each app page loads, the JS module graph
+executes without error, and key UI elements render (member dropdown, calendar grid, login
+overlays, auth redirects for operations and links). They were the only tests that caught
+page-level wiring failures — a SyntaxError, a missing import, or a CSP violation that
+breaks the module graph shows up as a blank page and passes all unit tests.
+
+**Why they were removed:** The Playwright Chromium binary cannot be downloaded in the
+current development environment (CDN blocked), so the suite cannot be run locally to
+verify a fix before pushing. In CI, they were originally solving a real problem: the
+Firebase SDK is loaded as a static ES module import from the `gstatic.com` CDN; if that
+CDN is slow or blocked on the CI runner, the entire module graph fails to load and every
+page test times out — no amount of retry or timeout increase helps a hard import failure.
+The `e2e/fixtures.js` stub solved this elegantly (intercepting `https://www.gstatic.com/
+firebasejs/**` at the network layer and serving no-op local stubs), but the inability to
+run them locally made maintenance impractical. When the suite broke or needed updating,
+there was no way to iterate on it without pushing to CI.
+
+**To bring back:** When resuming this work, **ask Gareth to walk through the better
+options before committing to Playwright again.** The key questions are:
+- Can the Chromium binary be made available in the dev environment, or is Playwright
+  the wrong tool for a no-bundler CDN-only codebase?
+- Should E2E tests run in a real browser at all, or would jsdom-based unit tests for the
+  DOM wiring layer (nav-panel, overlay, session) cover the same defects more cheaply?
+- Puppeteer, Cypress, or a different Playwright setup (pre-installed system Chromium)
+  might remove the binary-download friction.
+- The Firebase CDN stub approach was sound — whatever tool is chosen should reuse that
+  pattern or find an equivalent way to eliminate the CDN single point of failure.
+
+See ROADMAP_HISTORY.md → "Completed phases and everything shipped since" (E2E smoke tests)
+for the full history and the original test design.
+
+---
+
+### `window._mybSession` global replaced by `sessionReady` / `resolveSession()` ✓ (v13.74)
+The `window._mybSession` global handshake was replaced at v13.74. `session.js` now exports:
+- `sessionReady` — a `Promise<boolean>` that feature modules `await` before Firestore/Storage writes
+- `resolveSession(result)` — called once by each page coordinator after `ensureFirebaseSession()`
+
+Page coordinators (`admin-app.js`, `operations-app.js`, `settings-app.js`, `links-app.js`)
+call `resolveSession()` at module scope. Feature modules (`huddle.js`, `admin-auth.js`,
+`admin-roster-upload.js`) import `sessionReady` explicitly — a missing import produces
+an ESLint `no-undef` error rather than a silent permissions failure.
+
+**Residual:** `window._mybSession` is no longer set or read anywhere in the codebase. This
+limitation entry is kept for history; the underlying issue is resolved.
+
+---
+
+---
+
+### Fixed in v13.72 (now log `console.warn`)
+
+| File | Location | Before | After |
+|------|----------|--------|-------|
+| `doc-retention.js:pruneOldDocs` (was `firebase-client.js:_pruneOldDocs`) | Individual Storage file delete inside prune loop | `.catch(() => {})` | `.catch(e => console.warn('[pruneOldDocs] ...', e))` |
+| `firebase-client.js:uploadCircular` | Rollback Storage delete on Firestore write failure | `.catch(() => {})` | `.catch(e => console.warn('[uploadCircular] rollback ...', e))` |
+| `firebase-client.js:uploadNewsletter` | Rollback Storage delete on Firestore write failure | `.catch(() => {})` | `.catch(e => console.warn('[uploadNewsletter] rollback ...', e))` |
+
+---
+
+---
+
 ## Removed features — full restoration specs
 
 *(moved from ROADMAP.md lines 58–118)*
