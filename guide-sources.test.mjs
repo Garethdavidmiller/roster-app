@@ -16,7 +16,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const SRC = readFileSync(new URL('./GUIDE_SOURCES.md', import.meta.url), 'utf8');
+const SRC = readFileSync(new URL('./docs/GUIDE_SOURCES.md', import.meta.url), 'utf8');
 
 // `Draft` (v20.05) means RECORDED BUT NOT VERIFIED — the source is identified and the claim is
 // written down, but nobody has read it at that source. It exists because the Rangers & Rovers guide
@@ -387,7 +387,7 @@ test('the FIP country-finder note makes NO page-wide checked claim', () => {
 // continuous service — and the source, not a form of words.
 test('FIP eligibility states the published one-year qualifying period, cited to the RST FAQ', () => {
     const html = readFileSync(new URL('./fip-guide.html', import.meta.url), 'utf8');
-    const rows = readFileSync(new URL('./GUIDE_SOURCES.md', import.meta.url), 'utf8')
+    const rows = readFileSync(new URL('./docs/GUIDE_SOURCES.md', import.meta.url), 'utf8')
         .split('\n').filter(l => l.startsWith('| fip-eligibility '));
     assert.equal(rows.length, 1, 'exactly one fip-eligibility row');
 
@@ -408,7 +408,7 @@ test('FIP eligibility states the published one-year qualifying period, cited to 
         '"continuous" is the load-bearing word: broken service does not accrue');
 
     // And the specific false claim must never return, in the guide or the register.
-    for (const [what, text] of [['fip-guide.html', html], ['GUIDE_SOURCES.md', rows[0]]]) {
+    for (const [what, text] of [['fip-guide.html', html], ['docs/GUIDE_SOURCES.md', rows[0]]]) {
         assert.doesNotMatch(text, /no published qualifying period/i,
             `${what}: the v20.32 claim that no qualifying period is published is FALSE — RST's FAQ states one`);
     }

@@ -60,13 +60,13 @@ it ever appears in the source, tests or documentation.
 
 | Document | What it is |
 |---|---|
-| `ARCHITECTURE.md` | **the index** — which document is authoritative for each subject, and where what is deployed differs from what is documented. Start here |
+| `docs/ARCHITECTURE.md` | **the index** — which document is authoritative for each subject, and where what is deployed differs from what is documented. Start here |
 | `CLAUDE.md` | the working manual: file tree, architecture decisions, data model, conventions |
-| `AI_MAP.md` | every module and its exports |
-| `OPERATIONS_REFERENCE.md` | how the app is run day to day |
-| `KNOWN_LIMITATIONS.md` | what is wrong or deferred, and why |
-| `RECOVERY_RUNBOOK.md` | backup, rollback and incident playbooks |
+| `docs/AI_MAP.md` | every module and its exports |
+| `docs/OPERATIONS_REFERENCE.md` | how the app is run day to day |
+| `docs/KNOWN_LIMITATIONS.md` | what is wrong or deferred, and why |
+| `docs/RECOVERY_RUNBOOK.md` | backup, rollback and incident playbooks |
 
-Feature behaviour is stated as numbered invariants in `CALENDAR_DATA.md`, `AUTH_AND_SESSIONS.md`,
-`OVERTIME_AVAILABILITY.md` and the rule files under `.claude/rules/`. Design reasoning lives in each
+Feature behaviour is stated as numbered invariants in `docs/CALENDAR_DATA.md`, `docs/AUTH_AND_SESSIONS.md`,
+`docs/OVERTIME_AVAILABILITY.md` and the rule files under `.claude/rules/`. Design reasoning lives in each
 module's own header, next to the code it constrains, rather than being copied into these documents.
