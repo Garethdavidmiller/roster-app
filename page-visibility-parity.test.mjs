@@ -27,9 +27,22 @@
  * stylesheet that page loads sets a non-`none` `display` on a selector matching it, that stylesheet
  * must also carry the companion `[hidden]` rule.
  *
- * Scoped to markup-`hidden` because that is the mechanical, checkable case. An element hidden only
- * by JS at runtime cannot be found statically — which is a limit worth stating rather than papering
- * over: this guard shrinks the trap, it does not abolish it.
+ * Elements hidden by JS at runtime are checked too (v22.30). This file used to say they "cannot be
+ * found statically", and that turned out to be true in general and false of the shape this app
+ * actually uses: nearly every one is fetched by id into a const and then assigned `.hidden`, which
+ * resolves mechanically. Measured at 41 elements. The trap is smaller than it was, not abolished —
+ * three things still escape, and they are named rather than implied:
+ *
+ *   · an element reached by query selector, a loop variable, or a reference passed in from elsewhere;
+ *   · a variable name bound to two different ids in one file, which is dropped as AMBIGUOUS rather
+ *     than guessed at (`admin-app.js` binds `banner` twice, and guessing produced this contract's
+ *     first false positive);
+ *   · a `display` written into the element's own inline style, which nothing here reads.
+ *
+ * The false positives are worth recording, because both were in the CHECKER rather than the app and
+ * a guard that cries wolf gets muted: the ambiguous-name one above, and `setsDisplay` matching a
+ * selector anywhere in a rule head, so `.login-field label { display: block }` read as a display on
+ * `.login-field`. It now requires the selector to be the rule's SUBJECT.
  *
  * ── AND THE OPPOSITE FAULT (v20.80) ─────────────────────────────────────────────────────────────
  *
@@ -87,13 +100,19 @@ function hiddenSelectors(html) {
  */
 function setsDisplay(css, selector) {
     const esc = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    // A rule head containing the selector as a whole token, then a body with `display:` other
-    // than none. `[^{}]*` keeps the match inside one rule.
-    const re = new RegExp(`(^|[,{}\\s])${esc}(?![\\w-])[^{}]*\\{([^}]*)\\}`, 'gm');
-    for (const m of css.matchAll(re)) {
-        const body = m[2];
-        const decl = body.match(/(^|;)\s*display\s*:\s*([a-z-]+)/i);
-        if (decl && decl[2].toLowerCase() !== 'none') return true;
+    // The selector must be the rule's SUBJECT — the last compound in its own comma-separated part.
+    // `.login-field label { display: block }` sets display on the LABEL; reading it as a display on
+    // `.login-field` reported a hidden element as broken when nothing was wrong with it. Matching
+    // the selector anywhere in the head is the looser reading and it is the wrong one.
+    const subject = new RegExp(`(^|[\\s>+~])${esc}(?![\\w-])[^\\s>+~]*$`);
+    for (const m of css.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+        const decl = m[2].match(/(^|;)\s*display\s*:\s*([a-z-]+)/i);
+        if (!decl || decl[2].toLowerCase() === 'none') continue;
+        for (const part of m[1].split(',')) {
+            // Ignore an at-rule preamble (`@media …`) that the split can leave attached.
+            const head = part.trim().replace(/^@[^{]*$/, '');
+            if (head && subject.test(head)) return true;
+        }
     }
     return false;
 }
@@ -110,6 +129,116 @@ test('the page and selector lists are not empty — guard the guard', () => {
     assert.ok(APP_PAGES.length >= 6);
     const anyHidden = APP_PAGES.some(p => hiddenSelectors(read(`./${p}`)).size > 0);
     assert.ok(anyHidden, 'no markup-hidden elements found at all — the extractor has stopped working');
+});
+
+/**
+ * The ids a MODULE hides at runtime, resolved through `document.getElementById`.
+ *
+ * The header above says a JS-hidden element "cannot be found statically". That is true in general
+ * and false of the shape this app actually uses: nearly every one is fetched by id into a const in
+ * the same file and then assigned `.hidden`. 41 of them resolve this way, so the gap the guard
+ * declared is mostly closable — measured, not assumed.
+ *
+ * What stays out of reach, and is left stated rather than half-covered: an element reached through
+ * a query selector, a loop variable, or a reference passed in from another module.
+ */
+function runtimeHiddenIds() {
+    /** @type {Map<string, Set<string>>} id → the files that hide it */
+    const out = new Map();
+    const add = (/** @type {string} */ id, /** @type {string} */ f) => {
+        if (!out.has(id)) out.set(id, new Set());
+        (out.get(id) || new Set()).add(f);
+    };
+    const files = readdirSync(new URL('.', import.meta.url))
+        .filter(f => f.endsWith('.js') && !f.endsWith('.test.mjs'));
+    for (const f of files) {
+        let src;
+        try { src = read(`./${f}`); } catch { continue; }
+        src = src.replace(/\/\*[\s\S]*?\*\//g, ' ');
+        src = src.split('\n').map(l => l.replace(/\/\/.*$/, '')).join('\n');
+        // A name bound to MORE THAN ONE id in the same file is AMBIGUOUS and is dropped.
+        // Scoped names are reused — `admin-app.js` binds `banner` to `#unsavedBanner` in one IIFE
+        // and to `#alBanner` in another — and a file-global first-wins map then attributes the
+        // second one's `.hidden` to the first. That is not hypothetical: it is exactly what the
+        // first cut of this contract reported, a false positive on an element toggled purely
+        // through `style.display`. A guard that cries wolf gets muted, so ambiguity loses the
+        // element rather than guessing at it.
+        /** @type {Map<string, Set<string>>} name → the ids it is bound to */
+        const bindings = new Map();
+        for (const m of src.matchAll(/(?:const|let|var)\s+(\w+)\s*=\s*(?:\/\*\*[^*]*\*\/\s*)?\(?\s*document\.getElementById\(\s*['"]([\w-]+)['"]/g)) {
+            if (!bindings.has(m[1])) bindings.set(m[1], new Set());
+            (bindings.get(m[1]) || new Set()).add(m[2]);
+        }
+        for (const m of src.matchAll(/(\w+)\.hidden\s*=/g)) {
+            const ids = bindings.get(m[1]);
+            if (ids && ids.size === 1) add([...ids][0], f);
+        }
+        for (const m of src.matchAll(/document\.getElementById\(\s*['"]([\w-]+)['"]\s*\)\s*\.hidden\s*=/g)) {
+            add(m[1], f);
+        }
+    }
+    return out;
+}
+
+/** Every place an element's start tag can be written: the served pages, and the modules that
+ *  inject markup as template literals. */
+function markupSources() {
+    const files = readdirSync(new URL('.', import.meta.url))
+        .filter(f => (f.endsWith('.html') && !GUIDES.has(f)) || (f.endsWith('.js') && !f.endsWith('.test.mjs')));
+    /** @type {string[]} */
+    const out = [];
+    for (const f of files) {
+        try { out.push(f.endsWith('.html') ? stripHtml(read(`./${f}`)) : read(`./${f}`)); } catch { /* unreadable */ }
+    }
+    return out;
+}
+
+test('the runtime-hidden extractor still finds elements — guard the guard', () => {
+    assert.ok(runtimeHiddenIds().size >= 20,
+        'the getElementById → .hidden extractor found almost nothing — it has stopped working, '
+        + 'and this contract would then pass by looking at an empty list');
+});
+
+// The same rule as the markup contract below, for elements JS hides instead. The trap is
+// identical and so is the silence: the code sets `hidden = true`, the property really is true,
+// and an author `display` out-specifies the UA rule so the element stays on screen. No
+// behavioural test can see it, because nothing is wrong with the behaviour.
+//
+// Every element is checked against EVERY app stylesheet rather than only the ones its own page
+// loads, because a runtime-hidden element is often injected (the nav drawer, the forced-password
+// overlay) and so has no page of its own to look up. That is deliberately the stricter reading:
+// a shared component's rule lives in shared.css and reaches every page that loads it.
+test('a JS-hidden element with a display rule also has its [hidden] companion', () => {
+    const sheets = [...new Set(APP_PAGES.flatMap(stylesheetsFor))]
+        .map(f => ({ file: f, css: stripCss(read(`./${f}`)) }));
+    /** @type {string[]} */
+    const broken = [];
+    for (const [id, files] of runtimeHiddenIds()) {
+        // The element's own classes, where it IS in served markup — a class rule is the commoner
+        // way this breaks, since ids rarely carry a display and classes usually do.
+        /** @type {Set<string>} */
+        const sels = new Set([`#${id}`]);
+        // …from the served pages AND from the JS that INJECTS them. The nav drawer, the
+        // forced-password overlay and the login overlay build their markup in template literals,
+        // so an id-only lookup misses every class they carry — and the class is where a `display`
+        // usually lives. Leaving the JS out is what let the first teeth-check pass with the
+        // `.pwf-escape[hidden]` companion deleted.
+        for (const src of markupSources()) {
+            const tag = src.match(new RegExp(`<[a-z][^>]*\\sid="${id}"[^>]*>`));
+            const cls = tag && tag[0].match(/\sclass="([^"]+)"/);
+            if (cls) for (const c of cls[1].trim().split(/\s+/)) sels.add(`.${c}`);
+        }
+        for (const sel of sels) {
+            for (const { file, css } of sheets) {
+                if (!setsDisplay(css, sel)) continue;
+                if (hasHiddenCompanion(css, sel)) continue;
+                broken.push(`#${id} (hidden by ${[...files].join(', ')}): "${sel}" gets a display rule in `
+                    + `${file} with no ${sel}[hidden] companion — it will render in full while the code `
+                    + 'believes it is hidden');
+            }
+        }
+    }
+    assert.deepEqual(broken, [], `\n  ${broken.join('\n  ')}\n`);
 });
 
 test('a markup-hidden element with a display rule also has its [hidden] companion', () => {
