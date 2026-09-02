@@ -471,9 +471,11 @@ jobs:
       #
       # So the drift is now STATED, on the pull request. Three rules it must keep:
       #
-      #   * It NEVER fails the job — every `gh` call ends `|| echo "::warning::…"`. This lane is
-      #     report-only on purpose (pixel diffs are environment-sensitive and must not gate a
-      #     release), and a broken notifier turning into a broken build is the worst of both.
+      #   * It NEVER fails the job — every `gh` call ends `|| echo "::warning::…"`, over an
+      #     explicit `set +e` (GitHub runs `run:` steps as `bash -e`, so errexit is on unless you
+      #     turn it off). This lane is report-only on purpose — pixel diffs are environment-
+      #     sensitive and must not gate a release — and a broken notifier turning into a broken
+      #     build is the worst of both.
       #   * It UPDATES one comment rather than posting per push, found by the HTML marker below. A
       #     thread of N identical comments is how a channel teaches its reader to ignore it.
       #   * It says so when the drift is GONE, so a stale "baselines drifted" cannot cry wolf — but
@@ -498,7 +500,11 @@ jobs:
           REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          set -uo pipefail
+          # `set +e` EXPLICITLY, because GitHub runs every `run:` step as `bash -e {0}` — errexit is
+          # already on whether or not the script says so, which is the opposite of what this step
+          # wants. Every failing command below is guarded anyway; this makes the intent survive an
+          # unguarded line somebody adds later, rather than having it abandon the report half way.
+          set +e -uo pipefail
           MARKER='<!-- visual-baseline-drift -->'
 
           # The compare step is the only thing that can answer this. If it never ran — a failed

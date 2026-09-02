@@ -494,9 +494,13 @@ describe('the visual lane never gates, and never goes quiet', () => {
 
     test('the notifier cannot become the failure it is reporting', () => {
         // It runs when something has ALREADY gone wrong (or when it is reassuring you that nothing
-        // has). Every write is guarded, and there is no `set -e` to abort it half way.
-        assert.ok(!/^ {10}set -e/m.test(job),
-            'the notifier must not `set -e` — an unguarded gh failure would abandon the rest of it');
+        // has). Every write is guarded — and errexit is turned OFF rather than merely left unsaid.
+        // GitHub runs `run:` steps as `bash -e {0}`, so a script that simply omits `set -e` still
+        // gets it: the first draft of this contract asserted the absence of `set -e` and was
+        // therefore checking nothing at all. Only an explicit `set +e` is load-bearing.
+        assert.match(job, /^ {10}set \+e\b/m,
+            'the notifier must `set +e` explicitly — GitHub invokes run: steps as `bash -e`, so '
+            + 'without it an unguarded gh failure abandons the rest of the report');
         for (const call of ['gh pr comment', 'gh api --method PATCH']) {
             const re = new RegExp(`${call}[\\s\\S]{0,400}?\\|\\| echo "::warning::`);
             assert.match(job, re,
