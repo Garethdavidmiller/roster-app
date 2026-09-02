@@ -84,6 +84,47 @@ describe('marking a cell that is not in column 1 (the reported defect)', () => {
     });
 });
 
+describe('a row group ends every span that is still open', () => {
+    // Found as the narrow `rowspan="0"` case in the v22.36 external review; measuring it in a real
+    // browser turned up the general one. `table.rows` is flat, so the boundary has to be passed in
+    // — and a caller that forgets is the failure these cases describe.
+
+    test('a header cell cannot span into the body, however large its rowspan', () => {
+        // MEASURED in Chromium: `rowspan="5"` on a one-row <thead> leaves the first <tbody> cell at
+        // the same x as the header — i.e. in column 1. Without the boundary it is reported as
+        // column 2 and silently loses its pin.
+        const rows = [[cell(5), cell()], plainRow(2), plainRow(2)];
+        const mask = firstColumnMask(rows, { groupStarts: [1] });
+        assert.deepEqual(mask[1], [true, false], 'the body starts a fresh grid');
+        assert.deepEqual(mask[2], [true, false]);
+    });
+
+    test('and `rowspan="0"` stops there too — that is what makes Infinity the right model', () => {
+        const rows = [[cell(0), cell()], plainRow(2), plainRow(2)];
+        assert.deepEqual(firstColumnMask(rows, { groupStarts: [1] })[1], [true, false]);
+    });
+
+    test('every tbody after the first is its own group, not just thead→tbody', () => {
+        //  tbody A:  X↓9 | a          tbody B:  b | c
+        const rows = [[cell(9), cell()], plainRow(2)];
+        assert.deepEqual(firstColumnMask(rows, { groupStarts: [1] })[1], [true, false]);
+    });
+
+    test('WITHOUT the boundary the span runs on — which is why the caller must pass it', () => {
+        // The same rows, one argument different. Stated as a contrast rather than left implied:
+        // this is the difference the wiring makes, and a caller that drops it fails silently.
+        const rows = [[cell(5), cell()], plainRow(2)];
+        assert.deepEqual(firstColumnMask(rows)[1], [false, false]);
+    });
+
+    test('a span still ends normally INSIDE its group', () => {
+        // The boundary must not become the only thing that ends a span.
+        const mask = firstColumnMask([[cell(2), cell()], [cell()], plainRow(2)], { groupStarts: [0] });
+        assert.deepEqual(mask[1], [false], 'still inside the span');
+        assert.deepEqual(mask[2], [true, false], 'released by its own count, no boundary involved');
+    });
+});
+
 describe('missing a cell that IS in column 1 (the visible, lesser failure)', () => {
     test('a plain rectangular table marks the first cell of every row', () => {
         const mask = firstColumnMask([plainRow(5), plainRow(5), plainRow(5)]);
