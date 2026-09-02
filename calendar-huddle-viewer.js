@@ -41,6 +41,7 @@ import { subscribeToLatestHuddle, isSafeStorageUrl } from './firebase-client.js'
 import { lockBodyScroll, _pushOverlayState, dismissOverlay, trapFocus } from './overlay.js';
 import { recordOpen } from './usage-reporter.js';
 import { getCurrentMember, isFirstRun } from './calendar-member.js';
+import { firstColumnMask } from './huddle-table-grid.js';
 
 // Module-level state — set once at startup and survives the page lifetime.
 /** @type {any} */
@@ -99,21 +100,27 @@ export function wrapTables(root) {
         if (table.parentElement?.classList.contains('huddle-table-wrap')) continue;
         const wrap = document.createElement('div');
         wrap.className = 'huddle-table-wrap';
-        // ── THE STICKY JOB COLUMN IS OPT-IN, AND A ROWSPAN OPTS OUT (v22.31) ──────────────────
+        // ── THE STICKY JOB COLUMN IS MARKED, NOT SELECTED (v22.33) ───────────────────────────
         //
-        // The CSS pins the first column so a scrolled row still says whose it is, and it selects
-        // that column as `td:first-child`. **That selector cannot express "column 1" in a table
-        // with rowspans**, and the real Huddle has them: the Gate line job cell spans three rows,
-        // so those rows have no cell of their own in column 1 and `td:first-child` resolves to the
-        // CALL SIGN instead. C17 and C18 were pinned to the left edge, on top of the job cell's
-        // own text — reported from a phone, with the reminder note showing through them.
+        // The CSS pins column 1 so a scrolled row still says whose it is. It used to select that
+        // column as `td:first-child`, which is not the same statement: in the real Huddle the Gate
+        // line job cell spans three rows, so the rows beneath it write no cell in column 1 and
+        // `td:first-child` resolved to the CALL SIGN — C17 and C18 pinned to the left edge over the
+        // job cell's own text, reported from a phone twice.
         //
-        // There is no CSS fix: without `:nth-col()` support the first column of a rowspan table is
-        // not addressable. So the sticky column is enabled per table, here, only when nothing
-        // spans rows. A Huddle that uses rowspans scrolls without a pinned column, which is a
-        // smaller loss than cells drawn over each other — and the wrapper still stops the page
-        // itself dragging sideways, which was the original defect.
-        if (!table.querySelector('[rowspan]:not([rowspan="1"])')) wrap.classList.add('huddle-table-wrap--pinned');
+        // v22.31 answered that by disabling the feature for any table containing a rowspan. Safe,
+        // and it cost the feature exactly where it earns its keep, because the real Huddle is a
+        // rowspan table. So the column is COMPUTED instead — `firstColumnMask` performs the same
+        // grid walk the browser does — and only genuine column-1 cells are classed. A row that
+        // writes no column-1 cell classes nothing and is covered by the spanning cell above it,
+        // which is what the rendered table does anyway.
+        const rows = [...table.rows];
+        const mask = firstColumnMask(rows.map(r => [...r.cells].map(c => ({ rowSpan: c.rowSpan, colSpan: c.colSpan }))));
+        rows.forEach((row, r) => {
+            [...row.cells].forEach((cell, c) => {
+                if (mask[r]?.[c]) cell.classList.add('huddle-shift-col');
+            });
+        });
         table.replaceWith(wrap);
         wrap.appendChild(table);
     }

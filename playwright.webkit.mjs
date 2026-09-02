@@ -116,6 +116,22 @@ import { devices } from '@playwright/test';
 export default {
     ...base,
     retries: process.env.CI ? 1 : 0,
+    /* ── WHY THIS ENGINE GETS A LONGER EXPECT BUDGET (v22.36) ────────────────────────────────────
+     *
+     * Playwright's 5s default is a statement about how long a correct app should take to reach a
+     * state. It is the wrong number HERE, and the reason is the engine and the parallelism, not any
+     * feature: `fullyParallel` puts two WebKit workers on 4 vCPU, and a cold page boot under that
+     * contention runs past 5s often enough to fail a handful of assertions per full run.
+     *
+     * MEASURED before changing it, because "make the timeout bigger" is also what you do to hide a
+     * real defect. The install strip was the symptom: three different tests failed across two full
+     * runs, never the same one twice — and at ONE worker the strip was up, in the right variant, on
+     * six runs out of six, already visible BEFORE the event under test was dispatched. A real
+     * failure does not move between tests and vanish when the machine is idle.
+     *
+     * Chromium keeps the 5s default. It is the deploy gate, it is not contended the same way, and a
+     * regression that only Chromium can see should still be caught by the tighter budget. */
+    expect: { timeout: 15_000 },
     // See the sharding note above: this is what stops one 143-test file owning a whole shard.
     fullyParallel: true,
     projects: [

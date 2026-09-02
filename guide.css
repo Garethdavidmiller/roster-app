@@ -108,6 +108,18 @@
 .install-os   { font-size: 11px; font-weight: 800; color: var(--navy); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.3px; }
 .install-steps { font-size: 11px; color: var(--mid); line-height: 1.6; }
 
+/* ── AN ODD LAST ITEM SPANS BOTH COLUMNS ────────────────────────────────────────────────────
+   Three of this page's two-column grids hold an odd number of things — nine shift badges, five
+   nav tips, five feature cards — so each left an orphan in column 1 with an empty cell beside it.
+   In print that reads as a missing item rather than a full list, and the orphan is also the one
+   forced into a tall narrow stack ("Other" wrapped over eight lines).
+
+   `:last-child:nth-child(odd)` states the rule rather than the count, so it stays true when an
+   item is added or removed — which is the failure mode of writing `:nth-child(9)` here. */
+.badge-grid > :last-child:nth-child(odd),
+.nav-grid   > :last-child:nth-child(odd),
+.feature-row > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+
 /* Mobile: stack the feature cards (the shared single-column switch is in guide-doc.css). */
 @media screen and (max-width: 640px) {
     .feature-row { grid-template-columns: 1fr; }
