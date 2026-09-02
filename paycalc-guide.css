@@ -9,6 +9,10 @@
 
 /* ── Pay-type reference grid ─────────────────────────── */
 .pay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+
+/* An odd last item spans both columns — the same rule as the staff guide's grids, stated rather
+   than counted so it survives a pay type being added. Six today, so it is currently inert. */
+.pay-grid > :last-child:nth-child(odd) { grid-column: 1 / -1; }
 .pay-item {
     display: flex;
     align-items: flex-start;
