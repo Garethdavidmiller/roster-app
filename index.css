@@ -2322,9 +2322,14 @@
         }
         /* The row's identity stays put while the times scroll. On a five-column Huddle the first
            cell is the job ("Station Manager", "Booking Office") — without it a scrolled row is a
-           set of times belonging to nobody. Inert when the table fits, which is the common case. */
-        #huddleViewerBody .huddle-table-wrap td:first-child,
-        #huddleViewerBody .huddle-table-wrap th:first-child {
+           set of times belonging to nobody. Inert when the table fits, which is the common case.
+
+           GATED ON `--pinned`, which `wrapTables` adds only to a table with NO rowspans. In a
+           rowspan table `td:first-child` is not column 1 for the spanned rows — it is whatever
+           column happens to start there — and pinning that draws one cell over another. The
+           reasoning is in calendar-huddle-viewer.js beside the check. */
+        #huddleViewerBody .huddle-table-wrap--pinned td:first-child,
+        #huddleViewerBody .huddle-table-wrap--pinned th:first-child {
             position: sticky;
             left: 0;
             z-index: 1;
@@ -2332,7 +2337,7 @@
                shows it through — which reads as a rendering fault, not a feature. */
             background: var(--surface, #fff);
         }
-        #huddleViewerBody .huddle-table-wrap th:first-child { background: var(--primary-blue); }
+        #huddleViewerBody .huddle-table-wrap--pinned th:first-child { background: var(--primary-blue); }
         #huddleViewerBody th { background: var(--primary-blue); color: white; }
         #huddleViewerBody ul, #huddleViewerBody ol {
             padding-left: 1.5em;

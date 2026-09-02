@@ -99,6 +99,21 @@ export function wrapTables(root) {
         if (table.parentElement?.classList.contains('huddle-table-wrap')) continue;
         const wrap = document.createElement('div');
         wrap.className = 'huddle-table-wrap';
+        // ── THE STICKY JOB COLUMN IS OPT-IN, AND A ROWSPAN OPTS OUT (v22.31) ──────────────────
+        //
+        // The CSS pins the first column so a scrolled row still says whose it is, and it selects
+        // that column as `td:first-child`. **That selector cannot express "column 1" in a table
+        // with rowspans**, and the real Huddle has them: the Gate line job cell spans three rows,
+        // so those rows have no cell of their own in column 1 and `td:first-child` resolves to the
+        // CALL SIGN instead. C17 and C18 were pinned to the left edge, on top of the job cell's
+        // own text — reported from a phone, with the reminder note showing through them.
+        //
+        // There is no CSS fix: without `:nth-col()` support the first column of a rowspan table is
+        // not addressable. So the sticky column is enabled per table, here, only when nothing
+        // spans rows. A Huddle that uses rowspans scrolls without a pinned column, which is a
+        // smaller loss than cells drawn over each other — and the wrapper still stops the page
+        // itself dragging sideways, which was the original defect.
+        if (!table.querySelector('[rowspan]:not([rowspan="1"])')) wrap.classList.add('huddle-table-wrap--pinned');
         table.replaceWith(wrap);
         wrap.appendChild(table);
     }
