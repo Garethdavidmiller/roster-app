@@ -17,6 +17,16 @@
  * The value is checked against an ALLOWLIST of the app's own pages, never used as a raw URL, so a
  * crafted `?from=` can't turn the back arrow into an off-site link. No `from` (a direct visit, a
  * bookmark, a shared link) leaves the hardcoded href exactly as authored.
+ *
+ * ⚠ THE ALLOWLIST IS A HAND-KEPT LIST OF PAGES, AND IT FELL BEHIND ONE (v22.48, external review).
+ * `overtime.html` arrived with the drawer like every other page, so it sent `?from=overtime.html`
+ * from the day it shipped — and this file did not know the value, so the arrow silently kept its
+ * authored default and dropped a reviewer on the calendar. Nothing errors on an unrecognised
+ * `from`, which is right for a hostile value and is exactly what hid a legitimate one. There is no
+ * general fix available here: the allowlist is what stops `?from=https://elsewhere` becoming the
+ * back arrow, so it cannot be derived from the query. It is instead pinned from OUTSIDE, by
+ * `page-contract-parity.test.mjs`, which enumerates the app pages from the filesystem — so the next
+ * page to arrive fails there rather than losing its readers their way back.
  */
 (function () {
     'use strict';
@@ -30,6 +40,7 @@
         'operations.html': { href: './operations.html', label: 'Back to Operations' },
         'settings.html':   { href: './settings.html',   label: 'Back to Settings' },
         'links.html':      { href: './links.html',      label: 'Back to Links' },
+        'overtime.html':   { href: './overtime.html',   label: 'Back to Overtime' },
     };
 
     var back = document.querySelector('.btn-back');

@@ -1,9 +1,38 @@
 #!/usr/bin/env bash
-# Checks that every root-level .js module is listed in both AI_MAP.md and CLAUDE.md.
+# Checks that every root-level .js module is listed in both AI_MAP and CLAUDE.md.
 # Blocks the commit if any module is missing from either file.
 # To install: git config core.hooksPath githooks
 
 cd "$(git rev-parse --show-toplevel)"
+
+# ── THE DOCUMENTS THIS HOOK READS, DECLARED ONCE (v22.48) ──────────────────────────────────────
+#
+# They moved to docs/ at v22.47 and this hook did not follow, in FOUR places at once — the module
+# listing, the staged-AI_MAP detection, the export-drift diff and the 0.10 stamp list. The two
+# halves failed in opposite directions and only one of them was visible:
+#
+#   * the module check went LOUD and WRONG — `grep AI_MAP.md` on a path that no longer exists
+#     reported all 149 root modules as undocumented and refused every commit;
+#   * the stamp check went SILENT — it skipped any file it could not find, so four of the five
+#     versioned documents simply stopped being checked, and nothing said so.
+#
+# Neither is visible to CI (no workflow installs this hook) or to a container that never ran
+# `git config core.hooksPath githooks`. Every path is now a variable, exported so the embedded
+# node scripts read the same value, and `pre-commit-parity.test.mjs` asserts each one exists — so
+# the next reorganisation fails in the test suite rather than in somebody's terminal.
+export DOC_AI_MAP="docs/AI_MAP.md"
+export DOC_CLAUDE="CLAUDE.md"
+export DOC_OPERATIONS="docs/OPERATIONS_REFERENCE.md"
+export DOC_KNOWN_LIMITATIONS="docs/KNOWN_LIMITATIONS.md"
+export DOC_ROADMAP="docs/ROADMAP.md"
+
+for _doc in "$DOC_AI_MAP" "$DOC_CLAUDE" "$DOC_OPERATIONS" "$DOC_KNOWN_LIMITATIONS" "$DOC_ROADMAP"; do
+  if [ ! -f "$_doc" ]; then
+    echo "  pre-commit: $_doc does not exist — this hook cannot check what it cannot read."
+    echo "  Fix the path at the top of githooks/pre-commit (and pre-commit-parity.test.mjs will agree)."
+    exit 1
+  fi
+done
 
 ERRORS=0
 
@@ -12,20 +41,20 @@ for f in *.js; do
   # Tooling config files are not application modules — skip them.
   [[ "$f" == "eslint.config.js" ]] && continue
 
-  if ! grep -q "$f" AI_MAP.md 2>/dev/null; then
-    echo "  doc-check: $f not listed in AI_MAP.md"
+  if ! grep -q "$f" "$DOC_AI_MAP" 2>/dev/null; then
+    echo "  doc-check: $f not listed in $DOC_AI_MAP"
     ERRORS=$((ERRORS + 1))
   fi
 
-  if ! grep -q "$f" CLAUDE.md 2>/dev/null; then
-    echo "  doc-check: $f not listed in CLAUDE.md"
+  if ! grep -q "$f" "$DOC_CLAUDE" 2>/dev/null; then
+    echo "  doc-check: $f not listed in $DOC_CLAUDE"
     ERRORS=$((ERRORS + 1))
   fi
 done
 
 if [ "$ERRORS" -gt 0 ]; then
   echo ""
-  echo "  Add the missing module(s) to AI_MAP.md and CLAUDE.md, then re-commit."
+  echo "  Add the missing module(s) to $DOC_AI_MAP and $DOC_CLAUDE, then re-commit."
   exit 1
 fi
 
@@ -61,8 +90,11 @@ if command -v node >/dev/null 2>&1; then
 const { execSync } = require('child_process');
 const sh = c => { try { return execSync(c, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }); } catch { return null; } };
 
+// The path comes from the hook's own DOC_AI_MAP, never a literal — the heredoc is quoted, so an
+// interpolated path would be a second copy free to drift from the first.
+const AI_MAP = process.env.DOC_AI_MAP;
 const staged = (sh('git diff --cached --name-only --diff-filter=ACMR') || '').split('\n').filter(Boolean);
-const aiMapStaged = staged.includes('AI_MAP.md');
+const aiMapStaged = staged.includes(AI_MAP);
 // Root JS modules only — skip tests, the SW, and functions/ (CommonJS, not in AI_MAP).
 const jsFiles = staged.filter(f => /^[^/]+\.js$/.test(f) && !f.includes('.test.') && f !== 'service-worker.js');
 
@@ -110,26 +142,26 @@ for (const f of jsFiles) {
 if (offenders.length && !aiMapStaged) {
     for (const o of offenders) process.stderr.write(`  export-drift: changed export(s) in ${o.f}: ${o.changes.join(', ')}\n`);
     process.stderr.write('\n  An added, removed or renamed export changes the module documented API.\n');
-    process.stderr.write('  Update AI_MAP.md (and CLAUDE.md if its file-structure line names the export)\n');
+    process.stderr.write(`  Update ${AI_MAP} (and CLAUDE.md if its file-structure line names the export)\n`);
     process.stderr.write('  in the SAME commit, then re-commit.\n');
     process.exit(1);
 }
 
-// …and STAGING AI_MAP.md is not the same as DOCUMENTING the change (v21.63). The old gate
+// …and STAGING AI_MAP is not the same as DOCUMENTING the change (v21.63). The old gate
 // was satisfied by any AI_MAP edit at all, which is how commit 07f28d9 shipped three new
 // `override-utils.js` exports with an AI_MAP diff that touched only an unrelated heading.
 // Require the staged AI_MAP diff to at least MENTION the module or one of the changed
 // symbols. Deliberately a mention and not a section-diff: cheap, no false positives worth
 // the noise, and it closes the "edited something else entirely" hole.
 if (offenders.length) {
-    const aiDiff = sh('git diff --cached -U0 -- AI_MAP.md') || '';
+    const aiDiff = sh(`git diff --cached -U0 -- "${AI_MAP}"`) || '';
     const unmentioned = offenders.filter(o =>
         !aiDiff.includes(o.f) && !o.names.some(n => aiDiff.includes(n)));
     if (unmentioned.length) {
         for (const o of unmentioned) {
-            process.stderr.write(`  export-drift: AI_MAP.md is staged but never mentions ${o.f} or ${o.changes.join(', ')}\n`);
+            process.stderr.write(`  export-drift: ${AI_MAP} is staged but never mentions ${o.f} or ${o.changes.join(', ')}\n`);
         }
-        process.stderr.write('\n  Staging AI_MAP.md is not the same as documenting the change.\n');
+        process.stderr.write(`\n  Staging ${AI_MAP} is not the same as documenting the change.\n`);
         process.stderr.write('  Update the entry for the module whose exports changed.\n');
         process.exit(1);
     }
@@ -216,16 +248,22 @@ const milestone = Math.floor(toHundredths(app) / 10) * 10;
 const milestoneStr = `v${(milestone / 100).toFixed(2)}`;
 
 const DOCS = [
-    { file: 'CLAUDE.md',               re: /Current app version[^`]*`(\d+\.\d+)`/ },
-    { file: 'AI_MAP.md',               re: /Last updated:[^\n]*?v(\d+\.\d+)/ },
-    { file: 'OPERATIONS_REFERENCE.md', re: /Last updated:[^\n]*?v(\d+\.\d+)/ },
-    { file: 'KNOWN_LIMITATIONS.md',    re: /Last updated:[^\n]*?v(\d+\.\d+)/ },
-    { file: 'ROADMAP.md',              re: /Last updated:[^\n]*?v(\d+\.\d+)/ },
+    { file: process.env.DOC_CLAUDE,            re: /Current app version[^`]*`(\d+\.\d+)`/ },
+    { file: process.env.DOC_AI_MAP,            re: /Last updated:[^\n]*?v(\d+\.\d+)/ },
+    { file: process.env.DOC_OPERATIONS,        re: /Last updated:[^\n]*?v(\d+\.\d+)/ },
+    { file: process.env.DOC_KNOWN_LIMITATIONS, re: /Last updated:[^\n]*?v(\d+\.\d+)/ },
+    { file: process.env.DOC_ROADMAP,           re: /Last updated:[^\n]*?v(\d+\.\d+)/ },
 ];
 
 const stale = [];
 for (const { file, re } of DOCS) {
-    if (!fs.existsSync(file)) continue;
+    // A MISSING FILE IS A FAILURE, NOT A SKIP (v22.48). This was `if (!existsSync) continue`, and
+    // that one word is how the docs/ move disabled four fifths of this check in silence: the paths
+    // stopped resolving, every document was skipped, and the hook went on passing. A stamp check
+    // that cannot find its documents has not checked them — which is the opposite of what its
+    // silence claimed. The loud module check above was the only reason anyone noticed at all.
+    if (!file) { stale.push('(a documentation path was not exported by the hook)'); continue; }
+    if (!fs.existsSync(file)) { stale.push(`${file} (does not exist — fix the path in githooks/pre-commit)`); continue; }
     const m = fs.readFileSync(file, 'utf8').match(re);
     if (!m) { stale.push(`${file} (no version stamp found)`); continue; }
     if (toHundredths(m[1]) < milestone) stale.push(`${file} (v${m[1]})`);

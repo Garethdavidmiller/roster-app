@@ -593,8 +593,11 @@ for (const [page, entry] of PRELOAD_PAGES) {
 const GUIDE_PAGES = new Set([
     'staff-guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'fip-guide.html', 'rangers-guide.html',
 ]);
+/** Served pages that are only a redirect to a renamed one — no scripts, so no SDK to preload.
+ *  Why they exist, and the contract they DO owe: page-contract-parity.test.mjs → LEGACY_REDIRECTS. */
+const LEGACY_REDIRECTS = new Set(['guide.html', 'fip.html']);
 const APP_PAGES = readdirSync(ROOT)
-    .filter(f => f.endsWith('.html') && !GUIDE_PAGES.has(f))
+    .filter(f => f.endsWith('.html') && !GUIDE_PAGES.has(f) && !LEGACY_REDIRECTS.has(f))
     .sort();
 
 /** The ONE pinned SDK version firebase-client.js imports. */

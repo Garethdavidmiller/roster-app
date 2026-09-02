@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<!-- MYB Roster — legacy URL for FIP Travel Guide, kept so an old link still lands (v22.48).
+
+     WHY THIS FILE EXISTS, AND WHY firebase.json IS NOT ENOUGH.
+     v22.47 renamed guide.html → staff-guide.html and fip.html → fip-guide.html, and added 301
+     redirects for both. Those redirects live in firebase.json, which speaks for exactly ONE of the
+     app's two origins: the GitHub Pages mirror serves no headers and no redirect rules, and it is
+     where most staff still open the app. An old bookmark there simply 404s.
+
+     So the redirect is expressed in the HTML instead, where BOTH origins carry it — the same reason
+     the CSP is mirrored into a <meta> on every page. The Firebase 301 stays: it is faster, it is a
+     real redirect rather than a rendered page, and it keeps the canonical origin clean.
+
+     There is nothing to maintain here. It has no script, no stylesheet and no module graph; the
+     refresh URL is relative, so it works under the Pages sub-path unchanged. When the mirror is
+     finally retired (ARCHITECTURE.md → EXC-006) this file and its Firebase redirect can go together.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+    <!-- CSP mirrors the firebase.json header so the GitHub Pages mirror (which cannot serve HTTP headers) gets the same policy, and the CSP travels with the HTML through the SW cache. Kept in lockstep with the header by csp-meta-parity.test.mjs. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net https://apis.google.com; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://apis.google.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src https://myb-roster.firebaseapp.com https://apis.google.com; object-src 'none'; base-uri 'self'; form-action 'self';">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="only light">
+    <!-- Staff-only app: nothing here has a public audience. Mirrors the X-Robots-Tag header in
+         firebase.json, and is the ONLY noindex signal the GitHub Pages mirror gets (it cannot serve
+         headers). Rationale in robots.txt; enforced by sw-asset-check.test.mjs. -->
+    <meta name="robots" content="noindex, nofollow">
+  <meta http-equiv="refresh" content="0; url=./fip-guide.html">
+  <link rel="canonical" href="./fip-guide.html">
+  <title>FIP Travel Guide — moved</title>
+  <style>
+    body { margin: 0; padding: 2rem; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+           background: #001e3c; color: #fff; }
+    a    { color: #c8a951; }
+  </style>
+</head>
+<body>
+  <p>The FIP Travel Guide has moved to <a href="./fip-guide.html">fip-guide.html</a>.</p>
+</body>
+</html>

@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '22.47';
+const APP_VERSION = '22.48';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -316,6 +316,11 @@ const SUPPLEMENTARY_ASSETS = [
     "./staff-guide.html",
     "./railcard-guide.html",
     "./rangers-guide.html",
+    // The two legacy guide URLs (v22.48). They are 1 KB redirect stubs, cached for the same reason
+    // as the guides themselves: the Pages mirror serves no redirect rules, so this file IS the
+    // redirect there, and an old bookmark opened offline should still land rather than fail.
+    "./guide.html",
+    "./fip.html",
     "./railcard-guide.js",
     "./rangers-guide.js",
     "./guide-print.js",

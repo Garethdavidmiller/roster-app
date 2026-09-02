@@ -29,7 +29,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 
 const read = (/** @type {string} */ f) => readFileSync(new URL(f, import.meta.url), 'utf8');
 
@@ -42,8 +42,25 @@ const GUIDES = new Set([
     'staff-guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'fip-guide.html', 'rangers-guide.html',
 ]);
 
+/**
+ * A THIRD family (v22.48): a served page that is nothing but a redirect to a renamed one. It has no
+ * script, no stylesheet, no nav and no identity, so it owes none of the app contract — but it is a
+ * served page, so it owes the two rules that are about being fetchable at all, and a contract of its
+ * own further down.
+ *
+ * These exist because `firebase.json` speaks for ONE of the app's two origins. Its 301s cover the
+ * canonical URL; the GitHub Pages mirror serves no redirect rules and no headers, and it is where
+ * most staff still open the app — so a renamed page's old URL simply 404s there. The redirect is
+ * therefore written into the HTML, the same reason the CSP is mirrored into a `<meta>` on every page.
+ *
+ * The set is written down rather than derived: "a page with no scripts" would also describe a page
+ * whose module tag somebody deleted by accident, which is precisely the failure the app contract
+ * exists to catch. Being a redirect has to be a DECISION, not an inference.
+ */
+const LEGACY_REDIRECTS = new Set(['guide.html', 'fip.html']);
+
 const APP_PAGES = readdirSync(new URL('.', import.meta.url))
-    .filter(f => f.endsWith('.html') && !GUIDES.has(f))
+    .filter(f => f.endsWith('.html') && !GUIDES.has(f) && !LEGACY_REDIRECTS.has(f))
     .sort();
 
 /** index.html is the calendar: a grid, not a stack of cards, and its own special case throughout. */
@@ -393,4 +410,76 @@ test('every app page marks itself USABLE, so the App Speed figure covers all of 
         else if (!imported) missing.push(`${file} calls markPageReady() without importing it`);
     }
     assert.deepEqual(missing, [], `App Speed "usable" is blind on these pages:\n  ${missing.join('\n  ')}`);
+});
+
+test('every app page can be returned to from a guide', () => {
+    /**
+     * The guides navigate in the SAME TAB (v18.81), so their visible ← is the only way back in an
+     * installed iOS PWA — there is no browser chrome. `nav-panel.js` appends `?from=<this page>`
+     * and `guide-back.js` retargets the arrow, but only for pages in its ALLOWLIST, and that list
+     * is hand-kept.
+     *
+     * `overtime.html` was missing from it from the day the page shipped (found in the v22.47
+     * external review). It had the drawer like every other page, so it sent `?from=overtime.html`
+     * and the arrow silently kept its authored default — a reviewer who opened a guide from
+     * Overtime was returned to the calendar. NOTHING FAILS on an unrecognised `from`, deliberately:
+     * that is what stops a crafted value becoming the back arrow, and it is also what made a
+     * legitimate omission invisible.
+     *
+     * The allowlist cannot be derived at run time without giving up that protection, so it is
+     * pinned from out here instead, against the filesystem — the one list that cannot fall behind.
+     */
+    const back = read('./guide-back.js');
+    const listed = new Set([...back.matchAll(/^\s*'([a-z-]+\.html)':\s*\{/gm)].map(m => m[1]));
+
+    assert.ok(listed.size >= 6,
+        `guide-back.js DESTINATIONS parsed as ${listed.size} entries — the shape changed and this `
+        + 'guard is now reading nothing. Fix the match before trusting it.');
+
+    const unreachable = APP_PAGES.filter(p => !listed.has(p));
+    assert.deepEqual(unreachable, [],
+        'these pages open guides but a guide cannot return to them — guide-back.js DESTINATIONS is '
+        + `missing ${unreachable.join(', ')}. The ← keeps its authored default and lands the reader `
+        + 'on a page they were not on.');
+});
+
+test('a legacy redirect page is a redirect, and points somewhere real', () => {
+    /**
+     * The category above is an EXEMPTION from the app contract, and an exemption nobody checks
+     * becomes an exemption to everything — this repo has written that sentence about the Huddle
+     * viewer's lightbox and about hand-maintained page lists. So the redirects owe their own rules.
+     *
+     * Four of them, and each is the way this file could quietly stop working:
+     *   1. it actually redirects, in the HTML — a Firebase 301 would leave the mirror on a 404;
+     *   2. the destination EXISTS, so a second rename cannot leave a redirect pointing at nothing;
+     *   3. the URL is RELATIVE, or it breaks under the mirror's `/roster-app/` sub-path — the one
+     *      origin the file is written for;
+     *   4. it stays a stub: no scripts, no stylesheet links, nothing that gives it a module graph
+     *      and an opinion. The moment one grows those it is an app page wearing an exemption.
+     */
+    assert.ok(LEGACY_REDIRECTS.size > 0, 'no legacy redirects declared — drop the category too');
+
+    for (const page of LEGACY_REDIRECTS) {
+        const html = read(`./${page}`);
+
+        const refresh = html.match(/<meta\s+http-equiv="refresh"\s+content="0;\s*url=([^"]+)"/i);
+        assert.ok(refresh, `${page} has no <meta http-equiv="refresh"> — on the Pages mirror, which `
+            + 'serves no redirect rules, this file IS the redirect and it does nothing without it');
+
+        const target = refresh[1];
+        assert.match(target, /^\.\//,
+            `${page} redirects to "${target}", which is not relative. The mirror serves the app from `
+            + 'a /roster-app/ sub-path, so an absolute path lands outside it.');
+        assert.ok(existsSync(new URL(target.replace(/^\.\//, './'), import.meta.url)),
+            `${page} redirects to ${target}, which does not exist. A rename moved the destination `
+            + 'and left the redirect behind — the 404 this file was written to prevent.');
+
+        const canonical = html.match(/<link\s+rel="canonical"\s+href="([^"]+)"/i);
+        assert.equal(canonical?.[1], target,
+            `${page}'s canonical link must name the same destination as its refresh`);
+
+        assert.ok(!/<script/i.test(html), `${page} has a <script> — a redirect stub carries none`);
+        assert.ok(!/<link[^>]+rel="stylesheet"/i.test(html),
+            `${page} links a stylesheet — a redirect stub styles itself inline or not at all`);
+    }
 });

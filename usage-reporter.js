@@ -141,8 +141,10 @@ function _recordOrigin(identity) {
  *   'huddle' | 'circular' | 'newsletter'
  *   'guide-staff' | 'guide-paycalc' | 'guide-railcard' | 'guide-rangers' | 'guide-fip'
  * The guide ids come from NAV_GUIDES in nav-panel.js, which stamps each one onto its own
- * link — never matched from the href here, because './paycalc-guide.html'.includes('staff-guide.html')
- * is true and a substring test would silently count the Pay Calculator Guide as the Staff Guide.
+ * link — never matched from the href here: './paycalc-guide.html'.includes('guide.html') is true,
+ * `guide.html` was the Staff Guide's filename until v22.47, and a substring test therefore counted
+ * the Pay Calculator Guide as the Staff Guide. The rename ended that particular collision; the id
+ * stays explicit because a filename is not a stable key.
  * @param {string} itemId - stable open id (see list above)
  * @param {string|null} [identity] - the acting member's name for the admin-exclusion check
  *        (signed-in name, or the calendar's selected member); null records anonymously
