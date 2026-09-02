@@ -181,6 +181,14 @@ of `experiments/auth-firestore-split-proof/`). So an offline device — the inst
 paints its cached roster there. The "no" answer therefore protects strictly less than it appears:
 it enforces the check exactly and only on the loads where the wait is also longest.
 
+**One reading first, and it is now available (`VAL-AUTH-006`).** The round-trip finding is an
+emulator result; the field contribution is inferred. The signature it predicts is that `Recognised`
+tracks connection quality far more strongly than `Getting ready` does — a network wall moves with the
+network, a code-parse wall does not. **Operations → App Speed → "Does the connection slow the start?"**
+puts the two side by side on the same bands. It was not readable until v22.28 (the card could split
+only the whole-load figure), which is why this entry could sit here for weeks describing a check
+nobody could run. If the signature is absent, the finding is wrong and this decision should wait.
+
 **Two couplings, so neither decision is taken as if the other did not exist:**
 - **Track E scales this decision's cost.** If E3 ever ships, every load runs the member restore, so
   the round-trip wait applies to the whole population rather than to signed-in members only. Decide

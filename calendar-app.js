@@ -38,6 +38,7 @@ import { getDisplayMonth, getDisplayYear, setDisplayMonth, setDisplayYear, chang
 import { initSwipeHandler, isSwipeCooldown, isSwipeGestureActive } from './calendar-swipe.js';
 import { initCalendarLightboxes } from './calendar-al-lightbox.js';
 import { initInitialFetch } from './calendar-initial-fetch.js';
+import { initInstallPrompt } from './install-prompt.js';
 import { initCalendarTooltip, initCalendarKeyboard } from './calendar-keyboard.js';
 
 import { setStatus } from './status-text.js';
@@ -1150,6 +1151,11 @@ initDocViewer({ authReady });   // same reasoning as the Huddle viewer above
         lsSet('myb_notif_prompt_done', '1');
     });
 })();
+
+// The install strip. Wired AFTER the notification prompt's IIFE above, and it hides that strip
+// when it shows — one ask at a time, install first, because on iOS notifications are impossible
+// until the app is installed. The precedence rule and everything it turns on: install-prompt.js.
+initInstallPrompt({ accessReady: calendarAuthReady, getAccessType });
 
 // Tooltip and keyboard navigation — see calendar-keyboard.js.
 initCalendarTooltip();

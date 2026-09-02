@@ -76,6 +76,7 @@ not exist here, or if an ID is declared twice.
 
 | ID | Claim | Settled by | Cost if wrong | Where it lives |
 |---|---|---|---|---|
+| **VAL-AUTH-006** | **The Calendar's start wall is one `accounts:lookup` round trip.** Measured on an emulator with injected latency (+335.7ms of `authBootstrap` for +300ms of latency) — rigorous, and the FIELD contribution is inferred rather than observed. The app is not telling staff anything on it, but a plan is about to settle an access question on it. | **The connection-signal block** on the App Speed card: `Recognised` should spread across connection classes where `Getting ready` does not. **A reading, and it became one at v22.28** — until then the card could only split the whole-load figure, so the check the plan named as available was not | The identity decision gets taken on an emulator finding that does not reproduce, and the thing traded away is what a member is allowed to SEE before the server has confirmed their account | `LATENCY_PLAN.md` → *The field check was NOT readable* · date in `MAINTENANCE_CALENDAR.md` |
 | **VAL-AUTH-001** | **Track E's decision gate.** The design is sound and the measurement that would decide it has never been taken — `AUTH_PLAN.md` says so in its own confidence table, which is the right thing for a plan to admit. | The **§6 measurement** described in that plan | The decision gets taken on intuition, and it is the one that determines whether the whole app moves behind authentication | `AUTH_PLAN.md` → E3 |
 
 ---

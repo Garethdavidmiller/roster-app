@@ -4189,3 +4189,135 @@ test('operations: the entry control never offers a type Sunday forbids', async (
     await expect(row.locator('.roster-entry-pill', { hasText: /^RDW$/ })).toBeEnabled();
     await expect(row.locator('.roster-entry-pill', { hasText: /^Rest Day$/ })).toBeEnabled();
 });
+
+// ── THE HUDDLE TABLE MUST NOT DRAG THE WHOLE PAGE SIDEWAYS (v22.27) ────────────────────────────
+//
+// Reported from two staff screenshots on a 412px phone. The Huddle gained a fifth column
+// (Shift · Call Sign · Early · Middle · Late) and stopped fitting. `#huddleViewerBody` was the only
+// scroll container, so reading the Late column scrolled the entire document: the date heading slid
+// off ("Wednesday 2nd September 2026" showing as "nd September 2026") and the Shift and Call Sign
+// columns — the ones that say whose row you are on — went with it. Nothing errored. It was simply
+// unusable, which is the hardest kind of fault to be told about.
+//
+// This drives the REAL `wrapTables` against the REAL index.css. A unit test of the wrapper would
+// pass on markup that still scrolled the page, because the fix is mostly CSS; and a visual baseline
+// cannot see it, because the defect only appears once a finger has scrolled.
+//
+// `white-space: nowrap` is injected to force the case. The shipped `overflow-wrap: anywhere` lets
+// most Huddles shrink to fit, and a test that relied on real content overflowing would stop testing
+// anything the day the Huddle got one column narrower.
+test('huddle: a table too wide to fit scrolls itself, not the page', async ({ page }) => {
+    // Its OWN viewport, not the project's: at 1280 the table fits and there is nothing to measure,
+    // so on the desktop project this would pass while testing nothing. 412 is the reported device.
+    await page.setViewportSize({ width: 412, height: 915 });
+    await page.goto('/index.html');
+    await page.addStyleTag({ content:
+        '#huddleViewerBody td, #huddleViewerBody th { white-space: nowrap; overflow-wrap: normal; }' });
+
+    const geom = await page.evaluate(async () => {
+        const { wrapTables } = await import('./calendar-huddle-viewer.js');
+        const body = document.getElementById('huddleViewerBody');
+        const viewer = document.getElementById('huddleViewer');
+        viewer.classList.add('visible', 'open');          // the panel must be laid out to measure it
+        const row = (c) => `<tr>${c.map(x => `<td>${x}</td>`).join('')}</tr>`;
+        body.innerHTML = '<h1>Wednesday 2nd September 2026</h1><table>'
+            + '<tr><th>Shift</th><th>Call Sign</th><th>Early</th><th>Middle</th><th>Late</th></tr>'
+            + row(['Station Manager', 'C3', '06.30-15.30 Nicol', '', '14.00-23.00 Darren'])
+            + row(['Booking Office', 'C23', '06.20-14.20 XS Naomi', '12.00-16.00 Charlie',
+                   '14.00-22.30 Tahira/Iskander(training) XS'])
+            + '</table>';
+        wrapTables(body);
+        wrapTables(body);                                  // idempotent: reopen re-renders the memo
+        const wrap = body.querySelector('.huddle-table-wrap');
+        body.scrollLeft = 99999;
+        if (wrap) wrap.scrollLeft = 99999;                 // scroll right, as a reader must
+        const firstCell = body.querySelector('table tr:nth-child(2) td');
+        return {
+            wrappers: body.querySelectorAll('.huddle-table-wrap').length,
+            bodyScrollsX: body.scrollWidth - body.clientWidth,
+            tableScrollsX: wrap ? wrap.scrollWidth - wrap.clientWidth : 0,
+            headingLeft: Math.round(document.querySelector('#huddleViewerBody h1').getBoundingClientRect().left),
+            firstColLeft: Math.round(firstCell.getBoundingClientRect().left),
+            firstColText: firstCell.textContent.trim(),
+        };
+    });
+
+    expect(geom.wrappers, 'wrapTables must be idempotent — the viewer re-renders memoised HTML')
+        .toBe(1);
+    expect(geom.tableScrollsX, 'the table itself must be the thing that scrolls').toBeGreaterThan(0);
+    expect(geom.bodyScrollsX,
+        'the document must NOT scroll sideways — that is what took the date heading off screen')
+        .toBe(0);
+    expect(geom.headingLeft,
+        'the date heading must stay put while the table is scrolled').toBeGreaterThanOrEqual(0);
+    expect(geom.firstColText).toBe('Station Manager');
+    expect(geom.firstColLeft,
+        'the first column is sticky — a scrolled row without it is times belonging to nobody')
+        .toBeGreaterThanOrEqual(0);
+
+    // AND THAT PRODUCTION ACTUALLY CALLS IT. Everything above drives `wrapTables` directly, so it
+    // proves the function and the CSS and says nothing about the wiring — teeth-verification found
+    // exactly that: deleting the call from `showInlineHuddle` left every assertion above green.
+    // The render path cannot be driven from here (it is a closure inside `initHuddleViewer`, fed by
+    // a Firestore snapshot), so this is a source check, which is the honest thing to admit rather
+    // than to dress up. Anchored on the ASSIGNMENT and the very next statement — matching mere
+    // proximity is how the paycalc notice-order guard first let a regression through.
+    const wired = await page.evaluate(async () => {
+        const src = await (await fetch('./calendar-huddle-viewer.js')).text();
+        return /body\.innerHTML = _sanitisedHtml;\s*\n\s*wrapTables\(body\);/.test(src);
+    });
+    expect(wired,
+        'showInlineHuddle must call wrapTables immediately after writing the sanitised HTML — '
+        + 'without it the tables render unwrapped and the page scrolls sideways again').toBe(true);
+});
+
+// ── The one comparison LATENCY_PLAN.md's open decision is gated on (v22.28) ──────────────────────
+//
+// The plan called it "a reading, not a build", and it was not readable: every dimensional split on
+// this card ran against `domReady`, so the milestone the plan's own evidence names as the wall
+// (`Recognised`) could not be split by connection at all. This drives the real card against samples
+// with the signature in them — `Recognised` spread across connection classes, `Getting ready` flat —
+// and asserts BOTH groups render, because one alone is a row of percentages with nothing to read
+// them against.
+test('operations: App speed can split Recognised by connection, beside Getting ready', async ({ page }) => {
+    await page.addInitScript(() => {
+        window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: {
+            // Recognised: fine on the fast class, bad on the slow one — a network wall's signature.
+            '22_28|calendar|authBoot|lt500ms|standalone|4g':   400,
+            '22_28|calendar|authBoot|over8s|standalone|3g':    120,
+            // Getting ready: the SAME connection classes, and flat across them. This is the half
+            // that makes the block a comparison rather than an observation.
+            '22_28|calendar|appBoot|lt500ms|standalone|4g':    400,
+            '22_28|calendar|appBoot|lt500ms|standalone|3g':    120,
+            // Enough domReady for the Calendar to be the busiest page the block renders for.
+            '22_28|calendar|domReady|lt500ms|standalone|4g':   400,
+            '22_28|calendar|domReady|1-3s|standalone|3g':      120,
+        } } };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const speed = page.locator('#pageSpeedContent');
+    await expect(speed).toContainText('Does the connection slow the start?');
+    await expect(speed).toContainText('Recognised');
+    await expect(speed).toContainText('Getting ready');
+    // The generic connection block must name its own figure now that three blocks split by conn —
+    // an unlabelled third one reads as a third milestone.
+    await expect(speed).toContainText('By connection — whole load');
+
+    // …and the two groups must say DIFFERENT things, or the block has rendered one metric twice.
+    // Reading the "over 1s" figures directly is what separates "both headings appeared" from "the
+    // metric argument actually reached summarisePerfBy" — the whole defect being fixed.
+    const pcts = await speed.evaluate(() => {
+        const label = [...document.querySelectorAll('.speed-dim-label')]
+            .find(el => el.textContent === 'Recognised');
+        const readGroup = (el) => [...el.nextElementSibling.querySelectorAll('.speed-row--why')]
+            .map(r => r.querySelector('.speed-row-count')?.textContent).filter(Boolean);
+        const authRows = readGroup(label);
+        const appLabel = [...document.querySelectorAll('.speed-dim-label')]
+            .find(el => el.textContent === 'Getting ready');
+        return { authRows, appRows: readGroup(appLabel) };
+    });
+    // Recognised spreads (one class slow, one fast); Getting ready is flat at 0% on both.
+    expect(pcts.authRows.sort()).toEqual(['0%', '100%']);
+    expect(pcts.appRows).toEqual(['0%', '0%']);
+});

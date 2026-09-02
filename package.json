@@ -14,6 +14,7 @@
     "test:visual": "playwright test --config=playwright.visual.mjs",
     "test:offline": "playwright test --config=playwright.offline.mjs",
     "test:functions": "node scripts/run-tests.mjs roster-parse-helpers.test.mjs functions-surface.test.mjs overtime-endpoints.test.mjs auth-endpoints.test.mjs push-transport.test.mjs documents-endpoints.test.mjs",
+    "test:nodeps": "node scripts/test-nodeps.mjs",
     "bump": "node scripts/bump-version.mjs",
     "generate:roster-members": "node scripts/generate-roster-members.mjs",
     "generate:guide-index": "node scripts/generate-guide-index.mjs",
@@ -31,6 +32,7 @@
     "firebase-tools": "^15.22.2",
     "globals": "^15.15.0",
     "http-server": "^14.1.1",
+    "pdfjs-dist": "^4.10.38",
     "typescript": "^6.0.3"
   }
 }

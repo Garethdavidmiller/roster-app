@@ -91,6 +91,7 @@
     <link rel="modulepreload" href="./documents-client.js">
     <link rel="modulepreload" href="./ls.js">
     <link rel="modulepreload" href="./nav-panel.js">
+    <link rel="modulepreload" href="./install-prompt.js">
     <link rel="modulepreload" href="./notif.js">
     <link rel="modulepreload" href="./overlay.js">
     <link rel="modulepreload" href="./override-utils.js">
@@ -347,11 +348,25 @@
             </div>
         </nav>
 
+        <!-- Install strip. Shares the notification prompt's slot, markup and styling deliberately:
+             they are the same class of thing and must never appear at once. See install-prompt.js
+             for the precedence rule (install outranks notifications; on iOS it is a prerequisite).
+
+             BOTH COPY VARIANTS LIVE HERE, not in the module: the Chromium branch shows the button
+             and the iOS branch shows the steps, so the JS only ever toggles `hidden`. Wording that
+             a member reads should be reviewable in the markup beside every other line they read. -->
+        <div id="installPrompt" class="top-prompt" role="region" aria-label="Add to home screen" style="display:none">
+            <span class="top-prompt-text"><span aria-hidden="true">📲</span> Add the roster to your home screen<span
+                id="installPromptSteps" class="top-prompt-steps" hidden>Tap <strong>Share</strong>, then <strong>Add to Home Screen</strong></span></span>
+            <button type="button" class="top-prompt-action" id="installPromptAction" hidden>Install</button>
+            <button type="button" class="top-prompt-dismiss" id="installPromptDismiss" aria-label="Dismiss">×</button>
+        </div>
+
         <!-- One-off notification enable prompt — hidden by JS once dismissed or enabled -->
-        <div id="notifPrompt" class="notif-prompt" style="display:none">
-            <span class="notif-prompt-text"><span aria-hidden="true">🔔</span> Get notified about the Daily Huddle, documents and pay reminders</span>
-            <button type="button" class="notif-prompt-enable" id="notifPromptEnable">Enable</button>
-            <button type="button" class="notif-prompt-dismiss" id="notifPromptDismiss" aria-label="Dismiss">×</button>
+        <div id="notifPrompt" class="top-prompt" role="region" aria-label="Notifications" style="display:none">
+            <span class="top-prompt-text"><span aria-hidden="true">🔔</span> Get notified about the Daily Huddle, documents and pay reminders</span>
+            <button type="button" class="top-prompt-action" id="notifPromptEnable">Enable</button>
+            <button type="button" class="top-prompt-dismiss" id="notifPromptDismiss" aria-label="Dismiss">×</button>
         </div>
 
         <!-- Pay period strip: shows current period dates + link to pay calculator -->
