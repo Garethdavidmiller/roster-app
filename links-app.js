@@ -19,6 +19,7 @@ import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse, createLightbox, confirmDialog, promptDialog, openNoticeIfClear } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
+import { CARD_TIPS } from './links-tips.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
@@ -3025,88 +3026,11 @@ export function init() {
 
     // ============================================
     // TIPS LIGHTBOX — ? button on each card
-    // Lifecycle, renderer, and button wiring live in tips-lightbox.js — only the
-    // content data is owned here.
+    // Lifecycle, renderer and button wiring live in tips-lightbox.js; the content is
+    // links-tips.js (extracted v22.32 — see its header for why the generator card's prose
+    // moved there, and for the two untrue tips the move retired).
     // ============================================
-    (function () {
-        const CARD_TIPS = {
-            'links-grid': {
-                title: 'Link design grid',
-                sections: [
-                    { heading: 'How it works', items: [
-                        { icon: '📋', html: `Each <strong>row</strong> is one of the ${TOTAL_POS} lines. Each <strong>column</strong> is a day of the week (Sun–Sat).` },
-                        { icon: '🔄', html: `All ${TOTAL_POS} lines rotate — everyone passes through every line over the cycle, so <strong>all ${TOTAL_POS} must be filled</strong> with a real pattern before the link can be authorised.` },
-                        { icon: '🖌️', html: '<strong>Paint mode</strong> — arm a shift in the Paint bar above the grid, then click cells to fill them. Click the same chip again (or press Escape) to stop painting.' },
-                        { icon: '✏️', html: '<strong>Single-cell edit</strong> — with no brush armed, tap any cell to pick a shift from the dropdown, or choose <strong>Custom time…</strong> to type a new one.' },
-                        { icon: '🧮', html: 'The three columns on the right are the <strong>totals for that line</strong> — hours Mon–Sat, hours across all seven days, and how many days are worked Mon–Sat. They update as you edit.' },
-                        { icon: '📐', html: 'The bottom row averages them. Hours are averaged over every line, with a <strong>spare week counted as a full contracted week</strong>. Days are averaged over the <strong>working lines only</strong>, because a spare week does not say which days it works — each figure names its own divisor.' },
-                        { icon: '💾', html: 'Tap <strong>Save changes</strong> when done.' },
-                    ]},
-                    { heading: 'Multiple designs', items: [
-                        { icon: '➕', html: '<strong>+ New</strong> starts a fresh blank design. <strong>⎘ Duplicate</strong> copies the current one so you can try a variation.' },
-                        // Added with the feature (v20.97). Without it the button is discoverable
-                        // only by pressing it, and the two-step it opens then reads as a hurdle
-                        // rather than as the check it is.
-                        { icon: '⤓', html: '<strong>Import</strong> takes a design somebody has written down elsewhere — paste it from a spreadsheet, or type times, <strong>RD</strong> and <strong>SP</strong> a row per line. Press <strong>Check it</strong> first: it tells you what would be saved, and anything it had to assume, before there is a Save button at all.' },
-                        // Added with the gate (v20.98). Without it the refusal reads as the tool
-                        // being broken rather than as the arithmetic saying no.
-                        { icon: '⏱️', html: '<strong>Generate refuses a design that would underpay.</strong> The rotation has to average the contracted week with Sundays left out, and a <strong>spare week counts as a full week</strong>. Individual weeks vary — the average is what counts.' },
-                        { icon: '➕', html: 'If it refuses, it says how many hours of duty are missing. Only three things close that gap: more duties, longer ones, or more spare weeks. Spreading the same work over more lines never can — that is what makes a link shorter per person, not longer.' },
-                        { icon: '🛡️', html: 'An import saves as a <strong>new</strong> design and never changes the one you have open. A cell it cannot read stops the whole import rather than quietly becoming a rest day — a design that arrives four duties light looks like a lighter week, not like a mistake.' },
-                        { icon: '⇔', html: '<strong>Compare</strong> shows two designs side-by-side — cells that differ are highlighted in gold. Only available when you have at least two designs.' },
-                        { icon: '🗑', html: 'Deleting a design does not destroy it — it moves to <strong>Recently deleted</strong>, where it stays until someone restores it or removes it for good. Nothing is removed automatically. The button only appears when something is in there.' },
-                    ]},
-                    { heading: 'Filling the lines', items: [
-                        { icon: '⬜', html: 'A line shown as <strong>all rest days</strong> is <em>not yet designed</em> — its line number turns amber. Fill it manually or with the generator. The Design checks card lists any that are still empty.' },
-                        { icon: '🙋', html: `Empty lines are <strong>not vacancies</strong> — a vacancy is a missing person, not a missing pattern. The link must be a complete ${TOTAL_POS} so it still works whoever is in post.` },
-                    ]},
-                ],
-            },
-            'links-coverage': {
-                title: 'Coverage analysis',
-                sections: [{ items: [
-                    { icon: '📊', html: 'Each cell shows how many people are <strong>on duty during that hour</strong> — rows are days, columns are hours of the day' },
-                    { icon: '🔵', html: 'Darker blue = more people on at once; blank = nobody on duty' },
-                    { icon: '🔴', html: 'A red <strong>0</strong> means a gap — nobody on duty in the middle of that day\'s working hours' },
-                    { icon: '🟡', html: '<strong>SP</strong> column = spares on standby that day (no fixed time, so they aren\'t in the hourly cells)' },
-                    { icon: '💡', html: 'This shows the real <em>shape</em> of the day — opens, the morning build, the afternoon peak, and the taper to close. Updates live as you edit cells.' },
-                    { icon: '🚆', html: 'The orange <strong>Trains per hour</strong> rows underneath are the December 2026 <em>service</em> — arrivals and departures together, weighted by train length, so a 9-car evening train counts for more than a 3-car midday one.' },
-                    { icon: '📐', html: 'The two halves are shaded on <em>separate</em> scales — people and cars are different units, so compare the <strong>shapes</strong>, not the depth of colour.' },
-                    { icon: '➖', html: 'An underlined demand cell means some of that hour\'s trains fall <strong>outside the staffed window</strong> — the note names them to the minute. That is stated, never scored: where the window sits is a business decision.' },
-                ]}],
-            },
-            'links-checks': {
-                title: 'Design checks',
-                sections: [{ items: [
-                    { icon: '🔄', html: `<strong>All lines designed</strong> — every one of the ${TOTAL_POS} rotating lines must carry a real pattern. A line that is all rest days is unfinished (not a vacancy), and the link can't be authorised until they are all filled.` },
-                    { icon: '✅', html: '<strong>Weekends off</strong> — a full weekend = Saturday rest + the following Sunday rest. Aim for at least 40% of weeks.' },
-                    { icon: '⏱️', html: '<strong>Rest between shifts</strong> — checks every transition between two <em>timed</em> shifts across the rotation for less than 12 hours rest. Late-to-early next morning is the classic short turnaround. A spare day has no times, so a transition either side of one can\'t be measured and isn\'t counted.' },
-                    { icon: '📅', html: `<strong>Longest run</strong> — how many consecutive working days appear anywhere in the ${TOTAL_POS}-line cycle. Over 7 days is flagged.` },
-                    { icon: '⚖️', html: '<strong>Shift balance</strong> — how the worked days split between early, late, and spare across the full rotation.' },
-                    { icon: '🔄', html: 'Checks cover the <em>rotation</em>, not a single week — turnarounds and run lengths wrap across line boundaries.' },
-                ]}],
-            },
-            'links-generator': {
-                title: 'Auto-generator',
-                sections: [
-                    { heading: 'What it does', items: [
-                        { icon: '⚡', html: `Builds a fair ${TOTAL_POS}-line rotating pattern from a <strong>list of shifts</strong> — one row per start time, each with its own headcount for Mon–Fri, Saturday, and Sunday.` },
-                        { icon: '🌊', html: 'The station is staffed in <strong>waves</strong> — opens, mid-morning, middles, afternoons, closes — so you can add as many shift rows as the day needs, not just one early and one late.' },
-                        { icon: '🌅', html: 'Within each person\'s week, start times only move <strong>later</strong> — never a late finish then an early start — so body clocks shift in the easy direction.' },
-                        { icon: '✅', html: 'Daily targets are met <strong>exactly</strong> by construction.' },
-                    ]},
-                    { heading: 'How to use it', items: [
-                        { icon: '↺', html: `The table starts <strong>pre-filled from the current roster</strong> — what the ${CONFIG.MAIN_ROSTER_WEEKS}-week main cycle actually provides today. Edit from there, or use the reset link to get back to it.` },
-                        { icon: '➕', html: '<strong>+ Add another shift</strong> for a new start time; ✕ removes a row. Pick times from the dropdown or choose Custom time….' },
-                        { icon: '⚠️', html: `Each day's total (all shifts + spare) can't exceed ${TOTAL_POS} — watch the Total row.` },
-                        { icon: '3️⃣', html: 'Tap <strong>Generate link</strong>, then review the Coverage analysis and Design checks before saving.' },
-                    ]},
-                ],
-            },
-        };
-
-        initTipsLightbox(CARD_TIPS);
-    })();
+    initTipsLightbox(CARD_TIPS);
 
     // ============================================
     // FIRST-VISIT NOTICE — shown once, never again after close

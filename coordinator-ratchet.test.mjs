@@ -95,7 +95,11 @@ const CAPS = {
     // threaded through the save, rename and select paths that already carried the old one, which is
     // coordination. Raised by 25 rather than the usual 50: banking the round number as headroom is
     // the loosening the v21.87 note above refuses.
-    'links-app.js':            3175,   // ← the next Links rule goes in a domain module
+    // 3175 → 3150 at v22.32. The `?`-panel content left for links-tips.js — 3,173 measured lines
+    // down to 3,097 — and the ceiling comes down with it, on the v21.87 reasoning above. Help text
+    // is not coordination; it went because the generator card's prose was being moved into the
+    // same panel and the file had two lines of room.
+    'links-app.js':            3150,   // ← the next Links rule goes in a domain module
     // 2000 → 1900 at v21.89. The sticky take-home bar left for paycalc-sticky-total.js — 1,988
     // measured lines down to 1,888. Of everything in this coordinator it was the piece whose
     // removal cannot affect a figure a member reads: a scroll-position widget that touches no

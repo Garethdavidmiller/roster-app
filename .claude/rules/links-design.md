@@ -856,6 +856,15 @@ later while the Design-checks card below reported **"Backward rotating pattern �
 reason to read the row. **Describe what the generator does and point at the checks for what it
 achieved.**
 
+**The intro moved into the `?` panel (v22.32).** The card carried three paragraphs and a five-item
+list above the table — most of a 360px screen before the first input. It now opens with ONE
+`.links-desc` sentence (the desktop left-edge e2e check measures it, so keep exactly one), and the
+December 2026 facts, the "starting point to argue with" line and the Saturday differences are the
+"The default table" section of `links-tips.js`. The rule above governs both places. The same move
+retired two tips that had been untrue for years — the "start times only move later" guarantee this
+section is about, and "pre-filled from the current roster" (false since v21.00) — which is the
+argument for keeping the panel beside the module it describes rather than trusting a sweep.
+
 ### The sixth switch: most shifts in a row (v20.02)
 
 A box on the objectives, default **6** — `DEFAULT_MAX_RUN` in `links-design.js`, which the Design

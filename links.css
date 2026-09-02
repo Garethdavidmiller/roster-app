@@ -144,17 +144,6 @@ body.auth-ready .container { display: grid; }
     line-height: 1.5;
 }
 .links-desc:last-of-type { margin-bottom: 0; }
-/* The generator intro's figures, as a list (v21.14) — see the note in links.html. Tight leading
-   between the marker and the text so five short lines read as one block rather than five
-   paragraphs, and the same reading measure as the prose either side of it. */
-.gen-intro-list {
-    margin: 0 0 10px;
-    padding-left: 1.15em;
-    list-style: disc;
-}
-.gen-intro-list li { margin: 0 0 3px; }
-.gen-intro-list li:last-child { margin-bottom: 0; }
-
 /* ---- Empty state ---- */
 /* The GRID card's empty state — the only one that can offer a way out, so it carries the action.
    `align-items: center` rather than `flex-start`: left-aligned, the sentence sat ~700px from the
