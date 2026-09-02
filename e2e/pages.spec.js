@@ -4206,6 +4206,58 @@ test('operations: the entry control never offers a type Sunday forbids', async (
 // `white-space: nowrap` is injected to force the case. The shipped `overflow-wrap: anywhere` lets
 // most Huddles shrink to fit, and a test that relied on real content overflowing would stop testing
 // anything the day the Huddle got one column narrower.
+// ── A ROWSPAN MAKES `td:first-child` THE WRONG COLUMN (v22.31) ──────────────────────────────────
+//
+// Reported from a phone: in the Gate line block the reminder note had C17 and C18 drawn on top of
+// it. The job cell there spans three rows, so those rows have no cell of their own in column 1 and
+// `td:first-child` — the selector that pins the job column — resolved to the CALL SIGN instead.
+// Two cells, one place.
+//
+// It cannot be fixed in CSS (the first column of a rowspan table is not addressable without
+// `:nth-col()`), so `wrapTables` decides per table and the class gates the rule. This asserts BOTH
+// directions, because a fix that simply stopped pinning anything would pass a one-sided test.
+test('huddle: a rowspan table pins nothing, and a plain one still pins its job column', async ({ page }) => {
+    await page.setViewportSize({ width: 412, height: 915 });
+    await page.goto('/index.html');
+
+    const r = await page.evaluate(async () => {
+        const { wrapTables } = await import('./calendar-huddle-viewer.js');
+        const body = document.getElementById('huddleViewerBody');
+        document.getElementById('huddleViewer').classList.add('visible', 'open');
+        const stickyText = () => [...body.querySelectorAll('tbody td')]
+            .filter(td => getComputedStyle(td).position === 'sticky')
+            .map(td => td.textContent.trim().slice(0, 18));
+
+        // 1 · The reported shape: a job cell spanning the rows its call signs sit in.
+        body.innerHTML = '<table><tbody>'
+            + '<tr><td rowspan="3">Gate line Reminder Hourly SCU rota please</td>'
+            +   '<td>C16</td><td>06.20-13.45 Orient</td><td></td><td>13.30-22.00 Jawad</td></tr>'
+            + '<tr><td>C17</td><td>06.20-13.45 Junior</td><td></td><td>15.15-23.55 Ian</td></tr>'
+            + '<tr><td>C18</td><td>07.00-16.00 Sam</td><td></td><td>15.15-23.55 Michael</td></tr>'
+            + '</tbody></table>';
+        wrapTables(body);
+        const span = { pinned: !!body.querySelector('.huddle-table-wrap--pinned'), sticky: stickyText() };
+
+        // 2 · A plain Huddle, which must KEEP the pinned column.
+        body.innerHTML = '<table><tbody>'
+            + '<tr><td>Station Manager</td><td>C3</td><td>06.30-15.30 Nicol</td><td></td><td>14.00-23.00 Darren</td></tr>'
+            + '<tr><td>Booking Office</td><td>C23</td><td>06.20-14.20 XS Naomi</td><td>12.00-16.00 Charlie</td>'
+            +   '<td>14.00-22.30 Tahira/Iskander(training) XS</td></tr>'
+            + '</tbody></table>';
+        wrapTables(body);
+        return { span, plain: { pinned: !!body.querySelector('.huddle-table-wrap--pinned'), sticky: stickyText() } };
+    });
+
+    // A call sign pinned to the left edge is the reported defect, stated directly.
+    expect(r.span.sticky,
+        'nothing may be pinned in a rowspan table — C17/C18 were drawn over the job cell')
+        .toEqual([]);
+    expect(r.span.pinned, 'the rowspan table must not carry the pinning class').toBe(false);
+    // …and the feature must survive, or "fix" means "delete".
+    expect(r.plain.pinned, 'a table with no rowspans must still pin its job column').toBe(true);
+    expect(r.plain.sticky).toEqual(['Station Manager', 'Booking Office']);
+});
+
 test('huddle: a table too wide to fit scrolls itself, not the page', async ({ page }) => {
     // Its OWN viewport, not the project's: at 1280 the table fits and there is nothing to measure,
     // so on the desktop project this would pass while testing nothing. 412 is the reported device.
