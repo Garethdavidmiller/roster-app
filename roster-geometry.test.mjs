@@ -26,6 +26,31 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
+
+// ── IS THE REAL pdfjs HERE, AND SHOULD IT BE? ──────────────────────────────────────────────────
+//
+// The block at the bottom drives the REAL parser, so it needs `pdfjs-dist` — a dependency of
+// `functions/`, which a bare checkout does not have. Without this, that block produced FIVE failing
+// assertions on an unzipped archive, and an external reviewer had to decide for themselves that
+// they were environmental rather than defects. That judgement should not be theirs to make: a
+// reviewer cannot tell "this did not run" from "this is broken" by reading a red assertion, and
+// the repo already has the honest form of this — `module-parse.test.mjs` skips with its reason
+// named when its flag is absent.
+//
+// So it skips, and says why. What it must NEVER do is go quiet where the dependency IS installed:
+// there a failed import is a real breakage (a bad install, a version that moved off the v4 pin the
+// adapter reads), and skipping it would leave the roster import's only non-AI witness untested
+// with the suite green. Hence two questions, not one — is it loadable, and is it supposed to be.
+const PDFJS_SPECIFIER = 'pdfjs-dist/legacy/build/pdf.mjs';
+const pdfjsLoads = await (async () => {
+    try { await import(PDFJS_SPECIFIER); return true; } catch { return false; }
+})();
+const pdfjsInstalled = (() => {
+    try { require.resolve('pdfjs-dist/package.json'); return true; } catch { return false; }
+})();
+// Skip ONLY the genuinely-absent case. Installed-but-unloadable falls through and fails loudly.
+const REAL_PDFJS_SKIP = (!pdfjsLoads && !pdfjsInstalled)
+    && 'needs pdfjs-dist — run `cd functions && npm ci`, or `npm run test:functions`';
 const {
     GRID_COLUMNS, rulesFromOperatorList, assignRunsToGrid, extractRosterGeometry,
     matchGeometryRow, applyGeometryWitness, _isClaim, _nameTokens,
@@ -335,7 +360,7 @@ function rosterPage(rowSpecs, { top = 700, rowH = 50, vx = VX } = {}) {
     return lines;
 }
 
-describe('extractRosterGeometry — the real pdfjs, a hand-built roster', () => {
+describe('extractRosterGeometry — the real pdfjs, a hand-built roster', { skip: REAL_PDFJS_SKIP }, () => {
     const ROSTER = [
         ['Sunday', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
         ['G. Miller', '', 'RD', '06:20-14:20', '06:20-14:20', 'RD', '07:00-16:00', '07:00-15:00'],
