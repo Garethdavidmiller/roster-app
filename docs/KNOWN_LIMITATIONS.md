@@ -672,8 +672,10 @@ The app is served, identically, from **two** live origins:
   *new* install, and the origin written into Cloud Function notification payloads
   (`STAFF_SITE_URL`).
 - **`https://garethdavidmiller.github.io/roster-app/`** — the GitHub Pages mirror (the
-  roster-app repo's own native Pages). **Still live and not retired** — kept so the phones
-  that already installed from it keep updating. Note the `/roster-app/` sub-path.
+  roster-app repo's own native Pages). **Still live, not retired, and still the origin MOST
+  staff use** (owner, Sep 2026) — the move to the canonical URL is gradual by design. Note the
+  `/roster-app/` sub-path. It serves no redirects and no HTTP headers, so anything leaning on
+  either reaches the minority of users rather than the majority.
 
 **Why both can coexist safely:** push *delivery* is origin-independent (every subscription in
 `pushSubscriptions` is fanned out regardless of which origin it came from). The notification
