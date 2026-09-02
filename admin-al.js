@@ -74,6 +74,10 @@ export function initALSection({
         const years = [...new Set(workingDates.map(d => d.substring(0, 4)))];
         for (const yearStr of years) {
             const entitlement = getALEntitlement(memberObj, parseInt(yearStr, 10), getAllOverrides());
+            // No entitlement on record → nothing to cap against, so no confirm bar (v22.45). Same
+            // reasoning as the week-grid check: a bar raised against a number we do not have is
+            // worse than none. The booking itself is unaffected.
+            if (entitlement === null) continue;
             // All existing AL for the year that CONSUMES entitlement — the Sunday and rest-day rules
             // now live in al-entitlement.js, which the banner and the week-grid save read too
             // (this file was the only one of the three that had the rest-day test). A re-booked day

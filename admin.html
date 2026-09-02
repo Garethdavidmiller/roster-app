@@ -238,6 +238,20 @@
             </div>
         </div>
         <div class="card-collapsible-body" id="alBody">
+            <!-- WHOSE LEAVE IS THIS? (v22.45) — managers and admin only. A self-service member books
+                 only for themselves, so naming them would be noise; a manager switches between people
+                 and every figure below belongs to whoever is selected. It sits at the TOP OF THE BODY
+                 rather than in the header cluster because the moment that needs it is the moment of
+                 recording, and because the longest roster name is 23 characters — beside the
+                 "AL left" chip, the ? button and the chevron it either wrapped the title or
+                 ellipsised to something that no longer identifies a person. It is also OUTSIDE the
+                 banner, which hides itself when the entitlement is unknown (a Management account,
+                 v22.45): the one card state where a manager most needs to know who they are looking
+                 at must not be the state that removes the name. -->
+            <div class="card-member-for" id="alMemberFor" hidden>
+                <span class="cmf-label">Recording for</span>
+                <span class="cmf-name" id="alMemberForName"></span>
+            </div>
             <!-- Annual Leave balance banner — updates when a member is selected -->
             <div class="al-banner" id="alBanner" hidden>
                 <span class="al-banner-icon">🏖️</span>
@@ -308,6 +322,14 @@
             </div>
         </div>
         <div class="card-collapsible-body" id="sickBody">
+            <!-- The absence card has no balance banner, so this row is the ONLY thing naming the
+                 person a manager is about to mark absent — and an absence is visible on the calendar
+                 to every member of staff. Same component as the AL card's, deliberately: two cards
+                 that ask the same question should not answer it in two shapes. -->
+            <div class="card-member-for" id="sickMemberFor" hidden>
+                <span class="cmf-label">Recording for</span>
+                <span class="cmf-name" id="sickMemberForName"></span>
+            </div>
             <div class="al-form">
                 <select id="sickMember" hidden>
                     <option value="">— Select member —</option>
