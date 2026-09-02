@@ -20,7 +20,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { countedAlDates, alPosition, consumesEntitlement } from './al-entitlement.js';
-import { teamMembers, getBaseShift, parseISODate, formatISO, isSunday } from './roster-data.js';
+import { teamMembers, getBaseShift, parseISODate, formatISO, isSunday, getALEntitlement } from './roster-data.js';
 import { isRestShift } from './override-utils.js';
 
 /** A CEA on the main rotation — a real member, so the base roster under each date is real too. */
@@ -363,4 +363,87 @@ describe('the entitlement count is asked for with the overrides in hand', () => 
             assert.ok(seen > 0, `${file} is listed here because it reads the entitlement — it no longer does`);
         });
     }
+});
+
+
+// ── A ROLE WITH NO ENTITLEMENT ON RECORD (v22.45) ───────────────────────────────────────────────
+//
+// This is a guard, not a fix, and the distinction is worth stating: `getALEntitlement` used to fall
+// through to `return 32` for any role that was not Dispatcher or CES, but **no surface could reach
+// that branch** — all seven Management rows carry `hidden: true`, so they appear in neither the
+// admin picker nor the calendar's. The reason to close it anyway is the SHAPE: a fall-through
+// default hands out a complete, plausible figure belonging to somebody else, which is precisely the
+// paycalc defect that was live until v21.78, and here it is one un-set flag away.
+//
+// Organised by what each wrong answer would cost, and they are not symmetrical.
+//
+//   INVENTING A FIGURE is silent — a manager reads "32 remaining" and books against it.
+//
+//   REFUSING TOO WIDELY would take the entitlement away from real staff, which is loud and would be
+//   noticed in a day — but it is worth pinning, because the tempting fix (an allowlist) is one typo
+//   away from doing it.
+describe('a role with no entitlement on record', () => {
+    const mk = (role, extra = {}) => ({ name: 'X. Person', role, rosterType: 'main', currentWeek: 1, ...extra });
+
+    test('returns null rather than a CEA\u2019s 32', () => {
+        assert.equal(getALEntitlement(mk('Management'), 2026, []), null);
+    });
+
+    test('an unknown or missing role is refused too, not defaulted', () => {
+        // The old code answered 32 for every one of these.
+        for (const role of ['Supervisor', 'Contractor', '', undefined, null]) {
+            assert.equal(getALEntitlement(mk(/** @type {any} */ (role)), 2026, []), null,
+                `role ${JSON.stringify(role)} must not be given somebody else's entitlement`);
+        }
+    });
+
+    test('an unresolved member is refused, not given a CEA\u2019s 32', () => {
+        // The likeliest live route into this branch: a stale saved name pointing at somebody who
+        // has left. `!member` used to answer 32 — a caller that failed to find a person was handed
+        // a number as though it had. Same convention, same reason.
+        assert.equal(getALEntitlement(null, 2026, []), null);
+        assert.equal(getALEntitlement(undefined, 2026, []), null);
+    });
+
+    test('the three real grades are untouched', () => {
+        assert.equal(getALEntitlement(mk('CEA'), 2026, []), 32);
+        assert.equal(getALEntitlement(mk('CES'), 2026, []), 34);
+        assert.equal(typeof getALEntitlement(mk('Dispatcher'), 2026, []), 'number');
+    });
+
+    test('proRatedAL still wins for a real grade, and does NOT rescue an unknown one', () => {
+        assert.equal(getALEntitlement(mk('CEA', { proRatedAL: { 2026: 19 } }), 2026, []), 19);
+        // A pro-rated figure is an override of a known entitlement, not a substitute for having one
+        // — but it is checked FIRST, so this documents the real order rather than assuming it.
+        assert.equal(getALEntitlement(mk('Management', { proRatedAL: { 2026: 19 } }), 2026, []), 19);
+    });
+
+    describe('alPosition propagates the refusal instead of doing arithmetic on it', () => {
+        test('entitlement and remaining are both null', () => {
+            const p = alPosition({ overrides: [], member: mk('Management'), year: 2026, todayStr: '2026-09-02' });
+            assert.equal(p.entitlement, null);
+            assert.equal(p.remaining, null,
+                'null - taken - booked is a NUMBER (null coerces to 0), so this is the trap');
+        });
+
+        test('taken and booked are still counted — they are facts either way', () => {
+            const member = mk('Management');
+            // Both dates are real WORKING days for this pattern, checked against `getBaseShift`
+            // rather than assumed — a base rest day does not consume entitlement (the rule tested
+            // higher up), so a careless fixture would count one and read as a propagation bug.
+            const overrides = [
+                { memberName: 'X. Person', type: 'annual_leave', date: '2026-03-03' },
+                { memberName: 'X. Person', type: 'annual_leave', date: '2026-12-01' },
+            ];
+            const p = alPosition({ overrides, member, year: 2026, todayStr: '2026-09-02' });
+            assert.equal(p.entitlement, null);
+            assert.equal(p.taken + p.booked, 2, 'days actually recorded are true whatever the entitlement');
+        });
+
+        test('a real grade is completely unaffected', () => {
+            const p = alPosition({ overrides: [], member: mk('CEA'), year: 2026, todayStr: '2026-09-02' });
+            assert.equal(p.entitlement, 32);
+            assert.equal(p.remaining, 32);
+        });
+    });
 });

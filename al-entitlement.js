@@ -147,7 +147,8 @@ export function countedAlDates({ overrides, member, year, exclude = null }) {
  * @param {any} args.member the team-member object
  * @param {string|number} args.year
  * @param {string} args.todayStr today as `YYYY-MM-DD` — passed in, never read from a clock
- * @returns {{entitlement:number, taken:number, booked:number, remaining:number}}
+ * @returns {{entitlement:number|null, taken:number, booked:number, remaining:number|null}}
+ *   entitlement/remaining are null when the role has no entitlement on record — render neither.
  */
 export function alPosition({ overrides, member, year, todayStr }) {
     const entitlement = getALEntitlement(member, parseInt(String(year), 10), overrides);
@@ -159,5 +160,12 @@ export function alPosition({ overrides, member, year, todayStr }) {
         if (d <= todayStr) taken++;
         else booked++;
     }
+    // NO ENTITLEMENT ON RECORD PROPAGATES AS null, IT DOES NOT BECOME A NUMBER (v22.45).
+    // `entitlement - taken - booked` on a null entitlement is a NUMBER — `0 - 1 - 0` — because
+    // null coerces to 0. So the one arithmetic that looks harmless is the one that would invent a
+    // remaining figure out of nothing and render it as confidently as a real one. Taken and booked
+    // are still counted: those are facts about days actually recorded, true whatever the
+    // entitlement is, and a caller may want them.
+    if (entitlement === null) return { entitlement: null, taken, booked, remaining: null };
     return { entitlement, taken, booked, remaining: entitlement - taken - booked };
 }

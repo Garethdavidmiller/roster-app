@@ -304,8 +304,10 @@ test('getALEntitlement: all CEAs incl. fixed-line (C. Reen) get the standard 32 
     assert.equal(getALEntitlement({ name: 'K. Jedlinski', role: 'CEA', rosterType: 'fixed' }), 32);
 });
 
-test('getALEntitlement: null member returns default 32 days', () => {
-    assert.equal(getALEntitlement(null), 32);
+test('getALEntitlement: an unresolved member is refused, not defaulted', () => {
+    // v22.45: an unresolved member is REFUSED, not handed a CEA's 32. See the null-entitlement
+    // block in al-entitlement.test.mjs for why a fall-through default is the dangerous answer here.
+    assert.equal(getALEntitlement(null), null);
 });
 
 // ---------------------------------------------------------------------------

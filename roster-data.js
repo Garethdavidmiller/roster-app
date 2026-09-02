@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '22.44';
+export const APP_VERSION = '22.45';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -416,10 +416,13 @@ export function isWorkedShift(shift) {
  * @param {any}    member    - teamMembers entry
  * @param {number} [year]    - calendar year; defaults to current year
  * @param {Array<any>}  [overrides] - all override objects for this member; defaults to []
- * @returns {number}
+ * @returns {number|null} null when there is no entitlement on record for this member — either the
+ *   member could not be resolved at all, or their role has no leave figure here. Callers must TEST
+ *   for it and refuse to render, never coerce: `null - taken - booked` is a plausible NUMBER, not
+ *   NaN, so the one arithmetic that looks harmless is the one that invents a balance.
  */
 export function getALEntitlement(member, year = new Date().getFullYear(), overrides = []) {
-    if (!member) return 32;
+    if (!member) return null;   // unresolved member — see the null convention below
     // Pro-rated entitlement takes priority for joiners, regardless of role
     if (member.proRatedAL && member.proRatedAL[year] !== undefined) return member.proRatedAL[year];
     if (member.role === 'Dispatcher') return 22 + countDispatcherBankHolidaysWorked(member, year, overrides);
@@ -427,7 +430,16 @@ export function getALEntitlement(member, year = new Date().getFullYear(), overri
     // Every CEA — main, bilingual, or fixed (C. Reen, plus any temporary fixed line) — gets
     // the standard 32. There is no fixed-roster AL premium
     // (corrected June 2026: C. Reen is contractually CEA, not CEA-BL, so 32, not 34).
-    return 32;
+    if (member.role === 'CEA') return 32;
+    // NO ENTITLEMENT ON RECORD REFUSES RATHER THAN GUESSING (v22.45). This used to fall through to
+    // `return 32`, so a Management row — or any role added later — would have been handed a CEA's
+    // leave: a complete, plausible figure belonging to somebody else. **Not a defect anyone could
+    // reach today**, and the comment should say so rather than imply a fix: all seven Management
+    // rows carry `hidden: true`, so `populateMemberDropdown` omits them and no surface can select
+    // one. It is one un-set flag away, which is the whole reason to close it — the same
+    // fall-through shape that DID give a Dispatcher somebody else's pay rate until v21.78.
+    // `null`, never 0: a zero is a claim about their leave and this function has none to make.
+    return null;
 }
 
 /**

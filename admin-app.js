@@ -535,15 +535,22 @@ export function init() {
         if (!alMember || !banner) return;
         const memberName  = alMember.value;
 
-        if (!memberName) {
+        /** Hide every figure this card states. There are now three ways to have nothing truthful to
+         *  say — no member selected, a name that resolves to nobody, and a member with no
+         *  entitlement on record (v22.45) — and all three must clear the HEADER chip as well as the
+         *  banner. The middle one did not: it hid the banner and left "AL left: 32" sitting in the
+         *  collapsed header, the previous member's number under the new member's name. Found while
+         *  adding the third; one shared exit is why a fourth cannot repeat it. */
+        const showNothing = () => {
             banner.hidden = true;
             const _hb = document.getElementById('alHeaderBalance');
             if (_hb) _hb.hidden = true;
-            return;
-        }
+        };
+
+        if (!memberName) { showNothing(); return; }
 
         const member      = teamMembers.find(m => m.name === memberName);
-        if (!member)      { banner.hidden = true; return; }
+        if (!member)      { showNothing(); return; }
 
         const alFrom      = /** @type {HTMLInputElement|null} */ (document.getElementById('alFrom'));
         const yearStr     = alFrom?.value ? alFrom.value.substring(0, 4) : (fieldDate.value ? fieldDate.value.substring(0, 4) : String(new Date().getFullYear()));
@@ -555,6 +562,14 @@ export function init() {
             year: yearStr,
             todayStr: formatISO(new Date()),
         });
+
+        // NO ENTITLEMENT ON RECORD → SHOW NO FIGURES (v22.45). Unreachable today (a Management
+        // account is `hidden`, so it is in no selector), which is exactly why the old
+        // fall-through to 32 sat here unnoticed. Hiding is the honest answer: every number in this
+        // banner is derived from the entitlement, and there is nothing truthful to put in them.
+        // Both are checked, not just one: they come back null together, and asking about each is
+        // what lets the type checker prove the arithmetic below can never see one.
+        if (entitlement === null || remaining === null) { showNothing(); return; }
 
         remEl.textContent    = String(remaining);
         takenEl.textContent  = String(taken);
@@ -782,6 +797,11 @@ export function init() {
             const years = [...new Set(alInBatch.map(e => e.date.substring(0, 4)))];
             for (const yearStr of years) {
                 const entitlement = getALEntitlement(member, parseInt(yearStr, 10), getAllOverrides());
+                // No entitlement on record → no cap to project against, so ask nothing (v22.45).
+                // The alternative is a confirm bar built on a number this app does not have, which
+                // is worse than no bar: it would teach a manager that the warning means something.
+                // The WRITE still goes ahead — refusing to judge is not refusing to record.
+                if (entitlement === null) continue;
                 // Existing AL for the year, less the dates this batch OVERWRITES or DELETES (they
                 // are re-accounted via newALDates, or removed). The Sunday and rest-day rules live
                 // in al-entitlement.js so this can not drift from the banner or admin-al.js.
@@ -835,13 +855,32 @@ export function init() {
     // Declared here because the fieldMember change handler references them.
     const alMember   = /** @type {HTMLSelectElement} */ (document.getElementById('alMember'));
     const sickMember = /** @type {HTMLSelectElement} */ (document.getElementById('sickMember'));
+    /** Fill (or hide) one card's "Recording for <name>" row.
+     *  Shown only to a manager or admin: they are the only identities that can point these cards at
+     *  somebody else, and for a self-service member the row would state the one fact they already
+     *  know. It reads the LIVE `currentIsAdmin`/`currentIsManager` rather than a captured value —
+     *  the in-place sign-in path assigns those inside initAuthorised(), after this module loaded
+     *  signed out. Empty name ⇒ hidden, never a row saying "Recording for" with nothing after it.
+     *  @param {string} rowId  id of the .card-member-for row
+     *  @param {string} nameId id of the .cmf-name span inside it
+     */
+    function _syncMemberFor(rowId, nameId) {
+        const row  = document.getElementById(rowId);
+        const name = document.getElementById(nameId);
+        if (!row || !name) return;
+        const who = (currentIsAdmin || currentIsManager) ? fieldMember.value : '';
+        name.textContent = who;
+        row.hidden = !who;
+    }
     function syncMemberDisplay() {
         const memberDisplay = document.getElementById('alMemberDisplay');
         if (memberDisplay) memberDisplay.textContent = fieldMember.value || 'Select a staff member above';
+        _syncMemberFor('alMemberFor', 'alMemberForName');
     }
     function syncSickMemberDisplay() {
         const memberDisplay = document.getElementById('sickMemberDisplay');
         if (memberDisplay) memberDisplay.textContent = fieldMember.value || 'Select a staff member above';
+        _syncMemberFor('sickMemberFor', 'sickMemberForName');
     }
 
     // Preview refreshers exposed by initALSection / initSickSection (assigned when those
