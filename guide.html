@@ -169,7 +169,7 @@
                 <li>Tap <strong>📝 Admin</strong> on the main screen</li>
                 <li>Pick <strong>your name</strong> from the dropdown</li>
                 <li>Enter your <strong>password</strong> — your <strong>surname</strong> by default (lowercase, no spaces or punctuation), or a password you've set yourself</li>
-                <li>Tap <strong>Sign in</strong> — you stay signed in for <strong>60 days</strong>, however often or rarely you open the app</li>
+                <li>Tap <strong>Sign in</strong> — you stay signed in for <strong>60 days</strong>, whether you open the app every day or once a month</li>
             </ol>
             <div class="info"><strong>Example:</strong> "D. Smith" → the default password is <code>smith</code></div>
             <div class="info tip"><strong>Set your own password</strong> in <strong>☰ Settings → 🔑 Password</strong> — it replaces the surname default with one only you know. You'll be asked to choose one the next time you sign in, so the surname default is on its way out. Forgotten it? The admin can reset it back to your surname — <strong>speak to the admin</strong>.</div>
@@ -179,8 +179,8 @@
             <ol class="steps">
                 <li>Pick the <strong>staff member</strong> in the bar at the top</li>
                 <li>Move to the <strong>week</strong> you need — swipe or use ‹ ›, or tap the date to jump</li>
-                <li>On the day, tap a <strong>type</strong>: AL · Shift · RDW · Absent · Rest · Other</li>
-                <li>The card highlights (gold edge) to show it's selected</li>
+                <li>On the day, tap a <strong>type</strong>: AL · Shift · RDW · Absent · Rest Day · Other</li>
+                <li>The day gets a gold edge to show it's selected</li>
                 <li>Enter <strong>Start / End times</strong> for types that need them</li>
                 <li>Check the <strong>"You're about to save…"</strong> line, then tap <strong>Save changes</strong></li>
             </ol>
@@ -188,6 +188,9 @@
 
             <h2 id="sg-apply-to-several-days">Apply to Several Days</h2>
             <p>Tick the boxes on several days to open the <strong>Apply to multiple days</strong> bar: pick the days (Mon–Fri, Working days, All 7), choose a type, and tap <strong>Apply to ticked days</strong>. For leave spanning several days, use the <strong>Record Annual Leave</strong> card and pick a date range instead.</p>
+
+            <h2 id="sg-leave-absence">Leave &amp; Absence</h2>
+            <p>The <strong>🏖️ Record Annual Leave</strong> and <strong>🪑 Record Absence</strong> cards each take a <strong>date range</strong> — rest days and Sundays are skipped automatically. The AL card shows the running balance as you go.</p>
 
             <h2 id="sg-saved-changes">Saved Changes</h2>
             <p>The <strong>📋 Saved Changes</strong> card lists everything recorded. Filter by staff member and month; tap a row to edit or delete. Rows tagged <strong>roster upload</strong> came from the weekly PDF — you can still edit or remove them.</p>
@@ -210,18 +213,17 @@
                 </tbody>
             </table>
 
+            <h2 id="sg-sundays">Sundays</h2>
+            <div class="info">Sundays are <strong>uncontracted</strong> for every grade, so <strong>AL</strong> and <strong>Absent</strong> can't be recorded on them. A worked Sunday is always <strong>RDW</strong> (1.5×), never annual leave or absence.</div>
             <h2 id="sg-the-other-family">The "Other" Family</h2>
             <p>Tap <strong>Other</strong> and a small menu appears — pick <strong>Training, Induction, Assessment, Team Day, Union</strong> or <strong>Meeting</strong>. These <em>pay as the day underneath</em> (the shift they replace), so times are optional. Tick <strong>Rest day (RDW)</strong> if it fell on a rest day.</p>
             <div class="info"><strong>📋 Spare</strong> also lives in the Other menu. It's a rarely-used placeholder for a standby day whose shift isn't set yet — it keeps its own purple badge and doesn't pay a premium.</div>
 
             <h2 id="sg-weekly-roster-upload-admins-only">Weekly Roster Upload <span class="admins-only">Admins only</span></h2>
-            <p>Admins upload the weekly roster PDF in <strong>Operations</strong> — an admin-only page most staff won't see. The app reads it and shows a <strong>review</strong> grouped by person: ticked rows will save, and where a day clashes with something already recorded it asks <strong>Keep saved</strong> or <strong>Use new roster</strong>. Nothing is written until you confirm.</p>
+            <p>Admins upload the weekly roster PDF in <strong>Operations</strong> — an admin-only page most staff won't see. The app reads it and shows a <strong>review</strong> grouped by person: ticked rows will save, and where a day clashes with something already recorded it asks <strong>Keep saved</strong> or <strong>Use new roster</strong>. Nothing is written until you confirm, and the PDF itself is on the review to check against.</p>
+            <div class="info tip"><strong>Rows can arrive unticked, and that is the app being careful.</strong> If somebody's week lines up better with their own pattern <em>shifted a day</em>, their rows start unticked with a warning — check each day against the PDF and tick only what you've confirmed. If <strong>several</strong> people drift the same way it isn't a coincidence, it's a misread: the whole upload is refused, nothing is selected and there is no Save button. Read the roster again rather than looking for a way round it.</div>
+            <div class="info">A cell the app <strong>couldn't read</strong> gets a row you can answer in place — tap a type, and add times for Shift or RDW. Leave it alone and nothing is written for that day.</div>
 
-            <h2 id="sg-leave-absence">Leave &amp; Absence</h2>
-            <p>The <strong>🏖️ Record Annual Leave</strong> and <strong>🪑 Record Absence</strong> cards each take a <strong>date range</strong> — rest days and Sundays are skipped automatically. The AL card shows the running balance as you go.</p>
-
-            <h2 id="sg-sundays">Sundays</h2>
-            <div class="info">Sundays are <strong>uncontracted</strong> for every grade, so <strong>AL</strong> and <strong>Absent</strong> can't be recorded on them. A worked Sunday is always <strong>RDW</strong> (1.5×), never annual leave or absence.</div>
         </div>
     </div>
 
