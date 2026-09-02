@@ -55,8 +55,14 @@ if (!runnable.length) {
 console.log(`test-nodeps: ${runnable.length} of ${all.length} suites need nothing installed.`);
 console.log(`             skipping ${[...NEEDS_DEPS].sort().join(', ')}\n`);
 
-// The module-mocks flag is what several suites are written against; harmless to the rest.
+// BOTH experimental flags, and neither needs anything installed. `--experimental-test-module-mocks`
+// is what several suites are written against; `--experimental-vm-modules` is what `module-parse`
+// needs to build a `vm.SourceTextModule`, and without it that suite SKIPS ITSELF — honestly, with a
+// reason, but it still skips. An external reviewer running this lane reported the skip and had to
+// go and run that one suite by hand to cover it. A lane whose whole claim is "this runs with
+// nothing installed" should not need a footnote, least of all for the suite that catches a fatal
+// SyntaxError shipping to a page. Both flags are harmless to every other suite.
 const res = spawnSync(process.execPath,
-    ['--experimental-test-module-mocks', 'scripts/run-tests.mjs', ...runnable],
+    ['--experimental-test-module-mocks', '--experimental-vm-modules', 'scripts/run-tests.mjs', ...runnable],
     { stdio: 'inherit', cwd: new URL('..', import.meta.url) });
 process.exit(res.status ?? 1);
