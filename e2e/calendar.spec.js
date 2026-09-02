@@ -10,10 +10,13 @@ import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword
 // The gate itself is covered end-to-end in calendar-pin.spec.js.
 // A test that also seeds a member session still gets the member: the stub ranks them that way,
 // exactly as `decideAccess` does.
-// The staff PIN is switched OFF in the shipped config while the feature is deployed dark
-// (v20.17). Turn it on here so these keep covering the configuration the app is heading for,
-// and seed a viewer session to satisfy it — otherwise every calendar test silently starts
-// running against the old open model and the gate goes untested.
+// These set the PIN explicitly rather than inheriting `CONFIG.CALENDAR_PIN_ACCESS`, and seed a
+// viewer session to satisfy it. Deliberate, and the value is NOT restated here — `roster-data.js`
+// owns it, and a comment repeating it is the defect this repo names most often (this one did, and
+// said "switched OFF … deployed dark" for the five weeks after the flag went live). A suite that
+// INHERITS the flag silently changes what it covers on the day the flag moves, and the direction
+// that costs something is a calendar suite falling back to the old open model with the gate
+// untested.
 test.beforeEach(async ({ page }) => { await enableCalendarPin(page); await seedViewerAccess(page); });
 
 

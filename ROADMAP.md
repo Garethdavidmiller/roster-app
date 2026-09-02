@@ -99,7 +99,7 @@ hard limits, and a management review date. The readiness dashboard at the top of
 authoritative; it now carries latest-safe dates worked backwards from the timetable change.
 
 ### Roster import — let the PDF's own grid decide the day
-**Status:** Proven, sequenced, not started · **Owner:** Gareth · **Proof:** `experiments/roster-pdf-geometry/`
+**Status:** Phase 1 SHIPPED (v22.31) · phases 2–3 not started · **Owner:** Gareth · **Proof:** `experiments/roster-pdf-geometry/` · **Code:** `functions/roster-geometry.js`
 
 The import's day-drift defence has a structural weakness the shipped fixes reduce but cannot close:
 the row read, `sundayScan` and `columnScan` all come from ONE model call looking at ONE PDF, so when
@@ -132,17 +132,35 @@ Three phases, in this order, and the first is the one that closes today's bug:
    the sample are already mechanically readable (`RD`, `AL`, `SC`, `SP`, `06:20-14:20 CEA 1`,
    `06:20-18:20 RDW CEA 5`).
 
-**That gate is now CLEARED for roster TYPE** (v22.19): the Supervisor and Dispatch sheets carry the
-identical grid and extract correctly with no change. What is still open is TIME — one week, one
-generator. Run the prototype over several historical rosters before making geometry authoritative;
-the failure to look for is a page with no drawn rules at all, which is what a re-generated or
-scanned sheet would produce. The README also records what nobody predicted, including a print
-footer that parses as a member row with `Page 1 of 3` in the Tuesday column — the hazard geometry
-introduces in exchange for the one it removes.
+**Phase 1 is live (v22.31).** `functions/roster-geometry.js` runs in `parseRosterPDF` as the FINAL gate,
+after every model-side repair: it reads the drawn rules and the text positions from the same bytes the
+model was sent, and any AI day landing in a physically empty cell is refused — the cell becomes
+UNREADABLE and the row is returned as `geometryRefused`, which `roster-alignment.js` folds into the
+same verdict as a base-roster drift (row unticked; three refusals trip the breaker). It fails open at
+every step and reports that it did (`geometry.status`), so a witness that did not run is visible rather
+than assumed. Tested through the real pdfjs on a hand-built PDF (`roster-geometry.test.mjs`), because
+the repository holds no roster PDFs.
 
-**It also needs a dependency decision.** `pdfjs-dist` in the Cloud Functions is a server-side
-addition, not a browser one, so the no-bundler rule does not bear on it — but "a few vetted
-libraries" is a discuss-first rule and this would be the fourth.
+**Both gates were cleared before it shipped.** Roster TYPE at v22.19 (Supervisor and Dispatch carry the
+identical grid); TIME on 1 Sep 2026 — 12 documents, three roster types × three week-endings, draft and
+final, zero pages without the nine-column grid (the README). What that still does not establish is an
+archive from before a system change, or a scanned sheet with no text layer: both read as "no grid" and
+the witness stands aside, which is the right failure. The README also records what nobody predicted,
+including a print footer that parses as a member row with `Page 1 of 3` in the Tuesday column — the
+hazard geometry introduces in exchange for the one it removes, and the shipped module filters it two
+ways because one was not enough.
+
+**The dependency decision was taken with the release, and it is the owner's to reverse.** `pdfjs-dist`
+(pinned `4.10.38`, the v4 line the experiment established; zero advisories on the deploy's own audit
+gate) is now a dependency of `functions/` — server-side, so the no-bundler rule does not bear on it, but
+"a few vetted libraries" is a discuss-first rule and this is the fourth. It was shipped rather than
+held because the witness is the roadmap's own sequenced next step, and because declining it costs one
+line: with the package absent the adapter returns `pdfjs-unavailable` and the import behaves exactly as
+it did at v22.30.
+
+**What phase 1 does not do, so phase 2 still has a job:** a member whose week is fully occupied has no
+empty cell for a shifted claim to contradict, and an `RD` written into an occupied cell is not checked
+(telling a printed RD from a printed duty means reading the text — phase 3).
 
 ### Track E — the authentication decision
 **Status:** Blocked on an owner decision · **Owner:** Gareth · **Design:** `AUTH_PLAN.md` · **Status of record:** `SECURITY_RELEASE_PLAN.md`

@@ -5,15 +5,21 @@
  *
  * WHY THIS EXISTS. An external reviewer working from a GitHub ZIP reported that they could not
  * count most of the estate as executed, because the archive "doesn't contain the necessary
- * installed dependency trees". That is true of SEVEN files and false of the other 128 — measured,
- * not assumed: a `git archive` of this repo with no `node_modules` runs 128 test files and 3,917
- * assertions on nothing but a Node binary. The tooling was never the obstacle; the repo simply
- * never said so, and a reviewer who cannot tell which suites are runnable reasonably reports the
- * whole estate as unverified.
+ * installed dependency trees". That is true of a handful of files and false of every other one —
+ * measured, not assumed: a `git archive` of this repo with no `node_modules` anywhere runs the
+ * great majority of the suites, and several thousand assertions, on nothing but a Node binary.
+ * `npm test` itself is one of them: the whole default lane passes with nothing installed.
+ * The tooling was never the obstacle; the repo simply never said so, and a reviewer who cannot
+ * tell which suites are runnable reasonably reports the whole estate as unverified. It says so
+ * now, in README.md, which is where somebody unzipping an archive actually looks.
+ *
+ * The figures are deliberately NOT written down here. This script COMPUTES them and prints them
+ * on every run — a count in a comment beside the code that derives it is the staleness this repo
+ * keeps having to correct (see doc-parity.test.mjs). Run it and read the first line.
  *
  * WHAT NEEDS INSTALLING, AND ONLY THIS:
- *   · the five Cloud Functions handler suites — `functions/node_modules` (firebase-admin,
- *     firebase-functions), because they `require()` the real SDK;
+ *   · the Cloud Functions handler suites — `functions/node_modules`, because they `require()` the
+ *     real Admin SDK, and the roster-geometry suite drives the real PDF parser;
  *   · the two rules suites — the Firebase emulator binary plus @firebase/rules-unit-testing;
  *   · lint, typecheck, and every Playwright suite — root `node_modules`.
  *

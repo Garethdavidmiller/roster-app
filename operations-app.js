@@ -768,7 +768,7 @@ export function init() {
                 sections: [{ items: [
                     { icon: '📰', html: 'Upload the Weekly Retail Circular (PDF or Word) — staff open it from <strong>☰ → Weekly Retail Circular</strong>' },
                     { icon: '🔄', html: 'Uploading a new file for the same date overwrites the previous one' },
-                    { icon: '📅', html: 'Set the date to the week the circular covers — usually the Friday it was issued' },
+                    { icon: '📅', html: 'Set the date to <strong>the day it was issued</strong> — usually a Friday. The picker will not accept a future date, so a circular covering next week is still filed under the day it arrived' },
                 ]}],
             },
             'newsletter': {
@@ -783,7 +783,7 @@ export function init() {
                 title: 'Weekly Roster upload',
                 sections: [
                     { heading: 'How it works', items: [
-                        { icon: '1️⃣', html: 'Choose the <strong>roster type</strong> (CEA/Bilingual, CES, or Dispatcher) and the <strong>week ending date</strong> (always a Saturday)' },
+                        { icon: '1️⃣', html: 'Choose the <strong>roster type</strong> (CEA/Bilingual, CES, or Dispatcher) and the <strong>week ending date</strong> — always a Saturday, and a date that is not one is moved forward to the next Saturday for you' },
                         { icon: '2️⃣', html: 'Choose the PDF roster file and tap <strong>Read roster</strong> — the app reads the shifts. It usually takes under a minute, sometimes a good deal longer — the spinner means it is still working' },
                         { icon: '3️⃣', html: 'Review each person\'s changes — <strong>Save</strong> or <strong>Skip</strong> each day individually' },
                         { icon: '4️⃣', html: 'Tap <strong>Save changes</strong> to write approved shifts to the roster' },
@@ -800,7 +800,7 @@ export function init() {
                     { icon: '🔐', html: 'Creates an app login for every active staff member so the app knows who is saving changes' },
                     { icon: '✅', html: 'Safe to run any time — existing accounts are kept as they are, and only new joiners get an account added' },
                     { icon: '👤', html: 'Run this whenever someone <strong>joins</strong> the roster to give them access' },
-                    { icon: '🚪', html: 'Tick <strong>"Disable accounts for leavers"</strong> and run it when someone <strong>leaves</strong> — their account is disabled so they can no longer sign in' },
+                    { icon: '🚪', html: 'Tick <strong>“Disable accounts for anyone no longer on the roster”</strong> and run it when someone <strong>leaves</strong> — their account is disabled so they can no longer sign in' },
                 ]}],
             },
             'reset-requests': {
@@ -817,12 +817,16 @@ export function init() {
                 sections: [
                     { heading: 'What it shows', items: [
                         { icon: '📧', html: 'Each person\'s <strong>work email</strong> — the address if they\'ve added one, or "No work email" if not. Used for <strong>self-service password reset in a future update</strong>; nothing uses it right now.' },
-                        { icon: '🔑', html: 'Their <strong>password</strong> — either <strong>Own password</strong> (they\'ve set their own in ☰ → Settings → Password) or <strong>Surname default</strong> (still the guessable default).' },
-                        { icon: '🔒', html: 'Each person can only see their <strong>own</strong> email; as admin you see everyone\'s. Use the <strong>All / CEA / CES / Dispatcher / Management</strong> filter to track each grade.' },
+                        { icon: '🔑', html: 'Their <strong>password</strong> — either <strong>✓ Own</strong> (they\'ve set their own in ☰ → Settings → Password) or <strong>Default</strong> (still on the guessable surname default).' },
+                        { icon: '🔒', html: 'Each person can only see their <strong>own</strong> email; as admin you see everyone\'s. Use the <strong>All grades / CEA / CES / Dispatcher / Management</strong> filter to track each grade.' },
                     ]},
                     { heading: 'Work email', items: [
-                        { icon: '⚙️', html: 'CEA, CES, and Dispatcher staff can add their own email in ☰ → <strong>Settings → Work Email</strong> — the easiest way to get them to register.' },
-                        { icon: '📝', html: 'You can enter, edit, or remove an email on anyone\'s behalf with the <strong>Set email</strong> / <strong>Edit</strong> buttons — useful if they\'re having trouble, or for <strong>Management accounts</strong> (which have no Settings page of their own).' },
+                        // Settings is open to ANY named user — `auth-policy.js` gates it on `requireNamed`
+                        // with no role. This said CEA/CES/Dispatcher, and that Management had no
+                        // Settings page, which would have had an admin doing by hand what the
+                        // member can do themselves.
+                        { icon: '⚙️', html: 'Anyone who can sign in can add their own email in ☰ → <strong>Settings → Work Email</strong> — Management included. That is the easiest way to get them registered.' },
+                        { icon: '📝', html: 'You can do it on anyone\'s behalf here — <strong>Set email</strong> or <strong>Edit</strong> to enter one, and a separate <strong>Remove</strong> button to clear it. Useful if somebody is having trouble doing it themselves.' },
                     ]},
                     { heading: 'Resetting a password', items: [
                         // Both lines rewritten at v21.94: Reset is offered to EVERYONE (see
@@ -836,13 +840,13 @@ export function init() {
                 title: 'Usage',
                 sections: [
                     { heading: 'What it shows', items: [
-                        { icon: '👥', html: '<strong>Roster in use</strong> — how many <strong>member-and-device pairs</strong> opened the app this calendar month and over the last 30 days. Simply opening the app counts, <strong>including just looking at the roster without signing in</strong>' },
+                        { icon: '👥', html: '<strong>Roster in use</strong> — how many <strong>member-and-device pairs</strong> opened the app this calendar month and over the last 30 days. Simply opening the app counts, <strong>including just looking at the roster without signing in</strong>. Two things are never counted: <strong>your own visits as admin</strong>, and a brand-new device before anybody has picked a member on it' },
                         { icon: '🧮', html: 'It is not a headcount of people, which is why it is no longer labelled "accounts". One person on a phone <em>and</em> a laptop counts <strong>twice</strong>; on a shared device it follows <strong>whichever member is selected</strong>, who need not be the person holding it. For the exact count of distinct accounts, see the block below' },
                         { icon: '📈', html: 'That last part changed in <strong>August 2026</strong>. Before then this counted only people who opened a page you must sign in for, so it missed anyone who just reads their shifts — most of the staff. Expect a <strong>step up</strong> from that point; figures either side of it aren\'t comparable' },
-                        { icon: '📊', html: '<strong>Page popularity</strong> — how many times each page has been opened this month, and how many times each document and guide has been opened' },
+                        { icon: '📊', html: '<strong>Page popularity</strong> — how many times each page has been opened, and how many times each document and guide has been opened. <strong>This month / Last month</strong> switches the window' },
                     ]},
                     { heading: 'Which address staff are on', items: [
-                        { icon: '\u{1F6A6}', html: 'While the app is served from <strong>two addresses</strong>, this shows how far the move has got — unique accounts on each over the last 30 days, and how many opened the <strong>installed</strong> app rather than a browser tab' },
+                        { icon: '\u{1F6A6}', html: 'While the app is served from <strong>two addresses</strong>, this shows how far the move has got — <strong>account-device signals</strong> on each over the last 30 days, directional rather than a headcount, and how many opened the <strong>installed</strong> app rather than a browser tab' },
                         { icon: '\u{1F4CD}', html: 'Someone using <strong>both</strong> addresses counts on each — that is what half-migrated looks like. An install nobody has <em>opened</em> in 30 days is invisible here, so treat it as a floor' },
                     ]},
                     { heading: 'Sign-ins vs opens', items: [
@@ -860,8 +864,8 @@ export function init() {
                 title: 'App Speed',
                 sections: [
                     { heading: 'What it shows', items: [
-                        { icon: '⚡', html: 'How long pages took to <strong>open</strong> for staff this month, grouped into <strong>Quick</strong> (under 1s), <strong>A moment</strong> (1–3s) and <strong>Slow</strong> (over 3s)' },
-                        { icon: '📄', html: 'The bar for each page shows the mix — a page with a lot of red is opening slowly for some staff' },
+                        { icon: '⚡', html: 'How long pages took to <strong>open</strong> for staff, with a <strong>This month / Last month</strong> switch, grouped into <strong>Quick</strong> (under 1s), <strong>A moment</strong> (1–3s) and <strong>Slow</strong> (over 3s)' },
+                        { icon: '📄', html: 'Each page has up to <strong>three</strong> bars — when it <strong>appears</strong>, when its <strong>code has loaded</strong>, and when it is <strong>usable</strong>. Each shows the mix, so a bar with a lot of red is that milestone arriving slowly for some staff' },
                         { icon: '🔑', html: '<strong>Signing in</strong> counts only <strong>fresh sign-ins</strong> — normally fewer than the accounts on the Usage card, because most staff open the app on a saved session without signing in again' },
                     ]},
                     { heading: 'How to read it', items: [
@@ -877,11 +881,11 @@ export function init() {
                 title: 'Error Log',
                 sections: [
                     { heading: 'What it captures', items: [
-                        { icon: '🐛', html: 'Errors the app ran into on <strong>any page across the app</strong> (calendar, pay calculator, admin, operations, settings, links) — across all staff, not just you' },
-                        { icon: '⎘', html: 'Tap <strong>⎘ Copy</strong> on any error to copy all details (message, page, app version, browser) formatted for diagnosis' },
+                        { icon: '🐛', html: 'Errors the app ran into on <strong>any page across the app</strong> (calendar, pay calculator, admin, operations, settings, links, overtime) — across all staff, not just you' },
+                        { icon: '⎘', html: 'Tap <strong>⎘ Copy details</strong> on any error to copy it formatted for diagnosis — the message, the page, the app version, the device, the time, and <strong>the name of the member it happened to</strong>. Unlike the two cards above, this one is not anonymous' },
                     ]},
                     { heading: 'Resolving errors', items: [
-                        { icon: '✓', html: 'Tapping <strong>Resolve</strong> marks an error as reviewed and hides it from the active list — it is <strong>not deleted immediately</strong>, just archived for 90 days then pruned automatically' },
+                        { icon: '✓', html: 'Tapping <strong>Resolve</strong> marks an error as reviewed. It <strong>stays in the list</strong>, dimmed and below the unresolved ones, so you can see what you have already been through — up to 30 of them. It is not deleted immediately either: resolved errors are kept for 90 days, then pruned automatically' },
                         { icon: '🔄', html: 'You don\'t need to manually clean up the log — resolved errors expire on their own' },
                     ]},
                     { heading: 'What to act on', items: [

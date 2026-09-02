@@ -14,7 +14,7 @@ import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from 
 // three test files for no behavioural gain.
 export { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange };
 import { setStatus } from './status-text.js';
-import { assessRosterAlignment } from './roster-alignment.js';
+import { assessRosterAlignment, driftCopy, stopCopy } from './roster-alignment.js';
 
 const RDW_PREFIX   = 'RDW|';
 const isRdwEncoded = /** @param {any} v */ v => typeof v === 'string' && v.startsWith(RDW_PREFIX);
@@ -890,20 +890,8 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             const shown = alignment.suspects.slice(0, 4).map(/** @param {string} n */ n => esc(n)).join(', ');
             const more  = alignment.suspects.length - 4;
             const who   = more > 0 ? `${shown} and ${more} more` : shown;
-            // The CAUSE is stated as a possibility, not a diagnosis. A left shift is usually the
-            // blank Sunday column being skipped, and saying so helps — but the same signature can
-            // come from any dropped cell, and on a RIGHT shift the Sunday explanation is simply
-            // wrong. A confident wrong cause sends the admin looking in the wrong place, which is
-            // worse than no cause at all.
-            const likely = alignment.direction === 'left'
-                ? 'usually the blank Sunday column being skipped when the roster is read'
-                : 'a sign a cell was misread when the roster was read';
-            stop.innerHTML = `<span aria-hidden="true">⛔</span> <strong>This read looks one day out and has not been saved.</strong>`
-                + ` ${alignment.suspects.length} staff line up with their usual pattern shifted a day`
-                + ` ${alignment.direction === 'left' ? 'earlier' : 'later'} — ${who}.`
-                + ` That is ${likely} — not everyone changing their week at once.`
-                + ` <strong>Nothing has been selected for saving.</strong>`
-                + ` Read the roster again; if it happens twice, check the PDF against this week by hand.`;
+            // Words live beside the verdict (roster-alignment.js): a geometry refusal has no direction.
+            stop.innerHTML = stopCopy(alignment, who);
             changeList.appendChild(stop);
         }
 
@@ -935,16 +923,13 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             // Day-drift: the one check that does NOT come from the model (roster-alignment.js).
             // WARN-ONLY until v22.16; the rows now start unticked — computeCellStates owns that
             // decision, this states it.
-            // Direction wording: 'left' = each parsed value really belongs to the NEXT day
-            // (parsed[d] matches base[d+1]) — i.e. the usual pattern appears a day EARLIER than
-            // it should. (The first wording had this inverted — v16.69 review fix.)
             const drift = alignment.byMember.get(entry.memberName) || null;
             if (drift && !alignment.blocked) {
                 section.classList.add('roster-person-suspect');
                 const warn = document.createElement('div');
                 warn.className = 'roster-shift-warning';
                 warn.setAttribute('role', 'alert');
-                warn.innerHTML = `<span aria-hidden="true">⚠️</span> <strong>These days may be one day out — nothing here is selected.</strong> ${esc(entry.memberName)}'s week lines up better with their usual pattern shifted a day ${drift === 'left' ? 'earlier' : 'later'}, which usually means a column was skipped when the roster was read. Check each day against the PDF and tick only what you have confirmed, or read the roster again.`;
+                warn.innerHTML = driftCopy(drift, esc(entry.memberName));
                 section.appendChild(warn);
             }
 

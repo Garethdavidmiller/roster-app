@@ -490,11 +490,11 @@ export async function disableCalendarPin(page) {
 /**
  * Switch the staff Calendar PIN ON for one test.
  *
- * The shipped default is `false` while the feature is deployed dark (v20.17), so the specs that
- * exercise the unlock card have to turn it on — the mirror of `disableCalendarPin`, and the reason
- * both exist rather than one: whichever way the production default points, the tests for the OTHER
- * state must say so explicitly instead of inheriting it. When the flag goes live these keep working
- * unchanged, and the pair is what stops the dark-deploy tests quietly becoming no-ops at that point.
+ * The mirror of `disableCalendarPin`, and the reason both exist rather than one: whichever way the
+ * shipped default points, EVERY test says which state it wants instead of inheriting it. That is
+ * what stops a suite silently changing what it covers on the day the flag moves — and it is why
+ * neither helper's comment records the flag's current value. `roster-data.js` owns it; the copy
+ * that used to live here named the wrong one for the five weeks after the PIN went live.
  * Call BEFORE page.goto().
  * @param {import('@playwright/test').Page} page
  */

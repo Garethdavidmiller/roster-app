@@ -1121,6 +1121,16 @@ rather than cell by cell. That is a product decision, not a bug.
 **Do not rebuild the cross-check on the column scan.** The reasoning is repeated in
 `applyColumnScanCrossCheck`'s own header, beside the code, so it is met by whoever tries.
 
+**The geometry witness is now live (v22.31, `functions/roster-geometry.js`), and it closes PART of
+this — say which part.** It refuses any AI day that lands in a physically EMPTY cell, which is the
+blank-Sunday collapse in full: a duty slid into an empty Sunday is refused, the cell is UNREADABLE
+and the row starts unticked. **It does not close the residual above.** An `RD` written for a
+physically empty weekday is exactly the value an empty cell is consistent with, so occupancy cannot
+refute it — distinguishing a printed RD from an empty cell from a printed duty means READING the
+text, which is phase 3 of the ROADMAP's plan. Nor can it see a shifted row whose week is fully
+occupied (nothing empty to contradict; `assessRosterAlignment` stays for that). Both limits are
+stated in the module header and pinned by its tests rather than left to be discovered.
+
 ### Cloud Function payday constant duplicated from `roster-data.js`
 `functions/roster-parse-helpers.js` contains its own `FIRST_PAYDAY_MS` and `INTERVAL_DAYS`
 constants (inside `isPayCutoffDay()`, which `functions/index.js` imports) for the pay-reminder

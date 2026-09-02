@@ -3049,6 +3049,19 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
                 }
                 return n;
             };
+            /** Is `el` scrolled outside any ancestor that clips its overflow? */
+            const clippedByScroller = (el) => {
+                const r = el.getBoundingClientRect();
+                for (let p = el.parentElement; p; p = p.parentElement) {
+                    const st = getComputedStyle(p);
+                    if (!/auto|scroll|hidden/.test(st.overflowX + ' ' + st.overflowY)) continue;
+                    const pr = p.getBoundingClientRect();
+                    // 1px of tolerance: sub-pixel layout puts a flush edge a fraction over.
+                    if (r.left < pr.left - 1 || r.right > pr.right + 1
+                        || r.top < pr.top - 1 || r.bottom > pr.bottom + 1) return true;
+                }
+                return false;
+            };
             const out = [];
             document.querySelectorAll('button, select, [role=button]').forEach(el => {
                 const r = el.getBoundingClientRect();
@@ -3057,6 +3070,21 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
                 // Must be fully on screen to probe outward from, or the walk stops at the edge and
                 // reports a false failure for a control that is merely scrolled out of view.
                 if (r.top < 26 || r.top > innerHeight - 26) return;
+                // …and the same for a control its own SCROLL CONTAINER has clipped, which the
+                // viewport test above cannot see (v22.37). The generator's slot table is wider
+                // than the card at 390px and scrolls inside its wrapper, so the ✕ that removes a
+                // shift row sat at left 371 of a 390 viewport: `elementFromPoint` at its centre
+                // returns the page behind it and the probe reports 1x1, for a control that
+                // measures 30x44 and reaches a full 30x44 the moment its table is scrolled across
+                // — measured both ways. Nothing about that button had changed; shortening the
+                // prose above the table moved it up into the vertical band this guard does check.
+                //
+                // Tested by CLIPPING and not by nearness to the screen edge, which was the first
+                // fix and was too blunt: at 390px a left-aligned control sits at about x=24, so
+                // `r.left < 26` skipped it, and a deliberately shrunken "+ Add another shift"
+                // then sailed through this test. A guard that hides the failure it was widened
+                // for is worse than the false positive it was meant to remove.
+                if (clippedByScroller(el)) return;
                 const w = reach(el, -1, 0) + reach(el, 1, 0) + 1;
                 const h = reach(el, 0, -1) + reach(el, 0, 1) + 1;
                 if (w < 24 || h < 24) {
@@ -4227,6 +4255,62 @@ test('operations: a roster read that looks a day out is refused, and writes noth
     await page.waitForTimeout(500);
     const writes = await page.evaluate(() => (/** @type {any} */ (window).__E2E?.batchWrites || []).length);
     expect(writes, 'a refused read must write nothing even if every row is forced on').toBe(0);
+});
+
+// The PDF's OWN GRID as a witness (v22.31, ROADMAP "Roster import" phase 1). The server refuses a row
+// whose AI-read day lands in a physically empty cell and names it in `geometryRefused`; the client
+// must treat that row exactly like a base-roster drift — unticked, explained — through the same
+// wiring, and its words must not borrow a direction geometry does not have. The unit tests own the
+// verdict; this owns that the verdict reaches the screen with the right sentence on it.
+test('operations: a row the PDF\'s own grid refused starts unticked, and says so in its own words', async ({ page }) => {
+    const { teamMembers, getBaseShift } = await import('../roster-data.js');
+    const { detectShiftedRow } = await import('../roster-alignment.js');
+    const DATES = ['2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08'];
+    const honest = (/** @type {any} */ m) => Object.fromEntries(DATES.map(d => [d, getBaseShift(m, new Date(d + 'T12:00:00'))]));
+    // An HONEST week with one changed day, so the base-roster detector is silent and the only
+    // reason the row is held back is the server's refusal.
+    const m = teamMembers.find(/** @param {any} x */ x => x.name === 'G. Miller');
+    const shifts = { ...honest(m), [DATES[1]]: '22:00-06:00' };
+    expect(detectShiftedRow(m, shifts, DATES), 'fixture: the detector must be silent').toBeNull();
+
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page, {
+        weekEnding: '2026-08-08', rosterType: 'cea', dates: DATES,
+        crossCheck: 'complete', missingMembers: [], choices: {},
+        geometry: { status: 'complete', checked: 1, total: 1, pagesRead: 1, pagesRejected: 0 },
+        geometryRefused: ['G. Miller'],
+        parsed: [{ memberName: 'G. Miller', shifts }],
+    });
+
+    const warn = page.locator('.roster-shift-warning');
+    await expect(warn).toBeVisible();
+    await expect(warn).toContainText("PDF's own table has an empty cell");
+    await expect(warn).not.toContainText('shifted a day');
+    await expect(page.locator('.roster-person-suspect')).toHaveCount(1);
+    await expect(page.locator('.roster-tick:not(.off)')).toHaveCount(0);
+    // The withheld count names the outcome, as it does for a base-roster drift.
+    await expect(page.locator('#rosterOutcome')).toContainText('held back');
+});
+
+test('operations: three rows the PDF\'s own grid refused REFUSE the read, without claiming a direction', async ({ page }) => {
+    const { teamMembers, getBaseShift } = await import('../roster-data.js');
+    const DATES = ['2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08'];
+    const honest = (/** @type {any} */ m) => Object.fromEntries(DATES.map(d => [d, getBaseShift(m, new Date(d + 'T12:00:00'))]));
+    const three = teamMembers.filter(/** @param {any} m */ m => !m.hidden && !m.managerOnly && m.rosterType === 'main').slice(0, 3);
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page, {
+        weekEnding: '2026-08-08', rosterType: 'cea', dates: DATES,
+        crossCheck: 'complete', missingMembers: [], choices: {},
+        geometryRefused: three.map(m => m.name),
+        parsed: three.map(m => ({ memberName: m.name, shifts: { ...honest(m), [DATES[1]]: '22:00-06:00' } })),
+    });
+    const stop = page.locator('.roster-alignment-stop');
+    await expect(stop).toBeVisible();
+    await expect(stop).toContainText('has not been saved');
+    await expect(stop).toContainText("PDF's own table has an empty cell");
+    await expect(stop).not.toContainText('shifted a day');
+    await expect(page.locator('.roster-tick:not(.off)')).toHaveCount(0);
+    await expect(page.locator('#rosterApplyBtn')).toBeHidden();
 });
 
 test('operations: the review offers the original PDF to check against', async ({ page }) => {

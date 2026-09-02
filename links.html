@@ -74,6 +74,7 @@
     <link rel="modulepreload" href="./links-seed.js">
     <link rel="modulepreload" href="./links-target-hours.js">
     <link rel="modulepreload" href="./links-target-sets.js">
+    <link rel="modulepreload" href="./links-tips.js">
     <link rel="modulepreload" href="./links-window.js">
     <link rel="modulepreload" href="./login-overlay.js">
     <link rel="modulepreload" href="./ls.js">
@@ -375,35 +376,15 @@
         </div>
         <div class="card-collapsible-body" id="generatorBody">
             <div class="card-body">
-                <p class="links-desc">List the shifts you need and how many people on each — the station is staffed in waves through the day (opens, mid-morning, middles, afternoons, closes), so add a row for every distinct start time. Weekday, Saturday, and Sunday targets are separate because the roster genuinely differs on those days. The generator keeps each line inside one wave, so a person's week stays on much the same sort of shift; the Design checks below say what the result actually came to.</p>
-                <!-- ONE PARAGRAPH, THEN A LIST (v21.14). This was a single block that grew a clause
-                     at v21.10, another at v21.12 and a third at v21.13 — measured at 360px it ran to
-                     26 lines of unbroken prose above the table, which is a wall in front of the
-                     control it is meant to introduce. The figures are what a reader scans for and a
-                     list is how you scan; the sentences that are ARGUMENTS rather than facts stay
-                     prose, because they are the part worth reading once and not again. -->
-                <p class="links-desc">A new design starts from a table built against the December 2026 train service:</p>
-                <ul class="links-desc gen-intro-list">
-                    <li>Four turns on at the open every day, three through to the close — four on a Saturday.</li>
-                    <li>Five still on at 22:00; fourteen working a Saturday, leaning late for events; ten on a Sunday.</li>
-                    <li>Mon–Sat averaging exactly the contracted week.</li>
-                    <li><strong>Late turns are deliberately shorter than early ones</strong>, bar the one short early.</li>
-                    <li>Every start and finish is a round time, on the quarter hour wherever the station's own opening and closing hours allow.</li>
-                </ul>
-                <p class="links-desc">Monday to Saturday run mostly the same turns — Saturday's morning body starts later, and one of its lates is spent on a fourth closer. It is a starting point to argue with, not a proposal: change anything you like, and read the Design checks and heat map below before anyone takes a printout into a room.</p>
-                <!-- THIS SENTENCE USED TO PROMISE SOMETHING THE TOOL DOES NOT DO (v20.04). It read
-                     "start times only move later through each person's week — never a late finish
-                     followed by an early start". That was written for the ROTATING construction, was
-                     found to be FALSE at v19.59 (positions are read mod `working`, so every line
-                     wraps front-to-back once a week — 27 short turnarounds at full staffing), and
-                     the generator was changed to REFUSE rather than ship the guarantee. The default
-                     construction has not been that one since v19.59 either.
-                     The copy survived all of it, and the page contradicted itself in two places at
-                     once: this paragraph promised start times only move later while the Design
-                     checks card below reported "Backward rotating pattern — 25 backward / 7 forward"
-                     on the very design it had just produced. A designer who believed the promise had
-                     no reason to read the row. Describe what the generator DOES and point at the
-                     checks for what it achieved — never restate a guarantee here. -->
+                <!-- ONE SENTENCE, THEN THE TABLE (v22.32). This card carried three paragraphs and a
+                     five-item list above the control it introduces — most of a 360px screen of prose
+                     before the first input. The facts moved to the `?` panel (links-tips.js → "The
+                     default table"), which is where a first-time question goes; the table is what a
+                     designer uses every time, so it leads. Keep exactly one `.links-desc` here: the
+                     desktop left-edge check in e2e/pages.spec.js measures it, and the standing rule
+                     for its wording is the one in .claude/rules/links-design.md → "The generator
+                     intro must not restate a guarantee". -->
+                <p class="links-desc">List the shifts you need and how many people on each — one row per start time, with weekday, Saturday and Sunday counted separately. A new design opens on a table built against the December 2026 service; the <strong>?</strong> above says what is in it, and the Design checks below say what the result actually came to.</p>
 
                 <div class="generator-form">
                     <div class="gen-slot-table-wrap">

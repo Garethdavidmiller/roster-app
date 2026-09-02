@@ -23,6 +23,7 @@ changed once.
 
 | Subject | Authority | What it owns |
 |---|---|---|
+| **Arriving from outside** | `README.md` | What the app is, and which checks run with nothing installed — the front door, not a summary of this table |
 | **Repository conventions** | `CLAUDE.md` | Version bumping, the file tree, architecture decisions, wording conventions, change impact |
 | **Module routing** | `AI_MAP.md` | What every module is and what it exports |
 | **Authentication & sessions** | `AUTH_AND_SESSIONS.md` | Session ↔ identity ↔ claim, and the invariants across them |

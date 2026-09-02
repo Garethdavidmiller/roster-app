@@ -423,7 +423,22 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
             if (!(kk in entryByDay)) entryByDay[kk] = entry[k];
         }
 
-        const missingKeys = [];
+        // TWO DIFFERENT FACTS, and the warning has to tell them apart (v22.30).
+        //
+        // Since v22.25 the prompt requires a key for EVERY column header, with "BLANK" as the
+        // value of an empty cell — "DO NOT DECIDE WHAT A BLANK CELL MEANS. Report that it was
+        // empty and stop there." So:
+        //   · reportedBlank — the model looked and said the cell was empty. Evidence.
+        //   · absentKey     — the model did not answer for this day at all. It disobeyed an
+        //                     explicit instruction, which is evidence of a READ FAILURE and not
+        //                     evidence that the member was off.
+        //
+        // They still take the same branch below, and on Sunday that branch writes RD. Whether an
+        // absent key should instead go to review is a live question — the answer needs a
+        // compliance rate, and until this split nobody could measure one: BOTH cases logged as
+        // "no cell read for [Sun]", including the case where the cell WAS read and reported empty.
+        const blankKeys = [];
+        const absentKeys = [];
         for (let i = 0; i < columnHeaders.length; i++) {
             const header   = columnHeaders[i];
             const key      = String(header).trim().toLowerCase();  // also used for the tolerant 3-char cell read below
@@ -439,7 +454,7 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
             const blank = isPhysicallyBlank(raw);
 
             if (blank) {
-                missingKeys.push(header);
+                (raw === undefined || raw === null ? absentKeys : blankKeys).push(header);
                 // The same rule as the initialiser above, and it has to be here too: that one only
                 // covers a day whose HEADER the model never listed, and this one a header it listed
                 // with nothing in it. Both were 'RD' until v22.19, so the fix had to be made twice
@@ -453,9 +468,12 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
             shifts[date] = normaliseShift(String(raw).trim());
         }
 
-        if (missingKeys.length > 0) {
-            const sunOnly = missingKeys.every(h => headerToDayIndex(h) === 0);
-            console.warn(`[parseRosterPDF] ${entry.memberName}: no cell read for [${missingKeys.join(', ')}]`
+        if (blankKeys.length > 0 || absentKeys.length > 0) {
+            const parts = [];
+            if (blankKeys.length)  parts.push(`reported blank [${blankKeys.join(', ')}]`);
+            if (absentKeys.length) parts.push(`NO ANSWER for [${absentKeys.join(', ')}]`);
+            const sunOnly = [...blankKeys, ...absentKeys].every(h => headerToDayIndex(h) === 0);
+            console.warn(`[parseRosterPDF] ${entry.memberName}: ${parts.join('; ')}`
                 + (sunOnly ? ' — Sunday, so filled with RD' : ' — sent to review rather than assumed to be a rest day'));
         }
 
@@ -1223,6 +1241,7 @@ module.exports = {
     applySundayScanCorrections,
     applyColumnScanCrossCheck,
     normaliseScanValue,
+    reviewLabel,
     parseStrictIsoDate,
     isPayCutoffDay,
     nameToEmail,

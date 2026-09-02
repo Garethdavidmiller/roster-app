@@ -446,7 +446,7 @@ export function init() {
                     { items: [
                         { icon: '🔑', html: 'Replace your <strong>surname default</strong> with a password only you know — anyone who knows your name can guess the default.' },
                         { icon: '✏️', html: 'Enter your <strong>current</strong> password (your surname, if you haven\'t changed it yet), then a new one of <strong>at least 8 characters</strong>.' },
-                        { icon: '↩️', html: 'Forgotten it? <strong>Ask the admin</strong> — they can reset it back to your surname, then you set a new one.' },
+                        { icon: '↩️', html: 'Forgotten it? On the sign-in screen tap <strong>“Can’t get in?”</strong> — that asks the admin for you. They reset it back to your surname, and you choose a new one when you next sign in.' },
                         { icon: '🔒', html: 'Your password is never shown to anyone, not even the admin.' },
                     ]},
                 ],
@@ -456,7 +456,7 @@ export function init() {
                 sections: [
                     { items: [
                         { icon: '✉️', html: 'Use your <strong>Chiltern work email</strong> — the one the company already sends things to.' },
-                        { icon: '🔑', html: 'It is saved so that one day you can reset your own password by email. That is not built yet: <strong>to reset a password today, ask the admin</strong>.' },
+                        { icon: '🔑', html: 'It is saved so that one day you can reset your own password by email. That is not built yet — today a reset goes through the admin, and the <strong>“Can’t get in?”</strong> link on the sign-in screen asks them for you.' },
                         { icon: '🔒', html: 'Only you and the admin can see it. It is not shown to your manager or to anyone else.' },
                     ]},
                 ],

@@ -24,7 +24,6 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { ROTATING_LINES } from './links-design.js';
-import { CONFIG } from './roster-data.js';
 
 /**
  * Pages that own a CARD_TIPS block, paired with the HTML whose `?` buttons consume it.
@@ -41,7 +40,7 @@ const PAGES = [
     { js: 'admin-app.js',      html: 'admin.html' },
     { js: 'operations-app.js', html: 'operations.html' },
     { js: 'settings-app.js',   html: 'settings.html' },
-    { js: 'links-app.js',      html: 'links.html', scope: { TOTAL_POS: ROTATING_LINES, CONFIG } },
+    { js: 'links-tips.js',     html: 'links.html', scope: { ROTATING_LINES } },
     { js: 'overtime-tips.js',  html: 'overtime.html' },
 ];
 

@@ -29,7 +29,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 
 const read = (/** @type {string} */ f) => readFileSync(new URL(f, import.meta.url), 'utf8');
 const CLAUDE = read('./CLAUDE.md');
@@ -144,6 +144,29 @@ test('every root TEST file is listed in CLAUDE.md', () => {
         'these test files exist but CLAUDE.md does not list them:\n  ' + missing.join('\n  '));
 });
 
+// The same rule for the BROWSER suite, which contract 1 above cannot see: it walks the repo root,
+// and every Playwright spec lives in `e2e/`. So an e2e spec could exist, run on every branch, and
+// be absent from the routing table with nothing to say so — which is exactly what happened to
+// `calendar-pin.spec.js`. It shipped 35 tests covering the staff PIN (the app's one access
+// boundary that a rendered page can check: no roster data in a locked DOM, the splash coming down
+// on the locked path, a viewer refused by the protected pages) and was the ONLY spec of eleven
+// missing from CLAUDE.md's tree. Found by inventory, not by review, which is the argument for
+// checking it mechanically rather than trusting the next reader to notice.
+//
+// Routing only — this says nothing about whether a spec is RUN, because Playwright discovers specs
+// by directory rather than by a list, so there is no second place for one to fall out of.
+test('every e2e spec is routed in CLAUDE.md', () => {
+    let specs = [];
+    try {
+        specs = readdirSync(new URL('./e2e/', import.meta.url))
+            .filter(f => f.endsWith('.spec.js')).sort();
+    } catch { /* no e2e directory in this checkout */ }
+    assert.ok(specs.length > 0, 'no e2e specs found — the guard would pass vacuously');
+    const missing = specs.filter(f => !CLAUDE.includes(f));
+    assert.deepEqual(missing, [],
+        'these e2e specs exist but CLAUDE.md does not list them:\n  ' + missing.join('\n  '));
+});
+
 // A test file that is LISTED and never RUN is worse than one that is neither, because the listing
 // is what a reader checks. `links-contract.test.mjs` shipped at v20.98 as the gate on a money-
 // affecting rule, was teeth-verified by mutation, was written up in CLAUDE.md as "Part of
@@ -219,7 +242,12 @@ const OWNED_COUNTS = [
 
 /** The docs a staff member or a session actually reads. Plans record history and are exempt. */
 const LIVE_DOCS = ['./CLAUDE.md', './AI_MAP.md', './ROADMAP.md', './KNOWN_LIMITATIONS.md',
-    './OPERATIONS_REFERENCE.md', './.claude/rules/links-design.md', './.claude/rules/css-tokens.md'];
+    './OPERATIONS_REFERENCE.md', './.claude/rules/links-design.md', './.claude/rules/css-tokens.md',
+    // README.md is the only one of these written for somebody who has never seen the repo, which
+    // makes it the one most likely to be believed and the least likely to be reread. It joined at
+    // v22.32, when it was written to tell an external reviewer which lanes run with nothing
+    // installed — a claim that is worthless the moment it is out of date.
+    './README.md'];
 
 // ── CONTRACT 1c: AI_MAP KNOWS every export — the other direction of 1b ─────────────────────────
 //
@@ -418,6 +446,41 @@ test('no live doc restates a count that a constant owns', () => {
     assert.deepEqual(problems, [],
         'a count restated in prose renders perfectly while describing something that no longer ' +
         'exists, and nothing reads prose for a number:\n  ' + problems.join('\n  '));
+});
+
+test('every command README.md tells a reviewer to run actually exists', () => {
+    // README.md's whole purpose is to hand a stranger a command that works first time. A command
+    // that has been renamed makes the page worse than absent: it reads as authoritative, fails,
+    // and confirms the belief it was written to correct — that this repo cannot be run without a
+    // full install. Nothing else checks it, because npm scripts are strings and prose is prose.
+    const readme = read('./README.md');
+    const pkg = JSON.parse(read('./package.json'));
+    const problems = [];
+
+    const scripts = [...readme.matchAll(/`?\bnpm run ([a-z0-9:]+)/g)].map(m => m[1]);
+    for (const s of new Set(scripts)) {
+        if (!(s in (pkg.scripts ?? {}))) problems.push(`npm run ${s} — no such script in package.json`);
+    }
+    // `npm test` is the headline claim of the page; it is a script too.
+    if (/`npm test`|npm test\b/.test(readme) && !('test' in (pkg.scripts ?? {}))) {
+        problems.push('npm test — no such script in package.json');
+    }
+    const files = [...readme.matchAll(/`?\bnode (scripts\/[\w.-]+)/g)].map(m => m[1]);
+    for (const f of new Set(files)) {
+        if (!existsSync(new URL('./' + f, import.meta.url))) problems.push(`node ${f} — no such file`);
+    }
+    assert.deepEqual(problems, [],
+        'README.md names a command that does not exist:\n  ' + problems.join('\n  '));
+});
+
+test('and the README command reader still finds them — guard the guard', () => {
+    // If the extraction above silently stopped matching, the contract would pass for ever while
+    // the page rotted. Pin that it sees the two commands the page is built around.
+    const readme = read('./README.md');
+    const found = [...readme.matchAll(/`?\bnpm run ([a-z0-9:]+)/g)].map(m => m[1]);
+    assert.ok(found.length >= 3, `only ${found.length} npm scripts read out of README.md`);
+    assert.match(readme, /node scripts\/test-nodeps\.mjs/,
+        'the no-install lane is the point of the page — if it is gone, so is the reason for it');
 });
 
 test('the count patterns still match something somewhere — guard the guard', () => {

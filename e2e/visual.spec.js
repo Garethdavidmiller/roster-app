@@ -825,7 +825,8 @@ test('overlay — Tips panel (settings, desktop 1280)', async ({ page }) => {
 // assert the field exists, is labelled and is 16px+, none of which would notice the card losing its
 // padding, its badge, or its surface — the exact way the links "Recently deleted" panel shipped as
 // a transparent box at v19.41 with every behavioural test green.
-// The PIN ships switched OFF (v20.17, deployed dark), so these must turn it on rather than inherit
+// These set the PIN explicitly rather than inheriting it (`roster-data.js` owns the value; a
+// second copy in a comment is what goes stale — this line carried one)
 // the default — otherwise the front door stops being baselined the day it ships and nobody notices,
 // which is the failure mode this whole file exists to prevent.
 test('calendar — staff PIN unlock card @1280', async ({ page }) => {

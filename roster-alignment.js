@@ -32,6 +32,9 @@
 
 import { teamMembers, getBaseShift, parseISODate } from './roster-data.js';
 
+/** 'left' | 'right' from the base-roster detector; 'geometry' when the PDF's own grid refused a cell on the row. */
+/** @typedef {'left'|'right'|'geometry'} Drift */
+
 const RDW_PREFIX       = 'RDW|';
 const UNKNOWN_PREFIX   = 'UNKNOWN|';
 const isRdwEncoded     = /** @param {any} v */ v => typeof v === 'string' && v.startsWith(RDW_PREFIX);
@@ -118,12 +121,12 @@ export const ALIGNMENT_BLOCK_THRESHOLD = 3;
  * the WHOLE read untrustworthy, including the rows that happen to look fine — the rows that agree
  * with the base roster are exactly the rows a shift would leave looking unremarkable.
  *
- * @param {{parsed: {memberName: string, shifts: Record<string,string>}[], dates: string[]}} parsedResult
- * @returns {{ byMember: Map<string,'left'|'right'>, blocked: boolean,
- *             direction: 'left'|'right'|null, suspects: string[] }}
+ * @param {{parsed: {memberName: string, shifts: Record<string,string>}[], dates: string[], geometryRefused?: string[]}} parsedResult
+ * @returns {{ byMember: Map<string, Drift>, blocked: boolean,
+ *             direction: 'left'|'right'|null, suspects: string[], geometryRefused: string[] }}
  */
 export function assessRosterAlignment(parsedResult) {
-    /** @type {Map<string,'left'|'right'>} */
+    /** @type {Map<string, Drift>} */
     const byMember = new Map();
     const dates = parsedResult?.dates || [];
     for (const entry of (parsedResult?.parsed || [])) {
@@ -132,14 +135,71 @@ export function assessRosterAlignment(parsedResult) {
         const drift = detectShiftedRow(member, entry.shifts, dates);
         if (drift) byMember.set(entry.memberName, drift);
     }
+    // THE PDF'S OWN GRID (functions/roster-geometry.js, v22.31). A row the server refused holds a
+    // claim in a physically EMPTY cell — misaligned as a matter of fact, not of correlation, and
+    // measured at zero false refusals. It is folded in HERE, not wired separately, so the
+    // coordinator keeps ONE reading of "this row is a day out": `byMember` unticks the row and
+    // `suspects` feeds the breaker, for either origin. A base-roster verdict keeps its direction (it
+    // knows one); geometry does not, and must not borrow one.
+    // Only names actually ON this review count: the server filters unknown names AFTER its witness
+    // runs, so a refused name can arrive that no row carries, and a phantom must not trip the breaker.
+    const onReview = new Set((parsedResult?.parsed || []).map(e => e.memberName));
+    const geometryRefused = new Set((Array.isArray(parsedResult?.geometryRefused) ? parsedResult.geometryRefused : [])
+        .filter(name => onReview.has(name)));
+    for (const name of geometryRefused) if (!byMember.has(name)) byMember.set(name, 'geometry');
     // Count by DIRECTION, not by total. A parser that drops a leading blank moves every row the
     // same way; two members drifting in opposite directions is noise, not a systematic misread.
+    // A geometry refusal is not noise — it counts whichever way the others lean.
     /** @type {Record<string, string[]>} */
-    const byDirection = { left: [], right: [] };
+    const byDirection = { left: [], right: [], geometry: [] };
     for (const [name, dir] of byMember) byDirection[dir].push(name);
     const worst = byDirection.left.length >= byDirection.right.length ? 'left' : 'right';
-    const suspects = byDirection[worst];
+    const suspects = [...new Set([...byDirection[worst], ...geometryRefused])];
     const blocked = suspects.length >= ALIGNMENT_BLOCK_THRESHOLD;
-    return { byMember, blocked, direction: blocked ? /** @type {'left'|'right'} */ (worst) : null, suspects };
+    // `direction` is what the stop banner phrases its cause from — null when nothing directional
+    // contributed, so the copy cannot claim a direction it does not have.
+    const direction = blocked && byDirection[worst].length ? /** @type {'left'|'right'} */ (worst) : null;
+    return { byMember, blocked, direction, suspects, geometryRefused: [...geometryRefused] };
+}
+
+/**
+ * Per-member warning for a row that starts unticked. Returns HTML; `escapedName` is already escaped
+ * by the caller. Lives beside the verdict so a third kind of drift cannot silently wear the wording
+ * of the first two — 'geometry' rendered "shifted a day later" until this existed.
+ * @param {Drift} drift @param {string} escapedName
+ */
+export function driftCopy(drift, escapedName) {
+    const lead = '<span aria-hidden="true">⚠️</span> <strong>These days may be one day out — nothing here is selected.</strong> ';
+    const tail = ' Check each day against the PDF and tick only what you have confirmed, or read the roster again.';
+    if (drift === 'geometry') {
+        return `${lead}A day was read for ${escapedName} where the PDF's own table has an empty cell, which usually means the row was read a column out.${tail}`;
+    }
+    // 'left' = each parsed value really belongs to the NEXT day (parsed[d] matches base[d+1]) —
+    // i.e. the usual pattern appears a day EARLIER than it should. (The first wording had this
+    // inverted — v16.69 review fix.)
+    return `${lead}${escapedName}'s week lines up better with their usual pattern shifted a day ${drift === 'left' ? 'earlier' : 'later'}, which usually means a column was skipped when the roster was read.${tail}`;
+}
+
+/**
+ * The whole-read refusal banner. `who` is the escaped, capped name list the caller built.
+ * The CAUSE is stated as a possibility, not a diagnosis: a left shift is usually the blank Sunday
+ * column being skipped, and saying so helps — but on a right shift that explanation is simply
+ * wrong, and when the evidence is the PDF's own grid the cause is a different sentence again. A
+ * confident wrong cause sends the admin looking in the wrong place, which is worse than none.
+ * @param {{ direction: 'left'|'right'|null, suspects: string[], geometryRefused?: string[] }} alignment @param {string} who
+ */
+export function stopCopy(alignment, who) {
+    const n = alignment.suspects.length;
+    const lead = '<span aria-hidden="true">⛔</span> <strong>This read looks one day out and has not been saved.</strong>';
+    const close = ' <strong>Nothing has been selected for saving.</strong> Read the roster again; if it happens twice, check the PDF against this week by hand.';
+    if (alignment.direction === null) {
+        return `${lead} On ${n} staff rows a day was read where the PDF's own table has an empty cell — ${who}. That is a sign the roster was read a column out — not everyone changing their week at once.${close}`;
+    }
+    const likely = alignment.direction === 'left'
+        ? 'usually the blank Sunday column being skipped when the roster is read'
+        : 'a sign a cell was misread when the roster was read';
+    const geo = (alignment.geometryRefused || []).length;
+    const also = geo ? ` On ${geo} of those rows the PDF's own table shows an empty cell where a day was read.` : '';
+    return `${lead} ${n} staff line up with their usual pattern shifted a day ${alignment.direction === 'left' ? 'earlier' : 'later'} — ${who}.${also} That is ${likely} — not everyone changing their week at once.${close}`;
 }
 

@@ -167,14 +167,18 @@ export function init() {
                         // the app uses for the same colour, and the one thing a reader compares
                         // against what is in front of them.
                         { icon: '2️⃣', html: 'Tap a type on any day. The row turns <strong>gold</strong> to show it is ready to save; tap <strong>Save changes</strong> when you have finished.' },
+                        // Sundays are not contracted, so four of the six pills are disabled there
+                        // (override-utils.js → SUNDAY_FORBIDDEN_TYPES). Saying "any day" sent an
+                        // admin to a row where the pill they wanted would not respond.
+                        { icon: '☀️', html: 'A <strong>Sunday</strong> offers only <strong>RDW</strong> and <strong>Rest Day</strong>. Sundays are not contracted, so leave and absence cannot be recorded on one and a worked Sunday is always RDW.' },
                         { icon: '🎨', html: 'A row already carrying a change is <strong>cream</strong>. Saving over one replaces what was there, so check the cream rows before you save.' },
                         { icon: '👆', html: 'Swipe left or right to move between weeks.' },
                     ]},
                     { heading: 'Several days at once', items: [
                         { icon: '1️⃣', html: 'Tap <strong>Mon–Fri</strong>, <strong>Working days</strong> or <strong>All 7</strong> — or tick the days you want individually.' },
                         { icon: '2️⃣', html: 'Pick a type, and add a start and end time if it needs one.' },
-                        { icon: '3️⃣', html: 'Tap <strong>Apply to ticked days</strong>, then <strong>Save changes</strong>.' },
-                        { icon: '🏖️', html: 'For a run of annual leave or absence, the two cards below do a whole date range in one go — you do not have to tick days here.' },
+                        { icon: '3️⃣', html: 'Tap the <strong>Apply</strong> button under the pills — once you have picked a type it names it, so it reads <em>Apply “AL” to ticked days</em> — then <strong>Save changes</strong>.' },
+                        { icon: '🏖️', html: 'For a run of annual leave or absence, the two cards beside this one — below it on a phone — do a whole date range in one go — you do not have to tick days here.' },
                     ]},
                     { heading: 'What each type means', items: [
                         { icon: '🏖️', html: '<strong>AL</strong> — annual leave. <strong>Absent</strong> — away for any reason; only the dates are saved, never the reason.' },
@@ -183,8 +187,8 @@ export function init() {
                         { icon: '✏️', html: '<strong>Rest Day</strong> — puts a working day back to a rest day.' },
                         // SIX flavours since v18.61 (Union, Meeting). The tip named four for two
                         // years' worth of releases, so nobody reading it knew the other two existed.
-                        { icon: '🏷️', html: '<strong>Other</strong> — open the pill to choose: training, induction, assessment, team day, union course, meeting, or <strong>Spare</strong> (on standby, shift not yet known).' },
-                        { icon: '⏱️', html: 'On an <strong>Other</strong> day, tick <strong>Rest day (RDW)</strong> if it falls on a rest day, and add times if you know them. Leave the times blank and it pays as the day underneath — or eight hours if it is a rest day.' },
+                        { icon: '🏷️', html: '<strong>Other</strong> — open the pill to choose: training, induction, assessment, team day, union, meeting, or <strong>Spare</strong> (on standby, shift not yet known).' },
+                        { icon: '⏱️', html: 'On an <strong>Other</strong> day that falls on a rest day, <strong>Rest day (RDW)</strong> is already ticked and cannot be unticked — it is automatic. On a day they were rostered to work, tick it yourself to pay the day as rest-day working. Add times if you know them; leave them blank and it pays as the day underneath, or eight hours on a rest day.' },
                     ]},
                 ],
             },
@@ -192,9 +196,12 @@ export function init() {
                 title: 'Record Annual Leave',
                 sections: [
                     { items: [
-                        { icon: '🏖️', html: 'Select a <strong>staff member</strong> and a date range. Rest days and Sundays inside it are skipped automatically.', adminOnly: true },
+                        { icon: '🏖️', html: 'Choose the <strong>staff member at the top of the page</strong>, then a date range. Rest days and Sundays inside it are skipped automatically.', adminOnly: true },
                         { icon: '🏖️', html: 'Select a date range. Rest days and Sundays inside it are skipped automatically.', staffOnly: true },
-                        { icon: '👀', html: 'The days that will be booked are listed before you save, so you can check the range caught what you meant.' },
+                        // It does NOT list the days — the preview is a COUNT and the span ("3 working days
+                        // … 1 Jul – 5 Jul"). Saying otherwise invited an admin to check something
+                        // that is not on the screen, on the one card that writes leave.
+                        { icon: '👀', html: 'Before you save you are told <strong>how many working days</strong> the range comes to and the dates it spans, with rest days and Sundays already taken out of that count. Check the number against what you meant to book.' },
                         { icon: '⚠️', html: 'If the booking would take somebody past their entitlement for the year you are told, and asked to confirm. It does not stop you — sometimes that is the right answer.' },
                     ]},
                 ],
@@ -213,23 +220,26 @@ export function init() {
                     ]},
                 ],
             },
-            // NOTE: the daily-huddle / weekly-roster / staff-login / notifications tips live in
-            // operations-app.js's CARD_TIPS (those cards are on Operations, not Admin). They used to
+            // NOTE: the daily-huddle / weekly-roster / staff-login tips live in operations-app.js's
+            // CARD_TIPS, and `notifications` in settings-app.js's (those cards are on Operations and
+            // Settings, not Admin — this note said operations for all four). They used to
             // be duplicated here as dead entries — removed v17.44 to kill the drift trap.
             'saved-changes': {
                 title: 'Saved Changes',
                 sections: [
                     { heading: 'Viewing', items: [
-                        { icon: '🔍', html: 'Use the <strong>member dropdown</strong> for one person\'s changes, or leave it on <strong>All</strong> for everyone\'s.', adminOnly: true },
+                        { icon: '🔍', html: 'The list follows the <strong>member selected at the top of the page</strong>. Tap <strong>All staff</strong> above the table for everyone\'s changes, and the same button again to come back.', adminOnly: true },
                         { icon: '🔍', html: 'This list shows your own saved changes only.', staffOnly: true },
-                        { icon: '📅', html: 'The <strong>month filter</strong> narrows it to one month. It starts on the current month.' },
+                        { icon: '📅', html: 'The <strong>month filter</strong> narrows it to one month. It starts on this month.', adminOnly: true },
+                        // Staff default to All months on purpose — see admin-saved-changes.js.
+                        { icon: '📅', html: 'The <strong>month filter</strong> narrows it to one month. It starts on <strong>All months</strong>, so leave you have booked for later in the year is not hidden behind it.', staffOnly: true },
                     ]},
                     { heading: 'Editing and deleting', items: [
                         { icon: '✏️', html: 'Tap <strong>Edit</strong> on a change to adjust its type or time, then tap <strong>Save changes</strong>.' },
-                        { icon: '🗑️', html: 'Tap <strong>Delete</strong> to remove it. That day goes back to whatever the roster originally said.' },
+                        { icon: '🗑️', html: 'Tap <strong>Delete</strong>, then tap again to confirm. That day goes back to whatever the roster originally said.' },
                     ]},
                     { heading: 'Where a change came from', adminOnly: true, items: [
-                        { icon: '📋', html: 'Entries marked <strong>Roster upload</strong> came in from a roster PDF. The next upload overwrites them without asking, because the PDF is the source for those days.' },
+                        { icon: '📋', html: 'Entries marked <strong>PDF upload</strong> came in from a roster PDF. A later upload of the same week replaces them — they arrive in the review already ticked rather than flagged for a decision, because the PDF is the source for those days.' },
                         { icon: '✍️', html: 'Everything else was entered by hand. If a later upload disagrees with one of those, it is flagged for you to decide rather than replaced.' },
                     ]},
                 ],

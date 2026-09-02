@@ -508,6 +508,67 @@ describe('buildSafeEntries', () => {
         );
         assert.equal(Object.keys(entries[0].shifts).length, 7);
     });
+    // ── "the model said empty" vs "the model said nothing" (v22.30) ─────────────────────────
+    //
+    // These are different facts and only one is evidence. The prompt has required a key for every
+    // column header since v22.25 — "A blank cell = BLANK. Write the key, then write BLANK. Do not
+    // skip it." — so an ABSENT key means the model disobeyed, which is a signal about the READ,
+    // not about the member. On Sunday both still resolve to RD, so the difference is invisible in
+    // the review (every member's base Sunday is RD, so RD-vs-RD raises no row) and the warning is
+    // the only place it can surface. It did not: both logged "no cell read for [Sun]", including
+    // the case where the cell WAS read and reported empty, so the compliance rate that would
+    // settle whether an absent Sunday key should go to review was not measurable.
+    //
+    // Asserted on the LOG because the behaviour is deliberately unchanged — which is also why the
+    // RD assertions below are here: they pin that this split stayed diagnostic.
+    describe('a reported blank and an unanswered day are told apart in the warning', () => {
+        /** Run `fn` with console.warn captured. @param {() => void} fn */
+        const captureWarn = (fn) => {
+            const lines = [];
+            const real = console.warn;
+            console.warn = (...a) => lines.push(a.join(' '));
+            try { fn(); } finally { console.warn = real; }
+            return lines.join('\n');
+        };
+        const build = (entry) => buildSafeEntries([{ memberName: 'G. Miller', ...entry }], HEADERS, DATES);
+        const FULL_WEEK = { Mon: 'RD', Tue: 'RD', Wed: 'RD', Thu: 'RD', Fri: 'RD', Sat: 'RD' };
+
+        test('Sunday REPORTED blank says so, and is not called unread', () => {
+            let out;
+            const log = captureWarn(() => { out = build({ Sun: 'BLANK', ...FULL_WEEK }); });
+            assert.match(log, /reported blank \[Sun\]/);
+            assert.doesNotMatch(log, /NO ANSWER/);
+            assert.equal(out[0].shifts[DATES[0]], 'RD', 'behaviour unchanged: a reported-blank Sunday is still RD');
+        });
+
+        test('Sunday key ABSENT is reported as no answer, not as a blank the model saw', () => {
+            let out;
+            const log = captureWarn(() => { out = build({ ...FULL_WEEK }); });
+            assert.match(log, /NO ANSWER for \[Sun\]/);
+            assert.doesNotMatch(log, /reported blank/);
+            assert.equal(out[0].shifts[DATES[0]], 'RD', 'behaviour unchanged: an absent Sunday key is still RD');
+        });
+
+        test('an empty-string value counts as reported, not as unanswered', () => {
+            const log = captureWarn(() => build({ Sun: '', ...FULL_WEEK }));
+            assert.match(log, /reported blank \[Sun\]/);
+            assert.doesNotMatch(log, /NO ANSWER/);
+        });
+
+        test('both kinds in one row are named separately', () => {
+            const log = captureWarn(() => build({ Sun: 'BLANK', Mon: 'RD', Wed: 'RD', Thu: 'RD', Fri: 'RD', Sat: 'RD' }));
+            assert.match(log, /reported blank \[Sun\]/);
+            assert.match(log, /NO ANSWER for \[Tue\]/);
+        });
+
+        test('a weekday still fails CLOSED whichever way it went missing', () => {
+            const absent = build({ Sun: 'BLANK', Mon: 'RD', Wed: 'RD', Thu: 'RD', Fri: 'RD', Sat: 'RD' });
+            const blanked = build({ Sun: 'BLANK', Mon: 'RD', Tue: 'BLANK', Wed: 'RD', Thu: 'RD', Fri: 'RD', Sat: 'RD' });
+            assert.match(absent[0].shifts[DATES[2]], /^UNKNOWN\|/);
+            assert.match(blanked[0].shifts[DATES[2]], /^UNKNOWN\|/);
+        });
+    });
+
     test('memberName is trimmed', () => {
         const entries = buildSafeEntries(
             [{ memberName: '  G. Miller  ', Mon: 'RD', Sun: 'RD', Tue: 'RD', Wed: 'RD', Thu: 'RD', Fri: 'RD', Sat: 'RD' }],
