@@ -436,3 +436,76 @@ describe('deploy workflows only run from main', () => {
         });
     }
 });
+
+// ── THE VISUAL LANE IS REPORT-ONLY, AND THEREFORE HAS TO SPEAK (2 Sep 2026) ────────────────────
+//
+// Two halves of one decision, and each is worthless without the other.
+//
+// The lane must NOT gate: pixel diffs are environment-sensitive, and a release blocked on a
+// renderer difference nobody can act on teaches everyone to skip the check. So `continue-on-error`.
+//
+// But a non-blocking job on a green run is INDISTINGUISHABLE from a passing one. The diffs were
+// uploaded as an artifact from the day the job was written, and a real drift still went unread for
+// eight releases (v22.38 → v22.45) — nobody opens a zip on a run that says it passed. A signal you
+// have to go looking for is not a signal.
+//
+// So the job now comments on the pull request, and these contracts hold the pairing together: drop
+// `continue-on-error` and a rendering difference starts blocking releases; drop the notifier and the
+// lane goes quiet again, with nothing failing to say so. Both are one-line edits.
+describe('the visual lane never gates, and never goes quiet', () => {
+    const src = readFileSync(join(WF_DIR, 'e2e.yml'), 'utf8');
+    const jobsAt = src.search(/^jobs:/m);
+    const body = src.slice(jobsAt);
+    const start = body.search(/^ {2}visual:[ \t]*$/m);
+    const rest = start === -1 ? '' : body.slice(start + 1);
+    const nextJob = rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m);
+    const job = nextJob === -1 ? rest : rest.slice(0, nextJob);
+
+    test('the visual job exists', () => {
+        assert.ok(start > -1, 'e2e.yml has no `visual:` job');
+    });
+
+    test('it cannot fail a build on a rendering difference', () => {
+        assert.match(job, /^ {4}continue-on-error: true[ \t]*$/m,
+            'the visual job must stay continue-on-error. Baselines are captured on one machine and '
+            + 'compared on another; making them blocking gates every release on renderer noise.');
+    });
+
+    test('the comparison CAPTURES its outcome instead of swallowing it', () => {
+        // A bare `|| true` keeps the job green and discards the one fact the notifier needs. The
+        // outcome has to reach a step output or there is nothing to report on.
+        assert.match(job, /^ {8}id: compare[ \t]*$/m,
+            'the comparison step needs an `id` so its outcome can be read downstream');
+        assert.match(job, /drifted=true[\s\S]{0,200}GITHUB_OUTPUT|GITHUB_OUTPUT[\s\S]{0,200}drifted=true/,
+            'the comparison step must write a `drifted` output — otherwise its result is discarded '
+            + 'and the run is green whether or not the baselines matched');
+    });
+
+    test('and it says so where somebody is already looking', () => {
+        assert.match(job, /^ {6}pull-requests: write[ \t]*$/m,
+            'without pull-requests:write the notifier runs and the API call fails — a notifier that '
+            + 'reports nothing is worse than none, because the run still goes green');
+        assert.match(job, /<!-- visual-baseline-drift -->/,
+            'the notifier must carry a stable HTML marker, or it posts a fresh comment per push '
+            + 'instead of updating one');
+        assert.match(job, /gh pr comment/,
+            'the visual job must actually say something on the pull request');
+    });
+
+    test('the notifier cannot become the failure it is reporting', () => {
+        // It runs when something has ALREADY gone wrong (or when it is reassuring you that nothing
+        // has). Every write is guarded — and errexit is turned OFF rather than merely left unsaid.
+        // GitHub runs `run:` steps as `bash -e {0}`, so a script that simply omits `set -e` still
+        // gets it: the first draft of this contract asserted the absence of `set -e` and was
+        // therefore checking nothing at all. Only an explicit `set +e` is load-bearing.
+        assert.match(job, /^ {10}set \+e\b/m,
+            'the notifier must `set +e` explicitly — GitHub invokes run: steps as `bash -e`, so '
+            + 'without it an unguarded gh failure abandons the rest of the report');
+        for (const call of ['gh pr comment', 'gh api --method PATCH']) {
+            const re = new RegExp(`${call}[\\s\\S]{0,400}?\\|\\| echo "::warning::`);
+            assert.match(job, re,
+                `${call} must end in \`|| echo "::warning::…"\` — this step must never turn a `
+                + 'reportable drift into a failed one');
+        }
+    });
+});

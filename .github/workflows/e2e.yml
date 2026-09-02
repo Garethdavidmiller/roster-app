@@ -414,6 +414,9 @@ jobs:
     continue-on-error: true
     permissions:
       contents: read
+      # To SAY something when a baseline drifts — see the comment step below for why the artifact
+      # alone was not enough. It already existed, and went unread for eight releases.
+      pull-requests: write
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -430,8 +433,16 @@ jobs:
 
       # `|| true` as well as continue-on-error: the step's own exit code is what decides whether
       # the upload below runs, and a diff we cannot see is the one thing this job must not produce.
+      # The outcome is now CAPTURED rather than only swallowed — `|| true` on its own discards the
+      # one fact the comment step needs.
       - name: Compare against the committed visual baselines
-        run: npm run test:visual || true
+        id: compare
+        run: |
+          if npm run test:visual; then
+            echo "drifted=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "drifted=true" >> "$GITHUB_OUTPUT"
+          fi
         env:
           CI: true
 
@@ -447,3 +458,129 @@ jobs:
             playwright-report/
           retention-days: 7
           if-no-files-found: ignore
+
+
+
+
+      # ── AND IT SAYS SO WHERE SOMEBODY IS ALREADY LOOKING ──────────────────────────────────────
+      #
+      # The artifact above has existed as long as this job has, and a drifted baseline still went
+      # unread for eight releases (v22.38 → v22.45). The job is `continue-on-error`, so the run is
+      # GREEN either way, and nothing distinguishes a clean visual lane from a drifted one without
+      # opening the run and downloading a zip. A signal you have to go looking for is not a signal.
+      #
+      # So the drift is now STATED, on the pull request. Three rules it must keep:
+      #
+      #   * It NEVER fails the job — every `gh` call ends `|| echo "::warning::…"`, over an
+      #     explicit `set +e` (GitHub runs `run:` steps as `bash -e`, so errexit is on unless you
+      #     turn it off). This lane is report-only on purpose — pixel diffs are environment-
+      #     sensitive and must not gate a release — and a broken notifier turning into a broken
+      #     build is the worst of both.
+      #   * It UPDATES one comment rather than posting per push, found by the HTML marker below. A
+      #     thread of N identical comments is how a channel teaches its reader to ignore it.
+      #   * It says so when the drift is GONE, so a stale "baselines drifted" cannot cry wolf — but
+      #     only by EDITING a comment that already exists. A clean run on a branch that never
+      #     drifted says nothing at all.
+      #
+      # On a `push` with no open pull request there is nowhere to comment, so it falls back to a
+      # workflow annotation, which at least shows on the run itself.
+      #
+      # NOTE FOR ANYONE REINDENTING THIS: the Markdown inside the heredocs below sits at the run
+      # block's own indentation deliberately. YAML strips exactly that, so it reaches the shell
+      # flush left — which is what the Markdown needs, its fenced code block included. Indent it
+      # one step further "to line up with the shell" and the fence arrives indented (a code block
+      # inside a code block) and the bullets become a nested list.
+      - name: Say so on the pull request
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRIFTED: ${{ steps.compare.outputs.drifted }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # `set +e` EXPLICITLY, because GitHub runs every `run:` step as `bash -e {0}` — errexit is
+          # already on whether or not the script says so, which is the opposite of what this step
+          # wants. Every failing command below is guarded anyway; this makes the intent survive an
+          # unguarded line somebody adds later, rather than having it abandon the report half way.
+          set +e -uo pipefail
+          MARKER='<!-- visual-baseline-drift -->'
+
+          # The compare step is the only thing that can answer this. If it never ran — a failed
+          # install, a cancelled job — there is no outcome to report, and inventing one in either
+          # direction would be worse than silence.
+          if [ "${DRIFTED:-}" != "true" ] && [ "${DRIFTED:-}" != "false" ]; then
+            echo "The comparison step reported no outcome — nothing to say."
+            exit 0
+          fi
+
+          PR="${PR_NUMBER:-}"
+          if [ -z "$PR" ]; then
+            PR=$(gh pr list --head "$BRANCH" --state open --limit 1 --json number --jq '.[0].number' 2>/dev/null || true)
+          fi
+
+          # WHICH baselines differ. Playwright writes one directory per failing test, each holding
+          # the expected/actual/diff triple; the names are the half that belongs in a comment, and
+          # a count could not answer "which ones?".
+          NAMES=$(find test-results -name '*-diff.png' 2>/dev/null | sed 's#.*/##; s#-diff\.png$##' | sort -u || true)
+
+          BODY="$RUNNER_TEMP/visual-comment.md"
+          printf '%s\n\n' "$MARKER" > "$BODY"
+
+          if [ "$DRIFTED" = "true" ]; then
+            cat >> "$BODY" <<'MD'
+          ### 📸 Visual baselines have drifted
+
+          `npm run test:visual` no longer matches the committed PNGs on this branch. **This does not block
+          the merge** — pixel diffs are environment-sensitive, so this lane reports and never gates. It does
+          mean somebody has to look, which is the part that was missing.
+          MD
+            if [ -n "$NAMES" ]; then
+              printf '\n%s\n\n' "Baselines that differ:" >> "$BODY"
+              printf '%s\n' "$NAMES" | sed 's/^/- `/; s/$/`/' >> "$BODY"
+            fi
+            printf '\n%s\n\n' "The expected/actual/diff triple is in the **\`visual-diffs\`** artifact on [this run]($RUN_URL) — **it expires in 7 days**." >> "$BODY"
+            cat >> "$BODY" <<'MD'
+          If the change is intended, regenerate — and then review what came back:
+
+          ```
+          npm run test:visual -- --update-snapshots=all
+          git status e2e/visual-baselines/
+          ```
+
+          `=all` is load-bearing (a bare `--update-snapshots` only rewrites baselines whose comparison
+          FAILED, so one that drifted inside the tolerance could never be refreshed) — but it rewrites the
+          ones that PASSED too. Revert anything you cannot explain and re-run: still green means it was
+          rendering noise and does not belong in the diff.
+          MD
+          else
+            cat >> "$BODY" <<'MD'
+          ### 📸 Visual baselines match
+
+          They drifted earlier on this branch; the latest run matches the committed PNGs. Nothing to do.
+          MD
+            printf '\n%s\n' "[Run]($RUN_URL)" >> "$BODY"
+          fi
+
+          if [ -z "$PR" ]; then
+            if [ "$DRIFTED" = "true" ]; then
+              echo "::warning::Visual baselines have drifted on $BRANCH, and there is no open pull request to say so on. The expected/actual/diff triple is in the visual-diffs artifact on this run."
+            fi
+            exit 0
+          fi
+
+          # `--paginate` runs the jq filter ONCE PER PAGE, so a filter ending `.[0].id` emits one
+          # line per page — "null", "null", "123" on a busy thread. Emitting only the matches and
+          # taking the first keeps it to one id or nothing at all.
+          EXISTING=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
+            --jq "map(select(.body | contains(\"$MARKER\")))[].id" 2>/dev/null | head -n 1 || true)
+
+          if [ -n "$EXISTING" ]; then
+            gh api --method PATCH "repos/$REPO/issues/comments/$EXISTING" \
+              -f body="$(cat "$BODY")" --silent \
+              || echo "::warning::Could not update the visual-baseline comment on #$PR — see the visual-diffs artifact."
+          elif [ "$DRIFTED" = "true" ]; then
+            gh pr comment "$PR" --body-file "$BODY" \
+              || echo "::warning::Could not comment on #$PR about the drifted visual baselines — see the visual-diffs artifact."
+          fi

@@ -660,10 +660,15 @@ npm run test:csp
 # Locks page composition (incl. the accepted desktop voids) against silent CSS/layout drift.
 # Opt-in and env-sensitive, so it does not GATE anything — but since v21.54 it runs in branch CI as a
 # REPORT-ONLY job (`visual` in e2e.yml, `continue-on-error`) that always uploads its diffs. It cannot
-# fail a build on a renderer difference nobody can act on; what it buys is that a stale baseline shows
-# up as an artifact the week it happens instead of whenever somebody next remembers to run this. Two
-# were found stale in one day at v21.53. Same staged path the a11y gate took: watch the noise, and
-# promote to blocking only if the runner proves consistent. Regenerate: `npm run test:visual -- --update-snapshots=all` (`=all` is load-bearing — a bare `--update-snapshots` only rewrites baselines whose comparison FAILED, so a baseline that drifted inside the tolerance could never be refreshed). **Then `git status e2e/visual-baselines/` and revert anything you cannot explain** (v19.62): `=all` rewrites every baseline including the ones that PASSED, so a run intended to capture ONE change came back with FIVE modified — four of them sub-tolerance rendering noise that would have been committed as though reviewed. Reverting a file and re-running is the check: still passes ⇒ it was noise and does not belong in the diff:
+# fail a build on a renderer difference nobody can act on. Same staged path the a11y gate took: watch
+# the noise, and promote to blocking only if the runner proves consistent.
+# **THE ARTIFACT ALONE WAS NOT THE SIGNAL IT WAS BILLED AS.** This paragraph used to claim a stale
+# baseline "shows up as an artifact the week it happens"; it does not — the job is green either way,
+# so nothing distinguishes a clean visual lane from a drifted one without opening the run and
+# downloading a zip, and a real drift went unread for eight releases (v22.38 → v22.45) while every
+# other lane passed. A signal you have to go looking for is not a signal. The job now SAYS SO on the
+# pull request instead (one comment, updated in place, and edited back when the drift clears), and
+# falls back to a workflow annotation on a push with no PR. It still never fails. Regenerate: `npm run test:visual -- --update-snapshots=all` (`=all` is load-bearing — a bare `--update-snapshots` only rewrites baselines whose comparison FAILED, so a baseline that drifted inside the tolerance could never be refreshed). **Then `git status e2e/visual-baselines/` and revert anything you cannot explain** (v19.62): `=all` rewrites every baseline including the ones that PASSED, so a run intended to capture ONE change came back with FIVE modified — four of them sub-tolerance rendering noise that would have been committed as though reviewed. Reverting a file and re-running is the check: still passes ⇒ it was noise and does not belong in the diff:
 npm run test:visual
 
 # The smoke suite under Safari's engine. Runs in branch CI, not the deploy gate. **The browser is
