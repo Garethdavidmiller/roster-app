@@ -38,7 +38,7 @@ function _loadPurify() {
         .catch(err => { _purifyPromise = null; throw err; }));
 }
 import { subscribeToLatestHuddle, isSafeStorageUrl } from './firebase-client.js';
-import { lockBodyScroll, _pushOverlayState, dismissOverlay, trapFocus } from './overlay.js';
+import { lockBodyScroll, _pushOverlayState, dismissOverlay, trapFocus, _isTopOverlay } from './overlay.js';
 import { recordOpen } from './usage-reporter.js';
 import { getCurrentMember, isFirstRun } from './calendar-member.js';
 import { firstColumnMask } from './huddle-table-grid.js';
@@ -178,6 +178,13 @@ export function initHuddleViewer({ authReady = Promise.resolve() } = {}) {
         requestAnimationFrame(() => viewer.classList.add('open'));
     }
     function closeViewer() {
+        // ALREADY CLOSING? Do nothing. The ✕ stays clickable through the fade, so a second tap ran
+        // a second `dismissOverlay` — each with its own finisher, so `unlockBodyScroll` was called
+        // twice for one lock. Alone that is absorbed by the depth guard; with the doc viewer open
+        // over this one the depth goes 2 → 1 → 0 and the page behind the OTHER overlay starts
+        // scrolling. `createLightbox` grew both halves of this guard at v21.86 and this hand-rolled
+        // viewer never did — the cost of being the app's one documented lifecycle exception.
+        if (!_viewerOpen) return;
         _viewerOpen = false;
         const focusReturn = _viewerFocusReturn;
         _viewerFocusReturn = null;
@@ -185,6 +192,15 @@ export function initHuddleViewer({ authReady = Promise.resolve() } = {}) {
     }
     /** @param {any} e */
     function onKey(e) {
+        // ONLY THE TOPMOST OVERLAY ANSWERS THE KEYBOARD (v19.53). This is a `document` listener, so
+        // it fired for a viewer sitting UNDERNEATH something else: a notification tap on a Circular
+        // while the Huddle is open sets the hash, and `calendar-doc-viewer.js` opens over the top
+        // without closing this one — both listen to `hashchange` and neither knows about the other.
+        // One Escape then closed both, and `trapFocus` dragged Tab into a panel nobody could see.
+        // That is the exact pair of symptoms the rule was written for; `createLightbox` has enforced
+        // it since v19.53 and this viewer, being hand-rolled, was never brought along.
+        // Fails OPEN, like the shared one — a suppressed Escape traps the reader.
+        if (!_isTopOverlay(closeViewer)) return;
         if (e.key === 'Escape') { closeViewer(); return; }
         trapFocus(viewer, e);
     }

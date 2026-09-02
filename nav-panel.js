@@ -1192,7 +1192,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, c
         <div id="navComingSoonLightbox" class="lb-overlay" role="dialog"
              aria-label="Coming soon" aria-modal="true">
             <div class="lb-content" id="navComingSoonContent">
-                <button id="navComingSoonClose" class="lb-close" aria-label="Close">✕</button>
+                <button type="button" id="navComingSoonClose" class="lb-close" aria-label="Close">✕</button>
                 <div class="nav-cs-icon" id="navComingSoonIcon" aria-hidden="true">📰</div>
                 <div class="nav-cs-title" id="navComingSoonTitle">Coming soon</div>
                 <div class="nav-cs-body" id="navComingSoonBody"></div>
@@ -1201,7 +1201,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, c
         <div id="navNoticesLightbox" class="lb-overlay" role="dialog"
              aria-label="App Notices" aria-modal="true">
             <div class="lb-content" id="navNoticesContent">
-                <button id="navNoticesClose" class="lb-close" aria-label="Close">✕</button>
+                <button type="button" id="navNoticesClose" class="lb-close" aria-label="Close">✕</button>
                 <div class="nav-cs-title">📣 App Notices</div>
                 <div id="navNoticesList" class="nav-notices-list"></div>
                 <div id="navNoticesEmpty" class="nav-notices-empty" hidden>No notices yet — check back soon.</div>
