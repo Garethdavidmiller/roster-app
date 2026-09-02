@@ -34,14 +34,21 @@ async function openSettings(page, { configured = false, payKeys = 0, noPush = fa
             delete window.PushManager;
             Object.defineProperty(window, 'Notification', { value: undefined, configurable: true });
         }
+        // THE PLATFORM IS PINNED, ALWAYS — never inherited from whichever project is running.
+        // `isIOS()` reads the UA string, and Settings now behaves differently on an iPhone (where
+        // installing is the prerequisite for notifications, so it becomes a thing to finish). Left
+        // to the runner, the same test asserted "nothing to finish" under chromium and met a real
+        // to-do under mobile-safari — which is the app being RIGHT and the test being unspecified.
+        // Found by the WebKit lane, which is exactly what that lane is for.
+        Object.defineProperty(navigator, 'userAgent', {
+            value: iphone
+                ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15'
+                : 'Mozilla/5.0 (Linux; Android 13; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+            configurable: true,
+        });
         if (iphone) {
-            // `isIOS()` reads the UA string, and that is the whole of what the app tests — so the
-            // app's own detector is what runs here, not a stub of it. Push is removed too, because
-            // that is the real consequence being modelled: WebKit gives a browser page none.
-            Object.defineProperty(navigator, 'userAgent', {
-                value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15',
-                configurable: true,
-            });
+            // Push is removed too, because that is the real consequence being modelled: WebKit
+            // gives a page outside the Home Screen app none at all.
             delete window.PushManager;
             Object.defineProperty(window, 'Notification', { value: undefined, configurable: true });
         }
