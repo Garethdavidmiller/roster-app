@@ -20,10 +20,10 @@ import { ROTATING_LINES } from '../links-design.js';
 
 /** Put Settings in a chosen state. The single-doc read serves both the work email and the password
  *  status, so one seed decides both — which is why `configured` is one flag, not two. */
-async function openSettings(page, { configured = false, payKeys = 0, noPush = false, iphone = false } = {}) {
+async function openSettings(page, { configured = false, payKeys = 0, noPush = false, iphone = false, forcePush = false } = {}) {
     await page.setViewportSize({ width: 390, height: 844 });
     await seedMemberSession(page, 'G. Miller');
-    await page.addInitScript(({ configured, payKeys, noPush, iphone }) => {
+    await page.addInitScript(({ configured, payKeys, noPush, iphone, forcePush }) => {
         for (let i = 0; i < payKeys; i++) localStorage.setItem(`myb_pc_gmiller_p${40 + i}`, '{}');
         const e = globalThis.__E2E || (globalThis.__E2E = {});
         if (configured) e.getDocData = {
@@ -52,7 +52,23 @@ async function openSettings(page, { configured = false, payKeys = 0, noPush = fa
             delete window.PushManager;
             Object.defineProperty(window, 'Notification', { value: undefined, configurable: true });
         }
-    }, { configured, payKeys, noPush, iphone });
+        if (forcePush) {
+            // PUSH IS INSTALLED, NOT ASSUMED. `notifSupported()` wants Notification, PushManager
+            // and serviceWorker all present; WebKit has no PushManager, so a test that needs the
+            // card to get PAST the support check and reach the code under test cannot rely on the
+            // engine providing one. Same lesson as the iPhone UA above — pin the environment
+            // rather than inherit it, or the test quietly stops testing anything on one engine.
+            if (!('PushManager' in window)) {
+                Object.defineProperty(window, 'PushManager', { value: function () {}, configurable: true });
+            }
+            if (!('Notification' in window) || !window.Notification) {
+                Object.defineProperty(window, 'Notification', { value: { permission: 'default' }, configurable: true });
+            }
+            if (!('serviceWorker' in navigator)) {
+                Object.defineProperty(navigator, 'serviceWorker', { value: { ready: new Promise(() => {}) }, configurable: true });
+            }
+        }
+    }, { configured, payKeys, noPush, iphone, forcePush });
     await page.goto('/settings.html');
     await expect(page.locator('#settingsSummary')).toBeVisible();
 }
@@ -94,13 +110,13 @@ test('settings: an iPhone in a browser is told to install, not that it is all se
     await expect(page.locator('#notifStatusChip')).toHaveText(/not available/i);
 });
 
-for (const [label, missingId, chipId, noPush] of [
+for (const [label, missingId, chipId, noPush, forcePush] of [
     // `noPush` false for notifications ON PURPOSE: with push unsupported the card answers 'n/a' at
     // the SUPPORT check and never reaches the markup guard, so the test would pass without
     // exercising anything. Push has to be available for the guard to be the thing that fires.
-    ['notifications', 'notifStatusMsg',  'notifStatusChip',    false],
-    ['work email',    'workEmailInput',  'contactStatusChip',  true],
-    ['password',      'pwCurrent',       'passwordStatusChip', true],
+    ['notifications', 'notifStatusMsg',  'notifStatusChip',    false, true],
+    ['work email',    'workEmailInput',  'contactStatusChip',  true,  false],
+    ['password',      'pwCurrent',       'passwordStatusChip', true,  false],
 ]) {
     test(`settings: a broken ${label} card must not freeze the whole summary`, async ({ page }) => {
         // Each card bails when its markup is missing. Bailing SILENTLY leaves that card `unknown`,
@@ -113,7 +129,7 @@ for (const [label, missingId, chipId, noPush] of [
             const real = document.getElementById.bind(document);
             document.getElementById = (x) => (x === id ? null : real(x));
         }, missingId);
-        await openSettings(page, { configured: true, noPush });
+        await openSettings(page, { configured: true, noPush, forcePush });
 
         await expect(page.locator('#settingsSummaryLine')).not.toHaveText(/Checking/i);
         await expect(page.locator('#settingsSummary')).toHaveAttribute('data-tone', 'error');
