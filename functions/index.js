@@ -40,7 +40,7 @@ const {
     parseStrictIsoDate,
     fileSignatureMatches,
 } = require('./roster-parse-helpers');
-const { extractRosterGeometry, applyGeometryWitness, awaitGeometryWithin } = require('./roster-geometry');
+const { extractRosterGeometry, applyGeometryWitness, geometryCoverage, awaitGeometryWithin } = require('./roster-geometry');
 const {
     CALENDAR_VIEWER_UID,
     isValidPinShape,
@@ -732,7 +732,13 @@ columnScan: one key per column header; every staff member appears in every colum
             // row starts unticked in the review — roster-alignment.js folds these names in beside the
             // base-roster drift so the client has ONE wiring for "this row is a day out" — and the
             // refused cells are already UNREADABLE in `parsed`.
-            geometry: { status: geoStats.status, checked: geoStats.checked, total: geoStats.total,
+            // COUNTED OVER THE ROWS THE ADMIN WILL SEE, not over everything the model returned
+            // (v22.45). A hallucinated name has no physical row, so it can only ever be
+            // `unmatched` — it inflated the denominator and turned a fully-checked review into a
+            // "1 of 2 — check the rest carefully" banner about rows that had all been checked.
+            // `geometryCoverage` argues why recounting here is not the v16.76 mixing mistake the
+            // cross-check above deliberately avoids.
+            geometry: { ...geometryCoverage(geoStats, filteredEntries.map(e => e.memberName)),
                 pagesRead: geometry.pagesRead, pagesRejected: geometry.pagesRejected },
             // …only for rows that survived the name filter above: a hallucinated name the witness
             // happened to refuse is not on the review and must not be counted by its breaker.

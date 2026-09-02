@@ -4,6 +4,13 @@
  * Run: node --test roster-geometry.test.mjs   (part of `npm run test:functions` — the adapter cases
  * need `pdfjs-dist` from functions/node_modules; everything else here is pure).
  *
+ * @nodeps-safe — the pdfjs cases SKIP THEMSELVES by name when the parser is absent (see
+ * `REAL_PDFJS_SKIP` below), so the other thirty-odd assertions run on a bare checkout with nothing
+ * installed. `scripts/test-nodeps.mjs` reads this marker; without it, being listed in
+ * `test:functions` excluded the whole file and those assertions went unrun by the one runner whose
+ * job is to run everything that can run (v22.45, external review — measured by invoking this suite
+ * directly). If the pure blocks below ever grow a hard dependency, delete this line.
+ *
  * Two directions, and they are not symmetrical:
  *   · A FALSE REFUSAL teaches an admin the witness cries wolf, and a witness nobody trusts is muted
  *     — the corpus measured zero, and the honest-read cases here pin that.
@@ -53,7 +60,7 @@ const REAL_PDFJS_SKIP = (!pdfjsLoads && !pdfjsInstalled)
     && 'needs pdfjs-dist — run `cd functions && npm ci`, or `npm run test:functions`';
 const {
     GRID_COLUMNS, rulesFromOperatorList, assignRunsToGrid, extractRosterGeometry,
-    matchGeometryRow, applyGeometryWitness, awaitGeometryWithin,
+    matchGeometryRow, applyGeometryWitness, geometryCoverage, awaitGeometryWithin,
     GEOMETRY_WAIT_BUDGET_MS, GEOMETRY_WORK_BUDGET_MS, _isClaim, _nameTokens,
 } = require('./functions/roster-geometry.js');
 
@@ -311,6 +318,78 @@ describe('applyGeometryWitness — refused, not weighed', () => {
         const s = applyGeometryWitness([a, b], g, DATES);
         assert.deepEqual(s.refused, [{ memberName: 'S. Silva', dates: [DATES[0]] }]);
         assert.equal(s.status, 'complete');
+    });
+});
+
+// ── geometryCoverage — the figure the ADMIN reads ──────────────────────────────────────────────
+//
+// A separate block from the witness above because it answers a different question. The witness asks
+// *is this cell supportable?* and gets it right; this asks *how much of what you are looking at did
+// I check?* — and until v22.45 it answered about rows the admin would never see.
+//
+// Organised by what a wrong answer costs, and here the loud direction is the one that shipped:
+//   · UNDER-STATING coverage cries wolf. A fully-checked review wearing "1 of 2 rows checked —
+//     check the rest carefully" teaches an admin the banner is noise, and a witness nobody reads is
+//     a witness that is not there.
+//   · OVER-STATING it is silent and far worse: "complete" over rows nothing looked at. The
+//     `ran: false` case is the whole trap, because `unmatched` is empty when the witness never ran,
+//     so a naive recount would call every row checked.
+describe('geometryCoverage — counted over the rows that reach the review', () => {
+    const stats = (o) => ({ checked: 0, total: 0, unmatched: [], ran: true, ...o });
+
+    test('a hallucinated name no longer drags a fully-checked review down to partial', () => {
+        // The reported case: the model returned one real member and one invention. The invention
+        // can never match a physical row, so the raw figure was 1 of 2.
+        const raw = stats({ checked: 1, total: 2, unmatched: ['J. Imaginary'] });
+        assert.equal(raw.checked / raw.total, 0.5, 'the raw figure really is the pessimistic one');
+        const c = geometryCoverage(raw, ['G. Miller']);
+        assert.deepEqual(c, { status: 'complete', checked: 1, total: 1 });
+    });
+
+    test('a REAL member the witness could not match still shows as partial', () => {
+        // The other direction: recounting must not launder a genuine gap. C. Reen reaches the
+        // review and was never checked, so the admin must still be told.
+        const c = geometryCoverage(stats({ checked: 1, total: 2, unmatched: ['C. Reen'] }),
+            ['G. Miller', 'C. Reen']);
+        assert.deepEqual(c, { status: 'partial', checked: 1, total: 2 });
+    });
+
+    test('a witness that never ran is unavailable, NOT complete', () => {
+        // THE TRAP. `unmatched` is empty on every early return — no grid, no pdfjs, a wait timeout —
+        // so filtering by it would find nothing unmatched and report a check that never happened.
+        for (const why of ['no grid', 'pdfjs absent', 'wait-timeout']) {
+            const c = geometryCoverage(stats({ ran: false }), ['G. Miller', 'C. Reen']);
+            assert.equal(c.status, 'unavailable', why);
+            assert.equal(c.checked, 0, why);
+            assert.equal(c.total, 2, `${why}: the denominator still names what was NOT checked`);
+        }
+    });
+
+    test('the witness ran and matched nobody is unavailable too', () => {
+        // Distinct from the case above in cause and identical in consequence: there is no signal.
+        const c = geometryCoverage(stats({ unmatched: ['G. Miller', 'C. Reen'] }), ['G. Miller', 'C. Reen']);
+        assert.equal(c.status, 'unavailable');
+    });
+
+    test('missing stats are unavailable rather than a thrown import', () => {
+        // This runs inside parseRosterPDF, whose whole contract is that the witness fails open.
+        assert.equal(geometryCoverage(/** @type {any} */ (null), ['G. Miller']).status, 'unavailable');
+    });
+
+    test('it composes with the real applyGeometryWitness, not a restatement of it', () => {
+        // The rule is only worth testing against the shape the production path actually produces —
+        // a hand-written `stats` literal could agree with a `ran` flag the witness never sets.
+        const geo = (...rowSpecs) => ({ available: true, pagesRead: 1, pagesRejected: 0, rows: assignRunsToGrid(pageFrom(rowSpecs)) });
+        const real = ['G. Miller', '', 'RD', 'RD', 'RD', 'RD', 'RD', 'RD'];
+        const entries = [
+            { memberName: 'G. Miller', shifts: Object.fromEntries(DATES.map(d => [d, 'RD'])) },
+            { memberName: 'J. Imaginary', shifts: Object.fromEntries(DATES.map(d => [d, 'RD'])) },
+        ];
+        const raw = applyGeometryWitness(entries, geo(real), DATES);
+        assert.equal(raw.ran, true, 'the witness must report that it ran');
+        assert.equal(raw.status, 'partial', 'raw: one of the two entries had no physical row');
+        // Now count over what the review will actually list.
+        assert.deepEqual(geometryCoverage(raw, ['G. Miller']), { status: 'complete', checked: 1, total: 1 });
     });
 });
 

@@ -304,14 +304,18 @@ function isClaim(v) {
  * @param {RosterGeometry|null|undefined} geometry
  * @param {string[]} dates   7 ISO dates, Sunday first
  * @returns {{ status: 'complete'|'partial'|'unavailable', refused: Array<{ memberName: string, dates: string[] }>,
- *             checked: number, total: number, unmatched: string[] }}
+ *             checked: number, total: number, unmatched: string[], ran: boolean }}
+ *   `ran` says whether the witness got past its own preconditions at all. It exists because
+ *   `checked === 0` cannot distinguish "there was no grid to compare against" from "there was a
+ *   grid and it matched nobody", and `geometryCoverage` below has to tell those apart.
  */
 function applyGeometryWitness(safeEntries, geometry, dates) {
     const stats = { status: /** @type {'complete'|'partial'|'unavailable'} */ ('unavailable'),
         refused: /** @type {Array<{ memberName: string, dates: string[] }>} */ ([]),
-        checked: 0, total: safeEntries.length, unmatched: /** @type {string[]} */ ([]) };
+        checked: 0, total: safeEntries.length, unmatched: /** @type {string[]} */ ([]), ran: false };
     if (!geometry || !geometry.available || !Array.isArray(geometry.rows) || !geometry.rows.length) return stats;
     if (!Array.isArray(dates) || dates.length < 7) return stats;
+    stats.ran = true;
 
     for (const entry of safeEntries) {
         const row = matchGeometryRow(entry.memberName, geometry.rows);
@@ -332,6 +336,41 @@ function applyGeometryWitness(safeEntries, geometry, dates) {
     }
     stats.status = stats.checked === 0 ? 'unavailable' : stats.checked >= stats.total ? 'complete' : 'partial';
     return stats;
+}
+
+/**
+ * The coverage figure the ADMIN is shown — counted over the rows that reach the review, not over
+ * everything the model returned (v22.45, external review).
+ *
+ * THE DEFECT. `applyGeometryWitness` runs before hallucinated names are filtered out, because a
+ * refusal has to be stamped into the entry while the entry still exists. A name the roster does not
+ * contain can never match a physical row, so it lands in `unmatched` and inflates `total` — and
+ * only `total`. One real member fully checked alongside one invented name reported `1 of 2 rows
+ * checked — partial`, and the admin then read a "check the remaining rows carefully" banner about a
+ * review in which every row HAD been checked. Nothing bad is written; the warning is simply
+ * pessimistic, and a warning that cries wolf is how a witness stops being read.
+ *
+ * WHY THIS IS NOT THE v16.76 MISTAKE, which the column cross-check carries a comment about: there
+ * the bug was MIXING populations — a numerator counted over everything against a denominator
+ * counted over the filtered rows, so a hallucinated row with strong column signal pushed the ratio
+ * to 'complete' while a real member went unchecked. Both figures here come from the same
+ * population, and the asymmetry that makes it safe is specific: a hallucinated name can only ever
+ * be `unmatched`, never `checked`, because matching requires a row bearing that name in the PDF.
+ * So recounting can only ever REMOVE an unchecked row, never add a checked one.
+ *
+ * @param {{ checked: number, total: number, unmatched: string[], ran: boolean }} stats  from applyGeometryWitness
+ * @param {string[]} reviewedNames  the member names that actually reach the review table
+ * @returns {{ status: 'complete'|'partial'|'unavailable', checked: number, total: number }}
+ */
+function geometryCoverage(stats, reviewedNames) {
+    // The witness never ran — no grid, no pdfjs, a timeout. `unmatched` is empty in that case, so
+    // recounting would call every reviewed row "checked" and report a check that never happened.
+    // This branch is the whole reason `ran` exists.
+    if (!stats || !stats.ran) return { status: 'unavailable', checked: 0, total: reviewedNames.length };
+    const unmatched = new Set(stats.unmatched);
+    const total = reviewedNames.length;
+    const checked = reviewedNames.filter(n => !unmatched.has(n)).length;
+    return { status: checked === 0 ? 'unavailable' : checked >= total ? 'complete' : 'partial', checked, total };
 }
 
 /**
@@ -398,6 +437,7 @@ module.exports = {
     assignRunsToGrid,
     extractRosterGeometry,
     matchGeometryRow,
+    geometryCoverage,
     applyGeometryWitness,
     // exposed for the tests that pin the vocabulary
     _isClaim: isClaim,
