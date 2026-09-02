@@ -383,6 +383,15 @@
        --focus-ring is the 4px glow a FIELD adds beneath its outline (the "fills in" cue). */
     --focus-ring-color: color-mix(in oklch, var(--primary-blue) 18%, transparent);
     --focus-ring: 0 0 0 4px var(--focus-ring-color);
+    /* ── The on-navy raised surface, declared once (v22.28) ─────────────────────────────────────
+       The third rung of the three-surface model as it appears on the NAVY canvas: the drawer's
+       pills, and the calendar's install/notification prompt strips. Both were the same two literals
+       written twice, which is the drift this repo keeps having to correct. `.nav-panel` still
+       declares its own scoped `--nav-*` names — that explicitness is a documented decision — but
+       their VALUES now come from here, so there is one place to re-tone. */
+    --on-navy-raised:   rgba(255, 255, 255, 0.09);   /* chips, prompt strips, hover fills */
+    --on-navy-hairline: rgba(255, 255, 255, 0.12);   /* dividers and their borders */
+
     --focus-outline: 2px solid var(--primary-blue);
     --focus-outline-gold: 2px solid var(--accent-gold);
     --focus-outline-light: 2px solid rgba(255, 255, 255, 0.85);
@@ -1438,12 +1447,12 @@ body.lb-open #stickyTotal { display: none !important; }
        is explicit. Alpha values are tuned to clear WCAG AA on navy:
        0.70 ≈ 7:1 for body text, 0.55 ≈ 5:1 for small headings. */
     --nav-surface:       var(--primary-blue);
-    --nav-raised:        rgba(255, 255, 255, 0.09);   /* chips, hover fills */
+    --nav-raised:        var(--on-navy-raised);        /* chips, hover fills */
     --nav-raised-strong: rgba(255, 255, 255, 0.16);   /* active / pressed */
     --nav-text:          #ffffff;
     --nav-text-muted:    rgba(255, 255, 255, 0.70);    /* secondary text */
     --nav-text-faint:    rgba(255, 255, 255, 0.55);    /* small headings */
-    --nav-border:        rgba(255, 255, 255, 0.12);    /* hairline dividers */
+    --nav-border:        var(--on-navy-hairline);      /* hairline dividers */
 
     position: fixed;
     top: 0;

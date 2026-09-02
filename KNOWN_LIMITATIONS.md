@@ -1090,10 +1090,33 @@ it is named for preventing exactly that flood.
 
 **So the column scan cannot be the independent witness**, and neither can the row read or the Sunday
 scan — all three are one model looking at one PDF in one call. The witness this needs is the PDF's
-own text geometry, where cell occupancy is a physical fact the model cannot influence
-(`experiments/roster-pdf-geometry`, which measured 24 blank Sundays and 5 blank Mon–Sat cells across
-the real set, all five being the one duplicate-sheet member). Until that lands this residual stands,
-and it is bounded by the review table: every import is shown to an admin before it is written.
+own text geometry, where cell occupancy is a physical fact the model cannot influence. Until that
+lands the residual stands, bounded by the review table: every import is shown to an admin first.
+
+**The geometry corpus test is now DONE (1 Sep 2026), and it moved one of the numbers.** 12 real
+documents — 3 roster types × 3 week-endings, draft and final — extracted through
+`experiments/roster-pdf-geometry`. Zero pages failed to carry the 9-column grid, including the
+drafts, so the structural prerequisite for promoting geometry from witness to authority is met. The
+domain figures, measured from the PDF's own text positions rather than from any model:
+
+- **blank Sunday: 111 of 207 rows (54%)** — ordinary, as the rule assumes.
+- **worked Sunday with no RDW marker: 80, against 1 with** — decisive confirmation that removing the
+  v22.16 "unmarked Sunday must be RDW" rule at v22.19 was correct.
+- **blank Mon–Sat: 49 cells in 1,242 (3.9%)** — and the DISTRIBUTION is the finding. CEA 1 in 678,
+  Supervisors 0 in 240, **Dispatch 48 in 324 (15%) across four people** (S. Horsman 19, S Faure 18,
+  P. Prashanthan 6, F. Mohamed 5).
+
+The earlier single-week reading — "5 blank Mon–Sat cells, all one person" — was not wrong, it was
+unrepresentative. **The consequence is a live one**: the v22.19 rule was dead code until v22.25 made
+it reachable, so nobody has yet seen what it does at volume. On CEA and Supervisors it will send one
+cell in 918 to review. On **Dispatch it will be roughly a dozen rows per import on a 14–16 row
+roster**, because those four people appear on that sheet and work most of their week elsewhere —
+which is precisely the case the rule exists for, since writing RD across them would overwrite what
+their primary roster's import had just written. The rule is right; the friction is real and is
+mitigated by the v22.17 in-place entry control, which lets each row be answered without leaving the
+page. **Worth watching on the first live Dispatch import** — if it proves tiresome, the question to
+ask is whether a member whose row is blank Mon–Sat on a SECOND sheet should be skipped wholesale
+rather than cell by cell. That is a product decision, not a bug.
 
 **Do not rebuild the cross-check on the column scan.** The reasoning is repeated in
 `applyColumnScanCrossCheck`'s own header, beside the code, so it is met by whoever tries.

@@ -314,8 +314,8 @@ network" from the 4G-versus-not-reported split, and the 30 Aug reading argued th
 reading the platform instead. Both were reasoning from a dimension that cannot separate them. This
 is the direct answer: it is network, it is one call, and it is on every load.
 
-**One honest caveat, and the check that closes it (deep review, 30 Aug).** The round-trip finding
-rests on an emulator with injected latency — rigorous, and the FIELD contribution is inferred rather
+**One honest caveat, and the check that closes it (deep review, 30 Aug; `VAL-AUTH-006`).** The
+round-trip finding rests on an emulator with injected latency — rigorous, and the FIELD contribution is inferred rather
 than observed. Before the identity decision is taken either way, confirm it on real devices with the
 signature it predicts: **if the wall is the lookup, `Recognised` should track connection quality far
 more strongly than `Getting ready` does** — a slow network moves a network wall and barely moves a
@@ -327,6 +327,63 @@ enforced when the network is up.** The offline arm of the same experiment shows 
 stored user anyway when the lookup cannot run — so an offline device already trusts the stored
 identity under shipped behaviour, and the "no — keep waiting" answer protects strictly less than it
 appears. The remaining open reading is the field signature above.
+
+### The field check was NOT readable, and now is (v22.28)
+
+The paragraph above said the comparison "is a reading, not a build". **That was wrong, and it was
+gating an owner decision with a mid-October deadline.** Every dimensional split on the App Speed card
+ran against a hardcoded `domReady`, so the only milestone anybody could split by connection was the
+one this document's own evidence exonerates — *Getting ready*, 0% over ½s across 1,738 opens. The
+rung the wall lives in could not be split at all.
+
+Nothing new is measured. `mode` and `conn` have been written onto every ladder sample since v21.30,
+so this is a **read of data already collected** — the check can be made against August and September
+rather than starting a fresh month's wait. The card now carries **"Does the connection slow the
+start?"**: *Recognised* by connection and *Getting ready* by connection, one under the other, on the
+same bands, with the reading rule stated between them. It renders both groups or neither — one alone
+is a column of percentages with nothing to read it against.
+
+**How to read it, and what each answer does:**
+
+| Reading | Means | Then |
+|---|---|---|
+| *Recognised* spreads across connection classes, *Getting ready* stays flat | the round-trip finding has its predicted field signature | the identity decision is ready to take on the evidence — `ROADMAP.md` |
+| both spread | something upstream of both is slow, and the round trip is not the whole story | do not take the decision on this evidence; find the common cause first |
+| neither spreads | the emulator finding does not reproduce in the field | **the finding is wrong.** Say so here and leave the gate alone |
+
+Note the second row honestly: `conn` is `navigator.connection.effectiveType`, which the 30 Aug read
+argues is probably splitting PLATFORM rather than network (Safari does not implement it). That
+confound weakens a positive reading and does not rescue a negative one — if *Recognised* and *Getting
+ready* differ across the same two groups, whatever the groups really are, the difference is between
+the two milestones and not between the populations.
+
+---
+
+## Two things this plan is NOT going to do, and why (v22.28)
+
+Recorded so the next reader — or the next review — finds the answer instead of re-deriving it. Both
+were proposed in good faith; both fail the plan's own test, which is *would the number change a
+decision that is currently open?*
+
+**Percentiles (median / P75 / P95) — NO, and they are not derivable from what is stored.** Samples
+are recorded as counts in five coarse bands (`PERF_BUCKETS`: under 500ms · to 1s · to 3s · to 8s ·
+over). The median of this app's Calendar start falls inside the **1–3s** band, which is two seconds
+wide; interpolating a point estimate inside it assumes a uniform distribution that load times
+certainly do not have, and would produce exactly the confident-but-unfounded figure the card's v21.16
+pass existed to remove. Finer bands would work and are a WRITE-side change — new key components, and
+a step in the series that makes either side incomparable, like the v19.95 usage change.
+
+But the deciding argument is not feasibility. **The bucket edges already answer the threshold
+questions exactly** — what share is worse than ½s, 1s, 3s, 8s, with no interpolation at all — and
+every open question here is threshold-shaped: the Phase 2 rule turns on a SHARE of cache-miss loads,
+and the identity decision is a security trade that a median does not move. A before/after on the
+identity change compares like with like on the same statistic. A percentile would be interesting and
+would change nothing.
+
+**Cold/warm start classification — NO, mostly present and it thins every row.** `swBoot` already
+measures the service worker waking, `mode` splits installed from browser, and "What put the shifts on
+screen" is the cache/server split for the data. A further dimension multiplies the key space, and the
+by-version rows are already at 24–46 opens against a `THIN_SAMPLE` of 20.
 
 ---
 

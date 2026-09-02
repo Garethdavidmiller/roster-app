@@ -587,6 +587,15 @@ export function perfSamples() {
     // Second connection class, so the "Why some are slower" splits have something to split.
     add('calendar', 'domReady', '1-3s', 160, '3g'); add('calendar', 'domReady', '3-8s', 90, '3g');
     add('calendar', 'domReady', '1-3s', 60, '4g', 'browser');
+    // …and the same for the two LADDER metrics the connection-signal block compares (v22.28). It
+    // needs two groups in BOTH, and had them in neither, so the block rendered nothing at all —
+    // silently, because "no second group" is also how it correctly declines a real thin month.
+    //
+    // The shape is the signature the block exists to show, not an arbitrary second row: `authBoot`
+    // (talks to the server) degrades badly on the slow class, `appBoot` (does not) stays flat. A
+    // fixture where both spread, or neither, would baseline a picture that reads as no finding.
+    add('calendar', 'authBoot', '1-3s', 90, '3g');  add('calendar', 'authBoot', '3-8s', 70, '3g');
+    add('calendar', 'appBoot',  'lt500ms', 140, '3g'); add('calendar', 'appBoot', '500ms-1s', 20, '3g');
     return out;
 }
 

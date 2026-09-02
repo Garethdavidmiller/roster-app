@@ -194,10 +194,16 @@ async function initPageSpeedCard() {
     // "(few)" while making a confident claim from 19 samples two sections above it.
 
     /** One breakdown block: the busiest page's samples split by a single dimension.
+     *
+     *  `metric` was HARDCODED to `domReady` until v22.28, which mattered more than it looks — see
+     *  `startSignalRows` below. The three blocks it renders still split `domReady`, because that is
+     *  the whole-load figure the per-page table above them reports and a version regression shows up
+     *  there first.
      *  @param {Record<string, number>} samples @param {string} page
-     *  @param {'conn'|'mode'|'version'} dimension */
-    const breakdownRows = (samples, page, dimension) => {
-        const { rows } = summarisePerfBy(samples, { page, metric: 'domReady', dimension, minSamples: THIN_SAMPLE });
+     *  @param {'conn'|'mode'|'version'} dimension
+     *  @param {string} [metric] @param {string} [label] */
+    const breakdownRows = (samples, page, dimension, metric = 'domReady', label = '') => {
+        const { rows } = summarisePerfBy(samples, { page, metric, dimension, minSamples: THIN_SAMPLE });
         if (rows.length < 2) return null;   // one group explains nothing — it IS the page total
         const frag = document.createDocumentFragment();
         // The SAME class the "By page" group above uses. These are the same kind of thing — a label
@@ -205,7 +211,7 @@ async function initPageSpeedCard() {
         // plain muted body text. Two structural ranks, five treatments, was the whole problem.
         const heading = document.createElement('p');
         heading.className = 'usage-section-label speed-dim-label';
-        heading.textContent = PERF_DIMENSIONS[dimension].label;
+        heading.textContent = label || PERF_DIMENSIONS[dimension].label;
         frag.appendChild(heading);
 
         const list = document.createElement('div');
@@ -246,6 +252,50 @@ async function initPageSpeedCard() {
             list.appendChild(row);
         });
         frag.appendChild(list);
+        return frag;
+    };
+
+    /**
+     * ── DOES THE START TRACK THE NETWORK? (v22.28) ──────────────────────────────────────────────
+     *
+     * `LATENCY_PLAN.md` has one open owner decision — whether the Calendar may paint before the
+     * `accounts:lookup` round trip returns — and one check gating it: **if the wall is that round
+     * trip, `Recognised` should track connection quality far more strongly than `Getting ready`
+     * does.** A slow network moves a network wall and barely moves a code-parse one.
+     *
+     * The plan called that comparison "a reading, not a build". **It was not readable.** Every
+     * dimensional split on this card ran against `domReady`, so the only milestone anyone could
+     * split by connection was the one the plan's own evidence says is fine (`Getting ready` finishes
+     * inside ½s on 100% of opens). The dimensions have been recorded on the ladder samples since
+     * v21.30 — `mode` and `conn` go onto every milestone write — so this is a read of a month of
+     * data already collected, not new instrumentation.
+     *
+     * **Both rows use the card's normal bands and the same dimension**, one group under the other,
+     * because the finding is the SPREAD WITHIN each group and two blocks on different bands could
+     * not be compared. The reader is told what to compare rather than left to infer it.
+     *
+     * It answers a question and it does not decide anything. A spread here is evidence for the
+     * round-trip finding; its absence means the finding is wrong and the decision should wait.
+     * @param {Record<string, number>} samples @param {string} page
+     */
+    const startSignalRows = (samples, page) => {
+        const groups = [
+            // Just the milestone name: the heading above already says "by connection", and
+            // repeating it in both sub-labels put the same three words on screen four times.
+            { metric: 'authBoot', label: 'Recognised' },
+            { metric: 'appBoot',  label: 'Getting ready' },
+        ].map(g => ({ ...g, block: breakdownRows(samples, page, 'conn', g.metric, g.label) }))
+         .filter(g => g.block);
+        // BOTH or NEITHER. One alone is not the comparison — it is a single row of percentages with
+        // nothing to read them against, and a reader would take it for a finding.
+        if (groups.length < 2) return null;
+        const frag = document.createDocumentFragment();
+        const heading = document.createElement('p');
+        heading.className = 'usage-section-label speed-dim-label';
+        heading.textContent = 'Does the connection slow the start?';
+        frag.appendChild(heading);
+        frag.appendChild(noteLine('Restoring your sign-in talks to the server; loading this page\u2019s code does not. If the first group spreads across connection speeds and the second does not, the wait is the network rather than the app.'));
+        groups.forEach(g => frag.appendChild(/** @type {DocumentFragment} */ (g.block)));
         return frag;
     };
 
@@ -422,8 +472,21 @@ async function initPageSpeedCard() {
         // reading it anywhere else would leave the reader to remember which row it belonged to.
         const source = readySourceRows(samples, busiest.page);
         if (source) { frag.appendChild(source); any = true; }
+        // Then the ladder's FIRST rung against the network, beside the stage that does not touch it
+        // — the comparison `LATENCY_PLAN.md` gates its open decision on. It sits here because both
+        // halves are milestones the two blocks above have just named.
+        const signal = startSignalRows(samples, busiest.page);
+        if (signal) { frag.appendChild(signal); any = true; }
         for (const dim of /** @type {Array<'conn'|'mode'|'version'>} */ (['conn', 'mode', 'version'])) {
-            const block = breakdownRows(samples, busiest.page, dim);
+            // `conn` is the ONE dimension now used twice on this card — the block above splits two
+            // milestones by it — so this one has to say which figure it is splitting or a reader
+            // meets a third "By connection" and cannot tell. The other two need no such help,
+            // and giving it to them anyway would be four words of noise apiece.
+            // …and it keeps its siblings' "By …" opening rather than leading with the figure: the
+            // three read as one group, and the qualifier is what distinguishes this one. The e2e
+            // guard asserts on "By connection", so leading with anything else silently drops it.
+            const block = breakdownRows(samples, busiest.page, dim, 'domReady',
+                dim === 'conn' ? 'By connection — whole load' : '');
             if (block) { frag.appendChild(block); any = true; }
         }
         return any ? frag : null;
