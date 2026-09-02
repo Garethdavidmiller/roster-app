@@ -4211,8 +4211,16 @@ test('huddle: a table too wide to fit scrolls itself, not the page', async ({ pa
     // so on the desktop project this would pass while testing nothing. 412 is the reported device.
     await page.setViewportSize({ width: 412, height: 915 });
     await page.goto('/index.html');
-    await page.addStyleTag({ content:
-        '#huddleViewerBody td, #huddleViewerBody th { white-space: nowrap; overflow-wrap: normal; }' });
+    // ── NO addStyleTag HERE, AND THAT IS THE POINT (v22.29) ────────────────────────────────────
+    // This test used to inject `white-space: nowrap; overflow-wrap: normal` before measuring, to
+    // force the table wide enough to have something to scroll. That override cancelled
+    // `overflow-wrap: anywhere` — the shipped rule that WAS the defect — so the harness measured a
+    // page whose broken CSS it had just disabled, and every assertion below passed while the real
+    // Huddle crushed "Call Sign" into four stacked letters on a phone.
+    //
+    // A test may not switch off the rule it is testing. The fixture is a real Huddle instead, and
+    // it is wide enough on its own: five columns of times and names come to ~429px against a ~380px
+    // panel at this width, so the scroll it asserts is the scroll a member actually gets.
 
     const geom = await page.evaluate(async () => {
         const { wrapTables } = await import('./calendar-huddle-viewer.js');
@@ -4239,11 +4247,27 @@ test('huddle: a table too wide to fit scrolls itself, not the page', async ({ pa
             headingLeft: Math.round(document.querySelector('#huddleViewerBody h1').getBoundingClientRect().left),
             firstColLeft: Math.round(firstCell.getBoundingClientRect().left),
             firstColText: firstCell.textContent.trim(),
+            // Lines in the tallest header, from its own line-height — no magic pixel constant.
+            headerLines: (() => {
+                const th = [...body.querySelectorAll('th')]
+                    .sort((a, b) => b.getBoundingClientRect().height - a.getBoundingClientRect().height)[0];
+                const lh = parseFloat(getComputedStyle(th).lineHeight) || 16;
+                const pad = parseFloat(getComputedStyle(th).paddingTop)
+                          + parseFloat(getComputedStyle(th).paddingBottom);
+                return Math.round((th.getBoundingClientRect().height - pad) / lh);
+            })(),
         };
     });
 
     expect(geom.wrappers, 'wrapTables must be idempotent — the viewer re-renders memoised HTML')
         .toBe(1);
+    // The REPORTED SYMPTOM first, so a failure names what a member actually saw rather than the
+    // mechanism underneath it. A header broken mid-word stacks into fragments: "Call Sign" came
+    // back as Cal/l/Sig/n, and "Information Controller" as Informatio/n Controller. Two words may
+    // legitimately take two lines; four fragments is the defect.
+    expect(geom.headerLines,
+        'a header broken mid-word stacks into fragments — "Call Sign" as Cal/l/Sig/n was the report')
+        .toBeLessThanOrEqual(2);
     expect(geom.tableScrollsX, 'the table itself must be the thing that scrolls').toBeGreaterThan(0);
     expect(geom.bodyScrollsX,
         'the document must NOT scroll sideways — that is what took the date heading off screen')
