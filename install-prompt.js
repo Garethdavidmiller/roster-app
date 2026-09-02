@@ -67,6 +67,20 @@
  * shipping the feature. So the width test happens BEFORE the event is captured, and it reads the
  * decision off the stylesheet (`--prompt-available`) rather than keeping a second copy of the
  * breakpoint here.
+ *
+ * **The same reasoning does NOT rescue the shared-station case, and that is a deliberate limit.**
+ * `preventDefault()` has to be called synchronously in the handler, and the access type is not known
+ * until `accessReady` resolves — so a PIN-unlocked phone (a member using the station code on their
+ * own device) has Chromium's mini-infobar suppressed and is then correctly offered nothing. The cost
+ * is one page load's worth of the browser's own prompt; the event fires again on later visits, and
+ * signing in — which is what that member should be doing — puts them straight into the branch that
+ * does offer. Not fixable without either letting two offers appear at once or deciding access
+ * synchronously, and it is written down because it looks exactly like the desktop bug above and is
+ * not the same thing.
+ *
+ * **The width is read ONCE, at init.** A tablet rotated from landscape to portrait mid-session gets
+ * no strip, which is right rather than merely tolerable: we have already let that session's event
+ * through to the browser, and re-arming on resize would put up a button with nothing behind it.
  */
 import { lsGet, lsSet } from './ls.js';
 import { isIOS } from './notif.js';

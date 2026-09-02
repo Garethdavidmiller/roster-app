@@ -482,8 +482,11 @@ async function initPageSpeedCard() {
             // milestones by it — so this one has to say which figure it is splitting or a reader
             // meets a third "By connection" and cannot tell. The other two need no such help,
             // and giving it to them anyway would be four words of noise apiece.
+            // …and it keeps its siblings' "By …" opening rather than leading with the figure: the
+            // three read as one group, and the qualifier is what distinguishes this one. The e2e
+            // guard asserts on "By connection", so leading with anything else silently drops it.
             const block = breakdownRows(samples, busiest.page, dim, 'domReady',
-                dim === 'conn' ? 'Whole load — by connection' : '');
+                dim === 'conn' ? 'By connection — whole load' : '');
             if (block) { frag.appendChild(block); any = true; }
         }
         return any ? frag : null;

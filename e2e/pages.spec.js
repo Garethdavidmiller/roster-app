@@ -4302,7 +4302,7 @@ test('operations: App speed can split Recognised by connection, beside Getting r
     await expect(speed).toContainText('Getting ready');
     // The generic connection block must name its own figure now that three blocks split by conn —
     // an unlabelled third one reads as a third milestone.
-    await expect(speed).toContainText('Whole load — by connection');
+    await expect(speed).toContainText('By connection — whole load');
 
     // …and the two groups must say DIFFERENT things, or the block has rendered one metric twice.
     // Reading the "over 1s" figures directly is what separates "both headings appeared" from "the

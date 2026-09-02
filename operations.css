@@ -1573,8 +1573,12 @@ select:focus-visible, input:focus-visible {
    their parent's sibling. Five children rendered as peers of their own uncle, and the flattening
    got worse each time a block was added. Subordinated by TREATMENT rather than by size: an
    uppercase eyebrow reads as a label under a heading, where 10px would have been a heading too
-   small to read comfortably at the width most of this card is read on. `.speed-dim-label` is on
-   exactly those five and nothing else, so no wrapper element is needed to scope it. */
+   small to read comfortably at the width most of this card is read on.
+
+   THE RULE, NOT A COUNT: this class marks a block nested inside "Why some are slower" and nothing
+   else, so no wrapper element is needed to scope it. It said "exactly those five" and listed six,
+   and three more blocks have been added since — a number written down beside the list it counts is
+   the one thing here guaranteed to go stale. */
 .speed-dim-label {
     margin-top: 18px;
     text-transform: uppercase;

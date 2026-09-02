@@ -1,24 +1,19 @@
 ---
 paths:
-  - "guide.html"
-  - "paycalc-guide.html"
-  - "railcard-guide.html"
-  - "fip.html"
-  - "rangers-guide.html"
-  - "guide-shell.css"
-  - "guide.css"
-  - "guide-doc.css"
-  - "paycalc-guide.css"
-  - "railcard-guide.css"
-  - "fip.css"
-  - "rangers-guide.css"
-  - "guide-print.js"
-  - "railcard-guide.js"
-  - "fip.js"
-  - "rangers-guide.js"
+  - "guide*.*"
+  - "*-guide.*"
+  - "fip.*"
 ---
 
 # Guide pages — full reference
+
+> **The `paths:` list above uses GLOBS, and must stay that way.** It enumerated seventeen filenames
+> and had already fallen behind: `guide-back.js` — loaded by every one of the five guides, and
+> described three paragraphs below — was not on it, so editing the file that owns the back-arrow
+> behaviour did not surface the document that specifies it. Exactly the failure
+> `.claude/rules/links-design.md` records against its own list, which is why the fix is the same one.
+> Three globs cover every guide page, every guide stylesheet and every guide script, including any
+> added later.
 
 ## Shared rules (all FIVE guide pages)
 
