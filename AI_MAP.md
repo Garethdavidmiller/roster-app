@@ -510,6 +510,31 @@ Login, session management, shared DOM handles, and the glue that wires all admin
 - Calls `initALSection()`, `initSickSection()`, `initOverrides()` to initialise all sections
 - Does **not** contain AL save logic, sick save logic, week grid, override list, bulk bar, roster review pipeline, Huddle upload, auth setup, Notifications card, or Cultural Calendar — those are in sub-modules. Huddle upload, roster upload, and staff auth setup moved to `operations-app.js` at v10.99. Notifications moved to `settings-app.js` at v11.06.
 
+### `settings-status.js`
+What each Settings card's state MEANS — the chip it wears, whether it opens itself, and the one
+line at the top of the page. Pure: no reads, no DOM, no Firebase. Each card reports its own state
+as its own data lands, the same discipline as `operations-attention.js` and for the same reason —
+an index that fetches its own copy of the data can disagree with the card beside it.
+- `CARD_ORDER` — the cards the summary speaks for, in the order their to-dos are listed. Password
+  first (the security migration), then work email, then notifications. **`pay-data` is deliberately
+  absent**: it has no wrong state, so it can never be a to-do and can never delay "all set".
+  Declared rather than observed, so the line does not reshuffle between loads depending on which
+  network answer came back first.
+- `shouldOpen(state)` — `action`, `blocked` and `error` open their card; `ok`, `unknown` and `n/a`
+  do not. Opening on `unknown` would make every card flap at first paint and shut as its answer
+  landed, which is the reflow the whole feature exists to remove.
+- `summarise(states)` → `{ tone, headline, items }`. **Silence is not success**: a card missing
+  from the map is `unknown`, `unknown` outranks every other answer, and while any card holds it the
+  summary says it is still checking. A read that FAILED is `error` — not a to-do (nothing was
+  learnt) and not a pass either. "✓ You're all set" over a password status nobody actually read is
+  the one thing this line must never say, and it is silent when it happens.
+- Six states, and the two that look like spares are not: `blocked` says the member cannot fix it
+  from here (the browser will refuse to ask again), so it is named rather than turned into "Turn on
+  notifications" — a to-do that sends them into a dead end. `n/a` is a card that cannot be right or
+  wrong on this device.
+- Tested by `settings-status.test.mjs`, organised by false reassurance vs false alarm; the wiring
+  by `e2e/pages.spec.js`.
+
 ### `settings-app.js`
 Coordinator for `settings.html` (all logged-in staff, v11.06).
 - **Exported `init()` wrap (Phase 4a.2, v17.09):** the coordinator body is `export function init()`, invoked by `settings-boot.js` (the page loads the boot file — CSP `script-src 'self'` blocks an inline call). Importing this module no longer auto-runs it, so a test can drive `init()` with mocked deps. The last of the five write coordinators to get the seam.

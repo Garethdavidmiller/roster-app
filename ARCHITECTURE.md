@@ -27,6 +27,7 @@ changed once.
 | **Repository conventions** | `CLAUDE.md` | Version bumping, the file tree, architecture decisions, wording conventions, change impact |
 | **Module routing** | `AI_MAP.md` | What every module is and what it exports |
 | **Authentication & sessions** | `AUTH_AND_SESSIONS.md` | Session ↔ identity ↔ claim, and the invariants across them |
+| **Credential lifecycle** | `CREDENTIAL_LIFECYCLE.md` | How a credential is issued, recovered and retired — and the ORDER those changes go in. Holds the one open decision about what retiring the surname should MEAN |
 | **Calendar truth** | `CALENDAR_DATA.md` | What may be shown, and when — knowledge states, the access gate |
 | **Overtime availability** | `OVERTIME_AVAILABILITY.md` | Participants, deadlines, revisions, retention, audience |
 | **Pay calculator** | `.claude/rules/paycalc.md` | Rates, payroll rules, state, layout |
@@ -63,7 +64,8 @@ live anchors:
 |---|---|---|
 | `SECURITY_RELEASE_PLAN.md` | **Live** | Carries the canonical track-status table for every security track |
 | `AUTH_PLAN.md` | **Live** (Track E undecided) | Owns the design; status lives in the plan above |
-| `PASSWORD_PLAN.md` | **Live** (C2, C5 pending) | Same split |
+| `PASSWORD_PLAN.md` | **Live** (C2, C5 pending) | Same split. §5's admin reset is INTERIM — superseded in design by C6 |
+| `CREDENTIAL_LIFECYCLE.md` | **Proposed** — nothing in it is started | Design + sequencing only; status stays in the canonical table. §7 is an OPEN owner decision and must not be actioned as though it were settled |
 | `ARCHITECTURE_PLAN.md` | Track 1 complete | Code comments cite it by phase number |
 | `OTHER_PLAN.md` | Shipped | Code comments cite "OTHER_PLAN.md decision N" |
 | `LOGIN_INCIDENT.md` | Resolved | `CLAUDE.md` sends you here before touching login |

@@ -82,6 +82,10 @@ body {
         column-gap: 24px;
         align-items: start;
     }
+    /* The summary speaks for the whole page, so it spans it. Without this it becomes an ordinary
+       grid item and sits in column 1, where it reads as a heading for the account cards rather
+       than as the page's answer. */
+    .settings-summary { grid-column: 1 / -1; }
     .app-header { max-width: var(--content-max-width); }
 
     .col-main { grid-column: 1; }
@@ -220,3 +224,130 @@ body {
     margin: 10px 0 8px;
     max-width: 64ch;
 }
+
+/* ── THE SUMMARY STRIP (v22.37) ─────────────────────────────────────────────────────────────────
+   The one line at the top that answers "is my account and this device set up properly?" before
+   anything has to be opened. Deliberately NOT a dashboard: one sentence, and a list only when
+   there is something outstanding. Once everything is done it is a single quiet green line, which
+   is the point — a settings page that has nothing to say should almost disappear.
+
+   Tone is carried by a `data-tone` attribute rather than a class per state, so the JS sets one
+   value and cannot leave two tones on the element at once. */
+/* `display: flex` out-specifies the UA's `[hidden] { display: none }`, so without the companion
+   below the strip renders as an empty box on first paint while the code believes it is hidden —
+   the trap page-visibility-parity.test.mjs exists for, and which caught this one. */
+.settings-summary[hidden] { display: none !important; }
+.settings-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0 0 14px;
+    padding: 11px 14px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-light);
+    background: var(--bg-faint);
+    font-size: var(--type-small);
+    line-height: 1.45;
+}
+.settings-summary-line { font-weight: 700; color: var(--text-dark); }
+.settings-summary[data-tone="all-set"] {
+    background: var(--success-green-bg);
+    border-color: var(--success-green-border);
+}
+.settings-summary[data-tone="all-set"] .settings-summary-line { color: var(--success-text); }
+.settings-summary[data-tone="todo"] {
+    background: color-mix(in oklch, var(--accent-gold) 16%, white);
+    border-color: color-mix(in oklch, var(--accent-gold) 45%, white);
+}
+.settings-summary[data-tone="todo"] .settings-summary-line { color: var(--warning-amber); }
+/* `checking` and `error` keep the neutral shell — neither is news, and colouring a transient
+   "still reading" state amber makes every page load start with a warning. */
+.settings-summary-items {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--text-mid);
+}
+.settings-summary-items:empty { display: none; }
+.settings-summary-items li { margin: 2px 0; }
+
+/* Section labels — three words that group four cards into the questions they answer. Small,
+   uppercase and quiet: they are signposts, not headings competing with the card titles. */
+.settings-section-label {
+    font-size: var(--type-micro);
+    font-weight: 800;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    /* ON-NAVY, not `--text-mid`. These labels sit outside the white cards, on the page canvas —
+       the first cut used the on-white mid tone and axe failed it for contrast immediately. The
+       `--on-navy-*` tokens exist precisely so this is a lookup rather than a judgement. */
+    color: var(--on-navy-muted);
+    margin: 4px 0 8px;
+}
+.col-side > .settings-section-label:first-child { margin-top: 0; }
+
+/* The work-email domain, shown beside the field rather than appended in silence. */
+.contact-email-row { display: flex; align-items: stretch; gap: 0; }
+.contact-email-row .contact-email-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+.contact-email-domain {
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    font-size: var(--type-small);
+    font-weight: 600;
+    color: var(--text-mid);
+    background: var(--bg-faint);
+    border: 1.5px solid var(--border-light);
+    border-left: none;
+    border-top-right-radius: var(--radius-md);
+    border-bottom-right-radius: var(--radius-md);
+    white-space: nowrap;
+}
+/* Below ~380px the domain and a usable field cannot share a row, so it drops beneath — still
+   visible, which is the whole requirement, without squeezing the field it labels. */
+@media (max-width: 380px) {
+    .contact-email-row { flex-direction: column; }
+    .contact-email-row .contact-email-input { border-radius: var(--radius-md); }
+    .contact-email-domain {
+        border-left: 1.5px solid var(--border-light);
+        border-radius: var(--radius-md);
+        margin-top: 4px;
+        padding: 4px 10px;
+    }
+}
+
+/* The forgotten-password line, where forgetting it actually stops you. */
+.pw-forgot {
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    margin: -4px 0 12px;
+}
+
+/* One reveal control for all three password fields. A checkbox rather than a button because it
+   has two states and says which one it is in — the old `Show` button sat beside one field and
+   silently governed another. */
+.pw-show-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 4px 0 12px;
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    cursor: pointer;
+}
+.pw-show-row input { width: 18px; height: 18px; accent-color: var(--primary-blue); cursor: pointer; }
+.pw-show-row input:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+
+/* What this device is actually holding — the count that makes "move your pay data" mean
+   something. Empty until the inventory has been read, and hidden while it is. */
+.pay-data-inventory {
+    font-size: var(--type-small);
+    font-weight: 600;
+    color: var(--text-dark);
+    margin: 10px 0 12px;
+}
+.pay-data-inventory:empty { display: none; }

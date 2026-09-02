@@ -391,6 +391,13 @@
        their VALUES now come from here, so there is one place to re-tone. */
     --on-navy-raised:   rgba(255, 255, 255, 0.09);   /* chips, prompt strips, hover fills */
     --on-navy-hairline: rgba(255, 255, 255, 0.12);   /* dividers and their borders */
+    /* TEXT on the navy canvas. Promoted here at v22.37 for the same reason the two fills above
+       were: Settings' section labels sit OUTSIDE the white cards, and the first cut reached for
+       `--text-mid` — an on-WHITE colour, which axe failed at once for contrast. There was no
+       on-navy text token outside `.nav-panel`'s scope to reach for instead, so the next person
+       would have made the same mistake. The drawer now aliases these rather than restating them. */
+    --on-navy-muted:    rgba(255, 255, 255, 0.70);   /* secondary text */
+    --on-navy-faint:    rgba(255, 255, 255, 0.55);   /* small headings — see the contrast note */
 
     --focus-outline: 2px solid var(--primary-blue);
     --focus-outline-gold: 2px solid var(--accent-gold);
@@ -1450,8 +1457,8 @@ body.lb-open #stickyTotal { display: none !important; }
     --nav-raised:        var(--on-navy-raised);        /* chips, hover fills */
     --nav-raised-strong: rgba(255, 255, 255, 0.16);   /* active / pressed */
     --nav-text:          #ffffff;
-    --nav-text-muted:    rgba(255, 255, 255, 0.70);    /* secondary text */
-    --nav-text-faint:    rgba(255, 255, 255, 0.55);    /* small headings */
+    --nav-text-muted:    var(--on-navy-muted);         /* secondary text */
+    --nav-text-faint:    var(--on-navy-faint);         /* small headings */
     --nav-border:        var(--on-navy-hairline);      /* hairline dividers */
 
     position: fixed;
