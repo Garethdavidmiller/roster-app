@@ -423,6 +423,9 @@ export function confirmSettings(calculate) {
   const curTy = taxYearForPeriod(curP);
   // If this period already has saved hours, patch its pension value in-place.
   const existingRaw = lsGet(periodKey(pNum));
+  /** Did the in-place pension patch below fail on damaged storage? Drives the partial-success
+   *  message at the end — see the catch for why a bare console.warn was not enough. */
+  let _pensionPatchFailed = false;
   if (existingRaw) {
     try {
       const d = JSON.parse(existingRaw);
@@ -437,15 +440,20 @@ export function confirmSettings(calculate) {
       d.pension = (isPensionOptedOut(curP) || _pRaw === '') ? null : (parseFloat(_pRaw) || 0);
       lsSet(periodKey(pNum), JSON.stringify(d));
     } catch (err) {
-      // A corrupt saved period must not break Save — but it must not vanish either (v22.44).
-      // This catch existed to survive `JSON.parse` on damaged storage, and swallowed it in
-      // silence: the member changes their pension, presses Save, the card collapses as though it
-      // worked, and this period keeps the old figure. That is the one direction the pay code is
-      // written not to fail in, and the repo already has the opposite convention a few modules
-      // over — `readSavedPeriod` returns `{data, error}` so back-pay and HPP can SAY a period is
-      // corrupt instead of dropping it. Warning is the minimum: it reaches the Error Log, so a
-      // member reporting "my pension didn't change" is diagnosable rather than a mystery.
-      // Surfacing it in the UI is a larger design decision and is noted, not taken, here.
+      // A corrupt saved period must not break Save — but it must not be reported as a success
+      // either (v22.45, external review). This catch existed to survive `JSON.parse` on damaged
+      // storage and swallowed it in silence; v22.44 added a warning and claimed it reached the
+      // Operations Error Log. **It does not**: `error-reporter.js` hooks `error` and
+      // `unhandledrejection`, and nothing in the app intercepts `console.warn`. So the warning was
+      // a developer aid described as a diagnostic trail, and the member still read "✓ Settings
+      // saved" over a period that had kept its old pension figure.
+      //
+      // The honest answer is a PARTIAL SUCCESS, which is what the rest of the app does with this
+      // shape — `readSavedPeriod` returns `{data, error}` so back-pay and HPP can SAY a period is
+      // corrupt rather than dropping it; the save receipt names the days it could not change. The
+      // settings themselves DID save, so this is not a failure; one consequence the member
+      // reasonably expected did not happen, so it is not a success either.
+      _pensionPatchFailed = true;
       console.warn('[paycalc] pension patch skipped — period ' + pNum + ' is unreadable:', /** @type {any} */ (err)?.message);
     }
   }
@@ -463,8 +471,16 @@ export function confirmSettings(calculate) {
   const _cfPre = !!curP && isPreAwardPeriod(curP, _cfGrade, curTy.label);
   // No tax code here — matches the coordinator's summary writer (one line at 390px; v17.95).
   if (hintEl) setStatus(hintEl, `✓ ${curTy.label} — £${rate}/hr${_cfPre ? ' · pre-rise' : ''}`);
-  // Brief "saved" confirmation then collapse
+  // Brief "saved" confirmation then collapse — UNLESS one consequence of the save could not be
+  // applied, in which case the line STAYS and the card stays open. A partial-success message that
+  // clears itself after 2.5 seconds and folds the card away is a message nobody reads, and this one
+  // asks the member to go and do something.
   const fb = document.getElementById('settingsSaveFeedback');
+  if (_pensionPatchFailed) {
+    if (fb) setStatus(fb, '⚠ Settings saved, but this payslip\u2019s saved data is damaged and kept its old pension figure — clear and re-enter this period\u2019s hours.');
+    calculate();
+    return;
+  }
   if (fb) setStatus(fb, '✓ Settings saved');
   setTimeout(() => {
     if (fb) fb.textContent = '';

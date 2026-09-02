@@ -492,7 +492,8 @@ export function init() {
                         { icon: '🚫', html: 'If you tapped <strong>Don\'t allow</strong> when your phone asked, the button cannot ask again — your phone will not let it. Turn notifications back on for this app in your phone\'s own settings.' },
                     ]},
                     { heading: 'iPhone users', items: [
-                        { icon: '🍎', html: 'Notifications only work on iPhone if the app has been <strong>added to your Home Screen</strong> — tap Share, then Add to Home Screen, in Safari.' },
+                        // Browser-neutral: every iOS browser is WebKit, so this reaches Chrome/Edge/Firefox too (v22.45).
+                        { icon: '🍎', html: 'Notifications only work on iPhone if the app has been <strong>added to your Home Screen</strong> — tap your browser\u2019s Share button, then Add to Home Screen.' },
                     ]},
                 ],
             },

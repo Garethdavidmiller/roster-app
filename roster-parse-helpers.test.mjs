@@ -3,6 +3,10 @@
  *
  * Pure functions only — no Firebase, no secrets, no HTTP.
  * Run: node --test roster-parse-helpers.test.mjs
+ *
+ * @nodeps-safe — runs on a bare checkout with nothing installed. It is listed in `test:functions`
+ * only for convenience (it is about a `functions/` module), and `scripts/test-nodeps.mjs` reads
+ * this marker rather than keeping its own exception list.
  */
 
 import { test, describe } from 'node:test';
