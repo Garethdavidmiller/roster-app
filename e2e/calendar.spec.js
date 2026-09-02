@@ -429,7 +429,8 @@ test('calendar: a FIRST-RUN device reports no identity, so the default admin can
 // The guides are static pages with no Firebase, so the drawer tap is the only place an open can be
 // counted, and the id has to be chosen from the link that was clicked. Until v19.95 that was a
 // substring test on the href covering two of the four guides — and the two added here are exactly
-// the case it gets wrong, because `'./paycalc-guide.html'.includes('staff-guide.html')` is TRUE.
+// the case it gets wrong: `'./paycalc-guide.html'.includes('guide.html')` is TRUE, and `guide.html`
+// was the Staff Guide's own filename until the v22.47 rename.
 //
 // Nothing else can catch a mis-mapping. The unit tests hand `recordOpen` an id, the parity test
 // proves the LISTS agree, and both stay green while every Pay Calculator Guide open is filed under

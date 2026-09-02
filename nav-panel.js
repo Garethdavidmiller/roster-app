@@ -112,10 +112,12 @@ const NAV_INFORMATION = [
  * `openId` is the anonymous open-counter id (v18.20 for the first two, v19.95 for the rest). It
  * lives on the ENTRY and is stamped onto the rendered link as `data-open-id`, so the click handler
  * reads it off the element rather than inferring it from the href. That is not tidiness: the two
- * ids added at v19.95 are the exact case a href test gets wrong, because
- * `'./paycalc-guide.html'.includes('staff-guide.html')` is TRUE — a substring match would have counted
- * every Pay Calculator Guide open as a Staff Guide open, and both bars would still have looked
- * plausible. A guide added here without an `openId` simply is not counted, which
+ * ids added at v19.95 are the exact case a href test gets wrong:
+ * `'./paycalc-guide.html'.includes('guide.html')` is TRUE, and `guide.html` is what the Staff
+ * Guide was called until v22.47 — so a substring match counted every Pay Calculator Guide open as
+ * a Staff Guide open, and both bars still looked plausible. The rename ended THAT collision and
+ * changes nothing here: a filename is not a stable key, and the next rename is free to make a new
+ * one. A guide added here without an `openId` simply is not counted, which
  * firestore-contract-parity.test.mjs fails on rather than leaving to be noticed.
  */
 const NAV_GUIDES = [
@@ -530,7 +532,8 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             // The id is READ OFF THE ELEMENT (`data-open-id`, stamped from NAV_GUIDES at render).
             // It was matched from the href until v19.95, which covered only two of the four guides
             // — and adding the other two that way would have been wrong, because
-            // `'./paycalc-guide.html'.includes('staff-guide.html')` is true.
+            // `'./paycalc-guide.html'.includes('guide.html')` is true and `guide.html` was the
+            // Staff Guide's own filename until v22.47.
             const _countGuideOpen = () => {
                 const openId = guideLink.dataset.openId;
                 if (openId) recordOpen(openId, _usageId);

@@ -186,7 +186,7 @@ hosts), `script-src 'self'` already blocks injected script, and this is P4 defen
 live vector — not worth the breakage. **If narrowing is retried:** first capture the COMPLETE host set
 from a real-network run — read every `blockedURI` from the CI `csp` job (or a browser with the narrowed
 header on a live network), not a proxied dev run — then list exactly those hosts in `firebase.json` AND
-all twelve `<meta>` CSPs, and confirm the CI `csp` job (not just local) goes green.
+every served page's `<meta>` CSP, and confirm the CI `csp` job (not just local) goes green.
 
 ### `script-src`/`frame-src` must allow Firebase Auth's Google-API iframe — `apis.google.com` (fixed v17.82)
 Firebase Auth (`firebase-auth.js`, loaded from gstatic) pulls in the Google API client
@@ -203,7 +203,7 @@ Firebase-Auth-under-CSP requirement. **Second layer (v17.96):** once the gapi sc
 began pinging its own telemetry endpoint (`apis.google.com/js/gen_204`) — a `connect-src` violation
 (the `*.googleapis.com` wildcard does NOT cover `apis.google.com`). `connect-src` now includes
 `https://apis.google.com` too. Lesson: allowing a third-party script means allowing what it then
-CONNECTS to — check the CI csp job after each layer, not just the first. Applied to the `firebase.json` header AND all twelve `<meta>` CSPs
+CONNECTS to — check the CI csp job after each layer, not just the first. Applied to the `firebase.json` header AND every served page's `<meta>` CSP
 (csp-meta-parity), with `apis.google.com` added to `csp-hygiene.test.mjs`'s `DYNAMIC_HOSTS` (it's
 requested by the gstatic SDK, not built in our source).
 

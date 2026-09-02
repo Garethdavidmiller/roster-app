@@ -347,7 +347,7 @@ lets any staff member view any colleague's roster/AL by design — Track E does 
 REST). Staged:
 
 - **E0 (free, no decision needed) — ✓ SHIPPED v19.00.** Search engines excluded: `X-Robots-Tag:
-  noindex, nofollow` on Firebase Hosting + a mirrored `<meta name="robots">` in all twelve served pages
+  noindex, nofollow` on Firebase Hosting + a mirrored `<meta name="robots">` in every served page
   (the GitHub Pages mirror gets no headers, and a `robots.txt` cannot reach it — only honoured at an
   origin root). `robots.txt` deliberately **permits** crawling: a crawler blocked from fetching can
   never read the noindex, so `Disallow: /` would hide the signal, not the page. Guarded by
