@@ -76,6 +76,16 @@ expectation, and change approval. Several of those are obligations rather than f
 engineering. Recording that honestly is the point — "depends on approval workflows" made Formal AL
 look like a technical dependency when it is not.
 
+**And one item exists only on the far side of it.** If Chiltern adopts the app formally, the right
+authentication end-state is **Microsoft / Entra ID work-account SSO** — the company then owns
+joiners, leavers, password and MFA policy, account disablement and identity verification, and the
+app consumes an identity and maps it to its own roles, which it already does cleanly via claims.
+That is a better end-state than maintaining a staff authentication system indefinitely, and it
+would supersede most of `CREDENTIAL_LIFECYCLE.md`. It is not a plan and needs no work: it depends
+entirely on Chiltern IT registering the application, which is this gate. Recorded so that nobody
+builds toward it, and so that nobody is surprised later that the custom work was the right call
+*until* the gate moved.
+
 ---
 
 ## NOW — committed, or actively being decided

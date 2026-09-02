@@ -26,6 +26,7 @@ import { readFileSync } from 'node:fs';
 
 const AUTH = readFileSync('AUTH_PLAN.md', 'utf8');
 const SEC  = readFileSync('SECURITY_RELEASE_PLAN.md', 'utf8');
+const CRED = readFileSync('CREDENTIAL_LIFECYCLE.md', 'utf8');
 
 const EXPECTED_PHASES = ['E0', 'E1', 'E2', 'E3', 'E4', 'E5', 'E6'];
 
@@ -195,5 +196,81 @@ describe('Track E parity — each plan agrees with itself', () => {
             'AUTH_PLAN.md contradicts itself about what has shipped:\n  ' + disagree.join('\n  ') +
             '\nThe summary at the top and the phase headings are read by different people; both must ' +
             'say the same thing.');
+    });
+});
+
+
+// ── THE CREDENTIAL LIFECYCLE PROGRAMME (v22.38) ────────────────────────────────────────────────
+//
+// `CREDENTIAL_LIFECYCLE.md` is a third document on the same subject, added for the reason the other
+// two exist separately: it owns ORDER, which neither of them did. That makes three files that can
+// disagree, so the same structural discipline applies — and one of its sections needs more than
+// discipline.
+//
+// **§7 records a decision that has NOT been taken.** It sets out a second route to retiring the
+// surname: once one-time recovery codes exist, the remaining surname credentials could be replaced
+// server-side, which answers the CREDENTIAL question without touching the READ question that Track
+// E owns. That is a materially different plan from the one in the canonical status table, and the
+// owner asked explicitly that it not be adopted quietly.
+//
+// The failure mode is specific and it is not carelessness: a later session reads §7, finds it
+// persuasive, and starts *building* to it — updating the C5 row to match, or simply proceeding as
+// though the decision were made. Nothing would look wrong. Both documents would be internally
+// consistent, and the only evidence that a decision had been skipped would be the absence of a
+// conversation nobody can grep for.
+//
+// So the not-adopted marking is pinned in BOTH files. Adopting Route 2 then requires editing this
+// test, which is the point: it turns a silent drift into a deliberate act with a diff.
+
+describe('the credential lifecycle programme', () => {
+    test('§7 states, in the design doc, that neither route is adopted', () => {
+        assert.ok(/Neither is adopted\. The choice is the owner's/.test(CRED),
+            'CREDENTIAL_LIFECYCLE.md §7 no longer says the C5 routes are unadopted. If the owner HAS ' +
+            'chosen a route, say so in SECURITY_RELEASE_PLAN.md\'s C5 row and update this test in the ' +
+            'same commit. If they have not, restore the marking — a section describing an alternative ' +
+            'plan without saying it is unchosen is one somebody builds.');
+    });
+
+    test('and the canonical table says the same thing, where status actually lives', () => {
+        const c5Row = SEC.split('\n').find(l => l.includes('**C — passwords**')) || '';
+        assert.ok(/SECOND ROUTE is on the table and NOT adopted/.test(c5Row),
+            'The C — passwords row no longer records that a second route to C5 exists and is ' +
+            'unadopted. STATUS lives in this table, so a reader who only opens the design doc must ' +
+            'not be the only one who learns there is a choice outstanding.');
+    });
+
+    test('the design doc states no status of its own', () => {
+        // Same split-ownership rule the other two follow: one table owns stage. A design doc that
+        // starts marking things shipped is a second answer that can disagree with the first.
+        const claims = CRED.split('\n').filter(l => /✓ SHIPPED|Current stage/.test(l));
+        assert.deepEqual(claims, [],
+            'CREDENTIAL_LIFECYCLE.md has begun stating shipped status:\n  ' + claims.join('\n  ') +
+            '\nStatus belongs in SECURITY_RELEASE_PLAN.md\'s canonical table and nowhere else.');
+    });
+
+    test('every track the design doc names has a row in the canonical table', () => {
+        // A design for a track the status table has never heard of is work with no home — it is how
+        // C2 nearly became two different deferred plans.
+        const named = [...new Set([...CRED.matchAll(/\b(C6|F)\b(?= —)/g)].map(m => m[1]))].sort();
+        assert.deepEqual(named, ['C6', 'F'], 'the design doc names tracks this test does not know about');
+        for (const id of named) {
+            assert.ok(SEC.includes(`**${id} —`),
+                `SECURITY_RELEASE_PLAN.md has no canonical row for ${id}, which ` +
+                'CREDENTIAL_LIFECYCLE.md designs. Add the row, or drop the design.');
+        }
+    });
+
+    test('the two invariants for unbuilt work point at the design, not at code', () => {
+        // AUTH_AND_SESSIONS.md rows normally name the module that holds the reasoning. 15 and 16
+        // describe things that do not exist yet, so they must route to the design instead — a row
+        // pointing at a file that does not implement it is worse than one that says so.
+        const contract = readFileSync('AUTH_AND_SESSIONS.md', 'utf8');
+        for (const n of [15, 16]) {
+            const row = contract.split('\n').find(l => l.startsWith(`| ${n} |`)) || '';
+            assert.ok(row, `AUTH_AND_SESSIONS.md has no invariant ${n}`);
+            assert.ok(row.includes('CREDENTIAL_LIFECYCLE.md') && /not yet built/.test(row),
+                `invariant ${n} must route to CREDENTIAL_LIFECYCLE.md and say it is not yet built — ` +
+                'when it IS built, repoint it at the module and drop the marker here.');
+        }
     });
 });

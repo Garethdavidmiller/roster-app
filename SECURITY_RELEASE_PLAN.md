@@ -27,16 +27,21 @@ SECURITY_RELEASE_PLAN.md for status"; it may not restate the stage.
 | **A — infra** | ✅ Complete (A1 · A2 · A3) | — | — | WIF live, no standing deploy key; `npm audit --omit=dev` clean |
 | **B — write isolation** | ✅ Complete (B0–B4, H2; strict since v16.29) | — | — | Strict `overrides` rules live, no lockout, self-heal proven |
 | **A5 — push subscriptions** | ✅ Complete (v17.76, extended v18.74) | — | — | Per-owner create/update/delete enforced |
-| **C — passwords** | Forced migration live (Phase 0+1 v18.63, Phase 2 v18.92, reset queue v18.93–95) | **C5** — retire the surname default | Track E (below): un-migrated roster-viewers never sign in, so the metric cannot converge | ≥90% migrated **and** a proven recovery route for the remainder |
-| **C2 — email verification/reset** | Deferred | — | Needs an email relay that does not exist | Relay available and owner wants it |
+| **C — passwords** | Forced migration live (Phase 0+1 v18.63, Phase 2 v18.92, reset queue v18.93–95) | **C5** — retire the surname default | Track E (below): un-migrated roster-viewers never sign in, so the metric cannot converge. **⚠️ A SECOND ROUTE is on the table and NOT adopted** — C6 (above) would let the remaining surname credentials be replaced server-side with unknown random ones, which answers the CREDENTIAL question without touching the READ question. The two routes and what the second costs: `CREDENTIAL_LIFECYCLE.md` §7. Until the owner decides, this row stands as written | ≥90% migrated **and** a proven recovery route for the remainder |
+| **C2 — email verification/reset** | Deferred | — | Needs an email relay that does not exist | Relay available and owner wants it. **A saved address is not a credential** — possession must be proven and recorded (`verifiedAt`) before it can recover an account; design in `CREDENTIAL_LIFECYCLE.md` §8 |
+| **C6 — one-time recovery/activation codes** | Proposed, not started | Owner decision | — | Design in `CREDENTIAL_LIFECYCLE.md` §1. Supersedes C4′ as the recovery path: today's reset makes the SURNAME valid again, so the migration's own repair mechanism undoes the migration. C4′ stays live until C6 does — break-glass may not have a gap |
+| **F — step-up for sensitive admin actions** | Proposed, not started | — | — | Design in `CREDENTIAL_LIFECYCLE.md` §3. **No prerequisites** — the only item in that programme with none. Server-enforced from the token's `auth_time`, never a client timer |
 | **D — App Check** | Deferred, not started | **D1** — monitor mode | Owner decision | Legitimate traffic characterised over a real window before any enforcement |
 | **E — full-app auth** | E0 ✓ v19.00 · E1 ✓ v19.01 · **the READ closure is IN FORCE since 26 Aug 2026** — the Calendar asks for a named session or the staff PIN (client live since v20.51), and the `allow read;` hold line above the `overrides` read rule was deleted at v21.78, so the SERVER now refuses anything without a `name` claim, `admin`, or `calendarViewer`. RECOVERY_RUNBOOK step 4 records the go/no-go | **E3** — INDIVIDUAL authentication, if it is ever required. E2 was superseded, not built: it would have required merely *any* session, which an anonymous sign-in satisfies | Owner decision, most likely forced externally by a Chiltern IT requirement that each person authenticates | Owner approval + rollback rehearsed + **E3 criteria pre-registered before telemetry starts** |
 | **Deferred residual** | Held on purpose. The CALENDAR's anonymous bootstrap is gone in EFFECT (v20.12), but the call site is not: `calendar-access.js` still calls `signInAnonymously` under the `CALENDAR_PIN_ACCESS === false` rollback path, and `session.js` keeps its soft fallback. Both are in scope when this is retired — the removal checklist below omitted the first until v21.63 | Retire the anonymous fallback + `ENFORCE_NAMED_SESSION` kill-switch | — | Track B soak complete and Track E decided |
 
-**Two things this table is deliberately explicit about**, because both were previously implied and
+**Three things this table is deliberately explicit about**, because each was previously implied and
 misread: **E1 is client preparation, not protection** — the boundary moves at the READ RULE, which
-E2 was meant to move and the **staff PIN moved instead (v20.12)** — and **C5 is gated on a decision
-in a different track**, so it is further away than "≥90% migrated" suggests.
+E2 was meant to move and the **staff PIN moved instead (v20.12)**; **C5 is gated on a decision in a
+different track**, so it is further away than "≥90% migrated" suggests; and **that gate conflates
+two questions**, which C6 would separate — *may a guessable password sign somebody in?* is not the
+same as *may the roster be read without individual identity?*. The first is answerable today. The
+second is Track E and stays where it is.
 
 ---
 
