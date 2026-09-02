@@ -200,9 +200,11 @@ Three design points that flow from this and still govern any future rule change:
 - **RE-PRIORITISED (v18.88) — migrate the 8 PRIVILEGED accounts first, as their own milestone.**
   The plan's only migration gate is "≥90% of everyone", which conflates two different goals: *closing
   risk* and *retiring the surname mechanism*. They are not the same size of job, because **risk is
-  concentrated in 8 of the 51 active accounts** (counted from `functions/roster-members.json`, the
-  server-owned list — managers carry `hidden: true`, which is why a headcount off the visible
-  dropdown reads lower):
+  concentrated in the 8 privileged accounts, a small fraction of the active roster** (count them
+  from `functions/roster-members.json`, the server-owned list — managers carry `hidden: true`,
+  which is why a headcount off the visible dropdown reads lower). The roster total is deliberately
+  NOT written here: it moves every time somebody joins or leaves, and it did — a new dispatcher at
+  v22.41 took it past the figure this sentence used to state:
 
   | Tier | Accounts | What a guessed password gets an attacker |
   |------|----------|------------------------------------------|
