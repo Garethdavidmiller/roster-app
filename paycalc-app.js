@@ -143,8 +143,9 @@ export function init() {
     dismissLoginOverlay();
 
     // A ROLE WITH NO CONFIRMED RATES REFUSES RATHER THAN GUESSING (v21.78, external review): the
-    // grade lookup treats "no grade stored" as CEA at every consumer, so ten Dispatchers and seven
-    // manager accounts were being handed a polished estimate at somebody else's rate. Before every
+    // grade lookup treats "no grade stored" as CEA at every consumer, so every Dispatcher and
+    // manager account was being handed a polished estimate at somebody else's rate. (The counts
+    // that used to sit here went stale the first time a dispatcher joined — v22.42.) Before every
     // other init step, so nothing can render a figure first. Why: AI_MAP → `gradeForRole`.
     const _roleMember = getLoggedMember();
     if (_roleMember && !gradeForRole(_roleMember.role)) {

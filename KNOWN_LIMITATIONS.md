@@ -1062,6 +1062,36 @@ extension, not from `Content-Type`.
 
 ## Roster data
 
+### The base-roster drift detector is BLIND on a flat pattern — measured 60% coverage (v22.42)
+
+`detectShiftedRow` (`roster-alignment.js`) is described everywhere in this repo as the roster
+import's one AI-independent witness, and it is. What no document said is that **its coverage is not
+uniform, and for some members it is zero.**
+
+It works by correlating the parsed week against the member's own base pattern at offsets −1/0/+1 and
+requiring a ±1 alignment to beat offset 0 by ≥3 matches. That evidence exists only where a week has
+SHAPE. On a flat Mon–Fri line — `RD · 09:00–16:00 ×5 · RD` — a one-day shift moves two cells, never
+three, so the detector correctly reports nothing. There is no defect to fix here: the signal is
+genuinely absent, and lowering the threshold would trade silence for false refusals across the
+rotating links where it does work.
+
+**Measured 2 Sep 2026** over every active member across ten consecutive weeks, both shift
+directions: **538 of 900 one-day shifts detected, 60%.** Three members were blind in at least 18 of
+their 20 sampled cases — **S. Boyle, C. Reen and S. Faure**, all currently on flat fixed lines
+(`fixedRoster[1]` and `[2]`). B. Toth's three training weeks were in the same position while he sat
+on `fixedRoster[2]`. So the population that is hardest to check by eye — the people whose weeks all
+look alike — is exactly the population this layer cannot speak for.
+
+**What still covers them.** The geometry witness (`functions/roster-geometry.js`) is positional, not
+pattern-based: it asks whether the PDF's own cell is physically empty, which is as true of a flat
+line as of a rotating one. So the fail-closed protection for these members rests entirely on layer
+4, and when `geometry.status` comes back `unavailable` they have **no independent check at all** —
+which is the case `geometryCopy` now states in the review (v22.40) rather than leaving silent.
+
+**Why it is recorded rather than fixed.** Any fix means either a second pattern-independent witness
+or a weaker threshold, and the second is the one that makes the import worse. Worth revisiting if a
+flat-line member is ever the one a misread week lands on.
+
 ### A blank weekday is safe only while the AI reports it as blank (v22.25) — residual, and it is the geometry programme's case
 
 **What is fixed.** v22.19 established the domain rule from three real rosters — a blank cell is an

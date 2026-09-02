@@ -32,7 +32,7 @@ like a server-side one until somebody calls the endpoint directly.
 | # | Invariant | Where it lives |
 |---|---|---|
 | 1 | **The local session is committed only AFTER auth resolves.** Never before, never optimistically — a timeout, a throw or a failed enforcement must leave nothing saved. | `login-overlay.js` (`runNamedSignIn`) |
-| 2 | **A session expires 60 days after SIGN-IN, full stop.** Nothing extends it, inactivity never ends it early, so `expiry` is written once and `getSession()` is a pure read. | `session.js` |
+| 2 | **A session expires 60 days after SIGN-IN, full stop.** Nothing extends it, inactivity never ends it early, so `expiry` is written once and `getSession()` is a pure read. **An `expiry` that cannot be read is treated as EXPIRED, never as absent** (v22.43): `Date.now() > undefined` is false and so is every NaN comparison, so a corrupt or hand-edited session used to pass the check and then never expire — switching off the only automatic revocation the app has. | `session.js` |
 | 3 | **Three claim tiers, and admin outranks manager.** `{admin, name}` · `{manager, name}` · `{name}` — all stamped by `setupRosterAuth` from the **server-owned** `roster-members.json`, never from the client payload. | `functions/auth-endpoints.js` |
 | 4 | **Override writes are STRICT.** Your own `name` claim, or `admin`/`manager` writing on behalf. The old "no `name` claim ⇒ allow" escape is gone and must not come back. | `firestore.rules` |
 | 5 | **A stale claim self-heals; it never fails silently.** Force a token refresh, retry ONCE, and preserve the original error if it still fails. Every write path uses it. | `claim-retry.js` |

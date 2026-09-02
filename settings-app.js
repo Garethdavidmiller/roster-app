@@ -284,7 +284,11 @@ export function init() {
         const saveBtn    = /** @type {HTMLButtonElement} */ (document.getElementById('workEmailSaveBtn'));
         const removeBtn  = /** @type {HTMLButtonElement|null} */ (document.getElementById('workEmailRemoveBtn'));
         const feedback   = /** @type {HTMLElement} */ (document.getElementById('contactFeedback'));
-        if (!emailInput || !saveBtn) return;
+        // REPORT BEFORE BAILING. `unknown` outranks every other state, so a card that never
+        // reports does not merely lose its own chip — it holds the whole summary on "Checking your
+        // settings…" for the life of the page, hiding a genuine to-do on a DIFFERENT card. The
+        // markup is missing, so nothing was learnt: that is `error`, not `n/a`.
+        if (!emailInput || !saveBtn) { reportSetting('work-email', 'error', 'Couldn’t check'); return; }
 
         _cardHandles['work-email'] = initCardCollapse('contactToggleHeader', 'contactBody', 'contactChevron');
 
@@ -525,7 +529,8 @@ export function init() {
         const feedback = document.getElementById('pwFeedback');
         const chip    = document.getElementById('passwordStatusChip');
         const nudge   = document.getElementById('passwordNudge');
-        if (!curEl || !newEl || !confEl || !saveBtn || !feedback) return;
+        // Same rule as the work-email card above — a missing form must not silence the summary.
+        if (!curEl || !newEl || !confEl || !saveBtn || !feedback) { reportSetting('password', 'error', 'Couldn’t check'); return; }
         _cardHandles['password'] = initCardCollapse('passwordToggleHeader', 'passwordBody', 'passwordChevron');
 
         // ONE reveal control, covering all THREE fields (v22.37, owner review). The old `Show`
@@ -564,7 +569,9 @@ export function init() {
         // the serverTimestamp() to resolve (an immediate local-cache read returns passwordSetAt:null
         // right after the write, which would briefly flash "using surname" under the ✓ message).
         async function refreshStatus(optimisticMigrated = false) {
-            if (!member) return;
+            // No identity to ask about — nothing was learnt, and the summary must be told that
+            // rather than waiting for an answer that is never coming.
+            if (!member) { reportSetting('password', 'error', 'Couldn’t check'); return; }
             const paint = (/** @type {boolean} */ migrated) => {
                 // RETIRE THE CALENDAR NOTICE ON WHATEVER DEVICE LEARNS THE ANSWER (v19.91, external
                 // review). The flag used to be set only by `onWriteConfirmed` — i.e. only on the

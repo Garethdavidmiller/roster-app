@@ -28,7 +28,7 @@ export function initHuddleUpload({ currentIsAdmin, currentUser }) {
  * Initialises the Notifications card only.
  * Used by settings.html where notifications are available to all staff.
  *
- * @param {{ onState?: (state: 'ok'|'action'|'blocked'|'n/a', chip: string) => void }} [opts]
+ * @param {{ onState?: (state: 'ok'|'error'|'action'|'blocked'|'n/a', chip: string) => void }} [opts]
  *   `onState` is called whenever the card learns what state this device is in. It exists so
  *   Settings can put a chip in the header and count the card in its summary WITHOUT this module
  *   importing anything from that page — the words below are already the authority on what each
@@ -59,7 +59,15 @@ export function initHuddleNotifications({ onState } = {}) {
         return collapse;
     }
 
-    if (!statusMsg || !enableBtn || !disableBtn || !deniedMsg) return collapse;
+    // REPORT BEFORE BAILING (v22.42). `onState` feeds a summary in which `unknown` outranks every
+    // answer, so returning silently here does not just cost this card its chip — it freezes the
+    // whole Settings summary on "Checking your settings…", hiding to-dos on cards that are fine.
+    // The markup is missing, so nothing was learnt: `n/a` would claim this device cannot do
+    // notifications, which is a different and unearned statement.
+    if (!statusMsg || !enableBtn || !disableBtn || !deniedMsg) {
+        onState?.('error', 'Couldn’t check');
+        return collapse;
+    }
 
     const _statusMsg  = /** @type {HTMLElement} */ (statusMsg);
     const _enableBtn  = /** @type {HTMLButtonElement} */ (enableBtn);

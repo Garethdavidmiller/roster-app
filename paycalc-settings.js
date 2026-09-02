@@ -436,7 +436,18 @@ export function confirmSettings(calculate) {
       const _pRaw = /** @type {HTMLInputElement} */ (document.getElementById('pensionAmt')).value.trim();
       d.pension = (isPensionOptedOut(curP) || _pRaw === '') ? null : (parseFloat(_pRaw) || 0);
       lsSet(periodKey(pNum), JSON.stringify(d));
-    } catch {}
+    } catch (err) {
+      // A corrupt saved period must not break Save — but it must not vanish either (v22.44).
+      // This catch existed to survive `JSON.parse` on damaged storage, and swallowed it in
+      // silence: the member changes their pension, presses Save, the card collapses as though it
+      // worked, and this period keeps the old figure. That is the one direction the pay code is
+      // written not to fail in, and the repo already has the opposite convention a few modules
+      // over — `readSavedPeriod` returns `{data, error}` so back-pay and HPP can SAY a period is
+      // corrupt instead of dropping it. Warning is the minimum: it reaches the Error Log, so a
+      // member reporting "my pension didn't change" is diagnosable rather than a mystery.
+      // Surfacing it in the UI is a larger design decision and is noted, not taken, here.
+      console.warn('[paycalc] pension patch skipped — period ' + pNum + ' is unreadable:', /** @type {any} */ (err)?.message);
+    }
   }
   lsSet(settingsKey(curTy), '1');
   lsSet(SK.setup, '1');
