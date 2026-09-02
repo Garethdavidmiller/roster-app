@@ -195,9 +195,10 @@ function assignRunsToGrid({ items, vx, hy }) {
  * @param {{ loadPdfjs?: () => Promise<any> }} [deps]   injectable for tests; default imports pdfjs-dist v4
  * @returns {Promise<RosterGeometry>}
  */
-async function extractRosterGeometry(pdfBytes, { loadPdfjs } = {}) {
+async function extractRosterGeometry(pdfBytes, { loadPdfjs, workBudgetMs = GEOMETRY_WORK_BUDGET_MS, now = Date.now } = {}) {
     /** @type {RosterGeometry} */
     const result = { available: false, rows: [], pagesRead: 0, pagesRejected: 0 };
+    const deadline = now() + workBudgetMs;
     let pdfjs;
     try {
         pdfjs = await (loadPdfjs || (() => import('pdfjs-dist/legacy/build/pdf.mjs')))();
@@ -214,6 +215,14 @@ async function extractRosterGeometry(pdfBytes, { loadPdfjs } = {}) {
         task = pdfjs.getDocument({ data, useSystemFonts: true, verbosity: 0, isEvalSupported: false });
         const doc = await task.promise;
         for (let p = 1; p <= doc.numPages; p++) {
+            // Checked BETWEEN pages, where the loop is genuinely between awaits. Pages already read
+            // are kept: they are real evidence about the rows they cover, and stopping early is
+            // reported honestly as `partial` rather than thrown away as nothing.
+            if (now() >= deadline) {
+                result.reason = 'work-budget';
+                console.warn(`[roster-geometry] stopped after ${result.pagesRead} page(s) — the ${workBudgetMs}ms work budget was spent`);
+                break;
+            }
             try {
                 const page = await doc.getPage(p);
                 const tc = await page.getTextContent();
@@ -325,7 +334,65 @@ function applyGeometryWitness(safeEntries, geometry, dates) {
     return stats;
 }
 
+/**
+ * How long the caller will WAIT for the witness once the model has answered — and the reason the
+ * budget is on the wait rather than on the work.
+ *
+ * The extraction starts before the model call and is awaited after it, so it normally runs for
+ * free inside the model's own latency and costs the request nothing. What the reviewer's concern
+ * is actually about (v22.39) is the tail: a pathological PDF where pdfjs never settles would hold
+ * a finished parse until the Cloud Function's own 120s timeout — an OPTIONAL check extending the
+ * critical path without bound, which contradicts the whole fail-open contract.
+ *
+ * **Stopping the wait is not stopping the work**, exactly as `fetch-timeout.js` says on the client
+ * side. The extraction keeps running in the instance until it finishes or the instance goes; that
+ * costs nothing on the request, and the witness has no side effects to leave half-done. The
+ * `workBudgetMs` between-pages check above is the other half — it bounds the CPU, this bounds the
+ * wait, and the two answer different questions.
+ */
+const GEOMETRY_WAIT_BUDGET_MS = 8000;
+
+/** The absolute cap on the extraction itself, checked between pages. Generous: the whole point is
+ *  that it normally runs concurrently with the model, and the corpus reads 12 documents in well
+ *  under a second each — this is for the pathological case, not the ordinary one. */
+const GEOMETRY_WORK_BUDGET_MS = 45000;
+
+/**
+ * Wait for the witness, but not for ever. Returns whatever it produced, or a fail-open
+ * `RosterGeometry` saying it timed out — the same shape `applyGeometryWitness` already handles, so
+ * the timeout lands on `status: 'unavailable'` and reaches the admin through the review banner
+ * rather than being assumed away.
+ * @param {Promise<RosterGeometry>} promise
+ * @param {number} [ms]
+ * @returns {Promise<RosterGeometry>}
+ */
+async function awaitGeometryWithin(promise, ms = GEOMETRY_WAIT_BUDGET_MS) {
+    /** @type {any} */
+    let timer;
+    /** @type {RosterGeometry} */
+    const timedOut = { available: false, reason: 'wait-timeout', rows: [], pagesRead: 0, pagesRejected: 0 };
+    try {
+        return await Promise.race([
+            // A rejection here would be a bug in a function documented never to throw, but the
+            // whole point of this file is that the import survives one — so it fails open too.
+            promise.catch(err => {
+                console.warn(`[roster-geometry] the witness rejected, which it is not meant to do: ${err && err.message}`);
+                return { available: false, reason: 'threw', rows: [], pagesRead: 0, pagesRejected: 0 };
+            }),
+            new Promise(resolve => { timer = setTimeout(() => {
+                console.warn(`[roster-geometry] gave up waiting after ${ms}ms — the import proceeds without the second witness`);
+                resolve(timedOut);
+            }, ms); }),
+        ]);
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 module.exports = {
+    GEOMETRY_WAIT_BUDGET_MS,
+    GEOMETRY_WORK_BUDGET_MS,
+    awaitGeometryWithin,
     GRID_COLUMNS,
     rulesFromOperatorList,
     assignRunsToGrid,

@@ -1707,6 +1707,10 @@ body.role-unsupported .disclaimer { display: none; }
 
 /* ── Fill-the-year control + receipt (v22.06) — lives in the year-so-far block ─────────────── */
 .yearso-fill { margin: 8px 0 2px; }
+/* Repeated from shared.css rather than relied on across files: the rule below re-declares
+   `display`, and the companion that defeats it is worth having where a reader checking THAT rule
+   can see it. page-visibility-parity.test.mjs asks for it here for the same reason. */
+.btn-action[hidden] { display: none !important; }
 .yearso-fill .btn-action {
     font-size: var(--type-label); padding: 8px 14px; width: 100%;
     display: inline-flex; align-items: center; justify-content: center; gap: 7px;

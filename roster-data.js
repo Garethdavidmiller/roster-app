@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '22.39';
+export const APP_VERSION = '22.40';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -1152,6 +1152,40 @@ export function isChilternWorkEmail(v) {
     if (typeof v !== 'string') return false;
     const e = v.trim();
     return isValidEmail(e) && e.toLowerCase().endsWith('@' + CONFIG.WORK_EMAIL_DOMAIN);
+}
+
+/**
+ * The LOCAL PART of a work email — what a member actually types when the field shows
+ * `@chilternrailways.co.uk` beside it.
+ *
+ * It strips ONLY our own domain, and that restriction is the whole point. Stripping any
+ * `@…` would turn `g.miller@gmail.com` into `g.miller`, which the save path would then
+ * complete back into a Chiltern address the member never gave us — silently changing
+ * somebody's address into a plausible wrong one. A foreign domain must stay visible so
+ * `isChilternWorkEmail` can refuse it and the member can see why.
+ * @param {string} v  a full address, or a local part already
+ * @returns {string}
+ */
+export function workEmailLocalPart(v) {
+    if (typeof v !== 'string') return '';
+    const e = v.trim();
+    const suffix = '@' + CONFIG.WORK_EMAIL_DOMAIN;
+    return e.toLowerCase().endsWith(suffix) ? e.slice(0, -suffix.length) : e;
+}
+
+/**
+ * The inverse: the full address to SAVE, from whatever is in the field.
+ *
+ * Idempotent on our own domain (so it is safe to call on a value autofill already
+ * completed), and it never rewrites a foreign domain onto ours — same reason as above.
+ * @param {string} v  a local part, or a full address already
+ * @returns {string}  '' when there is nothing to save
+ */
+export function workEmailFrom(v) {
+    if (typeof v !== 'string') return '';
+    const e = v.trim();
+    if (!e) return '';
+    return e.includes('@') ? e : e + '@' + CONFIG.WORK_EMAIL_DOMAIN;
 }
 
 /**

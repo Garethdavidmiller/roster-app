@@ -143,7 +143,7 @@
                      knew the answer to — "do I type the whole thing?" — and both answers worked,
                      which is exactly the kind of thing a member gets wrong once and never mentions. -->
                 <div class="contact-email-row">
-                    <input type="email" id="workEmailInput" class="contact-email-input"
+                    <input type="text" id="workEmailInput" class="contact-email-input"
                            inputmode="email"
                            autocomplete="email" autocapitalize="off" autocorrect="off"
                            spellcheck="false" placeholder="firstname.surname"
@@ -275,9 +275,17 @@
             </div>
         </div>
         <div class="card-body">
-            <p class="install-note">Installing puts the roster on your home screen, and keeps
+            <p class="install-note" id="installNote">Installing puts the roster on your home screen, and keeps
                 this device’s saved pay data safe from being cleared to free up space.</p>
             <button type="button" class="btn-action btn-secondary" id="installBtn">Install the app</button>
+            <!-- WebKit fires no install event, so on iPhone the app says what to tap instead.
+                 Hidden by default and revealed only on that path — the same two-mode shape the
+                 calendar's install strip already uses. -->
+            <ol class="install-steps" id="installSteps" hidden>
+                <li>Tap <strong>Share</strong> at the bottom of Safari.</li>
+                <li>Choose <strong>Add to Home Screen</strong>.</li>
+                <li>Open the roster from your Home Screen from now on.</li>
+            </ol>
         </div>
     </div>
 

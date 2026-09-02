@@ -30,6 +30,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { createRequire } from 'node:module';
 
 const read = (/** @type {string} */ f) => readFileSync(new URL(f, import.meta.url), 'utf8');
 const CLAUDE = read('./CLAUDE.md');
@@ -913,5 +914,35 @@ test('the index still carries its exceptions table and its vocabulary — guard 
     for (const label of ['CURRENT', 'TEMPORARY', 'VALIDATION', 'DEFERRED']) {
         assert.ok(new RegExp(`\\*\\*${label}\\*\\*`).test(INDEX),
             `the status vocabulary no longer defines ${label}`);
+    }
+});
+
+
+// ── AN API EXAMPLE IS A CLAIM ABOUT THE API ────────────────────────────────────────────────────
+
+test('the roster-parse example obeys the week contract it illustrates', () => {
+    // OPERATIONS_REFERENCE's `parseRosterPDF` response example stated `weekEnding: "2026-04-05"` —
+    // a SUNDAY — over a `dates` array that ran Monday to Saturday and did not end on the stated
+    // week ending (v22.39 external review). The validator was right the whole time; the reference
+    // material a reader checks their own payload against was not, which is the direction that
+    // costs somebody an afternoon.
+    //
+    // Checked against `buildWeekDates` rather than re-stated here, so the example cannot drift
+    // from the builder — the same discipline as every other contract in this file. The helper
+    // requires nothing, so this stays in the no-install lane.
+    const require = createRequire(import.meta.url);
+    const { buildWeekDates } = require('./functions/roster-parse-helpers.js');
+
+    const doc = readFileSync('./OPERATIONS_REFERENCE.md', 'utf8');
+    const block = doc.match(/```json\n(\{[\s\S]*?"weekEnding"[\s\S]*?)\n```/);
+    assert.ok(block, 'the parseRosterPDF response example has moved or lost its json fence');
+    const example = JSON.parse(block[1]);
+
+    assert.deepEqual(example.dates, buildWeekDates(example.weekEnding),
+        'the example\u2019s dates are not the seven the builder produces for its own weekEnding');
+    assert.equal(new Date(example.weekEnding + 'T12:00:00Z').getUTCDay(), 6,
+        `weekEnding ${example.weekEnding} is not a Saturday`);
+    for (const date of Object.keys(example.parsed?.[0]?.shifts || {})) {
+        assert.ok(example.dates.includes(date), `${date} is not one of the week's own dates`);
     }
 });

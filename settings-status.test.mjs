@@ -23,7 +23,9 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { summarise, shouldOpen, CARD_ORDER } from './settings-status.js';
 
-const ALL_OK = { password: 'ok', 'work-email': 'ok', notifications: 'ok' };
+// `install` is 'n/a' in the ALL-OK set because that is what it reports almost everywhere: an
+// offer, not a setting to get right. Its 'action' state is the iPhone-in-a-browser case only.
+const ALL_OK = { password: 'ok', 'work-email': 'ok', install: 'n/a', notifications: 'ok' };
 
 describe('false reassurance — the silent failure', () => {
     test('an empty report set is CHECKING, never all set', () => {
@@ -102,6 +104,25 @@ describe('false alarm — the noisy failure', () => {
         assert.deepEqual(s.items, ['Notifications are blocked on this phone']);
     });
 
+    test('an install OFFER is not a thing to finish', () => {
+        // The Android/desktop case, and the reason `install` is 'n/a' almost everywhere. An
+        // install that changes nothing about whether this account works must not put a to-do in
+        // front of a member — that is the false alarm this whole block is about.
+        assert.equal(summarise(ALL_OK).tone, 'all-set');
+        assert.deepEqual(summarise(ALL_OK).items, []);
+    });
+
+    test('…but the iPhone install PREREQUISITE is named rather than hidden', () => {
+        // The other direction, and the reported defect (v22.39 external review): on an iPhone in a
+        // browser, notifications are genuinely unavailable ('n/a') and the summary closed over it
+        // with "✓ You're all set" — hiding the one instruction that would change the answer.
+        const iphoneInBrowser = { ...ALL_OK, install: 'action', notifications: 'n/a' };
+        const s = summarise(iphoneInBrowser);
+        assert.equal(s.tone, 'todo');
+        assert.equal(s.headline, '1 thing to finish');
+        assert.deepEqual(s.items, ['Add the app to your Home Screen']);
+    });
+
     test('pay data can never appear in the summary at all', () => {
         // It has no wrong state — it is a fact about the device, not a setting to get right — so
         // it must not be able to nag, whatever it reports.
@@ -117,15 +138,18 @@ describe('the list itself', () => {
     test('the order is DECLARED, not the order the answers arrived in', () => {
         // Two report maps built in opposite key orders must produce the same list; otherwise the
         // line reshuffles between loads depending on which network answer won the race.
-        const a = summarise({ password: 'action', 'work-email': 'action', notifications: 'action' });
-        const b = summarise({ notifications: 'action', 'work-email': 'action', password: 'action' });
+        const all = { password: 'action', 'work-email': 'action', install: 'action', notifications: 'action' };
+        const a = summarise(all);
+        const b = summarise(Object.fromEntries(Object.entries(all).reverse()));
         assert.deepEqual(a.items, b.items);
-        assert.deepEqual(a.items,
-            ['Set your own password', 'Add your work email', 'Turn on notifications']);
+        assert.deepEqual(a.items, [
+            'Set your own password', 'Add your work email',
+            'Add the app to your Home Screen', 'Turn on notifications',
+        ]);
     });
 
     test('the headline agrees with the list it sits above', () => {
-        for (const n of [1, 2, 3]) {
+        for (const n of [1, 2, 3, 4]) {
             const states = { ...ALL_OK };
             CARD_ORDER.slice(0, n).forEach(id => { states[id] = 'action'; });
             const s = summarise(states);

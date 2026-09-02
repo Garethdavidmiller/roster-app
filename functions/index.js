@@ -40,7 +40,7 @@ const {
     parseStrictIsoDate,
     fileSignatureMatches,
 } = require('./roster-parse-helpers');
-const { extractRosterGeometry, applyGeometryWitness } = require('./roster-geometry');
+const { extractRosterGeometry, applyGeometryWitness, awaitGeometryWithin } = require('./roster-geometry');
 const {
     CALENDAR_VIEWER_UID,
     isValidPinShape,
@@ -663,7 +663,11 @@ columnScan: one key per column header; every staff member appears in every colum
         // only ever turns a value into UNKNOWN, so it cannot reverse a repair made above. Fails open
         // (no grid, no pdfjs, a name the PDF spells differently → no signal) and says so in the
         // response, because a fail-open the admin cannot see is the v16.70 lesson.
-        const geometry = await geometryPromise;
+        // BOUNDED (v22.40, external review). The extraction has had the whole model call for free;
+        // what it may not have is unlimited extra time on the critical path once the answer is in.
+        // A timeout lands on `status: 'unavailable'`, which the review now states — see
+        // `awaitGeometryWithin` for why the budget is on the wait rather than on the work.
+        const geometry = await awaitGeometryWithin(geometryPromise);
         const geoStats = applyGeometryWitness(safeEntries, geometry, dates);
         if (geoStats.status !== 'complete') {
             console.warn(`[parseRosterPDF] geometry witness ${geoStats.status}: ${geoStats.checked}/${geoStats.total} members matched`

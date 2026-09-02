@@ -14,7 +14,7 @@ import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from 
 // three test files for no behavioural gain.
 export { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange };
 import { setStatus } from './status-text.js';
-import { assessRosterAlignment, driftCopy, stopCopy } from './roster-alignment.js';
+import { assessRosterAlignment, driftCopy, stopCopy, geometryCopy } from './roster-alignment.js';
 
 const RDW_PREFIX   = 'RDW|';
 const isRdwEncoded = /** @param {any} v */ v => typeof v === 'string' && v.startsWith(RDW_PREFIX);
@@ -893,6 +893,18 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             // Words live beside the verdict (roster-alignment.js): a geometry refusal has no direction.
             stop.innerHTML = stopCopy(alignment, who);
             changeList.appendChild(stop);
+        }
+
+        // ---- DID THE SECOND WITNESS RUN? (v22.40) ---- The refusals it found are already on the
+        // rows above; this is the one thing no row can say for itself — that some rows, or all of
+        // them, were never asked about. Silence means it ran on everyone (roster-alignment.js).
+        const geoNote = geometryCopy(parsedResult?.geometry);
+        if (geoNote) {
+            const g = document.createElement('div');
+            g.className = 'roster-crosscheck-note';
+            g.setAttribute('role', 'status');
+            g.innerHTML = geoNote;
+            changeList.appendChild(g);
         }
 
         // ---- Build per-person sections ----

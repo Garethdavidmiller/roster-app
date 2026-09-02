@@ -52,11 +52,25 @@
  * The cards the summary speaks for, in the order their to-dos are listed.
  *
  * Password first: it is the security migration, and the one with a deadline behind it. Then the
- * work email, which is what makes a future self-service reset possible. Notifications last — a
- * missing notification is an inconvenience, not an account problem. `pay-data` is deliberately
- * ABSENT: it has no wrong state, so it can never be a to-do and can never delay "all set".
+ * work email, which is what makes a future self-service reset possible. Then `install`, and
+ * notifications last — a missing notification is an inconvenience, not an account problem.
+ * `pay-data` is deliberately ABSENT: it has no wrong state, so it can never be a to-do and can
+ * never delay "all set".
+ *
+ * ── WHY `install` IS HERE, AND WHY IT IS ALMOST ALWAYS `n/a` ──────────────────────────────────
+ *
+ * Installing is normally an OFFER, not a to-do: an Android member who never installs loses
+ * nothing this page speaks for. Naming it as a thing to finish on every device would be the false
+ * alarm this module's tests are organised around.
+ *
+ * On an iPhone in a browser it is different, and the difference is a real dependency rather than
+ * a preference: WebKit gives a web page no push at all until it is on the Home Screen. So
+ * notifications there report `n/a` — correctly, this device cannot do it — and the summary used
+ * to close over that with "✓ You're all set", hiding the one instruction that would change the
+ * answer (v22.39 external review). The card reports `action` in exactly that case and `n/a`
+ * everywhere else, so it is the DEPENDENCY that is named, never the offer.
  */
-export const CARD_ORDER = ['password', 'work-email', 'notifications'];
+export const CARD_ORDER = ['password', 'work-email', 'install', 'notifications'];
 
 /** What each card's `action` state asks the member to DO. Imperative, and short enough to sit in a
  *  list of three on a 360px phone.
@@ -64,6 +78,7 @@ export const CARD_ORDER = ['password', 'work-email', 'notifications'];
 const TODO_LABEL = {
     'password':      'Set your own password',
     'work-email':    'Add your work email',
+    'install':       'Add the app to your Home Screen',
     'notifications': 'Turn on notifications',
 };
 

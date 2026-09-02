@@ -44,6 +44,8 @@ import {
     fixedRoster,
     isValidEmail,
     isChilternWorkEmail,
+    workEmailLocalPart,
+    workEmailFrom,
     getMembersForGrade,
     parseSmartFloatOrNull,
 } from './roster-data.js';
@@ -70,6 +72,76 @@ describe('isChilternWorkEmail', () => {
     test('uses CONFIG.WORK_EMAIL_DOMAIN as the single source', () => {
         assert.equal(CONFIG.WORK_EMAIL_DOMAIN, 'chilternrailways.co.uk');
         assert.equal(isChilternWorkEmail('a@' + CONFIG.WORK_EMAIL_DOMAIN), true);
+    });
+});
+
+// The Settings field shows `@chilternrailways.co.uk` beside itself, so it holds the LOCAL
+// PART. Organised by what each wrong answer costs, because the two directions are not
+// remotely symmetrical:
+//
+//   SILENTLY CHANGING AN ADDRESS is the dangerous one. Strip any `@…` rather than only our
+//   own, and `g.miller@gmail.com` becomes `g.miller`, which the save path then completes
+//   into a Chiltern address the member never gave — stored, validated, and pointing at
+//   somebody else's mailbox for the account recovery this field exists to enable. Nothing
+//   errors; the card says "✓ Saved".
+//
+//   SHOWING THE DOMAIN TWICE is the reported defect (v22.39 external review) — visible the
+//   moment a member with a saved address opens the card, and it costs them a retype.
+describe('workEmailLocalPart / workEmailFrom', () => {
+    describe('never silently changes an address', () => {
+        test('a foreign domain survives the strip, so the validator can refuse it', () => {
+            assert.equal(workEmailLocalPart('g.miller@gmail.com'), 'g.miller@gmail.com');
+            assert.equal(workEmailFrom('g.miller@gmail.com'),      'g.miller@gmail.com');
+            assert.equal(isChilternWorkEmail(workEmailFrom('g.miller@gmail.com')), false);
+        });
+        test('a look-alike domain is not treated as ours', () => {
+            assert.equal(workEmailLocalPart('x@evil-chilternrailways.co.uk'), 'x@evil-chilternrailways.co.uk');
+            assert.equal(workEmailLocalPart('x@sub.chilternrailways.co.uk'),  'x@sub.chilternrailways.co.uk');
+        });
+        test('an empty field saves nothing rather than a bare domain', () => {
+            assert.equal(workEmailFrom(''),     '');
+            assert.equal(workEmailFrom('   '),  '');
+            assert.equal(workEmailFrom(/** @type {any} */ (null)), '');
+        });
+    });
+
+    describe('never shows the domain twice', () => {
+        test('a saved full address loads as the local part', () => {
+            assert.equal(workEmailLocalPart('g.miller@chilternrailways.co.uk'), 'g.miller');
+        });
+        test('autofill in any case is stripped', () => {
+            assert.equal(workEmailLocalPart('G.Miller@ChilternRailways.CO.UK'), 'G.Miller');
+            assert.equal(workEmailLocalPart('  g.miller@CHILTERNRAILWAYS.CO.UK  '), 'g.miller');
+        });
+        test('a local part is left alone', () => {
+            assert.equal(workEmailLocalPart('g.miller'), 'g.miller');
+            assert.equal(workEmailLocalPart(''), '');
+            assert.equal(workEmailLocalPart(/** @type {any} */ (undefined)), '');
+        });
+    });
+
+    describe('the round trip', () => {
+        test('full → local → full is the same address', () => {
+            for (const e of ['g.miller@chilternrailways.co.uk', 's.silva@chilternrailways.co.uk']) {
+                assert.equal(workEmailFrom(workEmailLocalPart(e)), e);
+            }
+        });
+        test('local → full → local is the same local part', () => {
+            for (const l of ['g.miller', 'm.robson', "o'brien.x"]) {
+                assert.equal(workEmailLocalPart(workEmailFrom(l)), l);
+            }
+        });
+        test('completing a local part produces an address the validator accepts', () => {
+            assert.equal(isChilternWorkEmail(workEmailFrom('g.miller')), true);
+        });
+        test('workEmailFrom is idempotent, so calling it on an autofilled value is safe', () => {
+            const once = workEmailFrom('g.miller');
+            assert.equal(workEmailFrom(once), once);
+        });
+        test('both read the domain from CONFIG rather than a literal', () => {
+            assert.equal(workEmailFrom('a'), 'a@' + CONFIG.WORK_EMAIL_DOMAIN);
+            assert.equal(workEmailLocalPart('a@' + CONFIG.WORK_EMAIL_DOMAIN), 'a');
+        });
     });
 });
 

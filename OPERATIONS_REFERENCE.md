@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: September 2026 — v22.30 · Updated every 0.10 version*
+*Last updated: September 2026 — v22.40 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -254,15 +254,18 @@ Body:
 
 ```json
 {
-  "weekEnding": "2026-04-05",
+  "weekEnding": "2026-04-04",
   "rosterType": "cea",
-  "dates": ["2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-03", "2026-04-04", "2026-04-05"],
+  "dates": ["2026-03-29", "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-03", "2026-04-04"],
   "crossCheck": "complete",
+  "geometry": { "status": "complete", "checked": 28, "total": 28, "pagesRead": 2, "pagesRejected": 0 },
+  "geometryRefused": [],
   "missingMembers": [],
   "parsed": [
     {
       "memberName": "G. Miller",
       "shifts": {
+        "2026-03-29": "RD",
         "2026-03-30": "RD",
         "2026-03-31": "06:00-14:00",
         "2026-04-01": "RDW|14:30-22:00"

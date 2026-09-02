@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: September 2026 — v22.30 · Updated every 0.10 version*
+*Last updated: September 2026 — v22.40 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -137,8 +137,17 @@ after every model-side repair: it reads the drawn rules and the text positions f
 model was sent, and any AI day landing in a physically empty cell is refused — the cell becomes
 UNREADABLE and the row is returned as `geometryRefused`, which `roster-alignment.js` folds into the
 same verdict as a base-roster drift (row unticked; three refusals trip the breaker). It fails open at
-every step and reports that it did (`geometry.status`), so a witness that did not run is visible rather
-than assumed. Tested through the real pdfjs on a hand-built PDF (`roster-geometry.test.mjs`), because
+every step and reports that it did (`geometry.status`) — **and until v22.40 nothing on the client read
+that field**, so for nine versions the claim in this paragraph was true of the response and false of
+the screen: a witness that did not run produced a review identical to one where the grid agreed with
+every cell (found by external review). `geometryCopy` in `roster-alignment.js` now states `partial`
+and `unavailable`, treating an absent field as did-not-run. It is worth remembering as the shape of
+the mistake rather than the mistake itself: the rule was built, tested and documented, and the wire
+from it to the person who needed it was never run.
+
+v22.40 also **bounded the wait**: the extraction has the whole model call for free, but an optional
+witness that never settled could hold a finished parse until the function's own 120s timeout, so
+`awaitGeometryWithin` gives up and reports `unavailable` — which the review now shows. Tested through the real pdfjs on a hand-built PDF (`roster-geometry.test.mjs`), because
 the repository holds no roster PDFs.
 
 **Both gates were cleared before it shipped.** Roster TYPE at v22.19 (Supervisor and Dispatch carry the
