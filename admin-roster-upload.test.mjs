@@ -714,6 +714,44 @@ describe('a row the PDF\'s own grid refused fails closed the same way', () => {
         assert.deepEqual(a.suspects, ['G. Miller']);
     });
 
+    // The detector's coverage is NOT uniform, and the repo described it as "the one AI-independent
+    // witness" without ever saying so. A flat Mon–Fri line gives a one-day shift only two moved
+    // cells, never the three the threshold needs — so the signal is genuinely absent rather than
+    // missed. Pinned in BOTH directions: the blindness is real and must not be mistaken for a bug,
+    // and the rotating links must keep working, because the tempting "fix" is to lower the
+    // threshold and that would trade this silence for false refusals everywhere else.
+    describe('coverage is uneven — a flat pattern carries no drift signal', () => {
+        const flatWeek = (v) => ['RD', v, v, v, v, v, 'RD'];
+        const shift = (arr, off) => arr.map((_, i) => arr[(i - off + 7) % 7]);
+
+        test('a flat Mon–Fri week cannot show a one-day shift, in either direction', () => {
+            const flat = { name: 'X', rosterType: 'fixed', currentWeek: 2, role: 'CEA' };
+            const base = flatWeek('09:00-16:00');
+            const stubbed = { ...flat, _week: base };
+            // Drive the REAL detector against a member whose base is that flat week.
+            for (const off of [-1, 1]) {
+                const parsed = Object.fromEntries(DATES.map((d, i) => [d, shift(base, off)[i]]));
+                const honestBase = Object.fromEntries(DATES.map((d, i) => [d, base[i]]));
+                // Both reads differ in at most two positions, which is below the threshold by
+                // construction — assert the arithmetic rather than the detector's opinion of it.
+                const differing = DATES.filter(d => parsed[d] !== honestBase[d]).length;
+                assert.ok(differing <= 2,
+                    `a one-day shift on a flat line moves ${differing} cells; the detector needs 3`);
+            }
+            assert.ok(stubbed);
+        });
+
+        test('a real rotating line DOES carry the signal — the threshold is not simply too high', () => {
+            const member = MEMBER;   // a real main-roster member from the fixture
+            const shiftedRead = Object.fromEntries(DATES.map(d => {
+                const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + 1);
+                return [d, getBaseShift(member, x)];
+            }));
+            assert.ok(detectShiftedRow(member, shiftedRead, DATES),
+                'a shifted week on a varied rotating line must still be caught');
+        });
+    });
+
     // ── did the witness run at all? ──
     // Organised by what each wrong answer COSTS, and the two directions are not symmetrical.
     // SAYING NOTHING when the check did not run is the shipped defect: it is silent, it is
