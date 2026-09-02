@@ -66,6 +66,49 @@ const tests = rootFiles.filter(f => f.includes('.test.'));
 // concession: AI_MAP hangs a test off the module it covers ("Tested by x.test.mjs"), which the
 // cross-cutting parity suites have no module to hang from. Requiring them there would force a
 // fictional owner for each, which is worse than not listing them.
+// ── KNOWN_LIMITATIONS.md STATES WHAT IS STILL TRUE ─────────────────────────────────────────────
+//
+// The file promises "intentional constraints and deferred work", so a reader must be able to take
+// every heading as: this is still the case and I need to know about it. By 2 Sep 2026 about a fifth
+// of it was not — twelve sections explicitly closed, fixed or superseded, the largest of them 14,063
+// characters describing a boundary shut since August. A closed limitation left in place does not
+// merely waste the reader's time; it makes the whole file's headings unreliable, so the ones that
+// ARE live stop being believed.
+//
+// ARCHITECTURE.md already works this way for its `EXC-*` register: a closed exception is deleted,
+// not struck through. This applies the same rule where it was not being applied.
+//
+// **The exemption list is the important half, and it is by NAME rather than by pattern.** Two
+// headings legitimately read as closed:
+//
+//   · the `apis.google.com` CSP section says "(fixed v17.82)" and is a STANDING CONSTRAINT — the
+//     policy must go on allowing those hosts, and it records a false pass where a local
+//     `npm run test:csp` is green while CI is red. A rule that deleted it would delete a warning.
+//   · the mixed-version cache window is "mitigated, not fully closed (accepted)" — a live trade.
+//
+// So this guard cannot be a blanket ban on the words: it needs a reason per exemption, written
+// down, which is the only form that stays honest. Adding to EXEMPT is a decision somebody makes.
+const CLOSED_WORDS = /\b(CLOSED|FIXED|SUPERSEDED|RESOLVED|no longer a limitation|RESTORED)\b/i;
+const CLOSED_HEADING_EXEMPT = [
+    // "(fixed v17.82)" — the FIX is history, the CONSTRAINT is permanent: CSP must keep allowing
+    // apis.google.com and the auth iframe, and the section carries the local-green/CI-red false pass.
+    'must allow Firebase Auth',
+    // "mitigated, not fully closed (accepted)" — the word is there to say it is NOT closed.
+    'Mixed-version cache window',
+];
+test('KNOWN_LIMITATIONS.md headings state what is still true', () => {
+    const doc = read('./KNOWN_LIMITATIONS.md');
+    const offenders = doc.split('\n')
+        .filter(l => /^#{2,3} /.test(l))
+        .filter(l => CLOSED_WORDS.test(l) || l.includes('~~'))
+        .filter(l => !CLOSED_HEADING_EXEMPT.some(e => l.includes(e)));
+    assert.deepEqual(offenders, [],
+        'these headings read as closed, so a reader cannot take the file at its word. Move the\n' +
+        'section to ROADMAP_HISTORY.md (or let git hold it), keep any durable lesson in the contract\n' +
+        'or module header that owns it, and add a NAMED exemption here only if the heading is\n' +
+        'genuinely still live:\n  ' + offenders.join('\n  '));
+});
+
 test('every root MODULE is listed in CLAUDE.md and AI_MAP.md', () => {
     const missing = modules
         .filter(f => !CLAUDE.includes(f) || !AI_MAP.includes(f))
