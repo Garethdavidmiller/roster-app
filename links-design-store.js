@@ -351,11 +351,18 @@ export function createDesignStore(deps) {
                     // many times they retry. The rules make it a wording problem rather than a
                     // data-integrity one, which is why this is a small fix and not an urgent one.
                     if (!snap.exists()) throw new Error('design-gone');
-                    // DELIBERATELY NOT ALSO REFUSING AN ALREADY-LIVE DESIGN. That check was written
-                    // and removed: restoring something already restored is a harmless no-op, while
-                    // refusing it invents a failure out of a benign state and reports a colleague's
-                    // action that may not have happened. `exists()` is the question worth asking —
-                    // a hard delete is the one state a restore genuinely cannot recover from.
+                    // AN ALREADY-LIVE DESIGN IS A TRUE NO-OP — no write at all (v22.32, external
+                    // review). Refusing it was written and removed, correctly: refusing invents a
+                    // failure out of a benign state. But the version that replaced it went on to
+                    // WRITE, and that is not a no-op either — it clears already-clear fields and
+                    // BUMPS THE REVISION, so an editor holding the immediately preceding revision
+                    // meets a conflict about a design whose content nobody changed.
+                    //
+                    // Which is the hazard the comment directly above this one names: a false
+                    // conflict is what teaches people to click through the one prompt that protects
+                    // them. Restoring something already restored asks for a state that is already
+                    // true, so the honest answer is to leave the document alone and say so.
+                    if (!snap.data()?.deletedAt) { committed = -1; return; }
                     committed = nextRevision(snap.data());
                     tx.set(ref, {
                         deletedAt: deleteField(), deletedBy: deleteField(), revision: committed,
@@ -366,6 +373,10 @@ export function createDesignStore(deps) {
                 if (err instanceof Error && err.message === 'design-gone') return { status: 'gone' };
                 throw err;
             }
+            // `-1` is the sentinel the transaction sets when it wrote nothing. A separate status,
+            // not `ok`: the caller must not advance a local baseline to a revision no write
+            // produced, which is this module's third rule.
+            if (committed === -1) return { status: 'already-restored' };
             return { status: 'ok', updatedAt: await readStamp(ref), revision: committed };
         },
 

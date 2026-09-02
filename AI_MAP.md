@@ -72,7 +72,8 @@ before deleting anything, because the number alone has now been wrong once.
 | Calendar member selection — getSelectedMemberIndex, getCurrentMember, populateTeamMemberDropdown, validateTeamMembers | `calendar-member.js` |
 | Calendar rendering — buildCalendarContainer, createCalendarHeader, createDayCell, getSwipeDirection | `calendar-renderer.js` |
 | PWA install strip on the calendar — initInstallPrompt (one ask at a time; install outranks the notification prompt, and never the shared PIN station, the installed app, the Pages mirror, or a DESKTOP width — where capturing `beforeinstallprompt` would suppress the browser's own offer and put nothing in its place) | `install-prompt.js` |
-| Huddle viewer overlay, _triggerAutoOpen, hashchange, subscription, wrapTables (each table gets its own horizontal scroll box, so a wide Huddle cannot drag the whole document sideways) | `calendar-huddle-viewer.js` |
+| Huddle viewer overlay, _triggerAutoOpen, hashchange, subscription, wrapTables (each table gets its own horizontal scroll box, so a wide Huddle cannot drag the whole document sideways). **The box is only half of it — the CSS has to let the table BE wide** (`index.css`, `#huddleViewerBody table`): the first attempt paired the scroller with `width: 100%` and `overflow-wrap: anywhere`, which together guarantee the table squeezes to fit and the scroller never scrolls, crushing a five-column Huddle to stacked single letters | `calendar-huddle-viewer.js` |
+| Which Huddle cells are physically in column 1 (`firstColumnMask`) — the answer the sticky job column is selected by, because `td:first-child` is not that answer in a table with rowspans | `huddle-table-grid.js` |
 | Circular/Newsletter in-app viewer (#circular/#newsletter notification deep link) | `calendar-doc-viewer.js` |
 | Team Week View — initTeamView (grid, navigation, Firestore fetch, toggle) | `calendar-team-view.js` |
 | Override priority, member-start, rest-shift helpers — tsToMillis, shouldReplaceOverride, reconcileRangeIntoCache (authoritative range refresh), isBeforeMemberStart, isRestShift, isOverrideDisplaySuppressed, resolveEffectiveShift (shared display ladder), computePeriodDeleteIds; training value grammar + pay resolver | `override-utils.js` |
@@ -452,8 +453,39 @@ Calendar cell and grid building for `index.html` — extracted from `calendar-ap
 ### `calendar-huddle-viewer.js`
 Huddle viewer overlay — extracted from `calendar-app.js` at v11.40. Only export is `initHuddleViewer()` (the old `applyHuddleButtonState()` export was removed at v12.57 — the `#huddleBtn` it updated no longer exists; the viewer is opened solely via the `#huddle` hash).
 - `initHuddleViewer()` — sets up the viewer overlay, subscribes to Firestore via `subscribeToLatestHuddle`, wires the `#huddle` hash handler (used by both the nav-panel "Daily Huddle" link and notification taps)
+- `wrapTables(root)` — gives every table its own horizontal scroll box (so a wide Huddle cannot drag the whole
+  document sideways, v22.27) and adds `.huddle-shift-col` to the cells `firstColumnMask` says are genuinely in
+  column 1 (v22.33). **The box is only half of it — the CSS has to let the table BE wide** (`index.css`,
+  `#huddleViewerBody table`): the first attempt paired the scroller with `width: 100%` and
+  `overflow-wrap: anywhere`, which together guarantee the table squeezes to fit and the scroller never scrolls,
+  crushing a five-column Huddle to stacked single letters.
 - `sanitiseHtml(html)` — internal; DOMPurify sanitisation for DOCX huddles
 - `_triggerAutoOpen(huddle)` — **two content types, do not unify:** HTML huddles render inline; PDF/DOCX huddles render an in-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`) because a `#huddle`-hash open carries no user activation — a direct `window.open`/`location.href` would be pop-up-blocked or knock the PWA out of standalone. Full rationale: OPERATIONS_REFERENCE.md → "Huddle notification tap behaviour".
+
+### `huddle-table-grid.js`
+The physical-column walk behind the Huddle viewer's sticky job column. Only export is
+`firstColumnMask(rows)`. Pure — no DOM, no imports — so the algorithm runs in Node against
+hand-built shapes including the real Huddle's.
+- `firstColumnMask(rows)` — takes one array per row holding only the cells that row WRITES (a cell
+  spanned into from above is absent, which is the whole point) and returns the same shape with
+  `true` where the cell starts at grid column 0. It performs the HTML table grid assignment: carry
+  forward how many further rows each column is occupied for, and place each written cell in the
+  first free column.
+- **Why it exists.** The CSS pinned the job column as `td:first-child`, which means "the first cell
+  this row writes" and not "column 1". The two agree only in a rectangular table, and the real
+  Huddle's Gate line job cell carries `rowspan="3"` — so the two rows beneath it write no cell in
+  column 1 and the selector resolved to the CALL SIGN. C17 and C18 were pinned to the left edge on
+  top of the job cell's text; reported from a phone with a screenshot, twice. There is no CSS
+  answer (`:nth-col()` is unimplemented), so the column is computed and marked
+  (`.huddle-shift-col`, added by `wrapTables`).
+- **`rowspan="0"` means "to the end of the row group", and the DOM reports it as the integer 0** —
+  so the ordinary `|| 1` defaulting turns the widest span in HTML into the narrowest and every row
+  under it claims a column-1 cell it does not have. Treated as unbounded here. `colspan="0"` is a
+  different matter: browsers clamp it to 1 and so does this.
+- v22.31 answered the report by disabling the pin for any table containing a rowspan — safe, and it
+  cost the feature exactly where it is worth most, since the real Huddle IS a rowspan table.
+- Tested by `huddle-table-grid.test.mjs` (the walk) and `e2e/pages.spec.js` (the marking reaching
+  the right cells, and the pinned cell not moving while the call signs do).
 
 ### `calendar-doc-viewer.js`
 In-app viewer for the Weekly Retail Circular and Marylebone Newsletter, opened from a `#circular`/`#newsletter` notification deep link (the `onCircularCreated`/`onNewsletterCreated` Cloud Function triggers fan out the push). Only export is `initDocViewer()`.

@@ -416,3 +416,23 @@ describe('the deploy workflows serialise rather than race', () => {
             + 'with it would let a test run cancel a deploy.');
     });
 });
+
+// ── A PRODUCTION DEPLOY RUNS ONLY FROM `main` (v22.32, external review) ─────────────────────────
+//
+// All three deploy workflows accept `workflow_dispatch`, which carries no branch restriction, and
+// their concurrency groups QUEUE — but GitHub keeps one pending run per group, so a newer pending
+// run displaces the previous one. Across branches that means a manual dispatch of branch C can
+// displace a pending `main` B and leave production finishing on C while main holds the newer tree.
+//
+// The guard is one `if:` per workflow, which is exactly the kind of line a later edit removes
+// without noticing. Asserted here rather than trusted.
+describe('deploy workflows only run from main', () => {
+    for (const wf of ['deploy-hosting.yml', 'deploy-functions.yml', 'deploy-rules.yml']) {
+        test(`${wf} gates its deploy job on refs/heads/main`, () => {
+            const src = readFileSync(new URL(`.github/workflows/${wf}`, import.meta.url), 'utf8');
+            assert.match(src, /if:\s*github\.ref == 'refs\/heads\/main'/,
+                `${wf} must gate its deploy job on main — without it a manual dispatch from a `
+                + 'branch can displace a pending main deploy and land production on that branch');
+        });
+    }
+});

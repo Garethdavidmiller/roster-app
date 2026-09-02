@@ -45,6 +45,23 @@ concurrency:
 
 jobs:
   deploy:
+    # ── PRODUCTION DEPLOYS ONLY EVER RUN FROM `main` (v22.32, external review) ─────────────────
+    #
+    # `workflow_dispatch` above carries no branch restriction, and the concurrency group below
+    # QUEUES rather than cancels — but GitHub keeps only ONE pending run per group, so a newer
+    # pending run displaces the previous one. That is safe for consecutive pushes to main, where
+    # the later tree contains the earlier one. It is NOT safe across branches:
+    #
+    #     main A deploying → main B pending → someone dispatches branch C → B is displaced
+    #                                       → production finishes on C, not on B
+    #
+    # Production would then be running a branch while `main` holds the newer tree, and nothing
+    # would say so. It takes a deliberate act by someone with write access, which is why this is
+    # hardening rather than a defect — but the guard costs one line and removes the whole class.
+    #
+    # If deploying a non-main ref is ever genuinely needed (a rollback to a tag, say), add an
+    # explicit input and widen this condition to name it. Do not simply delete the check.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

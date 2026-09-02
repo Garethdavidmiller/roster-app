@@ -147,8 +147,21 @@ function normaliseShift(raw) {
         return time;
     }
 
-    // A genuinely blank cell is a rest day — nothing to flag. (buildSafeEntries already maps
-    // empty cells to 'RD' before calling this, so this mainly guards direct callers.)
+    // ⚠️ A BLANK CELL IS NOT A REST DAY, AND THIS LINE IS NOT WHERE THAT IS DECIDED (v22.32).
+    //
+    // This comment used to say "a genuinely blank cell is a rest day", which stopped being the
+    // roster rule at v22.19 and is now actively dangerous: someone tidying the parser could read it
+    // and "simplify" the blank handling straight back into the defect it describes.
+    //
+    // What is actually true: `buildSafeEntries` intercepts physical blanks BEFORE this function
+    // sees them and applies the day-of-week semantics — a blank Sunday is a rest day (uncontracted,
+    // and the sheets leave it empty), a blank Mon–Sat is a cell NOBODY READ and becomes an
+    // UNREADABLE review row. Measured across 12 real documents: 111 of 207 rows have a blank
+    // Sunday; blank weekdays run at 3.9% overall and 15% on Dispatch.
+    //
+    // So this branch is a defensive fallback for a DIRECT caller only, and it must not be read as
+    // the general rule. Do not route physical blanks here; do not delete the guards in
+    // `buildSafeEntries` on the strength of this line.
     if (s === '') return 'RD';
 
     // Non-empty but unrecognised (garbled OCR, unexpected text, out-of-range time). Do NOT

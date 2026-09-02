@@ -965,6 +965,19 @@ test('links: a deleted design can be restored from the bin', async ({ page }) =>
     await expect(page.locator('.design-chip')).toHaveCount(1);
 
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.setWrites = []; });
+    // TELL THE STUB THE SERVER NOW AGREES THE DESIGN IS DELETED (v22.32). The fake applies no
+    // writes to its seed, so after the soft delete above its transaction still hands back the
+    // ORIGINAL live document — a state production cannot be in, and one the restore now reads
+    // correctly as "already restored, write nothing". `txDocs` is the fixture's own mechanism for
+    // "what the SERVER says", which is the thing a transaction is there to consult.
+    //
+    // Without this the test asserts a write that only happened because the harness had lost track
+    // of the delete it had just made.
+    await page.evaluate(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E.txDocs = (w.__E2E.docs || []).map((/** @type {any} */ d) =>
+            d.id === 'd1' ? { ...d, deletedAt: { seconds: 1 }, deletedBy: 'G. Miller' } : d);
+    });
     await page.locator('#designBinBtn').click();
     await expect(page.locator('#designBinList .bin-row')).toHaveCount(1);
     await page.locator('.bin-restore').click();
@@ -4262,13 +4275,128 @@ test('operations: the entry control never offers a type Sunday forbids', async (
 // `white-space: nowrap` is injected to force the case. The shipped `overflow-wrap: anywhere` lets
 // most Huddles shrink to fit, and a test that relied on real content overflowing would stop testing
 // anything the day the Huddle got one column narrower.
+// ── A ROWSPAN MAKES `td:first-child` THE WRONG COLUMN (v22.31; pinned properly v22.33) ─────────
+//
+// Reported from a phone: in the Gate line block the reminder note had C17 and C18 drawn on top of
+// it. The job cell there spans three rows, so those rows have no cell of their own in column 1 and
+// `td:first-child` — the selector that pinned the job column — resolved to the CALL SIGN instead.
+// Two cells, one place.
+//
+// v22.31 met that by refusing to pin any table containing a rowspan. v22.33 computes the real grid
+// (`firstColumnMask`) and marks only true column-1 cells, so the feature works on the shape it was
+// written for. The unit suite proves the WALK; only a browser can prove the marking reaches the
+// right cells and that they do not overlap once scrolled — which is the failure that was reported.
+//
+// The fixture is the reported table, merged cell and all. A rectangular one cannot fail this test:
+// it is the single shape where "first cell written" and "column 1" agree, which is exactly why the
+// original synthetic fixture missed the defect.
+test('huddle: a rowspan pins the job cell only, and the call signs stay in their own column', async ({ page }) => {
+    await page.setViewportSize({ width: 412, height: 915 });
+    await page.goto('/index.html');
+
+    const r = await page.evaluate(async () => {
+        const { wrapTables } = await import('./calendar-huddle-viewer.js');
+        const body = document.getElementById('huddleViewerBody');
+        document.getElementById('huddleViewer').classList.add('visible', 'open');
+
+        // Real content lengths, not placeholders: the fixture has to be genuinely wider than a
+        // 412px panel or there is no scroll and sticky positioning does nothing.
+        body.innerHTML = '<table><thead>'
+            + '<tr><th>Shift</th><th>Call Sign</th><th>Early</th><th>Middle</th><th>Late</th></tr>'
+            + '</thead><tbody>'
+            + '<tr><td rowspan="3">Gate line Reminder Hourly SCU rota please</td>'
+            +   '<td>C16</td><td>06.20-13.45 Orient</td><td>12.00-16.00 Charlie</td><td>13.30-22.00 Jawad XS</td></tr>'
+            + '<tr><td>C17</td><td>06.20-13.45 Junior</td><td></td><td>14.00-22.30 Tahira/Iskander(training) XS</td></tr>'
+            + '<tr><td>C18</td><td>07.00-16.00 Sam</td><td></td><td>15.15-23.55 Michael Iskander XS</td></tr>'
+            + '</tbody></table>';
+        wrapTables(body);
+
+        const wrap = body.querySelector('.huddle-table-wrap');
+        const cellAt = (row, i) => body.querySelectorAll('tbody tr')[row].cells[i];
+        const left = el => Math.round(el.getBoundingClientRect().left);
+        const gate = cellAt(0, 0), c17 = cellAt(1, 0), c18 = cellAt(2, 0);
+
+        const at0 = { gate: left(gate), c17: left(c17), c18: left(c18) };
+
+        // Scroll it: sticky positioning does nothing at offset 0, so an unscrolled table cannot
+        // show the defect — the reported screenshot is of a table someone had swiped.
+        wrap.scrollLeft = wrap.scrollWidth;
+        await new Promise(requestAnimationFrame);
+        const atEnd = { gate: left(gate), c17: left(c17), c18: left(c18) };
+
+        return {
+            classed: [...body.querySelectorAll('.huddle-shift-col')].map(c => c.textContent.trim().slice(0, 9)),
+            sticky:  [...body.querySelectorAll('th, td')].filter(c => getComputedStyle(c).position === 'sticky')
+                        .map(c => c.textContent.trim().slice(0, 9)),
+            at0, atEnd,
+            scrolled: wrap.scrollLeft > 0,
+            bodyScroll: body.scrollWidth <= body.clientWidth + 1,
+        };
+    });
+
+    expect(r.scrolled, 'the fixture must actually be wider than the panel, or nothing is proven').toBe(true);
+    // The marking: the job cell, and nothing else. A call sign in this list is the reported bug.
+    // The header's "Shift" cell is column 1 too, and belongs here — the column it labels is the
+    // one being pinned, so a heading that scrolled away from its own column would be the same
+    // defect in the other direction.
+    expect(r.classed, 'only cells genuinely in column 1 may be marked').toEqual(['Shift', 'Gate line']);
+    expect(r.sticky, 'and only those may be sticky once scrolled').toEqual(['Shift', 'Gate line']);
+    // The geometry, stated as the thing that actually distinguishes correct from the screenshot.
+    // A pinned cell is one that does NOT move when the table scrolls — that is the whole mechanism,
+    // and in the defect C17 and C18 were pinned, so they stayed at the left edge on top of the job
+    // cell. Asserting they sit to the right of it would be asking for the impossible instead: a
+    // sticky column is opaque and everything behind it slides underneath, which is correct.
+    // Within a pixel, not exactly: `left: 0` is measured against the wrapper's padding box and the
+    // collapsed 1px table border lands the pinned cell one pixel off its unscrolled position. The
+    // scale is what carries the meaning — the job cell moves ~1px, the call signs move tens.
+    expect(Math.abs(r.atEnd.gate - r.at0.gate),
+        'the job cell is pinned, so scrolling must not move it').toBeLessThanOrEqual(2);
+    expect(r.atEnd.c17, 'C17 must SCROLL — it was pinned over the job cell, which is the defect')
+        .toBeLessThan(r.at0.c17 - 20);
+    expect(r.atEnd.c18, 'and so must C18').toBeLessThan(r.at0.c18 - 20);
+    expect(r.at0.c17, 'unscrolled, C17 starts to the right of the job cell it shares a row with')
+        .toBeGreaterThan(r.at0.gate);
+    // And the original v22.27 defect must stay fixed: the table scrolls, the document does not.
+    expect(r.bodyScroll, 'the viewer body itself must not be the thing scrolling sideways').toBe(true);
+});
+
+// The other direction: a plain rectangular Huddle must still pin its job column. Without this, a
+// "fix" that marked nothing at all would pass every assertion above.
+test('huddle: a plain table still pins its job column', async ({ page }) => {
+    await page.setViewportSize({ width: 412, height: 915 });
+    await page.goto('/index.html');
+    const sticky = await page.evaluate(async () => {
+        const { wrapTables } = await import('./calendar-huddle-viewer.js');
+        const body = document.getElementById('huddleViewerBody');
+        document.getElementById('huddleViewer').classList.add('visible', 'open');
+        body.innerHTML = '<table><tbody>'
+            + '<tr><td>Station Manager</td><td>C3</td><td>06.30-15.30 Nicol</td><td></td><td>14.00-23.00 Darren</td></tr>'
+            + '<tr><td>Booking Office</td><td>C23</td><td>06.20-14.20 XS Naomi</td><td>12.00-16.00 Charlie</td>'
+            +   '<td>14.00-22.30 Tahira/Iskander(training) XS</td></tr>'
+            + '</tbody></table>';
+        wrapTables(body);
+        return [...body.querySelectorAll('td')]
+            .filter(td => getComputedStyle(td).position === 'sticky')
+            .map(td => td.textContent.trim());
+    });
+    expect(sticky).toEqual(['Station Manager', 'Booking Office']);
+});
+
 test('huddle: a table too wide to fit scrolls itself, not the page', async ({ page }) => {
     // Its OWN viewport, not the project's: at 1280 the table fits and there is nothing to measure,
     // so on the desktop project this would pass while testing nothing. 412 is the reported device.
     await page.setViewportSize({ width: 412, height: 915 });
     await page.goto('/index.html');
-    await page.addStyleTag({ content:
-        '#huddleViewerBody td, #huddleViewerBody th { white-space: nowrap; overflow-wrap: normal; }' });
+    // ── NO addStyleTag HERE, AND THAT IS THE POINT (v22.29) ────────────────────────────────────
+    // This test used to inject `white-space: nowrap; overflow-wrap: normal` before measuring, to
+    // force the table wide enough to have something to scroll. That override cancelled
+    // `overflow-wrap: anywhere` — the shipped rule that WAS the defect — so the harness measured a
+    // page whose broken CSS it had just disabled, and every assertion below passed while the real
+    // Huddle crushed "Call Sign" into four stacked letters on a phone.
+    //
+    // A test may not switch off the rule it is testing. The fixture is a real Huddle instead, and
+    // it is wide enough on its own: five columns of times and names come to ~429px against a ~380px
+    // panel at this width, so the scroll it asserts is the scroll a member actually gets.
 
     const geom = await page.evaluate(async () => {
         const { wrapTables } = await import('./calendar-huddle-viewer.js');
@@ -4295,11 +4423,27 @@ test('huddle: a table too wide to fit scrolls itself, not the page', async ({ pa
             headingLeft: Math.round(document.querySelector('#huddleViewerBody h1').getBoundingClientRect().left),
             firstColLeft: Math.round(firstCell.getBoundingClientRect().left),
             firstColText: firstCell.textContent.trim(),
+            // Lines in the tallest header, from its own line-height — no magic pixel constant.
+            headerLines: (() => {
+                const th = [...body.querySelectorAll('th')]
+                    .sort((a, b) => b.getBoundingClientRect().height - a.getBoundingClientRect().height)[0];
+                const lh = parseFloat(getComputedStyle(th).lineHeight) || 16;
+                const pad = parseFloat(getComputedStyle(th).paddingTop)
+                          + parseFloat(getComputedStyle(th).paddingBottom);
+                return Math.round((th.getBoundingClientRect().height - pad) / lh);
+            })(),
         };
     });
 
     expect(geom.wrappers, 'wrapTables must be idempotent — the viewer re-renders memoised HTML')
         .toBe(1);
+    // The REPORTED SYMPTOM first, so a failure names what a member actually saw rather than the
+    // mechanism underneath it. A header broken mid-word stacks into fragments: "Call Sign" came
+    // back as Cal/l/Sig/n, and "Information Controller" as Informatio/n Controller. Two words may
+    // legitimately take two lines; four fragments is the defect.
+    expect(geom.headerLines,
+        'a header broken mid-word stacks into fragments — "Call Sign" as Cal/l/Sig/n was the report')
+        .toBeLessThanOrEqual(2);
     expect(geom.tableScrollsX, 'the table itself must be the thing that scrolls').toBeGreaterThan(0);
     expect(geom.bodyScrollsX,
         'the document must NOT scroll sideways — that is what took the date heading off screen')

@@ -2284,7 +2284,18 @@
                 radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,.16), rgba(0,0,0,0)) right / 8px 100% no-repeat scroll;
         }
         #huddleViewerBody table {
-            width: 100%;
+            /* NOT `width: 100%` (v22.29). That pinned the table to the container, so it could only
+               ever SQUEEZE. `min-width` keeps a narrow table filling the panel; `width: auto` lets
+               a wide one be as wide as it needs and scroll, which is what the wrapper assumes.
+
+               MEASURED, so the next reader is not misled: this is DEFENSIVE, not the fix. Reverting
+               it alone (with `break-word` below kept) does not reproduce the defect, because a
+               column that cannot break mid-word already demands more than the container and
+               overflows regardless. It is here so the layout works by INTENT rather than by that
+               coincidence — `width: 100%` beside an overflow-x wrapper is two rules contradicting
+               each other, and the next person to touch the wrapping rule would meet the bug again. */
+            width: auto;
+            min-width: 100%;
             border-collapse: collapse;
             font-size: 0.85rem;
             margin: 0.75em 0;
@@ -2293,17 +2304,32 @@
             border: 1px solid var(--border-mid);
             padding: 5px 7px;
             vertical-align: top;
-            /* `anywhere`, not `break-word`: only this one is taken into account when the browser
-               computes the table's MIN-CONTENT width, which is the number that decides whether the
-               table fits at all. With break-word the table still demands room for the longest
-               token ("Tahira/Iskander(training)") and overflows anyway. */
-            overflow-wrap: anywhere;
+            /* `break-word`, NOT `anywhere` (v22.29 — this was the reported defect, and the
+               comment that used to sit here argued for exactly the wrong one).
+
+               The two differ in one way that matters: `anywhere` is taken into account when the
+               browser computes a column's MIN-CONTENT width, so it permits a break at any character
+               and the column can be crushed to nothing. That is how "Call Sign" rendered as four
+               stacked fragments — `Cal / l / Sig / n` — and "Information Controller" as
+               `Informatio / n Controller`.
+
+               The old comment treated the table demanding room for its longest token and
+               "overflowing anyway" as the problem to solve. Overflowing is what the scroller above
+               is FOR. `break-word` keeps each column at least as wide as its longest word, and
+               still breaks a genuinely unbreakable token rather than letting one URL push the
+               table to an absurd width. */
+            overflow-wrap: break-word;
         }
         /* The row's identity stays put while the times scroll. On a five-column Huddle the first
            cell is the job ("Station Manager", "Booking Office") — without it a scrolled row is a
-           set of times belonging to nobody. Inert when the table fits, which is the common case. */
-        #huddleViewerBody .huddle-table-wrap td:first-child,
-        #huddleViewerBody .huddle-table-wrap th:first-child {
+           set of times belonging to nobody. Inert when the table fits, which is the common case.
+
+           SELECTED BY CLASS, never by `:first-child` (v22.33). `td:first-child` means "the first
+           cell this row writes", which stops being column 1 the moment a cell above spans down —
+           and the real Huddle's Gate line cell spans three rows, so C17 and C18 were pinned over
+           it. `wrapTables` computes the real grid and marks only true column-1 cells; the argument
+           is in huddle-table-grid.js. A cell here may span rows, so it is not `td` or `th` alone. */
+        #huddleViewerBody .huddle-shift-col {
             position: sticky;
             left: 0;
             z-index: 1;
@@ -2311,7 +2337,7 @@
                shows it through — which reads as a rendering fault, not a feature. */
             background: var(--surface, #fff);
         }
-        #huddleViewerBody .huddle-table-wrap th:first-child { background: var(--primary-blue); }
+        #huddleViewerBody th.huddle-shift-col { background: var(--primary-blue); }
         #huddleViewerBody th { background: var(--primary-blue); color: white; }
         #huddleViewerBody ul, #huddleViewerBody ol {
             padding-left: 1.5em;
