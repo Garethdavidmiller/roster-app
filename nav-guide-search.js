@@ -66,12 +66,12 @@ export function initGuideSearch({ guides }) {
         icon.textContent = g.icon;
 
         const text = document.createElement('span');
-        text.className = 'nav-gs-text';
+        text.className = 'nav-link-text';
         const title = document.createElement('span');
-        title.className = 'nav-gs-title';
+        title.className = 'nav-link-title';
         title.textContent = r.title;
         const meta = document.createElement('span');
-        meta.className = 'nav-gs-meta';
+        meta.className = 'nav-link-sub';
         meta.textContent = g.label;
         text.append(title, meta);
         for (const state of r.evidence) {
