@@ -69,3 +69,12 @@ factor       = daysEmployed / totalDays
 ## Removing a staff member
 
 Set `hidden: true` on the `teamMembers` entry, then run Set up accounts → "Disable accounts for leavers" in Admin → Operations.
+
+**Upload their final roster PDF before you do it.** `hidden: true` also removes them from the
+`cea`/`ces`/`dispatcher` name lists the roster parser matches rows against, so a PDF covering their
+last days, uploaded afterwards, reports them under `missingMembers` — the same advisory a genuine
+absence produces. The week imports looking complete with nobody on their line.
+
+Regenerate `functions/roster-members.json` in the same commit (`npm run generate:roster-members`).
+Overtime needs separate action per open week — the population is frozen when a week opens. Full
+procedure: `docs/OPERATIONS_REFERENCE.md` → "Removing a staff member".

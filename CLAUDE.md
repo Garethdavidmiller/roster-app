@@ -1084,7 +1084,7 @@ KNOWN_LIMITATIONS.md task #2.
 
 **New starter:** invoke `/new-starter` — the skill has the full 3-step checklist, mid-year field reference, and pro-rata formula invariant.
 
-**Removing a staff member:** Set `hidden: true`, run Set up accounts → "Disable accounts for leavers".
+**Removing a staff member:** Set `hidden: true`, run Set up accounts → "Disable accounts for leavers" — **but upload their final roster PDF FIRST**: `hidden` also drops them from the AI-parsing name list, and a later upload then reports their row as `missingMembers`, which reads exactly like a genuine absence. Full order, and what it does not do (Overtime weeks are frozen; their data stays): OPERATIONS_REFERENCE.md → "Removing a staff member".
 
 Email/password convention: **see `OPERATIONS_REFERENCE.md`**.
 
