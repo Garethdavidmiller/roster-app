@@ -388,6 +388,29 @@ add placeholder rates** — the calculator must be accurate or it misleads staff
 > Sitting here between a pre-fill feature and Dispatcher rate support, it read like work to schedule
 > rather than a figure to confirm — which is exactly how validation debt goes unpaid.
 
+### Plain-English education pass — HPP, back pay, FIP cards and coupons
+**Status:** Committed direction, no design yet · **Owner:** Gareth · **Trigger:** the owner picks the
+first subject · **Success:** a colleague who does not know the term can find, understand and use the
+feature from the app alone, without asking anyone
+
+**Why.** Colleagues report not understanding what HPP is, how back pay works, or how to use FIP cards
+and coupons (owner, 3 Sep 2026). The app has the facts — a Pay Calculator that models both
+entitlements, a FIP guide checked country by country — and still the people it is for cannot always
+use them. That is an education problem, not a features problem, and it is the challenge this app
+has to rise to better. The standard is written down in CLAUDE.md → *"Plain English that TEACHES"*.
+
+**Shape, so the first pass does not become a rewrite.** Start where people already are, not in a
+new page: the card header, the row hint, the `?` panel — *name → one sentence → where you see it
+in the real world*. Check the "new member, nothing entered yet" cohort on every subject, because
+prompts gated on stored data never reach them (the HPP banner is the worked example). Judge by
+asking two colleagues to do the task from the app alone, never by page height or word count. Cut
+decisions, not explanations.
+
+**Candidate first subjects**, for the owner to order: a FIP coupon (what one is, how you get one,
+where it works and where it does not — the guide has the depth; the missing thing may be the
+"start here" ladder above it); HPP (one sentence at the point where hours are entered, since the
+premium is built from them); back pay (what "backdated to 1 April" means on the payslip it lands on).
+
 ---
 
 ## LATER — conditional; no work before the trigger
@@ -488,7 +511,10 @@ wirings, ~20 lines, no calculations), named for what it is — `paycalc-card-nav
 the grouping that was not built. The transfer card's hash branch stays where it is; its
 ResizeObserver landing correction is its own concern. If the tail is ever
 revisited, start from grouping only the two gadgets (Decimal Hours Converter, Move Your Pay Data) —
-nothing taught is lost, ~95px saved — and expect that not to be worth a module either.
+nothing taught is lost, ~95px saved — and expect that not to be worth a module either. Better
+still, ask a different question than "what can we hide?": **can the two utilities be made to look
+less like major calculator sections — lighter headers, no chevron-card chrome — while HPP and back
+pay keep their educational prominence?** Visual weight is the lever that costs no discovery.
 
 The four cards were never one category, which is why the grouping felt logical and was
 semantically wrong: the HPP and back-pay headers **teach an entitlement** all year, while the
