@@ -89,6 +89,10 @@ describe('every code the parser accepts is documented in the prompt', () => {
         const prompt = promptSection();
         const codes = [
             ...codeList("// Strip dots/slashes so punctuated paper-roster forms"),
+            // SN sits in its OWN list because it is not an absence (v22.53) — it is read here so
+            // splitting it out cannot quietly drop it from this contract, which is how a code
+            // becomes unreachable: the parser accepts it, the prompt never asks for it.
+            ...codeList('// SN = sick on a day the person was NOT booked to work'),
             ...codeList('// Paid-absence roster codes'),
         ];
         assert.ok(codes.length >= 9, `expected the parser's code lists, found ${codes.join(',')}`);
@@ -98,6 +102,28 @@ describe('every code the parser accepts is documented in the prompt', () => {
             `normaliseShift accepts these codes but the prompt never mentions them:\n  ${undocumented.join('\n  ')}\n`
             + 'The AI will therefore never return them, so the parser branch is unreachable and the day '
             + 'is silently read as something else. Add each to the prompt\'s code table.');
+    });
+});
+
+describe('SC and SN are two codes, not one', () => {
+    // Contract 2 above asks only that a code is MENTIONED somewhere in the prompt, and "SN" also
+    // appears in the layout rules — so deleting its row from the code table leaves that test green
+    // (verified). That weakness is exactly the shape of the defect here: SC and SN shared one row,
+    // `- SC or SN = Sick`, and the two are not synonyms. SC is sickness against a booked turn (an
+    // absence); SN is sickness on a day off, so the day recorded is the rest day it already was.
+    test('each has its own row, and they return different values (v22.53)', () => {
+        const prompt = promptSection();
+        assert.ok(!/\bSC\s+or\s+SN\b/i.test(prompt),
+            'the prompt documents SC and SN on one line again. They mean different things: SC is an '
+            + 'absence on a booked day, SN is sickness on a day that was not booked and stays a rest day.');
+        const sc = prompt.match(/^- SC\b[^\n]*/m);
+        const sn = prompt.match(/^- SN\b[^\n]*/m);
+        assert.ok(sc, 'no `- SC = …` row in the prompt code table');
+        assert.ok(sn, 'no `- SN = …` row in the prompt code table');
+        assert.match(sc[0], /"SICK"/, 'SC must tell the model to return SICK');
+        assert.match(sn[0], /"RD"/, 'SN must tell the model to return RD — it is a rest day, not an absence');
+        assert.ok(!/"SICK"/.test(sn[0].replace(/never\s+"SICK"/i, '')),
+            'the SN row must not ask for SICK except to forbid it');
     });
 });
 

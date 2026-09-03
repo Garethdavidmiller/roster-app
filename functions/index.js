@@ -448,7 +448,8 @@ WHAT THE CODES MEAN:
 - SP or SPARE = Spare (on standby). Always return "SPARE" — never "SP".
 - OFF = Uncontracted rest day (used in CES and bilingual rosters). Return "RD".
 - RDW = Rest day worked. A cell with RDW always shows a time too, e.g. "14:30-22:00 RDW" or "RDW 06:00-12:00". Return as "RDW HH:MM-HH:MM". Always keep the RDW — never strip it.
-- SC or SN = Sick. Return "SICK".
+- SC = Sick on a day the person WAS booked to work. Return "SICK".
+- SN = Sick on a day the person was NOT booked to work. That day is a rest day, so return "RD" — never "SICK".
 - HA = Hospital appointment (a paid absence day). Return "SICK".
 - OD = paid absence (often marked Mon-Fri for long-term sickness). Return "SICK".
 - ML = Maternity leave (a paid absence, usually a long block spanning many weeks). Return "SICK".

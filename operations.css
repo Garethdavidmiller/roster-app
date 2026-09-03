@@ -273,9 +273,13 @@ body.auth-ready .container { display: grid; }
 }
 /* Cross-check confidence note (v16.70): the server's column cross-check failed open (AI omitted
    columnScan) or only partially covered the staff — amber caution above the review list. */
+/* The tail sits a step below its own `<strong>` lead (v22.51). At a flat 600 the headline and the
+   instruction under it were the same weight, so three of these stacked gave the eye nowhere to
+   land — and they are stacked routinely, one per witness. Still heavier than body text: the note
+   with no lead sentence is the higher-severity one, and must not end up the quietest. */
 .roster-crosscheck-note {
     font-size: var(--type-small);
-    font-weight: 600;
+    font-weight: 500;
     color: var(--warning-amber);
     background: color-mix(in oklch, var(--warning-amber) 12%, white);
     border: 1px solid color-mix(in oklch, var(--warning-amber) 45%, white);
@@ -283,6 +287,7 @@ body.auth-ready .container { display: grid; }
     padding: 8px 10px;
     margin-bottom: 10px;
 }
+.roster-crosscheck-note strong { font-weight: 700; }
 /* Day-drift warning banner on a review section whose parsed week correlates with the member's
    base pattern ONE DAY out (detectShiftedRow) — the independent check on the AI read. */
 .roster-shift-warning {
@@ -307,19 +312,46 @@ body.auth-ready .container { display: grid; }
    day-then-state reading order for a screen reader without a second markup shape. */
 .roster-unread-head { display: flex; align-items: center; gap: 10px; text-align: left; }
 .roster-unread-head .roster-act { order: 2; margin-left: auto; }
-.roster-unread-head .roster-chg-vals { order: 1; flex: 1; min-width: 0; }
+/* A COLUMN, so the garbled value leads and the instruction sits under it. As a wrapping row the
+   two sat side by side on a wide card and stacked on a narrow one — the same two facts arranged by
+   how long somebody's unreadable cell happened to be. */
+.roster-unread-head .roster-chg-vals {
+    order: 1; flex: 1; min-width: 0;
+    flex-direction: column; align-items: flex-start; gap: 2px;
+}
 /* An OPEN disclosure is not a CHOSEN value — the two were one class and a merely-open editor wore
    the green "this will be saved" fill. Open is an outline; chosen keeps the fill. */
 .roster-choice-btn--enter.is-open:not(.is-chosen) {
     border-color: var(--primary-blue);
     box-shadow: inset 0 0 0 1px var(--primary-blue);
 }
+/* The box is a COLUMN with a gap, not a stack of margins (v22.51). Every child used to carry its
+   own `margin-top`, so the spacing between the pills, the Other block, the times and the hint came
+   from four places and none of them agreed once a child was conditional. */
 .roster-entry {
-    margin-top: 8px;
-    padding: 10px;
+    padding: 12px;
     background: var(--surface-sunken);
     border: 1px solid var(--border-light);
-    border-radius: 10px;
+    border-radius: var(--radius-button);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+/* Each group STATES its question (v22.51). The control had an `aria-label` and nothing on screen,
+   so a sighted admin met six unlabelled buttons in a grey box. The sub form is deliberately quieter
+   than the first: it is a narrowing of that question, not a second one of equal rank. */
+.roster-entry-q {
+    margin: 0;
+    font-size: var(--type-small);
+    font-weight: 700;
+    color: var(--text-dark);
+}
+.roster-entry-q--sub { font-weight: 600; color: var(--text-mid); }
+/* Why four of the six pills are dead on a Sunday. It was a `title`, which no phone shows. */
+.roster-entry-sunday {
+    margin: 0;
+    font-size: var(--type-small);
+    color: var(--text-mid);
 }
 .roster-entry-pills { display: flex; flex-wrap: wrap; gap: 6px; }
 .roster-entry-pill {
@@ -333,6 +365,7 @@ body.auth-ready .container { display: grid; }
     background: white;
     color: var(--text-dark);
     cursor: pointer;
+    transition: background var(--dur-med), color var(--dur-med), border-color var(--dur-med);
 }
 .roster-entry-pill.is-on {
     background: var(--primary-blue);
@@ -341,7 +374,7 @@ body.auth-ready .container { display: grid; }
 }
 .roster-entry-pill:disabled { opacity: .38; cursor: not-allowed; }
 .roster-entry-pill:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
-.roster-entry-times { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.roster-entry-times { display: flex; align-items: center; gap: 8px; }
 .roster-entry-time {
     /* >=16px, or iOS zooms the page the moment this is focused — the rule the e2e scans for. */
     font-family: inherit;
@@ -366,18 +399,60 @@ body.auth-ready .container { display: grid; }
 .roster-entry-hint {
     font-size: var(--type-small);
     color: var(--text-mid);
-    margin: 6px 0 0;
+    margin: 0;
 }
-.roster-entry-note {
+/* An OTHER day's sub-controls (v22.50). Deliberately a rank BELOW the type pills that reveal them:
+   smaller, squarer, and only ever on screen once Other is the chosen type — the pills answer "what
+   kind of day", these answer "which kind of Other", and a reader should be able to see which
+   question they are on. Same grammar and the same writer as Change a Shift (`composeOtherValue`). */
+/* Nested UNDER the pills, structurally: an indent and a leaf-green rule in the Other family's own
+   colour — the same one a chosen flavour wears. Before this the two groups shared a left edge and a
+   container, so "which kind of Other" read as a second row of equals rather than as a narrowing. */
+.roster-entry-other {
+    display: flex; flex-direction: column; gap: 8px;
+    padding-left: 10px;
+    border-left: 2px solid color-mix(in oklch, var(--other) 45%, white);
+}
+.roster-entry-flavours { display: flex; flex-wrap: wrap; gap: 6px; }
+.roster-entry-flavour {
+    font-family: inherit;
     font-size: var(--type-small);
-    color: var(--text-mid);
-    margin: 8px 0 0;
-    line-height: 1.4;
+    font-weight: 600;
+    padding: 7px 11px;
+    min-height: 40px;
+    border: 1.5px solid var(--border-mid);
+    border-radius: var(--radius-button);
+    background: white;
+    color: var(--text-dark);
+    cursor: pointer;
+    transition: background var(--dur-med), color var(--dur-med), border-color var(--dur-med);
+}
+.roster-entry-flavour.is-on {
+    background: var(--other, var(--primary-blue));
+    border-color: var(--other, var(--primary-blue));
+    color: white;
+}
+.roster-entry-flavour:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+.roster-entry-rdw {
+    display: flex; align-items: center; gap: 8px;
+    font-size: var(--type-small); color: var(--text-mid);
+    min-height: 40px;
+}
+.roster-entry-rdw-cb { width: 18px; height: 18px; flex-shrink: 0; }
+.roster-entry-rdw-cb:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+/* A ticked box nobody can untick needs to say why, on screen — it was a `title` too. */
+.roster-entry-lock { color: var(--text-light); font-size: var(--type-badge); }
+@media (hover: hover) and (pointer: fine) {
+    .roster-entry-pill:not(.is-on):not(:disabled):hover,
+    .roster-entry-flavour:not(.is-on):hover {
+        border-color: var(--primary-blue);
+        color: var(--primary-blue);
+    }
 }
 
 /* Reach the PDF from the review (v22.16). Deliberately quiet — it is a reference, not an action,
    and it sits above a list whose real buttons are the ticks. */
-.roster-view-pdf {
+.roster-download-pdf {
     display: block;
     width: 100%;
     text-align: left;
@@ -391,8 +466,8 @@ body.auth-ready .container { display: grid; }
     margin: 0 0 10px;
     cursor: pointer;
 }
-.roster-view-pdf:hover { background: var(--bg-faint); }
-.roster-view-pdf:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+.roster-download-pdf:hover { background: var(--bg-faint); }
+.roster-download-pdf:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 
 /* THE CIRCUIT BREAKER (v22.16). Louder than the per-row warning on purpose — it is not a caution
    about one row, it is a refusal of the whole read, and the two must not be mistaken for each
@@ -558,7 +633,19 @@ body.auth-ready .container { display: grid; }
 }
 /* UNREADABLE — a PDF cell normaliseShift couldn't parse (UNKNOWN|). Skip-only: surfaced so a
    garbled real shift isn't silently dropped, but never written. Amber (a warning), not red. */
-.roster-change-row.roster-change-unreadable { background: color-mix(in oklch, var(--warning-amber) 10%, white); }
+/* The LEFT ACCENT is the app's existing "this row needs a decision" mark — the conflict row has
+   worn it since v15.66 and this one, the row that most needs one, was the flattest thing on the
+   page (v22.51). Amber not red: a warning, not an error. */
+.roster-change-row.roster-change-unreadable {
+    background: color-mix(in oklch, var(--warning-amber) 10%, white);
+    border-left: 4px solid var(--warning-amber);
+}
+/* The tag was amber-on-amber against the row's own tint, so it read as a slightly different patch
+   of background rather than as a tag. White ground separates it without adding a colour. */
+.roster-change-unreadable .act-read {
+    background: white;
+    border: 1px solid color-mix(in oklch, var(--warning-amber) 35%, white);
+}
 .review-shift-unreadable { font-size: var(--type-small); font-weight: 600; color: var(--warning-amber); }
 /* REMOVE_IMPORT — a stale PDF import whose day now matches base; approving deletes it (no write). */
 .roster-remove-note { font-size: var(--type-badge); color: var(--text-light); font-style: italic; }

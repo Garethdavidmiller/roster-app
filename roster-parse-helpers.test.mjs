@@ -192,19 +192,29 @@ describe('normaliseShift', () => {
         assert.equal(normaliseShift('ml'), 'SICK');
         assert.equal(normaliseShift('M.L'), 'SICK');  // punctuated paper-roster form
     });
-    test('raw sick codes SC/SN and punctuated absence forms → SICK (v16.68 hardening)', () => {
-        // The prompt tells the AI to return SICK for SC/SN, but a raw echo must still map —
+    test('raw sick code SC and punctuated absence forms → SICK (v16.68 hardening)', () => {
+        // The prompt tells the AI to return SICK for these, but a raw echo must still map —
         // otherwise a genuine absence surfaces as an UNREADABLE cell instead of Absent.
         assert.equal(normaliseShift('SC'), 'SICK');
-        assert.equal(normaliseShift('SN'), 'SICK');
         assert.equal(normaliseShift('sc'), 'SICK');
         // Punctuated paper-roster forms.
         assert.equal(normaliseShift('O.D.'), 'SICK');
         assert.equal(normaliseShift('O/D'), 'SICK');
         assert.equal(normaliseShift('H.A'), 'SICK');
-        assert.equal(normaliseShift('S/N'), 'SICK');
         // Dot-stripping must NOT swallow dotted time forms (existing behaviour preserved).
         assert.equal(normaliseShift('05.30-11.30'), '05:30-11:30');
+    });
+    test('SN is a REST DAY, not an absence — it is sick on a day not booked to work (v22.53)', () => {
+        // SC and SN are not synonyms and the paper roster distinguishes them deliberately. Read as
+        // 'SICK' from v15.45 to v22.53, which was invisible wherever the base roster also said rest
+        // (the client rewrote it to RD anyway) and wrong exactly where it mattered — an SN against
+        // a base WORKED shift wrote Absent onto a day the roster office had marked as not booked.
+        assert.equal(normaliseShift('SN'), 'RD');
+        assert.equal(normaliseShift('sn'), 'RD');
+        assert.equal(normaliseShift('S/N'), 'RD');   // punctuated paper-roster forms
+        assert.equal(normaliseShift('S.N.'), 'RD');
+        // The distinction is the point: the two codes must NOT collapse back together.
+        assert.notEqual(normaliseShift('SN'), normaliseShift('SC'));
     });
     test('training words → TRG (case-insensitive, all aliases)', () => {
         assert.equal(normaliseShift('TRG'), 'TRG');

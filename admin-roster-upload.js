@@ -7,7 +7,7 @@
 import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO, isSunday, parseISODate } from './roster-data.js';
 import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { shouldReplaceOverride, parseOtherValue, buildOverrideWrite, nextReplacedType } from './override-utils.js';
-import { entryControlHtml, patchEntryRow, commitEntry } from './roster-entry-control.js';
+import { entryControlHtml, patchEntryRow, commitEntry, redrawEntry, toggleEntry, entryClick } from './roster-entry-control.js';
 import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
 // RE-EXPORTED, not re-implemented: all three moved to roster-cell-rules.js (v22.17/v22.18) and
 // several call sites (and their tests) name this module. The alternative was a rename sweep across
@@ -831,23 +831,16 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         // silent rather than false-alarming.
         changeList.innerHTML = '';
 
-        // ---- "View the original roster" (v22.16) ----
-        // Failing closed is only fair if the admin can go and look: every message this release adds
-        // ends in "check it against the PDF", and the file had left the workflow the moment the
-        // parse returned. The object URL is built at CLICK time (a real gesture, so never
-        // pop-up-blocked) and revoked on a timer, like the pay-data download.
+        // ---- The original roster (v22.16; DEAD from the day it shipped, fixed v22.52) ----
+        // Two silent traps, both easy to walk back into; AI_MAP has the full account. (1) The
+        // button is DELEGATED like every other control here — its own `addEventListener` did not
+        // survive the clone at the foot of this function, so it did nothing for six releases and
+        // looked perfect in a screenshot. (2) It DOWNLOADS: a `blob:` document inherits this
+        // page's `object-src 'none'` (measured), which blocks the embed Chrome renders a PDF in.
         const pdfFile = fileInput?.files?.[0];
         if (pdfFile) {
-            const view = document.createElement('button');
-            view.type = 'button';
-            view.className = 'roster-view-pdf';
-            view.textContent = `📄 View the original roster (${pdfFile.name})`;
-            view.addEventListener('click', () => {
-                const url = URL.createObjectURL(pdfFile);
-                window.open(url, '_blank', 'noopener');
-                setTimeout(() => URL.revokeObjectURL(url), 60_000);
-            });
-            changeList.appendChild(view);
+            changeList.insertAdjacentHTML('beforeend', `<button type="button" class="roster-download-pdf">`
+                + `📄 Download the original roster (${esc(pdfFile.name)})</button>`);
         }
 
         if (parsedResult.crossCheck && parsedResult.crossCheck !== 'complete') {
@@ -1016,7 +1009,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                             <div class="roster-pick" role="group" aria-label="Choose the correct value">
                                 ${s.options.map(/** @param {any} o @param {number} i */ (o, i) => `<button type="button" class="roster-choice-btn ${picked === i ? 'is-chosen' : ''}" data-key="${esc(key)}" data-opt="${i}" aria-pressed="${picked === i}">${shiftDisplay(o.display, date)}</button>`).join('')}
                                 <button type="button" class="roster-choice-btn roster-choice-btn--skip ${picked < 0 && s.chosen !== 'entered' ? 'is-chosen' : ''}" data-key="${esc(key)}" data-opt="skip" aria-pressed="${picked < 0 && s.chosen !== 'entered'}">Skip</button>
-                                <button type="button" class="roster-choice-btn roster-choice-btn--enter ${s.chosen === 'entered' ? 'is-chosen' : ''}${s.draft?.open ? ' is-open' : ''}" data-key="${esc(key)}" data-opt="enter" aria-pressed="${s.chosen === 'entered'}">Neither — enter it</button>
+                                <button type="button" class="roster-choice-btn roster-choice-btn--enter ${s.chosen === 'entered' ? 'is-chosen' : ''}${s.draft?.open ? ' is-open' : ''}" data-key="${esc(key)}" data-opt="enter" data-idle="Neither — enter it" data-done="Entered — change it" aria-pressed="${s.chosen === 'entered'}">${s.chosen === 'entered' && s.entered ? 'Entered — change it' : 'Neither — enter it'}</button>
                             </div>
                             ${s.draft?.open ? entryControlHtml(key, s, date) : ''}
                         </div>`;
@@ -1043,7 +1036,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                                     : 'check the paper roster, or enter it below'}</span>
                             </div>
                         </div>
-                        <button type="button" class="roster-choice-btn roster-choice-btn--enter ${s.chosen === 'entered' ? 'is-chosen' : ''}${s.draft?.open ? ' is-open' : ''}" data-key="${esc(key)}" data-opt="enter" aria-pressed="${s.chosen === 'entered'}">${s.chosen === 'entered' && s.entered ? 'Entered — change it' : 'Enter the shift'}</button>
+                        <button type="button" class="roster-choice-btn roster-choice-btn--enter ${s.chosen === 'entered' ? 'is-chosen' : ''}${s.draft?.open ? ' is-open' : ''}" data-key="${esc(key)}" data-opt="enter" data-idle="Enter the shift" data-done="Entered — change it" aria-pressed="${s.chosen === 'entered'}">${s.chosen === 'entered' && s.entered ? 'Entered — change it' : 'Enter the shift'}</button>
                         ${s.draft?.open ? entryControlHtml(key, s, date) : ''}`;
                 } else {
                     // CONFLICT — you already recorded something that differs from the new roster.
@@ -1088,6 +1081,15 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
         changeList.addEventListener('click', /** @param {any} e */ e => {
             const target = /** @type {Element} */ (e.target);
+            if (target.closest('.roster-download-pdf')) {
+                const file = fileInput?.files?.[0];
+                if (!file) return;
+                const url = URL.createObjectURL(file);   // read at CLICK time, so it cannot go stale
+                const a = Object.assign(document.createElement('a'), { href: url, download: file.name });
+                document.body.appendChild(a); a.click(); a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 60_000);  // immediate revoke cancels it on Android
+                return;
+            }
             // Save / skip toggle on a change row's tick (DIFF + REMOVE_IMPORT)
             const tickBtn = /** @type {HTMLElement|null} */ (target.closest('.roster-tick'));
             if (tickBtn) {
@@ -1184,14 +1186,18 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             // The row's shape depends on the pill (times appear only for Shift/RDW), so a patch
             // would have to rebuild it anyway — and the draft lives on the state, so a full render
             // cannot lose a half-typed time the way reading values back off the DOM could.
-            const entryPill = /** @type {HTMLElement|null} */ (target.closest('.roster-entry-pill'));
-            if (entryPill) {
-                const s = cellStates.get(entryPill.dataset.key ?? '');
-                if (!s) return;
-                const t = entryPill.dataset.entryType ?? '';
-                s.draft = { ...s.draft, open: true, type: s.draft?.type === t ? null : t };
-                commitEntry(s);
-                renderReviewTable(parsedResult, cellStates);
+            // Any control INSIDE the entry editor: a type pill, an Other flavour, the RDW tick.
+            // `entryClick` owns which of those exist and what each does to the draft; this only
+            // redraws the control — never the list, see `redrawEntry`'s header for the measurement.
+            const entryHit = /** @type {HTMLElement|null} */ (
+                target.closest('.roster-entry-pill, .roster-entry-flavour, .roster-entry-rdw-cb'));
+            if (entryHit) {
+                const s = cellStates.get(entryHit.dataset.key ?? '');
+                if (!s || !entryClick(entryHit, s)) return;
+                const pillRow = /** @type {any} */ (entryHit.closest('.roster-change-row'));
+                redrawEntry(pillRow, entryHit.dataset.key ?? '', s);
+                patchEntryRow(pillRow, s.chosen === 'entered' && !!s.entered, s);
+                refreshOutcome();
                 return;
             }
 
@@ -1209,8 +1215,11 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                         // Toggling the editor SHUT does not discard the entry — a re-render would
                         // then wipe a value the admin had already committed, which is the one thing
                         // a disclosure must never do. Only Skip un-chooses.
-                        s.draft = { ...(s.draft || { type: null, from: '', to: '' }), open: !s.draft?.open };
-                        renderReviewTable(parsedResult, cellStates);
+                        // In place, never a re-render — `redrawEntry`'s header has the measurement.
+                        const nowOpen = !s.draft?.open;
+                        s.draft = { ...(s.draft || { type: null, from: '', to: '' }), open: nowOpen };
+                        toggleEntry(/** @type {any} */ (choiceBtn.closest('.roster-change-row')),
+                            choiceBtn, choiceBtn.dataset.key ?? '', s, nowOpen);
                         return;
                     }
                     s.chosen = raw === 'skip' ? null : Number(raw);
@@ -1261,7 +1270,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             // input the admin is typing into. But leaving the row alone was worse than it looked:
             // the head still read "Not saved · couldn't read — check the paper roster" while the
             // summary above had already counted the entry, so the screen contradicted itself.
-            patchEntryRow(el.closest('.roster-change-row'), s.chosen === 'entered' && !!s.entered);
+            patchEntryRow(el.closest('.roster-change-row'), s.chosen === 'entered' && !!s.entered, s);
             refreshOutcome();
         });
 

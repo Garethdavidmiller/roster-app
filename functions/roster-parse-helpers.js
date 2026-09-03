@@ -71,15 +71,26 @@ function normaliseShift(raw) {
     const _code = s.replace(/[./]/g, '');
     if (['RD', 'OFF', 'AL', 'SPARE', 'SICK'].includes(_code)) return _code;
 
+    // SN = sick on a day the person was NOT booked to work (owner, Sep 2026). The paper roster
+    // distinguishes it from SC for exactly this reason, and the two are NOT synonyms: SC is
+    // sickness against a booked turn and is an absence; SN is sickness on a day off, so the day
+    // that gets recorded is the REST DAY it already was. Both were read as 'SICK' from v15.45 to
+    // v22.53 — harmless wherever the base roster also said rest, because the client's
+    // base-rest-day rule in `normaliseCellValue` rewrote it to RD anyway, and wrong precisely
+    // where it mattered: an SN against a base WORKED shift wrote Absent onto a day the roster
+    // office had marked as not booked. Kept as its own list so roster-prompt-parity still reads
+    // the code out of the source rather than a human keeping two tables in step.
+    if (['SN'].includes(_code)) return 'RD';
+
     // Paid-absence roster codes (owner, Jul 2026): HA = Hospital Appointment (a day off on full
     // pay); OD = paid absence, often used as a blanket Mon–Fri marking for long-term sickness;
-    // SC/SN = sick; ML = Maternity leave (a long paid-absence block). All become the app's Absent
-    // day ('SICK' — the reason is never stored, GDPR). The prompt already tells the AI to return
-    // SICK for these, but if it echoes the RAW code the server must still map it — otherwise a real
-    // absence surfaced as an UNREADABLE cell instead of Absent. Dots/slashes are stripped first so
-    // the punctuated paper-roster forms ("O.D.", "O/D", "H.A", "M.L") map too. Sunday and
-    // base-rest-day normalisation happen client-side in computeCellStates, same as SICK.
-    if (['HA', 'OD', 'SC', 'SN', 'ML'].includes(s.replace(/[./]/g, ''))) return 'SICK';
+    // SC = sick on a booked turn; ML = Maternity leave (a long paid-absence block). All become the
+    // app's Absent day ('SICK' — the reason is never stored, GDPR). The prompt already tells the AI
+    // to return SICK for these, but if it echoes the RAW code the server must still map it —
+    // otherwise a real absence surfaced as an UNREADABLE cell instead of Absent. Dots/slashes are
+    // stripped first so the punctuated paper-roster forms ("O.D.", "O/D", "H.A", "M.L") map too.
+    // Sunday and base-rest-day normalisation happen client-side in computeCellStates.
+    if (['HA', 'OD', 'SC', 'ML'].includes(_code)) return 'SICK';
 
     // Training / Induction / Assessment / Team Day / Union course (OTHER_PLAN.md). Roster words
     // collapse to the canonical flavour sentinels; an RDW marker (either side: "TRG RDW" or "RDW TRG")
@@ -738,7 +749,7 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
         for (const d of disagree) {
             const rowV = entry.shifts[d];
             const colV = colRead[d];
-            // REST ↔ ABSENCE: exactly one read is 'SICK' (a positive absence code — OD/HA/SC/SN — was
+            // REST ↔ ABSENCE: exactly one read is 'SICK' (a positive absence code — OD/HA/SC/ML — was
             // seen on that pass) and the other is a rest day. RECORD THE ABSENCE rather than flag
             // UNREADABLE: dropping a real absence (writing RD) is the dangerous SILENT failure — the
             // person then appears to be working — whereas a false absence is visible on the calendar

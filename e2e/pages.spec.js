@@ -4506,15 +4506,23 @@ test('operations: a complete PDF layout check adds no banner at all', async ({ p
     await expect(page.locator('.roster-crosscheck-note', { hasText: 'PDF layout check' })).toHaveCount(0);
 });
 
-test('operations: the review offers the original PDF to check against', async ({ page }) => {
+test('operations: the review HANDS OVER the original PDF to check against', async ({ page }) => {
     // Every message this release adds ends in "check it against the PDF". Until v22.16 the file had
     // effectively left the workflow once the parse returned, so failing closed asked the admin to
     // consult something they could no longer reach.
+    //
+    // THIS TEST USED TO ASSERT THE BUTTON WAS VISIBLE, and it was — for six releases, over a
+    // `window.open` of a blob: URL that painted a blank tab, because a blob document inherits this
+    // page's `object-src 'none'` and Chrome's PDF viewer is a plugin embed. Visible is not working.
+    // The only assertion that could have caught it is the one that takes delivery of the file.
     await seedSession(page, 'G. Miller');
     await openRosterReview(page);
-    const view = page.locator('.roster-view-pdf');
+    const view = page.locator('.roster-download-pdf');
     await expect(view).toBeVisible();
     await expect(view).toContainText('roster.pdf');
+    const [download] = await Promise.all([page.waitForEvent('download'), view.click()]);
+    expect(download.suggestedFilename()).toBe('roster.pdf');
+    expect(await download.path()).toBeTruthy();          // it really arrived, with bytes behind it
 });
 
 
@@ -4597,6 +4605,37 @@ test('operations: the entry control never offers a type Sunday forbids', async (
     }
     await expect(row.locator('.roster-entry-pill', { hasText: /^RDW$/ })).toBeEnabled();
     await expect(row.locator('.roster-entry-pill', { hasText: /^Rest Day$/ })).toBeEnabled();
+});
+
+test('operations: an options row keeps its own words while an entry is half-finished', async ({ page }) => {
+    // TWO ROW SHAPES share `patchEntryRow` and they do not share a vocabulary. The row that offers
+    // candidate readings calls its control "Neither — enter it" and is permanently a decision
+    // (`act-choice` in every state); the row with no readings says "Enter the shift" and is
+    // `act-read` until answered. `patchEntryRow` spoke only the second row's dialect, so on an
+    // options row an incomplete draft renamed the open control to the OTHER row's phrase and
+    // restyled the tag — telling the admin the row had gone back to unreadable while they were
+    // part-way through answering it. Latent since v22.17 (only the keystroke path reached it);
+    // v22.50 routed every pill click through the same call, so it fired on the first tap.
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+    const row = page.locator('.roster-change-row', { has: page.locator('.roster-choice-btn--skip') })
+        .filter({ has: page.locator('.roster-choice-btn--enter') }).first();
+    const btn = row.locator('.roster-choice-btn--enter');
+    const tag = row.locator('.roster-act');
+    await expect(btn).toHaveText('Neither — enter it');
+    await btn.click();
+
+    // Half-finished: Other with no flavour yet composes to nothing, so `done` is false.
+    await row.locator('.roster-entry-pill', { hasText: /^Other$/ }).click();
+    await expect(btn).toHaveText('Neither — enter it');          // NOT "Enter the shift"
+    await expect(tag).toHaveClass(/act-choice/);
+    await expect(tag).not.toHaveClass(/act-read/);
+
+    // Finished: the shared "Entered — change it" is correct on both shapes.
+    await row.locator('.roster-entry-flavour', { hasText: 'Training' }).click();
+    await expect(btn).toHaveText('Entered — change it');
+    await expect(tag).toHaveClass(/act-choice/);
+    await expect(row.locator('.roster-entry-hint')).toContainText('will be saved');
 });
 
 // ── THE HUDDLE TABLE MUST NOT DRAG THE WHOLE PAGE SIDEWAYS (v22.27) ────────────────────────────
