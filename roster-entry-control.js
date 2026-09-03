@@ -46,12 +46,16 @@
 
 import { escapeHtml as esc, isSunday } from './roster-data.js';
 import { TYPES, PILL_TYPES } from './admin-shift-types.js';
-import { manualCellValue, isForbiddenOnSunday } from './override-utils.js';
+import { manualCellValue, isForbiddenOnSunday, composeOtherValue, isRestShift, OTHER_FLAVOURS } from './override-utils.js';
 import { normaliseCellValue } from './roster-cell-rules.js';
 
 /** What the hint under the time boxes says, in both of its states. */
 const HINT_DONE = '\u2713 this day will be saved';
 const HINT_TODO = 'Enter both times in 24-hour form, e.g. 06:20';
+/** Other days take their hours from the day underneath unless a time is given, so both boxes may
+ *  stay blank — the hint has to say so, or an admin fills them in to make the tick appear. */
+const HINT_FLAVOUR = 'Choose the type of day above.';
+const HINT_OTHER = 'Times are optional — leave both blank to use the usual hours for that day.';
 
 /**
  * The in-place "enter it myself" control for an unreadable cell (v22.17).
@@ -87,15 +91,32 @@ const HINT_TODO = 'Enter both times in 24-hour form, e.g. 06:20';
 export function entryControlHtml(key, s, date) {
     const d = s.draft || { type: null, from: '', to: '' };
     const sun = isSunday(date);
-    const pills = PILL_TYPES.filter(t => t !== 'other').map(t => {
+    const pills = PILL_TYPES.map(t => {
         const off = sun && isForbiddenOnSunday(t);
         return `<button type="button" class="roster-entry-pill${d.type === t ? ' is-on' : ''}"
             data-key="${esc(key)}" data-entry-type="${t}" aria-pressed="${d.type === t}"
             ${off ? 'disabled title="Not allowed on a Sunday — Sunday work is RDW"' : ''}>${esc(TYPES[t].pill)}</button>`;
     }).join('');
-    const needsTime = d.type === 'shift' || d.type === 'rdw';
+    const isOther   = d.type === 'other';
+    const needsTime = d.type === 'shift' || d.type === 'rdw' || isOther;
+    const baseIsRd  = isRestShift(s.baseShift);
+    // An Other day's value is a GRAMMAR — `FLAVOUR[" RDW"][" HH:MM-HH:MM"]` — so it needs the same
+    // three sub-controls the week editor gives it. They are generated from `OTHER_FLAVOURS`, the ONE
+    // declaration of which flavours exist, and composed by `composeOtherValue`, the writer half of
+    // the grammar that the week editor's save path already calls: this control authors nothing of
+    // its own, so the two surfaces cannot disagree about what a Training day is.
+    const otherOpts = !isOther ? '' : `<div class="roster-entry-other">
+            <div class="roster-entry-flavours" role="group" aria-label="Type of day">
+                ${Object.entries(OTHER_FLAVOURS).map(([k, f]) =>
+                    `<button type="button" class="roster-entry-flavour${d.flavour === k ? ' is-on' : ''}"
+                        data-key="${esc(key)}" data-entry-flavour="${k}" aria-pressed="${d.flavour === k}">${esc(f.full)}</button>`).join('')}
+            </div>
+            <label class="roster-entry-rdw"><input type="checkbox" class="roster-entry-rdw-cb" data-key="${esc(key)}"
+                ${(d.rdw || baseIsRd) ? 'checked' : ''}${baseIsRd ? ' disabled title="Rest day — RDW is automatic"' : ''}> Rest day worked</label>
+        </div>`;
     return `<div class="roster-entry" data-key="${esc(key)}">
         <div class="roster-entry-pills" role="group" aria-label="Choose the shift type">${pills}</div>
+        ${otherOpts}
         ${needsTime ? `<div class="roster-entry-times">
             <input type="text" class="roster-entry-time" data-key="${esc(key)}" data-part="from"
                    value="${esc(d.from)}" inputmode="numeric" maxlength="5" placeholder="HH:MM"
@@ -105,13 +126,60 @@ export function entryControlHtml(key, s, date) {
                    value="${esc(d.to)}" inputmode="numeric" maxlength="5" placeholder="HH:MM"
                    autocomplete="off" aria-label="End time (24-hour, HH:MM)">
         </div>
-        <p class="roster-entry-hint">${manualCellValue(d.type, d.from, d.to)
-            ? '\u2713 this day will be saved'
-            : 'Enter both times in 24-hour form, e.g. 06:20'}</p>` : ''}
-        <p class="roster-entry-note">A training or other day? Use <strong>Change a Shift</strong> on the Admin page.</p>
+        <p class="roster-entry-hint">${entryHint(d, s)}</p>` : ''}
     </div>`;
 }
 
+
+/**
+ * The cell key is `member|YYYY-MM-DD`, and a roster name can hold no `|`, so the date is the tail.
+ * @param {string} key @returns {string} ISO date
+ */
+export function isoFromKey(key) {
+    return key.slice(key.lastIndexOf('|') + 1);
+}
+
+/**
+ * Re-draw ONE row's entry control, leaving the rest of the review alone (v22.50).
+ *
+ * The sibling of `patchEntryRow` below, and it exists for the same reason one step further out.
+ * That one says a re-render would destroy the input being typed into; this one says a re-render
+ * ALSO destroys the admin's place in a long review. `renderReviewTable` rebuilds every section and
+ * replaces the list container outright, so the document momentarily holds no rows at all, the
+ * scroll position clamps to the shorter page, and pressing a disclosure button throws the reader
+ * back to the top. Reported from the station, then measured at 390x844: scrollY 1286 -> 462 on a
+ * single tap, and again on every pill after it.
+ *
+ * Picking a type genuinely changes the control (which pill is lit, whether the time boxes are
+ * needed), so it must be re-drawn — but only IT.
+ *
+ * @param {any} rowEl the `.roster-change-row` @param {string} key @param {any} st its cell state
+ */
+export function redrawEntry(rowEl, key, st) {
+    const el = rowEl?.querySelector('.roster-entry');
+    if (el) el.outerHTML = entryControlHtml(key, st, isoFromKey(key));
+}
+
+/**
+ * Open or close a row's entry control, in place.
+ *
+ * Where it goes differs by row and this is the only place that knows: after the whole pick GROUP
+ * on a CONFLICT row that offers readings, and after the button itself on an UNREADABLE row that
+ * does not — matching where the review's own render puts it.
+ *
+ * @param {any} rowEl the `.roster-change-row` @param {any} btn the pressed button
+ * @param {string} key @param {any} st its cell state @param {boolean} open
+ */
+export function toggleEntry(rowEl, btn, key, st, open) {
+    const already = rowEl?.querySelector('.roster-entry');
+    if (!open) { already?.remove(); }
+    else if (!already) {
+        const group  = btn.closest('.roster-pick');
+        const anchor = (group && rowEl?.contains(group)) ? group : btn;
+        anchor.insertAdjacentHTML('afterend', entryControlHtml(key, st, isoFromKey(key)));
+    }
+    btn.classList.toggle('is-open', open);
+}
 
 /**
  * Keep a row honest while the admin types (v22.17).
@@ -121,8 +189,9 @@ export function entryControlHtml(key, s, date) {
  * roster" while the summary above had already counted the entry. The screen contradicted itself.
  *
  * @param {Element|null|undefined} rowEl @param {boolean} done
+ * @param {any} [st] the cell state — pass it and the hint speaks for ANY draft, not just a timed one
  */
-export function patchEntryRow(rowEl, done) {
+export function patchEntryRow(rowEl, done, st) {
     if (!rowEl) return;
     const act = rowEl.querySelector('.roster-act');
     if (act) {
@@ -140,9 +209,61 @@ export function patchEntryRow(rowEl, done) {
         btn.classList.toggle('is-chosen', done);
         btn.setAttribute('aria-pressed', String(done));
     }
+    // ONE function decides what this line says (v22.50). This used to pick between two constants,
+    // which was right while the only draft was a shift with two times — and silently wrong the
+    // moment an Other day arrived, because it runs AFTER `redrawEntry` and overwrote a correct
+    // "choose the type of Other day" with "enter both times". Pass the state and it cannot.
     const hint = rowEl.querySelector('.roster-entry-hint');
-    if (hint) hint.textContent = done ? HINT_DONE : HINT_TODO;
+    if (hint) hint.textContent = st ? entryHint(st.draft || {}, st) : (done ? HINT_DONE : HINT_TODO);
     rowEl.classList.toggle('roster-change-unreadable', !done);
+}
+
+/**
+ * Compose what a draft AMOUNTS TO — the parsed-roster value, or null with the reason it is not one.
+ *
+ * Both kinds route through code that already exists: an ordinary type through `manualCellValue`,
+ * an Other day through `composeOtherValue`. Nothing about either grammar is written here.
+ * @param {any} d the draft @param {any} st the cell state @returns {{ value: string|null, error: string }}
+ */
+function draftValue(d, st) {
+    if (d.type !== 'other') return { value: d.type ? manualCellValue(d.type, d.from, d.to) : null, error: '' };
+    const r = composeOtherValue({
+        flavour: d.flavour, rdwTicked: d.rdw, baseIsRd: isRestShift(st.baseShift), start: d.from, end: d.to,
+    });
+    return { value: r.value ?? null, error: r.error ?? '' };
+}
+
+/** The line under the boxes. It must never say "will be saved" over a draft that would not be.
+ *  @param {any} d @param {any} st @returns {string} */
+function entryHint(d, st) {
+    const { value, error } = draftValue(d, st);
+    if (value) return HINT_DONE;
+    // `composeOtherValue`'s own "no flavour yet" message names Spare, because the week editor
+    // offers it. This control does not, so it says its own sentence rather than promising a chip
+    // that is not on screen — every other error it raises is about times and reads correctly here.
+    if (!d.flavour && d.type === 'other') return HINT_FLAVOUR;
+    if (error) return esc(error.charAt(0).toUpperCase() + error.slice(1));
+    return d.type === 'other' ? HINT_OTHER : HINT_TODO;
+}
+
+/**
+ * Apply a click inside the control to the draft, then commit it.
+ *
+ * Lives here rather than in the review's delegated handler because the coordinator sits AT its
+ * ratchet cap and, more to the point, because which sub-controls exist is this module's business.
+ * @param {any} el the clicked element @param {any} st the cell state @returns {boolean} handled
+ */
+export function entryClick(el, st) {
+    const d = { ...(st.draft || {}), open: true };
+    const type = el.dataset?.entryType;
+    const flav = el.dataset?.entryFlavour;
+    if (type !== undefined)      d.type = d.type === type ? null : type;
+    else if (flav !== undefined) d.flavour = d.flavour === flav ? null : flav;
+    else if (el.classList?.contains('roster-entry-rdw-cb')) d.rdw = !!el.checked;
+    else return false;
+    st.draft = d;
+    commitEntry(st);
+    return true;
 }
 
 /**
@@ -157,7 +278,7 @@ export function patchEntryRow(rowEl, done) {
  */
 export function commitEntry(s) {
     const d = s.draft || {};
-    const raw = d.type ? manualCellValue(d.type, d.from, d.to) : null;
+    const raw = draftValue(d, s).value;
     if (!raw) { s.entered = null; if (s.chosen === 'entered') s.chosen = null; return; }
     s.entered = normaliseCellValue(raw, s.baseShift, s.date);
     s.chosen  = 'entered';

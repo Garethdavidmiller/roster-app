@@ -7,7 +7,7 @@
 import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO, isSunday, parseISODate } from './roster-data.js';
 import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { shouldReplaceOverride, parseOtherValue, buildOverrideWrite, nextReplacedType } from './override-utils.js';
-import { entryControlHtml, patchEntryRow, commitEntry } from './roster-entry-control.js';
+import { entryControlHtml, patchEntryRow, commitEntry, redrawEntry, toggleEntry, entryClick } from './roster-entry-control.js';
 import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
 // RE-EXPORTED, not re-implemented: all three moved to roster-cell-rules.js (v22.17/v22.18) and
 // several call sites (and their tests) name this module. The alternative was a rename sweep across
@@ -1184,14 +1184,18 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             // The row's shape depends on the pill (times appear only for Shift/RDW), so a patch
             // would have to rebuild it anyway — and the draft lives on the state, so a full render
             // cannot lose a half-typed time the way reading values back off the DOM could.
-            const entryPill = /** @type {HTMLElement|null} */ (target.closest('.roster-entry-pill'));
-            if (entryPill) {
-                const s = cellStates.get(entryPill.dataset.key ?? '');
-                if (!s) return;
-                const t = entryPill.dataset.entryType ?? '';
-                s.draft = { ...s.draft, open: true, type: s.draft?.type === t ? null : t };
-                commitEntry(s);
-                renderReviewTable(parsedResult, cellStates);
+            // Any control INSIDE the entry editor: a type pill, an Other flavour, the RDW tick.
+            // `entryClick` owns which of those exist and what each does to the draft; this only
+            // redraws the control — never the list, see `redrawEntry`'s header for the measurement.
+            const entryHit = /** @type {HTMLElement|null} */ (
+                target.closest('.roster-entry-pill, .roster-entry-flavour, .roster-entry-rdw-cb'));
+            if (entryHit) {
+                const s = cellStates.get(entryHit.dataset.key ?? '');
+                if (!s || !entryClick(entryHit, s)) return;
+                const pillRow = /** @type {any} */ (entryHit.closest('.roster-change-row'));
+                redrawEntry(pillRow, entryHit.dataset.key ?? '', s);
+                patchEntryRow(pillRow, s.chosen === 'entered' && !!s.entered, s);
+                refreshOutcome();
                 return;
             }
 
@@ -1209,8 +1213,11 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                         // Toggling the editor SHUT does not discard the entry — a re-render would
                         // then wipe a value the admin had already committed, which is the one thing
                         // a disclosure must never do. Only Skip un-chooses.
-                        s.draft = { ...(s.draft || { type: null, from: '', to: '' }), open: !s.draft?.open };
-                        renderReviewTable(parsedResult, cellStates);
+                        // In place, never a re-render — `redrawEntry`'s header has the measurement.
+                        const nowOpen = !s.draft?.open;
+                        s.draft = { ...(s.draft || { type: null, from: '', to: '' }), open: nowOpen };
+                        toggleEntry(/** @type {any} */ (choiceBtn.closest('.roster-change-row')),
+                            choiceBtn, choiceBtn.dataset.key ?? '', s, nowOpen);
                         return;
                     }
                     s.chosen = raw === 'skip' ? null : Number(raw);
@@ -1261,7 +1268,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             // input the admin is typing into. But leaving the row alone was worse than it looked:
             // the head still read "Not saved · couldn't read — check the paper roster" while the
             // summary above had already counted the entry, so the screen contradicted itself.
-            patchEntryRow(el.closest('.roster-change-row'), s.chosen === 'entered' && !!s.entered);
+            patchEntryRow(el.closest('.roster-change-row'), s.chosen === 'entered' && !!s.entered, s);
             refreshOutcome();
         });
 

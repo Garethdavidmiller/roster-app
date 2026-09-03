@@ -368,12 +368,37 @@ body.auth-ready .container { display: grid; }
     color: var(--text-mid);
     margin: 6px 0 0;
 }
-.roster-entry-note {
+/* An OTHER day's sub-controls (v22.50). Deliberately a rank BELOW the type pills that reveal them:
+   smaller, squarer, and only ever on screen once Other is the chosen type — the pills answer "what
+   kind of day", these answer "which kind of Other", and a reader should be able to see which
+   question they are on. Same grammar and the same writer as Change a Shift (`composeOtherValue`). */
+.roster-entry-other { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+.roster-entry-flavours { display: flex; flex-wrap: wrap; gap: 6px; }
+.roster-entry-flavour {
+    font-family: inherit;
     font-size: var(--type-small);
-    color: var(--text-mid);
-    margin: 8px 0 0;
-    line-height: 1.4;
+    font-weight: 600;
+    padding: 7px 11px;
+    min-height: 40px;
+    border: 1.5px solid var(--border-mid);
+    border-radius: var(--radius-button);
+    background: white;
+    color: var(--text-dark);
+    cursor: pointer;
 }
+.roster-entry-flavour.is-on {
+    background: var(--other, var(--primary-blue));
+    border-color: var(--other, var(--primary-blue));
+    color: white;
+}
+.roster-entry-flavour:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+.roster-entry-rdw {
+    display: flex; align-items: center; gap: 8px;
+    font-size: var(--type-small); color: var(--text-mid);
+    min-height: 40px;
+}
+.roster-entry-rdw-cb { width: 18px; height: 18px; flex-shrink: 0; }
+.roster-entry-rdw-cb:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 
 /* Reach the PDF from the review (v22.16). Deliberately quiet — it is a reference, not an action,
    and it sits above a list whose real buttons are the ticks. */

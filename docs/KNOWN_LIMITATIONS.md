@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: September 2026 — v22.40 · Updated every 0.10 version*
+*Last updated: September 2026 — v22.50 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -820,7 +820,9 @@ roster**, because those four people appear on that sheet and work most of their 
 which is precisely the case the rule exists for, since writing RD across them would overwrite what
 their primary roster's import had just written. The rule is right; the friction is real and is
 mitigated by the v22.17 in-place entry control, which lets each row be answered without leaving the
-page. **Worth watching on the first live Dispatch import** — if it proves tiresome, the question to
+page — and by v22.50, which made that true in practice: until then, opening the control or picking a
+type re-rendered the whole review and threw the reader back to the top, so a dozen rows meant a dozen
+scrolls back down. **Worth watching on the first live Dispatch import** — if it proves tiresome, the question to
 ask is whether a member whose row is blank Mon–Sat on a SECOND sheet should be skipped wholesale
 rather than cell by cell. That is a product decision, not a bug.
 
