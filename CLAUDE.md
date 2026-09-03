@@ -982,7 +982,35 @@ overwhelmed. "For dummies" is the standard, not an insult. The rules, each learn
   height is not a UX metric. The question is where staff spend effort for little value.
 - **Educational is not chatty.** The calm tone above still applies; one idea per line.
 - **Test it on the reader, not the owner.** The check for a new surface is a colleague who does not
-  know the term using it from the app alone. See ROADMAP.md → "Plain-English education pass".
+  know the term using it from the app alone. And score two things separately, because they are not
+  the same: **usability** (can somebody who understands the subject work the screen?) and
+  **learnability** (can somebody who does not yet understand it learn enough here to act correctly?).
+  A colleague can be a fluent phone user and still have no idea how a FIP coupon works.
+
+**The four things a surface owes a member, in order.** This is not an imported UX model — it is the
+app's own best pattern, named. Every Hours row already does all four:
+**Discover** it exists (*"Rest Day Working"*) → **Understand** it in one sentence (*"Came in on a
+rest day, or worked a Saturday that wasn't in your roster"*) → **Act** (*"Shows as 'RDW 1.25' on your
+payslip"*) → **Deep dive** on demand (the card body, the `?` panel, the guide).
+**Progressive disclosure may hide the fourth. It may never hide the first.** That single line is what
+separates good hiding (*"Holiday Pay Premium — paid once a year on a January payslip"* with the
+calculation fields collapsed beneath it) from bad (*"More pay tools ▾"*, where the member cannot know
+a premium is in there).
+
+**One question decides any hiding proposal: *what knowledge disappears if this is hidden?*** If the
+answer is "none, it is depth" — hide it. If a member could stop knowing the thing exists, do not.
+
+**Searchability is not discoverability.** The cross-guide search is genuinely good and does not solve
+this: a member who has never heard of an International Coupon cannot search for one, and a member who
+does not know they receive a Holiday Pay Premium cannot search "HPP". Orientation, headings and
+signposting come first; search serves the member who already knows what they are looking for. Do not
+answer a discovery gap with "it is findable".
+
+**Challenge both extremes.** *"This is too complicated, hide it"* and *"the information is technically
+present somewhere, so discovery is solved"* are the same failure from opposite ends, and this app has
+now produced one of each. Neither is good enough, because there is frequently **nobody to ask**: a
+colleague on a late turn wondering about January's payslip has no manager, no colleague and no
+helpdesk at 22:00. The app is the source. See ROADMAP.md → "Plain-English education pass".
 
 ---
 

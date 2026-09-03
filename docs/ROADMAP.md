@@ -406,6 +406,19 @@ prompts gated on stored data never reach them (the HPP banner is the worked exam
 asking two colleagues to do the task from the app alone, never by page height or word count. Cut
 decisions, not explanations.
 
+**Method, per surface.** Read it as a first-time colleague and answer: what terminology does this
+screen assume · what important thing can only be found by somebody who already knows its name · what
+is the collapsed/header copy teaching · is every acronym expanded on first meaningful use · does the
+screen say what / why / what next · can the task be finished without opening a guide, and if a guide
+is opened, can somebody with zero prior knowledge build the mental model there. Score **usability**
+and **learnability** separately (CLAUDE.md → *"Plain English that TEACHES"*); they are different
+numbers and this app needs both. Beyond the first subjects below, the surfaces worth that read are
+Pay (HPP · back pay · Year to Date · pension · payslip line names), FIP (Card vs coupons vs operator
+vs reservations), Railcards (the railcard's discount vs the ticket's validity vs what staff actually
+do), Rangers & Rovers (valid at Marylebone vs valid elsewhere), Overtime (what submitting
+availability does and does not commit you to), Admin (base roster vs recorded change) and Settings
+(password, work email, install, notifications).
+
 **Candidate first subjects**, for the owner to order: a FIP coupon (what one is, how you get one,
 where it works and where it does not — the guide has the depth; the missing thing may be the
 "start here" ladder above it); HPP (one sentence at the point where hours are entered, since the
