@@ -13,7 +13,8 @@ Run through every step in order. Do not skip steps.
 - [ ] If joining mid-year: add `startDate: new Date(year, month-1, day)` — **midnight only, no time component**
 - [ ] If joining mid-year: add `proRatedAL: { year: N }` — formula: `⌈(daysRemainingInYear / 365) × entitlement⌉`
   - Count from start date inclusive to 31 Dec inclusive
-  - CEA entitlement = 32 days; CES = 34 days; Dispatcher = **do not use this formula** — Dispatcher AL is dynamic (22 + bank-holidays-worked, calculated by `getALEntitlement`); set `proRatedAL` for a mid-year Dispatcher only after computing the correct value for their joining year
+  - CEA entitlement = 32 days; CES = 34 days; **Dispatcher = 22** — and the formula DOES apply to a Dispatcher, against that base. This said "do not use this formula" until 3 Sep 2026, which was wrong in a way worth knowing: the recorded value for the one live mid-year Dispatcher is exactly what the formula gives on 22, so the caution described nothing anybody had done.
+  - **Do not add lieu days into `proRatedAL`.** A Dispatcher earns one per bank holiday worked, and since v22.50 `getALEntitlement` adds them on top of the pro-rated base automatically. Baking them in would count them twice.
   - Example: May 5 start (CEA) → 241 days → ⌈241/365 × 32⌉ = 22
 
 ## Step 2 — Firebase Auth (always required)
@@ -69,3 +70,12 @@ factor       = daysEmployed / totalDays
 ## Removing a staff member
 
 Set `hidden: true` on the `teamMembers` entry, then run Set up accounts → "Disable accounts for leavers" in Admin → Operations.
+
+**Upload their final roster PDF before you do it.** `hidden: true` also removes them from the
+`cea`/`ces`/`dispatcher` name lists the roster parser matches rows against, so a PDF covering their
+last days, uploaded afterwards, reports them under `missingMembers` — the same advisory a genuine
+absence produces. The week imports looking complete with nobody on their line.
+
+Regenerate `functions/roster-members.json` in the same commit (`npm run generate:roster-members`).
+Overtime needs separate action per open week — the population is frozen when a week opens. Full
+procedure: `docs/OPERATIONS_REFERENCE.md` → "Removing a staff member".
