@@ -120,12 +120,19 @@ const NAV_INFORMATION = [
  * one. A guide added here without an `openId` simply is not counted, which
  * firestore-contract-parity.test.mjs fails on rather than leaving to be noticed.
  */
+// EVERY GUIDE CARRIES ONE LINE SAYING WHAT IT ANSWERS (v22.49). The list used to be five bare
+// titles, and three of them name a subject you must ALREADY KNOW to pick: a colleague wondering
+// "can I get cheap travel in Europe?" has no way to tell that is "FIP Travel Guide", and nobody who
+// has not met a Ranger can tell whether "Rangers & Rovers" is about them. Search does not rescue
+// this — you cannot search for a coupon you have never heard of — which is the rule in CLAUDE.md →
+// "Plain English that TEACHES" (searchability is not discoverability). `sub` is the question, in the
+// reader's words, never a description of the document.
 const NAV_GUIDES = [
-    { icon: '📘', label: 'Staff & Admin Guide',  url: './staff-guide.html',          openId: 'guide-staff'    },
-    { icon: '💷', label: 'Pay Calculator Guide', url: './paycalc-guide.html',  openId: 'guide-paycalc'  },
-    { icon: '🎫', label: 'Railcard Guide',       url: './railcard-guide.html', openId: 'guide-railcard' },
-    { icon: '🗺️', label: 'Rangers & Rovers',    url: './rangers-guide.html',  openId: 'guide-rangers'  },
-    { icon: '🇪🇺', label: 'FIP Travel Guide',     url: './fip-guide.html',            openId: 'guide-fip'      },
+    { icon: '📘', label: 'Staff & Admin Guide',  sub: 'Booking leave, absence, using the app', url: './staff-guide.html',    openId: 'guide-staff'    },
+    { icon: '💷', label: 'Pay Calculator Guide', sub: 'What your payslip figures mean',        url: './paycalc-guide.html',  openId: 'guide-paycalc'  },
+    { icon: '🎫', label: 'Railcard Guide',       sub: 'Which railcard gives what discount',    url: './railcard-guide.html', openId: 'guide-railcard' },
+    { icon: '🗺️', label: 'Rangers & Rovers',     sub: 'Area passes at the gateline',           url: './rangers-guide.html',  openId: 'guide-rangers'  },
+    { icon: '🇪🇺', label: 'FIP Travel Guide',     sub: 'Free and discounted travel in Europe',  url: './fip-guide.html',      openId: 'guide-fip'      },
 ];
 
 /**
@@ -1054,7 +1061,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, c
     // appends ?from=<this page> so the guide's ← comes back HERE (guide-back.js, v18.84) — which is
     // what the new-tab open used to buy us, without the extra browser chrome.
     const guideLinks = NAV_GUIDES
-        .map(g => `<li><a href="${g.url}" class="nav-panel-link nav-panel-link--guide" data-open-id="${g.openId}"><span aria-hidden="true">${g.icon}</span> ${g.label}</a></li>`)
+        .map(g => `<li><a href="${g.url}" class="nav-panel-link nav-panel-link--guide nav-panel-link--stacked" data-open-id="${g.openId}"><span aria-hidden="true">${g.icon}</span><span class="nav-link-text"><span class="nav-link-title">${g.label}</span><span class="nav-link-sub">${g.sub}</span></span></a></li>`)
         .join('')
         // App Notices joins the guides (v20.06): both are "look something up", neither is a document
         // you open on a shift. It goes LAST — it is the rarest thing in the drawer.

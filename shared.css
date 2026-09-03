@@ -1888,10 +1888,15 @@ body.lb-open #stickyTotal { display: none !important; }
     padding: 0 8px 2px;
     min-height: 16px;
 }
-.nav-gs-result { align-items: flex-start; }
-.nav-gs-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.nav-gs-title { color: var(--nav-text); overflow-wrap: anywhere; }
-.nav-gs-meta  { color: var(--nav-text-faint); font-size: var(--type-small); }
+/* The drawer's TWO-LINE ROW — a title with a quiet second line under it. Declared once and used by
+   both consumers: the static guide list (the line says what that guide answers) and a search result
+   (it says which guide the hit came from). It was `.nav-gs-*` and search-only until v22.49; the
+   static list needed the identical treatment, and a second copy of the recipe is the drift this
+   repo keeps writing parity tests about. */
+.nav-panel-link--stacked, .nav-gs-result { align-items: flex-start; }
+.nav-link-text  { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.nav-link-title { color: var(--nav-text); overflow-wrap: anywhere; }
+.nav-link-sub   { color: var(--nav-text-faint); font-size: var(--type-small); }
 .nav-gs-flag  { font-size: var(--type-small); color: var(--accent-gold); }
 .nav-gs-flag--draft { color: var(--nav-text-muted); }
 
