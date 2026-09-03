@@ -352,7 +352,16 @@ test('paycalc: the Settings deep link lands on the backup card OPEN', async ({ p
     // with 605px of scroll still available, i.e. the page had not bottomed out). Anything below
     // roughly a third of the viewport means the correction has regressed.
     await page.waitForTimeout(900);
-    const box = await page.locator('#payTransferCard').boundingBox();
+    // VISIBLE before positioned (Sep 2026). A hidden card has no box, and `box.y` on null failed this
+    // test with a TypeError — a failure by accident, which protects by accident. Measured in a
+    // throwaway prototype that hid the card behind a disclosure control: the body still gained
+    // `.open`, every scroll correction ran as a no-op against `display: none`, and the member landed
+    // at the top of the page with nothing to explain why. This line makes that regression fail as
+    // what it is. (The prototype was not adopted — ROADMAP.md, "More pay tools" — but the weakness
+    // it found in this test was real.)
+    const card = page.locator('#payTransferCard');
+    await expect(card, 'the backup card must be visible before its landing position means anything').toBeVisible();
+    const box = await card.boundingBox();
     const vh = page.viewportSize().height;
     expect(box.y, `card landed at y=${Math.round(box.y)} of ${vh}`).toBeLessThan(vh / 3);
 });
