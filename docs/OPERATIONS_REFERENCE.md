@@ -495,6 +495,52 @@ Migration history (v7.61 → v7.94) is in `ROADMAP_HISTORY.md` → Completed pha
 
 ---
 
+## Removing a staff member
+
+Three steps, and **the order matters** — step 2 changes what the roster parser can read. Referred to
+from CLAUDE.md, the `/new-starter` skill and the Overtime section below, all of which carried a
+one-line version of it; this is the long form, written after a leaver on 15 Sep 2026 made the
+ordering question concrete.
+
+**1. Upload the final roster PDF that still contains them.**
+
+`hidden: true` does not only hide somebody from the member dropdown. `generate-roster-members.mjs`
+builds the AI-parsing name lists as `role === 'CES' && !m.hidden && !m.managerOnly`, so hiding them
+**removes them from the `cea`/`ces`/`dispatcher` list the parser matches rows against**. A roster PDF
+covering their last days, uploaded after that, has a row for somebody the parser no longer knows.
+
+It does not fail loudly: the run reports them under `missingMembers` — "the AI returned NO row for
+this member" — which is the same advisory a genuine absence produces. So the week imports, looks
+complete, and quietly has nobody rostered on their line.
+
+**2. Set `hidden: true`, regenerate, ship.**
+
+Edit the `teamMembers` entry in `roster-data.js`, then `npm run generate:roster-members` **in the same
+commit** — `sw-asset-check.test.mjs` fails if the two drift. Bump and deploy as usual.
+
+There is no end-date field — `startDate` has no counterpart — so until this lands their base roster keeps producing
+shifts: they appear in the calendar and in Team Week View as though still working. Nothing breaks,
+but a manager planning a week is reading a line nobody is on. Do it promptly once step 1 is done.
+
+**3. Operations → Set up accounts → "Disable accounts for leavers".**
+
+Hiding them removes them from `activeMembers`, which is the server-owned list `setupRosterAuth`
+trusts — but that governs PROVISIONING, not revocation. The Firebase Auth account keeps working until
+this is run, and the surname default is still a valid password for it (`ARCHITECTURE.md` → EXC-005).
+
+### What this does NOT do, and has to be done per week
+
+**Overtime.** A week's participant population is frozen when the week opens, so hiding somebody only
+affects weeks created afterwards. They stay outstanding in every already-open week until the horizon
+rolls past. Use **Stop asking** on their row in *Who is being asked*, once per open week — see
+"Somebody who has left, and is being chased every week" below. A closed week refuses it by design.
+
+**Their data stays, and that is deliberate.** Overrides are keyed by name, so their past shifts, AL
+and absences remain an accurate record of what happened. Their `staffContact` work email also
+survives; removing it is a separate decision nobody is forced into by this procedure.
+
+---
+
 ## Staff PIN access for the Calendar (v20.12)
 
 The Calendar opens for **either** a signed-in member **or** the shared staff PIN. Everything

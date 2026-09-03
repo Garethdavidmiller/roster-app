@@ -883,20 +883,20 @@ replacement.
   permanentShift: 'early', // Optional — forces early/late badge on all worked days
   startDate: new Date(2026, 3, 20), // Optional — midnight local time: new Date(year, month-1, day)
   noProRate: true,                  // Optional — set for secondment returns: startDate suppresses pre-return shifts but pay and AL are full-year (no pro-rating in paycalc; joiner banner hidden)
-  proRatedAL: { 2026: 23 }, // Optional — overrides getALEntitlement for joining year only
+  proRatedAL: { 2026: 23 }, // Optional — the joining year's entitlement (a Dispatcher's lieu days are still added)
   rosterChanges: [{ from: new Date(2026, 6, 1), rosterType: 'ces', currentWeek: 4 }] // Optional — scheduled roster moves
 }
 ```
 
 **`rosterChanges` (v12.31)** — date-driven roster transitions for a member who changes rosterType/link mid-life (e.g. a new starter on a temporary `fixed` pattern who later joins a rotating link). Each entry is `{ from: Date, rosterType, currentWeek }`; from `from` (midnight, **inclusive**) onward the member follows that rosterType/currentWeek instead of the base fields. Array must be **sorted ascending by `from`** — the latest entry whose `from` ≤ date wins. Resolved by `resolveMemberRoster(member, date)` in `roster-data.js`; `getBaseShift` and `getWeekNumberForDate` apply it automatically, so **no call site needs special handling**. The base `rosterType`/`currentWeek` describe the member *before* the first change. `startDate` (join-date RD suppression) is independent and still applies.
 
-**AL entitlement** (`getALEntitlement` in `roster-data.js`) — `proRatedAL[year]` takes priority before any role check:
+**AL entitlement** (`getALEntitlement` in `roster-data.js`) — `proRatedAL[year]` takes priority before the role check for every role **except Dispatcher**, where it scales the BASE only and the lieu days are still added on top (v22.50, owner decision): the 22 is an allowance a part-year deserves part of, a lieu day is owed because a specific day was worked. It used to return outright, so a mid-year Dispatcher's joining year skipped the lieu count and read two days short with nothing to say so:
 
 | Role / type | Days |
 |-------------|------|
 | CEA (main, bilingual, fixed — incl. C. Reen's fixed line) | 32/year |
 | CES (`ces`) | 34/year |
-| Dispatcher | 22 + 1 lieu per BH worked (`countDispatcherBankHolidaysWorked`) |
+| Dispatcher | 22 + 1 lieu per BH worked (`countDispatcherBankHolidaysWorked`) — a joining year's `proRatedAL` replaces the **22**, never the total |
 | anything else, or an unresolved member | **`null`** — no entitlement on record (v22.45). It used to fall through to a CEA's 32, handing a Management row (or any role added later) a complete, plausible figure belonging to somebody else. Not reachable today — every Management row carries `hidden: true`, so no picker offers one — which is why it is a guard rather than a fix. **Callers must TEST for null and refuse to render**: `null - taken - booked` is a NUMBER, not NaN, so the arithmetic that looks harmless is the one that invents a balance. All four call sites do (`alPosition`, the Admin banner + week-grid cap, `admin-al.js`'s booking cap, the calendar AL lightbox, which falls back to its existing em-dash state) |
 
 ### Roster cycles
@@ -1084,7 +1084,7 @@ KNOWN_LIMITATIONS.md task #2.
 
 **New starter:** invoke `/new-starter` — the skill has the full 3-step checklist, mid-year field reference, and pro-rata formula invariant.
 
-**Removing a staff member:** Set `hidden: true`, run Set up accounts → "Disable accounts for leavers".
+**Removing a staff member:** Set `hidden: true`, run Set up accounts → "Disable accounts for leavers" — **but upload their final roster PDF FIRST**: `hidden` also drops them from the AI-parsing name list, and a later upload then reports their row as `missingMembers`, which reads exactly like a genuine absence. Full order, and what it does not do (Overtime weeks are frozen; their data stays): OPERATIONS_REFERENCE.md → "Removing a staff member".
 
 Email/password convention: **see `OPERATIONS_REFERENCE.md`**.
 

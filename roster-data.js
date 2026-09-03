@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '22.54';
+export const APP_VERSION = '22.55';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -423,9 +423,21 @@ export function isWorkedShift(shift) {
  */
 export function getALEntitlement(member, year = new Date().getFullYear(), overrides = []) {
     if (!member) return null;   // unresolved member — see the null convention below
-    // Pro-rated entitlement takes priority for joiners, regardless of role
+
+    // A DISPATCHER'S LIEU DAYS ARE EARNED, SO PRO-RATING MUST NOT REMOVE THEM (v22.50, owner
+    // decision). The 22 is an allowance a part-year deserves part of; a lieu day is owed because a
+    // specific day was worked, and arriving late in the year does not make that day less worked. So
+    // this branch comes FIRST and `proRatedAL` scales only the base. It used to be checked above and
+    // returned outright, so a mid-year Dispatcher's joining year skipped the lieu count and read two
+    // days short — with nothing to say so, because a wrong leave balance still renders and still
+    // books against. Cases and the reasoning: roster-data.test.mjs.
+    if (member.role === 'Dispatcher') {
+        const base = member.proRatedAL?.[year] ?? 22;
+        return base + countDispatcherBankHolidaysWorked(member, year, overrides);
+    }
+    // Pro-rated entitlement takes priority for joiners in every other role, where the whole figure
+    // IS an allowance and there is no earned component to protect.
     if (member.proRatedAL && member.proRatedAL[year] !== undefined) return member.proRatedAL[year];
-    if (member.role === 'Dispatcher') return 22 + countDispatcherBankHolidaysWorked(member, year, overrides);
     if (member.role === 'CES') return 34;
     // Every CEA — main, bilingual, or fixed (C. Reen, plus any temporary fixed line) — gets
     // the standard 32. There is no fixed-roster AL premium

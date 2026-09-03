@@ -19,7 +19,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { countedAlDates, alPosition, consumesEntitlement } from './al-entitlement.js';
+import { countedAlDates, alPosition, consumesEntitlement, dispatcherBreakdown } from './al-entitlement.js';
 import { teamMembers, getBaseShift, parseISODate, formatISO, isSunday, getALEntitlement } from './roster-data.js';
 import { isRestShift } from './override-utils.js';
 
@@ -445,5 +445,59 @@ describe('a role with no entitlement on record', () => {
             assert.equal(p.entitlement, 32);
             assert.equal(p.remaining, 32);
         });
+    });
+});
+
+// ── THE DISPATCHER CAPTION IS A CALCULATION, AND NOTHING WAS CHECKING IT ────────────────────────
+//
+// The Admin AL banner recovered the lieu count as `entitlement - 22`, which is right only while the
+// base IS 22. For a mid-year joiner the base is their pro-rated figure, so the subtraction went
+// negative: `22 base + -8 BH lieu`, on the card a manager reads to decide whether somebody can take
+// a day off. Wrong since B. Toth joined in June, and nothing failed — a caption is not a calculation
+// and no test looked at it.
+describe('a Dispatcher entitlement splits into the two things it is made of', () => {
+    const disp = (extra = {}) => ({ name: 'D', role: 'Dispatcher', rosterType: 'dispatcher', currentWeek: 1, ...extra });
+
+    test('a pro-rated year reports the pro-rated BASE, never 22', () => {
+        const m = disp({ startDate: new Date(2026, 5, 29), proRatedAL: { 2026: 12 } });
+        const split = dispatcherBreakdown({ member: m, year: 2026, overrides: [] });
+        assert.equal(split.base, 12, 'the base is what the pro-rata replaced it with');
+        assert.equal(split.proRated, true, 'the caption has to be able to SAY it is pro-rated');
+        assert.ok(split.lieu >= 0, `lieu must never be negative — got ${split.lieu}, the v22.51 defect`);
+    });
+
+    test('base + lieu is ALWAYS the entitlement — the two cannot drift', () => {
+        // This is the contract that keeps one formula. The split derives the base and infers the
+        // lieu; if getALEntitlement ever changes how the two combine, this fails rather than the
+        // caption quietly disagreeing with the number printed beside it.
+        for (const m of [
+            disp(),
+            disp({ startDate: new Date(2026, 5, 29), proRatedAL: { 2026: 12 } }),
+            disp({ startDate: new Date(2026, 0, 2), proRatedAL: { 2026: 21 } }),
+        ]) {
+            for (const year of [2026, 2027]) {
+                const split = dispatcherBreakdown({ member: m, year, overrides: [] });
+                assert.equal(split.base + split.lieu, getALEntitlement(m, year, []),
+                    `${m.name} ${year}: the caption must add up to the figure beside it`);
+            }
+        }
+    });
+
+    test('a year with no pro-rata is the plain 22 base', () => {
+        const split = dispatcherBreakdown({ member: disp(), year: 2026, overrides: [] });
+        assert.equal(split.base, 22);
+        assert.equal(split.proRated, false);
+    });
+
+    test('and it answers null for anybody it has nothing to say about', () => {
+        assert.equal(dispatcherBreakdown({ member: { name: 'C', role: 'CEA' }, year: 2026, overrides: [] }), null);
+        assert.equal(dispatcherBreakdown({ member: null, year: 2026, overrides: [] }), null);
+        // Management exits at the ROLE check, not the entitlement one — said plainly because the
+        // line below looks like it covers both and does not. The `entitlement === null` guard inside
+        // `dispatcherBreakdown` is UNREACHABLE today: every Dispatcher gets a number, and every
+        // other role has already returned. Deleting it leaves this suite green, which is the honest
+        // state of it — kept as a fail-closed guard for the day `getALEntitlement` grows a null path
+        // for a Dispatcher, not claimed as tested.
+        assert.equal(dispatcherBreakdown({ member: { name: 'M', role: 'Management' }, year: 2026, overrides: [] }), null);
     });
 });
