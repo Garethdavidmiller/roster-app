@@ -17,6 +17,10 @@ paths:
 
 ## Shared rules (all FIVE guide pages)
 
+> **Calm enough to use. Clear enough to learn. Detailed when needed.** The bar for a guide page
+> (owner, 3 Sep 2026). A page that is glanceable and teaches nothing misses it, and so does one that
+> explains everything at once.
+
 - **Write for the colleague who has never heard the term** (owner, 3 Sep 2026 — promoted here from
   the Railcard guide's own rules, where it had lived since v17.45 as *"For dummies" clarity over
   completeness*). Many colleagues do not know what a FIP coupon is, or how to use a FIP card, and the
