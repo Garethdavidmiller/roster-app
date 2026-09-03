@@ -1230,3 +1230,52 @@ describe('every mid-year joiner says what their leave should be', () => {
             `startDate must be midnight local — new Date(year, month-1, day):\n  ${notMidnight.join('\n  ')}`);
     });
 });
+
+// ── A DISPATCHER'S LIEU DAYS SURVIVE PRO-RATING (v22.50, owner decision 3 Sep 2026) ─────────────
+//
+// A Dispatcher's entitlement is 22 plus one day for each bank holiday they actually work. Those two
+// halves mean different things: the 22 is an allowance for a year's service, so a part-year deserves
+// part of it; a lieu day is owed because a specific day was worked, and joining in June does not make
+// that day less worked.
+//
+// `proRatedAL` used to be checked before the Dispatcher branch and returned outright, so a mid-year
+// Dispatcher's joining year skipped the lieu count entirely — B. Toth was credited a flat 12 against
+// two rostered bank holidays. Nothing errors when a leave balance is two days short: it renders, it
+// books against, and the only person who could notice is the member.
+describe('a Dispatcher who joined mid-year keeps the days they earned', () => {
+    const dispatcher = (extra = {}) => ({
+        name: 'T. Test', role: 'Dispatcher', rosterType: 'dispatcher', currentWeek: 1, ...extra,
+    });
+    // One override the counter must see as a worked bank holiday, and one it must not.
+    const workedBH = [{ memberName: 'T. Test', date: '2026-08-31', type: 'rdw' }];
+
+    test('proRatedAL scales the BASE — the lieu count is still added', () => {
+        const m = dispatcher({ startDate: new Date(2026, 5, 29), proRatedAL: { 2026: 12 } });
+        const lieu = getALEntitlement(dispatcher({ startDate: new Date(2026, 5, 29) }), 2026, workedBH) - 22;
+        assert.equal(getALEntitlement(m, 2026, workedBH), 12 + lieu,
+            'a pro-rated Dispatcher must still be credited the bank holidays they worked');
+        assert.notEqual(getALEntitlement(m, 2026, workedBH), 12,
+            'returning the pro-rated figure alone is the v22.50 defect — it discards earned days');
+    });
+
+    test('a year with no proRatedAL is unchanged — base 22 plus lieu', () => {
+        const m = dispatcher({ startDate: new Date(2026, 5, 29), proRatedAL: { 2026: 12 } });
+        const lieu = getALEntitlement(m, 2027, []) - 22;
+        assert.equal(getALEntitlement(m, 2027, []), 22 + lieu);
+    });
+
+    test('and no OTHER role gained a lieu component', () => {
+        // The fix reorders two checks. The risk in reordering is the branch you did not mean to move:
+        // for every other role proRatedAL is the whole answer, because there is nothing earned in it.
+        for (const [role, full] of [['CEA', 32], ['CES', 34]]) {
+            const joiner = { name: 'X', role, rosterType: 'main', currentWeek: 1, proRatedAL: { 2026: 19 } };
+            assert.equal(getALEntitlement(joiner, 2026, workedBH), 19, `${role} joiner keeps its pro-rated figure`);
+            assert.equal(getALEntitlement({ ...joiner, proRatedAL: undefined }, 2026, workedBH), full);
+        }
+    });
+
+    test('an unresolved member is still null, not a number', () => {
+        assert.equal(getALEntitlement(null, 2026, []), null);
+        assert.equal(getALEntitlement({ name: 'Y', role: 'Management' }, 2026, []), null);
+    });
+});

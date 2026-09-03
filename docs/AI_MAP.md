@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: September 2026 — v22.40 · Updated every 0.10 version*
+*Last updated: September 2026 — v22.50 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -151,7 +151,7 @@ The single source of truth for all roster data.
 - `getPaydaysAndCutoffs(year)`, `isPayday()`, `isCutoffDate()`, `paydayForCutoff(cutoffIso)` (the ISO payday paired with a cutoff, or null — single source for the calendar's payday-cell navigation)
 - `parseSmartFloat(str)` — number parse that strips iOS smart hyphens/curly quotes first; single source for paycalc `numVal()` and the HPP rate read in `paycalc-hpp.js`
 - `resolveMemberRoster(member, date)` — applies `rosterChanges` (latest `from` ≤ date wins); the basis for `getBaseShift`/`getWeekNumberForDate`. Never special-case rosterType at a call site — go through this.
-- `getWeekNumberForDate(date, member)` · `getALEntitlement(member, year, overrides = [])` → `number|null` (the third param feeds the dispatcher BH-lieu count; **`null` = no entitlement on record** — an unresolved member, or a role that is not CEA/CES/Dispatcher. Callers must test for it: `null - taken - booked` is a NUMBER, so coercion invents a balance rather than throwing. v22.45) · `projectAnnualLeaveOverage({ name, year, existingALDates, newALDates, entitlement })` (over-entitlement headline/detail, or null) · `getMembersForGrade(grade)` · `isSunday(dateStr)`
+- `getWeekNumberForDate(date, member)` · `getALEntitlement(member, year, overrides = [])` → `number|null` (the third param feeds the dispatcher BH-lieu count, which since v22.50 is added ON TOP of a joining year's `proRatedAL` rather than skipped by it — the pro-rata scales the base 22, a lieu day is earned by working the day; **`null` = no entitlement on record** — an unresolved member, or a role that is not CEA/CES/Dispatcher. Callers must test for it: `null - taken - booked` is a NUMBER, so coercion invents a balance rather than throwing. v22.45) · `projectAnnualLeaveOverage({ name, year, existingALDates, newALDates, entitlement })` (over-entitlement headline/detail, or null) · `getMembersForGrade(grade)` · `isSunday(dateStr)`
 - `avatarInitials(name)` / `avatarHue(name)` — initials + stable per-name colour for the nav-panel footer badge (called directly in `nav-panel.js`; no fetch/storage)
 - `isSameDay(a, b)` — calendar-day equality ignoring clock time.
 - `escapeHtml(s)` / `formatISO(date)` / `isValidEmail(s)` — shared string/date/validation utilities used app-wide

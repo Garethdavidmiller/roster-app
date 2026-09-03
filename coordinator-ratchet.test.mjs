@@ -140,7 +140,25 @@ const CAPS = {
     // states it reads. What is left is coordination and the argument for it, which is what this
     // file is for. The guard did its job: it made the extraction happen before the raise.
     'calendar-app.js':         1350,
-    'roster-data.js':          1300,   // mostly data, not logic
+    'roster-data.js':          1350,   // mostly data, not logic
+    // 1300 → 1350 at v22.50, and the extraction was CHECKED FOR FIRST rather than waved away. The
+    // change underneath is a leave-entitlement correction — a Dispatcher's earned lieu days were
+    // being discarded by their joining year's pro-rata — which is a business rule, exactly the kind
+    // of thing this ratchet exists to push out of a large file.
+    //
+    // So: could `getALEntitlement` leave? It is a RULE living in a DATA module, `al-entitlement.js`
+    // already owns "where a member's entitlement leaves them", and it already imports this function,
+    // so the dependency would invert cleanly and roster-data would drop ~25 lines below the old cap.
+    // Everything about that says do it.
+    //
+    // It cannot. `countDispatcherBankHolidaysWorked` is module-private here and reads the base
+    // roster; taking the rule out means either exporting that helper or dragging it along, and a
+    // roster-reading helper belongs with the roster data. The move would trade a rule in the wrong
+    // module for a data-reader in the wrong module, which is not a payment, it is a swap.
+    //
+    // Recorded because the header warns that raising a cap becomes the quickest way past a red test.
+    // The seam is real and stays available the day the bank-holiday count is worth extracting on its
+    // own terms; it is not worth inventing to fit twelve lines through a gate.
     // 1250 → 1300 at v22.16, deliberately and AFTER extracting first — which is the whole point of
     // the ratchet and it worked exactly as designed here. Failing closed on a shifted roster read
     // took the file to 1385, and the 135 lines were not all coordination: the drift detector, the

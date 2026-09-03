@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: September 2026 — v22.40 · Updated every 0.10 version*
+*Last updated: September 2026 — v22.50 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `22.40` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `22.50` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; **primary install + notification target** since v14.29). A GitHub Pages mirror is still served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path**, NOT the bare origin (which is a separate empty repo that 404s) — **still where the MAJORITY of staff open the app** (owner, Sep 2026 — the changeover to the canonical URL is deliberate and gradual, not a rump to be discounted). That matters for any change relying on something only Firebase Hosting can do: this origin serves **no redirects and no HTTP headers**, so a rename protected by a `redirects` entry, or a policy carried by a header, reaches the smaller half of the staff. Weigh such a change against the mirror, not against the canonical URL. The `<meta>` CSP exists for exactly this reason. `STAFF_SITE_URL` in `functions/index.js` is now the bare `https://myb-roster.web.app` (no sub-path). It only sets the notification payload's path/hash — each device's service worker discards the origin and re-bases the page onto its own scope, so existing github.io installs keep working. See API key note below. |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -883,20 +883,20 @@ replacement.
   permanentShift: 'early', // Optional — forces early/late badge on all worked days
   startDate: new Date(2026, 3, 20), // Optional — midnight local time: new Date(year, month-1, day)
   noProRate: true,                  // Optional — set for secondment returns: startDate suppresses pre-return shifts but pay and AL are full-year (no pro-rating in paycalc; joiner banner hidden)
-  proRatedAL: { 2026: 23 }, // Optional — overrides getALEntitlement for joining year only
+  proRatedAL: { 2026: 23 }, // Optional — the joining year's entitlement (a Dispatcher's lieu days are still added)
   rosterChanges: [{ from: new Date(2026, 6, 1), rosterType: 'ces', currentWeek: 4 }] // Optional — scheduled roster moves
 }
 ```
 
 **`rosterChanges` (v12.31)** — date-driven roster transitions for a member who changes rosterType/link mid-life (e.g. a new starter on a temporary `fixed` pattern who later joins a rotating link). Each entry is `{ from: Date, rosterType, currentWeek }`; from `from` (midnight, **inclusive**) onward the member follows that rosterType/currentWeek instead of the base fields. Array must be **sorted ascending by `from`** — the latest entry whose `from` ≤ date wins. Resolved by `resolveMemberRoster(member, date)` in `roster-data.js`; `getBaseShift` and `getWeekNumberForDate` apply it automatically, so **no call site needs special handling**. The base `rosterType`/`currentWeek` describe the member *before* the first change. `startDate` (join-date RD suppression) is independent and still applies.
 
-**AL entitlement** (`getALEntitlement` in `roster-data.js`) — `proRatedAL[year]` takes priority before any role check:
+**AL entitlement** (`getALEntitlement` in `roster-data.js`) — `proRatedAL[year]` takes priority before the role check for every role **except Dispatcher**, where it scales the BASE only and the lieu days are still added on top (v22.50, owner decision): the 22 is an allowance a part-year deserves part of, a lieu day is owed because a specific day was worked. It used to return outright, so a mid-year Dispatcher's joining year skipped the lieu count and read two days short with nothing to say so:
 
 | Role / type | Days |
 |-------------|------|
 | CEA (main, bilingual, fixed — incl. C. Reen's fixed line) | 32/year |
 | CES (`ces`) | 34/year |
-| Dispatcher | 22 + 1 lieu per BH worked (`countDispatcherBankHolidaysWorked`) |
+| Dispatcher | 22 + 1 lieu per BH worked (`countDispatcherBankHolidaysWorked`) — a joining year's `proRatedAL` replaces the **22**, never the total |
 | anything else, or an unresolved member | **`null`** — no entitlement on record (v22.45). It used to fall through to a CEA's 32, handing a Management row (or any role added later) a complete, plausible figure belonging to somebody else. Not reachable today — every Management row carries `hidden: true`, so no picker offers one — which is why it is a guard rather than a fix. **Callers must TEST for null and refuse to render**: `null - taken - booked` is a NUMBER, not NaN, so the arithmetic that looks harmless is the one that invents a balance. All four call sites do (`alPosition`, the Admin banner + week-grid cap, `admin-al.js`'s booking cap, the calendar AL lightbox, which falls back to its existing em-dash state) |
 
 ### Roster cycles
