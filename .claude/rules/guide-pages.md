@@ -17,6 +17,13 @@ paths:
 
 ## Shared rules (all FIVE guide pages)
 
+- **Write for the colleague who has never heard the term** (owner, 3 Sep 2026 — promoted here from
+  the Railcard guide's own rules, where it had lived since v17.45 as *"For dummies" clarity over
+  completeness*). Many colleagues do not know what a FIP coupon is, or how to use a FIP card, and the
+  guide's first job is to let them. Plain language, one idea per line, the term expanded on first
+  sight, and the real-world anchor stated (what it looks like, where you get it, what the barrier
+  or the payslip shows). If adding a fact makes the page harder for that reader to use, leave it out
+  or move it down. The app-wide statement of this rule is CLAUDE.md → "Plain English that TEACHES".
 - Guide pages do **not** import the app's `shared.css` (nav panel / lightbox / login chrome they don't use). All five share `guide-shell.css`; the two **document-style** guides (`staff-guide.html`, `paycalc-guide.html`) additionally load `guide-doc.css` (the shared two-column print layout + 760px content wrapper) between the shell and their own CSS. Each page then has its own external CSS file (`staff-guide.css`, `paycalc-guide.css`, `railcard-guide.css`, `fip-guide.css`, `rangers-guide.css`) — extracted from inline `<style>` blocks at v12.04. Do not add a `shared.css` import to any guide.
 - **The two OLD guide URLs are still served, as redirect stubs** (v22.48). `guide.html` → `staff-guide.html` and `fip.html` → `fip-guide.html` were renamed at v22.47, and `firebase.json` 301s both — but that covers only the canonical origin. The GitHub Pages mirror serves no redirect rules and is where most staff open the app, so the redirect is also written into the HTML, which both origins carry. They hold no content, no script and no stylesheet, and they are NOT guides: `page-contract-parity.test.mjs` files them under `LEGACY_REDIRECTS` with a contract of their own. **A future guide rename needs the same pair of things** — the Firebase redirect and the stub — or it breaks old links for the larger half of the staff.
 - Guide pages use **no inline `<script>` or `onclick` handlers** — Firebase Hosting CSP (`script-src 'self'`) blocks them. All guide JS is in external files: `railcard-guide.js` (v10.84), `guide-print.js` (v10.84, shared by `staff-guide.html`, `paycalc-guide.html` and `fip-guide.html`), `fip-guide.js` (v16.59, opens the target country `<details>` on jump/deep-link), and `guide-back.js` (v18.84, loaded by EVERY guide — the back-arrow retarget). Do not add inline scripts or `onclick` attributes.

@@ -959,6 +959,31 @@ Applies to **all user-visible copy** (cards, hints, tips, lightboxes, error bann
 - **Never name an internal document in staff-facing copy** (v20.70). The Overtime phase line said "the draft roster has been planned" — date-accurate, and still read as untrue, because the draft is the roster office's own artefact and "the roster" to staff means the one released on the Thursday. Describe the reader's own position instead. The **reviewer's** surfaces and OPERATIONS_REFERENCE may name it freely; it is their document. Pinned by `overtime-format.test.mjs`.
 - **Tone:** calm and factual — no exclamation marks, no marketing voice (mirrors `.claude/rules/notifications.md`).
 
+**Plain English that TEACHES — write for the colleague who has never heard the term** (owner, 3 Sep 2026).
+Many colleagues do not know what HPP is, how back pay works, or how to use a FIP card or coupon. The
+app's job is to let them use and discover these things without asking anyone — and without being
+overwhelmed. "For dummies" is the standard, not an insult. The rules, each learned the hard way:
+- **Audience first.** Every staff-facing surface must work for someone who does not yet know the
+  word. Expand a term on first sight within a surface (HPP → "Holiday Pay Premium"); never assume
+  the abbreviation is understood because it is on the payslip.
+- **Educate in place, at the point of use.** The guides are for depth; the row, card header or `?`
+  panel is where the learning happens. The pattern that works is already in the app: *name → one
+  sentence on what it is → where you see it in the real world* — "Paid once a year on a January
+  payslip — look for the green note on that payslip"; "Shows as 'RDW Sun 1.5' on your payslip".
+- **A collapsed header is a teaching surface, not unused space.** The title + hint of a collapsed
+  card is persistent micro-documentation; ask what its collapsed state is communicating before
+  hiding, grouping or shortening it. This nearly went wrong once: ROADMAP.md → "More pay tools —
+  DECLINED", and `.claude/rules/paycalc.md` → invariant 16.
+- **Discovery must not depend on data the member has not supplied yet.** A contextual prompt gated
+  on a stored figure reaches only people who already know. Before relying on one, check the
+  "new member, nothing entered" cohort still has a route — that cohort is who the education is for.
+- **Not overwhelming means fewer DECISIONS at once, not fewer words or pixels.** Simplify by
+  reducing what the reader must decide, and by sequencing; never by removing the explanation. Page
+  height is not a UX metric. The question is where staff spend effort for little value.
+- **Educational is not chatty.** The calm tone above still applies; one idea per line.
+- **Test it on the reader, not the owner.** The check for a new surface is a colleague who does not
+  know the term using it from the app alone. See ROADMAP.md → "Plain-English education pass".
+
 ---
 
 ## Huddle ingest
