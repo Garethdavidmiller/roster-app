@@ -441,6 +441,19 @@ test('every app page can be returned to from a guide', () => {
         'these pages open guides but a guide cannot return to them — guide-back.js DESTINATIONS is '
         + `missing ${unreachable.join(', ')}. The ← keeps its authored default and lands the reader `
         + 'on a page they were not on.');
+
+    // BOTH DIRECTIONS (3 Sep 2026, external review). The first cut asserted only that every app page is
+    // LISTED, which leaves an entry for a page that has since been renamed or deleted sitting there
+    // for ever — and this guard exists precisely to stop a hand-kept list drifting from the app.
+    // Catching drift in one direction while permitting it in the other is the same defect wearing a
+    // test. A stale entry is quieter than a missing one, not harmless: it is dead code that reads as
+    // deliberate, and the next person to rename a page has no way to know the old name is still
+    // being honoured.
+    const orphaned = [...listed].filter(p => !APP_PAGES.includes(p));
+    assert.deepEqual(orphaned, [],
+        `guide-back.js can return to ${orphaned.join(', ')}, which is not an app page any more. `
+        + 'Remove the entry — a destination for a page that no longer exists is a redirect nobody '
+        + 'will notice is wrong.');
 });
 
 test('a legacy redirect page is a redirect, and points somewhere real', () => {

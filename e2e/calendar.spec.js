@@ -109,7 +109,7 @@ async function swipeMonth(page, dir) {
     // The retry loop below already tolerates a swallowed gesture; it could not tolerate the
     // locator itself throwing, so the failure surfaced as a hard error rather than a retry.
     //
-    // ── THE RETRY USED TO OVER-ADVANCE THE CAROUSEL (v22.49) ──────────────────────────────────
+    // ── THE RETRY USED TO OVER-ADVANCE THE CAROUSEL (v22.48) ──────────────────────────────────
     //
     // The retry budget below was 2000ms, and a real transition takes LONGER than that on a loaded
     // machine. So the helper called a gesture that was working "swallowed", swiped again, and moved

@@ -316,9 +316,15 @@ const SUPPLEMENTARY_ASSETS = [
     "./staff-guide.html",
     "./railcard-guide.html",
     "./rangers-guide.html",
-    // The two legacy guide URLs (v22.48). They are 1 KB redirect stubs, cached for the same reason
-    // as the guides themselves: the Pages mirror serves no redirect rules, so this file IS the
-    // redirect there, and an old bookmark opened offline should still land rather than fail.
+    // The two legacy guide URLs (v22.48). ~3 KB redirect stubs — mostly the mirrored CSP meta and
+    // the comment explaining why they exist — cached for the same reason as the guides themselves:
+    // the Pages mirror serves no redirect rules, so this file IS the redirect there, and an old
+    // bookmark opened offline should still land rather than fail. (It claimed one kilobyte until
+    // 3 Sep 2026, when an external review measured them — a figure nobody had checked, inside a
+    // comment justifying a cost, which is the shape this repo has a rule about. Note for the next
+    // editor: do NOT write a quoted string in this comment. The ghost-entry check parses quoted
+    // paths out of these arrays and does not skip comments, so it read the quoted figure as an
+    // asset that does not exist. It caught it immediately, which is the system working.)
     "./guide.html",
     "./fip.html",
     "./railcard-guide.js",

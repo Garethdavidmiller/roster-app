@@ -503,10 +503,13 @@ saving sits below the take-home figure — past the answer the member came for.
 
 **Declined because it hides two money features from the members who most need to find them.** The
 HPP and back-pay card subtitles — *"Paid once a year on a January payslip — look for the green note
-on that payslip"* — are the app teaching an entitlement, and they are the ONLY route for a member
-with no hours entered yet: the result banners that would promote HPP and back pay are gated on a
-stored estimate, which needs prior-year hours, so that member gets no banner today and would get no
-card tomorrow. That is the `paycalc-year-card.js` lesson — a control vanishing from the people who
+on that payslip"* — are the app teaching an entitlement, and for a member with no hours
+entered yet they are the only route that asks nothing of them first: the result banners that would
+promote HPP and back pay are gated on a stored estimate, which needs prior-year hours, so that
+member gets no banner today and would get no card tomorrow. The Pay Calculator Guide explains both
+in full — but a guide has to be OPENED, and somebody who has never heard of HPP has no reason to go
+looking for it. (This said "the ONLY route" until 3 Sep 2026; an external review pointed out the guide
+makes that literally untrue, and the precise version is the stronger argument.) That is the `paycalc-year-card.js` lesson — a control vanishing from the people who
 need it, when they need it — repeated. It would also be unmeasurable, because card opens are not
 counted. No staff request exists.
 
