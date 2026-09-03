@@ -98,6 +98,68 @@ jobs:
               echo "skip=false" >> "$GITHUB_OUTPUT" ;;
           esac
 
+  # ── TWO BRANCHES MAY NOT SHIP THE SAME VERSION (3 Sep 2026) ──────────────────────────────────
+  #
+  # v22.29 shipped twice. Two sessions branched from the same version, both bumped to the same next
+  # one, and the second merge did NOT conflict — the file already said what the incoming commit
+  # wanted. The consequence is the one the bump rule exists to prevent: `service-worker.js` went out
+  # BYTE-IDENTICAL across two releases, so a browser comparing it installs no new worker, and a
+  # device that took the first release keeps serving its assets.
+  #
+  # CLAUDE.md answers this with a habit — re-check main's APP_VERSION immediately before merging. It
+  # was written after that incident and it did not hold: on 3 Sep 2026 two branches sat on v22.51 at
+  # once, and `git merge-tree` confirmed zero conflicts between them. A habit is not a mechanism, and
+  # this failure is silent by construction.
+  #
+  # THE RULE IS NOT "ALWAYS BUMP". A change that alters nothing served — documentation, CI, tests,
+  # dev scripts — legitimately keeps main's version, and demanding a bump there would burn a version
+  # per doc fix and teach everyone to ignore the check. The bump is required only when the branch
+  # touches something the app actually serves.
+  #
+  # WHAT IT CANNOT SEE: a pull request that goes green and then sits while main moves underneath it.
+  # GitHub re-runs on push, not when the base advances, so a stale-green PR can still merge on a
+  # version somebody has since taken. Requiring branches to be up to date before merging closes that,
+  # and it is a repository setting rather than something this file can do.
+  version:
+    needs: guard
+    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0        # the diff against main IS the check
+
+      - name: A runtime change must claim a version main has not
+        run: |
+          set -uo pipefail
+          git fetch --no-tags --quiet origin main
+
+          hundredths() { awk -F. '{printf "%d", $1*100 + substr($2 "00",1,2)}' <<<"$1"; }
+
+          MAIN=$(git show origin/main:roster-data.js | grep -m1 -oE "APP_VERSION = .[0-9]+[.][0-9]+." | grep -oE "[0-9]+[.][0-9]+")
+          OURS=$(grep -m1 -oE "APP_VERSION = .[0-9]+[.][0-9]+." roster-data.js | grep -oE "[0-9]+[.][0-9]+")
+          echo "main is v$MAIN . this branch is v$OURS"
+
+          RUNTIME=$(git diff --name-only origin/main...HEAD \
+            | grep -vE "[.]md$|^[.]github/|^docs/|^[.]claude/|[.]test[.]mjs$|^e2e/|^scripts/|^experiments/|^test-fixtures/" || true)
+
+          if [ -z "$RUNTIME" ]; then
+            echo "No served file changed - keeping v$OURS is correct."
+            exit 0
+          fi
+
+          echo "Served files changed:"
+          echo "$RUNTIME" | sed "s/^/  /"
+
+          if [ "$(hundredths "$OURS")" -le "$(hundredths "$MAIN")" ]; then
+            echo "::error::This branch changes served files but its version (v$OURS) does not exceed main (v$MAIN). Run npm run bump <version>. Shipping a version twice leaves service-worker.js byte-identical across two releases, so devices that took the first install no new worker - the v22.29 incident, which does NOT produce a merge conflict."
+            exit 1
+          fi
+          echo "v$OURS is above v$MAIN."
+
   unit:
     needs: guard
     if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
