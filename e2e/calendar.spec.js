@@ -108,6 +108,36 @@ async function swipeMonth(page, dir) {
     //
     // The retry loop below already tolerates a swallowed gesture; it could not tolerate the
     // locator itself throwing, so the failure surfaced as a hard error rather than a retry.
+    //
+    // ── THE RETRY USED TO OVER-ADVANCE THE CAROUSEL (v22.49) ──────────────────────────────────
+    //
+    // The retry budget below was 2000ms, and a real transition takes LONGER than that on a loaded
+    // machine. So the helper called a gesture that was working "swallowed", swiped again, and moved
+    // TWO months in one call. The test then swiped back one and landed a month further out than it
+    // meant to — outside the boot window, where the grid is deliberately withheld — and failed on a
+    // missing `.calendar-day` while the page sat on a spinner.
+    //
+    // MEASURED, not reasoned about. A heading-change recorder over 20 runs at `--workers=6`:
+    //
+    //     55994  [October|September|November]   transition starts
+    //     59433  [November] days=0              settles — 3.4s, well past the 2000ms budget
+    //     60805  == swipe 2 RETRY               helper gives up and swipes again
+    //     64407  == swipe 2 returned            now on December, two months from where it began
+    //
+    // It surfaced on CI first: one WebKit shard, failing twice including the retry, and passing on
+    // the identical commit ten minutes later. A loaded runner is simply another way to make the
+    // transition outlast the budget.
+    //
+    // The budget is now 10s, and the asymmetry is the point: too SHORT silently corrupts the
+    // navigation and fails somewhere else entirely, while too LONG only costs time on a gesture
+    // that genuinely was swallowed — which is rare. Err long.
+    //
+    // `before` is also read from a SETTLED carousel now. Read mid-flight it can catch the outgoing
+    // panel, which makes the exit condition satisfiable by a transition that was already running.
+    // That was not the cause here (fixing it alone changed nothing — 4 failures in 30), but it is a
+    // second way for this helper to answer about the wrong month, and it costs one wait.
+    await page.waitForFunction(() => document.querySelectorAll('.month-year').length === 1,
+        null, { timeout: 10000 });
     const before = await page.locator('.month-year').first().textContent();
     for (let attempt = 0; attempt < 4; attempt++) {
         const box = await page.locator('#calendarDisplay').boundingBox();
@@ -125,9 +155,9 @@ async function swipeMonth(page, dir) {
                 // waits for the carousel to settle to ONE panel, so the next call starts clean.
                 (b) => document.querySelectorAll('.month-year').length === 1
                     && document.querySelector('.month-year')?.textContent !== b,
-                before, { timeout: 2000 });
+                before, { timeout: 10000 });
             return;
-        } catch { /* swallowed gesture — try again */ }
+        } catch { /* genuinely swallowed — nothing moved in ten seconds — try again */ }
     }
     throw new Error(`swipe ${dir} never committed (still on ${before})`);
 }

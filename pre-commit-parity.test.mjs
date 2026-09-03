@@ -125,3 +125,45 @@ describe('the hook and CI check the same documents', () => {
         }
     });
 });
+
+describe('and something actually installs it', () => {
+    /**
+     * The hook being CORRECT and the hook being RUN are different properties, and this repo had the
+     * second one wrong for a whole release. Git will not run a hook out of a tracked directory
+     * unless `core.hooksPath` says so; CI installs no hooks, and the remote container starts from a
+     * bare clone every time. So every commit of v22.47 — including the ones that broke the hook —
+     * was made straight past it.
+     *
+     * The session-start hook now sets it. This is the contract that stops that line being deleted
+     * as tidy-up, because nothing else would notice: the hook would simply stop running, and a hook
+     * that never runs looks exactly like a hook that always passes.
+     */
+    const startSrc = readFileSync(join(ROOT, '.claude/hooks/session-start.sh'), 'utf8');
+
+    test('the session-start hook points git at githooks/', () => {
+        assert.match(startSrc, /git config core\.hooksPath githooks/,
+            '.claude/hooks/session-start.sh must set core.hooksPath — without it the pre-commit '
+            + 'hook is checked in, documented, and never executed by anybody.');
+    });
+
+    test('it does so before the remote-only early exit', () => {
+        // A local checkout needs the hook MORE than the container does — that is where a person
+        // commits. Putting the install after the `CLAUDE_CODE_REMOTE` guard would silently make it
+        // container-only, which is half of the problem it was written to fix.
+        const install = startSrc.indexOf('git config core.hooksPath githooks');
+        const earlyExit = startSrc.search(/if \[ "\$\{CLAUDE_CODE_REMOTE:-\}" != "true" \]/);
+        assert.ok(install > -1 && earlyExit > -1, 'expected both the install and the remote guard');
+        assert.ok(install < earlyExit,
+            'the core.hooksPath install sits after the remote-only early exit, so a local checkout '
+            + 'never gets it — the environment where somebody is actually committing.');
+    });
+
+    test('and it cannot abort the session if git refuses', () => {
+        // `set -euo pipefail` is at the top of that file. An unguarded `git config` failure would
+        // stop the session starting, which is a worse outcome than an uninstalled hook.
+        const line = startSrc.split('\n').find(l => l.includes('git config core.hooksPath githooks'));
+        assert.match(line, /if |\|\||2>\/dev\/null/,
+            'the core.hooksPath install must be guarded — under `set -e` a bare failure aborts the '
+            + 'whole session-start script');
+    });
+});
