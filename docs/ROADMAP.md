@@ -450,6 +450,56 @@ Calendar's knowledge-state decision (`CALENDAR_DATA.md` — never present the ba
 it were current), which is the invariant class behind previously shipped bugs. It must wait on the
 same display gate as the grid or show its own skeleton — the feature is not even cheap.
 
+### Pay Calculator — "More pay tools" grouping on phones — DECLINED
+**Status:** Declined (owner decision, 3 Sep 2026) · **Trigger to revisit:** a staff report about the
+tail of the Pay Calculator page — or, should card opens ever be counted for some other reason,
+counts showing the HPP and back-pay cards are never opened. **Do not add that instrumentation to
+test this idea**; a measurement system built around a problem nobody has reported is the same
+speculation in a lab coat · **No work before the trigger**
+
+Proposed by an external review and taken through four drafts and a measured prototype (Sep 2026):
+below 1024px, hide the Holiday Pay Premium, Pay Rise Back Pay, Decimal Hours Converter and Move Your
+Pay Data cards behind one quiet "More pay tools" line in the `.guide-footer-link` idiom, the cards
+staying in the DOM with their own collapse state. Measured at 390×844 for a returning member: the
+page goes from 3,484px to 3,189px (−8.5%) and desktop is byte-identical. The same measurement is
+why it was declined: the four cards are **8.6%** of the page and the Hours card is **49.5%**, and the
+saving sits below the take-home figure — past the answer the member came for.
+
+**Declined because it hides two money features from the members who most need to find them.** The
+HPP and back-pay card subtitles — *"Paid once a year on a January payslip — look for the green note
+on that payslip"* — are the app teaching an entitlement, and they are the ONLY route for a member
+with no hours entered yet: the result banners that would promote HPP and back pay are gated on a
+stored estimate, which needs prior-year hours, so that member gets no banner today and would get no
+card tomorrow. That is the `paycalc-year-card.js` lesson — a control vanishing from the people who
+need it, when they need it — repeated. It would also be unmeasurable, because card opens are not
+counted. No staff request exists.
+
+Two findings from the work stay true, recorded so a revisit does not pay for them twice. **Any
+grouping must reveal before the `#payTransferCard` deep link scrolls**: with the cards hidden, the
+transfer card's entire landing correction runs against `display: none` and the member lands at the
+top of the page with nothing to explain why (the real e2e fails with a `TypeError` on a null box —
+assert visibility before position). And `paycalc-app.js` sits at **1,900 of a 1,900-line ratchet** — the
+room a cap carries for a fix is already spent, so the next change to that file, however small, must
+move something out first. **Do not make that move speculatively.** The seam should be drawn by the
+change that needs it; a module carved today to hold three click handlers is a guess at where that
+change will want its boundary, and the ratchet is doing exactly its job by waiting. When it comes,
+the ready candidate is the cross-card navigation block (`_bannerViewCard` and the three link
+wirings, ~20 lines, no calculations), named for what it is — `paycalc-card-navigation.js`, never for
+the grouping that was not built. The transfer card's hash branch stays where it is; its
+ResizeObserver landing correction is its own concern. If the tail is ever
+revisited, start from grouping only the two gadgets (Decimal Hours Converter, Move Your Pay Data) —
+nothing taught is lost, ~95px saved — and expect that not to be worth a module either.
+
+The four cards were never one category, which is why the grouping felt logical and was
+semantically wrong: the HPP and back-pay headers **teach an entitlement** all year, while the
+converter's and the transfer card's headers only **identify a tool**. The principle to carry
+forward is worth more than the 295px this set out to save: **a collapsed section is not unused
+vertical space — ask what its collapsed state is communicating before hiding it.** It applies to
+the Hours card too, which is 49.5% of the page and is NOT therefore a target: most of that height
+is copy mapping each category to the words on a real payslip, and "where are the most pixels?" is
+the wrong question. The right one is where staff spend effort for little value, and nothing has
+shown that yet.
+
 ### Dark mode (toggleable)
 **Status:** Idea · **Trigger:** repeated staff request, or evidence of a real low-light usability problem · **Review:** January 2027 · **No work before the trigger**
 
