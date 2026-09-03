@@ -46,6 +46,19 @@ That file carries **two** unrelated things, which is why this step is unconditio
 - [ ] Joining period = the pay period whose cutoff is on or after the start date
 - [ ] Expected pro-rated hours = `Math.round(140 × daysEmployed / totalDays)` where totalDays = cutoff − prevCutoff and daysEmployed = `Math.round((cutoff − startDate) / msPerDay) + 1`
 
+## Step 4 — verify it actually took (v22.53)
+
+- [ ] Operations → Staff Login Accounts → read the block above the button
+
+It should say **“Everyone on the roster has a login, and no leaver still has one.”** If step 2, 2b
+or 2c was missed, it names the person and says which: *no account*, *account disabled*, or *wrong
+permissions* — and the **Needs attention** strip at the top of the page carries the item until it is
+fixed. Every one of those three is otherwise **silent**: the new starter appears correctly on every
+screen in the app and finds out when they try to sign in, and a manager without their claim signs in
+fine and then permission-denies on every write for somebody else.
+
+If the block says it *couldn’t check*, that is neither answer. Retry it; do not read it as done.
+
 **That's everything** — calendar display, team view, override eligibility, roster-assist pre-fill, and all subsequent pay periods are automatic.
 
 ---
@@ -69,13 +82,10 @@ factor       = daysEmployed / totalDays
 
 ## Removing a staff member
 
-Set `hidden: true` on the `teamMembers` entry, then run Set up accounts → "Disable accounts for leavers" in Admin → Operations.
+**Use `/leaver`.** The full ordered procedure lives there — it is six steps, two of which do damage
+in the wrong order, and it stopped fitting in a footnote here.
 
-**Upload their final roster PDF before you do it.** `hidden: true` also removes them from the
-`cea`/`ces`/`dispatcher` name lists the roster parser matches rows against, so a PDF covering their
-last days, uploaded afterwards, reports them under `missingMembers` — the same advisory a genuine
-absence produces. The week imports looking complete with nobody on their line.
-
-Regenerate `functions/roster-members.json` in the same commit (`npm run generate:roster-members`).
-Overtime needs separate action per open week — the population is frozen when a week opens. Full
-procedure: `docs/OPERATIONS_REFERENCE.md` → "Removing a staff member".
+The one line worth carrying in both places, because it is the step people get wrong and it belongs
+to *this* skill's subject too: **upload their final roster PDF BEFORE setting `hidden: true`.**
+`hidden` also drops them from the parser's name lists, so a later import reports their row as
+`missingMembers` — the same advisory a genuine absence produces.

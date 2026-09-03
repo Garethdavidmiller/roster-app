@@ -497,10 +497,12 @@ Migration history (v7.61 → v7.94) is in `ROADMAP_HISTORY.md` → Completed pha
 
 ## Removing a staff member
 
-Three steps, and **the order matters** — step 2 changes what the roster parser can read. Referred to
-from CLAUDE.md, the `/new-starter` skill and the Overtime section below, all of which carried a
-one-line version of it; this is the long form, written after a leaver on 15 Sep 2026 made the
-ordering question concrete.
+Five steps, and **the order matters** — step 2 changes what the roster parser can read. Referred to
+from CLAUDE.md, the `/leaver` and `/new-starter` skills and the Overtime section below, all of which
+carry the tick-list; **this is the long form and the only home of the reasoning** — `/leaver` is the
+executable checklist and routes here rather than restating any of it. Written after a leaver on
+15 Sep 2026 made the ordering question concrete, and given a verification step at v22.53 once the
+provisioning audit existed to provide one.
 
 **1. Upload the final roster PDF that still contains them.**
 
@@ -522,11 +524,38 @@ There is no end-date field — `startDate` has no counterpart — so until this 
 shifts: they appear in the calendar and in Team Week View as though still working. Nothing breaks,
 but a manager planning a week is reading a line nobody is on. Do it promptly once step 1 is done.
 
+**2b. If they held a role, take them out of it as well.**
+
+`CONFIG.ADMIN_NAMES`, `CONFIG.MANAGER_NAMES` and `CONFIG.LINKS_DESIGNERS` are plain name lists and
+are **not filtered by `hidden`**. `resolveRosterAuthConfig` unions every role-holder into
+`processMembers` — deliberately, so a leaver sweep can never disable the admin — with the
+consequence that **a manager or designer left in one of those lists is immune to step 3**. They stay
+in the server's active set, the orphan filter never sees them, and their login goes on working.
+
+It is also the one failure in this sequence that **step 4 cannot catch**: the audit compares Firebase
+Auth against the server's active set, and as far as the server is concerned they are still active. So
+it reads as a clean bill. Check the three lists by hand when the leaver held a role.
+
 **3. Operations → Set up accounts → "Disable accounts for leavers".**
 
 Hiding them removes them from `activeMembers`, which is the server-owned list `setupRosterAuth`
 trusts — but that governs PROVISIONING, not revocation. The Firebase Auth account keeps working until
 this is run, and the surname default is still a valid password for it (`ARCHITECTURE.md` → EXC-005).
+
+**4. Check it actually took** (v22.53).
+
+The Staff Login Accounts card now states its own condition, above the button: a read-only audit
+(`getAccountSetupGaps`) comparing the server-owned roster against Firebase Auth. Done properly it
+reads *"Everyone on the roster has a login, and no leaver still has one."* A leaver who is still
+enabled is named there in red, and the **Needs attention** strip at the top of the page carries a
+*"1 leaver can still sign in"* item until it is fixed.
+
+This step exists because **every failure in steps 1–3 is silent**. A skipped step 3 leaves a working
+login and, before this, nothing in the app mentioned it — the dry-run preview inside Set up accounts
+was the only place it showed, which is a check you have to already suspect you need.
+
+If the block says it **couldn't check**, that is a third answer and not a pass: the server could not
+see the roster's accounts and declined to name the whole roster as missing rather than guess. Retry it.
 
 ### What this does NOT do, and has to be done per week
 

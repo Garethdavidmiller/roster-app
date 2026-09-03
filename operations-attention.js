@@ -37,6 +37,30 @@ export const ATTENTION_CATALOGUE = /** @type {const} */ ({
         short: 'Password resets',
         label: (/** @type {number} */ n) => `${n} password reset${n === 1 ? '' : 's'} waiting`,
     },
+    // Grouped BY REMEDY, not by cause (v22.53): everything in `accountSetup` — no account, a
+    // disabled one, a claim that was never applied — is fixed by pressing Set up accounts, so it is
+    // one item. A leaver still able to sign in needs the separate confirmed disable sweep, so it is
+    // its own. Splitting by cause would make the admin do that mapping; splitting by button does not.
+    accountSetup: {
+        emoji: '🔐',
+        hash: '#login-accounts',
+        short: 'Not set up',
+        label: (/** @type {number} */ n) => `${n} member${n === 1 ? '' : 's'} not set up`,
+    },
+    accountLeavers: {
+        emoji: '🚪',
+        hash: '#login-accounts',
+        short: 'Leavers still active',
+        label: (/** @type {number} */ n) => `${n} leaver${n === 1 ? '' : 's'} can still sign in`,
+    },
+    // NOT HERE, deliberately: members with no work email. It looks like the same kind of omission
+    // and it is not. A missing login is a mistake — somebody cannot do their job and nobody meant
+    // that. A missing work email may be a CHOICE: members add their own in Settings, and it buys
+    // nothing today beyond a future self-service recovery route (PASSWORD_PLAN Stage 4). An item
+    // here would nag the admin about somebody else's decision, and it is a COVERAGE figure, which
+    // is a different shape from an exception — a count that is normally non-zero becomes furniture,
+    // and furniture in an exceptions index is how the index stops being read. Its home is the
+    // Account status card's own summary line ("38/51 work email"), where a coverage figure belongs.
     errors: {
         emoji: '🐛',
         hash: '#error-log',

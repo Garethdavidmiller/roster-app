@@ -752,7 +752,7 @@ columnScan: one key per column header; every staff member appears in every colum
 // ── Firebase Auth account setup ──────────────────────────────────────────────
 // ── Firebase Auth account setup ──────────────────────────────────────────────
 // The ACCOUNT-AND-CREDENTIAL domain — setupRosterAuth, resetMemberPassword,
-// requestPasswordReset and getSignInStats — lives in ./auth-endpoints.js, built here
+// requestPasswordReset, getSignInStats and getAccountSetupGaps — lives in ./auth-endpoints.js, built here
 // with the shared infrastructure (same composition-root reasoning as the documents
 // domain above). unlockCalendarViewer deliberately stays below in THIS file — see the
 // note in auth-endpoints.js.

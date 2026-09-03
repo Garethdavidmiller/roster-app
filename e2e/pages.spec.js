@@ -4900,3 +4900,85 @@ test('operations: App speed can split Recognised by connection, beside Getting r
     expect(pcts.authRows.sort()).toEqual(['0%', '100%']);
     expect(pcts.appRows).toEqual(['0%', '0%']);
 });
+
+// ── Staff Login Accounts: the provisioning audit (v22.53) ───────────────────────────────────────
+//
+// The rule is unit-tested next door and the card's own decisions in admin-auth.test.mjs; what only
+// a browser answers is that the real card, on a real page load, reaches the endpoint and puts the
+// answer where the admin will see it — including into the strip, which lives in a different module
+// and is fed by a callback nothing else exercises end to end.
+//
+// The second test is the one worth having. The endpoint is UNREACHABLE in every other spec in this
+// file (no route is registered, so the call simply fails), which means every one of them is already
+// exercising the failure path — and the "clean page has NO attention strip" test above passes
+// BECAUSE the audit reports nothing when it does not know. That is the intended behaviour and it is
+// also indistinguishable from the audit not being wired at all, so it gets an assertion of its own
+// rather than being left as a happy accident.
+
+const GAPS_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/getAccountSetupGaps';
+
+test('operations: account gaps reach the card BY NAME and the strip by group', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await page.route(GAPS_URL, route => route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({
+            setUp: [{ name: 'B. Toth', why: 'no-account' }, { name: 'S. Silva', why: 'claims' }],
+            leavers: ['B. Khalil'],
+        }),
+    }));
+    await page.goto('/operations.html');
+
+    // The journey in order: the strip is what an admin sees first, because the card it points at is
+    // collapsed like every other card on this page — which is the whole reason the strip exists.
+    const strip = page.locator('#attentionStrip');
+    await expect(strip).toBeVisible();
+    await expect(strip.getByRole('link', { name: '2 members not set up' })).toBeVisible();
+    await expect(strip.getByRole('link', { name: '1 leaver can still sign in' })).toBeVisible();
+
+    await expect(page.locator('#authSetupBody')).not.toHaveClass(/open/);
+    await strip.locator('a[href="#login-accounts"]').first().click();
+    await expect(page.locator('#authSetupBody')).toHaveClass(/open/);
+
+    const gaps = page.locator('#authSetupGaps');
+    await expect(gaps).toBeVisible();
+    await expect(gaps).toContainText('B. Toth (no account)');
+    await expect(gaps).toContainText('S. Silva (wrong permissions)');
+    await expect(gaps).toContainText('B. Khalil');
+    // Each line names the button that fixes it — the grouping is BY REMEDY, so a group that does
+    // not state its remedy has thrown away the reason for grouping that way.
+    await expect(gaps).toContainText('Press Set up accounts below');
+    await expect(gaps).toContainText('Tick the leavers box below');
+});
+
+test('operations: an audit that could not run reports NOTHING, rather than a clean bill', async ({ page }) => {
+    await seedSession(page);
+    // `authUser` is LOAD-BEARING here, not boilerplate. The Firebase stub leaves currentUser null by
+    // default, so the client wrapper throws "Not signed in" before it ever fetches — and this test
+    // passed on that, with the aborted route never reached. Measured. Without the opt-in it asserts
+    // that an unauthenticated read fails, which is a different and far less interesting sentence.
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await page.route(GAPS_URL, route => route.abort('failed'));
+    await page.goto('/operations.html');
+
+    // The card says so — a silent failure would read exactly like a tick.
+    await expect(page.locator('#authSetupGaps')).toContainText('Couldn’t check');
+    // …and the strip stays away. Reporting a zero here would put "nothing needs attention" on the
+    // page on the authority of a request that never completed.
+    await expect(page.locator('#attentionStrip')).toBeHidden();
+});
+
+test('operations: a fully provisioned roster says so, and still adds no strip item', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await page.route(GAPS_URL, route => route.fulfill({
+        status: 200, contentType: 'application/json',
+        headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ setUp: [], leavers: [] }),
+    }));
+    await page.goto('/operations.html');
+    await expect(page.locator('#authSetupGaps')).toContainText('Everyone on the roster has a login');
+    await expect(page.locator('#attentionStrip')).toBeHidden();
+});

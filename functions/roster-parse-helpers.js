@@ -1103,6 +1103,86 @@ function computeOrphanLabels(users, activeEmails) {
 }
 
 /**
+ * summariseAccountGaps — which active members are NOT properly set up, and which leavers still are.
+ *
+ * WHY THIS EXISTS. Provisioning is the one part of onboarding and offboarding that leaves no trace
+ * when it is skipped. A member added to `roster-data.js` whose "Set up accounts" run never happened
+ * appears everywhere the app looks — the calendar dropdown, the team view, the Account status table
+ * — and is indistinguishable from a working account until they try to sign in. A new manager whose
+ * claim was never applied is worse: they sign in, the pages open, and every write on somebody
+ * else's behalf permission-denies. And a leaver whose disable step was skipped simply keeps a
+ * working login. None of the three fails anything; all three are found by somebody complaining.
+ *
+ * GROUPED BY REMEDY, NOT BY CAUSE. The three "can't work properly" states have three different
+ * causes and exactly ONE fix — press Set up accounts — so they are one group. A leaver still
+ * enabled needs a different, confirmed action, so it is its own. An index that splits by cause
+ * makes the reader do the mapping; splitting by the button they must press does not.
+ *
+ * IT REFUSES RATHER THAN CRIES WOLF. If not one `@myb-roster.local` account is visible, the
+ * account list did not arrive — an empty page from a transient failure, a wrong project — and
+ * every active member would otherwise read as unprovisioned. That is a false alarm at maximum
+ * volume, which is the one failure an exceptions index cannot survive, so this answers
+ * `refused: 'no-accounts-visible'` and reports nothing at all. Nothing is a worse answer than
+ * everything here: an absent item reads as unknown, and a full-volume wrong one gets the whole
+ * strip ignored.
+ *
+ * ONLY THE CLAIMS THIS APP SETS ARE COMPARED (`name`, `admin`, `manager`, `linksDesigner`). An
+ * exact object comparison would report a gap for any claim added later by anything else, and a
+ * false alarm on a provisioning index teaches the admin to skip it.
+ *
+ * PURE — the handler around it uses the Admin SDK and cannot run in the test sandbox, and every
+ * judgement worth getting wrong is here. Tested in roster-parse-helpers.test.mjs.
+ *
+ * @param {Array<{ email?: string, displayName?: string, disabled?: boolean, customClaims?: Record<string, any>|null }>} users
+ *        every Firebase Auth user (all pages of listUsers)
+ * @param {{ processMembers: string[], adminSet: Set<string>, managerSet: Set<string>, designerSet: Set<string> }} cfg
+ *        the SERVER-owned roster, exactly as setupRosterAuth resolves it
+ * @returns {{ refused?: string, setUp: Array<{ name: string, why: 'no-account'|'disabled'|'claims' }>, leavers: string[] }}
+ */
+const MANAGED_CLAIMS = ['name', 'admin', 'manager', 'linksDesigner'];
+
+function summariseAccountGaps(users, { processMembers, adminSet, managerSet, designerSet }) {
+    const list = Array.isArray(users) ? users : [];
+    /** @type {Map<string, {disabled?: boolean, customClaims?: Record<string, any>|null}>} */
+    const byEmail = new Map();
+    for (const u of list) {
+        const email = u && typeof u.email === 'string' ? u.email.toLowerCase() : '';
+        if (!email.endsWith('@myb-roster.local')) continue;
+        byEmail.set(email, u);
+    }
+    // The refusal. Not `list.length === 0` — a project holding only non-roster accounts is the same
+    // "we cannot see the roster's accounts" situation and must not report all 51 as missing either.
+    if (byEmail.size === 0) return { refused: 'no-accounts-visible', setUp: [], leavers: [] };
+
+    /** @type {Array<{name: string, why: 'no-account'|'disabled'|'claims'}>} */
+    const setUp = [];
+    /** @type {Set<string>} */
+    const activeEmails = new Set();
+    for (const name of processMembers || []) {
+        const email = nameToEmail(name).toLowerCase();
+        activeEmails.add(email);
+        const user = byEmail.get(email);
+        if (!user)         { setUp.push({ name, why: 'no-account' }); continue; }
+        if (user.disabled) { setUp.push({ name, why: 'disabled' });   continue; }
+        const expected = claimsForTier(name, { adminSet, managerSet, designerSet });
+        const actual   = user.customClaims || {};
+        for (const key of MANAGED_CLAIMS) {
+            // `undefined` vs absent must compare equal — setCustomUserClaims stores neither.
+            if ((expected[key] ?? null) !== (actual[key] ?? null)) {
+                setUp.push({ name, why: 'claims' });
+                break;
+            }
+        }
+    }
+
+    // The leaving half. computeOrphanLabels already owns "which accounts are leaver orphans" for the
+    // disable sweep; asking it here rather than restating the filter is what stops the preview and
+    // this index ever disagreeing about who is still enabled.
+    const leavers = computeOrphanLabels(list, activeEmails).map(o => o.label);
+    return { setUp, leavers };
+}
+
+/**
  * Decide whether a failed Web Push send means the subscription is DEAD and should be deleted.
  * Extracted + tested (v16.81) because this encodes the load-bearing v16.15 lesson that previously
  * survived only as a comment inline in fanOutPush: a 410/404 is a genuinely gone endpoint (delete
@@ -1263,6 +1343,7 @@ module.exports = {
     resolveRosterAuthConfig,
     claimsForTier,
     computeOrphanLabels,
+    summariseAccountGaps,
     shouldRecordResetRequest,
     buildResetRequestNotice,
     shouldNotifyAdmin,
