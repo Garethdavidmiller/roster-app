@@ -32,7 +32,7 @@ import { initPasswordForce } from './password-force.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { isRestShift, computePeriodDeleteIds, mergeBookedPeriods, composeOtherValue } from './override-utils.js';
-import { alPosition, countedAlDates, consumesEntitlement } from './al-entitlement.js';
+import { alPosition, countedAlDates, consumesEntitlement, dispatcherBreakdown } from './al-entitlement.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
@@ -576,16 +576,19 @@ export function init() {
         bookedEl.textContent = String(booked);
         entEl.textContent    = String(entitlement);
 
-        // Show breakdown note for Dispatchers (22 base + N bank holiday lieu days)
+        // Show breakdown note for Dispatchers — the two things their entitlement is made of.
+        // The split comes from `dispatcherBreakdown`, never `entitlement - 22`: that literal is the
+        // base only for somebody who worked the whole year, so for a mid-year joiner it went
+        // NEGATIVE and this line read `22 base + -8 BH lieu` about a real person.
         const breakdownEl = document.getElementById('alBannerBreakdown');
         if (breakdownEl) {
-            if (member.role === 'Dispatcher') {
-                const lieu = entitlement - 22;
-                breakdownEl.textContent = `22 base + ${lieu} BH lieu`;
-                breakdownEl.hidden = false;
-            } else {
-                breakdownEl.hidden = true;
+            const split = dispatcherBreakdown({ member, year: yearStr, overrides: getAllOverrides() });
+            if (split) {
+                breakdownEl.textContent = split.proRated
+                    ? `${split.base} base (pro-rated) + ${split.lieu} BH lieu`
+                    : `${split.base} base + ${split.lieu} BH lieu`;
             }
+            breakdownEl.hidden = !split;
         }
 
         banner.hidden = false;

@@ -169,3 +169,41 @@ export function alPosition({ overrides, member, year, todayStr }) {
     if (entitlement === null) return { entitlement: null, taken, booked, remaining: null };
     return { entitlement, taken, booked, remaining: entitlement - taken - booked };
 }
+
+/**
+ * A Dispatcher's entitlement split into the two things it is made of — `{ base, lieu }` — or `null`
+ * for anybody else, and for a Dispatcher with no entitlement on record.
+ *
+ * ── WHY THIS IS NOT `entitlement - 22` ──────────────────────────────────────────────────────────
+ *
+ * The Admin AL banner subtracted a literal 22 to recover the lieu count, which is right only while
+ * the base IS 22. For a mid-year joiner it is their pro-rated figure, so the subtraction went
+ * negative and the card rendered `22 base + -8 BH lieu` — a nonsense line about a real person, on
+ * the surface a manager reads to decide whether somebody can take a day off. It had been wrong for
+ * B. Toth since she joined in June (as `-10`, when the pro-rata still suppressed her lieu days
+ * entirely) and nothing failed, because a caption is not a calculation and nothing was checking it.
+ *
+ * The split is DERIVED from the same rule `getALEntitlement` applies rather than recomputed: the
+ * base is what a pro-rated year replaces it with, and the lieu count is whatever the total exceeds
+ * it by. That keeps one formula, and `al-entitlement.test.mjs` pins `base + lieu === entitlement`
+ * so the two cannot drift apart in silence — which is the failure this function exists to end.
+ *
+ * `proRated` is reported because the caption needs to SAY so. "12 base" reads like a mistake beside
+ * a colleague's 22 unless it explains itself.
+ *
+ * @param {{ member: any, year: number|string, overrides: any[] }} args
+ * @returns {{ base: number, lieu: number, proRated: boolean } | null}
+ */
+export function dispatcherBreakdown({ member, year, overrides }) {
+    if (!member || member.role !== 'Dispatcher') return null;
+    const y = parseInt(String(year), 10);
+    const entitlement = getALEntitlement(member, y, overrides);
+    // Unreachable today — every Dispatcher gets a number and every other role returned above —
+    // so removing it leaves the tests green. Kept fail-closed rather than deleted, and said
+    // here rather than covered by a test that would only be pretending.
+    if (entitlement === null) return null;
+
+    const proRated = member.proRatedAL?.[y] !== undefined;
+    const base = proRated ? member.proRatedAL[y] : 22;
+    return { base, lieu: entitlement - base, proRated };
+}
