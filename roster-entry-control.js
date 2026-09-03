@@ -215,19 +215,31 @@ export function toggleEntry(rowEl, btn, key, st, open) {
  */
 export function patchEntryRow(rowEl, done, st) {
     if (!rowEl) return;
+    // TWO ROW SHAPES REACH HERE AND THEY DO NOT SHARE A VOCABULARY (v22.54). The row that offers
+    // candidate readings is permanently a decision — its tag is `act-choice` in every state — so
+    // restyling it to `act-read` because a draft is half-finished said the row had regressed to
+    // unreadable while the admin was in the middle of answering it.
+    const optionsRow = !!rowEl.querySelector('.roster-pick');
     const act = rowEl.querySelector('.roster-act');
     if (act) {
         act.textContent = done ? 'Your entry' : "Couldn't read";
-        act.classList.toggle('act-choice', done);
-        act.classList.toggle('act-read', !done);
+        if (!optionsRow) {
+            act.classList.toggle('act-choice', done);
+            act.classList.toggle('act-read', !done);
+        }
     }
     const note = rowEl.querySelector('.roster-remove-note');
     if (note) note.textContent = done
         ? '\u2713 you entered the shift below'
         : 'check the paper roster, or enter it below';
-    const btn = rowEl.querySelector('.roster-choice-btn--enter');
+    // The button's own words, authored beside the row that owns them — an options row's control
+    // says "Neither — enter it" and must not rename itself to the other row's "Enter the shift"
+    // while the admin has it open. Constants remain the fallback for a row that stamps neither.
+    const btn = /** @type {HTMLElement|null} */ (rowEl.querySelector('.roster-choice-btn--enter'));
     if (btn) {
-        btn.textContent = done ? 'Entered — change it' : 'Enter the shift';
+        btn.textContent = done
+            ? (btn.dataset.done || 'Entered — change it')
+            : (btn.dataset.idle || 'Enter the shift');
         btn.classList.toggle('is-chosen', done);
         btn.setAttribute('aria-pressed', String(done));
     }

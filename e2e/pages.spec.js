@@ -4607,6 +4607,37 @@ test('operations: the entry control never offers a type Sunday forbids', async (
     await expect(row.locator('.roster-entry-pill', { hasText: /^Rest Day$/ })).toBeEnabled();
 });
 
+test('operations: an options row keeps its own words while an entry is half-finished', async ({ page }) => {
+    // TWO ROW SHAPES share `patchEntryRow` and they do not share a vocabulary. The row that offers
+    // candidate readings calls its control "Neither — enter it" and is permanently a decision
+    // (`act-choice` in every state); the row with no readings says "Enter the shift" and is
+    // `act-read` until answered. `patchEntryRow` spoke only the second row's dialect, so on an
+    // options row an incomplete draft renamed the open control to the OTHER row's phrase and
+    // restyled the tag — telling the admin the row had gone back to unreadable while they were
+    // part-way through answering it. Latent since v22.17 (only the keystroke path reached it);
+    // v22.50 routed every pill click through the same call, so it fired on the first tap.
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+    const row = page.locator('.roster-change-row', { has: page.locator('.roster-choice-btn--skip') })
+        .filter({ has: page.locator('.roster-choice-btn--enter') }).first();
+    const btn = row.locator('.roster-choice-btn--enter');
+    const tag = row.locator('.roster-act');
+    await expect(btn).toHaveText('Neither — enter it');
+    await btn.click();
+
+    // Half-finished: Other with no flavour yet composes to nothing, so `done` is false.
+    await row.locator('.roster-entry-pill', { hasText: /^Other$/ }).click();
+    await expect(btn).toHaveText('Neither — enter it');          // NOT "Enter the shift"
+    await expect(tag).toHaveClass(/act-choice/);
+    await expect(tag).not.toHaveClass(/act-read/);
+
+    // Finished: the shared "Entered — change it" is correct on both shapes.
+    await row.locator('.roster-entry-flavour', { hasText: 'Training' }).click();
+    await expect(btn).toHaveText('Entered — change it');
+    await expect(tag).toHaveClass(/act-choice/);
+    await expect(row.locator('.roster-entry-hint')).toContainText('will be saved');
+});
+
 // ── THE HUDDLE TABLE MUST NOT DRAG THE WHOLE PAGE SIDEWAYS (v22.27) ────────────────────────────
 //
 // Reported from two staff screenshots on a 412px phone. The Huddle gained a fifth column

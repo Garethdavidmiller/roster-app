@@ -1009,7 +1009,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                             <div class="roster-pick" role="group" aria-label="Choose the correct value">
                                 ${s.options.map(/** @param {any} o @param {number} i */ (o, i) => `<button type="button" class="roster-choice-btn ${picked === i ? 'is-chosen' : ''}" data-key="${esc(key)}" data-opt="${i}" aria-pressed="${picked === i}">${shiftDisplay(o.display, date)}</button>`).join('')}
                                 <button type="button" class="roster-choice-btn roster-choice-btn--skip ${picked < 0 && s.chosen !== 'entered' ? 'is-chosen' : ''}" data-key="${esc(key)}" data-opt="skip" aria-pressed="${picked < 0 && s.chosen !== 'entered'}">Skip</button>
-                                <button type="button" class="roster-choice-btn roster-choice-btn--enter ${s.chosen === 'entered' ? 'is-chosen' : ''}${s.draft?.open ? ' is-open' : ''}" data-key="${esc(key)}" data-opt="enter" aria-pressed="${s.chosen === 'entered'}">Neither — enter it</button>
+                                <button type="button" class="roster-choice-btn roster-choice-btn--enter ${s.chosen === 'entered' ? 'is-chosen' : ''}${s.draft?.open ? ' is-open' : ''}" data-key="${esc(key)}" data-opt="enter" data-idle="Neither — enter it" data-done="Entered — change it" aria-pressed="${s.chosen === 'entered'}">${s.chosen === 'entered' && s.entered ? 'Entered — change it' : 'Neither — enter it'}</button>
                             </div>
                             ${s.draft?.open ? entryControlHtml(key, s, date) : ''}
                         </div>`;
@@ -1036,7 +1036,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                                     : 'check the paper roster, or enter it below'}</span>
                             </div>
                         </div>
-                        <button type="button" class="roster-choice-btn roster-choice-btn--enter ${s.chosen === 'entered' ? 'is-chosen' : ''}${s.draft?.open ? ' is-open' : ''}" data-key="${esc(key)}" data-opt="enter" aria-pressed="${s.chosen === 'entered'}">${s.chosen === 'entered' && s.entered ? 'Entered — change it' : 'Enter the shift'}</button>
+                        <button type="button" class="roster-choice-btn roster-choice-btn--enter ${s.chosen === 'entered' ? 'is-chosen' : ''}${s.draft?.open ? ' is-open' : ''}" data-key="${esc(key)}" data-opt="enter" data-idle="Enter the shift" data-done="Entered — change it" aria-pressed="${s.chosen === 'entered'}">${s.chosen === 'entered' && s.entered ? 'Entered — change it' : 'Enter the shift'}</button>
                         ${s.draft?.open ? entryControlHtml(key, s, date) : ''}`;
                 } else {
                     // CONFLICT — you already recorded something that differs from the new roster.
