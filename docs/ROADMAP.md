@@ -479,16 +479,26 @@ grouping must reveal before the `#payTransferCard` deep link scrolls**: with the
 transfer card's entire landing correction runs against `display: none` and the member lands at the
 top of the page with nothing to explain why (the real e2e fails with a `TypeError` on a null box —
 assert visibility before position). And `paycalc-app.js` sits at **1,900 of a 1,900-line ratchet** — the
-50–99 lines of room a cap carries for a fix are already spent, so the next fix to that file, however
-small, is blocked until something moves out. The natural extraction is the cross-card navigation
-block (`_bannerViewCard` and the three link wirings, ~20 lines, no calculations): worth taking
-**now**, as its own quiet change, rather than during a bugfix under pressure — and named for what it
-is, `paycalc-card-navigation.js`, never for the grouping that was not built. The transfer card's
-hash branch stays where it is; its ResizeObserver landing correction is its own concern. If the tail is ever
+room a cap carries for a fix is already spent, so the next change to that file, however small, must
+move something out first. **Do not make that move speculatively.** The seam should be drawn by the
+change that needs it; a module carved today to hold three click handlers is a guess at where that
+change will want its boundary, and the ratchet is doing exactly its job by waiting. When it comes,
+the ready candidate is the cross-card navigation block (`_bannerViewCard` and the three link
+wirings, ~20 lines, no calculations), named for what it is — `paycalc-card-navigation.js`, never for
+the grouping that was not built. The transfer card's hash branch stays where it is; its
+ResizeObserver landing correction is its own concern. If the tail is ever
 revisited, start from grouping only the two gadgets (Decimal Hours Converter, Move Your Pay Data) —
-nothing taught is lost, ~95px saved — and expect that not to be worth a module either. If the
-calculator ever *feels* unwieldy to staff, the Hours card is where the length is, and the answer
-there is grouping and compaction of its eight rows — not hiding inputs the calendar cannot infer.
+nothing taught is lost, ~95px saved — and expect that not to be worth a module either.
+
+The four cards were never one category, which is why the grouping felt logical and was
+semantically wrong: the HPP and back-pay headers **teach an entitlement** all year, while the
+converter's and the transfer card's headers only **identify a tool**. The principle to carry
+forward is worth more than the 295px this set out to save: **a collapsed section is not unused
+vertical space — ask what its collapsed state is communicating before hiding it.** It applies to
+the Hours card too, which is 49.5% of the page and is NOT therefore a target: most of that height
+is copy mapping each category to the words on a real payslip, and "where are the most pixels?" is
+the wrong question. The right one is where staff spend effort for little value, and nothing has
+shown that yet.
 
 ### Dark mode (toggleable)
 **Status:** Idea · **Trigger:** repeated staff request, or evidence of a real low-light usability problem · **Review:** January 2027 · **No work before the trigger**
