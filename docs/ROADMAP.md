@@ -452,9 +452,10 @@ same display gate as the grid or show its own skeleton — the feature is not ev
 
 ### Pay Calculator — "More pay tools" grouping on phones — DECLINED
 **Status:** Declined (owner decision, 3 Sep 2026) · **Trigger to revisit:** a staff report about the
-tail of the Pay Calculator page, or card-open counts showing the HPP and back-pay cards are never
-opened — and card opens are not counted today, so that instrumentation comes first · **No work
-before the trigger**
+tail of the Pay Calculator page — or, should card opens ever be counted for some other reason,
+counts showing the HPP and back-pay cards are never opened. **Do not add that instrumentation to
+test this idea**; a measurement system built around a problem nobody has reported is the same
+speculation in a lab coat · **No work before the trigger**
 
 Proposed by an external review and taken through four drafts and a measured prototype (Sep 2026):
 below 1024px, hide the Holiday Pay Premium, Pay Rise Back Pay, Decimal Hours Converter and Move Your
@@ -477,11 +478,17 @@ Two findings from the work stay true, recorded so a revisit does not pay for the
 grouping must reveal before the `#payTransferCard` deep link scrolls**: with the cards hidden, the
 transfer card's entire landing correction runs against `display: none` and the member lands at the
 top of the page with nothing to explain why (the real e2e fails with a `TypeError` on a null box —
-assert visibility before position). And `paycalc-app.js` sits at its 1,900-line ratchet: the natural
-extraction is the navigation block (`_bannerViewCard` and the three link wirings, ~20 lines), to be
-taken when a real Pay Calculator change needs the room, not speculatively. If the tail is ever
+assert visibility before position). And `paycalc-app.js` sits at **1,900 of a 1,900-line ratchet** — the
+50–99 lines of room a cap carries for a fix are already spent, so the next fix to that file, however
+small, is blocked until something moves out. The natural extraction is the cross-card navigation
+block (`_bannerViewCard` and the three link wirings, ~20 lines, no calculations): worth taking
+**now**, as its own quiet change, rather than during a bugfix under pressure — and named for what it
+is, `paycalc-card-navigation.js`, never for the grouping that was not built. The transfer card's
+hash branch stays where it is; its ResizeObserver landing correction is its own concern. If the tail is ever
 revisited, start from grouping only the two gadgets (Decimal Hours Converter, Move Your Pay Data) —
-nothing taught is lost, ~95px saved — and expect that not to be worth a module either.
+nothing taught is lost, ~95px saved — and expect that not to be worth a module either. If the
+calculator ever *feels* unwieldy to staff, the Hours card is where the length is, and the answer
+there is grouping and compaction of its eight rows — not hiding inputs the calendar cannot infer.
 
 ### Dark mode (toggleable)
 **Status:** Idea · **Trigger:** repeated staff request, or evidence of a real low-light usability problem · **Review:** January 2027 · **No work before the trigger**
