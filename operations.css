@@ -452,7 +452,7 @@ body.auth-ready .container { display: grid; }
 
 /* Reach the PDF from the review (v22.16). Deliberately quiet — it is a reference, not an action,
    and it sits above a list whose real buttons are the ticks. */
-.roster-view-pdf {
+.roster-download-pdf {
     display: block;
     width: 100%;
     text-align: left;
@@ -466,8 +466,8 @@ body.auth-ready .container { display: grid; }
     margin: 0 0 10px;
     cursor: pointer;
 }
-.roster-view-pdf:hover { background: var(--bg-faint); }
-.roster-view-pdf:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+.roster-download-pdf:hover { background: var(--bg-faint); }
+.roster-download-pdf:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 
 /* THE CIRCUIT BREAKER (v22.16). Louder than the per-row warning on purpose — it is not a caution
    about one row, it is a refusal of the whole read, and the two must not be mistaken for each

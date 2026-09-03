@@ -4506,15 +4506,23 @@ test('operations: a complete PDF layout check adds no banner at all', async ({ p
     await expect(page.locator('.roster-crosscheck-note', { hasText: 'PDF layout check' })).toHaveCount(0);
 });
 
-test('operations: the review offers the original PDF to check against', async ({ page }) => {
+test('operations: the review HANDS OVER the original PDF to check against', async ({ page }) => {
     // Every message this release adds ends in "check it against the PDF". Until v22.16 the file had
     // effectively left the workflow once the parse returned, so failing closed asked the admin to
     // consult something they could no longer reach.
+    //
+    // THIS TEST USED TO ASSERT THE BUTTON WAS VISIBLE, and it was — for six releases, over a
+    // `window.open` of a blob: URL that painted a blank tab, because a blob document inherits this
+    // page's `object-src 'none'` and Chrome's PDF viewer is a plugin embed. Visible is not working.
+    // The only assertion that could have caught it is the one that takes delivery of the file.
     await seedSession(page, 'G. Miller');
     await openRosterReview(page);
-    const view = page.locator('.roster-view-pdf');
+    const view = page.locator('.roster-download-pdf');
     await expect(view).toBeVisible();
     await expect(view).toContainText('roster.pdf');
+    const [download] = await Promise.all([page.waitForEvent('download'), view.click()]);
+    expect(download.suggestedFilename()).toBe('roster.pdf');
+    expect(await download.path()).toBeTruthy();          // it really arrived, with bytes behind it
 });
 
 

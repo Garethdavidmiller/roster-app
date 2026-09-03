@@ -831,23 +831,16 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         // silent rather than false-alarming.
         changeList.innerHTML = '';
 
-        // ---- "View the original roster" (v22.16) ----
-        // Failing closed is only fair if the admin can go and look: every message this release adds
-        // ends in "check it against the PDF", and the file had left the workflow the moment the
-        // parse returned. The object URL is built at CLICK time (a real gesture, so never
-        // pop-up-blocked) and revoked on a timer, like the pay-data download.
+        // ---- The original roster (v22.16; DEAD from the day it shipped, fixed v22.52) ----
+        // Two silent traps, both easy to walk back into; AI_MAP has the full account. (1) The
+        // button is DELEGATED like every other control here — its own `addEventListener` did not
+        // survive the clone at the foot of this function, so it did nothing for six releases and
+        // looked perfect in a screenshot. (2) It DOWNLOADS: a `blob:` document inherits this
+        // page's `object-src 'none'` (measured), which blocks the embed Chrome renders a PDF in.
         const pdfFile = fileInput?.files?.[0];
         if (pdfFile) {
-            const view = document.createElement('button');
-            view.type = 'button';
-            view.className = 'roster-view-pdf';
-            view.textContent = `📄 View the original roster (${pdfFile.name})`;
-            view.addEventListener('click', () => {
-                const url = URL.createObjectURL(pdfFile);
-                window.open(url, '_blank', 'noopener');
-                setTimeout(() => URL.revokeObjectURL(url), 60_000);
-            });
-            changeList.appendChild(view);
+            changeList.insertAdjacentHTML('beforeend', `<button type="button" class="roster-download-pdf">`
+                + `📄 Download the original roster (${esc(pdfFile.name)})</button>`);
         }
 
         if (parsedResult.crossCheck && parsedResult.crossCheck !== 'complete') {
@@ -1088,6 +1081,15 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
         changeList.addEventListener('click', /** @param {any} e */ e => {
             const target = /** @type {Element} */ (e.target);
+            if (target.closest('.roster-download-pdf')) {
+                const file = fileInput?.files?.[0];
+                if (!file) return;
+                const url = URL.createObjectURL(file);   // read at CLICK time, so it cannot go stale
+                const a = Object.assign(document.createElement('a'), { href: url, download: file.name });
+                document.body.appendChild(a); a.click(); a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 60_000);  // immediate revoke cancels it on Android
+                return;
+            }
             // Save / skip toggle on a change row's tick (DIFF + REMOVE_IMPORT)
             const tickBtn = /** @type {HTMLElement|null} */ (target.closest('.roster-tick'));
             if (tickBtn) {
