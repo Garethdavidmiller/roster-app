@@ -576,3 +576,129 @@ test('the module never reaches for a broadcast sender', () => {
     assert.ok(!/fanOutPush/.test(src),
         'auth-endpoints.js must not reference fanOutPush — this notification names one person');
 });
+
+
+// ── getAccountSetupGaps ───────────────────────────────────────────────────────
+
+/**
+ * The provisioning audit, driven for real. `summariseAccountGaps` is thoroughly tested next door in
+ * roster-parse-helpers.test.mjs, and that is exactly the shape this file exists to distrust: a
+ * perfect rule reached with the wrong argument, in the wrong access context, or with its answer
+ * discarded. Four properties are WIRING and cannot be seen from the pure side —
+ *
+ *   · the roster it compares against is the SERVER's, never anything in the request;
+ *   · it is a READ, so it must not create, disable or re-claim a single account while looking;
+ *   · a non-admin gets nothing — this response carries names, which the sign-in stats deliberately
+ *     do not;
+ *   · the refusal survives the trip, rather than being flattened into "no gaps found".
+ *
+ * That last one is the difference between "nobody needs setting up" and "we could not tell", and
+ * the strip on the other end renders those two identically unless the endpoint keeps them apart.
+ */
+describe('getAccountSetupGaps — the provisioning audit', () => {
+    const { resolveRosterAuthConfig, claimsForTier, nameToEmail } =
+        require('./functions/roster-parse-helpers.js');
+    const rosterCfg = resolveRosterAuthConfig(require('./functions/roster-members.json'));
+    const SETS = {
+        adminSet:    new Set(rosterCfg.admin),
+        managerSet:  new Set(rosterCfg.manager),
+        designerSet: new Set(rosterCfg.designer),
+    };
+    /** The whole roster, provisioned exactly as Set up accounts would leave it. */
+    const fullyProvisioned = () => rosterCfg.processMembers.map((name) => ({
+        uid: uidFor(name), email: nameToEmail(name), displayName: name,
+        disabled: false, customClaims: claimsForTier(name, SETS),
+    }));
+    const getReq = (headers = { authorization: 'Bearer tok' }) => ({
+        ...reqWith(undefined, headers), method: 'GET',
+    });
+    /** Anything that would CHANGE an account. verifyIdToken is a read and is expected. */
+    const MUTATIONS = ['createUser', 'updateUser', 'setCustomUserClaims', 'revokeRefreshTokens'];
+
+    test('a fully provisioned roster reports nothing, and refuses nothing', async () => {
+        const { eps } = build({ existingUsers: fullyProvisioned() });
+        const out = await call(eps.getAccountSetupGaps, getReq());
+        assert.equal(out.code, 200);
+        assert.deepEqual(out.body, { setUp: [], leavers: [] });
+    });
+
+    test('a member with no account comes back BY NAME', async () => {
+        // A count the admin cannot act on is worse than none — the name is the deliverable.
+        const victim = rosterCfg.processMembers.find((n) => !SETS.adminSet.has(n));
+        const { eps } = build({ existingUsers: fullyProvisioned().filter((u) => u.displayName !== victim) });
+        const out = await call(eps.getAccountSetupGaps, getReq());
+        assert.deepEqual(out.body.setUp, [{ name: victim, why: 'no-account' }]);
+    });
+
+    test('a leaver still enabled comes back too, in the OTHER group', async () => {
+        const { eps } = build({ existingUsers: [...fullyProvisioned(), {
+            uid: 'uid_gone', email: 'z.gone@myb-roster.local', displayName: 'Z. Gone',
+            disabled: false, customClaims: { name: 'Z. Gone' },
+        }] });
+        const out = await call(eps.getAccountSetupGaps, getReq());
+        assert.deepEqual(out.body.setUp, [], 'a leaver is not something Set up accounts fixes');
+        assert.deepEqual(out.body.leavers, ['Z. Gone']);
+    });
+
+    test('it compares against the SERVER roster — a request body cannot shrink it', async () => {
+        // B4's whole point, and a property of the wiring rather than of either helper: pass a
+        // roster in the body and the endpoint must not notice it exists.
+        const victim = rosterCfg.processMembers.find((n) => !SETS.adminSet.has(n));
+        const { eps } = build({ existingUsers: fullyProvisioned().filter((u) => u.displayName !== victim) });
+        const req = { ...getReq(), body: { activeMembers: [], roles: { admin: [ADMIN] } } };
+        const out = await call(eps.getAccountSetupGaps, req);
+        assert.deepEqual(out.body.setUp, [{ name: victim, why: 'no-account' }]);
+    });
+
+    test('it changes NOTHING while it looks', async () => {
+        // The read-only property, and the reason it is a property rather than a convention: an
+        // audit that quietly repaired what it found would make the gap invisible again, which is
+        // the exact state this feature exists to end. Assert on the recorded ops, not on intent.
+        const victim = rosterCfg.processMembers.find((n) => !SETS.adminSet.has(n));
+        const { eps, authOps, db } = build({ existingUsers: fullyProvisioned().filter((u) => u.displayName !== victim) });
+        await call(eps.getAccountSetupGaps, getReq());
+        const mutated = authOps.filter((o) => MUTATIONS.includes(o.op));
+        assert.deepEqual(mutated, [], 'the audit must not create, disable or re-claim anything');
+        assert.deepEqual(db._dump('passwordStatus'), {}, 'and it writes no Firestore either');
+    });
+
+    describe('and it is admin-only, because this one carries names', () => {
+        test('no token → 401, and nothing is read', async () => {
+            const { eps } = build({ token: null, existingUsers: fullyProvisioned() });
+            const out = await call(eps.getAccountSetupGaps, getReq({}));
+            assert.equal(out.code, 401);
+            assert.equal(out.body.setUp, undefined);
+        });
+
+        test('a member token → 403', async () => {
+            const { eps } = build({ token: { name: MEMBER }, existingUsers: fullyProvisioned() });
+            const out = await call(eps.getAccountSetupGaps, getReq());
+            assert.equal(out.code, 403);
+            assert.equal(out.body.setUp, undefined);
+        });
+
+        test('a MANAGER token → 403 as well', async () => {
+            // Managers write on members' behalf all day; provisioning is not theirs, and `admin`
+            // is checked strictly rather than "is elevated".
+            const { eps } = build({ token: { manager: true, name: MANAGER }, existingUsers: fullyProvisioned() });
+            assert.equal((await call(eps.getAccountSetupGaps, getReq())).code, 403);
+        });
+
+        test('a POST is refused — this endpoint only ever reads', async () => {
+            const { eps } = build({ existingUsers: fullyProvisioned() });
+            const out = await call(eps.getAccountSetupGaps, asAdmin({}));
+            assert.equal(out.code, 405);
+        });
+    });
+
+    test('“we could not tell” survives the trip as a refusal, not as “no gaps”', async () => {
+        // With no accounts visible the pure rule refuses rather than naming the whole roster. If
+        // the handler dropped `refused`, the caller would render a clean bill of health at the one
+        // moment the data is least trustworthy.
+        const { eps } = build({ existingUsers: [] });
+        const out = await call(eps.getAccountSetupGaps, getReq());
+        assert.equal(out.code, 200);
+        assert.equal(out.body.refused, 'no-accounts-visible');
+        assert.deepEqual(out.body.setUp, []);
+    });
+});

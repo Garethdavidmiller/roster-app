@@ -1030,6 +1030,57 @@ select:focus-visible, input:focus-visible {
 
 /* ---- Auth setup card ---- */
 .auth-desc { font-size: var(--type-label); color: var(--text-mid); margin-bottom: 12px; }
+
+/* The provisioning audit block (v22.53) — what is actually wrong right now, above the controls
+   that fix it. `display: grid` OUT-SPECIFIES the `hidden` attribute, which is a UA rule at the
+   lowest specificity, so the reset below is load-bearing: without it the block renders as an empty
+   frame before the read returns and nothing throws (the page-visibility-parity trap). */
+.auth-gaps {
+    display: grid;
+    gap: 6px;
+    margin-bottom: 14px;
+    font-size: var(--type-label);
+}
+.auth-gaps[hidden] { display: none !important; }
+.auth-gap-line {
+    margin: 0;
+    border-radius: 8px;
+    padding: 8px 10px;
+    color: var(--warning-amber);
+    background: color-mix(in oklch, var(--warning-amber) 12%, white);
+    border: 1px solid color-mix(in oklch, var(--warning-amber) 45%, white);
+}
+/* A leaver who can still sign in is an open door, not a to-do — the one state on this card that
+   is a live access problem rather than somebody unable to work. */
+.auth-gap-line--leaver {
+    color: var(--error-red);
+    background: color-mix(in oklch, var(--error-red) 10%, white);
+    border-color: color-mix(in oklch, var(--error-red) 40%, white);
+}
+/* The remedy, on its own line: the count and names say what, this says which button. */
+.auth-gap-fix {
+    display: block;
+    margin-top: 4px;
+    font-size: var(--type-small);
+    font-weight: 600;
+    opacity: 0.85;
+}
+.auth-gap-ok      { margin: 0; color: var(--success-green); font-weight: 600; }
+.auth-gap-unknown { margin: 0; color: var(--text-mid); }
+/* Not a disabled state and not an error: the check did not run, which is neither of the answers
+   above, so it gets its own neutral voice and a way to ask again. */
+.auth-gap-retry {
+    font: inherit;
+    font-weight: 600;
+    color: var(--primary-blue);
+    background: none;
+    border: none;
+    border-bottom: 1px solid currentColor;
+    padding: 0;
+    cursor: pointer;
+}
+.auth-gap-retry:hover:not(:disabled) { color: var(--primary-blue-dark); }
+.auth-gap-retry:disabled { opacity: 0.5; cursor: default; }
 .auth-orphans-label {
     display: flex;
     align-items: center;

@@ -39,7 +39,7 @@ const {
     resolveRosterAuthConfig,
     claimsForTier,
     computeOrphanLabels,
-
+    summariseAccountGaps,
     shouldRecordResetRequest,
     buildResetRequestNotice,
     shouldNotifyAdmin,
@@ -1944,5 +1944,174 @@ describe('a physically blank weekday never becomes a rest day', () => {
             assert.equal(isPhysicallyBlank(v), false,
                 `${v} is printed text — treating it as empty would send real data to review`);
         }
+    });
+});
+
+
+// ── summariseAccountGaps ──────────────────────────────────────────────────────
+
+/**
+ * Organised by what each wrong answer COSTS, because the two directions are not remotely
+ * symmetrical and only one of them is silent.
+ *
+ * MISSING A REAL GAP is the shipped failure this function was written for: a new starter with no
+ * account, a new manager with no claim, a leaver still able to sign in. Nothing errors, every other
+ * screen shows them as fine, and it is found when somebody complains — weeks later, in the leaver's
+ * case possibly never.
+ *
+ * INVENTING ONE is the failure a hasty fix produces, and it is the one that kills the feature. The
+ * strip this feeds disappears when clean, so its presence IS the signal; an item that is wrong, or
+ * that is always there, costs the admin nothing to start ignoring — and then the real one, when it
+ * comes, is ignored with it.
+ */
+describe('summariseAccountGaps', () => {
+    const CFG = {
+        processMembers: ['G. Miller', 'S. Silva', 'B. Toth'],
+        adminSet:    new Set(['G. Miller']),
+        managerSet:  new Set(['S. Silva']),
+        designerSet: new Set(['G. Miller']),
+    };
+    /** An account in exactly the state Set up accounts would leave it in. */
+    const provisioned = (name, over = {}) => ({
+        email: nameToEmail(name),
+        displayName: name,
+        disabled: false,
+        customClaims: claimsForTier(name, CFG),
+        ...over,
+    });
+    const allGood = () => CFG.processMembers.map(n => provisioned(n));
+
+    describe('missing a real gap — silent, and nothing else in the app can see it', () => {
+        test('a member with no account at all', () => {
+            const users = allGood().filter(u => u.displayName !== 'B. Toth');
+            const gaps = summariseAccountGaps(users, CFG);
+            assert.deepEqual(gaps.setUp, [{ name: 'B. Toth', why: 'no-account' }]);
+        });
+
+        test('a member whose account exists but is DISABLED', () => {
+            // The returning-secondment case: still on the roster, cannot sign in, and the Account
+            // status table renders their row exactly like everybody else's.
+            const users = allGood().map(u => u.displayName === 'B. Toth' ? { ...u, disabled: true } : u);
+            assert.deepEqual(summariseAccountGaps(users, CFG).setUp,
+                [{ name: 'B. Toth', why: 'disabled' }]);
+        });
+
+        test('a manager whose claim was never applied', () => {
+            // Signs in, sees every page, and every write on somebody else's behalf permission-denies.
+            const users = allGood().map(u =>
+                u.displayName === 'S. Silva' ? { ...u, customClaims: { name: 'S. Silva' } } : u);
+            assert.deepEqual(summariseAccountGaps(users, CFG).setUp,
+                [{ name: 'S. Silva', why: 'claims' }]);
+        });
+
+        test('a member DEMOTED in roster-data but still carrying the old claim', () => {
+            const users = allGood().map(u =>
+                u.displayName === 'B. Toth' ? { ...u, customClaims: { name: 'B. Toth', manager: true } } : u);
+            assert.deepEqual(summariseAccountGaps(users, CFG).setUp,
+                [{ name: 'B. Toth', why: 'claims' }]);
+        });
+
+        test('a designer claim that was never applied', () => {
+            // linksDesigner is additive and orthogonal, so it is the one an admin/manager comparison
+            // that only looked at the TIER would miss.
+            const users = allGood().map(u =>
+                u.displayName === 'G. Miller' ? { ...u, customClaims: { name: 'G. Miller', admin: true } } : u);
+            assert.deepEqual(summariseAccountGaps(users, CFG).setUp,
+                [{ name: 'G. Miller', why: 'claims' }]);
+        });
+
+        test('a leaver whose account is still enabled', () => {
+            const users = [...allGood(), {
+                email: 'b.khalil@myb-roster.local', displayName: 'B. Khalil', disabled: false,
+                customClaims: { name: 'B. Khalil' },
+            }];
+            const gaps = summariseAccountGaps(users, CFG);
+            assert.deepEqual(gaps.setUp, []);
+            assert.deepEqual(gaps.leavers, ['B. Khalil']);
+        });
+
+        test('several gaps of different kinds are all reported', () => {
+            const users = [provisioned('G. Miller'), { ...provisioned('S. Silva'), disabled: true }];
+            const gaps = summariseAccountGaps(users, CFG);
+            assert.deepEqual(gaps.setUp, [
+                { name: 'S. Silva', why: 'disabled' },
+                { name: 'B. Toth',  why: 'no-account' },
+            ]);
+        });
+    });
+
+    describe('inventing a gap — loud, and it is how an exceptions index stops being read', () => {
+        test('a fully provisioned roster reports nothing at all', () => {
+            assert.deepEqual(summariseAccountGaps(allGood(), CFG), { setUp: [], leavers: [] });
+        });
+
+        test('an already-disabled leaver is NOT a gap — that is the finished state', () => {
+            const users = [...allGood(), {
+                email: 'x.gone@myb-roster.local', displayName: 'X. Gone', disabled: true,
+                customClaims: {},
+            }];
+            assert.deepEqual(summariseAccountGaps(users, CFG).leavers, []);
+        });
+
+        test('a claim this app does not manage is ignored', () => {
+            // An exact object comparison would report every account the day anything else — a
+            // future feature, a console experiment — sets a claim of its own.
+            const users = allGood().map(u => ({
+                ...u, customClaims: { ...u.customClaims, somethingElse: true },
+            }));
+            assert.deepEqual(summariseAccountGaps(users, CFG).setUp, []);
+        });
+
+        test('an account outside the app’s own email domain is neither a member nor a leaver', () => {
+            const users = [...allGood(), {
+                email: 'someone@gmail.com', displayName: 'Someone', disabled: false, customClaims: {},
+            }];
+            assert.deepEqual(summariseAccountGaps(users, CFG), { setUp: [], leavers: [] });
+        });
+
+        test('email case does not manufacture a missing account', () => {
+            const users = allGood().map(u => ({ ...u, email: u.email.toUpperCase() }));
+            // Asserting only that `setUp` is empty passes for the WRONG REASON: drop the
+            // `toLowerCase()` and the domain filter rejects every row, so the function refuses and
+            // returns an empty setUp having looked at nothing. Measured — that mutation survived the
+            // first cut of this test. The whole object, and the absence of `refused`, is the assertion.
+            assert.deepEqual(summariseAccountGaps(users, CFG), { setUp: [], leavers: [] });
+        });
+
+        test('an EMPTY account list refuses rather than reporting the whole roster', () => {
+            // The one that matters most. A transient listUsers failure that yields an empty page
+            // would otherwise say "3 members not fully set up" — right at the moment the data is
+            // least trustworthy, and at maximum volume.
+            const gaps = summariseAccountGaps([], CFG);
+            assert.equal(gaps.refused, 'no-accounts-visible');
+            assert.deepEqual(gaps.setUp, []);
+            assert.deepEqual(gaps.leavers, []);
+        });
+
+        test('and so does a list holding no roster accounts at all', () => {
+            const gaps = summariseAccountGaps(
+                [{ email: 'someone@gmail.com', disabled: false }], CFG);
+            assert.equal(gaps.refused, 'no-accounts-visible');
+            assert.deepEqual(gaps.setUp, []);
+        });
+
+        test('a non-array users argument refuses, it does not throw', () => {
+            assert.equal(summariseAccountGaps(undefined, CFG).refused, 'no-accounts-visible');
+        });
+    });
+
+    describe('the two groups mean different buttons', () => {
+        test('setUp and leavers are reported separately, never merged into one count', () => {
+            // Grouping is BY REMEDY: everything in setUp is fixed by pressing Set up accounts;
+            // leavers needs the separate, confirmed disable sweep. A single total would tell the
+            // admin how many problems there are and not which button to press.
+            const users = [provisioned('G. Miller'), provisioned('S. Silva'), {
+                email: 'b.khalil@myb-roster.local', displayName: 'B. Khalil', disabled: false,
+                customClaims: {},
+            }];
+            const gaps = summariseAccountGaps(users, CFG);
+            assert.deepEqual(gaps.setUp, [{ name: 'B. Toth', why: 'no-account' }]);
+            assert.deepEqual(gaps.leavers, ['B. Khalil']);
+        });
     });
 });

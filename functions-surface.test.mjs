@@ -21,7 +21,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 
-// The eighteen deployed functions. Order-insensitive; names are what `firebase deploy` sees.
+// The nineteen deployed functions. Order-insensitive; names are what `firebase deploy` sees.
 const DEPLOY_SURFACE = [
     'ingestHuddle',
     'onHuddleCreated',
@@ -33,6 +33,7 @@ const DEPLOY_SURFACE = [
     'resetMemberPassword',
     'requestPasswordReset',
     'getSignInStats',
+    'getAccountSetupGaps',
     'unlockCalendarViewer',
     // Overtime Availability (v20.56). Two of these fail SILENTLY if they are ever lost in a
     // refactor, which is why they are called out rather than just listed:

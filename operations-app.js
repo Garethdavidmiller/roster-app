@@ -176,8 +176,6 @@ export function init() {
         loadOverrides,
     });
 
-    initAuthSetup({ currentIsAdmin: true });
-
     // Brand-styled date pickers over the four upload date fields. AFTER the card inits above,
     // which set each field's default value (today / next Saturday) that the trigger label reads.
     initDatePickers(['huddleDate', 'circularDate', 'newsletterDate', 'rosterWeekEnding']);
@@ -211,6 +209,7 @@ export function init() {
     const DEEP_LINK_CARDS = {
         '#reset-requests': ['resetRequestsBody', 'resetRequestsChevron', 'resetRequestsCard'],
         '#error-log':      ['errorLogBody',      'errorLogChevron',      'errorLogCard'],
+        '#login-accounts': ['authSetupBody',     'authSetupChevron',     'authSetupCard'],
     };
     /** @param {string} [hash] defaults to location.hash — the strip passes its own so a repeat
      *  tap (same hash, no hashchange) still opens and scrolls. */
@@ -235,6 +234,19 @@ export function init() {
     const attention = createAttentionStrip({
         container: document.getElementById('attentionStrip'),
         onJump: (hash) => openDeepLinkedCard(hash),
+    });
+
+    // Staff Login Accounts. AFTER the strip exists, deliberately — `onAttention` fires from an async
+    // read so a `const` declared below would happen to work, and "happens to work by timing" is not
+    // a thing to leave in a file this long. The audit feeds the strip only when it ANSWERED:
+    // admin-auth.js reports nothing on a failed or refused check, because an unreported item is
+    // UNKNOWN to the strip while an absent one reads as nothing to do.
+    initAuthSetup({
+        currentIsAdmin: true,
+        onAttention: ({ setUp, leavers }) => {
+            attention.report('accountSetup', setUp);
+            attention.report('accountLeavers', leavers);
+        },
     });
 
     /**

@@ -47,8 +47,13 @@ test('the two voices state one fact: the badge is the count the sentence speaks'
 });
 
 test('items keep catalogue order regardless of report order', () => {
-    const items = buildAttentionItems({ errors: { count: 1 }, resets: { count: 1 } });
-    assert.deepEqual(items.map(i => i.id), Object.keys(ATTENTION_CATALOGUE));
+    // Both ends are DERIVED from the catalogue. The first cut named two ids by hand and compared
+    // against every key, which was the same assertion only while the catalogue happened to hold
+    // exactly those two — it failed the moment a third arrived, having never tested ordering
+    // against anything but a snapshot of the file it was reading.
+    const ids = Object.keys(ATTENTION_CATALOGUE);
+    const reports = Object.fromEntries([...ids].reverse().map(id => [id, { count: 1 }]));
+    assert.deepEqual(buildAttentionItems(reports).map(i => i.id), ids);
 });
 
 test('every catalogue entry carries what a row needs — a half-declared id cannot half-render', () => {

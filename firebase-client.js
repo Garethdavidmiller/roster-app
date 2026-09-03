@@ -712,6 +712,36 @@ export async function getSignInStats() {
     return r.json();
 }
 
+/** Admin-only Cloud Function returning who is not properly provisioned (v22.53). */
+const ACCOUNT_GAPS_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/getAccountSetupGaps';
+
+/**
+ * Which roster members are not properly set up, and which leavers still can sign in (admin only —
+ * enforced server-side). A pure read: nothing is created, disabled or re-claimed by asking.
+ *
+ * Unlike `getSignInStats` this one returns NAMES, deliberately — a count of provisioning gaps the
+ * admin cannot act on is worse than no count at all. Both groups are named after the button that
+ * fixes them rather than after what went wrong: everything in `setUp` is fixed by Set up accounts,
+ * `leavers` needs the separate confirmed disable sweep.
+ *
+ * `refused` present means the server could not see the roster's accounts at all and declined to
+ * answer — **which is not the same as "no gaps"** and must never be rendered as one.
+ *
+ * @returns {Promise<{ refused?: string, setUp: {name: string, why: 'no-account'|'disabled'|'claims'}[], leavers: string[] }>}
+ */
+export async function getAccountSetupGaps() {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Not signed in');
+    const { token } = await user.getIdTokenResult(/* forceRefresh */ true);
+    // A READ, so a timeout may say plainly that it failed. 65s clears the 60s server ceiling.
+    const r = await fetchWithTimeout(ACCOUNT_GAPS_URL, {
+        method:  'GET',
+        headers: { 'Authorization': `Bearer ${token}` },
+    }, 65_000);
+    if (!r.ok) { const e = await r.text(); throw new Error(`Server responded ${r.status}: ${e}`); }
+    return r.json();
+}
+
 /** The public `requestPasswordReset` endpoint (PASSWORD_PLAN.md — the request queue). */
 const REQUEST_RESET_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/requestPasswordReset';
 
