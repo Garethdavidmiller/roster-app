@@ -450,6 +450,39 @@ Calendar's knowledge-state decision (`CALENDAR_DATA.md` — never present the ba
 it were current), which is the invariant class behind previously shipped bugs. It must wait on the
 same display gate as the grid or show its own skeleton — the feature is not even cheap.
 
+### Pay Calculator — "More pay tools" grouping on phones — DECLINED
+**Status:** Declined (owner decision, 3 Sep 2026) · **Trigger to revisit:** a staff report about the
+tail of the Pay Calculator page, or card-open counts showing the HPP and back-pay cards are never
+opened — and card opens are not counted today, so that instrumentation comes first · **No work
+before the trigger**
+
+Proposed by an external review and taken through four drafts and a measured prototype (Sep 2026):
+below 1024px, hide the Holiday Pay Premium, Pay Rise Back Pay, Decimal Hours Converter and Move Your
+Pay Data cards behind one quiet "More pay tools" line in the `.guide-footer-link` idiom, the cards
+staying in the DOM with their own collapse state. Measured at 390×844 for a returning member: the
+page goes from 3,484px to 3,189px (−8.5%) and desktop is byte-identical. The same measurement is
+why it was declined: the four cards are **8.6%** of the page and the Hours card is **49.5%**, and the
+saving sits below the take-home figure — past the answer the member came for.
+
+**Declined because it hides two money features from the members who most need to find them.** The
+HPP and back-pay card subtitles — *"Paid once a year on a January payslip — look for the green note
+on that payslip"* — are the app teaching an entitlement, and they are the ONLY route for a member
+with no hours entered yet: the result banners that would promote HPP and back pay are gated on a
+stored estimate, which needs prior-year hours, so that member gets no banner today and would get no
+card tomorrow. That is the `paycalc-year-card.js` lesson — a control vanishing from the people who
+need it, when they need it — repeated. It would also be unmeasurable, because card opens are not
+counted. No staff request exists.
+
+Two findings from the work stay true, recorded so a revisit does not pay for them twice. **Any
+grouping must reveal before the `#payTransferCard` deep link scrolls**: with the cards hidden, the
+transfer card's entire landing correction runs against `display: none` and the member lands at the
+top of the page with nothing to explain why (the real e2e fails with a `TypeError` on a null box —
+assert visibility before position). And `paycalc-app.js` sits at its 1,900-line ratchet: the natural
+extraction is the navigation block (`_bannerViewCard` and the three link wirings, ~20 lines), to be
+taken when a real Pay Calculator change needs the room, not speculatively. If the tail is ever
+revisited, start from grouping only the two gadgets (Decimal Hours Converter, Move Your Pay Data) —
+nothing taught is lost, ~95px saved — and expect that not to be worth a module either.
+
 ### Dark mode (toggleable)
 **Status:** Idea · **Trigger:** repeated staff request, or evidence of a real low-light usability problem · **Review:** January 2027 · **No work before the trigger**
 
