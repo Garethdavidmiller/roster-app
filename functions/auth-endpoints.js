@@ -4,7 +4,8 @@
  *
  * Owns: setupRosterAuth (provision accounts + claim tiers from the server-owned roster),
  * resetMemberPassword (the admin break-glass), requestPasswordReset (the public doorbell)
- * and getSignInStats (the admin-only exact sign-in read). Everything ACCOUNT-shaped: who has
+ * getSignInStats (the admin-only exact sign-in read) and getAccountSetupGaps (the
+ * read-only provisioning audit). Everything ACCOUNT-shaped: who has
  * a login, what tier it carries, and how a locked-out member reaches the admin.
  *
  * NOT here, deliberately: unlockCalendarViewer. It is account-ADJACENT but it stays in
@@ -39,6 +40,7 @@ const {
     buildResetRequestNotice,
     shouldNotifyAdmin,
     summariseSignIns,
+    summariseAccountGaps,
 } = require('./roster-parse-helpers');
 const { setupWebPush, sendTargetedPush } = require('./push');
 const rosterMembers = require('./roster-members.json');
@@ -737,7 +739,79 @@ const getSignInStats = onRequest(
         }
     }
 );
-    return { setupRosterAuth, resetMemberPassword, requestPasswordReset, getSignInStats };
+/**
+ * getAccountSetupGaps — who on the roster is not properly provisioned, and who has left but still is.
+ *
+ * WHY A SEPARATE ENDPOINT FROM getSignInStats. That one's whole contract, stated in its own header
+ * and relied on by the Usage card's privacy note, is "four integers; no identity". This one has to
+ * return NAMES — a count of gaps the admin cannot act on is worse than none — so folding it in
+ * would quietly break the promise the other one makes. Two endpoints, two contracts, neither
+ * apologising for the other.
+ *
+ * It is a PURE READ. Nothing is written, no account is touched, no claim is applied: pressing "Set
+ * up accounts" is still the only thing that changes anything, and it is still idempotent. That
+ * separation is deliberate — a check that silently repaired what it found would make the gap
+ * invisible again, which is the state this feature exists to end.
+ *
+ * The comparison is against the SERVER-owned roster (`roster-members.json`), never a client
+ * payload, exactly as setupRosterAuth resolves it — so what this reports missing is precisely what
+ * that button would create. `summariseAccountGaps` (unit-tested) owns every judgement, including
+ * the refusal when no roster account is visible at all.
+ *
+ * Auth: a fresh admin ID token as a Bearer header, `checkRevoked`. GET, CORS-restricted like the
+ * other admin functions.
+ */
+const getAccountSetupGaps = onRequest(
+    { region: 'europe-west2', timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS },
+    async (req, res) => {
+        if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+
+        const bearer = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
+        let decodedAuth;
+        try {
+            decodedAuth = await getAuth().verifyIdToken(bearer, true);
+        } catch (_) {
+            return res.status(401).json({ error: 'Unauthorised' });
+        }
+        if (decodedAuth.admin !== true) {   // strict — fail closed on any non-true claim
+            return res.status(403).json({ error: 'Forbidden — admin claim required' });
+        }
+
+        const cfg = resolveRosterAuthConfig(rosterMembers);
+        if (cfg.error) return res.status(500).json({ error: 'Server roster config invalid' });
+
+        try {
+            // Paginate exactly as setupRosterAuth's leaver sweep does; ~50 accounts is one page.
+            const users = [];
+            let pageToken;
+            do {
+                const page = await getAuth().listUsers(1000, pageToken);
+                users.push(...page.users);
+                pageToken = page.pageToken;
+            } while (pageToken);
+
+            // Admins are INCLUDED here, unlike getSignInStats. There they are excluded because the
+            // figure is about staff usage; here a second admin whose claim was never applied is
+            // exactly the kind of gap being looked for.
+            const gaps = summariseAccountGaps(users, {
+                processMembers: cfg.processMembers,
+                adminSet:    new Set(cfg.admin),
+                managerSet:  new Set(cfg.manager),
+                designerSet: new Set(cfg.designer),
+            });
+            // Counts only in the log — the names are for the admin's screen, not the project's logs.
+            console.log('[getAccountSetupGaps]', JSON.stringify({
+                refused: gaps.refused || null, setUp: gaps.setUp.length, leavers: gaps.leavers.length,
+            }));
+            return res.json(gaps);
+        } catch (e) {
+            console.error('[getAccountSetupGaps] failed', e && e.code, e);
+            return res.status(500).json({ error: 'Could not read account setup state' });
+        }
+    }
+);
+
+    return { setupRosterAuth, resetMemberPassword, requestPasswordReset, getSignInStats, getAccountSetupGaps };
 }
 
 module.exports = { buildAuthEndpoints };

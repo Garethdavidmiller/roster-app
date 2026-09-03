@@ -13,7 +13,7 @@
  */
 
 import { escapeHtml } from './roster-data.js';
-import { auth } from './firebase-client.js';
+import { auth, getAccountSetupGaps } from './firebase-client.js';
 import { sessionReady, getFirebaseAuthError, restoreFirstAuthUser } from './session.js';
 import { fetchWithTimeout, isFetchTimeout } from './fetch-timeout.js';
 
@@ -22,15 +22,20 @@ const SETUP_AUTH_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/setup
 /**
  * Initialises the Staff Login Accounts setup card (admin only). Call once after
  * authentication resolves.
- * @param {{ currentIsAdmin: boolean }} cfg
+ * @param {{ currentIsAdmin: boolean,
+ *           onAttention?: (counts: { setUp: number, leavers: number }) => void }} cfg
+ *        `onAttention` is called ONLY when the audit actually answered — a failed or refused check
+ *        reports nothing, because the strip it feeds treats an unreported item as UNKNOWN and an
+ *        absent one as "nothing to do". Those must not be the same thing here.
  */
-export function initAuthSetup({ currentIsAdmin }) {
+export function initAuthSetup({ currentIsAdmin, onAttention }) {
     if (!currentIsAdmin) return;
 
     const card      = document.getElementById('authSetupCard');
     const btn       = document.getElementById('authSetupBtn');
     const orphansCb = document.getElementById('authSetupOrphans');
     const resultEl  = document.getElementById('authSetupResult');
+    const gapsEl    = document.getElementById('authSetupGaps');
     if (!card || !btn || !orphansCb || !resultEl) return;
 
     card.style.display = '';
@@ -40,6 +45,122 @@ export function initAuthSetup({ currentIsAdmin }) {
     // B4: the member + role lists are now SERVER-OWNED (setupRosterAuth reads them from
     // roster-members.json, generated from roster-data.js). The client no longer sends them —
     // it only asks the server to provision and, optionally, to sweep leavers (dry-run first).
+
+
+    // ── What is actually wrong right now (v22.53) ───────────────────────────────────────────────
+    //
+    // Provisioning is the one part of joining and leaving that leaves no trace when it is skipped.
+    // A member added to roster-data.js whose "Set up accounts" run never happened appears correct
+    // on every screen until they try to sign in; a new manager without their claim signs in fine
+    // and then permission-denies on every write for somebody else; a leaver whose disable step was
+    // missed simply keeps a working login. Until now the ONLY way to find any of the three was to
+    // press the button and read what it says it did — which is a check you have to already suspect
+    // you need. This block states it on load instead.
+    //
+    // It is a READ (getAccountSetupGaps changes nothing), and it is deliberately NOT a repair: an
+    // audit that quietly fixed what it found would make the gap invisible again, which is the state
+    // the whole thing exists to end. The button stays the only thing that changes anything.
+    //
+    // The three states are three DIFFERENT sentences and none of them may be collapsed into
+    // another: gaps found · none found · could not tell. The last is why `refused` exists on the
+    // response — an empty account list means the audit could not see the roster, not that the
+    // roster is clean, and rendering it as a tick would be a false all-clear on the one surface
+    // written to prevent one.
+    const WHY_TEXT = /** @type {Record<string, string>} */ ({
+        'no-account': 'no account',
+        'disabled':   'account disabled',
+        'claims':     'wrong permissions',
+    });
+
+    /** One line: a count, the names behind it, and the button that fixes them. */
+    function gapLine(/** @type {string} */ cls, /** @type {string} */ lead,
+                     /** @type {string[]} */ names, /** @type {string} */ fix) {
+        const p = document.createElement('p');
+        p.className = `auth-gap-line ${cls}`;
+        const strong = document.createElement('strong');
+        strong.textContent = String(names.length);
+        p.append(strong, ` ${lead} — ${names.join(', ')}`);
+        const fixEl = document.createElement('span');
+        fixEl.className = 'auth-gap-fix';
+        fixEl.textContent = fix;
+        p.append(fixEl);
+        return p;
+    }
+
+    async function loadGaps() {
+        if (!gapsEl) return;
+        gapsEl.setAttribute('aria-busy', 'true');
+        /** @type {any} */ let gaps;
+        try {
+            // sessionReady resolving means the app has a session; auth.currentUser can still be null
+            // for a moment while Firebase restores it from IndexedDB. Without this the very first
+            // load reports "couldn't check" on a perfectly healthy device — the same restore race
+            // the Set up accounts button already handles, and the same shared helper.
+            if (!auth.currentUser) await restoreFirstAuthUser();
+            gaps = await getAccountSetupGaps();
+        } catch (err) {
+            console.warn('[authSetup] account check failed', err);
+            gapsEl.removeAttribute('aria-busy');
+            renderUnknown('Couldn’t check the accounts — check your connection.');
+            return;                                   // report NOTHING: unknown is not "nothing to do"
+        }
+        gapsEl.removeAttribute('aria-busy');
+        if (gaps && gaps.refused) {
+            // The server could see no roster accounts at all and declined to name the whole roster
+            // as missing. Say what happened rather than inventing either answer.
+            renderUnknown('Couldn’t check the accounts — the account list didn’t load.');
+            return;
+        }
+        const setUp   = Array.isArray(gaps && gaps.setUp)   ? gaps.setUp   : [];
+        const leavers = Array.isArray(gaps && gaps.leavers) ? gaps.leavers : [];
+        gapsEl.textContent = '';
+        if (!setUp.length && !leavers.length) {
+            const ok = document.createElement('p');
+            ok.className = 'auth-gap-ok';
+            const tick = document.createElement('span');
+            tick.setAttribute('aria-hidden', 'true');
+            tick.textContent = '✓';
+            ok.append(tick, ' Everyone on the roster has a login, and no leaver still has one.');
+            gapsEl.append(ok);
+            gapsEl.classList.remove('auth-gaps--warn');
+        } else {
+            if (setUp.length) {
+                gapsEl.append(gapLine('auth-gap-line--setup',
+                    setUp.length === 1 ? 'member is not set up' : 'members are not set up',
+                    setUp.map(/** @param {any} g */ g => `${g.name} (${WHY_TEXT[g.why] || g.why})`),
+                    'Press Set up accounts below.'));
+            }
+            if (leavers.length) {
+                gapsEl.append(gapLine('auth-gap-line--leaver',
+                    leavers.length === 1 ? 'leaver can still sign in' : 'leavers can still sign in',
+                    leavers,
+                    'Tick the leavers box below, then press Set up accounts.'));
+            }
+            gapsEl.classList.add('auth-gaps--warn');
+        }
+        gapsEl.hidden = false;
+        onAttention?.({ setUp: setUp.length, leavers: leavers.length });
+    }
+
+    /** Neither "gaps" nor "clean" — and it must not be mistaken for either. */
+    function renderUnknown(/** @type {string} */ message) {
+        if (!gapsEl) return;
+        gapsEl.textContent = '';
+        gapsEl.classList.remove('auth-gaps--warn');
+        const p = document.createElement('p');
+        p.className = 'auth-gap-unknown';
+        p.textContent = message + ' ';
+        const retry = document.createElement('button');
+        retry.type = 'button';
+        retry.className = 'auth-gap-retry';
+        retry.textContent = 'Retry';
+        retry.addEventListener('click', () => { retry.disabled = true; loadGaps(); });
+        p.append(retry);
+        gapsEl.append(p);
+        gapsEl.hidden = false;
+    }
+
+    sessionReady.then(loadGaps).catch(() => {});
 
     btn.addEventListener('click', async () => {
         /** @type {HTMLButtonElement} */ (btn).disabled    = true;
@@ -135,6 +256,7 @@ export function initAuthSetup({ currentIsAdmin }) {
                             confirmBtn.textContent = 'Disabling…';
                             try {
                                 renderResult(await doSetup({ removeOrphans: true, confirmOrphanRemoval: true }));
+                                loadGaps().catch(() => {});   // the leavers line above should now clear
                             } catch (e) {
                                 // Re-enable so a transient/expired-token failure (the dry-run may be
                                 // confirmed >1h later, after the ID token expired) is retryable — don't
@@ -153,6 +275,9 @@ export function initAuthSetup({ currentIsAdmin }) {
 
             // First call: provision + (if the checkbox is set) a DRY-RUN leaver preview.
             renderResult(await doSetup({ removeOrphans: /** @type {HTMLInputElement} */ (orphansCb).checked }));
+            // Re-audit, so the block above states what is true AFTER the run rather than what was
+            // true when the page loaded. Best-effort: the run itself already reported what it did.
+            loadGaps().catch(() => {});
         } catch (err) {
             resultEl.innerHTML = `<p class="auth-result-error">❌ ${escapeHtml(/** @type {any} */ (err).message)}</p>`;
             resultEl.classList.add('visible');

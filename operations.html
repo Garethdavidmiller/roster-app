@@ -287,7 +287,7 @@
         </div>
     </div>
 
-    <!-- ==================== ERROR LOG ==================== -->
+    <!-- ==================== STAFF LOGIN ACCOUNTS ==================== -->
     <div class="card" id="authSetupCard">
         <div class="card-header card-header-toggle" id="authSetupToggleHeader">
             <div>
@@ -304,6 +304,10 @@
                 <p class="auth-desc">
                     Creates a login account for every active staff member. Safe to run any time — existing accounts are kept as they are, and only new joiners get one added. Run it when someone joins or leaves.
                 </p>
+                <!-- Filled by admin-auth.js from the read-only getAccountSetupGaps audit: who has no
+                     login, whose claim is wrong, and which leaver still has one. Above the controls
+                     because it is the reason to press them. -->
+                <div id="authSetupGaps" class="auth-gaps" hidden></div>
                 <label class="auth-orphans-label">
                     <input type="checkbox" id="authSetupOrphans">
                     Disable accounts for anyone no longer on the roster (leavers)
