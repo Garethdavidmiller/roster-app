@@ -18,9 +18,10 @@
  * ── THE THREE RULES ────────────────────────────────────────────────────────────────────────────
  *
  * 1. **The pills are generated from `PILL_TYPES`** — the ONE declaration of which pills exist and
- *    in what order — so this control and Change a Shift cannot drift apart. `other` is dropped
- *    because its `FLAVOUR[" RDW"][" HH:MM-HH:MM"]` grammar needs sub-controls only the week editor
- *    has; the control SAYS so rather than offering a pill that does nothing.
+ *    in what order — so this control and Change a Shift cannot drift apart. That includes `other`
+ *    since v22.50: its `FLAVOUR[" RDW"][" HH:MM-HH:MM"]` grammar arrives with the same sub-controls
+ *    the week editor has, generated from `OTHER_FLAVOURS` and composed by `composeOtherValue`, so
+ *    nothing about the grammar is authored twice. Spare is the one flavour not offered here.
  * 2. **Sunday exclusions are consulted, never restated.** `isForbiddenOnSunday` is the list; it has
  *    six numbered enforcement layers already and a seventh copy is how one of them goes stale.
  * 3. **An entry passes the guards a parsed value passes.** `commitEntry` composes through
@@ -54,8 +55,14 @@ const HINT_DONE = '\u2713 this day will be saved';
 const HINT_TODO = 'Enter both times in 24-hour form, e.g. 06:20';
 /** Other days take their hours from the day underneath unless a time is given, so both boxes may
  *  stay blank — the hint has to say so, or an admin fills them in to make the tick appear. */
-const HINT_FLAVOUR = 'Choose the type of day above.';
+const HINT_FLAVOUR = 'Choose the kind of Other day above.';
 const HINT_OTHER = 'Times are optional — leave both blank to use the usual hours for that day.';
+/** The two questions, STATED (v22.51). The control carried an `aria-label` and nothing on screen,
+ *  so a sighted admin met six unlabelled buttons in a grey box — and, once Other was picked, six
+ *  more of them. Naming each question is what makes the second group read as a narrowing of the
+ *  first rather than a competing row of equals. */
+const Q_TYPE = 'What kind of day was it?';
+const Q_OTHER = 'Which kind of Other day?';
 
 /**
  * The in-place "enter it myself" control for an unreadable cell (v22.17).
@@ -67,10 +74,14 @@ const HINT_OTHER = 'Times are optional — leave both blank to use the usual hou
  * Answering the question where it is asked is the fix.
  *
  * The pills are generated from `PILL_TYPES` — the ONE declaration of which pills exist and in
- * what order — so this row and Change a Shift cannot drift apart, and `other` is dropped
- * because its grammar needs sub-controls only the week editor has (see `manualCellValue`).
- * Sunday exclusions come from `isForbiddenOnSunday`, consulted rather than restated: that list
- * has six numbered enforcement layers and a seventh copy is how one of them goes stale.
+ * what order — so this row and Change a Shift cannot drift apart. Sunday exclusions come from
+ * `isForbiddenOnSunday`, consulted rather than restated: that list has six numbered enforcement
+ * layers and a seventh copy is how one of them goes stale — which is why the note naming what a
+ * Sunday DOES allow is derived from that same call rather than written out.
+ *
+ * Both groups state their question on screen (v22.51). They had an `aria-label` and nothing else,
+ * so a sighted admin met six unlabelled buttons in a grey box, then six more; and the two reasons a
+ * control is locked — a Sunday, a rest day — lived in `title` attributes, which a phone never shows.
  *
  * ── WHY THE TIMES ARE TEXT AND NOT `<input type="time">` ───────────────────────────────────
  *
@@ -97,6 +108,13 @@ export function entryControlHtml(key, s, date) {
             data-key="${esc(key)}" data-entry-type="${t}" aria-pressed="${d.type === t}"
             ${off ? 'disabled title="Not allowed on a Sunday — Sunday work is RDW"' : ''}>${esc(TYPES[t].pill)}</button>`;
     }).join('');
+    // The Sunday exclusions are DERIVED for the note as well as for the pills (rule 2). A `title`
+    // is not a mobile affordance and every admin here is on a phone, so the reason four of the six
+    // pills are dead has to be on screen — but naming them in prose would be the seventh copy of a
+    // list with six enforcement layers, so it names what is LEFT, read from `isForbiddenOnSunday`.
+    const sunNote = !sun ? '' : `<p class="roster-entry-sunday">Only ${
+        esc(PILL_TYPES.filter(t => !isForbiddenOnSunday(t)).map(t => TYPES[t].pill).join(' and '))
+    } can be recorded on a Sunday — Sunday work is always RDW.</p>`;
     const isOther   = d.type === 'other';
     const needsTime = d.type === 'shift' || d.type === 'rdw' || isOther;
     const baseIsRd  = isRestShift(s.baseShift);
@@ -106,16 +124,20 @@ export function entryControlHtml(key, s, date) {
     // the grammar that the week editor's save path already calls: this control authors nothing of
     // its own, so the two surfaces cannot disagree about what a Training day is.
     const otherOpts = !isOther ? '' : `<div class="roster-entry-other">
+            <p class="roster-entry-q roster-entry-q--sub">${Q_OTHER}</p>
             <div class="roster-entry-flavours" role="group" aria-label="Type of day">
                 ${Object.entries(OTHER_FLAVOURS).map(([k, f]) =>
                     `<button type="button" class="roster-entry-flavour${d.flavour === k ? ' is-on' : ''}"
                         data-key="${esc(key)}" data-entry-flavour="${k}" aria-pressed="${d.flavour === k}">${esc(f.full)}</button>`).join('')}
             </div>
             <label class="roster-entry-rdw"><input type="checkbox" class="roster-entry-rdw-cb" data-key="${esc(key)}"
-                ${(d.rdw || baseIsRd) ? 'checked' : ''}${baseIsRd ? ' disabled title="Rest day — RDW is automatic"' : ''}> Rest day worked</label>
+                ${(d.rdw || baseIsRd) ? 'checked' : ''}${baseIsRd ? ' disabled title="Rest day — RDW is automatic"' : ''}> Rest day worked${
+                baseIsRd ? '<span class="roster-entry-lock">(automatic on a rest day)</span>' : ''}</label>
         </div>`;
     return `<div class="roster-entry" data-key="${esc(key)}">
+        <p class="roster-entry-q">${Q_TYPE}</p>
         <div class="roster-entry-pills" role="group" aria-label="Choose the shift type">${pills}</div>
+        ${sunNote}
         ${otherOpts}
         ${needsTime ? `<div class="roster-entry-times">
             <input type="text" class="roster-entry-time" data-key="${esc(key)}" data-part="from"
@@ -125,8 +147,8 @@ export function entryControlHtml(key, s, date) {
             <input type="text" class="roster-entry-time" data-key="${esc(key)}" data-part="to"
                    value="${esc(d.to)}" inputmode="numeric" maxlength="5" placeholder="HH:MM"
                    autocomplete="off" aria-label="End time (24-hour, HH:MM)">
-        </div>
-        <p class="roster-entry-hint">${entryHint(d, s)}</p>` : ''}
+        </div>` : ''}
+        ${d.type ? `<p class="roster-entry-hint">${entryHint(d, s)}</p>` : ''}
     </div>`;
 }
 
