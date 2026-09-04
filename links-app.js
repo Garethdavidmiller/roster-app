@@ -17,6 +17,7 @@ import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSess
 import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse, createLightbox, confirmDialog, promptDialog, openNoticeIfClear } from './overlay.js';
+import { MAX_DESIGN_NAME, checkName, proposeCopyName } from './links-design-naming.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { CARD_TIPS } from './links-tips.js';
@@ -618,11 +619,6 @@ export function init() {
         }
     }
 
-    // The Firestore rule (v17.02) rejects a design `name` longer than 100 chars, and these flows
-    // used prompt() with no cap — an over-long name threw straight into `catch { console.error }`
-    // with NO user feedback, so the create/rename appeared to silently do nothing (whole-codebase
-    // review, links finding #4). Cap client-side, and surface any write failure on the save-status line.
-    const MAX_DESIGN_NAME = 100;
 
     /** Surface a design create/rename/duplicate outcome (or a client-side validation error) on the
      *  shared save-status line, so a rules rejection is never silent. @param {string} msg @param {'ok'|'err'} [kind] */
@@ -631,12 +627,12 @@ export function init() {
         if (status) { status.textContent = msg; status.className = 'links-save-status ' + kind; }
     }
 
-    /** Validate a user-entered design name against the Firestore rule's 1–100 char bound.
-     *  Returns true (and shows an error) when the name is too long. @param {string} name */
-    function _designNameTooLong(name) {
-        if (name.length <= MAX_DESIGN_NAME) return false;
-        _designActionStatus(`That name is too long (max ${MAX_DESIGN_NAME} characters). Please shorten it.`);
-        return true;
+    /** Decide a typed design name — length AND the ambiguous-duplicate rule (links-design-naming.js).
+     *  Returns true (and shows why) when the name may not be used. @param {string} name @param {string|null} [exceptId] */
+    function _designNameRejected(name, exceptId = null) {
+        const v = checkName(name, { existing: designs, exceptId, noun: 'design' });
+        if (!v.ok) _designActionStatus(v.message || 'That name cannot be used.');
+        return !v.ok;
     }
 
     /** Create a new blank design. */
@@ -645,9 +641,9 @@ export function init() {
         // a name and were only then asked whether to abandon your changes — the decision that might
         // cancel the whole action came last.
         if (dirty && !await confirmDialog({ message: 'You have unsaved changes in the current design. Create a new one anyway?', confirmLabel: 'Create new' })) return;
-        const name = (await promptDialog({ title: 'New design', message: 'Name for this design (e.g. "Option A"):', placeholder: 'Option A', maxLength: 100, confirmLabel: 'Create' }))?.trim();
+        const name = (await promptDialog({ title: 'New design', message: 'Name for this design (e.g. "Option A"):', placeholder: 'Option A', maxLength: MAX_DESIGN_NAME, confirmLabel: 'Create' }))?.trim();
         if (!name) return;
-        if (_designNameTooLong(name)) return;
+        if (_designNameRejected(name)) return;
         try {
             // A blank design starts on the app default window — docPayload normalises it. The
             // store arms the baseline from the server, so the FIRST content-save is guarded;
@@ -756,7 +752,8 @@ export function init() {
         if (!_importParsed) return;
         const name = (_importEl('linksImportName')?.value ?? '').trim();
         if (!name) { _importStatus('Give the design a name first.', 'bad'); return; }
-        if (_designNameTooLong(name)) { _importStatus(`That name is too long (max ${MAX_DESIGN_NAME} characters).`, 'bad'); return; }
+        const nameCheck = checkName(name, { existing: designs, noun: 'design' });
+        if (!nameCheck.ok) { _importStatus(nameCheck.message || 'That name cannot be used.', 'bad'); return; }
         const btn = _importEl('linksImportSave');
         if (btn) btn.disabled = true;
         _importStatus('Saving…', null);
@@ -797,9 +794,9 @@ export function init() {
                    + '" will go back to its last save. Duplicate anyway?',
             confirmLabel: 'Duplicate',
         })) return;
-        const name = (await promptDialog({ title: 'Duplicate design', message: 'Name for the duplicate:', defaultValue: `${design.name || 'Design'} copy`, maxLength: 100, confirmLabel: 'Duplicate' }))?.trim();
+        const name = (await promptDialog({ title: 'Duplicate design', message: 'Name for the duplicate:', defaultValue: proposeCopyName(design.name || 'Design', designs), maxLength: MAX_DESIGN_NAME, confirmLabel: 'Duplicate' }))?.trim();
         if (!name) return;
-        if (_designNameTooLong(name)) return;
+        if (_designNameRejected(name)) return;
         const patterns = deepCopyPatterns(design.patterns);
         // A duplicate inherits the window it was designed to. Copying the patterns alone would
         // silently re-base the copy on the standard hours, which is the one thing a designer
@@ -833,9 +830,9 @@ export function init() {
     async function renameDesign(id) {
         const d = designs.find(x => x.id === id);
         if (!d) return;
-        const name = (await promptDialog({ title: 'Rename design', message: 'New name:', defaultValue: d.name, maxLength: 100, confirmLabel: 'Rename' }))?.trim();
+        const name = (await promptDialog({ title: 'Rename design', message: 'New name:', defaultValue: d.name, maxLength: MAX_DESIGN_NAME, confirmLabel: 'Rename' }))?.trim();
         if (!name || name === d.name) return;
-        if (_designNameTooLong(name)) return;
+        if (_designNameRejected(name, d.id)) return;
         try {
             // Bump updatedAt/updatedBy too (was name-only): otherwise a rename was invisible to the
             // concurrency guard — a co-editor's loadedUpdatedAt stayed unchanged, so their next save
@@ -2171,7 +2168,7 @@ export function init() {
                 // AWAIT THE SESSION FIRST (v21.07). `initGenerator` runs synchronously during page
                 // init, well before Firebase auth has restored, so this read used to fire
                 // unauthenticated: the rules refused it, the catch below swallowed the refusal, and
-                // the picker sat on "No saved sets yet" until the designer reloaded — with their
+                // the picker sat on "No staffing setups saved yet" until the designer reloaded — with their
                 // sets apparently gone. `loadDesigns` has awaited `sessionReady` for exactly this
                 // reason; this read is under the same rule and needs the same wait.
                 await sessionReady;
@@ -2286,12 +2283,14 @@ export function init() {
         document.getElementById('genSetSaveAsBtn')?.addEventListener('click', async () => {
             if (!currentUser) return;
             const name = await promptDialog({
-                title: 'Save as a new set',
-                message: 'Name this set of shift times — e.g. Set A. It will be visible to every designer; only you can overwrite it.',
-                placeholder: 'Set name',
+                title: 'Save as a new staffing setup',
+                message: 'Name these staffing numbers — e.g. Winter cover. Every designer can see it; only you can overwrite it.',
+                placeholder: 'Setup name',
                 maxLength: MAX_SET_NAME,
             });
-            if (!name || !name.trim()) return;
+            if (!name?.trim()) return;
+            const setCheck = checkName(name, { existing: targetSets, noun: 'staffing setup' });
+            if (!setCheck.ok) { if (_setHint) _setHint.textContent = setCheck.message || ''; return; }
             try {
                 // Select the set that was just created (v21.07). The picker is sorted by name, so
                 // without this the new set is saved and the selection lands on whatever sorts first
@@ -2304,7 +2303,7 @@ export function init() {
                 genOriginTable = _copyTable();
                 await loadTargetSets(ref?.id ?? '');
             } catch {
-                if (_setHint) _setHint.textContent = 'Couldn\'t save the new set — check you\'re signed in and try again.';
+                if (_setHint) _setHint.textContent = 'Couldn\'t save the new staffing setup — check you\'re signed in and try again.';
             }
         });
 

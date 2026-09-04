@@ -927,7 +927,7 @@ test('links: a saved-set list that failed to load never says the account is empt
     // THE RULE IS UNIT-TESTED; THIS IS THE WIRING (v22.57, external review). `describeSetList` is
     // pinned in links-target-sets.test.mjs, and a perfect rule still renders nothing if the
     // coordinator never asks it. The defect was `catch { targetSets = []; }`, so a dropped
-    // connection rendered "No saved sets yet" — and because these sets are SHARED, that tells a
+    // connection rendered the empty-account line — and because these are SHARED, that tells a
     // designer their colleagues' work is gone. It had shipped twice: v21.07 removed one cause and
     // left the failure mode, and v22.56 found the second cause producing the identical sentence.
     await page.setViewportSize({ width: 1024, height: 900 });
@@ -946,7 +946,7 @@ test('links: a saved-set list that failed to load never says the account is empt
 
     const picker = page.locator('#genSetSelect');
     await expect(picker).toBeVisible();
-    await expect(picker).not.toContainText('No saved sets yet');
+    await expect(picker).not.toContainText('No staffing setups saved yet');
     await expect(page.locator('#genSetHint')).toContainText('not been deleted');
     await expect(page.locator('#genSetRetryBtn')).toBeVisible();
 
@@ -2980,7 +2980,7 @@ test('links sets: the row says whether the table still matches the set', async (
     // which is why it is asserted after an edit rather than only after a load.
     await openLinksWithTargetSets(page);
     await page.locator('#genSetSelect').selectOption('ts-robson');
-    await expect(page.locator('#genSetHint')).toContainText('Press Load');
+    await expect(page.locator('#genSetHint')).toContainText('Press Use setup');
 
     await page.locator('#genSetLoadBtn').click();
     await expect(page.locator('#genSetHint')).toContainText('still matches it');

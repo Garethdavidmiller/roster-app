@@ -55,7 +55,7 @@ export const CARD_TIPS = {
                 // Added with the feature (v20.97). Without it the button is discoverable
                 // only by pressing it, and the two-step it opens then reads as a hurdle
                 // rather than as the check it is.
-                { icon: '⤓', html: '<strong>Import</strong> takes a design somebody has written down elsewhere — paste it from a spreadsheet, or type times, <strong>RD</strong> and <strong>SP</strong> a row per line. Press <strong>Check it</strong> first: it tells you what would be saved, and anything it had to assume, before there is a Save button at all.' },
+                { icon: '⤓', html: '<strong>Import</strong> takes a design somebody has written down elsewhere — paste it from a spreadsheet, or type times, <strong>RD</strong> and <strong>SP</strong> a row per line. Press <strong>Preview import</strong> first: it tells you what would be saved, and anything it had to assume, before there is a Save button at all.' },
                 // Added with the gate (v20.98). Without it the refusal reads as the tool
                 // being broken rather than as the arithmetic saying no.
                 { icon: '⏱️', html: '<strong>Generate refuses a design that would underpay.</strong> The rotation has to average the contracted week with Sundays left out, and a <strong>spare week counts as a full week</strong>. Individual weeks vary — the average is what counts.' },

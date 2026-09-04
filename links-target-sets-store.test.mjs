@@ -76,7 +76,7 @@ describe('reading the list: a failure is not an empty collection', () => {
         const res = await createTargetSetStore(f.deps).list();
         assert.equal(res.status, 'error',
             'a failed read reports ready. That is the v21.07/v22.56 defect: the picker then says '
-            + '"No saved sets yet", and because these sets are SHARED the designer concludes a '
+            + 'the empty-account line, and because these are SHARED the designer concludes a '
             + 'colleague deleted them.');
         assert.deepEqual(res.sets, []);
     });
