@@ -64,6 +64,8 @@ import { initTransferCard } from './paycalc-transfer-card.js';
 import { buildSummaryRows, buildBreakdownRows, buildActualCheck, buildActualComparison, buildProvChips } from './paycalc-breakdown.js';
 
 import { setStatus } from './status-text.js';
+import { renderResultHeadline } from './paycalc-result-headline.js';
+import { backPayBannerCopy, hppBannerCopy, paintBanner } from './paycalc-money-banner.js';
 import { initPaycalcStickyTotal } from './paycalc-sticky-total.js';
 /**
  * Phase 4a.2 (ARCHITECTURE_PLAN.md): the coordinator body is an exported init()
@@ -1060,116 +1062,42 @@ export function init() {
         _lastBdBodyHtml = bd;
       }
 
-      // ── G. Miller actual payslip override (device-local, v14.69) ────────────────
-      // If G. Miller is logged in and this period has DEVICE-LOCAL payslip data
-      // (readPayslipActuals — imported once per device, never served), show the
-      // actual figures; the breakdown below still shows the estimate for comparison.
-      const _actualKey  = _curP ? formatISO(_curP.payday) : null;
-      const _actual     = _actualKey && isActualsDev(getLoggedMember())
+      // ── THE HEADLINE FIGURE AND WHAT IT IS CALLED ──────────────────────────────
+      // Moved to paycalc-result-headline.js at v22.56. Two parallel branches — a confirmed payslip
+      // figure or this estimate — were writing the same six DOM targets from here, which is the one
+      // shape whose failure is silent: a target written on one path and not the other keeps the
+      // previous render's value, so one branch's number appears under the other branch's label.
+      // `actual` stays resolved HERE, because the gate is about identity and that belongs with the
+      // session, not with the words.
+      const _actualKey = _curP ? formatISO(_curP.payday) : null;
+      const _actual    = _actualKey && isActualsDev(getLoggedMember())
         ? readPayslipActuals()[_actualKey] : null;
-      const _netLabel   = document.getElementById('netLabel');
+      renderResultHeadline({
+        actual: _actual, net, payday: _curP ? _curP.payday : null,
+        bpThisPeriod: _bpThisPeriod, hppForPeriod: _hppForPeriod,
+        bpIsEstimate: _bpIsEstimate, hppIsEstimate: _hppIsEstimate,
+      });
 
-      if (_actual) {
-        if (_netLabel) setStatus(_netLabel, '✅ Your Actual Take-Home Pay');
-        /** @type {HTMLElement} */ (document.getElementById('netDisplay')).textContent = fmt(_actual.net);
-        /** @type {HTMLElement} */ (document.getElementById('summary')).innerHTML = `
-          <div class="sum-row sum-gross"><span class="lbl">Total pay</span><span class="val">${fmt(_actual.gross)}</span></div>
-          <div class="sum-row sum-ded"><span class="lbl">Income Tax</span><span class="val">−${fmt(_actual.tax)}</span></div>
-          <div class="sum-row sum-ded"><span class="lbl">National Insurance</span><span class="val">−${fmt(_actual.ni)}</span></div>
-          ${_actual.sl > 0 ? `<div class="sum-row sum-ded"><span class="lbl">Student Loan</span><span class="val">−${fmt(_actual.sl)}</span></div>` : ''}
-          <div class="sum-row sum-net"><span class="lbl">Actual take-home</span><span class="val">${fmt(_actual.net)}</span></div>
-          <div class="sum-row" style="border-top:1px solid var(--border-light);margin-top:6px;padding-top:6px;font-size:var(--type-small);color:var(--text-faint)">
-            <span class="lbl">Calculator estimate</span><span class="val">${fmt(net)}</span>
-          </div>
-        `;
-        /** @type {HTMLElement} */ (document.getElementById('bdBtn')).innerHTML =
-          `Compare with estimate &nbsp;<span class="bd-arrow">▼</span>`;
-        const _stickyAmt = document.getElementById('stickyAmount');
-        if (_stickyAmt) _stickyAmt.textContent = fmt(_actual.net);
-        // Keep the sticky label honest — this figure is the confirmed actual, not an estimate — and
-        // lead with the payslip identity (v18.14) so a scrolled-away figure names WHICH payslip.
-        const _stickyLbl = document.getElementById('stickyLabel');
-        // Two-weight label (v18.15): the payday is the load-bearing part, so it renders full-white
-        // semibold (.s-pay) while the boilerplate descriptor stays muted (.s-desc) — one flat
-        // 0.75-opacity string read as noise. Static app-built markup, no user content.
-        if (_stickyLbl) _stickyLbl.innerHTML = _curP
-            ? `✅ <span class="s-pay">Paid ${fdShort(_curP.payday)}</span><span class="s-desc"> · Actual take-home</span>`
-            : `<span class="s-desc">✅ Actual take-home</span>`;
-        const _stickyBar = document.getElementById('stickyTotal');
-        if (_stickyBar) _stickyBar.setAttribute('aria-label',
-            `Actual take-home${_curP ? ` for the ${fdShort(_curP.payday)} payslip` : ''} — tap to view the full breakdown`);
-      } else {
-        const _suffix = _bpThisPeriod > 0 && _hppForPeriod > 0 ? `inc. ${_bpIsEstimate ? 'est. ' : ''}back pay & HPP`
-            : _bpThisPeriod > 0  ? `inc. ${_bpIsEstimate ? 'est. ' : ''}back pay`
-            : _hppForPeriod > 0  ? `inc. HPP${_hppIsEstimate ? ' estimate' : ''}`
-            : null;
-        if (_netLabel) _netLabel.textContent = _suffix
-            ? `💷 Estimated Take-Home Pay (${_suffix})`
-            : '💷 Estimated Take-Home Pay';
-        const _stickyAmt = document.getElementById('stickyAmount');
-        if (_stickyAmt) _stickyAmt.textContent = fmt(net);
-        // Lead the sticky label with the payslip identity (v18.14) so a scrolled-away £ is never
-        // ambiguous about WHICH payslip — the back-pay lump lands on only one, so this matters. The
-        // full "(inc. back pay & HPP)" wording stays on the hero result card; the strip stays compact.
-        const _stickyLbl = document.getElementById('stickyLabel');
-        // Two-weight label (v18.15) — payday semibold, descriptor muted; see the actuals branch note.
-        if (_stickyLbl) _stickyLbl.innerHTML = _curP
-            ? `💷 <span class="s-pay">Paid ${fdShort(_curP.payday)}</span><span class="s-desc"> · Estimated take-home</span>`
-            : `<span class="s-desc">💷 ${_suffix ? `Estimated take-home (${_suffix})` : 'Estimated take-home'}</span>`;
-        const _stickyBar = document.getElementById('stickyTotal');
-        if (_stickyBar) _stickyBar.setAttribute('aria-label',
-            `Estimated take-home${_curP ? ` for the ${fdShort(_curP.payday)} payslip` : ''} — tap to view the full breakdown`);
-        /** @type {HTMLElement} */ (document.getElementById('bdBtn')).innerHTML =
-          `Full pay breakdown &nbsp;<span class="bd-arrow">▼</span>`;
-      }
+      // The two OPT-IN MONEY BANNERS — moved to paycalc-money-banner.js at v22.56. They were the
+      // same three states written out twice (included · available and not included · nothing to
+      // say), and the pair is only correct while both copies agree that "available" is not "added".
+      const _bpAvailableHere = _bpPNum > 0 && _bpPNum === _pNum && _bpAmount > 0;
+      paintBanner({
+        rootId: 'bpActiveBanner', textId: 'bpBannerText', tickId: 'bpBannerTick', noteId: 'bpBannerNote',
+        available: _bpAvailableHere, included: _bpIncluded,
+        copy: backPayBannerCopy({
+          thisPeriod: _bpThisPeriod, amount: _bpAmount, isEstimate: _bpIsEstimate,
+          aprilYear: _bpAvailableHere ? _bpAwardTaxYear(_backdatedFromPNum()).label.slice(0, 4) : '',
+        }),
+      });
 
-      // BACK-PAY banner (on the paid-in payslip). Fixed structure in the HTML: text · opt-in tick
-      // (#bpBannerTick, proxies the hidden card tick) · "view back pay card" link · accuracy note.
-      // Two states: opted-in → "✓ Includes …"; available but not → "ℹ️ could land here — not added".
-      const _bpBannerEl = document.getElementById('bpActiveBanner');
-      if (_bpBannerEl) {
-        const _bpAvailableHere = _bpPNum > 0 && _bpPNum === _pNum && _bpAmount > 0;
-        if (_bpAvailableHere) {
-          /** @type {HTMLElement} */ (document.getElementById('bpBannerText')).textContent = _bpThisPeriod > 0
-            ? `✓ Includes ${_bpIsEstimate ? 'estimated ' : ''}back pay lump sum of ${fmt(_bpThisPeriod)}`
-            // Confirmed award → the lump DOES land on this payslip (definite); an unconfirmed
-            // estimate stays hedged ("could land"). Either way it's opt-in (not added unless ticked).
-            : _bpIsEstimate
-              ? `ℹ️ Estimated back pay lump sum of ${fmt(_bpAmount)} could land on this payslip — not added to this estimate`
-              : `ℹ️ Your back pay lump sum of ${fmt(_bpAmount)} will land on this payslip — not added to this estimate`;
-          /** @type {HTMLInputElement} */ (document.getElementById('bpBannerTick')).checked = _bpIncluded;
-          const _bpAprilYr = _bpAwardTaxYear(_backdatedFromPNum()).label.slice(0, 4);
-          /** @type {HTMLElement} */ (document.getElementById('bpBannerNote')).textContent =
-            `For the best estimate, fill in your hours on each payslip back to 1 April ${_bpAprilYr}.`;
-          _bpBannerEl.style.display = '';
-        } else {
-          _bpBannerEl.style.display = 'none';
-        }
-      }
-
-      // HPP banner (on the January payslip the premium lands). Same fixed structure + opt-in tick
-      // (#hppBannerTick, toggles the per-year hppIncKey flag directly). Available = a January payslip
-      // with an HPP figure; Included = opted in. Two states mirror back pay.
-      const _hppBannerEl = document.getElementById('hppActiveBanner');
-      if (_hppBannerEl) {
-        const _hppAvailableHere = !!_hppTy && _hppAmount > 0;
-        if (_hppAvailableHere) {
-          /** @type {HTMLElement} */ (document.getElementById('hppBannerText')).textContent = _hppForPeriod > 0
-            ? `✓ Includes ${_hppIsEstimate ? 'estimated ' : ''}Holiday Pay Premium of ${fmt(_hppAmount)}`
-            : `ℹ️ ${_hppIsEstimate ? 'Estimated' : 'A'} Holiday Pay Premium of ${fmt(_hppAmount)} could land on this payslip — not added to this estimate`;
-          const _hppTick = /** @type {HTMLInputElement} */ (document.getElementById('hppBannerTick'));
-          _hppTick.checked = _hppIncluded;
-          _hppTick.dataset.year = _hppTy.label;   // so the once-wired change listener targets the right year
-          // Second line: only once opted-in AND still an estimate — prompt to confirm from the payslip.
-          /** @type {HTMLElement} */ (document.getElementById('hppBannerNote')).textContent =
-            (_hppForPeriod > 0 && _hppIsEstimate)
-              ? 'When your payslip arrives, enter the confirmed Holiday Pay Premium on the HPP card to replace this estimate.'
-              : '';
-          _hppBannerEl.style.display = '';
-        } else {
-          _hppBannerEl.style.display = 'none';
-        }
-      }
+      const _hppAvailableHere = !!_hppTy && _hppAmount > 0;
+      paintBanner({
+        rootId: 'hppActiveBanner', textId: 'hppBannerText', tickId: 'hppBannerTick', noteId: 'hppBannerNote',
+        available: _hppAvailableHere, included: _hppIncluded,
+        copy: hppBannerCopy({ forPeriod: _hppForPeriod, amount: _hppAmount, isEstimate: _hppIsEstimate }),
+        tickYear: _hppTy ? _hppTy.label : undefined,
+      });
 
       // calcHPP takes no back-pay input: the HPP already prices every period of the year at the
       // settled (post-award) rate, so the lump's variable portion is already reflected — feeding
