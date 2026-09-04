@@ -61,6 +61,12 @@ jobs:
           # functions/package.json `engines`); this only changes the Node that runs
           # firebase-tools in CI.
           node-version: '20'
+          # Cache npm's download store (keyed on the lockfile, so a dependency change still
+          # invalidates it). This caches ~/.npm, NOT node_modules — `npm ci` still unpacks and
+          # links every package, so it removes fetch time and not install time. Measured 4 Sep
+          # 2026: deploy-hosting, which has had this since v20.96, still spent 6m05s installing.
+          # It is free and strictly better; it is not a cure for a slow install.
+          cache: 'npm'
 
       # Install root dev dependencies so the repo lint/typecheck gate can run here
       # (the Functions workflow previously skipped it, so a lint failure that blocks
@@ -103,6 +109,8 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: functions/package-lock.json
 
       - name: Install function dependencies
         run: npm ci
@@ -122,9 +130,14 @@ jobs:
       - name: Check roster-members.json is in sync with roster-data.js
         run: node --test --test-name-pattern "roster-members" sw-asset-check.test.mjs
 
+      # The rule, and why an unreachable npm is not a finding, is in the script's own header.
+      # This is the DEPLOY gate, so an unknown warns and proceeds: blocking a release — including
+      # an emergency fix — on npm's uptime costs more than it buys, and the Monday monitor still
+      # fails loudly if the check has not run all week. A real advisory blocks here regardless.
       - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high
-        working-directory: functions
+        env:
+          AUDIT_UNKNOWN_IS_FAILURE: '0'
+        run: bash scripts/audit-functions-deps.sh
 
       # ── BACK TO NODE 20 FOR THE DEPLOY TOOL ─────────────────────────────────────────────────
       # Closes the window opened above. Everything from here on is firebase-tools, which is pinned

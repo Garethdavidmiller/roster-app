@@ -575,3 +575,111 @@ describe('the version guard exempts only what cannot go stale', () => {
         assert.match(job, /exit 1/, 'the version job must FAIL, not warn');
     });
 });
+
+describe('the dependency audit separates a finding from an outage', () => {
+    // WHY THIS BLOCK EXISTS. `npm audit` exits non-zero both when it FINDS a high-severity
+    // advisory and when it cannot REACH npm's audit service, so `--audit-level=high` gates on a
+    // signal that cannot tell them apart. On 4 Sep 2026 a ~20-minute npm outage skipped a Functions
+    // deploy with nothing wrong with the code — an unknown laundered into a finding.
+    //
+    // The logic now lives in ONE place, scripts/audit-functions-deps.sh, because two callers want
+    // opposite POLICIES on an unknown and a duplicated 30-line shell script is how they drift:
+    // the weekly monitor must fail (one run a week IS the coverage), the deploy gate must not
+    // (npm's uptime should not veto an emergency release). Both say "did NOT run", so neither a
+    // red job nor a green one can be mistaken for a verdict on the dependencies.
+    //
+    // These contracts are STATIC because this suite runs on a bare Node binary — the script needs
+    // `npm` and `jq`. Its behaviour was verified by execution against stubbed reports (unreachable,
+    // clean, vulnerable, empty, non-JSON) under both policies, 11 cases; what is pinned here is the
+    // wiring those cases cannot see: that both callers still use it, and with the right policy.
+    const AUDIT_SH = 'scripts/audit-functions-deps.sh';
+    const shSrc = readFileSync(AUDIT_SH, 'utf8');
+    const callers = {
+        // path                                   → the policy that path must declare
+        '.github/workflows/deploy-functions.yml': '0',
+        '.github/workflows/functions-audit.yml':  '1',
+    };
+
+    test('a real high or critical advisory fails, and that is not configurable', () => {
+        assert.match(shSrc, /\.metadata\.vulnerabilities\.critical/,
+            'the verdict must be read from the report, not inferred from the exit code');
+        assert.match(shSrc, /\.metadata\.vulnerabilities\.high/,
+            'high must be read as well as critical — high is the level this gate was set at');
+        const findingBranch = shSrc.slice(shSrc.indexOf('if [ "$crit" -gt 0 ]'));
+        assert.match(findingBranch, /exit 1/,
+            'a found advisory must FAIL. Fail-open on an unreachable service is the point of this '
+            + 'script; fail-open on a finding would delete it.');
+        assert.doesNotMatch(findingBranch, /AUDIT_UNKNOWN_IS_FAILURE/,
+            'the finding branch must not consult the unknown-policy knob. The knob exists to decide '
+            + 'what SILENCE means; letting it reach a real advisory would make the deploy path able '
+            + 'to ship a known critical CVE by setting one environment variable.');
+    });
+
+    test('an unknown is announced as an unknown under BOTH policies', () => {
+        const unknown = shSrc.slice(shSrc.indexOf('if [ -z "$report" ]'),
+                                    shSrc.indexOf('crit=$('));
+        assert.match(unknown, /::error title=Dependency audit did NOT run/,
+            'the failing policy must say the check did not RUN — a bare failure here reads as a '
+            + 'vulnerability, which is the confusion this whole change removes');
+        assert.match(unknown, /::warning title=Dependency audit did NOT run/,
+            'the proceeding policy must still announce itself. Proceeding silently would launder '
+            + 'an unknown into a clean bill of health — silence is not success.');
+    });
+
+    test('the script refuses to guess a policy the caller did not state', () => {
+        // This pins the CONDITION, not the message. The first cut asserted only that the wording
+        // was present, and a mutation that wrapped the whole guard in `if false` sailed through
+        // with the string still sitting in dead code — a test passing on the evidence of a thing
+        // rather than the thing.
+        assert.match(shSrc, /if \[ -z "\$\{AUDIT_UNKNOWN_IS_FAILURE:-\}" \]; then/,
+            'the unset check must be a live condition on the variable itself');
+        assert.match(shSrc, /AUDIT_UNKNOWN_IS_FAILURE must be set/,
+            'and it must say what the caller has to do');
+        assert.doesNotMatch(shSrc, /\$\{AUDIT_UNKNOWN_IS_FAILURE:(=|-[^}])/,
+            'no default may be substituted for the variable. A default silently picks a policy for '
+            + 'a caller that never considered it — and the safe-LOOKING default (fail on unknown) '
+            + 'is the one that re-creates the outage-blocks-deploy bug on the deploy path.');
+    });
+
+    for (const [wf, policy] of Object.entries(callers)) {
+        const wfSrc = readFileSync(wf, 'utf8');
+        const role = policy === '1' ? 'weekly monitor' : 'deploy gate';
+
+        test(`${wf} (${role}) uses the shared script, not its own copy`, () => {
+            assert.match(wfSrc, new RegExp(AUDIT_SH.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+                `${wf} must call ${AUDIT_SH}. A second copy of this logic is how the two policies `
+                + 'drift apart, and the drift is invisible until an npm outage.');
+            assert.doesNotMatch(wfSrc, /--audit-level/,
+                '`--audit-level=high` gates on the exit code that cannot distinguish a CVE from an '
+                + 'outage. Restoring it re-opens the bug this script was written to close.');
+        });
+
+        test(`${wf} states its unknown-policy explicitly as ${policy}`, () => {
+            const m = /AUDIT_UNKNOWN_IS_FAILURE:\s*'([01])'/.exec(wfSrc);
+            assert.ok(m, `${wf} must set AUDIT_UNKNOWN_IS_FAILURE — the script refuses without it`);
+            assert.equal(m[1], policy, policy === '1'
+                ? 'the weekly monitor is the only run that week; an audit that did not happen must '
+                  + 'not pass as a clean week'
+                : 'the deploy gate must not block a release on npm being reachable — that is the '
+                  + '4 Sep 2026 outage, in which a correct tree could not ship');
+        });
+    }
+});
+
+describe('every workflow that installs also caches the install', () => {
+    // `cache: npm` caches ~/.npm (the tarball store), NOT node_modules — `npm ci` still unpacks and
+    // links everything, so it removes fetch time and not install time. It is free and strictly
+    // better; it is NOT a cure for a slow install, and deploy-hosting still spent 6m05s installing
+    // WITH it enabled (measured 4 Sep 2026). Guarded because a missing one is invisible: the job
+    // just takes longer, which reads as ordinary CI slowness rather than as a missing line.
+    for (const f of readdirSync(WF_DIR).filter(n => n.endsWith('.yml'))) {
+        const src = readFileSync(join(WF_DIR, f), 'utf8');
+        if (!/npm ci\b/.test(src)) continue;
+        test(`${f} caches npm`, () => {
+            assert.match(src, /cache:\s*'?npm'?/,
+                `${f} runs 'npm ci' with no npm cache on any setup-node step. Add `
+                + "`cache: 'npm'` — it is keyed on the lockfile, so a dependency change still "
+                + 'invalidates it.');
+        });
+    }
+});
