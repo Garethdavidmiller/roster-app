@@ -3,7 +3,7 @@
 // render (both grids, headers, diff cells) + the injected-getter seam.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ROTATING_LINES } from './links-design.js';
+import { ROTATING_LINES, weeklyHours, hmFromHours } from './links-design.js';
 
 const els = /** @type {Record<string, any>} */ ({});
 function mkEl() {
@@ -165,6 +165,49 @@ test('an UNCHANGED figure still renders — "the same" must not look like "not m
     assert.match(html, /compare-sum-val--same/,
         'no figure is marked unchanged, so either they all moved (they cannot have) or the muted '
         + 'state is not being applied and every figure reads as a difference');
+});
+
+test('the hours figure is HOURS — it agreed with nothing, and read as minutes', () => {
+    // SHIPPED, v22.60, and live until this test existed. The strip hand-rolled
+    // `Math.floor(h.exSunday / 60)` over a figure `weeklyHours` returns in DECIMAL HOURS, so a
+    // 40-hour week rendered "0h 40m" and the real Dec 2026 design would have read "0h 35m" — on
+    // the one surface whose job is choosing between two proposals, with nothing out of range and
+    // nothing thrown. `hmFromHours` is documented as the ONE formatter for this figure precisely
+    // because three earlier hand-rolled copies got it wrong; this was the fourth.
+    //
+    // The two tests above could not see it: they assert the LABEL is present and that the muted
+    // class is applied. A row can carry every label, wear the right class, and state a number that
+    // is out by a factor of sixty.
+    resetDom();
+    const a = fullPatterns('06:00-14:00');          // Mon-Fri 8h => 40h a week, Sundays excluded
+    const b = fullPatterns('06:00-14:00');
+    b['2'].mon = '14:00-22:00';                      // same length, so B's hours must match A's
+    const api = initLinksCompare(makeDeps({
+        getDesigns: () => [{ id: 'a', name: 'A', patterns: a }, { id: 'b', name: 'B', patterns: b }],
+        getDesign:  () => ({ id: 'a', name: 'A', patterns: a }),
+    }).deps);
+    api.toggleCompareMode(); api.selectCompareDesign('b'); api.renderCompare();
+    const html = els.compareSummary.innerHTML;
+
+    assert.ok(html.includes('40h 00m'),
+        'a Mon-Fri 8-hour design is 40 hours a week and the strip does not say so. Got: ' + html);
+    assert.ok(!/\b0h 40m\b/.test(html),
+        'the strip is reading decimal HOURS as minutes — 40 hours rendered as "0h 40m"');
+
+    // And it must agree with what the single-design panels show, which is the claim this feature
+    // makes about itself: same source function, same formatter, so the two views cannot describe
+    // one design differently four seconds apart. Computed from the REAL modules, not restated.
+    const expected = hmFromHours(weeklyHours(a, ROTATING_LINES).exSunday ?? 0);
+    assert.ok(html.includes(expected),
+        `the strip disagrees with the single-design panel: that shows ${expected}. ` + html);
+
+    // WHAT THIS DELIBERATELY DOES NOT COVER. The other historically-shipped copy of this formatter
+    // was `floor(h)` + `round((h % 1) * 60)`, which renders 34.9917 hours as "34h 60m". Substituting
+    // it here does NOT fail this test, and no fixture can make it: `weeklyHours` pre-rounds to 2 dp,
+    // so the fraction is capped at .99 and 0.99 * 60 rounds to 59 — the carry is unreachable through
+    // this call path. `hmFromHours`'s own header records that the links-analysis copies were safe
+    // "only by ACCIDENT" for exactly this reason. Writing a case that pretends to cover it would be
+    // worse than saying so; the equality above catches every divergence that CAN occur.
 });
 
 test('the compare grid renders no operable control — those cells cannot be pressed', () => {

@@ -633,6 +633,54 @@ describe('the design-checks triage block', () => {
             + 'reason they are counted separately');
     });
 
+    test('an AMBER-only design still gets a triage line — the block reads warnings, not just errors', () => {
+        // THE FIRST CUT READ ONLY THE RED ROWS and the fatigue counts. So a design short of contract,
+        // or with a third of its weekends worked, rendered "Nothing found that has to be fixed" and
+        // NO "Worth discussing" group at all — while the amber rows sat below saying otherwise.
+        //
+        // Short of contract is the one that matters: `links-contract.test.mjs` exists because the
+        // generator must never produce a link that underpays, and a hand-edited design can still be
+        // short. A summary that stays silent about it is worse than no summary, because the reader
+        // has been told where to look.
+        resetDom();
+        const patterns = /** @type {Record<string, any>} */ ({});
+        for (let i = 1; i <= ROTATING_LINES; i++) {
+            // Mon-Thu 8h = 32h a week: 3h short of the 35-hour contract, and nothing else wrong —
+            // every line filled, 16h rest between duties, weekends off, no limit breached.
+            patterns[String(i)] = { sun: 'RD', mon: '06:00-14:00', tue: '06:00-14:00',
+                wed: '06:00-14:00', thu: '06:00-14:00', fri: 'RD', sat: 'RD' };
+        }
+        initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
+        const html = els.checksContent.innerHTML;
+        const block = html.split('check-section-head')[0];
+        assert.match(block, /Nothing found that has to be fixed/,
+            'fixture is no longer amber-only — something is now RED, so this test is not testing '
+            + 'what it claims');
+        assert.match(block, /Worth discussing/,
+            'a design 3 hours a week short of contract produces no "Worth discussing" group. The '
+            + 'triage is reading only the red rows, so every amber finding the card raises is '
+            + 'missing from the summary that is supposed to rank them.');
+        assert.match(block, /short of the 35-hour contract/,
+            'the shortfall is not named in the triage');
+        // And the summary must agree with the row it summarises, not restate the arithmetic.
+        assert.match(html, /3h 00m a week short of contract/,
+            'the row itself no longer states the shortfall — the fixture or the row has changed');
+    });
+
+    test('a worked-weekend design reaches the triage too', () => {
+        resetDom();
+        const patterns = /** @type {Record<string, any>} */ ({});
+        for (let i = 1; i <= ROTATING_LINES; i++) {
+            patterns[String(i)] = { sun: 'RD', mon: '06:00-14:00', tue: '06:00-14:00',
+                wed: '06:00-14:00', thu: '06:00-14:00', fri: '06:00-14:00', sat: '06:00-14:00' };
+        }
+        initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
+        const block = els.checksContent.innerHTML.split('check-section-head')[0];
+        assert.match(block, /full weekend off/,
+            'no line has a full weekend off and the triage does not mention it. The card raises an '
+            + 'amber row for it; the summary above must not be quieter than the evidence below.');
+    });
+
     test('every triage line names its own source, because the sections below are grouped by source', () => {
         resetDom();
         const patterns = fullPatterns();

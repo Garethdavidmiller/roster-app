@@ -14,7 +14,7 @@
  * design collection + a few render callbacks and local helpers (all defined in links-app.js).
  */
 import { escapeHtml } from './roster-data.js';
-import { DAYS, ROTATING_LINES, classifyShift, calcCoverage, runDesignChecks, weeklyHours } from './links-design.js';
+import { DAYS, ROTATING_LINES, classifyShift, calcCoverage, runDesignChecks, weeklyHours, hmFromHours } from './links-design.js';
 import { assessFatigue } from './links-fatigue.js';
 import { formatWindow, windowsDiffer } from './links-window.js';
 
@@ -146,8 +146,12 @@ export function initLinksCompare(deps) {
         const ca = runDesignChecks(a.patterns, TOTAL_POS), cb = runDesignChecks(b.patterns, TOTAL_POS);
         const fa = assessFatigue(a.patterns, TOTAL_POS),   fb = assessFatigue(b.patterns, TOTAL_POS);
         const ha = weeklyHours(a.patterns, TOTAL_POS),     hb = weeklyHours(b.patterns, TOTAL_POS);
-        const hrs = (/** @type {any} */ h) => h.exSunday === null ? '—'
-            : `${Math.floor(h.exSunday / 60)}h ${String(Math.round(h.exSunday % 60)).padStart(2, '0')}m`;
+        // `weeklyHours().exSunday` is DECIMAL HOURS, and `hmFromHours` is the one formatter for it —
+        // its own header says so, having been written after three hand-rolled copies rendered
+        // "34h 60m". This was a fourth copy and it read the figure as MINUTES: a 35-hour week
+        // rendered "0h 35m", live, on the surface a designer uses to choose between two proposals.
+        // Nothing was out of range and nothing threw. Import the formatter; never restate it.
+        const hrs = (/** @type {any} */ h) => h.exSunday === null ? '—' : hmFromHours(h.exSunday);
         // An UNCHANGED figure still renders. Showing only what moved would leave the reader unable
         // to tell "the same" from "not measured", which is this app's most repeated defect.
         const row = (/** @type {string} */ label, /** @type {any} */ x, /** @type {any} */ y) =>

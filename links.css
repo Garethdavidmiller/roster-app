@@ -912,6 +912,31 @@ body.auth-ready .container { display: grid; }
 }
 .brush-chip:active { transform: scale(var(--press-scale)); }
 
+/* ── AND ON A THUMB THEY WERE 20px TALL (v22.61) ────────────────────────────────────────────────
+   Measured at 390px: RD 30x22, SP 27x20, Custom 53x22 — all under the 24px floor, and these are
+   the PRIMARY control on this page. You arm a chip and paint the grid with it; on a phone that is
+   the whole interaction. The Links designer is used on mobile as well as desktop (owner, Sep 2026),
+   so this is not a hypothetical surface.
+
+   The existing gate could not see them. `no control has a tap target under 24px` loads each page
+   with a session and nothing else, and links.html with no design renders the EMPTY state — no
+   grid, no brush bar, no chips. The page passed by not having its own controls on screen. The gate
+   now seeds a design (e2e/pages.spec.js), which is what makes this fix hold.
+
+   Gated on the POINTER, not the width — css-tokens.md's rule, because a wide touch screen needs
+   the spacing just as much. The override sits AFTER the base rule deliberately: the same file's
+   own recorded bug is a `@media (pointer: coarse)` block placed ~230 lines ABOVE the rule it meant
+   to beat, at equal specificity, which changed nothing and read as though it worked. */
+@media (pointer: coarse) {
+    .brush-chip {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 30px;
+        padding: 4px 9px;
+    }
+}
+
 /* ---- Design checks card ---- */
 /* Section heading inside the checks list — separates the design checks from the ORR fatigue
    factors and the baseline comparison, so three different kinds of statement do not read as one
