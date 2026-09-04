@@ -46,12 +46,30 @@ export function initLinksCompare(deps) {
     let compareMode = false;
     /** @type {any} */
     let compareDesignId = null;
+    /**
+     * Show only the lines where the two designs differ (v22.70, external review).
+     *
+     * The rotation is 24 lines and a real proposal changes three or four of them, so the reader's
+     * job was to find those four among 168 cells of agreement. It is a VIEW, never a filter on the
+     * comparison itself: every figure in the strip above is still computed over the whole design,
+     * and the cover row still totals every line — which is why the strip says so while this is on.
+     * A count you cannot see the basis of is the thing this app most often gets wrong.
+     *
+     * Session-scoped, like `compareMode` itself. It survives switching the compared design on
+     * purpose — a designer works through several in a row — but see `_filterActive`: it is not
+     * APPLIED when nothing differs, or the grid would empty itself and read as a failed load.
+     */
+    let diffOnly = false;
+    /** Which lines differ in the pair currently on screen. Set by the strip, read by the grids. */
+    let _diffLines = new Set();
+    /** The filter is only APPLIED when it would leave something to look at. */
+    const _filterActive = () => diffOnly && _diffLines.size > 0;
 
     function isCompareMode() { return compareMode; }
     function getCompareId() { return compareDesignId; }
     /** Reset compare state (called by the picker on delete/select and by the generator on apply).
      *  Does NOT re-render — the caller already re-renders the picker/grid/compare in its own flow. */
-    function resetCompare() { compareMode = false; compareDesignId = null; }
+    function resetCompare() { compareMode = false; compareDesignId = null; diffOnly = false; }
 
     /** Toggle between single-design and compare views. */
     function toggleCompareMode() {
@@ -66,7 +84,13 @@ export function initLinksCompare(deps) {
         if (compareMode && !compareDesignId) {
             compareDesignId = designs.find(d => d.id !== getActiveDesignId())?.id ?? null;
         }
-        if (!compareMode) compareDesignId = null;
+        // LEAVING clears the filter; switching the compared design does not (v22.70). The
+        // distinction is which act means "start again": re-entering compare mode should show the
+        // whole picture, because a filter silently already on hides most of a design the designer
+        // has only just opened, and the one clue is a clause in the strip above it. Working through
+        // several designs against the same baseline is the opposite — re-ticking each time is
+        // friction with nothing at stake, since the reader chose the view seconds ago.
+        if (!compareMode) { compareDesignId = null; diffOnly = false; }
         renderDesignPicker();
         renderGrid();
         renderBrushBar();
@@ -111,9 +135,13 @@ export function initLinksCompare(deps) {
         head(headA, design.name || 'Design A', design.window);
         head(headB, other.name   || 'Design B', other.window);
 
+        // ORDER IS LOAD-BEARING: the strip computes `_diffLines`, and both the filter control and
+        // the grids' class read it. Rendering a grid first would apply the previous pair's answer.
         renderSummaryStrip(design, other);
+        renderCompareFilter();
         renderCompareGrid('compareGridBodyRowsA', 'compareGridFootA', design.patterns, other.patterns);
         renderCompareGrid('compareGridBodyRowsB', 'compareGridFootB', other.patterns, design.patterns);
+        wrap.classList.toggle('compare-diff-only', _filterActive());
         wrap.classList.add('compare-mode-active');
     }
 
@@ -136,6 +164,9 @@ export function initLinksCompare(deps) {
         if (!el) return;
         let cells = 0;
         const lines = new Set();
+        // The SAME walk the grids will filter on, done once and shared — two passes over the same
+        // 336 cells could disagree about which lines differ, and then the strip would state a
+        // number of lines the grid below it does not show.
         for (let pos = 1; pos <= TOTAL_POS; pos++) {
             const p = a.patterns[String(pos)] || emptyPattern();
             const q = b.patterns[String(pos)] || emptyPattern();
@@ -158,9 +189,16 @@ export function initLinksCompare(deps) {
             `<li><span class="compare-sum-label">${escapeHtml(label)}</span>` +
             `<span class="compare-sum-val${String(x) === String(y) ? ' compare-sum-val--same' : ''}">` +
             `${escapeHtml(String(x))} → ${escapeHtml(String(y))}</span></li>`;
+        _diffLines = lines;
         el.innerHTML =
             `<p class="compare-sum-head"><strong>${cells}</strong> cell${cells === 1 ? '' : 's'} differ` +
-            `${cells ? ` across <strong>${lines.size}</strong> line${lines.size === 1 ? '' : 's'}` : ''}</p>` +
+            `${cells ? ` across <strong>${lines.size}</strong> line${lines.size === 1 ? '' : 's'}` : ''}` +
+            // STATED WHILE THE FILTER IS ON, not merely implied by the button's label. Every figure
+            // in this strip, and the cover row under each grid, is computed over the WHOLE design;
+            // a reader looking at four rows has every reason to read them as the basis of the
+            // numbers beside them, and would be wrong by twenty lines.
+            `${_filterActive() ? ' — the figures here and the cover row below still cover all '
+                + `${TOTAL_POS} lines` : ''}</p>` +
             `<ul class="compare-sum-list">` +
             row('Hours a week (excl. Sunday)', hrs(ha), hrs(hb)) +
             row('Full weekends off', ca.weekendsOff, cb.weekendsOff) +
@@ -168,6 +206,68 @@ export function initLinksCompare(deps) {
             row('ORR factors present', fa.present, fb.present) +
             `</ul>`;
     }
+
+    /**
+     * The "only the lines that differ" control (v22.70).
+     *
+     * OFFERED ONLY WHEN IT WOULD CHANGE SOMETHING, which is two refusals rather than one: nothing
+     * differs (the filter would empty the grid), and everything differs (it would hide nothing, and
+     * a control that visibly does nothing when pressed teaches a designer to distrust the rest).
+     * Rebuilt on every render rather than toggled, because the count in its label moves with the
+     * pair on screen.
+     */
+    function renderCompareFilter() {
+        const box = document.getElementById('compareFilter');
+        if (!box) return;
+        const hiddenCount = TOTAL_POS - _diffLines.size;
+        const offer = _diffLines.size > 0 && hiddenCount > 0;
+        box.hidden = !offer;
+        if (!offer) { box.innerHTML = ''; return; }
+        const on = _filterActive();
+        box.innerHTML =
+            `<button type="button" id="compareDiffOnlyBtn" class="btn-set compare-filter-btn" ` +
+            `aria-pressed="${on}">${on
+                ? `Showing the ${_diffLines.size} line${_diffLines.size === 1 ? '' : 's'} that differ`
+                : `Show only the ${_diffLines.size} line${_diffLines.size === 1 ? '' : 's'} that differ`}` +
+            `</button>` +
+            `<span class="compare-filter-note">${on
+                ? `${hiddenCount} identical line${hiddenCount === 1 ? '' : 's'} hidden`
+                : ''}</span>`;
+        document.getElementById('compareDiffOnlyBtn')?.addEventListener('click', () => {
+            diffOnly = !diffOnly;
+            renderCompare();
+        });
+    }
+
+    /**
+     * Keep the two columns on the same day (v22.70).
+     *
+     * Each column is its own `overflow-x` area — it has to be, since two 560px-minimum tables
+     * cannot both fit a 1000px card — so scrolling one to reach Saturday left the other on Sunday,
+     * and the gold outlines a designer is reading across were no longer beside each other. Wired
+     * ONCE, at init: both wrappers are static markup.
+     *
+     * The guard is a flag rather than a diff of positions: assigning `scrollLeft` fires the other
+     * element's `scroll` event, which would assign back, and on a sub-pixel difference the two can
+     * volley indefinitely. Cleared on the next frame, so a genuine user scroll immediately after is
+     * not swallowed.
+     */
+    function initScrollSync() {
+        const cols = /** @type {HTMLElement[]} */ (
+            Array.from(document.querySelectorAll('.compare-grid-scroll')));
+        if (cols.length !== 2) return;
+        let syncing = false;
+        cols.forEach((from, i) => {
+            from.addEventListener('scroll', () => {
+                if (syncing) return;
+                syncing = true;
+                const to = cols[1 - i];
+                if (to.scrollLeft !== from.scrollLeft) to.scrollLeft = from.scrollLeft;
+                requestAnimationFrame(() => { syncing = false; });
+            }, { passive: true });
+        });
+    }
+    initScrollSync();
 
     /**
      * Render a read-only compare grid into tbodyId/tfootId.
@@ -187,7 +287,11 @@ export function initLinksCompare(deps) {
             const posStr   = String(pos);
             const p        = patterns[posStr] || emptyPattern();
             const op       = otherPatterns[posStr] || emptyPattern();
-            const rowClass = isUnfilledPattern(p) ? 'row-unfilled' : '';
+            // MARKED, not omitted. The row is always rendered and CSS hides it, so the filter is a
+            // view the stylesheet owns — the markup stays a complete picture of the design, which
+            // is what keeps `Ctrl+F`, print and a screenshot honest.
+            const same     = DAYS.every(d => (p[d] ?? 'RD') === (op[d] ?? 'RD'));
+            const rowClass = `${isUnfilledPattern(p) ? 'row-unfilled' : ''}${same ? ' row-same' : ''}`.trim();
 
             const dayCells = DAYS.map((d, di) => {
                 const shift = p[d]  ?? 'RD';

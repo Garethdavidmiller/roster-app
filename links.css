@@ -2315,3 +2315,42 @@ body.auth-ready .container { display: grid; }
         min-height: 30px;
     }
 }
+
+/* ═══ COMPARE: ONLY THE LINES THAT DIFFER (v22.70) ════════════════════════════════════════════════
+
+   The rotation is 24 lines and a real proposal changes three or four, so the reader's job was to
+   find those among 168 cells of agreement. The rows are always RENDERED and hidden here, so the
+   markup stays a complete picture of the design — `Ctrl+F`, print and a screenshot all keep working
+   on the whole thing, and the filter is a view rather than a truncation.
+
+   A CLASS, NOT THE `hidden` ATTRIBUTE, deliberately. `[hidden]` is a UA rule at the lowest weight
+   and this file's own recorded trap is an author `display` beating it (`.win-editor[hidden]`); a
+   `<tr>` in a table is exactly where somebody later writes `display: table-row`.
+   `page-visibility-parity.test.mjs` would not catch it either — it names loop-assigned elements as
+   one of the three shapes it cannot see, and these rows are a loop. So the attribute is not used.
+
+   The print sheet is deliberately UNFILTERED: `.compare-grids-wrap` is already `display: none` in
+   print (see the print block above), so nothing here reaches paper. */
+.compare-diff-only .links-grid--compare tbody tr.row-same { display: none; }
+
+.compare-filter {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: -6px 0 12px;
+}
+/* Load-bearing: `display: flex` above out-specifies the UA `[hidden]` rule, which is the trap this
+   file has hit twice. Same fix as `.card-member-for[hidden]` on the admin page. */
+.compare-filter[hidden] { display: none !important; }
+.compare-filter-btn[aria-pressed="true"] {
+    background: color-mix(in oklch, var(--accent-gold) 15%, white);
+    border-color: var(--accent-gold);
+    color: var(--text-dark);
+    font-weight: 600;
+}
+.compare-filter-note {
+    font-size: var(--type-small);
+    color: var(--text-light);
+}

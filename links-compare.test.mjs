@@ -9,15 +9,40 @@ const els = /** @type {Record<string, any>} */ ({});
 function mkEl() {
     const set = new Set();
     return {
-        innerHTML: '', textContent: '', style: {},
-        classList: { add: (/** @type {string} */ c) => set.add(c), remove: (/** @type {string} */ c) => set.delete(c), contains: (/** @type {string} */ c) => set.has(c) },
+        innerHTML: '', textContent: '', style: {}, hidden: false,
+        classList: {
+            add:      (/** @type {string} */ c) => set.add(c),
+            remove:   (/** @type {string} */ c) => set.delete(c),
+            contains: (/** @type {string} */ c) => set.has(c),
+            // `toggle(c, force)` is the two-argument form the module uses for the diff-only class —
+            // the one that SETS rather than flips, so a re-render cannot leave the class on after
+            // the filter is turned off. A fake missing it does not fail loudly here; it throws
+            // inside `renderCompare` and every case in the file reports the same TypeError.
+            toggle:   (/** @type {string} */ c, /** @type {boolean|undefined} */ force) =>
+                (force === undefined ? (set.has(c) ? set.delete(c) : set.add(c))
+                                     : (force ? set.add(c) : set.delete(c)), set.has(c)),
+        },
     };
 }
 function resetDom() {
-    for (const id of ['compareGridsWrap', 'compareHeadA', 'compareHeadB', 'compareGridBodyRowsA', 'compareGridBodyRowsB', 'compareGridFootA', 'compareGridFootB', 'compareSummary']) els[id] = mkEl();
+    for (const id of ['compareGridsWrap', 'compareHeadA', 'compareHeadB', 'compareGridBodyRowsA', 'compareGridBodyRowsB', 'compareGridFootA', 'compareGridFootB', 'compareSummary', 'compareFilter']) els[id] = mkEl();
+    // The button lives inside `compareFilter`'s innerHTML, which a fake DOM does not parse. Standing
+    // it up here is what lets a test PRESS it — the alternative is exposing the flag for tests,
+    // which would leave the one line that actually flips it uncovered.
+    els.compareDiffOnlyBtn = { ...mkEl(), _handler: null,
+        addEventListener: (/** @type {string} */ ev, /** @type {any} */ fn) => { if (ev === 'click') els.compareDiffOnlyBtn._handler = fn; } };
 }
 resetDom();
-global.document = /** @type {any} */ ({ getElementById: (/** @type {string} */ id) => els[id] || null });
+// `querySelectorAll` returns an EMPTY LIST, not undefined (v22.70). The scroll sync asks for the
+// two `.compare-grid-scroll` wrappers at init and refuses unless it finds exactly two, which is the
+// right behaviour under a fake DOM with no wrappers — but a fake that lacks the method entirely
+// makes the module throw on import, and every test in this file then fails for a reason that has
+// nothing to do with what it asserts. Model the platform; let the module's own guard decide.
+global.document = /** @type {any} */ ({
+    getElementById: (/** @type {string} */ id) => els[id] || null,
+    querySelectorAll: () => [],
+});
+global.requestAnimationFrame = /** @type {any} */ ((/** @type {any} */ fn) => fn());
 
 const { initLinksCompare } = await import('./links-compare.js');
 
@@ -222,4 +247,164 @@ test('the compare grid renders no operable control — those cells cannot be pre
             + 'not read: it announces a control the user cannot operate.');
         assert.match(els[id].innerHTML, /shift-cell-btn/, 'the shift colouring class was dropped with the button');
     }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// ONLY THE LINES THAT DIFFER (v22.70), organised by what a wrong answer COSTS.
+//
+// The expensive direction is CLAIMING TOO LITTLE, and it is silent: a reader looking at four rows
+// has every reason to take them as the basis of the figures beside them and the cover row below
+// them, when both are computed over all 24 lines. That is a wrong reading of a real proposal with
+// nothing on screen to correct it.
+//
+// The cheap direction is a control that misfires — offered when it would empty the grid, or when it
+// would hide nothing. Visible, and it costs the designer's trust in the rest of the card.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+/** A patterns object where exactly `n` lines differ from `fullPatterns()`. */
+function partlyDifferent(n) {
+    const p = fullPatterns();
+    for (let i = 1; i <= n; i++) p[String(i)] = { ...p[String(i)], mon: '12:00-19:00' };
+    return p;
+}
+/** Enter compare mode against a B that differs on `n` lines, and return the API. */
+function comparing(n) {
+    resetDom();
+    const A = fullPatterns(), B = partlyDifferent(n);
+    const { deps } = makeDeps({
+        getDesigns: () => [{ id: 'a', name: 'A', patterns: A }, { id: 'b', name: 'B', patterns: B }],
+        getDesign:  () => ({ id: 'a', name: 'A', patterns: A }),
+    });
+    const c = initLinksCompare(deps);
+    c.toggleCompareMode();
+    return c;
+}
+const press = () => els.compareDiffOnlyBtn._handler?.();
+
+test('filtered: the strip still says the figures and the cover row describe every line', () => {
+    const c = comparing(3);
+    press();
+    assert.ok(els.compareGridsWrap.classList.contains('compare-diff-only'),
+        'the filter must actually be applied');
+    // The claim, in full. Without it the four visible rows read as the basis of the numbers above.
+    assert.match(els.compareSummary.innerHTML, /still cover all/);
+    assert.match(els.compareSummary.innerHTML, new RegExp(`all ${ROTATING_LINES} lines`));
+    // And the cover row is untouched by the filter — it is a property of the design, not the view.
+    assert.equal(els.compareGridFootA.innerHTML, els.compareGridFootA.innerHTML);
+    assert.match(els.compareGridFootA.innerHTML, /cov-cell/);
+    assert.ok(c.isCompareMode());
+});
+
+test('unfiltered: the strip makes no claim about coverage it does not need to make', () => {
+    comparing(3);
+    assert.doesNotMatch(els.compareSummary.innerHTML, /still cover all/);
+});
+
+test('every row is RENDERED either way — the filter is a view, not a truncation', () => {
+    comparing(3);
+    const before = (els.compareGridBodyRowsA.innerHTML.match(/data-pos=/g) || []).length;
+    press();
+    const after = (els.compareGridBodyRowsA.innerHTML.match(/data-pos=/g) || []).length;
+    assert.equal(before, ROTATING_LINES);
+    assert.equal(after, ROTATING_LINES, 'rows are marked and hidden by CSS, never omitted');
+});
+
+test('the identical lines are the ones marked, and the differing ones are not', () => {
+    comparing(3);
+    const rows = els.compareGridBodyRowsA.innerHTML.split('<tr').slice(1);
+    assert.equal(rows.length, ROTATING_LINES);
+    rows.forEach((row, i) => {
+        const pos = i + 1;
+        const marked = /class="[^"]*\brow-same\b/.test(row);
+        assert.equal(marked, pos > 3, `line ${pos}: differs=${pos <= 3} but marked=${marked}`);
+    });
+});
+
+test('turning it off puts every line back — the class is SET, not flipped by a re-render', () => {
+    const c = comparing(3);
+    press();
+    assert.ok(els.compareGridsWrap.classList.contains('compare-diff-only'));
+    press();
+    assert.equal(els.compareGridsWrap.classList.contains('compare-diff-only'), false);
+    // A re-render on its own must not resurrect it. `classList.toggle(c, force)` is what guarantees
+    // that; a bare `add`/`remove` pair keyed on the wrong branch is how this kind of flag sticks.
+    c.renderCompare();
+    assert.equal(els.compareGridsWrap.classList.contains('compare-diff-only'), false);
+});
+
+test('two IDENTICAL designs: the control is not offered, and nothing is filtered', () => {
+    comparing(0);
+    assert.equal(els.compareFilter.hidden, true, 'a filter that would empty the grid is not offered');
+    assert.equal(els.compareFilter.innerHTML, '');
+    press();   // no handler; nothing to press
+    assert.equal(els.compareGridsWrap.classList.contains('compare-diff-only'), false);
+});
+
+test('EVERY line differs: the control is not offered either — it would hide nothing', () => {
+    comparing(ROTATING_LINES);
+    assert.equal(els.compareFilter.hidden, true);
+});
+
+test('the label counts the lines it will show, and says how many it hides', () => {
+    comparing(3);
+    assert.equal(els.compareFilter.hidden, false);
+    assert.match(els.compareFilter.innerHTML, /Show only the 3 lines that differ/);
+    assert.match(els.compareFilter.innerHTML, /aria-pressed="false"/);
+    press();
+    assert.match(els.compareFilter.innerHTML, /Showing the 3 lines that differ/);
+    assert.match(els.compareFilter.innerHTML, /aria-pressed="true"/);
+    assert.match(els.compareFilter.innerHTML, new RegExp(`${ROTATING_LINES - 3} identical lines hidden`));
+});
+
+test('leaving compare mode clears the filter — it must not be on when you next open it', () => {
+    const c = comparing(3);
+    press();
+    c.toggleCompareMode();          // off
+    c.toggleCompareMode();          // on again
+    assert.equal(els.compareGridsWrap.classList.contains('compare-diff-only'), false);
+    assert.match(els.compareFilter.innerHTML, /aria-pressed="false"/);
+});
+
+test('switching the compared design KEEPS the filter — the other half of the same rule', () => {
+    resetDom();
+    const A = fullPatterns(), B = partlyDifferent(3), C = partlyDifferent(5);
+    const { deps } = makeDeps({
+        getDesigns: () => [{ id: 'a', name: 'A', patterns: A }, { id: 'b', name: 'B', patterns: B },
+                           { id: 'c', name: 'C', patterns: C }],
+        getDesign:  () => ({ id: 'a', name: 'A', patterns: A }),
+    });
+    const c = initLinksCompare(deps);
+    c.toggleCompareMode();
+    press();
+    c.selectCompareDesign('c');
+    assert.ok(els.compareGridsWrap.classList.contains('compare-diff-only'),
+        'a designer working through several proposals should not re-tick each time');
+    // …and the label follows the NEW pair, not the old one.
+    assert.match(els.compareFilter.innerHTML, /Showing the 5 lines that differ/);
+});
+
+// THE CASE THE FIRST PASS MISSED, found by mutating `_filterActive` and watching every test stay
+// green. Reaching an empty filter needs TWO steps and the suite only ever took one: turn the filter
+// on against a design that differs, then switch to one that does not. `diffOnly` is deliberately
+// kept across that switch (see the test above), so without the `_diffLines.size` half of the guard
+// the grid empties itself — twenty-four rows of a real design gone, reading as a failed load.
+test('filter ON, then switched to an IDENTICAL design: every line comes back', () => {
+    resetDom();
+    const A = fullPatterns(), B = partlyDifferent(3), SAME = fullPatterns();
+    const { deps } = makeDeps({
+        getDesigns: () => [{ id: 'a', name: 'A', patterns: A }, { id: 'b', name: 'B', patterns: B },
+                           { id: 'same', name: 'Same', patterns: SAME }],
+        getDesign:  () => ({ id: 'a', name: 'A', patterns: A }),
+    });
+    const c = initLinksCompare(deps);
+    c.toggleCompareMode();
+    press();
+    assert.ok(els.compareGridsWrap.classList.contains('compare-diff-only'));
+
+    c.selectCompareDesign('same');
+    assert.equal(els.compareGridsWrap.classList.contains('compare-diff-only'), false,
+        'a filter with nothing to show must not be APPLIED, however it was armed');
+    assert.equal(els.compareFilter.hidden, true, 'and it must not be offered either');
+    assert.match(els.compareSummary.innerHTML, /<strong>0<\/strong> cells differ/);
+    assert.doesNotMatch(els.compareSummary.innerHTML, /still cover all/);
 });

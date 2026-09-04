@@ -327,6 +327,10 @@
                          outlines is a picture of the difference; reading it means holding 336 cells
                          in your head. Filled by `renderCompare`; the grids below are unchanged. -->
                     <div id="compareSummary" class="compare-summary" role="status"></div>
+                    <!-- OUTSIDE the summary, and not by accident: `#compareSummary` is a live
+                         region, so a control inside it has its label re-announced on every render.
+                         Filled by `renderCompareFilter`; hidden when there is nothing to filter to. -->
+                    <div id="compareFilter" class="compare-filter" hidden></div>
                     <div class="compare-col">
                         <div class="compare-col-head compare-col-head--a" id="compareHeadA"></div>
                         <div class="links-grid-wrapper compare-grid-scroll">
