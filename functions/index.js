@@ -179,7 +179,22 @@ function nowInLondon() {
     };
 }
 
-// Claude model used by parseRosterPDF. Pin here so version bumps are explicit and grep-able.
+// Claude model used by parseRosterPDF. Pinned here so a change is explicit and grep-able.
+//
+// **THIS IS THE COMPLETE MODEL ID, NOT AN ALIAS WITH A DATED SNAPSHOT BEHIND IT** (checked
+// 4 Sep 2026). The v22.55 external review recommended pinning to "a dated/stable model revision
+// rather than the current claude-sonnet-5 alias, if the API supports an appropriate fixed
+// snapshot" — reasonable in principle for an operational parser, and not available: the current
+// Anthropic model IDs carry no date suffix, and appending one names a model that does not exist.
+// Recorded here rather than left for the next reviewer to raise again. If dated snapshots are ever
+// offered for this model, pinning one is the right move and this is the line to change.
+//
+// WHAT ACTUALLY PROTECTS THE IMPORT is not the pin, and it is worth knowing which. A parser whose
+// model shifts under it is caught by the evidence around the model rather than by the model string:
+// the PDF-grid geometry witness (roster-geometry.js — the only evidence the model cannot influence),
+// the base-roster correlation in roster-alignment.js, the batch-signature refusal that blocks a whole
+// read when three members drift the same way, and the human review step that no import skips. A pin
+// would make a behaviour change ARRIVE on our schedule; those layers are what make one SURVIVABLE.
 const CLAUDE_MODEL = 'claude-sonnet-5';
 
 // ============================================================================
