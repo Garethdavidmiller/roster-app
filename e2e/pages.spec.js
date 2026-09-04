@@ -930,6 +930,37 @@ test('links: a saved-set list that failed to load never says the account is empt
     await expect(page.locator('#genSetSaveAsBtn')).toBeEnabled();
 });
 
+test('links: a first-time designer gets the orientation, and can always get it back', async ({ page }) => {
+    // IT HAD STOPPED REACHING ANYBODY (v22.59, external review). The panel carries the three facts a
+    // newcomer cannot get from the screen, and it was built as a one-time NOTICE with a 14-day
+    // window — `isNoticeExpired` marks a notice seen WITHOUT showing it, so from 16 Aug 2026 a
+    // first-ever visitor was flagged and shown nothing. Expiry is right for an announcement and
+    // wrong for a mental model, so the two were split.
+    //
+    // Deliberately NOT seeding `myb_links_welcome_seen`, which every other Links spec does: this one
+    // is about the designer who has never opened the page.
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/links.html');
+
+    const panel = page.locator('#linksWelcomeLb');
+    await expect(panel).toBeVisible();
+    // The three facts, each one something a newcomer could otherwise get wrong.
+    await expect(panel).toContainText('never the live roster');
+    await expect(panel).toContainText('do not pass or fail');
+    await expect(panel).toContainText('shared');
+    // It is orientation, not news: a "Posted" date invites the reader to decide it is old.
+    await expect(panel).not.toContainText('Posted');
+
+    await panel.locator('#linksWelcomeClose').click();
+    await expect(panel).not.toBeVisible();
+
+    // …and it is reachable for ever after, which is what stops it being a pop-up nobody can re-open.
+    await page.locator('#linksHowBtn').click();
+    await expect(panel).toBeVisible();
+    await expect(panel).toContainText('never the live roster');
+});
+
 test('links: every paint chip is a shift the design actually contains', async ({ page }) => {
     // THE BAR OFFERED EIGHTEEN TIMES AND THE DESIGN CONTAINED NONE OF THEM (v21.14).
     //

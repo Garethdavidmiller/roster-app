@@ -124,10 +124,10 @@ tool the December 2026 proposals will actually be built in, so it is no longer b
 sketch. The chip, its keyframes and the reduced-motion override are gone; `.header-end` stays, since
 it is the flex wrapper the page badge lives in.
 
-## First-visit notice (rewritten v19.51)
+## Orientation panel (a first-visit notice until v22.59)
 
-`#linksWelcomeLb` — one-time, `createLightbox`, gated on `myb_links_welcome_seen`, **14-day expiry**
-(owner, Aug 2026; the skill's default is 28). It replaced the v12.33 beta notice, whose lead
+`#linksWelcomeLb` — `createLightbox`, gated on `myb_links_welcome_seen`, **and no longer expiring**
+(v22.59, external review). It replaced the v12.33 beta notice, whose lead
 paragraph — "this is an early beta… the finished version will look quite different" — described a
 page that stopped existing at v19.50. Only the paragraph that was still true survived; it now sits
 with two more, chosen for what a first-time visitor could otherwise get **wrong**:
@@ -143,11 +143,17 @@ with two more, chosen for what a first-time visitor could otherwise get **wrong*
 point of bringing it back. The e2e specs seed the new key; the old one is left on devices as an inert
 flag.
 
-**Know what expiry does before setting one.** `isNoticeExpired` marks the notice seen *without
-showing it*, so from ~16 Aug 2026 this lightbox is dead code on any device that had not already
-opened the page. That is correct for an announcement — and it is why both of the app's previous
-notices sat silently inert. CLAUDE.md's notice table now carries a Status column so that state is
-visible rather than inferred.
+**Know what expiry does before setting one — and this panel is why.** `isNoticeExpired` marks the
+notice seen *without showing it*, so from 16 Aug 2026 this lightbox was dead code on any device that
+had not already opened the page: a designer given Links access in September met a complex
+professional tool with none of the three facts above. That is correct for an ANNOUNCEMENT and wrong
+for ORIENTATION, and this one was both at once.
+
+**The two are now split (v22.59).** The announcement is over and is archived once, on the first
+close. The orientation does not expire until that device has actually seen it, and `#linksHowBtn` in
+the page header reopens it for ever — which also stops it being a pop-up nobody can get back to. Do
+not re-add an expiry here: the audience for these facts is whoever arrives next, and there is no
+date after which a newcomer stops needing them.
 
 ## Design and save model (v12.09, redesigned v12.39–v12.43, multi-design v12.46–v12.47)
 

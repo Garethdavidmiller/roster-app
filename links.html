@@ -157,12 +157,17 @@
     </div>
 </div>
 
-<div id="linksWelcomeLb" class="lb-overlay" role="dialog" aria-label="About the Links workspace" aria-modal="true">
+<!-- ORIENTATION, NOT AN ANNOUNCEMENT (v22.59). This panel carries the three things a first-time
+     designer cannot get from the screen, and it was given a 14-day expiry — so from 16 Aug 2026
+     `isNoticeExpired` marked it seen WITHOUT showing it, and somebody opening Links for the first
+     time got nothing at all. An announcement may expire; a mental model may not. The expiry is gone,
+     the "Posted" date with it (a date invites the reader to decide it is old), and `#linksHowBtn` in
+     the header makes it reachable for ever rather than only in the first two seconds. -->
+<div id="linksWelcomeLb" class="lb-overlay" role="dialog" aria-label="How Links works" aria-modal="true">
     <div id="linksWelcomeContent" class="lb-content notice-lb-content">
     <button id="linksWelcomeClose" class="lb-close" type="button" aria-label="Close">✕</button>
         <div class="notice-badge notice-badge--links">🔗 Links</div>
-        <div class="lightbox-app-name">Links Workspace</div>
-        <div class="notice-date">Posted 2 Aug 2026</div>
+        <div class="lightbox-app-name">How Links works</div>
         <p class="notice-body">Changes here only affect the link-design document — never the live roster. Best used on a desktop or tablet; the grid is tight on a phone.</p>
         <p class="notice-body">Design checks include the ORR's fatigue factors. They report which factors a pattern <strong>features</strong> — they do not pass or fail a design, and no result here approves one.</p>
         <p class="notice-body">Designs are shared: any designer can edit or delete any of them. A deleted design goes to <strong>Recently deleted</strong> and stays there until someone removes it for good.</p>
@@ -200,6 +205,8 @@
             <h1>Marylebone Roster</h1>
         </div>
         <div class="header-end">
+            <!-- The permanent way back to the orientation panel — see its own comment above. -->
+            <button type="button" class="btn-how-links" id="linksHowBtn">How it works</button>
             <span class="badge-page" id="linksBadge"><span class="badge-glyph" aria-hidden="true">🔗</span> Links</span>
         </div>
     </header>
@@ -464,8 +471,8 @@
                              be refused with the gap named. Neither label says "reset targets"
                              without saying to WHAT: with two of them, that word alone is the one
                              thing a designer cannot act on. -->
-                        <button class="btn-text-link" id="genDefaultBtn" type="button">↺ Back to the demand-based default</button>
-                        <button class="btn-text-link" id="genSeedBtn" type="button">↺ Load today's roster instead</button>
+                        <button class="btn-text-link" id="genDefaultBtn" type="button">↺ Use the recommended Dec 2026 staffing</button>
+                        <button class="btn-text-link" id="genSeedBtn" type="button">↺ Copy staffing from today's roster</button>
                     </div>
                     <!-- SAVED SETS (v21.04). Named snapshots of the target table, shared between the
                          designers, so a colleague can load somebody's set, change anything, and keep
@@ -480,7 +487,7 @@
                          weight, none of them looking like a control: the row read as a footnote
                          rather than as the place your shift times are kept. -->
                     <div class="gen-sets-row">
-                        <label class="gen-sets-label" for="genSetSelect">Saved sets</label>
+                        <label class="gen-sets-label" for="genSetSelect">Saved staffing setups</label>
                         <select id="genSetSelect" class="gen-select" aria-label="Choose a saved set of shift times"></select>
                         <!-- THE FOUR BUTTONS ARE ONE GROUP (v21.14), not four siblings of the label
                              and the dropdown. As siblings they wrapped INDIVIDUALLY: at 360–390px
@@ -512,7 +519,7 @@
                          `display:` on .btn-set out-specifies the attribute. -->
                     <button class="btn-set gen-sets-retry" id="genSetRetryBtn" type="button" hidden>Try again</button>
                     <fieldset class="gen-objectives">
-                        <legend>Line order — what to tune for</legend>
+                        <legend>How should the weeks be arranged?</legend>
 <!-- THE SPARE SPREAD HAS NO SWITCH, SO IT HAS TO BE SAID HERE (v20.02). It is charged
                              unconditionally in `cost` — the reorder used to cluster the cover weeks because
                              doing so helped the objectives it WAS told about, which took FF11 from 9 to 14.
@@ -552,7 +559,7 @@
                         the one thing that could see it: every behavioural assertion on this button
                         matches by role and name, and `getByRole('button', {name: /Generate/})` is
                         happy either way.
-                     --><span>Generate link (all <span class="js-rotating-lines">24</span> lines)</span></button>
+                     --><span>Build the <span class="js-rotating-lines">24</span>-line link</span></button>
                     <!-- The generate feedback, WHERE THE PRESSING HAPPENS (v20.54). The canonical
                          status lives in the grid card's sticky save row, a full card above — from
                          this button it is off-screen at every realistic viewport, so the whole
@@ -570,7 +577,7 @@
     <div class="card" id="coverageCard">
         <div class="card-header card-header-toggle" id="coverageToggleHeader">
             <div>
-                <h2><span aria-hidden="true">📊</span> Coverage analysis</h2>
+                <h2><span aria-hidden="true">📊</span> Check staffing coverage</h2>
                 <span class="hint">Who is on duty each hour, against the trains they have to cover</span>
             </div>
             <div class="card-header-actions">

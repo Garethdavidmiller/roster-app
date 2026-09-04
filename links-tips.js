@@ -71,7 +71,7 @@ export const CARD_TIPS = {
         ],
     },
     'links-coverage': {
-        title: 'Coverage analysis',
+        title: 'Check staffing coverage',
         sections: [{ items: [
             { icon: '📊', html: 'Each cell shows how many people are <strong>on duty during that hour</strong> — rows are days, columns are hours of the day' },
             { icon: '🔵', html: 'Darker blue = more people on at once; blank = nobody on duty' },
@@ -107,7 +107,7 @@ export const CARD_TIPS = {
             // The prose that led the card until v22.32 — see the module header. A restatement of
             // links-default-targets.js's header; when that table changes, change this.
             { heading: 'The default table', items: [
-                { icon: '🚆', html: 'A new design starts from a table built against the <strong>December 2026 train service</strong>, not from today\'s roster. <strong>↺ Load today\'s roster instead</strong> swaps in what the current roster actually provides; <strong>↺ Back to the demand-based default</strong> returns to it.' },
+                { icon: '🚆', html: 'A new design starts from a table built against the <strong>December 2026 train service</strong>, not from today\'s roster. <strong>↺ Copy staffing from today\'s roster</strong> swaps in what the current roster actually provides; <strong>↺ Use the recommended Dec 2026 staffing</strong> returns to it.' },
                 { icon: '🌅', html: 'Four turns on at the open every day, three through to the close — four on a Saturday.' },
                 { icon: '🌙', html: 'Five still on at 22:00; fourteen working a Saturday, leaning late for events; ten on a Sunday.' },
                 { icon: '⚖️', html: 'Mon–Sat averaging <strong>exactly</strong> the contracted week.' },
@@ -118,8 +118,8 @@ export const CARD_TIPS = {
             { heading: 'How to use it', items: [
                 { icon: '➕', html: '<strong>+ Add another shift</strong> for a new start time; ✕ removes a row. Pick times from the dropdown or choose Custom time….' },
                 { icon: '⚠️', html: `Each day's total (all shifts + spare) can't exceed ${ROTATING_LINES} — watch the Total row.` },
-                { icon: '💾', html: '<strong>Saved sets</strong> keep a table to come back to, shared with the other designers. Anyone can save one; only the person who created it, or the admin, can overwrite or delete it.' },
-                { icon: '3️⃣', html: 'Tap <strong>Generate link</strong>, then review the Coverage analysis and Design checks before saving.' },
+                { icon: '💾', html: '<strong>Saved staffing setups</strong> keep a table to come back to, shared with the other designers. Anyone can save one; only the person who created it, or the admin, can overwrite or delete it.' },
+                { icon: '3️⃣', html: 'Tap <strong>Build the link</strong>, then review the coverage and the design checks before saving.' },
             ]},
         ],
     },
