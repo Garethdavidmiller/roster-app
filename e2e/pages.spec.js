@@ -6,6 +6,7 @@ import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword
 // rotation would leave every fixture over-length: the grid ignores the surplus rows, so the specs
 // would still pass while quietly testing the legacy-design path rather than the normal one.
 import { ROTATING_LINES } from '../links-design.js';
+import { describeSetList } from '../links-target-sets.js';
 
 // ── SETTINGS (settings.html) ──────────────────────────────────────────────
 
@@ -946,8 +947,16 @@ test('links: a saved-set list that failed to load never says the account is empt
 
     const picker = page.locator('#genSetSelect');
     await expect(picker).toBeVisible();
-    await expect(picker).not.toContainText('No staffing setups saved yet');
-    await expect(page.locator('#genSetHint')).toContainText('not been deleted');
+    // ASSERTED AGAINST THE MODULE, NOT A SENTENCE (v22.66). This read `toContainText('not been
+    // deleted')` and so held one phrasing in place: when the reassurance was corrected — the old
+    // one made a claim about the SETS that a failed read cannot make — the wiring test failed for
+    // a copy edit that was the point of the change. The property here is that the ERROR branch of
+    // `describeSetList` is what reached the DOM; which words it chooses is that module's business,
+    // and its own suite's.
+    const failed = describeSetList('error', []);
+    await expect(picker).not.toContainText(describeSetList('ok', []).placeholder ?? '\u0000');
+    await expect(picker).toContainText(failed.placeholder ?? '');
+    await expect(page.locator('#genSetHint')).toHaveText(failed.hint ?? '');
     await expect(page.locator('#genSetRetryBtn')).toBeVisible();
 
     // A list nobody has cannot be acted on.
