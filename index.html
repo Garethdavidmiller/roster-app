@@ -239,13 +239,37 @@
         <div id="dayDetailContent" class="lb-content">
             <button id="dayDetailClose" class="lb-close" type="button" aria-label="Close">✕</button>
             <div class="day-detail-date" id="dayDetailDate"></div>
-            <div class="day-detail-shift" id="dayDetailShift"></div>
-            <!-- What the roster said before this day was changed. Directly under the shift because
-                 it qualifies it; above the day markers, which are about the DATE and not the turn. -->
-            <div class="day-detail-base" id="dayDetailBase" hidden></div>
-            <div class="day-detail-extras" id="dayDetailExtras" hidden></div>
-            <div class="day-detail-note" id="dayDetailNote" hidden></div>
-            <button type="button" class="day-detail-pay-btn" id="dayDetailPayBtn" hidden><span aria-hidden="true">💷</span> View pay estimate</button>
+            <!-- The shift, led by its OWN kind glyph (☀️ 🌙 🏠 🏖️ …) from `shiftBadgeParts` — the
+                 same emoji the tapped cell wears. The glyph is aria-hidden: the words beside it
+                 already say "Early shift", and a screen reader announcing the emoji's own name
+                 would read the kind twice. -->
+            <div class="day-detail-shift" id="dayDetailShift">
+                <span class="dds-glyph" id="dayDetailShiftGlyph" aria-hidden="true" hidden></span>
+                <span class="dds-words" id="dayDetailShiftWords"></span>
+                <!-- Its own span so the value stays atomic across a wrap: at 320px the line breaks,
+                     and a browser will break at the hyphen inside 07:00-16:00 given the chance. -->
+                <span class="dds-time" id="dayDetailShiftTime" hidden></span>
+            </div>
+            <!-- What the roster said before this day was changed, as the two SHIFT BADGES the
+                 member already reads in the grid. Directly under the shift because it qualifies it;
+                 above the day markers, which are about the DATE and not the turn. The badges are
+                 built in JS from `shiftBadgeParts` — colour and emoji come from the one authority,
+                 so the panel can never colour a shift differently from the cell that was tapped. -->
+            <div class="day-detail-change" id="dayDetailChange" hidden>
+                <span class="ddc-eyebrow">Changed</span>
+                <span class="ddc-pair" id="dayDetailChangePair"></span>
+                <!-- Who made the change, or that it came in with the weekly roster. Absent when the
+                     document cannot say, which is honest — the alternative names a colleague. -->
+                <span class="ddc-by" id="dayDetailBy" hidden></span>
+            </div>
+            <!-- WHAT IS TRUE OF THE DATE, as the calendar's own markers. Chips, not a comma
+                 sentence: this panel is where a member asks what the ⭐ on a cell means, and it
+                 used to answer without the ⭐. Built in JS from `dayMarkers`, the one authority
+                 the hover tooltip's sentence also comes from. -->
+            <div class="day-detail-markers" id="dayDetailExtras" hidden></div>
+            <!-- No 💷 here: the chip above carries it, and the two sat ten pixels apart saying the
+                 same thing twice. The green already IS the app's Pay identity (the nav Pay pill). -->
+            <button type="button" class="day-detail-pay-btn" id="dayDetailPayBtn" hidden>View pay estimate</button>
         </div>
     </div>
 

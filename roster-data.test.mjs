@@ -8,6 +8,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
     getBankHolidays,
     isBankHoliday,
@@ -25,6 +26,7 @@ import {
     getShiftKind,
     getShiftClass,
     getShiftBadge,
+    shiftBadgeParts,
     getWeekNumberForDate,
     getRosterForMember,
     resolveMemberRoster,
@@ -425,6 +427,77 @@ test('getShiftClass: every training grammar form returns "other-day" (never unkn
 // The option, rather than a second badge builder, because two builders drift. The direction that
 // matters is the DEFAULT: every existing caller — the calendar cell, the month legend, Team View —
 // must render exactly as before, since a calendar cell prints the time beside the badge already.
+
+// ── THE BADGE HAS ONE DECLARATION, AND TWO CONSUMERS (v22.69) ───────────────────────────────────
+//
+// `getShiftBadge` returns MARKUP, which the calendar's day-detail panel cannot use: writing markup
+// out of a `data-` attribute is how an attribute becomes an injection surface. So the panel builds
+// real elements from `shiftBadgeParts`, and `getShiftBadge` builds its HTML from the same function.
+//
+// The risk this pins is drift: the day a shift is one colour in the grid and another in the panel
+// that describes it, which is a fault nobody would think to look for and which no behavioural test
+// asserts. Driven over every KIND rather than a sample, so a tenth badge cannot be added to one and
+// not the other.
+test('each shift kind keeps its established colour', () => {
+    // A LITERAL TABLE, deliberately. The parity test below proves the two builders AGREE — and
+    // since they now share a source, agreement is cheap: a mutation changing SPARE from purple to
+    // the rest-day grey passed it, because both consumers changed together. Agreement is not
+    // correctness, and the thing that matters to a member is that 📋 is the same purple in the
+    // panel as it is in the cell they tapped.
+    //
+    // These pairings are the app's visual vocabulary — staff read them daily and the guides print
+    // them — so they are contract, not implementation detail, and pinning them is the point.
+    const EXPECTED = {
+        RD: 'badge-rest', OFF: 'badge-rest', SPARE: 'badge-spare', RDW: 'badge-rdw',
+        AL: 'badge-al', SICK: 'badge-sick', TRG: 'badge-other',
+        '06:30-15:00': 'badge-early', '14:00-22:00': 'badge-late', '22:00-06:00': 'badge-night',
+        'not-a-shift': 'badge-unknown',
+    };
+    for (const [shift, cls] of Object.entries(EXPECTED)) {
+        assert.equal(shiftBadgeParts(shift).cls, cls, `'${shift}' changed colour`);
+    }
+});
+
+test('only a TIMED kind may trade its word for the time', () => {
+    // `timed` is what lets the day panel show `☀️ 06:20-14:50 → ☀️ 06:30-15:00` instead of
+    // `☀️ EARLY → ☀️ EARLY`. A same-kind change — a time tweak, probably the commonest change
+    // there is — otherwise renders as two identical pills either side of an arrow, which reads as
+    // "nothing changed" directly under a headline saying it did.
+    for (const t of ['06:30-15:00', '14:00-22:00', '22:00-06:00']) {
+        assert.equal(shiftBadgeParts(t).timed, true, `'${t}' is a timed shift`);
+    }
+    for (const k of ['RD', 'SPARE', 'AL', 'SICK', 'RDW', 'TRG', 'not-a-shift']) {
+        assert.ok(!shiftBadgeParts(k).timed,
+            `'${k}' has no time to show, so the panel would print the raw value as its label`);
+    }
+});
+
+test('shiftBadgeParts and getShiftBadge agree on every shift kind', () => {
+    const KINDS = ['RD', 'OFF', '', 'SPARE', 'RDW', 'AL', 'SICK', 'TRG', 'IND', 'MEET',
+                   '06:30-15:00', '14:00-22:00', '22:00-06:00', 'not-a-shift'];
+    for (const k of KINDS) {
+        const { cls, emoji, word } = shiftBadgeParts(k);
+        const html = getShiftBadge(k);
+        assert.ok(html.includes(`shift-badge ${cls}`),
+            `getShiftBadge('${k}') does not carry the class shiftBadgeParts reports (${cls}) — the `
+            + 'grid and the day panel would colour the same shift differently');
+        assert.ok(html.includes(`>${emoji}</span>`),
+            `emoji mismatch for '${k}': parts say ${emoji}`);
+        assert.ok(html.includes(`<span>${word}</span>`),
+            `word mismatch for '${k}': parts say ${word}`);
+    }
+});
+
+test('every badge kind has a colour class, an emoji and a word — colour is never alone', () => {
+    // The app's WCAG 1.4.1 rule: a badge never carries meaning in colour alone. The panel's pill
+    // reuses these parts, so a kind that lost its word would become colour-only there too.
+    for (const k of ['RD', 'SPARE', 'RDW', 'AL', 'SICK', 'TRG', '06:30-15:00', '22:00-06:00', 'xx']) {
+        const p = shiftBadgeParts(k);
+        assert.match(p.cls, /^badge-[a-z]+$/, `no colour class for '${k}'`);
+        assert.ok(p.emoji && p.emoji.length > 0, `no emoji for '${k}'`);
+        assert.ok(p.word && p.word.length > 0, `no word for '${k}' — the badge would be colour alone`);
+    }
+});
 
 test('getShiftBadge showTime: a worked shift shows its TIME instead of Early/Late/Night', () => {
     assert.match(getShiftBadge('06:20-14:20', { showTime: true }), />06:20-14:20</);
@@ -996,6 +1069,78 @@ test('getSpecialDayBadges: returns objects with icon and title fields', () => {
         assert.ok(typeof b.icon  === 'string', 'icon should be a string');
         assert.ok(typeof b.title === 'string', 'title should be a string');
     }
+});
+
+// ── THE APP HAS ONE MARKER VOCABULARY, DECLARED IN THREE PLACES (v22.70) ────────────────────────
+//
+// `index.css` draws ⭐ 💷 ✂️ 🐣 🎄 as calendar-cell `::before`/`::after` content, `getSpecialDayBadges`
+// above hands the same five to admin.html's day rows, and `dayMarkers` in calendar-renderer.js hands
+// them to the day panel's chips. Three copies of one fact, and the whole point of the v22.70 chip
+// row is that a member tapping a day sees the SAME star that is on the cell — so a drift here does
+// not throw, does not fail a render, and quietly makes the panel explain a marker the calendar is
+// not showing.
+//
+// `dayMarkers` cannot be imported here: calendar-renderer.js reaches the gstatic Firebase SDK
+// through its import graph, so nothing in it loads in Node. It has no imports of its own, though,
+// so it is sliced out BY NAME and evaluated against its real source — the `sw-internals.test.mjs`
+// idiom — and compared against the REAL `getSpecialDayBadges` on the other side. Extraction throws
+// if the function is renamed, so this fails loudly rather than silently checking nothing.
+//
+// It deliberately does NOT compare the labels: the panel's are sentence case because they are
+// joined into the hover tooltip's sentence, admin's are title case because they are a badge
+// `title`. Nor the ORDER, which each surface chooses. The ICON is the shared fact.
+const _rendererSrc = readFileSync(new URL('./calendar-renderer.js', import.meta.url), 'utf8');
+const _dayMarkersSrc = /export function dayMarkers\(f\) \{[\s\S]*?\n\}/.exec(_rendererSrc);
+assert.ok(_dayMarkersSrc, 'dayMarkers could not be sliced out of calendar-renderer.js — renamed?');
+const dayMarkers = /** @type {(f:any) => {icon:string,label:string}[]} */ (
+    new Function(`${_dayMarkersSrc[0].replace('export function', 'function')}; return dayMarkers;`)());
+
+describe('dayMarkers ↔ getSpecialDayBadges — one icon per day, three surfaces', () => {
+    const SHARED = [
+        { flag: 'isBH',     date: new Date(2026, 11, 25, 12), iso: '2026-12-25', title: 'Bank Holiday' },
+        { flag: 'isCutoff', date: CUTOFF_2026,                iso: '2026-02-07', title: 'Cut-off Date' },
+        { flag: 'isPay',    date: PAYDAY_2026,                iso: '2026-02-13', title: 'Payday' },
+        { flag: 'isXmas',   date: XMAS_2026,                  iso: '2026-12-25', title: 'Christmas Day' },
+        { flag: 'isEaster', date: EASTER_2026,                iso: '2026-04-05', title: 'Easter Sunday' },
+    ];
+
+    for (const { flag, date, iso, title } of SHARED) {
+        test(`${title} wears the same icon on the day panel as on an admin day row`, () => {
+            const panel = dayMarkers({ [flag]: true });
+            assert.equal(panel.length, 1, `dayMarkers({${flag}}) should produce exactly one chip`);
+            const admin = getSpecialDayBadges(date, iso).find(b => b.title === title);
+            assert.ok(admin, `getSpecialDayBadges no longer produces a ${title} badge`);
+            assert.equal(panel[0].icon, admin.icon,
+                `${title}: the day panel says ${panel[0].icon} and the admin row says ${admin.icon} `
+                + '— the panel exists to explain the marker the calendar is showing');
+        });
+    }
+
+    // Today is the one marker with no admin badge and no cell icon (the cell tints its day number
+    // instead), so it carries a glyph of its own — a chip with none would read as one that failed
+    // to load. Pinned so the reason survives, not the glyph: change it deliberately.
+    test('Today carries a glyph of its own, having no cell icon to borrow', () => {
+        const [today] = dayMarkers({ isToday: true });
+        assert.equal(today.label, 'Today');
+        assert.ok(today.icon && today.icon.length > 0, 'the Today chip lost its glyph');
+        assert.equal(getSpecialDayBadges(PLAIN_WEEKDAY, '2026-06-17').length, 0,
+            'the admin row has no Today badge — if it gains one, these two must agree');
+    });
+
+    // Boxing Day is deliberately ABSENT from both, and index.css says why beside the 🎄: 26 December
+    // is left plain so it still reads as an overtime opportunity. A marker added to one surface and
+    // not the other is exactly the drift this block exists to catch, so the absence is pinned too.
+    test('Boxing Day is marked on neither surface, deliberately', () => {
+        const boxing = new Date(2026, 11, 26, 12);
+        assert.deepEqual(getSpecialDayBadges(boxing, '2026-12-26'), [],
+            'Boxing Day gained an admin badge — index.css leaves the cell plain on purpose');
+        // The sliced FUNCTION, with comments stripped — the module's header explains at length why
+        // Boxing Day is absent, so scanning the whole file matches its own explanation and this
+        // assertion fails on the code being correctly documented. (It did, on the first run.)
+        const body = _dayMarkersSrc[0].replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+        assert.equal(/boxing/i.test(body), false,
+            'dayMarkers gained a Boxing Day chip — the cell has no marker for it to explain');
+    });
 });
 
 // ---------------------------------------------------------------------------

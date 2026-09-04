@@ -130,18 +130,17 @@ mock.module('./override-utils.js', {
               : override.type === 'annual_leave' ? sunday
               : override.type === 'other'        ? sunday
               : false);
-            if (!override || suppressed) return { shift: baseShift, rdwTime: '', derivedRdw: false, note: '' };
-            const note = override.note || '';
-            if (override.type === 'rdw') return { shift: 'RDW', rdwTime: override.value, derivedRdw: false, note };
+            if (!override || suppressed) return { shift: baseShift, rdwTime: '', derivedRdw: false };
+            if (override.type === 'rdw') return { shift: 'RDW', rdwTime: override.value, derivedRdw: false };
             const pm = override.type === 'other' && typeof override.value === 'string'
                 ? override.value.match(/^(TRG|IND|ASSESS)( RDW)?( ([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d)?$/) : null;
             if (pm) {
                 const rdw = !!pm[2], time = pm[3] ? pm[3].trim() : null;
                 const derivedRdw = rdw || baseShift === 'RD' || baseShift === 'OFF';
                 const rdwTime = time ?? (derivedRdw ? 'RDW' : (/^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/.test(baseShift) ? baseShift : ''));
-                return { shift: override.value, rdwTime, derivedRdw, note };
+                return { shift: override.value, rdwTime, derivedRdw };
             }
-            return { shift: override.value, rdwTime: '', derivedRdw: false, note };
+            return { shift: override.value, rdwTime: '', derivedRdw: false };
         },
     },
 });
@@ -601,11 +600,48 @@ describe('buildCalendarContainer — shift classes', () => {
 // Organised by what a wrong answer COSTS. Saying nothing when the roster DID change is the reported
 // defect and is silent. Claiming a change that did not happen is worse in a different way: it
 // invites a member to query a shift with their manager that nobody ever altered.
+describe('who changed the day', () => {
+    // The owner asked for the person's name (Sep 2026). Two answers, and they are NOT the same
+    // shape: a roster upload is the weekly roster arriving, and its `changedBy` is whoever ran the
+    // upload — naming them would say they chose the shift.
+    test('a manual change names the person who made it', () => {
+        _mockGetBaseShift = () => '06:00-14:00';
+        _overrideCache.set('G. Miller|2026-01-02',
+            { type: 'annual_leave', value: 'AL', note: '', source: 'manual', changedBy: 'S. Silva' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.equal(cell?.dataset.detailBy, 'Changed by S. Silva');
+    });
+
+    test('a ROSTER UPLOAD does not name the uploader — it names the roster', () => {
+        _mockGetBaseShift = () => 'SPARE';
+        _overrideCache.set('G. Miller|2026-01-02',
+            { type: 'shift', value: '07:00-16:00', note: '', source: 'roster_import', changedBy: 'G. Miller' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.equal(cell?.dataset.detailBy, 'From the weekly roster',
+            'the uploader is named as though they chose the shift. They ran an import; the roster '
+            + 'is what decided the day, and the member would ask the wrong person about it');
+    });
+
+    test('a document that cannot say says NOTHING — it never guesses a colleague', () => {
+        _mockGetBaseShift = () => '06:00-14:00';
+        _overrideCache.set('G. Miller|2026-01-02',
+            { type: 'annual_leave', value: 'AL', note: '', source: 'manual' });   // legacy: no changedBy
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.equal(cell?.dataset.detailBy, undefined,
+            'a row with no changedBy produced a provenance line anyway — this line names a real '
+            + 'colleague, so an absent one is the only honest answer');
+    });
+});
+
 describe('buildCalendarContainer — the base-roster line', () => {
     test('an override over a SPARE week says so — the reported case', () => {
         _mockGetBaseShift = () => 'SPARE';
         _overrideCache.set('G. Miller|2026-01-02', { type: 'shift', value: '07:00-16:00', note: '', source: 'manual' });
         const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.equal(cell?.dataset.detailBaseShift, 'SPARE',
+            'the raw base VALUE is not carried, so the panel cannot derive the badge colour from '
+            + 'the same function the grid uses');
+        assert.equal(cell?.dataset.detailNowShift, '07:00-16:00');
         assert.equal(cell?.dataset.detailBase, 'Spare day',
             'a shift given on a spare week does not say the week was spare — the panel reads exactly '
             + 'like an ordinary rostered turn, which is the defect this was written for');
@@ -615,6 +651,9 @@ describe('buildCalendarContainer — the base-roster line', () => {
     test('no override → NO base line, because nothing changed', () => {
         _mockGetBaseShift = () => '06:00-14:00';
         const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.equal(cell?.dataset.detailBaseShift, undefined,
+            'an unchanged day carries the badge pair, so the panel draws a transition that did not '
+            + 'happen');
         assert.equal(cell?.dataset.detailBase, undefined,
             'an unchanged day claims a change. "Changed from Early shift" under "Early shift" is '
             + 'both noise and an invitation to query a shift nobody altered');
@@ -697,11 +736,26 @@ describe('buildCalendarContainer — special markers', () => {
         assert.ok(cell?.getAttribute('aria-label')?.includes('Payday'));
     });
 
-    test('override note appears in data-tooltip', () => {
+    // The INVERSE of what this asserted until v22.69, and it is a privacy guard rather than a
+    // tidy-up. `note` is free text about a named colleague; no save path has ever offered a field
+    // for it and no override in production carries one, so its only effect was that a value
+    // arriving from anywhere — a hand-written doc, an old import, a future writer — would be
+    // painted onto the calendar. The field is still WRITTEN (firestore.rules requires it present),
+    // so a value can still reach this renderer; what must not happen is that it reaches the DOM.
+    // Asserted across the tooltip AND every data-* attribute, because the day-detail panel reads
+    // the cell's dataset and a note re-added to either surface would be invisible to the other.
+    test('a stored note reaches NEITHER the tooltip nor any data-* attribute', () => {
         _overrideCache.set('G. Miller|2026-01-02', { type: 'annual_leave', value: 'AL', note: 'Annual holiday', source: 'manual' });
         const container = buildCalendarContainer(0, 2026);
         const cell = getDayCell(container, 2);
-        assert.ok(cell?.dataset.tooltip?.includes('Annual holiday'));
+        assert.ok(cell, 'the day cell should exist');
+        assert.ok(!cell.dataset.tooltip?.includes('Annual holiday'), 'the note must not be in the tooltip');
+        for (const [k, v] of Object.entries(cell.dataset)) {
+            assert.ok(!String(v).includes('Annual holiday'),
+                `the note must not be carried in data-${k} (it read "${v}")`);
+        }
+        // ...and the override itself still renders, so this is a removed FIELD, not a removed day.
+        assert.ok(cell.dataset.tooltip?.includes('Annual leave'), 'the AL day itself should still render');
     });
 });
 

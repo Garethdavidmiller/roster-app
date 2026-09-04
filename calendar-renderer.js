@@ -26,6 +26,26 @@ const fullDayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'F
 const SHIFT_KIND_LABELS = { early: 'Early shift', late: 'Late shift', night: 'Night shift' };
 
 /**
+ * WHO changed a day, in one short line — or nothing.
+ *
+ * The two answers are not the same shape. A ROSTER UPLOAD is the weekly roster arriving: the
+ * `changedBy` on those documents is whoever ran the upload, and naming them would say they chose
+ * the shift, which they did not. A MANUAL change is a person's decision, and that person is the one
+ * to ask about it.
+ *
+ * Returns '' when the document cannot say — legacy rows written before `changedBy` existed. An
+ * absent line is honest; a guessed name is not, and this one names a colleague.
+ *
+ * @param {string|undefined} source     'manual' | 'roster_import'
+ * @param {string|undefined} changedBy  the writer's member name
+ * @returns {string}
+ */
+export function changeProvenance(source, changedBy) {
+    if (source === 'roster_import') return 'From the weekly roster';
+    return changedBy ? `Changed by ${changedBy}` : '';
+}
+
+/**
  * The full words for a shift value — what the tooltip, the aria-label and the day-detail panel say.
  *
  * ONE function because there are now TWO callers: the shift a member is actually working, and (from
@@ -57,6 +77,62 @@ export function shiftWords(shift, member, derivedRdw, alwaysTime = false) {
     }
     return SHIFT_KIND_LABELS[getShiftKind(shift, member)]
         + ((member.permanentShift && !alwaysTime) ? '' : ` ${shift}`);
+}
+
+/**
+ * THE SHIFT LINE, SPLIT SO A TIME CANNOT BREAK IN HALF.
+ *
+ * "Early shift 07:00-16:00" is one string, and at 320px the day panel has ~240px of content width —
+ * so it wraps, and a browser will happily break at the hyphen INSIDE the value, leaving
+ * "Early shift 07:00-" above "16:00". A shift time split across two lines is not a slightly worse
+ * line break; it is a number that no longer reads as a number. Measured at 320 x 700, not reasoned.
+ *
+ * Splitting here rather than in the panel keeps it pure and testable, and keeps the ONE regex that
+ * knows what a time looks like out of a view module. The words keep any trailing clause the Other
+ * grammar adds ("Training — Rest Day Worked"), because only the final `HH:MM-HH:MM` is atomic.
+ *
+ * @param {string} text a rendered shift line from `shiftWords` (+ any RDW time the caller appended)
+ * @returns {{ words: string, time: string }} `time` is '' when the line carries none
+ */
+export function splitShiftLine(text) {
+    const m = /\s(\d{1,2}:\d{2}-\d{1,2}:\d{2})$/.exec(text || '');
+    return m ? { words: (text || '').slice(0, m.index), time: m[1] } : { words: text || '', time: '' };
+}
+
+/**
+ * WHAT IS TRUE OF THIS DATE — the day markers, as icon + name, in one authority.
+ *
+ * The icons are the calendar cell's OWN markers, not a second vocabulary invented for the panel:
+ * ⭐ bank holiday, 💷 payday, ✂️ cut-off, 🐣 Easter Sunday, 🎄 Christmas Day, all declared as
+ * `::before`/`::after` content in `index.css`. That matters because the panel is where a member
+ * goes to ask "what is that star on the cell?" — and until v22.70 it answered by naming the day in
+ * a comma-joined gold sentence with the star nowhere in it. The one place the legend is read was
+ * the one place the legend was absent.
+ *
+ * `Today` gets a glyph of its own rather than being left bare: it is the only marker with no cell
+ * icon (the cell tints its day number instead), so a chip row where one chip alone had no icon
+ * would read as a chip that failed to load.
+ *
+ * The ORDER is deliberate and is not the cell's z-order: the date's own identity first (Christmas,
+ * Easter, bank holiday), then Today, then the pay facts — a member reading downwards gets what the
+ * day IS before what it PAYS. Boxing Day is deliberately absent, matching the cell, which is left
+ * plain so 26 December still reads as an overtime opportunity (index.css says so beside the 🎄).
+ *
+ * Pure — it takes booleans, not a date, so the caller's existing `is*` calls are not repeated and
+ * this cannot disagree with the classes the same call sites set on the cell.
+ *
+ * @param {{isToday?:boolean, isBH?:boolean, isXmas?:boolean, isEaster?:boolean, isPay?:boolean, isCutoff?:boolean}} f
+ * @returns {{icon:string, label:string}[]}
+ */
+export function dayMarkers(f) {
+    const out = [];
+    if (f.isXmas)   out.push({ icon: '🎄', label: 'Christmas Day' });
+    if (f.isEaster) out.push({ icon: '🐣', label: 'Easter Sunday' });
+    if (f.isBH)     out.push({ icon: '⭐', label: 'Bank holiday' });
+    if (f.isToday)  out.push({ icon: '📍', label: 'Today' });
+    if (f.isPay)    out.push({ icon: '💷', label: 'Payday' });
+    if (f.isCutoff) out.push({ icon: '✂️', label: 'Cut-off date' });
+    return out;
 }
 
 /**
@@ -304,7 +380,7 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // somebody's life. `getBaseShift` has already applied start-date suppression, the
         // Christmas rules and any scheduled roster change, so this is the member's real base.
         const baseShift = shift;
-        const { shift: _effShift, rdwTime, derivedRdw: otherDerivedRdw, note: overrideNote } =
+        const { shift: _effShift, rdwTime, derivedRdw: otherDerivedRdw } =
             resolveEffectiveShift(override, shift, isSunday(dateStr));
         shift = _effShift;
 
@@ -328,14 +404,10 @@ export function buildCalendarContainer(month, year, opts = {}) {
         const isPay    = isPayday(currentDate);
         const isCutoff = isCutoffDate(currentDate);
 
-        const extras = [
-            isToday  ? 'Today' : '',
-            isBH     ? 'Bank holiday' : '',
-            isXmas   ? 'Christmas Day' : '',
-            isEaster ? 'Easter Sunday' : '',
-            isPay    ? 'Payday' : '',
-            isCutoff ? 'Cut-off date' : '',
-        ].filter(Boolean).join(', ');
+        // ONE list, two renderings: the hover tooltip's comma sentence and the day panel's icon
+        // chips. They used to be built separately and could name different days.
+        const markers = dayMarkers({ isToday, isBH, isXmas, isEaster, isPay, isCutoff });
+        const extras  = markers.map(m => m.label).join(', ');
         dayCell.setAttribute('aria-label',
             `${fullDayNames[currentDate.getDay()]} ${currentDate.getDate()} ${MONTH_NAMES[month]} ${year} — ${shiftLabel}${extras ? ' — ' + extras : ''}`
         );
@@ -343,17 +415,37 @@ export function buildCalendarContainer(month, year, opts = {}) {
         const ttShift = shiftLabel + (shift === 'RDW' && rdwTime ? ` ${rdwTime}` : '');
         const ttParts = [ttShift];
         if (extras) ttParts.push(extras);
-        if (overrideNote) ttParts.push(`"${overrideNote}"`);
         dayCell.dataset.tooltip = ttParts.join(' · ');
         // Structured pieces for the tap-to-view day-detail lightbox (touch devices).
         dayCell.dataset.detailDay   = `${fullDayNames[currentDate.getDay()]} ${currentDate.getDate()} ${MONTH_NAMES[month]} ${year}`;
         dayCell.dataset.detailShift = ttShift;
+        // The raw effective value, so the panel can lead with the day's OWN kind glyph from
+        // `shiftBadgeParts` (v22.70). Written on every day, changed or not: an unchanged day used
+        // to be the one state the panel rendered in monochrome, which made the colour look like a
+        // property of "something happened" rather than of the shift.
+        dayCell.dataset.detailShiftValue = shift;
+        // Split so the panel can hold the TIME together across a wrap — see `splitShiftLine`.
+        const shiftLine = splitShiftLine(ttShift);
+        dayCell.dataset.detailShiftWords = shiftLine.words;
+        if (shiftLine.time) dayCell.dataset.detailShiftTime = shiftLine.time;
         // Compared on the VALUES, not the words: a permanent-early member's 06:20 and 07:00 both
         // read "Early shift", so comparing labels would hide exactly the change worth stating.
         // A suppressed override resolves back to the base, so it correctly produces no line.
-        if (baseShift !== shift) dayCell.dataset.detailBase = shiftWords(baseShift, member, false, true);
+        if (baseShift !== shift) {
+            dayCell.dataset.detailBase = shiftWords(baseShift, member, false, true);
+            // The raw VALUES, not rendered badges: the panel derives colour and emoji from
+            // `shiftBadgeParts`, so it cannot give a shift a different colour from the cell that
+            // was tapped — and nothing writes markup out of a `data-` attribute.
+            dayCell.dataset.detailBaseShift = baseShift;
+            dayCell.dataset.detailNowShift  = shift;
+            const by = changeProvenance(override?.source, override?.changedBy);
+            if (by) dayCell.dataset.detailBy = by;
+        }
         if (extras)       dayCell.dataset.detailExtras = extras;
-        if (overrideNote) dayCell.dataset.detailNote   = overrideNote;
+        // JSON rather than a re-parse of the sentence above: the panel needs the icons, and
+        // matching them back out of "Bank holiday, Christmas Day" would be a second, silent copy of
+        // the label list. Our own data, and the panel still guards the parse.
+        if (markers.length) dayCell.dataset.detailMarkers = JSON.stringify(markers);
 
         if (isToday)  dayCell.classList.add('today');
         if (isBH)     dayCell.classList.add('bank-holiday');

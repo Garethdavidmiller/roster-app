@@ -9,6 +9,7 @@
  */
 
 import { createLightbox } from './overlay.js';
+import { shiftBadgeParts } from './roster-data.js';
 import { getCurrentMember } from './calendar-member.js';
 import { getDisplayYear } from './calendar-state.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
@@ -196,16 +197,47 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   document.getElementById('alBtn')?.addEventListener('click', () => alLb.open());
 
   // ── DAY DETAIL LIGHTBOX (touch tap on a calendar cell) ─────────────────────
-  // Surfaces the shift time, day markers, and any override note when a staff
+  // Surfaces the shift time, what it was changed from, and the day markers when a staff
   // member taps a day on a touch device — the same content desktop users read
   // from the hover tooltip (which is unreachable on touch).
   const dayLb    = document.getElementById('dayDetailLightbox');
   const dateEl   = /** @type {HTMLElement} */ (document.getElementById('dayDetailDate'));
-  const shiftEl  = /** @type {HTMLElement} */ (document.getElementById('dayDetailShift'));
-  const baseEl   = /** @type {HTMLElement} */ (document.getElementById('dayDetailBase'));
+  const glyphEl  = /** @type {HTMLElement} */ (document.getElementById('dayDetailShiftGlyph'));
+  const wordsEl  = /** @type {HTMLElement} */ (document.getElementById('dayDetailShiftWords'));
+  const timeEl   = /** @type {HTMLElement} */ (document.getElementById('dayDetailShiftTime'));
+  const changeEl = /** @type {HTMLElement} */ (document.getElementById('dayDetailChange'));
+  const pairEl   = /** @type {HTMLElement} */ (document.getElementById('dayDetailChangePair'));
+  const byEl     = /** @type {HTMLElement} */ (document.getElementById('dayDetailBy'));
   const extrasEl = /** @type {HTMLElement} */ (document.getElementById('dayDetailExtras'));
-  const noteEl   = /** @type {HTMLElement} */ (document.getElementById('dayDetailNote'));
   const payBtn   = /** @type {HTMLButtonElement|null} */ (document.getElementById('dayDetailPayBtn'));
+
+  /**
+   * One shift badge, built as elements. Same class, emoji and word as every other badge in the app.
+   * @param {string} shift @returns {HTMLElement}
+   */
+  function _badge(shift) {
+    const { cls, emoji, word, timed } = shiftBadgeParts(shift);
+    // A TIMED shift shows its time, not its kind. Both sides of a time tweak classify the same way
+    // — 06:20 and 06:30 are both "Early" — so the kind alone drew `☀️ EARLY → ☀️ EARLY`, two
+    // identical pills either side of an arrow, on what is probably the commonest change there is.
+    // The kind is still carried by the colour, the emoji and the accessible label.
+    const body = timed ? shift : word;
+    const el = document.createElement('span');
+    // `ddc-badge` and NOT `shift-badge`: index.css owns `.shift-badge` for CALENDAR CELLS and
+    // retunes it at six breakpoints (down to 7px type and `min-width: 80%`), so reusing it here
+    // rendered a full-width block with the emoji stacked above the word. The COLOUR classes are
+    // colour-only and live in shared.css, so the panel takes those and brings its own pill.
+    el.className = `ddc-badge ${cls}`;
+    const ic = document.createElement('span');
+    ic.setAttribute('aria-hidden', 'true');
+    ic.textContent = emoji;
+    const tx = document.createElement('span');
+    tx.textContent = body;
+    if (timed) el.setAttribute('aria-label', `${word} shift, ${shift.replace('-', ' to ')}`);
+    el.append(ic, tx);
+    return el;
+  }
+
 
   const detailLb = dayLb ? createLightbox({
     overlay:  /** @type {any} */ (dayLb),
@@ -218,17 +250,93 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     if (!detailLb) return;
     const d = cell.dataset;
     dateEl.textContent  = d.detailDay   || '';
-    shiftEl.textContent = d.detailShift || '';
-    // The base-roster line is present only when an override actually changed the day, so its
-    // absence is not a claim that nothing changed — it is the renderer having found them equal.
-    if (baseEl) {
-      if (d.detailBase) { baseEl.textContent = `Changed from ${d.detailBase}`; baseEl.hidden = false; }
-      else                baseEl.hidden = true;
+    // The words and the TIME are separate spans so a 320px wrap breaks between them and never
+    // inside the value — `splitShiftLine` in calendar-renderer.js owns the split. A dataset written
+    // by an older renderer (a page held open across a deploy) has neither, so fall back to the
+    // whole line rather than rendering an empty headline.
+    wordsEl.textContent = d.detailShiftWords || d.detailShift || '';
+    if (timeEl) {
+      timeEl.textContent = d.detailShiftTime || '';
+      timeEl.hidden = !d.detailShiftTime;
     }
-    if (d.detailExtras) { extrasEl.textContent = d.detailExtras; extrasEl.hidden = false; }
-    else                  extrasEl.hidden = true;
-    if (d.detailNote)   { noteEl.textContent = `"${d.detailNote}"`; noteEl.hidden = false; }
-    else                  noteEl.hidden = true;
+    // THE DAY'S OWN KIND GLYPH (v22.70) — the same emoji as the cell that was tapped, from the one
+    // badge authority. Before this the panel was monochrome unless something had CHANGED, so the
+    // colour and the glyph read as properties of a change rather than of the shift; a plain Late
+    // turn and a plain Rest day were the same grey card with different words.
+    const kindEmoji = d.detailShiftValue ? shiftBadgeParts(d.detailShiftValue).emoji : '';
+    if (glyphEl) {
+      glyphEl.textContent = kindEmoji;
+      glyphEl.hidden = !kindEmoji;
+    }
+    // THE CHANGE, AS THE TWO BADGES THE MEMBER ALREADY READS IN THE GRID. Present only when an
+    // override actually changed the day, so its absence is not a claim that nothing changed — it is
+    // the renderer having found the two values equal.
+    //
+    // Built as real elements with `textContent`, never `innerHTML`: `getShiftBadge` returns markup
+    // and the obvious shortcut is to stash that in the dataset and write it in, which is how a
+    // `data-` attribute becomes an injection surface. The parts come from the same function that
+    // builds every other badge in the app, so a shift cannot be one colour in the cell and another
+    // in the panel.
+    if (changeEl && pairEl) {
+      const from = d.detailBaseShift, to = d.detailNowShift;
+      if (from && to) {
+        // THE ARROW TRAVELS WITH THE BADGE IT POINTS AT. The pair wraps at 320px, and with three
+        // loose flex children the wrap fell after the arrow — "08:00-16:30 →" on one line and
+        // "07:00-16:00" on the next, which reads as a sentence that lost its end. Grouped, the
+        // wrap puts "→ 07:00-16:00" on line two, where the arrow leads the continuation. Identical
+        // rendering when it does not wrap.
+        const to_ = document.createElement('span');
+        to_.className = 'ddc-to';
+        to_.append(
+          Object.assign(document.createElement('span'),
+            { className: 'ddc-arrow', textContent: '→', ariaHidden: 'true' }),
+          _badge(to),
+        );
+        pairEl.replaceChildren(_badge(from), to_);
+        // ONE sentence for a screen reader. The badges are decorative here — read individually
+        // they would be "Spare, right arrow, Early", which is three fragments of one fact, and the
+        // arrow is not a word. The headline above still states the shift in full.
+        if (byEl) {
+          if (d.detailBy) { byEl.textContent = d.detailBy; byEl.hidden = false; }
+          else              byEl.hidden = true;
+        }
+        // The provenance joins the SENTENCE rather than being read after it, so a screen reader
+        // gets one fact and not two fragments.
+        changeEl.setAttribute('aria-label',
+          `Changed from ${d.detailBase} to ${d.detailShift || ''}`.trim()
+          + (d.detailBy ? `. ${d.detailBy}` : ''));
+        changeEl.hidden = false;
+      } else {
+        changeEl.hidden = true;
+        changeEl.removeAttribute('aria-label');
+      }
+    }
+    // THE DAY MARKERS, AS THE CALENDAR'S OWN ICONS (v22.70). `detailMarkers` is the structured
+    // form of the same list the tooltip's comma sentence comes from, so the two cannot name
+    // different days. The parse is guarded and falls back to the sentence: a chip row is a nicety,
+    // and losing the FACT because a data attribute would not parse is not a trade worth making.
+    let markers;
+    try { markers = d.detailMarkers ? JSON.parse(d.detailMarkers) : []; } catch { markers = []; }
+    if (markers.length) {
+      extrasEl.replaceChildren(...markers.map(/** @param {{icon?:string,label?:string}} m */ (m) => {
+        const chip = document.createElement('span');
+        chip.className = 'ddm-chip';
+        const ic = document.createElement('span');
+        ic.className = 'ddm-icon';
+        ic.setAttribute('aria-hidden', 'true');
+        ic.textContent = m.icon || '';
+        const tx = document.createElement('span');
+        tx.textContent = m.label || '';
+        chip.append(ic, tx);
+        return chip;
+      }));
+      extrasEl.hidden = false;
+    } else if (d.detailExtras) {
+      extrasEl.textContent = d.detailExtras;
+      extrasEl.hidden = false;
+    } else {
+      extrasEl.hidden = true;
+    }
     // Pay-marked day (payday or cut-off): offer an explicit route to the calculator. Touch has no
     // hover, so tapping such a day used to teleport to paycalc unexpectedly — now the jump is a
     // deliberate button inside the detail. A cut-off day resolves to its own payday.

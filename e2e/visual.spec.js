@@ -806,6 +806,59 @@ test('nav drawer — default state (mobile 390)', async ({ page }) => {
     await expect(page).toHaveScreenshot('nav-drawer-mobile-390.png');
 });
 
+// ── The day-detail panel (v22.70) ───────────────────────────────────────────────────────────────
+//
+// The calendar's only touch route to what a day IS, and the densest read-only overlay in the app —
+// and it had no pixel coverage at all, which is how it shipped two defects that nothing else could
+// see: an id-level `transform` froze it permanently at 85% (five panels, v22.64), and the date ran
+// under the 44px close button. Both render perfectly as far as any behavioural assertion is
+// concerned; every element is present, visible, labelled and readable in each case.
+//
+// The state chosen is the DENSEST — a changed day that is also Christmas Day and a bank holiday, so
+// all three zones and both marker chips are on screen. The clock is pinned past the month because
+// `calendar-state.js` refuses to restore a FUTURE month, and the panel is captured as an ELEMENT so
+// the baseline is the panel's own composition rather than whatever the grid behind it is doing.
+async function openDenseDayPanel(page, { width, height }) {
+    await page.clock.setFixedTime(new Date('2027-01-20T10:00:00Z'));
+    await page.setViewportSize({ width, height });
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = Object.assign(w.__E2E || {}, { authUser: true });
+        w.__E2E.docs = [{ id: 'x', memberName: 'G. Miller', date: '2026-12-25',
+            type: 'rdw', value: '09:00-17:00', note: '', source: 'manual', changedBy: 'S. Silva' }];
+        localStorage.setItem('myb_roster_year', '2026');
+        localStorage.setItem('myb_roster_month', '11');
+    });
+    await dismissOneTimeOverlays(page);
+    await page.goto('/');
+    await settle(page, '.calendar-day');
+    // The visual project is Desktop Chrome, where a CLICK opens nothing — the panel is the touch
+    // affordance and a desktop pointer reads the same content from the hover tooltip. Enter on a
+    // focused cell is the same panel by the KEYBOARD route (calendar-keyboard.js), which is a real
+    // production state and renders identically; the viewport widths above are what the baseline is
+    // actually about.
+    const cell = page.locator('.calendar-day:not(.other-month)').nth(24);
+    await cell.evaluate(el => /** @type {HTMLElement} */ (el).focus());
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#dayDetailChange')).toBeVisible();
+    // Past the 500ms entry transition, so the baseline is the panel at rest and not mid-spring.
+    await page.evaluate(() => new Promise(r => setTimeout(r, 600)));
+}
+
+test('overlay — day detail, densest state (calendar, mobile 390)', async ({ page }) => {
+    await openDenseDayPanel(page, { width: 390, height: 844 });
+    await expect(page.locator('#dayDetailContent')).toHaveScreenshot('day-detail-dense-mobile-390.png');
+});
+
+// 320px is where every wrap in this panel happens — the date, the shift line and the badge pair all
+// change shape here and nowhere wider. It is also the width the app designs to.
+test('overlay — day detail, densest state (calendar, narrow 320)', async ({ page }) => {
+    await openDenseDayPanel(page, { width: 320, height: 700 });
+    await expect(page.locator('#dayDetailContent')).toHaveScreenshot('day-detail-dense-narrow-320.png');
+});
+
 test('overlay — App Notices (calendar, desktop 1280)', async ({ page }) => {
     await prep(page, { width: 1280, height: 900 });
     await page.goto('/');

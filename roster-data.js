@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '22.68';
+export const APP_VERSION = '22.70';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -940,29 +940,54 @@ export function getShiftClass(timeStr) {
  *   and their word IS the information.
  * @returns {string}  HTML string (safe — no user data interpolated)
  */
-export function getShiftBadge(timeStr, opts = {}) {
-    if (!timeStr || timeStr === 'RD' || timeStr === 'OFF') return `<span class="shift-badge badge-rest"><span aria-hidden="true">🏠</span><span>Rest</span></span>`;
-    if (timeStr === 'SPARE') return `<span class="shift-badge badge-spare"><span aria-hidden="true">📋</span><span>Spare</span></span>`;
-    if (timeStr === 'RDW')   return `<span class="shift-badge badge-rdw" title="Rest day worked — extra shift on your rostered day off"><span aria-hidden="true">💼</span><span>RDW</span></span>`;
-    if (timeStr === 'AL')    return `<span class="shift-badge badge-al"><span aria-hidden="true">🏖️</span><span>AL</span></span>`;
-    if (timeStr === 'SICK')  return `<span class="shift-badge badge-sick"><span aria-hidden="true">🪑</span><span>Absent</span></span>`;
+/**
+ * A shift's BADGE, broken into its parts: the colour class, the emoji, and the word.
+ *
+ * `getShiftBadge` builds its HTML from this, and so does the calendar's day-detail panel — which
+ * needs the same colour and emoji but constructs real elements with `textContent`, because writing
+ * markup out of a `data-` attribute is the one shape of this that becomes an injection surface.
+ * Two builders would eventually give the same shift two different colours on the same screen.
+ *
+ * @param {string} timeStr
+ * @returns {{cls: string, emoji: string, word: string, title?: string, timed?: boolean}}
+ */
+export function shiftBadgeParts(timeStr) {
+    if (!timeStr || timeStr === 'RD' || timeStr === 'OFF') return { cls: 'badge-rest',  emoji: '🏠', word: 'Rest' };
+    if (timeStr === 'SPARE') return { cls: 'badge-spare', emoji: '📋', word: 'Spare' };
+    if (timeStr === 'RDW')   return { cls: 'badge-rdw',   emoji: '💼', word: 'RDW',
+        title: 'Rest day worked — extra shift on your rostered day off' };
+    if (timeStr === 'AL')    return { cls: 'badge-al',    emoji: '🏖️', word: 'AL' };
+    if (timeStr === 'SICK')  return { cls: 'badge-sick',  emoji: '🪑', word: 'Absent' };
     // Other family — 🏷️ + the SHORT flavour word (Train/Ind/Assess); the FULL word
     // (Training/Induction/Assessment) is shown on tap via the day-detail label instead.
     const _trg = parseOtherValue(timeStr);
-    if (_trg) return `<span class="shift-badge badge-other"><span aria-hidden="true">🏷️</span><span>${OTHER_FLAVOURS[_trg.flavour].badge}</span></span>`;
-    if (!SHIFT_TIME_REGEX.test(timeStr)) return `<span class="shift-badge badge-unknown"><span aria-hidden="true">❓</span><span>Unknown</span></span>`;
+    if (_trg) return { cls: 'badge-other', emoji: '🏷️', word: OTHER_FLAVOURS[_trg.flavour].badge };
+    if (!SHIFT_TIME_REGEX.test(timeStr)) return { cls: 'badge-unknown', emoji: '❓', word: 'Unknown' };
+    // `timed` = this badge's word is a CLASSIFICATION of a time, so a caller may trade the word
+    // for the time itself. Declared here rather than re-derived from the class by each consumer.
+    if (isNightShift(timeStr)) return { cls: 'badge-night', emoji: '🦉', word: 'Night', timed: true };
+    return isEarlyShift(timeStr)
+        ? { cls: 'badge-early', emoji: '☀️', word: 'Early', timed: true }
+        : { cls: 'badge-late',  emoji: '🌙', word: 'Late',  timed: true };
+}
+
+/**
+ * @param {string} timeStr
+ * @param {{showTime?: boolean}} [opts]
+ * @returns {string}
+ */
+export function getShiftBadge(timeStr, opts = {}) {
+    const { cls, emoji, word, title, timed } = shiftBadgeParts(timeStr);
     // `showTime` puts the TIME in the badge instead of the word, and names the word in the
     // accessible label so nothing is lost. Admin's week grid asks for it; the calendar does not,
     // because a calendar cell prints the time beside the badge already and repeating it would eat
-    // the cell. Default false, so every existing caller renders byte-identically.
-    const label = (/** @type {string} */ word) => (opts.showTime
-        ? ` aria-label="${word} shift, ${timeStr.replace('-', ' to ')}"`
-        : '');
-    const body = (/** @type {string} */ word) => (opts.showTime ? timeStr : word);
-    if (isNightShift(timeStr)) return `<span class="shift-badge badge-night"${label('Night')}><span aria-hidden="true">🦉</span><span>${body('Night')}</span></span>`;
-    return isEarlyShift(timeStr)
-        ? `<span class="shift-badge badge-early"${label('Early')}><span aria-hidden="true">☀️</span><span>${body('Early')}</span></span>`
-        : `<span class="shift-badge badge-late"${label('Late')}><span aria-hidden="true">🌙</span><span>${body('Late')}</span></span>`;
+    // the cell. Default false, so every existing caller renders byte-identically. Only a TIMED
+    // shift has a word to trade away — the fixed kinds ignore the option, exactly as before.
+    const attr = title ? ` title="${title}"`
+        : (opts.showTime && timed) ? ` aria-label="${word} shift, ${timeStr.replace('-', ' to ')}"`
+        : '';
+    const body = (opts.showTime && timed) ? timeStr : word;
+    return `<span class="shift-badge ${cls}"${attr}><span aria-hidden="true">${emoji}</span><span>${body}</span></span>`;
 }
 
 // ============================================
