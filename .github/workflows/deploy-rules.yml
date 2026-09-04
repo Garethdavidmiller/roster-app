@@ -51,6 +51,12 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
+          # Cache npm's download store (keyed on the lockfile, so a dependency change still
+          # invalidates it). This caches ~/.npm, NOT node_modules — `npm ci` still unpacks and
+          # links every package, so it removes fetch time and not install time. Measured 4 Sep
+          # 2026: deploy-hosting, which has had this since v20.96, still spent 6m05s installing.
+          # It is free and strictly better; it is not a cure for a slow install.
+          cache: 'npm'
 
       # firebase-tools v15 requires Java 21+ to run the Firestore/Storage emulators
       # used by `npm run test:rules` (the safety gate below). The ubuntu-latest default

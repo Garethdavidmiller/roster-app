@@ -17,11 +17,18 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: functions/package-lock.json
 
       - name: Install function dependencies
         run: npm ci
         working-directory: functions
 
+      # This is the WEEKLY monitor — one run a week is the whole coverage, so a week in which the
+      # audit could not run must not look like a clean week. It therefore FAILS on an unreachable
+      # service, with a message saying the check did not happen rather than implying a finding.
+      # Same script as the deploy gate, opposite policy; the reasoning is in the script's header.
       - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high
-        working-directory: functions
+        env:
+          AUDIT_UNKNOWN_IS_FAILURE: '1'
+        run: bash scripts/audit-functions-deps.sh
