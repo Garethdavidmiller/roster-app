@@ -159,6 +159,28 @@ own container and left the grid card's collapse chevron 21px of reachable tap ta
 not re-add an expiry here: the audience for these facts is whoever arrives next, and there is no
 date after which a newcomer stops needing them.
 
+## The workspace is used on a PHONE as well as a desktop (owner, Sep 2026)
+
+Stated because the page does not look like it: a 24 x 7 grid, a generator with a slot table, and
+two designs side by side in compare mode all read as desktop work. They are also done on a phone,
+so a change here is not finished when it looks right at 1280.
+
+What that has already cost, both found by measuring rather than reading:
+
+- **The paint chips were 20-22px tall** (fixed v22.61). RD 30x22, SP 27x20, Custom 53x22 at 390px —
+  under the 24px floor, and they are the PRIMARY control on the page: you arm a chip and paint the
+  grid with it, which on a phone is the whole interaction. Now `min-height: 30px` under
+  `@media (pointer: coarse)`, gated on the POINTER and not the width, per `css-tokens.md`.
+- **The tap-target gate could not see them.** `no control has a tap target under 24px` loaded each
+  page with a session and nothing else, and links.html with no design renders the EMPTY state — no
+  grid, no brush bar, no chips. The page passed by having none of its own controls on screen. It
+  now seeds a design. **A guard that walks every page has to reach each page's real working state**,
+  or "no page has a small target" means "no page I could see".
+
+Two measurements worth keeping, both fine as they stand: the page does not scroll sideways at 390px
+in any state, and compare mode stacks its two grids vertically (each scrolling horizontally inside
+its own wrapper) rather than trying to sit them side by side.
+
 ## Design and save model (v12.09, redesigned v12.39–v12.43, multi-design v12.46–v12.47)
 
 ### Card order (v12.46)

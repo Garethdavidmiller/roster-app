@@ -589,6 +589,9 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // Individual weeks vary widely — 22h on one line, 42h on another — and only the AVERAGE is
         // the contract. That is what this row states, and it is why it is stated as an average
         // across all the lines rather than as a figure "on each" of them.
+        /** The hours row's own verdict, for the triage block. Null when there is nothing to average.
+         *  @type {{onTarget: boolean, off: number, hm: string}|null} */
+        let hoursVerdict = null;
         const wh = weeklyHours(design.patterns, TOTAL_POS);
         if (wh.exSunday !== null) {
             // A THRESHOLD IS DEFENSIBLE HERE, unlike the ORR factors — 35 is the contract, not
@@ -599,6 +602,10 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             // read still deserves its figure — what it must not get is the green tick, because the
             // figure was computed over a smaller rotation than the one on screen (v20.08).
             const onTarget = Math.abs(off) <= 0.5 && wh.complete;
+            // Read by the triage block below. Assigned from the row's OWN verdict, never recomputed
+            // there — a second copy of `Math.abs(off) <= 0.5` is how a summary and its evidence
+            // start disagreeing, which is the one thing this block must not do.
+            hoursVerdict = { onTarget, off, hm: hmFromHours(Math.abs(off)) };
             const hm = hmFromHours;
             rows.push(
                 `<div class="check-row ${onTarget ? 'check-good' : 'check-warn-row'}">` +
@@ -823,6 +830,17 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         if (unfilledLines.length) triage.fix.push(`${unfilledLines.length} of ${totalWeeks} lines not yet designed`);
         if (turnarounds.length)   triage.fix.push(`${turnarounds.length} transition${turnarounds.length === 1 ? '' : 's'} with under 12 hours rest`);
         if (limits.breaches)      triage.fix.push(`${limits.breaches} ${POLICY_SOURCE_CONFIRMED ? 'company limit' : 'configured limit'}${limits.breaches === 1 ? '' : 's'} breached`);
+        // THE AMBER ROWS BELONG HERE TOO. The first cut read only the red rows and the fatigue
+        // counts, so a design short of contract, or with a third of the weekends off, produced
+        // "Nothing found that has to be fixed" and no "Worth discussing" group at all — while the
+        // amber rows sat below saying otherwise. The block is the card's hierarchy; a level it
+        // silently skips is a level nobody reads.
+        if (hoursVerdict && !hoursVerdict.onTarget) {
+            triage.discuss.push(hoursVerdict.off < 0
+                ? `${hoursVerdict.hm} a week short of the ${CONTRACTED_HOURS_PER_WEEK}-hour contract`
+                : `${hoursVerdict.hm} a week over the ${CONTRACTED_HOURS_PER_WEEK}-hour contract`);
+        }
+        if (!wkendGood) triage.discuss.push(`${weekendsOff} of ${totalWeeks} weeks have a full weekend off (${weekendsOffPct}%)`);
         if (fat.present)          triage.discuss.push(`${fat.present} ORR fatigue factor${fat.present === 1 ? '' : 's'} present in this design`);
         if (fat.standing)         triage.discuss.push(`${fat.standing} standing factor${fat.standing === 1 ? '' : 's'} — from the operation, not from this design`);
         if (fat.confirmNeeded)    triage.discuss.push(`${fat.confirmNeeded} definition${fat.confirmNeeded === 1 ? '' : 's'} still to confirm with the assessing manager`);

@@ -3297,6 +3297,23 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
     await page.setViewportSize({ width: 390, height: 900 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
+    // A DESIGN, because links.html with none renders the EMPTY state — no grid, no brush bar, no
+    // chips — so this gate was measuring a page with almost none of its own controls on it and
+    // passing. The paint chips it could not see measured 30x22, 27x20 and 53x22 (v22.61), and they
+    // are the primary control on the page: you arm one and paint the grid with it, which on a phone
+    // is the whole interaction. A guard that walks every page has to reach each page's real
+    // working state, or "no page has a small target" means "no page I could see".
+    await page.addInitScript(() => {
+        const p = /** @type {Record<string, any>} */ ({});
+        for (let i = 1; i <= 24; i++) {
+            p[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: '06:20-14:20', wed: '06:20-14:20',
+                thu: '14:00-22:00', fri: 'RD', sat: 'RD' };
+        }
+        const w = /** @type {any} */ (window);
+        w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'd1', name: 'Design A', patterns: p,
+            updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' }];
+    });
 
     for (const url of APP_URLS) {
         await page.goto(url);
@@ -3317,6 +3334,18 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
                     n = i;
                 }
                 return n;
+            };
+            /** Is something STICKY or FIXED sitting over `el`'s centre at this scroll position? */
+            const coveredBySticky = (el) => {
+                const r = el.getBoundingClientRect();
+                const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+                if (!hit || hit === el || el.contains(hit)) return false;
+                for (let p = hit; p; p = p.parentElement) {
+                    if (p.contains(el)) return false;          // an ancestor of el, not an overlay
+                    const pos = getComputedStyle(p).position;
+                    if (pos === 'sticky' || pos === 'fixed') return true;
+                }
+                return false;
             };
             /** Is `el` scrolled outside any ancestor that clips its overflow? */
             const clippedByScroller = (el) => {
@@ -3354,10 +3383,23 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
                 // then sailed through this test. A guard that hides the failure it was widened
                 // for is worse than the false positive it was meant to remove.
                 if (clippedByScroller(el)) return;
+                // …and the same for a control a STICKY overlay is sitting on top of right now
+                // (v22.61). links.html's Save row is `position: sticky; bottom: 0` INSIDE the grid
+                // card, so while the card is mid-viewport it covers whichever grid rows happen to
+                // be at the bottom — 25 of 168 on the first paint. Those cells are 61x43 and fully
+                // tappable; scroll on and the bar moves off them, and at the card's end it settles
+                // into flow BELOW the grid, so no cell is permanently under it. Measuring them
+                // where the bar happens to be is measuring the scroll position, not the control.
+                //
+                // Deliberately NARROW: it skips only when the covering element is itself sticky or
+                // fixed. A control genuinely buried under a static element still fails, which is
+                // the failure this guard exists for — and a control permanently under a sticky bar
+                // would be missed, so if that is ever the bug, this is the line that hid it.
+                if (coveredBySticky(el)) return;
                 const w = reach(el, -1, 0) + reach(el, 1, 0) + 1;
                 const h = reach(el, 0, -1) + reach(el, 0, 1) + 1;
                 if (w < 24 || h < 24) {
-                    out.push(`${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''} = ${w}x${h}`);
+                    out.push(`${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${el.className ? '.' + String(el.className).split(' ')[0] : ''}[${(el.textContent||'').trim().slice(0,12)}] = ${w}x${h}`);
                 }
             });
             return [...new Set(out)];
