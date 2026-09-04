@@ -39,10 +39,22 @@ export function shouldReport(message, src, hostname) {
     // Chrome fires this for layout side-effects of third-party content; cosmetic, unactionable.
     if (message.includes('ResizeObserver loop')) return false;
 
-    // Browsers emit this from the DECLARATIVE cross-document view transition the app opts into
-    // (`@view-transition { navigation: auto }` in shared.css) whenever they skip a transition.
+    // Browsers emit these from the DECLARATIVE cross-document view transition the app opts into
+    // (`@view-transition { navigation: auto }` in shared.css) whenever they abandon a transition.
     // Not thrown app code (no stack; the app makes no startViewTransition() call).
+    //
+    // TWO MESSAGES, ONE CAUSE (the second added v22.67, from a live report on Android Chrome 152).
+    // The first is Chromium's own worded skip; the second is the DOMException it rejects the
+    // transition promise with when the document stops being fully active mid-navigation — a tap
+    // through to another page, the app switcher, a back gesture. There is no promise for the app to
+    // handle, because the app never asked for the transition: the CSS did. So it surfaces as an
+    // unhandled rejection here, and the navigation it names has already completed correctly.
+    //
+    // MATCHED IN FULL, not on a fragment. "Transition was aborted" alone would also swallow any
+    // future overlay or animation failure the app might genuinely want to see, and this log's
+    // recorded failure direction is the filter that is too broad.
     if (message.includes('Skipping view transition')) return false;
+    if (message.includes('Transition was aborted because of invalid state')) return false;
 
     // Chrome emits this as an unhandled rejection when its own background SW-update check fails on
     // a network blip. Only suppress alongside a recognised network phrase — a genuine SW

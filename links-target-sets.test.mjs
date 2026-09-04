@@ -172,7 +172,7 @@ describe('describeSetState — whose it is', () => {
         const r = describeSetState(null, { userName: 'G. Miller', isAdmin: true });
         assert.equal(r.canWrite, false);
         assert.equal(r.canDelete, false, 'the admin cannot delete a set that is not picked');
-        assert.match(r.text, /Save the table above/);
+        assert.match(r.text, /Save these staffing numbers/);
     });
 });
 
@@ -182,7 +182,7 @@ describe('describeSetState — where the table is', () => {
 
     test('not loaded says how to load it, and never claims a match', () => {
         const t = as({ isLoaded: false });
-        assert.match(t, /Press Load/);
+        assert.match(t, /Press Use setup/);
         assert.doesNotMatch(t, /matches/);
     });
 
@@ -226,12 +226,21 @@ describe('describeSetState — where the table is', () => {
 describe('describeSetList — what the picker may claim about a list it might not have', () => {
     test('a failed read never renders as an empty account, and offers a way back', () => {
         const r = describeSetList('error', []);
-        assert.ok(!/no saved sets yet/i.test(r.placeholder ?? ''),
+        assert.ok(!/no staffing setups saved yet|no saved sets yet/i.test(r.placeholder ?? ''),
             'a failed read still says "No saved sets yet" — the v21.07/v22.56 defect. These sets are '
             + 'shared, so this tells a designer their colleagues\' work is gone.');
         assert.equal(r.canRetry, true, 'nothing offers to try again, so the state is a dead end');
-        assert.match(r.hint ?? '', /not been deleted/i,
-            'the hint does not rule out the reading the designer will otherwise reach for');
+        // BOTH HALVES, because the first cut of this assertion pinned the WORDING — `/not been
+        // deleted/` — and the wording it locked in was "Your sets have not been deleted", which is
+        // a claim about the SETS that a failed read cannot support (v22.66, external review). A
+        // test can hold a sentence in place long after the sentence stopped being true.
+        assert.match(r.hint ?? '', /deleted/i,
+            'the hint does not address deletion at all, so it leaves standing the reading a '
+            + 'designer reaches for first: somebody removed my colleagues\' work');
+        assert.doesNotMatch(r.hint ?? '', /(have|were|are) not been deleted|are still there|are safe/i,
+            'the hint asserts the sets\' STATE. The read failed — it knows nothing about them, '
+            + 'including that they survive. Reassure about the ERROR, which is the only thing this '
+            + 'branch can vouch for.');
         assert.equal(r.usable, false);
     });
 
@@ -247,7 +256,7 @@ describe('describeSetList — what the picker may claim about a list it might no
         const r = describeSetList('ready', []);
         assert.equal(r.usable, true, 'a designer with no sets is told something went wrong');
         assert.equal(r.canRetry, false);
-        assert.match(r.placeholder ?? '', /no saved sets yet/i);
+        assert.match(r.placeholder ?? '', /no staffing setups saved yet/i);
         assert.equal(r.hint, null, 'an empty account overrides the ordinary hint');
     });
 

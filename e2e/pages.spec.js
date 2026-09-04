@@ -6,6 +6,7 @@ import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword
 // rotation would leave every fixture over-length: the grid ignores the surplus rows, so the specs
 // would still pass while quietly testing the legacy-design path rather than the normal one.
 import { ROTATING_LINES } from '../links-design.js';
+import { describeSetList } from '../links-target-sets.js';
 
 // ── SETTINGS (settings.html) ──────────────────────────────────────────────
 
@@ -927,7 +928,7 @@ test('links: a saved-set list that failed to load never says the account is empt
     // THE RULE IS UNIT-TESTED; THIS IS THE WIRING (v22.57, external review). `describeSetList` is
     // pinned in links-target-sets.test.mjs, and a perfect rule still renders nothing if the
     // coordinator never asks it. The defect was `catch { targetSets = []; }`, so a dropped
-    // connection rendered "No saved sets yet" — and because these sets are SHARED, that tells a
+    // connection rendered the empty-account line — and because these are SHARED, that tells a
     // designer their colleagues' work is gone. It had shipped twice: v21.07 removed one cause and
     // left the failure mode, and v22.56 found the second cause producing the identical sentence.
     await page.setViewportSize({ width: 1024, height: 900 });
@@ -946,8 +947,16 @@ test('links: a saved-set list that failed to load never says the account is empt
 
     const picker = page.locator('#genSetSelect');
     await expect(picker).toBeVisible();
-    await expect(picker).not.toContainText('No saved sets yet');
-    await expect(page.locator('#genSetHint')).toContainText('not been deleted');
+    // ASSERTED AGAINST THE MODULE, NOT A SENTENCE (v22.66). This read `toContainText('not been
+    // deleted')` and so held one phrasing in place: when the reassurance was corrected — the old
+    // one made a claim about the SETS that a failed read cannot make — the wiring test failed for
+    // a copy edit that was the point of the change. The property here is that the ERROR branch of
+    // `describeSetList` is what reached the DOM; which words it chooses is that module's business,
+    // and its own suite's.
+    const failed = describeSetList('error', []);
+    await expect(picker).not.toContainText(describeSetList('ok', []).placeholder ?? '\u0000');
+    await expect(picker).toContainText(failed.placeholder ?? '');
+    await expect(page.locator('#genSetHint')).toHaveText(failed.hint ?? '');
     await expect(page.locator('#genSetRetryBtn')).toBeVisible();
 
     // A list nobody has cannot be acted on.
@@ -2980,7 +2989,7 @@ test('links sets: the row says whether the table still matches the set', async (
     // which is why it is asserted after an edit rather than only after a load.
     await openLinksWithTargetSets(page);
     await page.locator('#genSetSelect').selectOption('ts-robson');
-    await expect(page.locator('#genSetHint')).toContainText('Press Load');
+    await expect(page.locator('#genSetHint')).toContainText('Press Use setup');
 
     await page.locator('#genSetLoadBtn').click();
     await expect(page.locator('#genSetHint')).toContainText('still matches it');
@@ -3442,6 +3451,69 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
         });
         expect(bad, `${url} has controls too small to tap reliably`).toEqual([]);
     }
+});
+
+// ── The families that carry a 30px COMMITMENT keep it (v22.65) ─────────────────────────────────
+// The sweep above is the app's enforced floor: 24px, WCAG 2.2 SC 2.5.8 AA, applied everywhere.
+// This is narrower and stricter, and it exists because 24 is a floor rather than a target.
+//
+// Two Links control families have a documented 30px commitment under a coarse pointer: the paint
+// chips (v22.61, "the primary control on the page") and the design/saved-set action rows (v22.65).
+// The second was left at 25px by the first pass — clearing the enforced floor by ONE PIXEL, in a
+// row of identically sized neighbours, one of which is `Delete`: a destructive act on shared work
+// with no bin behind a saved SET.
+//
+// A single pixel of margin is not a margin. Without this, restoring the old padding puts them back
+// to 25px and the sweep above stays green, which is precisely how the first pass missed them.
+// Probes with `elementFromPoint` for the reason the sweep's own header gives: several targets here
+// are expanded by a pseudo-element and a box measurement cannot see it.
+test('links: the 30px control families keep their target @a11y', async ({ page }, info) => {
+    test.skip(info.project.name !== 'mobile-chrome', 'a thumb, not a mouse');
+    await page.setViewportSize({ width: 360, height: 900 });   // the reported device width
+    await seedContractTargets(page);
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
+    await page.goto('/links.html');
+    await expect(page.locator('#generatorToggleHeader')).toBeVisible();
+    await page.locator('#genApplyBtn').click();
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(page.locator('#linksSaveRow')).toBeVisible();
+    await page.waitForTimeout(400);
+
+    const small = await page.evaluate(async () => {
+        const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+        const probe = (el) => {
+            const b = el.getBoundingClientRect();
+            const cx = Math.round(b.left + b.width / 2), cy = Math.round(b.top + b.height / 2);
+            const owns = (x, y) => { const t = document.elementFromPoint(x, y); return !!t && (t === el || el.contains(t)); };
+            if (!owns(cx, cy)) return null;
+            let u = 0, d = 0, l = 0, r = 0;
+            while (u < 50 && owns(cx, cy - u - 1)) u++;
+            while (d < 50 && owns(cx, cy + d + 1)) d++;
+            while (l < 80 && owns(cx - l - 1, cy)) l++;
+            while (r < 80 && owns(cx + r + 1, cy)) r++;
+            return { w: l + r + 1, h: u + d + 1 };
+        };
+        const out = [];
+        for (const sel of ['.brush-chip', '.btn-design-new', '.btn-design-import',
+                           '.btn-design-dup', '.btn-design-compare', '.btn-set']) {
+            for (const el of document.querySelectorAll(sel)) {
+                if (getComputedStyle(el).visibility === 'hidden') continue;
+                const b0 = el.getBoundingClientRect();
+                if (!b0.width || !b0.height) continue;
+                el.scrollIntoView({ block: 'center', behavior: 'instant' });
+                await sleep(30);
+                const t = probe(el);
+                // Unprobeable (covered or off-screen) is not a failure — the sweep above owns that
+                // case, and reporting it here would be a false alarm in the guard, not a finding.
+                if (t && (t.w < 30 || t.h < 30)) {
+                    out.push(`${sel}[${(el.textContent || '').trim().slice(0, 12)}] = ${t.w}x${t.h}`);
+                }
+            }
+        }
+        return [...new Set(out)];
+    });
+    expect(small, 'these families carry a 30px commitment, not the 24px floor').toEqual([]);
 });
 
 // ── The generator's numeric clauses stay in one piece on a phone (v19.65) ───────────────────────
