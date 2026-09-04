@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ROTATING_LINES } from './links-design.js';
 import { POLICY_SOURCE_CONFIRMED } from './links-limits.js';
+import { assessFatigue } from './links-fatigue.js';
 
 // Minimal DOM: getElementById returns a per-id stub element with { innerHTML, style }.
 const els = /** @type {Record<string, any>} */ ({});
@@ -537,4 +538,50 @@ test('no fatigue code is wider than the fixed code column can hold', () => {
     assert.match(rule, /\bwidth:\s*52px/, '.check-code must set a fixed width');
     assert.doesNotMatch(rule, /min-width/,
         '.check-code is back on min-width, which aligns the tags but not the titles beside them');
+});
+
+// ── A SUMMARY CHIP MAY NOT REPORT ONE OF TWO COUNTS (v22.56, external review) ───────────────────
+//
+// Two chips summarised a PAIR the domain module deliberately returns separately, and both kept the
+// flattering half. `summariseDemand` splits `uncovered` (staffed hours with nobody on duty — a
+// finding) from `outside` (trains running while the station is shut — a fact, because the window is
+// a business decision). `assessFatigue` returns `present` beside `standing`. The strip read only the
+// first of each and announced "All service covered" and "No fatigue factors".
+//
+// Neither module was wrong. This is the same failure the calendar's knowledge states exist to stop —
+// an absent count is not proof of an absent thing — arriving in a one-line render instead.
+//
+// It is tested on the STRIP because that is where the claim is made: the detailed panel already
+// distinguishes all four figures, which is precisely why nobody noticed the chip did not.
+test('the summary never claims full cover — only that the STAFFED hours have none missing', () => {
+    resetDom();
+    initLinksAnalysis({ getDesign: () => ({ patterns: fullPatterns() }) }).renderSummary();
+    const strip = els.linksSummary.innerHTML;
+    // The design is Mon–Fri days only, so the Dec 2026 evening and Sunday service runs outside it.
+    assert.doesNotMatch(strip, /service covered/i,
+        'the strip claims all service is covered. It only knows about hours INSIDE the staffed '
+        + 'window — `outside` movements are a separate figure it never reads, and under the '
+        + 'December 2026 service that figure is large. Say what the number is: staffed hours.');
+    assert.match(strip, /staffed hours?/i, 'the cover chip no longer says which hours it means');
+});
+
+test('the summary never says "no fatigue factors" while standing factors exist', () => {
+    resetDom();
+    const patterns = fullPatterns();          // 06:00 starts ⇒ at least one STANDING early factor
+    const { standing, present } = assessFatigue(patterns, ROTATING_LINES);
+    assert.ok(standing > 0,
+        'fixture no longer produces a standing factor, so this test cannot see the defect — give it '
+        + 'a design with early starts rather than deleting the assertion');
+    initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderSummary();
+    const strip = els.linksSummary.innerHTML;
+    assert.doesNotMatch(strip, /No<\/strong> fatigue/i,
+        `the strip says "No fatigue factors" over ${standing} standing one(s). The fatigue model is `
+        + 'right that standing characteristics are not design findings — but ordinary English does '
+        + 'not carry that distinction, and the reader takes the chip at its word.');
+    assert.match(strip, new RegExp(`${standing} standing`),
+        'the strip does not state the standing count, so the two numbers are still one number');
+    if (!present) {
+        assert.match(strip, /0<\/strong> to act on/,
+            'with nothing to act on the chip should say so explicitly rather than saying "No"');
+    }
 });

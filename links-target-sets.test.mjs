@@ -15,7 +15,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     targetSetFromDoc, targetSetPayload, canOverwriteTargetSet, describeSetState, sortTargetSets,
-    MAX_SET_NAME, MAX_SET_SLOTS,
+    MAX_SET_NAME, MAX_SET_SLOTS, describeSetList,
 } from './links-target-sets.js';
 
 const GOOD = {
@@ -210,5 +210,51 @@ describe('describeSetState — where the table is', () => {
         // A guard against a future refactor deriving one from the other: having edited the table
         // says nothing about a set you have not loaded, and the row must not report on it.
         assert.equal(as({ isLoaded: false, changed: true }), as({ isLoaded: false }));
+    });
+});
+
+// ── FOUR STATES, BECAUSE ABSENCE AND IGNORANCE ARE DIFFERENT ANSWERS (v22.57) ───────────────────
+//
+// `catch { targetSets = []; }` rendered "No saved sets yet", so a dropped connection, a rules
+// refusal and a genuinely empty account were one sentence — and the wrong one twice over, because
+// these sets are SHARED: the designer is told their colleagues' sets do not exist.
+//
+// Organised by what each wrong answer costs. Saying NOTHING IS THERE when we could not tell is the
+// shipped defect and the expensive direction: it is silent, it accuses a colleague, and the controls
+// stay armed against a list nobody has. Saying SOMETHING IS WRONG over an empty account is the
+// careless fix — it sends a designer to check a connection that is fine.
+describe('describeSetList — what the picker may claim about a list it might not have', () => {
+    test('a failed read never renders as an empty account, and offers a way back', () => {
+        const r = describeSetList('error', []);
+        assert.ok(!/no saved sets yet/i.test(r.placeholder ?? ''),
+            'a failed read still says "No saved sets yet" — the v21.07/v22.56 defect. These sets are '
+            + 'shared, so this tells a designer their colleagues\' work is gone.');
+        assert.equal(r.canRetry, true, 'nothing offers to try again, so the state is a dead end');
+        assert.match(r.hint ?? '', /not been deleted/i,
+            'the hint does not rule out the reading the designer will otherwise reach for');
+        assert.equal(r.usable, false);
+    });
+
+    test('a list nobody has cannot be acted on — loading and still-failed both refuse', () => {
+        // `usable` is the load-bearing field: a control armed against an unknown list is how a
+        // designer overwrites a set the picker never showed them.
+        for (const status of /** @type {const} */ (['loading', 'error'])) {
+            assert.equal(describeSetList(status, []).usable, false, `${status} reports usable`);
+        }
+    });
+
+    test('an empty account is READY and says so plainly — no alarm, no retry', () => {
+        const r = describeSetList('ready', []);
+        assert.equal(r.usable, true, 'a designer with no sets is told something went wrong');
+        assert.equal(r.canRetry, false);
+        assert.match(r.placeholder ?? '', /no saved sets yet/i);
+        assert.equal(r.hint, null, 'an empty account overrides the ordinary hint');
+    });
+
+    test('a loaded list adds no placeholder and no hint of its own', () => {
+        const r = describeSetList('ready', [{ id: 'a', name: 'Set A' }]);
+        assert.equal(r.placeholder, null, 'a placeholder option would sit above the real rows');
+        assert.equal(r.hint, null, 'the hint belongs to describeSetState once there is a set to describe');
+        assert.equal(r.usable, true);
     });
 });

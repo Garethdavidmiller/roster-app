@@ -859,6 +859,77 @@ async function openLinksWithDesign(page) {
     await expect(page.locator('.design-chip')).toHaveCount(1);
 }
 
+test('links: deleting the design you are editing does not silently bin your unsaved work', async ({ page }) => {
+    // RECENTLY DELETED HOLDS THE LAST *SAVED* VERSION (v22.56, external review). Deleting the design
+    // you are editing therefore threw away every change since that save, and the dialog said nothing
+    // — it described the document, which was accurate and not what the designer was about to lose.
+    //
+    // Every other path that can lose the working copy already asks: New design, switching design,
+    // signing out, leaving the page. Delete was the one that did not, and the only one with no undo.
+    await openLinksWithDesigns(page);
+    await expect(page.locator('.design-chip')).toHaveCount(2);   // canSoftDelete needs a second design
+
+    // Paint a real shift over a rest day. RD onto RD is deliberately not a change (v19.38), so the
+    // brush has to be one the cell does not already hold or the design never goes dirty.
+    await page.locator('#brushBar .brush-chip').nth(2).click();
+    await page.locator('.shift-cell-btn').first().click();
+    await expect(page.locator('#linksSaveBtn')).toBeEnabled();
+
+    await page.locator('.design-chip--active .design-chip-delete').click();
+    const dialog = page.locator('.dialog-overlay');
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText('unsaved changes');
+    await expect(dialog).toContainText('last saved version');
+    await expect(dialog.locator('.dialog-btn-confirm')).toHaveText('Save, then delete');
+
+    // Cancelling is safe: the design and the unsaved work both survive.
+    await dialog.locator('.dialog-btn-cancel').click();
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+    await expect(page.locator('.design-chip')).toHaveCount(2);
+    await expect(page.locator('#linksSaveBtn')).toBeEnabled();          // still dirty
+
+    // Confirming saves first, so what lands in the bin is what was on screen.
+    await page.locator('.design-chip--active .design-chip-delete').click();
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(page.locator('.design-chip')).toHaveCount(1);
+    await expect(page.locator('#linksSaveBtn')).toBeDisabled();         // the save happened
+});
+
+test('links: a saved-set list that failed to load never says the account is empty', async ({ page }) => {
+    // THE RULE IS UNIT-TESTED; THIS IS THE WIRING (v22.57, external review). `describeSetList` is
+    // pinned in links-target-sets.test.mjs, and a perfect rule still renders nothing if the
+    // coordinator never asks it. The defect was `catch { targetSets = []; }`, so a dropped
+    // connection rendered "No saved sets yet" — and because these sets are SHARED, that tells a
+    // designer their colleagues' work is gone. It had shipped twice: v21.07 removed one cause and
+    // left the failure mode, and v22.56 found the second cause producing the identical sentence.
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window);
+        w.__E2E = w.__E2E || {};
+        // Fail ONLY the set collection — the designs must still load, or the workspace renders its
+        // empty state and the picker under test is never built.
+        w.__E2E.failGetDocsByPath = { linkTargetSets: true };
+        w.__E2E.docs = [{ id: 'd1', name: 'Design A', patterns: {}, updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' }];
+    });
+    await page.goto('/links.html');
+    await page.locator('#generatorToggleHeader').click();
+
+    const picker = page.locator('#genSetSelect');
+    await expect(picker).toBeVisible();
+    await expect(picker).not.toContainText('No saved sets yet');
+    await expect(page.locator('#genSetHint')).toContainText('not been deleted');
+    await expect(page.locator('#genSetRetryBtn')).toBeVisible();
+
+    // A list nobody has cannot be acted on.
+    await expect(page.locator('#genSetLoadBtn')).toBeDisabled();
+    await expect(page.locator('#genSetDeleteBtn')).toBeDisabled();
+    // …but Save as new still works: it needs nothing from the list, and on a failed read it is the
+    // only way to keep the table on screen.
+    await expect(page.locator('#genSetSaveAsBtn')).toBeEnabled();
+});
+
 test('links: every paint chip is a shift the design actually contains', async ({ page }) => {
     // THE BAR OFFERED EIGHTEEN TIMES AND THE DESIGN CONTAINED NONE OF THEM (v21.14).
     //

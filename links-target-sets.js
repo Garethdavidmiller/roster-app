@@ -185,3 +185,46 @@ export function sortTargetSets(sets) {
     return [...sets].sort((a, b) =>
         a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) || a.id.localeCompare(b.id));
 }
+
+/**
+ * What the saved-set picker may SAY about a list it might not have (v22.57, external review).
+ *
+ * The load used to end `catch { targetSets = []; }`, and an empty array renders "No saved sets yet".
+ * So a dropped connection, a rules refusal and a genuinely empty account were one sentence — and it
+ * is the wrong one twice over, because these sets are SHARED: a designer whose Wi-Fi dropped is told
+ * their colleagues' sets do not exist, which reads as somebody having deleted them.
+ *
+ * The bug was already half-known. `loadTargetSets` awaits `sessionReady` because this exact symptom
+ * shipped at v21.07 — the read fired before auth restored, the rules refused it, and the picker said
+ * "No saved sets yet" until the designer reloaded. That fix removed one CAUSE and left the FAILURE
+ * MODE in place, which is why the second cause produced the identical sentence.
+ *
+ * Four states, because absence and ignorance are different answers — the same rule the calendar's
+ * knowledge states exist to keep, and the one `getAccountSetupGaps` follows in refusing rather than
+ * naming everybody. `usable` is the load-bearing field: it is false whenever the list is not known
+ * to be complete, so no control may act against it.
+ *
+ * @param {'loading'|'ready'|'error'} status
+ * @param {Array<any>} [sets] the rows, when there are any to show
+ * @returns {{ placeholder: string|null, hint: string|null, canRetry: boolean, usable: boolean }}
+ */
+export function describeSetList(status, sets = []) {
+    if (status === 'loading') {
+        return { placeholder: 'Loading saved sets…', hint: 'Looking for saved sets…', canRetry: false, usable: false };
+    }
+    if (status === 'error') {
+        return {
+            placeholder: 'Saved sets unavailable',
+            // Says what is NOT known, and does not guess at the cause: offline, signed out and a
+            // rules refusal are indistinguishable from here, and naming the wrong one sends the
+            // designer to fix something that is not broken.
+            hint: 'Couldn’t load the saved sets, so this list is not showing them. Your sets have not been deleted — check your connection and try again.',
+            canRetry: true,
+            usable: false,
+        };
+    }
+    if (!sets.length) {
+        return { placeholder: 'No saved sets yet', hint: null, canRetry: false, usable: true };
+    }
+    return { placeholder: null, hint: null, canRetry: false, usable: true };
+}

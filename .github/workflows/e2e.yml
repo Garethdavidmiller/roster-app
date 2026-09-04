@@ -220,7 +220,14 @@ jobs:
     needs: guard
     if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # 15, NOT 10 (v22.58). #1343 gave every setup-node step `cache: 'npm'` and raised
+    # smoke 15 -> 20; this job was left at 10 and went on dying. Measured three times on
+    # 4 Sep 2026, twice before the cache and once after: killed mid-install at the ceiling,
+    # log ending `Terminate orphan process: (npm ci)`, on a PR touching no Functions code.
+    # It is the only job here that installs TWICE — the root tree and then functions/ — so
+    # it is the first to run out of box, and it reads exactly like a Functions regression
+    # while the suite has not started. The cache made it faster and not fast enough.
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:

@@ -46,7 +46,8 @@ import { parseDesignImport, summariseImport } from './links-import.js';
 import { buildRosterTargets } from './links-seed.js';
 import { buildDefaultTargets, DEFAULT_SHIFT_TIMES, sameTargetTable, isSupersededMemory } from './links-default-targets.js';
 import { assessTargetHours, targetHoursLines, targetProvenanceNote } from './links-target-hours.js';
-import { targetSetFromDoc, targetSetPayload, describeSetState, sortTargetSets, MAX_SET_NAME } from './links-target-sets.js';
+import { targetSetPayload, describeSetState, describeSetList, MAX_SET_NAME } from './links-target-sets.js';
+import { createTargetSetStore } from './links-target-sets-store.js';
 import { reorderLines, applyOrder, cost, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
 import { normaliseWindow, formatWindow, isDefaultWindow, isValidWindowRow, canonicaliseWindowTime } from './links-window.js';
 import { assessFatigue } from './links-fatigue.js';
@@ -881,7 +882,38 @@ export function init() {
         if (!canSoftDelete(designs.length)) return;
         const d = designs.find(x => x.id === id);
         if (!d) return;
-        if (!await confirmDialog({
+        // ── UNSAVED WORK IS NOT IN THE BIN (v22.56, external review) ────────────────────────
+        // Recently deleted holds the last SAVED version. Deleting the design you are editing
+        // therefore threw away every change since that save — silently, because the dialog spoke
+        // only about the document. Every other path that can lose the working copy already asks:
+        // New design, switching design, signing out and leaving the page. Delete was the one that
+        // did not, and it is the only one of the five with no undo.
+        //
+        // The fix SAVES rather than warns. Told the truth, a designer's answer is almost always
+        // "keep my work", and saving first puts everything in the bin — so restoring returns what
+        // was on screen instead of a version from some earlier point. The review proposed a third
+        // "delete without saving" button; that needs a three-action dialog, and `confirmDialog`
+        // lives in shared `overlay.js`, which every lightbox on all seven pages is built from. Not
+        // a change to make for a convenience on one path used by three people — and discarding is
+        // still available by cancelling and switching away, which already offers it.
+        if (id === activeDesignId && dirty) {
+            if (!await confirmDialog({
+                title: 'Delete design',
+                message: `"${d.name}" has unsaved changes.\n\nRecently deleted keeps the last saved version, so those changes would be lost.\n\nSaving first means the deleted copy has everything — restoring it brings back what is on screen now.`,
+                confirmLabel: 'Save, then delete',
+                danger: true,
+            })) return;
+            await saveChanges();
+            // `saveChanges` clears `dirty` only when the write actually landed, and it can end
+            // somewhere else entirely — a declined overwrite, a design deleted by somebody else, a
+            // fork into a duplicate that becomes the active design. Any of those means the delete
+            // this dialog described is no longer the one that would happen, so stop and say so
+            // rather than deleting against a state nobody agreed to.
+            if (dirty || activeDesignId !== id) {
+                _designActionStatus(`Couldn’t save "${d.name}", so nothing was deleted.`);
+                return;
+            }
+        } else if (!await confirmDialog({
             title: 'Delete design',
             // States what actually happens (v19.96). It promised "the next 30 days" while nothing
             // has expired a design since v19.86 — an under-promise, but the bin's own intro says
@@ -2055,8 +2087,17 @@ export function init() {
         // here only decides what the Save button OFFERS; `firestore.rules` is what refuses, so a
         // drift between them mis-labels a button without ever exposing anyone's set.
         const SETS_COL = collection(db, COLLECTIONS.linkTargetSets);
+        const setStore = createTargetSetStore({
+            db, doc, getDocs, runTransaction, writeWithClaimRetry,
+            setsCol: SETS_COL, collectionPath: COLLECTIONS.linkTargetSets,
+        });
         /** @type {Array<any>} */
         let targetSets = [];
+        // WHETHER WE HAVE THE LIST IS ITS OWN QUESTION (v22.57). `targetSets` says what is in it;
+        // this says whether it is worth believing. `describeSetList` turns the pair into what the
+        // picker may claim — see its header for why an empty array must not speak for a failed read.
+        /** @type {'loading'|'ready'|'error'} */
+        let setsStatus = 'loading';
         const _setSelect = /** @type {HTMLSelectElement|null} */ (document.getElementById('genSetSelect'));
         const _setHint = document.getElementById('genSetHint');
         const _selectedSet = () => targetSets.find(t => t.id === _setSelect?.value) ?? null;
@@ -2064,10 +2105,11 @@ export function init() {
         function renderSetPicker(select = '') {
             if (!_setSelect) return;
             const keep = select || _setSelect.value;
-            _setSelect.innerHTML = targetSets.length
-                ? targetSets.map(t =>
-                    `<option value="${escapeHtml(t.id)}">${escapeHtml(t.name)} — ${escapeHtml(t.createdBy)}</option>`).join('')
-                : '<option value="">No saved sets yet</option>';
+            const list = describeSetList(setsStatus, targetSets);
+            _setSelect.innerHTML = list.placeholder
+                ? `<option value="">${escapeHtml(list.placeholder)}</option>`
+                : targetSets.map(t =>
+                    `<option value="${escapeHtml(t.id)}">${escapeHtml(t.name)} — ${escapeHtml(t.createdBy)}</option>`).join('');
             if (keep && targetSets.some(t => t.id === keep)) _setSelect.value = keep;
             refreshSetControls();
         }
@@ -2084,15 +2126,23 @@ export function init() {
             const state = describeSetState(set, {
                 userName: currentUser, isAdmin, isLoaded, changed: isLoaded && _tableChanged(),
             });
-            if (loadBtn) loadBtn.disabled = !set;
-            if (saveBtn) saveBtn.disabled = !state.canWrite;
+            // A list we do not have cannot be acted on, and `usable` is false for BOTH the
+            // still-loading and the failed read — a control armed against an unknown list is how a
+            // designer overwrites a set the picker never showed them.
+            const list = describeSetList(setsStatus, targetSets);
+            if (loadBtn) loadBtn.disabled = !set || !list.usable;
+            if (saveBtn) saveBtn.disabled = !state.canWrite || !list.usable;
             if (delBtn) {
-                delBtn.disabled = !state.canDelete;
+                delBtn.disabled = !state.canDelete || !list.usable;
                 const label = set ? `Delete “${set.name}”` : 'Delete this set';
                 delBtn.title = label;
                 delBtn.setAttribute('aria-label', label);   // the word alone does not say WHICH set
             }
-            if (_setHint) _setHint.textContent = state.text;
+            // Save as new is deliberately NOT gated on `usable`: it creates a document, needs
+            // nothing from the list, and on a failed read it is the only way to keep this table.
+            const retry = document.getElementById('genSetRetryBtn');
+            if (retry) retry.hidden = !list.canRetry;
+            if (_setHint) _setHint.textContent = list.hint ?? state.text;
         }
         // Every table edit re-asks the question, so "still matches Set A" becomes "you have changed
         // it" on the keystroke that changes it rather than on the next reload.
@@ -2109,21 +2159,24 @@ export function init() {
                 // sets apparently gone. `loadDesigns` has awaited `sessionReady` for exactly this
                 // reason; this read is under the same rule and needs the same wait.
                 await sessionReady;
-                const snap = await getDocs(SETS_COL);
-                /** @type {any[]} */
-                const rows = [];
-                snap.forEach((/** @type {any} */ d) => {
-                    const set = targetSetFromDoc(d.id, d.data());
-                    if (set) rows.push(set);       // a corrupt document is skipped whole, never half-loaded
-                });
-                targetSets = sortTargetSets(rows);
+                const res = await setStore.list();
+                setsStatus = res.status;
+                // NOT `targetSets = []` on a failure (v22.57, external review). Collapsing the two
+                // is what made a failed read indistinguishable from an empty account — see
+                // `describeSetList`. The last good list is kept: stale, but truer than nothing.
+                if (res.status === 'ready') targetSets = res.sets;
             } catch {
-                targetSets = [];                   // offline/denied → the picker just shows its empty state
+                setsStatus = 'error';
             }
             renderSetPicker(select);
         }
 
         _setSelect?.addEventListener('change', refreshSetControls);
+        document.getElementById('genSetRetryBtn')?.addEventListener('click', () => {
+            setsStatus = 'loading';
+            renderSetPicker();
+            loadTargetSets();
+        });
 
         document.getElementById('genSetLoadBtn')?.addEventListener('click', async () => {
             const set = _selectedSet();
@@ -2135,38 +2188,9 @@ export function init() {
             refreshSetControls();
         });
 
-        /**
-         * Write (or delete) a target set ONLY if it is still the revision the picker was showing.
-         *
-         * The same rule the design store applies to a forced save, in the one Links surface that
-         * did not have it: consent names a VERSION. A confirm dialog is human think-time, and a
-         * set has two writers — its creator and the admin — so "the version I clicked" and "the
-         * version that exists when I confirm" are different questions. Answering only the second
-         * silently discards the other person's work, and for a delete there is no bin to recover
-         * it from.
-         *
-         * Deliberately NOT an extraction to a store module (the external review's own advice:
-         * these boundaries are new, let them settle). It is one transaction, used twice.
-         *
-         * @param {{id: string, name: string, updatedAt: any}} set the row the picker showed
-         * @param {any|null} payload  what to write, or null to DELETE
-         * @returns {Promise<boolean>} false when somebody else moved it first — nothing was written
-         */
-        async function _writeSetIfUnchanged(set, payload) {
-            const seen = set.updatedAt?.toMillis?.() ?? null;
-            let moved = false;
-            await writeWithClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
-                moved = false;                       // a retried transaction re-decides from scratch
-                const ref = doc(db, COLLECTIONS.linkTargetSets, set.id);
-                const snap = await tx.get(ref);
-                // Gone already is not a conflict for a DELETE — the outcome asked for is the
-                // outcome. For an overwrite it is: recreating it would resurrect a deleted set.
-                if (!snap.exists()) { moved = !!payload; return; }
-                if ((snap.data()?.updatedAt?.toMillis?.() ?? null) !== seen) { moved = true; return; }
-                if (payload) tx.set(ref, payload); else tx.delete(ref);
-            }));
-            return !moved;
-        }
+        // The write-if-unchanged transaction moved to `links-target-sets-store.js` (v22.57). It was
+        // untestable here — a conflict window inside a coordinator that imports the gstatic SDK, so
+        // nothing about it could load in Node. Its rules and the seam that tests them: that header.
 
         // DELETE — the verb the feature shipped without (v21.08). `firestore.rules` has allowed the
         // creator or the admin to delete a set since v21.04; there was simply no way to ask, so sets
@@ -2188,7 +2212,7 @@ export function init() {
                 // A bare `deleteDoc` destroys whatever is there now — including an update somebody
                 // made in that gap, which the person confirming never saw and did not agree to
                 // remove. There is no bin behind a set, so that is final.
-                if (!await _writeSetIfUnchanged(set, null)) {
+                if (!await setStore.writeIfUnchanged(set, null)) {
                     // Refresh FIRST, then say why. `loadTargetSets` repaints the hint from the
                     // reloaded row, so setting the message before it wrote a sentence nobody ever
                     // saw — the refusal would have looked like a button that did nothing.
@@ -2225,7 +2249,7 @@ export function init() {
                 // only lands on the version the picker showed: see `_writeSetIfUnchanged`.
                 const _payload = targetSetPayload({ name: set.name, slots: genSlots, spareLines: genSpareLines },
                     set.createdBy, currentUser ?? '', serverTimestamp());
-                if (!await _writeSetIfUnchanged(set, _payload)) {
+                if (!await setStore.writeIfUnchanged(set, _payload)) {
                     // Refresh FIRST, then say why. `loadTargetSets` repaints the hint from the
                     // reloaded row, so setting the message before it wrote a sentence nobody ever
                     // saw — the refusal would have looked like a button that did nothing.

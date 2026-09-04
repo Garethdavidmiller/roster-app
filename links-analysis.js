@@ -365,12 +365,29 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             + (unfilled
                 ? chip('bad', '✗', unfilled, unfilled === 1 ? 'line undesigned' : 'lines undesigned')
                 : chip('ok', '✓', ROTATING_LINES, 'lines designed'))
+            // ── A CHIP MAY NOT REPORT ONE OF TWO COUNTS (v22.56, external review) ───────────
+            // Both of these summarised a PAIR the domain module returns separately, and both kept
+            // the flattering half. `summariseDemand` splits `uncovered` (staffed hours with nobody
+            // on duty — a finding) from `outside` (trains running while the station is shut — a
+            // fact, because the window is a business decision); the chip read the first and
+            // announced "All service covered", which under the December 2026 service is untrue in
+            // ordinary English on a day with a large `outside` figure. `assessFatigue` returns
+            // `present` beside `standing`, and the chip said "No fatigue factors" over two standing
+            // ones. Neither module is wrong; the strip flattened them — the same mistake as
+            // treating an empty override cache as proof no override exists.
+            //
+            // The fix is to say what the number IS rather than to add a chip. The strip is width-
+            // bound (the note below measures what a fourth costs), so the fatigue chip carries both
+            // figures in one label when there is a second figure to carry.
             + (sum.uncovered.length
-                ? chip('bad', '⛔', sum.uncovered.length, 'hours uncovered')
-                : chip('ok', '✓', 'All', 'service covered'))
+                ? chip('bad', '⛔', sum.uncovered.length,
+                    sum.uncovered.length === 1 ? 'staffed hour with no cover' : 'staffed hours with no cover')
+                : chip('ok', '✓', 'No', 'gaps in staffed hours'))
             + (fat.present
-                ? chip('warn', '⚠', fat.present, 'fatigue factors')
-                : chip('ok', '✓', 'No', 'fatigue factors'))
+                ? chip('warn', '⚠', fat.present,
+                    `to act on${fat.standing ? ` · ${fat.standing} standing` : ''}`)
+                : chip('ok', '✓', fat.standing ? '0' : 'No',
+                    fat.standing ? `to act on · ${fat.standing} standing` : 'fatigue findings'))
             // HOURS BELONGS IN THE STRIP, not only in the panel (v20.04). This bar exists because
             // the analysis sits ~1,600px below the fold and an edit's effect was otherwise invisible
             // without scrolling two screens away and back. "Does this give people a contracted week"

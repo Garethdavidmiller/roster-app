@@ -2156,3 +2156,9 @@ body.auth-ready .container { display: grid; }
 .li-status--bad  { color: var(--error-text); font-weight: 600; }
 .li-status--warn { color: var(--warning-amber); }
 .li-status--ok   { color: var(--success-text); font-weight: 600; }
+
+/* The saved-set list's retry, shown only when the read FAILED (v22.57). `[hidden]` needs the
+   !important because `.btn-set` sets a `display`, which out-specifies the attribute — the
+   page-visibility-parity trap, where the control draws in every state and nothing throws. */
+.gen-sets-retry { margin-top: 6px; }
+.gen-sets-retry[hidden] { display: none !important; }
