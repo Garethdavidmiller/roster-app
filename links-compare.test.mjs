@@ -38,11 +38,19 @@ resetDom();
 // right behaviour under a fake DOM with no wrappers — but a fake that lacks the method entirely
 // makes the module throw on import, and every test in this file then fails for a reason that has
 // nothing to do with what it asserts. Model the platform; let the module's own guard decide.
+// The two scroll wrappers the sync looks for. Empty by default (the cases above have no grids on
+// screen); the scroll-sync block below fills it before calling `initLinksCompare`.
+let scrollCols = /** @type {any[]} */ ([]);
 global.document = /** @type {any} */ ({
     getElementById: (/** @type {string} */ id) => els[id] || null,
-    querySelectorAll: () => [],
+    querySelectorAll: (/** @type {string} */ sel) => (sel === '.compare-grid-scroll' ? scrollCols : []),
 });
-global.requestAnimationFrame = /** @type {any} */ ((/** @type {any} */ fn) => fn());
+// A HELD frame, not a synchronous one. The defect below lives entirely in what happens between a
+// scroll and the frame that clears the guard, so a rAF that runs immediately cannot see it — it
+// would close the window the bug needs. `flushRaf()` is the test's clock.
+let rafQueue = /** @type {any[]} */ ([]);
+global.requestAnimationFrame = /** @type {any} */ ((/** @type {any} */ fn) => { rafQueue.push(fn); return rafQueue.length; });
+function flushRaf() { const q = rafQueue; rafQueue = []; q.forEach(fn => fn()); }
 
 const { initLinksCompare } = await import('./links-compare.js');
 
@@ -407,4 +415,91 @@ test('filter ON, then switched to an IDENTICAL design: every line comes back', (
     assert.equal(els.compareFilter.hidden, true, 'and it must not be offered either');
     assert.match(els.compareSummary.innerHTML, /<strong>0<\/strong> cells differ/);
     assert.doesNotMatch(els.compareSummary.innerHTML, /still cover all/);
+});
+
+// ── KEEPING THE TWO COLUMNS ON THE SAME DAY (v22.74) ─────────────────────────────────────────────
+// The sync exists so a designer reading across a difference finds both gold outlines beside each
+// other. It can be wrong in two directions and they are not symmetrical: a column that FAILS TO
+// FOLLOW leaves the reader comparing Saturday against Sunday and believing it, while a pair that
+// VOLLEY lock the card up visibly. The first is the one that ships.
+//
+// These run against a HELD frame, because the defect lives between a scroll and the frame that
+// clears the guard. Under the synchronous rAF the rest of this file uses, that window does not
+// exist and every case below passes with the bug still in — which is how it reached a browser.
+/**
+ * Two wrappers that behave like the platform in the one respect this feature turns on: **assigning
+ * `scrollLeft` fires that element's own `scroll` event.** The first cut of this harness only fired
+ * on an explicit `scrollTo`, so the echo — the whole reason the guard exists — never happened, and
+ * deleting the guard left every case green. A fake that cannot produce the event is a fake that
+ * cannot see the bug.
+ *
+ * `snap` is each column's rounding. The two grids are 560px and 457px wide, so a position exactly
+ * representable in one need not be in the other.
+ * @param {(x:number)=>number} snapA
+ * @param {(x:number)=>number} snapB
+ */
+function makeCols(snapA = (x) => x, snapB = (x) => x) {
+    const mk = (/** @type {(x:number)=>number} */ snap) => {
+        let v = 0;
+        const col = /** @type {any} */ ({ handler: null });
+        Object.defineProperty(col, 'scrollLeft', {
+            get: () => v,
+            set: (/** @type {number} */ x) => { v = snap(x); col.handler?.(); },
+        });
+        col.addEventListener = (/** @type {string} */ ev, /** @type {any} */ fn) => { if (ev === 'scroll') col.handler = fn; };
+        col.scrollTo = (/** @type {number} */ x) => { col.scrollLeft = x; };
+        return col;
+    };
+    return [mk(snapA), mk(snapB)];
+}
+function withCols(/** @type {any} */ fn, /** @type {any} */ snapA, /** @type {any} */ snapB) {
+    resetDom();
+    const cols = makeCols(snapA, snapB);
+    scrollCols = cols;
+    rafQueue = [];
+    initLinksCompare(makeDeps().deps);
+    try { fn(cols); } finally { scrollCols = []; rafQueue = []; }
+}
+
+test('scroll sync: scrolling either column moves the other to the same position', () => {
+    withCols(([a, b]) => {
+        a.scrollTo(120);
+        assert.equal(b.scrollLeft, 120, 'B must follow A');
+        flushRaf();
+        b.scrollTo(40);
+        assert.equal(a.scrollLeft, 40, 'A must follow B — a one-directional sync reads as working');
+    });
+});
+
+// THE SHIPPED DEFECT, and the reason it took a second browser engine to find. Writing `to.scrollLeft`
+// makes the browser fire a scroll on `to` as well. Chromium delivers that echo synchronously, inside
+// the guard the original write already set, so it is swallowed and nothing is wrong. WebKit delivers
+// it AFTER the frame that clears the guard — so it re-armed the flag for a frame in which it had
+// nothing to do, and the designer's next scroll of the other column went nowhere.
+test('scroll sync: a late echo does not arm the guard against the next real scroll', () => {
+    withCols(([a, b]) => {
+        a.scrollTo(120);            // genuine: B follows, guard armed
+        assert.equal(b.scrollLeft, 120);
+        flushRaf();                 // the frame passes, guard clears
+        b.handler();                // WebKit's LATE echo on B — positions already agree
+        b.scrollTo(40);             // the designer scrolls B for real, in the very next moment
+        assert.equal(a.scrollLeft, 40, 'the echo must not have held the sync shut');
+    });
+});
+
+// THE GUARD'S OWN JOB, and it needed a sharper test than the first cut. Written as "a synchronous
+// echo is swallowed", it passed with the flag DELETED — because the equality check added above
+// already turns an echo into a no-op, so the assertion was resting on the new line rather than the
+// one it named. What the flag alone still buys is visible only when the two columns round
+// differently, which is the real case here: the tables are 560px and 457px, so a position exactly
+// representable in one is not in the other. Without the flag the partner's rounded value is written
+// BACK, and the column the designer is actually dragging jumps under their finger.
+test('scroll sync: the column being scrolled is never yanked back by its partner\'s rounding', () => {
+    // B snaps to whole pixels; A does not.
+    withCols(([a, b]) => {
+        a.scrollTo(52.4);
+        assert.equal(b.scrollLeft, 52, 'B rounds, as its own geometry demands');
+        assert.equal(a.scrollLeft, 52.4,
+            'A keeps the position the designer actually scrolled to — the echo must not write back');
+    }, undefined, Math.floor);
 });

@@ -251,6 +251,21 @@ export function initLinksCompare(deps) {
      * element's `scroll` event, which would assign back, and on a sub-pixel difference the two can
      * volley indefinitely. Cleared on the next frame, so a genuine user scroll immediately after is
      * not swallowed.
+     *
+     * **AN ECHO THAT CHANGES NOTHING MUST NOT ARM THE GUARD** (v22.74). Writing `to.scrollLeft`
+     * fires a `scroll` on `to`, whose handler finds the two already in agreement and has nothing to
+     * do. Arming the flag for it anyway holds the sync shut for a frame, and any scroll of the other
+     * column landing in that frame is dropped in silence. So the ORDER of the two checks is the
+     * point: decide there is work BEFORE claiming the guard. The flag still covers what it was
+     * written for, a re-entry that genuinely disagrees.
+     *
+     * **This was found while diagnosing a WebKit test failure that turned out NOT to be this** — and
+     * the distinction is worth keeping, because the tempting story (a real cross-engine bug) is the
+     * wrong one. The spec was firing a synthetic `scroll` synchronously after assigning
+     * `scrollLeft`, twice, inside a single frame; no user and no browser produces that, and the
+     * second event landed inside the guard the first had just armed. Measured: the pre-fix module
+     * passes the corrected spec. The reordering above is a genuine improvement standing on its own
+     * unit tests, not the cause of that red.
      */
     function initScrollSync() {
         const cols = /** @type {HTMLElement[]} */ (
@@ -260,9 +275,10 @@ export function initLinksCompare(deps) {
         cols.forEach((from, i) => {
             from.addEventListener('scroll', () => {
                 if (syncing) return;
-                syncing = true;
                 const to = cols[1 - i];
-                if (to.scrollLeft !== from.scrollLeft) to.scrollLeft = from.scrollLeft;
+                if (to.scrollLeft === from.scrollLeft) return;   // an echo: nothing to do, nothing to guard
+                syncing = true;
+                to.scrollLeft = from.scrollLeft;
                 requestAnimationFrame(() => { syncing = false; });
             }, { passive: true });
         });

@@ -4084,13 +4084,23 @@ test('links compare: scrolling one column moves the other to the same day', asyn
     // gets a correct guard deleted. Half the available travel is reachable at any viewport.
     const mid = Math.round(room / 2);
     expect(mid).toBeGreaterThan(0);
-    await cols.first().evaluate((el, x) => { el.scrollLeft = x; el.dispatchEvent(new Event('scroll')); }, mid);
+    await cols.first().evaluate((el, x) => { el.scrollLeft = x; }, mid);
     await expect.poll(() => cols.nth(1).evaluate(el => el.scrollLeft)).toBe(mid);
 
     // And back the other way — a one-directional sync reads as working until you scroll the second
     // column, which is the one a designer reaches for when the first is already where they want it.
+    //
+    // THE FRAME IS NOT A SLEEP TO MAKE THIS PASS (v22.74). Both scrolls above are assignments and
+    // nothing else: the browser delivers its own `scroll`, so this exercises the path the feature
+    // actually runs on. The first cut hand-fired a synthetic `scroll` immediately after each
+    // assignment, which put two events inside a single animation frame — the second landing inside
+    // the guard the first had just armed. That is not something a user or a browser can do, and it
+    // failed on WebKit while passing on Chromium, which reads exactly like an engine bug and is not
+    // one: the pre-fix module passes this version. Two real gestures are always a frame apart, so
+    // waiting one is the honest model. Teeth checked by deleting the sync — both directions go to 0.
     const quarter = Math.max(1, Math.round(room / 4));
-    await cols.nth(1).evaluate((el, x) => { el.scrollLeft = x; el.dispatchEvent(new Event('scroll')); }, quarter);
+    await page.evaluate(() => new Promise(r => requestAnimationFrame(() => r(null))));
+    await cols.nth(1).evaluate((el, x) => { el.scrollLeft = x; }, quarter);
     await expect.poll(() => cols.first().evaluate(el => el.scrollLeft)).toBe(quarter);
 });
 
