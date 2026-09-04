@@ -741,7 +741,7 @@ both would need the governance gate answered before that changed.
   padding and the container's 12px gap read as one 18px band of navy — the widest gap on the page,
   and reported as having "grown", though nothing about it had changed since v21.37. Removing a
   thing is not finished until the space it occupied is closed.
-- **Links compare on a phone — self-labelling cells: DECLINED** (v22.72, external review). The
+- **Links compare on a phone — self-labelling cells: DECLINED** (v22.73, external review). The
   proposal was to give each compare cell its own day label so the grid survives a narrow screen.
   It is the wrong device for the job rather than a layout to fix: a 24x7 grid of two designs is a
   desk task, three named designers do it, and there is no reported use of compare mode on a phone.
@@ -750,7 +750,7 @@ both would need the governance gate answered before that changed.
   what the review was reaching for (finding the changed lines quickly) is answered instead by the
   **only-the-lines-that-differ** view shipped in the same release, which helps on every width.
   Reopen only if somebody reports actually using it on a phone.
-- **Links sticky save bar — density pass: DECLINED** (v22.72, external review). Nothing is reported
+- **Links sticky save bar — density pass: DECLINED** (v22.73, external review). Nothing is reported
   wrong with it, it has already had a tuning pass, and "denser" is not a defect. This is recorded
   rather than left on a list because it has now been deferred twice; a third deferral would be a
   decision nobody is making.

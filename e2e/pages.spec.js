@@ -4019,7 +4019,7 @@ test('links window: compare states BOTH windows and flags that they differ', asy
     expect(await page.locator('.compare-window--differs').count()).toBe(2);
 });
 
-// ── Compare: only the lines that differ, and the two columns on the same day (v22.72) ───────────
+// ── Compare: only the lines that differ, and the two columns on the same day (v22.73) ───────────
 //
 // The unit suite owns the rules — which lines are marked, when the control is offered, what the
 // strip claims while it is on. These are the two things only a browser answers: that pressing the
