@@ -185,6 +185,11 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
+          # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
+          # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
+          # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
+          # change invalidates it correctly.
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -225,6 +230,7 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
+          cache: npm
 
       - name: Install root dependencies
         run: npm ci
@@ -252,7 +258,11 @@ jobs:
     needs: guard
     if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 15 → 20 (4 Sep 2026), matching the webkit sibling. The suite itself takes ~10 minutes; the
+    # old budget left no room for a slow install, and a 7-minute `npm ci` cancelled it mid-run —
+    # which reads as `cancelled`, not `failure`, so it looks like somebody stopped it rather than
+    # like the job outgrowing its box. Still bounded; the point is a bound with margin.
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -262,6 +272,11 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
+          # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
+          # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
+          # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
+          # change invalidates it correctly.
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -355,6 +370,11 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
+          # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
+          # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
+          # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
+          # change invalidates it correctly.
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -400,6 +420,11 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
+          # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
+          # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
+          # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
+          # change invalidates it correctly.
+          cache: npm
 
       # firebase-tools v15 requires Java 21+ for the Firestore/Storage emulators.
       - name: Install Java 21 (Firebase emulators)
@@ -436,6 +461,11 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
+          # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
+          # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
+          # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
+          # change invalidates it correctly.
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -497,6 +527,11 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
+          # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
+          # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
+          # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
+          # change invalidates it correctly.
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
