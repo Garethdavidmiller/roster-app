@@ -895,6 +895,34 @@ test('links: deleting the design you are editing does not silently bin your unsa
     await expect(page.locator('#linksSaveBtn')).toBeDisabled();         // the save happened
 });
 
+test('links: duplicating a design with unsaved changes says where they will end up', async ({ page }) => {
+    // THE LAST PATH THAT SWITCHED AWAY FROM A DIRTY DESIGN IN SILENCE (v22.62, external review).
+    // New design, switching design, signing out and delete all confirm at this moment; duplicate
+    // ended with `_activateDesign(d)` — exactly that moment — and said nothing. The designer was
+    // moved to the copy while the original quietly went back to its last save.
+    //
+    // The wording is deliberately NOT the others' "changes will be lost": the copy is taken from
+    // the LIVE patterns, so the work is carried into it. Both halves are asserted, because a
+    // borrowed sentence here would frighten the reader about the wrong outcome.
+    await openLinksWithDesigns(page);
+    await page.locator('#brushBar .brush-chip').nth(2).click();
+    await page.locator('.shift-cell-btn').first().click();
+    await expect(page.locator('#linksSaveBtn')).toBeEnabled();          // dirty
+
+    await page.locator('#dupDesignBtn').click();
+    const dialog = page.locator('.dialog-overlay');
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText('go into the copy');
+    await expect(dialog).toContainText('last save');
+    await expect(dialog).not.toContainText('will be lost');
+
+    // Cancelling leaves everything alone — no third design, still dirty, still on the original.
+    await dialog.locator('.dialog-btn-cancel').click();
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+    await expect(page.locator('.design-chip')).toHaveCount(2);
+    await expect(page.locator('#linksSaveBtn')).toBeEnabled();
+});
+
 test('links: a saved-set list that failed to load never says the account is empty', async ({ page }) => {
     // THE RULE IS UNIT-TESTED; THIS IS THE WIRING (v22.57, external review). `describeSetList` is
     // pinned in links-target-sets.test.mjs, and a perfect rule still renders nothing if the
@@ -1308,8 +1336,16 @@ test('links: a pasted design is checked before it can be saved, and saved as a N
 
     await page.locator('#linksImportText').fill(
         '1\tNA\t06:20-13:50\tRD\tRD\t06:20-13:50\t06:20-13:50\t06:20-14:20');
-    await page.locator('#linksImportName').fill('Martine — 2A / 2B');
     await page.locator('#linksImportCheck').click();
+
+    // …BUT EDITING THE NAME DOES NOT (v22.62, external review P2). Nothing about the parse depends
+    // on it — `saveImport` reads the field fresh — and this is the COMMON path, because the check
+    // pre-fills the name from the paste and the reader then makes it their own. It used to discard
+    // the parse and take Save away, and the block above could not see it: it filled the name BEFORE
+    // checking, which is the one order in which the bug does not fire.
+    await expect(page.locator('#linksImportSave')).toBeVisible();
+    await page.locator('#linksImportName').fill('Martine — 2A / 2B');
+    await expect(page.locator('#linksImportSave')).toBeVisible();
     await page.locator('#linksImportSave').click();
 
     // A THIRD design — the import never touches the one that was open.
