@@ -25,6 +25,7 @@ import {
     getShiftKind,
     getShiftClass,
     getShiftBadge,
+    shiftBadgeParts,
     getWeekNumberForDate,
     getRosterForMember,
     resolveMemberRoster,
@@ -425,6 +426,77 @@ test('getShiftClass: every training grammar form returns "other-day" (never unkn
 // The option, rather than a second badge builder, because two builders drift. The direction that
 // matters is the DEFAULT: every existing caller — the calendar cell, the month legend, Team View —
 // must render exactly as before, since a calendar cell prints the time beside the badge already.
+
+// ── THE BADGE HAS ONE DECLARATION, AND TWO CONSUMERS (v22.69) ───────────────────────────────────
+//
+// `getShiftBadge` returns MARKUP, which the calendar's day-detail panel cannot use: writing markup
+// out of a `data-` attribute is how an attribute becomes an injection surface. So the panel builds
+// real elements from `shiftBadgeParts`, and `getShiftBadge` builds its HTML from the same function.
+//
+// The risk this pins is drift: the day a shift is one colour in the grid and another in the panel
+// that describes it, which is a fault nobody would think to look for and which no behavioural test
+// asserts. Driven over every KIND rather than a sample, so a tenth badge cannot be added to one and
+// not the other.
+test('each shift kind keeps its established colour', () => {
+    // A LITERAL TABLE, deliberately. The parity test below proves the two builders AGREE — and
+    // since they now share a source, agreement is cheap: a mutation changing SPARE from purple to
+    // the rest-day grey passed it, because both consumers changed together. Agreement is not
+    // correctness, and the thing that matters to a member is that 📋 is the same purple in the
+    // panel as it is in the cell they tapped.
+    //
+    // These pairings are the app's visual vocabulary — staff read them daily and the guides print
+    // them — so they are contract, not implementation detail, and pinning them is the point.
+    const EXPECTED = {
+        RD: 'badge-rest', OFF: 'badge-rest', SPARE: 'badge-spare', RDW: 'badge-rdw',
+        AL: 'badge-al', SICK: 'badge-sick', TRG: 'badge-other',
+        '06:30-15:00': 'badge-early', '14:00-22:00': 'badge-late', '22:00-06:00': 'badge-night',
+        'not-a-shift': 'badge-unknown',
+    };
+    for (const [shift, cls] of Object.entries(EXPECTED)) {
+        assert.equal(shiftBadgeParts(shift).cls, cls, `'${shift}' changed colour`);
+    }
+});
+
+test('only a TIMED kind may trade its word for the time', () => {
+    // `timed` is what lets the day panel show `☀️ 06:20-14:50 → ☀️ 06:30-15:00` instead of
+    // `☀️ EARLY → ☀️ EARLY`. A same-kind change — a time tweak, probably the commonest change
+    // there is — otherwise renders as two identical pills either side of an arrow, which reads as
+    // "nothing changed" directly under a headline saying it did.
+    for (const t of ['06:30-15:00', '14:00-22:00', '22:00-06:00']) {
+        assert.equal(shiftBadgeParts(t).timed, true, `'${t}' is a timed shift`);
+    }
+    for (const k of ['RD', 'SPARE', 'AL', 'SICK', 'RDW', 'TRG', 'not-a-shift']) {
+        assert.ok(!shiftBadgeParts(k).timed,
+            `'${k}' has no time to show, so the panel would print the raw value as its label`);
+    }
+});
+
+test('shiftBadgeParts and getShiftBadge agree on every shift kind', () => {
+    const KINDS = ['RD', 'OFF', '', 'SPARE', 'RDW', 'AL', 'SICK', 'TRG', 'IND', 'MEET',
+                   '06:30-15:00', '14:00-22:00', '22:00-06:00', 'not-a-shift'];
+    for (const k of KINDS) {
+        const { cls, emoji, word } = shiftBadgeParts(k);
+        const html = getShiftBadge(k);
+        assert.ok(html.includes(`shift-badge ${cls}`),
+            `getShiftBadge('${k}') does not carry the class shiftBadgeParts reports (${cls}) — the `
+            + 'grid and the day panel would colour the same shift differently');
+        assert.ok(html.includes(`>${emoji}</span>`),
+            `emoji mismatch for '${k}': parts say ${emoji}`);
+        assert.ok(html.includes(`<span>${word}</span>`),
+            `word mismatch for '${k}': parts say ${word}`);
+    }
+});
+
+test('every badge kind has a colour class, an emoji and a word — colour is never alone', () => {
+    // The app's WCAG 1.4.1 rule: a badge never carries meaning in colour alone. The panel's pill
+    // reuses these parts, so a kind that lost its word would become colour-only there too.
+    for (const k of ['RD', 'SPARE', 'RDW', 'AL', 'SICK', 'TRG', '06:30-15:00', '22:00-06:00', 'xx']) {
+        const p = shiftBadgeParts(k);
+        assert.match(p.cls, /^badge-[a-z]+$/, `no colour class for '${k}'`);
+        assert.ok(p.emoji && p.emoji.length > 0, `no emoji for '${k}'`);
+        assert.ok(p.word && p.word.length > 0, `no word for '${k}' — the badge would be colour alone`);
+    }
+});
 
 test('getShiftBadge showTime: a worked shift shows its TIME instead of Early/Late/Night', () => {
     assert.match(getShiftBadge('06:20-14:20', { showTime: true }), />06:20-14:20</);

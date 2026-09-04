@@ -26,6 +26,26 @@ const fullDayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'F
 const SHIFT_KIND_LABELS = { early: 'Early shift', late: 'Late shift', night: 'Night shift' };
 
 /**
+ * WHO changed a day, in one short line — or nothing.
+ *
+ * The two answers are not the same shape. A ROSTER UPLOAD is the weekly roster arriving: the
+ * `changedBy` on those documents is whoever ran the upload, and naming them would say they chose
+ * the shift, which they did not. A MANUAL change is a person's decision, and that person is the one
+ * to ask about it.
+ *
+ * Returns '' when the document cannot say — legacy rows written before `changedBy` existed. An
+ * absent line is honest; a guessed name is not, and this one names a colleague.
+ *
+ * @param {string|undefined} source     'manual' | 'roster_import'
+ * @param {string|undefined} changedBy  the writer's member name
+ * @returns {string}
+ */
+export function changeProvenance(source, changedBy) {
+    if (source === 'roster_import') return 'From the weekly roster';
+    return changedBy ? `Changed by ${changedBy}` : '';
+}
+
+/**
  * The full words for a shift value — what the tooltip, the aria-label and the day-detail panel say.
  *
  * ONE function because there are now TWO callers: the shift a member is actually working, and (from
@@ -304,7 +324,7 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // somebody's life. `getBaseShift` has already applied start-date suppression, the
         // Christmas rules and any scheduled roster change, so this is the member's real base.
         const baseShift = shift;
-        const { shift: _effShift, rdwTime, derivedRdw: otherDerivedRdw, note: overrideNote } =
+        const { shift: _effShift, rdwTime, derivedRdw: otherDerivedRdw } =
             resolveEffectiveShift(override, shift, isSunday(dateStr));
         shift = _effShift;
 
@@ -343,7 +363,6 @@ export function buildCalendarContainer(month, year, opts = {}) {
         const ttShift = shiftLabel + (shift === 'RDW' && rdwTime ? ` ${rdwTime}` : '');
         const ttParts = [ttShift];
         if (extras) ttParts.push(extras);
-        if (overrideNote) ttParts.push(`"${overrideNote}"`);
         dayCell.dataset.tooltip = ttParts.join(' · ');
         // Structured pieces for the tap-to-view day-detail lightbox (touch devices).
         dayCell.dataset.detailDay   = `${fullDayNames[currentDate.getDay()]} ${currentDate.getDate()} ${MONTH_NAMES[month]} ${year}`;
@@ -351,9 +370,17 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // Compared on the VALUES, not the words: a permanent-early member's 06:20 and 07:00 both
         // read "Early shift", so comparing labels would hide exactly the change worth stating.
         // A suppressed override resolves back to the base, so it correctly produces no line.
-        if (baseShift !== shift) dayCell.dataset.detailBase = shiftWords(baseShift, member, false, true);
+        if (baseShift !== shift) {
+            dayCell.dataset.detailBase = shiftWords(baseShift, member, false, true);
+            // The raw VALUES, not rendered badges: the panel derives colour and emoji from
+            // `shiftBadgeParts`, so it cannot give a shift a different colour from the cell that
+            // was tapped — and nothing writes markup out of a `data-` attribute.
+            dayCell.dataset.detailBaseShift = baseShift;
+            dayCell.dataset.detailNowShift  = shift;
+            const by = changeProvenance(override?.source, override?.changedBy);
+            if (by) dayCell.dataset.detailBy = by;
+        }
         if (extras)       dayCell.dataset.detailExtras = extras;
-        if (overrideNote) dayCell.dataset.detailNote   = overrideNote;
 
         if (isToday)  dayCell.classList.add('today');
         if (isBH)     dayCell.classList.add('bank-holiday');

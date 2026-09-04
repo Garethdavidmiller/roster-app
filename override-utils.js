@@ -182,7 +182,7 @@ export function isBeforeMemberStart(member, date) {
  * that staying true. These comments still said "two writers" until v18.91 — a reader following them
  * would reasonably add a second, which is the precise failure both changes exist to prevent.)
  * @param {any} data - a Firestore override doc's `.data()`
- * @returns {{ value: any, note: string, type: string, source: any, createdAt: any }}
+ * @returns {{ value: any, note: string, type: string, source: any, createdAt: any, changedBy?: string }}
  */
 export function toOverrideRecord(data) {
     return {
@@ -196,6 +196,11 @@ export function toOverrideRecord(data) {
         // two mirrors holding different shapes of one document is how a future consumer re-opens
         // the swapped-day bug silently — same key-presence convention as the write builders.
         ...(data.replacedType ? { replacedType: data.replacedType } : {}),
+        // The future consumer the note above anticipated arrived at v22.69: the day panel names who
+        // changed a shift. `source` was already carried and `changedBy` was not, so the roster-import
+        // case worked and the person's name silently never appeared — the shape being ALMOST right
+        // is exactly how that goes unnoticed.
+        ...(data.changedBy ? { changedBy: data.changedBy } : {}),
     };
 }
 
@@ -230,8 +235,19 @@ export function collectOverrideRecords(snapshot) {
  * `changedBy`). Three save paths (executeSave + recordRangeOverrides in admin-overrides.js, and the
  * roster-import _saveOverrideBatches) each hand-built this inline: a new required rules field meant
  * editing all three, and a miss = a silent `permission-denied` on ONE path only. `createdAt` is
- * INJECTED (the caller passes `serverTimestamp()`) so this module stays Firebase-free. `note` defaults
- * to '' (the rules require it present). Extra fields on the input are dropped — the shape is enforced.
+ * INJECTED (the caller passes `serverTimestamp()`) so this module stays Firebase-free. Extra fields
+ * on the input are dropped — the shape is enforced.
+ *
+ * `note` IS WRITE-ONLY AND ALWAYS '' (v22.69). No save path has ever offered a field for it, no
+ * override in production carries one, and its three display paths — the calendar hover tooltip,
+ * the day-detail panel and the Admin Saved Changes list — were removed on the owner's decision:
+ * free text about a named colleague is a GDPR exposure with nothing using it. It is still WRITTEN
+ * because `firestore.rules` requires `note is string` and a missing field is null, so dropping it
+ * here alone would permission-deny every override write on every device. Retiring the field is a
+ * three-push backend-first sequence, and the two rules clauses fail in OPPOSITE directions:
+ * (1) rules drop the `is string`/`size()` requirement, keeping `note` in `hasOnly`; (2) the client
+ * stops writing it; (3) rules drop it from `hasOnly`. Any other order breaks writes. The sequence
+ * and the reason are in docs/DATA_MODEL.md → overrides.
  * @param {{memberName:string, date:string, type:string, value:any, note?:string, source:string, changedBy:string, replacedType?:string|null}} f
  * @param {*} createdAt  a Firestore serverTimestamp() sentinel for the write
  * @returns {{memberName:string, date:string, type:string, value:any, note:string, source:string, createdAt:*, changedBy:string}}
@@ -666,7 +682,7 @@ const SUNDAY_RDW_DISPLAY_TYPES = new Set(['shift', 'allocated', 'overtime', 'swa
  * @param {any}     override  The override for this member+date, or null/undefined.
  * @param {string}  baseShift The base shift from getBaseShift (Christmas/startDate already applied).
  * @param {boolean} sunday    isSunday(dateStr) — Sundays are non-contracted (suppression input).
- * @returns {{ shift: string, rdwTime: string, derivedRdw: boolean, note: string }}
+ * @returns {{ shift: string, rdwTime: string, derivedRdw: boolean }}
  *   shift      canonical effective shift: `baseShift` when there is no override or it is
  *              suppressed; `'RDW'` for an rdw override; the raw Other grammar value for a
  *              parseable `other`; otherwise `override.value` (AL→'AL', SICK→'SICK',
@@ -674,15 +690,17 @@ const SUNDAY_RDW_DISPLAY_TYPES = new Set(['shift', 'allocated', 'overtime', 'swa
  *   rdwTime    rdw override → `override.value`; parseable Other → its hours-slot string
  *              (actual time → 'RDW' → the base shift's own time → ''); '' otherwise.
  *   derivedRdw parseable Other day only: true when RDW via the explicit flag OR a rest-day base.
- *   note       `override.note` (or '') when an override applied; '' otherwise.
+ *
+ * It returned a fourth field, `note`, until v22.69. The renderer was its only consumer — the hover
+ * tooltip and the day-detail panel — and both were removed with it; see `buildOverrideWrite` above
+ * for why the field survives on the WRITE side and what retiring it would take.
  */
 export function resolveEffectiveShift(override, baseShift, sunday) {
     if (!override || isOverrideDisplaySuppressed(override, baseShift, sunday)) {
-        return { shift: baseShift, rdwTime: '', derivedRdw: false, note: '' };
+        return { shift: baseShift, rdwTime: '', derivedRdw: false };
     }
-    const note = override.note || '';
     if (override.type === 'rdw') {
-        return { shift: 'RDW', rdwTime: override.value, derivedRdw: false, note };
+        return { shift: 'RDW', rdwTime: override.value, derivedRdw: false };
     }
     // A worked Sunday is ALWAYS Rest Day Working, never a plain shift — Sundays are non-contracted
     // for every grade. New creation is blocked at every write path (the admin Sunday Shift-pill
@@ -692,7 +710,7 @@ export function resolveEffectiveShift(override, baseShift, sunday) {
     // engine (which already prices any worked Sunday at 1.5× via its own dow===0 branch). A
     // timed value is treated exactly like an `rdw` override; a non-time value falls through.
     if (sunday && SUNDAY_RDW_DISPLAY_TYPES.has(override.type) && SHIFT_RANGE_RE.test(override.value || '')) {
-        return { shift: 'RDW', rdwTime: override.value, derivedRdw: true, note };
+        return { shift: 'RDW', rdwTime: override.value, derivedRdw: true };
     }
     const parsedOther = override.type === 'other' ? parseOtherValue(override.value) : null;
     if (parsedOther) {
@@ -704,9 +722,9 @@ export function resolveEffectiveShift(override, baseShift, sunday) {
         const showsBaseTime = !OTHER_FLAVOURS[parsedOther.flavour]?.hideBaseTime;
         const rdwTime = parsedOther.time ?? (derivedRdw ? 'RDW'
             : (showsBaseTime && SHIFT_RANGE_RE.test(baseShift) ? baseShift : ''));
-        return { shift: override.value, rdwTime, derivedRdw, note };
+        return { shift: override.value, rdwTime, derivedRdw };
     }
-    return { shift: override.value, rdwTime: '', derivedRdw: false, note };
+    return { shift: override.value, rdwTime: '', derivedRdw: false };
 }
 
 // ── WHAT MAY NOT BE RECORDED ON A SUNDAY (v21.32) ───────────────────────────────────────────────

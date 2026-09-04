@@ -28,7 +28,16 @@ type         "spare_shift" | "shift" | "rdw" | "annual_leave" | "correction" | "
 value        "HH:MM-HH:MM" for shift/rdw; "SPARE" for spare_shift; "AL" for annual_leave; "RD" for correction; "SICK" for sick;
              training uses the grammar FLAVOUR[" RDW"][" HH:MM-HH:MM"] — flavour "TRG"|"IND"|"ASSESS"|"TEAM", optional rest-day
              marker, optional actual times (see OTHER_PLAN.md; grammar single-source: override-utils.js)
-note         Free text — "" if none. Field must always be present.
+note         WRITE-ONLY, and always `""` (v22.69). The rules require the field present and a string,
+             so every write still sends it — but nothing in the app can produce a value for it and
+             nothing displays one. The three read paths (the calendar hover tooltip, the day-detail
+             panel and the Admin Saved Changes list) were removed on the owner's decision: no
+             override in production carries a note, nobody ever used the feature, and free text
+             about a named colleague is a GDPR exposure with no purpose. Dropping the field itself
+             is a THREE-PUSH backend-first sequence, because `hasOnly` and the `is string` check
+             fail in opposite directions: (1) rules drop the `is string`/`size()` requirement while
+             keeping `note` in `hasOnly`; (2) the client stops writing it; (3) rules drop it from
+             `hasOnly`. Doing (2) or (3) first permission-denies every override write.
 source       "manual" | "roster_import" — required by Firestore rules; written by all override save paths
 changedBy    Optional — display name of who last changed the override; type-checked by the rules when present
 replacedType Optional (v21.55) — the `type` of the override this document REPLACED, or absent when it

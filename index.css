@@ -2097,39 +2097,83 @@
         }
         .day-detail-date  { color: rgba(255,255,255,0.6); font-size: var(--type-label); font-weight: 600; padding: 0 18px; }
         .day-detail-shift { color: white; font-size: 19px; font-weight: 700; letter-spacing: -0.3px; line-height: 1.25; }
-        /* "Changed from Spare day" — the roster before the change. Quieter than the shift it
-           qualifies and quieter than the gold day markers, because it is context rather than the
-           answer; but at --type-body, not the smaller label size, since on a spare week it is the
-           most consequential line on the panel. Its own hairline separates it from the shift
-           without becoming a second heading. */
-        .day-detail-base {
-            color: rgba(255, 255, 255, 0.78);
-            font-size: var(--type-body);
-            font-weight: 600;
-            line-height: 1.4;
-            padding-top: 9px;
-            border-top: 1px solid rgba(255, 255, 255, 0.12);
+        /* THE CHANGE, AS TWO BADGES (v22.69). The words above answer "what am I doing?"; this
+           answers "what was it?" in the colours the member already reads in the grid — which is
+           the whole reason a spare week is worth spotting: 📋 purple against ☀️ orange is a
+           different KIND of week, not a different time. Colour is never the sole carrier here
+           (every badge keeps its emoji and its word, per the app's WCAG 1.4.1 rule); it is the
+           thing that makes the pair readable at a glance rather than at a read.
+
+           The pair CAN wrap: at 320px with two long badges it goes to two lines rather than
+           overflowing, and the arrow wraps with them. */
+        .day-detail-change {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
             width: 100%;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.12);
         }
-        /* `hidden` is a UA rule at the lowest specificity and this block sets no `display`, so the
-           attribute still wins — but the page-visibility guard exists because that is one CSS
-           declaration away from silently drawing an empty bordered row. */
-        .day-detail-base[hidden] { display: none !important; }
+        .day-detail-change[hidden] { display: none !important; }
+        .ddc-eyebrow {
+            font-size: var(--type-micro);
+            font-weight: 700;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.55);
+        }
+        .ddc-pair {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        /* The panel's own pill. It wears the shared COLOUR class (`badge-early`, `badge-spare`…)
+           and nothing else from the calendar cell: `.shift-badge` is retuned at six breakpoints in
+           this file for cells — `min-width: 80%`, `margin-bottom`, 7px type at 360px — so reusing
+           it here drew a full-width block with the emoji stacked above the word. Measured, and the
+           screenshot is why this is a separate class rather than a pile of overrides.
+           The hairline stops the palest fills dissolving into the navy panel. */
+        .ddc-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 12px;
+            border-radius: var(--radius-pill);
+            font-size: var(--type-badge);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            white-space: nowrap;
+            /* A hairline, not depth — so NOT a `--shadow-*` token (those are drop shadows, and the
+               shadow ratchet rightly refused a hand-rolled one). `outline` rather than `border`
+               because two badges carry their own: `badge-night` and `badge-unknown` are white pills
+               defined by a 2px border, and a border here would win on source order and take their
+               identity away. Outline also costs no layout. */
+            outline: 1px solid rgba(255, 255, 255, 0.16);
+        }
+        /* Between two bold pills a 14px 55%-white arrow disappeared — it has to read as the
+           relationship, not as punctuation. */
+        .ddc-arrow {
+            color: rgba(255, 255, 255, 0.75);
+            font-size: var(--type-medium);
+            line-height: 1;
+        }
+        /* Who changed it. Quieter than the pair it explains and sentence case, not the eyebrow's
+           uppercase — it is a fact about the change, not a heading for it. */
+        .ddc-by {
+            font-size: var(--type-small);
+            color: rgba(255, 255, 255, 0.6);
+            line-height: 1.35;
+        }
+        .ddc-by[hidden] { display: none !important; }
         .day-detail-extras {
             color: var(--accent-gold);
             font-size: var(--type-label);
             font-weight: 600;
             line-height: 1.4;
-        }
-        .day-detail-note {
-            color: rgba(255,255,255,0.85);
-            font-size: var(--type-body);
-            font-style: italic;
-            line-height: 1.45;
-            margin-top: 2px;
-            padding-top: 10px;
-            border-top: 1px solid rgba(255,255,255,0.12);
-            width: 100%;
         }
         #dayDetailClose { color: rgba(255,255,255,0.5); }
         @media (hover: hover) and (pointer: fine) {

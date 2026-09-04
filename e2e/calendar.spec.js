@@ -73,9 +73,21 @@ test('day detail: names the roster it was changed from, and opens at full size',
         .toBeGreaterThan(-1);
     await page.locator('.calendar-day:not(.other-month)').nth(idx).click();
 
-    const base = page.locator('#dayDetailBase');
-    await expect(base).toBeVisible();
-    await expect(base).toContainText('Changed from');
+    // THE CHANGE IS A COLOURED PAIR (v22.69): the badges the member already reads in the grid,
+    // in the order it happened. Asserted by COLOUR CLASS, because the colour is the point — a
+    // spare week is a different KIND of week, not a different time, and that is what the pair
+    // makes visible at a glance.
+    const change = page.locator('#dayDetailChange');
+    await expect(change).toBeVisible();
+    await expect(change.locator('.ddc-badge.badge-spare')).toBeVisible();
+    await expect(change.locator('.ddc-badge.badge-early')).toBeVisible();
+    // A TIMED pill shows its TIME, not its kind. Without that a time tweak — early to early —
+    // draws two identical pills either side of an arrow and reads as "nothing changed".
+    const pills = await change.locator('.ddc-badge').allTextContents();
+    expect(new Set(pills).size, `both pills read the same: ${pills.join(' / ')}`).toBe(pills.length);
+    // One sentence for a screen reader — the badges read individually would be three fragments of
+    // one fact, and the arrow is not a word.
+    await expect(change).toHaveAttribute('aria-label', /^Changed from Spare day to /);
 
     // Full size, not the 85% fossil. The transform is the only observable: the text renders either
     // way, which is exactly why this went unnoticed.
@@ -84,6 +96,41 @@ test('day detail: names the roster it was changed from, and opens at full size',
         /** @type {any} */ (document.getElementById('dayDetailContent'))).transform);
     expect(t, 'the panel never scaled up — an id-level transform is beating the shared .open rule')
         .toBe('matrix(1, 0, 0, 1, 0, 0)');
+});
+
+// A change WITHIN one shift kind — a time tweak, and probably the commonest change there is. The
+// badge carries the kind, so both sides classify as Early and the pair drew `☀️ EARLY → ☀️ EARLY`:
+// two identical pills either side of an arrow, reading as "nothing changed" directly under a
+// headline saying it did. Found by looking at the render, not by reasoning about it. A timed pill
+// shows its TIME; the kind is still carried by the colour, the emoji and the accessible label.
+test('day detail: a same-KIND change still reads as a change', async ({ page }, info) => {
+    test.skip(info.project.name !== 'mobile-chrome', 'the day panel is the touch route; desktop hovers');
+    await seedMember(page);
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        const rows = [];
+        for (let m = 1; m <= 12; m++) for (let d = 1; d <= 28; d++) {
+            rows.push({ id: `t${m}_${d}`, memberName: 'G. Miller',
+                date: `2026-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
+                type: 'shift', value: '06:30-15:00', note: '', source: 'manual', changedBy: 'S. Silva' });
+        }
+        w.__E2E.docs = rows;
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+
+    // A cell whose BASE is itself an early shift, so both sides of the pair are the same kind.
+    const idx = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
+        .findIndex(c => (c.dataset.detailBaseShift || '').match(/^0[4-9]:|^10:/)));
+    expect(idx, 'no same-kind change in view — the fixture no longer covers an early base')
+        .toBeGreaterThan(-1);
+    await page.locator('.calendar-day:not(.other-month)').nth(idx).click();
+
+    const pills = await page.locator('#dayDetailChangePair .ddc-badge').allTextContents();
+    expect(pills.length).toBe(2);
+    expect(new Set(pills).size,
+        `both pills read "${pills[0]}" — a time change is invisible, and the pair says nothing `
+        + 'changed under a headline that says it did').toBe(2);
 });
 
 // ── The grid is withheld until the overrides are known (v20.40) ──────────────────────────────────

@@ -14,6 +14,30 @@ function fakeSnapshot(rows) {
 
 // ── collectOverrideRecords (shared cache-feeder collector) ─────────────────────
 
+// ── THE CACHE'S SHAPE IS A CONTRACT WITH ITS CONSUMERS (v22.69) ─────────────────────────────────
+//
+// `toOverrideRecord` fixes which fields survive into the calendar's cache. The day panel names who
+// changed a shift, and it read `source` (carried) and `changedBy` (NOT carried) — so the
+// roster-upload case worked perfectly and the person's name silently never appeared. A shape that
+// is ALMOST right is exactly how that goes unnoticed: nothing throws, and half the feature works.
+it('toOverrideRecord carries the fields the day panel names a change from', () => {
+    const rec = toOverrideRecord({
+        value: '07:00-16:00', type: 'shift', note: '', source: 'manual', changedBy: 'S. Silva',
+    });
+    assert.equal(rec.source, 'manual');
+    assert.equal(rec.changedBy, 'S. Silva',
+        'changedBy is dropped on the way into the cache, so the day panel cannot name who changed '
+        + 'a shift — and it fails SILENTLY, because `source` still arrives and the roster-upload '
+        + 'half of the feature goes on working');
+});
+
+it('an absent changedBy leaves no key, rather than an undefined one', () => {
+    const rec = toOverrideRecord({ value: 'AL', type: 'annual_leave', note: '', source: 'manual' });
+    assert.ok(!('changedBy' in rec),
+        'key presence is the convention here (same as replacedType and the write builders) — an '
+        + 'explicit undefined reads as "we know it is nobody"');
+});
+
 describe('collectOverrideRecords', () => {
     it('maps valid docs to {memberName, date, record} with toOverrideRecord defaults', () => {
         const recs = collectOverrideRecords(fakeSnapshot([
@@ -538,9 +562,9 @@ describe('resolveOtherPay — the pay mapping (single source)', () => {
 });
 
 describe('resolveEffectiveShift — the shared display ladder (single source for 3 consumers)', () => {
-    it('no override → keeps the base shift, no rdwTime/derivedRdw/note', () => {
+    it('no override → keeps the base shift, no rdwTime/derivedRdw', () => {
         assert.deepEqual(resolveEffectiveShift(null, '06:00-14:00', false),
-            { shift: '06:00-14:00', rdwTime: '', derivedRdw: false, note: '' });
+            { shift: '06:00-14:00', rdwTime: '', derivedRdw: false });
     });
 
     it('suppressed overrides keep the base (sick on rest/Sunday, AL/Other on Sunday)', () => {
@@ -555,8 +579,8 @@ describe('resolveEffectiveShift — the shared display ladder (single source for
     });
 
     it('rdw → shift "RDW" with the time carried in rdwTime (not the pipe form)', () => {
-        assert.deepEqual(resolveEffectiveShift({ type: 'rdw', value: '09:00-17:00', note: 'ot' }, 'RD', false),
-            { shift: 'RDW', rdwTime: '09:00-17:00', derivedRdw: false, note: 'ot' });
+        assert.deepEqual(resolveEffectiveShift({ type: 'rdw', value: '09:00-17:00' }, 'RD', false),
+            { shift: 'RDW', rdwTime: '09:00-17:00', derivedRdw: false });
     });
 
     it('a TIMED worked-type override on a SUNDAY displays as RDW, not a plain shift (legacy-data coercion)', () => {
@@ -564,8 +588,8 @@ describe('resolveEffectiveShift — the shared display ladder (single source for
         // write path, but a legacy shift/allocated/overtime/swap doc on a Sunday must still DISPLAY as
         // RDW — matching the creation invariant and the 1.5× pay routing.
         for (const type of ['shift', 'allocated', 'overtime', 'swap']) {
-            const r = resolveEffectiveShift({ type, value: '09:00-17:00', note: 'n' }, 'RD', true);
-            assert.deepEqual(r, { shift: 'RDW', rdwTime: '09:00-17:00', derivedRdw: true, note: 'n' },
+            const r = resolveEffectiveShift({ type, value: '09:00-17:00' }, 'RD', true);
+            assert.deepEqual(r, { shift: 'RDW', rdwTime: '09:00-17:00', derivedRdw: true },
                 `${type} on a Sunday should resolve to RDW`);
         }
     });
@@ -607,7 +631,7 @@ describe('resolveEffectiveShift — the shared display ladder (single source for
 
     it('Other with an UNparseable value falls through to its raw value (no rdwTime)', () => {
         assert.deepEqual(resolveEffectiveShift({ type: 'other', value: 'GIBBERISH' }, 'RD', false),
-            { shift: 'GIBBERISH', rdwTime: '', derivedRdw: false, note: '' });
+            { shift: 'GIBBERISH', rdwTime: '', derivedRdw: false });
     });
 
     // Meetings + Union duties (hideBaseTime): attend-an-event days → NO base-time fallback.

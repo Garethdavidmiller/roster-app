@@ -240,11 +240,19 @@
             <button id="dayDetailClose" class="lb-close" type="button" aria-label="Close">✕</button>
             <div class="day-detail-date" id="dayDetailDate"></div>
             <div class="day-detail-shift" id="dayDetailShift"></div>
-            <!-- What the roster said before this day was changed. Directly under the shift because
-                 it qualifies it; above the day markers, which are about the DATE and not the turn. -->
-            <div class="day-detail-base" id="dayDetailBase" hidden></div>
+            <!-- What the roster said before this day was changed, as the two SHIFT BADGES the
+                 member already reads in the grid. Directly under the shift because it qualifies it;
+                 above the day markers, which are about the DATE and not the turn. The badges are
+                 built in JS from `shiftBadgeParts` — colour and emoji come from the one authority,
+                 so the panel can never colour a shift differently from the cell that was tapped. -->
+            <div class="day-detail-change" id="dayDetailChange" hidden>
+                <span class="ddc-eyebrow">Changed</span>
+                <span class="ddc-pair" id="dayDetailChangePair"></span>
+                <!-- Who made the change, or that it came in with the weekly roster. Absent when the
+                     document cannot say, which is honest — the alternative names a colleague. -->
+                <span class="ddc-by" id="dayDetailBy" hidden></span>
+            </div>
             <div class="day-detail-extras" id="dayDetailExtras" hidden></div>
-            <div class="day-detail-note" id="dayDetailNote" hidden></div>
             <button type="button" class="day-detail-pay-btn" id="dayDetailPayBtn" hidden><span aria-hidden="true">💷</span> View pay estimate</button>
         </div>
     </div>
