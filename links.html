@@ -67,6 +67,7 @@
     <link rel="modulepreload" href="./links-deletion.js">
     <link rel="modulepreload" href="./links-demand.js">
     <link rel="modulepreload" href="./links-design-doc.js">
+    <link rel="modulepreload" href="./links-design-naming.js">
     <link rel="modulepreload" href="./links-design.js">
     <link rel="modulepreload" href="./links-fatigue.js">
     <link rel="modulepreload" href="./links-import.js">
@@ -151,8 +152,8 @@
         <p class="li-status" id="linksImportStatus" role="status" aria-live="polite"></p>
         <div class="dialog-actions">
             <button type="button" class="dialog-btn panel-btn-cancel" id="linksImportCancel">Cancel</button>
-            <button type="button" class="dialog-btn panel-btn-confirm" id="linksImportCheck">Check it</button>
-            <button type="button" class="dialog-btn panel-btn-confirm" id="linksImportSave" hidden>Save as a new design</button>
+            <button type="button" class="dialog-btn panel-btn-confirm" id="linksImportCheck">Preview import</button>
+            <button type="button" class="dialog-btn panel-btn-confirm" id="linksImportSave" hidden>Create new design</button>
         </div>
     </div>
 </div>
@@ -503,27 +504,27 @@
                          rather than as the place your shift times are kept. -->
                     <div class="gen-sets-row">
                         <label class="gen-sets-label" for="genSetSelect">Saved staffing setups</label>
-                        <select id="genSetSelect" class="gen-select" aria-label="Choose a saved set of shift times"></select>
+                        <select id="genSetSelect" class="gen-select" aria-label="Choose a saved staffing setup"></select>
                         <!-- THE FOUR BUTTONS ARE ONE GROUP (v21.14), not four siblings of the label
                              and the dropdown. As siblings they wrapped INDIVIDUALLY: at 360–390px
-                             the row came apart into "↓ Load  Save changes" / "+ Save as new…" /
+                             the row came apart into "Use setup  Save changes" / "+ Save as new…" /
                              "Delete", each line a different length and the last one a lone
                              destructive verb under a dropdown. Grouped, they wrap together and stay
                              recognisable as the things you can do to the set named beside them. -->
                         <div class="gen-sets-actions">
                             <button class="btn-set btn-set--primary" id="genSetLoadBtn" type="button"
-                                    title="Bring this set's shift times into the table above">↓ Load</button>
+                                    title="Bring this setup's shift times into the table above">Use setup</button>
                             <button class="btn-set" id="genSetSaveBtn" type="button"
-                                    title="Overwrite this set with the table above">Save changes</button>
+                                    title="Overwrite this staffing setup with the table above">Save changes</button>
                             <button class="btn-set" id="genSetSaveAsBtn" type="button"
-                                    title="Keep the table above as a new set of its own">+ Save as new…</button>
+                                    title="Keep the table above as a new staffing setup of its own">+ Save as new…</button>
                             <!-- SPELT OUT, not a bare ✕ (v21.08). The design chips can wear a glyph
                                  because they are compact chips with the name right beside them; here
                                  it is the fourth control in a row of three worded buttons, and at
                                  390px it wrapped onto a line of its own — a lone ✕ under a dropdown,
                                  meaning nothing in particular. -->
                             <button class="btn-set btn-set--danger" id="genSetDeleteBtn" type="button"
-                                    title="Delete this set">Delete</button>
+                                    title="Delete this staffing setup">Delete</button>
                         </div>
                     </div>
                     <p class="gen-sets-hint" id="genSetHint" aria-live="polite"></p>
@@ -542,7 +543,7 @@
                              prices. This one is applied on their behalf, silently, and a card whose whole
                              argument is "the result says what each cost" cannot then have an unnamed term
                              moving rows for reasons nobody can see. One sentence is the whole fix. -->
-                        <p class="gen-obj-note">These change the order of the lines, never the cover. Turning one on takes freedom from the others; the result says what each cost. Cover weeks are always kept evenly spaced around the rotation — that one is not optional, because two cover weeks side by side run into one long stretch.</p>
+                        <p class="gen-obj-note">These change the order of the lines, never the cover. They compete with each other — turning one on can make another slightly worse, and the result says what each one cost. Cover weeks are always kept evenly spaced around the rotation — that one is not optional, because two cover weeks side by side run into one long stretch.</p>
                         <!-- Variety leads the list, and is the one that must stay ON unless you mean
                              it. "Gentle" taken to its limit IS a block — the smallest possible
                              week-to-week step is no step at all — so with variety off the reorder

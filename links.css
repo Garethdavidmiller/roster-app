@@ -2276,3 +2276,42 @@ body.auth-ready .container { display: grid; }
 .compare-sum-label { color: var(--text-mid); }
 .compare-sum-val { font-weight: 700; color: var(--text-dark); font-variant-numeric: tabular-nums; }
 .compare-sum-val--same { font-weight: 600; color: var(--text-light); }
+
+/* ═══ THE ROW-OF-BUTTONS FAMILIES GET A THUMB-SIZED TARGET TOO (v22.65) ═══════════════════════════
+
+   v22.61 measured the paint chips at 30x22 / 27x20 / 53x22 on a phone and gave them a 30px floor
+   under `pointer: coarse`, because they are the primary control on the page. This finishes that
+   pass one row over: the design actions and the saved-set actions were left at 25px — measured by
+   probing `elementFromPoint` outward from each centre, not by reading the box, since this app
+   expands several targets with a pseudo-element and a box measurement cannot see it.
+
+   25px CLEARS the app's enforced floor — 24px, WCAG 2.2 SC 2.5.8 AA, pinned by the `@a11y` tap
+   target test — by a single pixel, so this is not a defect being fixed. It is the smallest
+   un-expanded target on the page, in a row of identically sized neighbours, and one of them is
+   **Delete**: a destructive act on a design a colleague may also be editing, with no bin behind it
+   for a saved SET. A mis-tap there costs more than the 5px it costs to prevent.
+
+   AT THE END OF THE FILE, BY CONVENTION AND NOT BY NECESSITY — and the difference is worth stating,
+   because the first version of this comment got it wrong. This file's recorded bug, twice, is a
+   `@media (pointer: coarse)` block placed ABOVE the rule it meant to beat, at equal specificity,
+   which changed nothing and read as though it worked (the iOS focus-zoom note above). That trap is
+   NOT live here: the base rules declare `padding`, not `min-height` or `display`, so there is no
+   same-property conflict for source order to decide. Moving this block above them changes nothing
+   — measured, by moving it and re-running the guard, which still passed.
+   It stays at the end anyway, because the moment somebody adds a `min-height` or a `display` to
+   either base rule the trap becomes live, and by then nobody will re-derive this.
+
+   `min-height` with flex centring rather than more padding: padding would widen them too, and four
+   of these already sit in a row that has to fit 320px. Height is the axis with room. */
+@media (pointer: coarse) {
+    .btn-design-new,
+    .btn-design-import,
+    .btn-design-dup,
+    .btn-design-compare,
+    .btn-set {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 30px;
+    }
+}

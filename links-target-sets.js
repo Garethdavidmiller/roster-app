@@ -148,7 +148,7 @@ export function describeSetState(set, ctx = {}) {
     if (!set) {
         return {
             owned: false, canWrite: false, canDelete: false,
-            text: 'Save the table above as a named set to share it between designers.',
+            text: 'Save these staffing numbers so you or another designer can use them again.',
         };
     }
     const owned    = !!userName && set.createdBy === userName;
@@ -167,11 +167,11 @@ export function describeSetState(set, ctx = {}) {
             : `saved by ${set.createdBy}. Only they can overwrite it.`;
 
     const where = !isLoaded
-        ? 'Press Load to use these shift times.'
+        ? 'Press Use setup to bring these shift times into the table.'
         : !changed
             ? 'Loaded — the table above still matches it.'
             : canWrite
-                ? 'You have changed the table since loading it — Save changes updates the set, Save as new keeps both.'
+                ? 'You have changed the table since loading it — Save changes updates the setup, Save as new keeps both.'
                 : 'You have changed the table since loading it — Save as new keeps your version, theirs untouched.';
 
     return { owned, canWrite, canDelete, text: `${set.name} — ${whose} ${where}` };
@@ -210,21 +210,28 @@ export function sortTargetSets(sets) {
  */
 export function describeSetList(status, sets = []) {
     if (status === 'loading') {
-        return { placeholder: 'Loading saved sets…', hint: 'Looking for saved sets…', canRetry: false, usable: false };
+        return { placeholder: 'Loading staffing setups…', hint: 'Looking for saved staffing setups…', canRetry: false, usable: false };
     }
     if (status === 'error') {
         return {
-            placeholder: 'Saved sets unavailable',
+            placeholder: 'Staffing setups unavailable',
             // Says what is NOT known, and does not guess at the cause: offline, signed out and a
             // rules refusal are indistinguishable from here, and naming the wrong one sends the
             // designer to fix something that is not broken.
-            hint: 'Couldn’t load the saved sets, so this list is not showing them. Your sets have not been deleted — check your connection and try again.',
+            //
+            // AND IT MAY NOT REASSURE BEYOND WHAT IT KNOWS EITHER (v22.66, external review). This
+            // read "Your sets have not been deleted", which is a claim about the SETS — and a read
+            // that failed knows nothing about them, including that. It was the counter-example to
+            // the rule written directly above it. The replacement is a statement about the ERROR,
+            // which is the only thing here we can actually vouch for, and it carries the same
+            // reassurance: what a designer needs is that this screen is not evidence of loss.
+            hint: 'Couldn’t load the saved staffing setups, so this list is not showing them. This error does not mean they were deleted — check your connection and try again.',
             canRetry: true,
             usable: false,
         };
     }
     if (!sets.length) {
-        return { placeholder: 'No saved sets yet', hint: null, canRetry: false, usable: true };
+        return { placeholder: 'No staffing setups saved yet', hint: null, canRetry: false, usable: true };
     }
     return { placeholder: null, hint: null, canRetry: false, usable: true };
 }
