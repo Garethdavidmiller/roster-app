@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: September 2026 — v22.60 · Updated every 0.10 version*
+*Last updated: September 2026 — v22.70 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -615,6 +615,30 @@ overrides for all members without a size limit. It is not cleared when the selec
 member changes — switching members triggers a new fetch that adds to the existing map.
 This is intentional (avoids redundant Firestore reads on member switch) but means the
 cache grows unboundedly for long sessions where many members are viewed.
+
+### An override still carries a `note` field that nothing writes and nothing reads (v22.69)
+
+Every override write sends `note: ''`, and no save path in the app has ever offered a field for one
+— the only values that could exist came from hand-written documents. The three display paths (the
+calendar hover tooltip, the day-detail panel, the Admin Saved Changes list) were removed at v22.69
+on the owner's decision: nobody used the feature, and free text about a named colleague is a GDPR
+exposure with nothing to justify it.
+
+**The field itself is still on the write, and that is not an oversight.** `firestore.rules` requires
+`request.resource.data.note is string`, and a missing field is null, so a client that stopped
+sending it would permission-deny **every override write on every device**. Retiring it is a
+three-push backend-first sequence, and the two rules clauses fail in OPPOSITE directions, which is
+what makes the order non-obvious:
+
+1. rules drop the `is string` / `size() < 500` requirement, keeping `note` in `hasOnly` — both old
+   and new clients pass;
+2. the client stops writing it;
+3. rules drop it from `hasOnly`.
+
+Doing (2) or (3) first breaks writes. Low priority — the residual exposure is a field that is empty
+everywhere and displayed nowhere — but it is the kind of thing that is only cheap to remove while
+somebody remembers the ordering. Full note beside `buildOverrideWrite` in `override-utils.js` and in
+`docs/DATA_MODEL.md` → overrides.
 
 ### Duplicate Firestore override documents
 If a date has multiple override documents for the same member, the cache keeps the

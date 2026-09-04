@@ -2095,8 +2095,81 @@
             width: min(320px, 90vw);
             text-align: center;
         }
-        .day-detail-date  { color: rgba(255,255,255,0.6); font-size: var(--type-label); font-weight: 600; padding: 0 18px; }
-        .day-detail-shift { color: white; font-size: 19px; font-weight: 700; letter-spacing: -0.3px; line-height: 1.25; }
+        /* THE DATE CLEARS THE CLOSE BUTTON, SYMMETRICALLY (v22.70). `.lb-close` is a 44x44 touch
+           target at `top/right: 14px`, so it occupies 14–58px down the panel's right edge — and the
+           panel's own 30px top padding puts this line squarely inside that band.
+
+           MEASURED across 320/360/390/412px on the longest date the app can render ("Wednesday 30
+           September 2026"), because the first version of this comment overstated it and the test
+           written from that overstatement could not fail. At 18px of side padding the gap to the
+           button is exactly ZERO at 360, 390 and 412 — the final glyph crosses the target's left
+           edge by a pixel — and at 320 the line wraps and clears. So it is a hairline overlap on
+           the longest dates plus visible crowding on the ordinary ones, not a gross collision; that
+           is still a fault, and it is one no behavioural assertion can see.
+
+           40px is the button's 44px reach less the panel's own 24px, plus room to breathe, applied
+           to BOTH sides because the line is centred — clearing only the right would shift every
+           short date off-centre to fix the rare long one. It buys a 48px gap. A 27-character date
+           then wraps to two balanced lines; a 23-character one ("Friday 18 December 2026") still
+           does not. A wrap is legible, an overlap is a fault. */
+        .day-detail-date  {
+            /* `width: 100%` + an explicit `text-align` rather than relying on the flex parent's
+               `align-items: center` to shrink-wrap this: a shrink-wrapped box centres its BOX and
+               leaves a wrapped second line ragged inside it, which is visible the moment a date or
+               a shift line goes to two lines. Both are stated on all four blocks so the panel's
+               centring does not depend on which of them happen to be one line today. */
+            width: 100%;
+            text-align: center;
+            color: rgba(255,255,255,0.6);
+            font-size: var(--type-label);
+            font-weight: 600;
+            padding-inline: 40px;
+            text-wrap: balance;
+            line-height: 1.35;
+        }
+        /* THE SHIFT, LED BY ITS OWN KIND GLYPH (v22.70). The panel used to be monochrome unless
+           something had CHANGED — the coloured pair below was the only colour on it — so the app's
+           shift identity read as a property of "something happened" rather than of the shift, and a
+           plain Late turn and a plain Rest day were one grey card with different words. The glyph is
+           the tapped cell's own emoji, from `shiftBadgeParts`, so the two cannot disagree. A pill was
+           tried here and is wrong: it competes with the change pair directly beneath it, and on an
+           unchanged day it is a lone badge floating with nothing to be compared against. */
+        /* NORMAL TEXT FLOW, NOT A FLEX ROW. As a flex row the glyph was a sibling COLUMN: when the
+           line wrapped at 320px it stayed vertically centred against two lines of text and drifted
+           to the far left of the panel, detached from the words it belongs to. Inline, it simply
+           leads the first line and wraps with it. */
+        .day-detail-shift {
+            width: 100%;
+            text-align: center;
+            color: white;
+            font-size: 19px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+            line-height: 1.3;
+            /* NO `text-wrap: balance` here, deliberately — it is right on the date above and wrong
+               on this line. Balance equalises line LENGTHS, which at 320px broke "Early shift"
+               itself: "☀️ Early" over "shift 07:00-16:00". Greedy wrapping breaks at the space
+               before the time instead, which is the one break this line should ever take. */
+        }
+        .dds-glyph {
+            font-size: 21px;
+            line-height: 1;
+            margin-right: 7px;
+            vertical-align: -2px;
+        }
+        .dds-glyph[hidden] { display: none !important; }
+        /* Atomic — see the note in index.html. `inline-block` as well as `nowrap` because a bare
+           inline span's contents can still be broken at the hyphen. */
+        .dds-time { display: inline-block; white-space: nowrap; }
+        .dds-time[hidden] { display: none !important; }
+        /* At 320px the panel is 288px wide and "☀️ Early shift 07:00-16:00" measured 4px over the
+           240px of content — a wrap bought for four pixels. One step down the scale keeps the
+           commonest line on one line, and it is a step the panel can afford: this is still the
+           largest type on it by some way. */
+        @media (max-width: 359px) {
+            .day-detail-shift { font-size: 17.5px; }
+            .dds-glyph { font-size: 19px; }
+        }
         /* THE CHANGE, AS TWO BADGES (v22.69). The words above answer "what am I doing?"; this
            answers "what was it?" in the colours the member already reads in the grid — which is
            the whole reason a spare week is worth spotting: 📋 purple against ☀️ orange is a
@@ -2106,14 +2179,28 @@
 
            The pair CAN wrap: at 320px with two long badges it goes to two lines rather than
            overflowing, and the arrow wraps with them. */
+        /* ONE HAIRLINE, ABOVE THE CONTEXT GROUP (v22.70). The panel says two kinds of thing: what
+           this TURN is (date + shift) and what is true AROUND it (what it was changed from, what the
+           date itself is). Those get one rule between them, never one per sub-block — the change and
+           the markers are the same group, and a second rule 40px below the first made a 280px card
+           read as four stacked fragments. So both blocks declare the rule and the second gives it up
+           whenever the first is on screen, which is what keeps it correct in every combination:
+           change alone, markers alone, and both. */
+        .day-detail-change,
+        .day-detail-markers {
+            width: 100%;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        .day-detail-change:not([hidden]) + .day-detail-markers {
+            border-top: none;
+            padding-top: 6px;
+        }
         .day-detail-change {
             display: flex;
             flex-direction: column;
             align-items: center;
             gap: 6px;
-            width: 100%;
-            padding-top: 10px;
-            border-top: 1px solid rgba(255, 255, 255, 0.12);
         }
         .day-detail-change[hidden] { display: none !important; }
         .ddc-eyebrow {
@@ -2128,6 +2215,13 @@
             flex-wrap: wrap;
             align-items: center;
             justify-content: center;
+            gap: 8px;
+        }
+        /* The arrow and the badge it points at are ONE wrapping unit — see the note in
+           calendar-al-lightbox.js. Same rendering when the pair fits on one line. */
+        .ddc-to {
+            display: inline-flex;
+            align-items: center;
             gap: 8px;
         }
         /* The panel's own pill. It wears the shared COLOUR class (`badge-early`, `badge-spare`…)
@@ -2154,12 +2248,16 @@
                identity away. Outline also costs no layout. */
             outline: 1px solid rgba(255, 255, 255, 0.16);
         }
-        /* Between two bold pills a 14px 55%-white arrow disappeared — it has to read as the
-           relationship, not as punctuation. */
+        /* Between two bold saturated pills the arrow has to read as the RELATIONSHIP, not as
+           punctuation — and at 0.75 white it still receded (v22.70, from the screenshots). It is the
+           only thing on the panel saying these two pills are one fact in sequence rather than two
+           facts side by side, so it is now the same weight as what it joins. */
         .ddc-arrow {
-            color: rgba(255, 255, 255, 0.75);
-            font-size: var(--type-medium);
+            color: rgba(255, 255, 255, 0.92);
+            font-size: var(--type-large);
+            font-weight: 700;
             line-height: 1;
+            flex: none;
         }
         /* Who changed it. Quieter than the pair it explains and sentence case, not the eyebrow's
            uppercase — it is a fact about the change, not a heading for it. */
@@ -2169,33 +2267,82 @@
             line-height: 1.35;
         }
         .ddc-by[hidden] { display: none !important; }
-        .day-detail-extras {
-            color: var(--accent-gold);
-            font-size: var(--type-label);
-            font-weight: 600;
-            line-height: 1.4;
+        /* THE DAY MARKERS, AS THE CALENDAR'S OWN ICONS (v22.70). They were a comma-joined gold
+           sentence — "Bank holiday, Christmas Day" — which is prose where the rest of the app uses
+           a marker vocabulary: ⭐ 💷 ✂️ 🐣 🎄, declared as cell `::before`/`::after` content 1,400
+           lines above this. THIS PANEL IS WHERE A MEMBER ASKS WHAT THE STAR ON A CELL MEANS, and it
+           was the one surface that answered without the star.
+
+           Gold is kept — it is what these facts already wear — but as a tinted chip rather than
+           bold body text, so several markers read as several facts instead of one long phrase. The
+           hairline is an `outline`, matching `.ddc-badge`: not a `border` (it would win on source
+           order over a badge's own) and not a `--shadow-*` (these are rings, not depth, which is
+           what the shadow ratchet is there to keep true). */
+        .day-detail-markers {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
         }
+        .day-detail-markers[hidden] { display: none !important; }
+        .ddm-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            border-radius: var(--radius-pill);
+            background: color-mix(in srgb, var(--accent-gold) 14%, transparent);
+            /* A whisper, not a ring. At 30% these read as tappable pills on a panel whose only
+               control is the green button below them — and `.ddc-badge`'s own hairline is 0.16
+               white, so a heavier one here would also have made the LABELS louder than the shift
+               badges they sit under. */
+            outline: 1px solid color-mix(in srgb, var(--accent-gold) 18%, transparent);
+            color: var(--accent-gold);
+            font-size: var(--type-small);
+            font-weight: 600;
+            line-height: 1.3;
+            white-space: nowrap;
+        }
+        /* The icon sits a shade larger than its label so the chip reads icon-first — that is the
+           whole point of the chip, and at matched sizes the emoji disappeared into the word. */
+        .ddm-icon { font-size: var(--type-label); line-height: 1; }
         #dayDetailClose { color: rgba(255,255,255,0.5); }
         @media (hover: hover) and (pointer: fine) {
             #dayDetailClose:hover { color: white; }
         }
         /* "View pay estimate" — green to match the app's Pay identity (the nav Pay pill),
-           standing out on the navy day-detail lightbox. Shown only on payday/cut-off days. */
+           standing out on the navy day-detail lightbox. Shown only on payday/cut-off days.
+
+           IT IS SIZED TO ITS WORDS, NOT TO THE PANEL (v22.70, owner: "looks huge"). Full width at
+           15px/700 made a 320px card end in a green slab wider and heavier than the shift it is
+           about — a footer, not an offer. The panel is a READ surface: you tapped a day to find out
+           what it is, and the calculator is one thing you might then want, not the conclusion. An
+           auto-width pill states that, and it still clears the 44px touch floor by `min-height`
+           rather than by padding, so shrinking the type can never shrink the target. */
         .day-detail-pay-btn {
-            margin-top: 14px;
-            width: 100%;
-            padding: 11px;
+            margin-top: 12px;
+            align-self: center;
+            padding: 0 18px;
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             background: var(--green);
             color: white;
             border: none;
+            /* `--radius-button`, not `--radius-pill`: the marker chips directly above it ARE pills,
+               and this is the one thing on the panel you can press. Sharing their shape made the
+               action look like one more label. Every action button in the app wears this radius. */
             border-radius: var(--radius-button);
-            font-size: var(--type-button);
+            font-size: var(--type-label);
             font-weight: 700;
             font-family: inherit;
             cursor: pointer;
             touch-action: manipulation;
             transition: background var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
         }
+        .day-detail-pay-btn[hidden] { display: none !important; }
         .day-detail-pay-btn:active { transform: scale(var(--press-scale)); background: var(--green-hover); }
         @media (hover: hover) and (pointer: fine) {
             .day-detail-pay-btn:hover { background: var(--green-hover); }

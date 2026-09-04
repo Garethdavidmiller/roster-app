@@ -133,6 +133,124 @@ test('day detail: a same-KIND change still reads as a change', async ({ page }, 
         + 'changed under a headline that says it did').toBe(2);
 });
 
+// ── THE PANEL'S GEOMETRY AND ITS MARKER VOCABULARY (v22.70) ──────────────────────────────────────
+//
+// Both of these are things a behavioural assertion provably cannot see, and both had shipped wrong.
+//
+// The CLOSE BUTTON is a 44x44 touch target at `top/right: 14px`, so it occupies 14-58px down the
+// panel's right edge — and the date line sits at the panel's own 30px top padding, squarely inside
+// that band. With 18px of side padding "Friday 18 December 2026" ran under the ✕. Every element was
+// present, visible, labelled and readable; nothing threw, no axe rule fires on two overlapping
+// boxes, and the panel had no pixel baseline. So the guard has to be the MEASUREMENT.
+//
+// The DAY MARKERS are the second: the panel is where a member goes to ask what the ⭐ on a cell
+// means, and it answered in a comma-joined sentence with no ⭐ in it. Asserted against the ICONS,
+// because the labels were always right — it is the vocabulary that was missing.
+test('day detail: the date clears the close button at every phone width', async ({ page }, info) => {
+    test.skip(info.project.name !== 'mobile-chrome', 'the day panel is the touch route; desktop hovers');
+    // THE CASE HAS TO BE ONE THAT CAN BITE, and the first version of this test was not: at 320px
+    // the longest date wraps and clears the button on the broken CSS as well as the fixed CSS, so
+    // the mutation passed. Measured across 320/360/390/412 on "Wednesday 30 September 2026" — the
+    // longest date the app renders — the gap at the old 18px padding is exactly ZERO at 360, 390
+    // and 412, and comfortable at 320. So 390 is where the overlap is, and 390 is what this uses.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedMember(page);
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        // 30 September 2026 — the longest date, carrying an RDW change so the whole panel is up.
+        w.__E2E.docs = [{ id: 'x', memberName: 'G. Miller', date: '2026-09-30',
+            type: 'rdw', value: '09:00-17:00', note: '', source: 'manual', changedBy: 'S. Silva' }];
+        localStorage.setItem('myb_roster_year', '2026');
+        localStorage.setItem('myb_roster_month', '8');
+    });
+    // The month is only restored when it is not in the FUTURE, so the clock has to be past it.
+    await page.clock.setFixedTime(new Date('2027-01-20T10:00:00Z'));
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('.calendar-day:not(.other-month)').nth(29).click();
+    await expect(page.locator('#dayDetailContent')).toBeVisible();
+    await page.waitForTimeout(600);
+
+    // NO OVERLAP — measured against the RENDERED TEXT, not the element box. The date line is
+    // `width: 100%` and clears the ✕ with padding, so its BOX legitimately reaches under the
+    // button while its glyphs do not; asserting on the box would fail on correct CSS and tell the
+    // next person the fix was wrong. A Range over the contents gives what the reader actually sees.
+    const [date, close] = await page.evaluate(() => {
+        const el = document.querySelector('#dayDetailDate');
+        const rg = document.createRange(); rg.selectNodeContents(el);
+        const box = b => ({ l: b.left, r: b.right, t: b.top, b: b.bottom });
+        return [box(rg.getBoundingClientRect()),
+                box(document.querySelector('#dayDetailClose').getBoundingClientRect())];
+    });
+    const overlaps = date.l < close.r && date.r > close.l && date.t < close.b && date.b > close.t;
+    expect(overlaps,
+        `the date (${Math.round(date.l)}-${Math.round(date.r)}) runs under the close button `
+        + `(${Math.round(close.l)}-${Math.round(close.r)}) — the ✕ is a 44px target and the date `
+        + 'has to clear it on BOTH sides, because the line is centred').toBe(false);
+
+    // THE SHIFT LEADS WITH ITS OWN KIND GLYPH, and the TIME is atomic — a browser will break at
+    // the hyphen inside 09:00-17:00 given a chance, which is not a worse line break but a number
+    // that stops reading as a number.
+    await expect(page.locator('#dayDetailShiftGlyph')).toHaveText('💼');
+    await expect(page.locator('#dayDetailShiftTime')).toHaveText('09:00-17:00');
+    const timeLines = await page.locator('#dayDetailShiftTime')
+        .evaluate(el => el.getClientRects().length);
+    expect(timeLines, 'the shift time was broken across two lines').toBe(1);
+});
+
+// The markers are their own test because the two concerns want different DATES: the clearance case
+// needs the longest date the app renders, and the marker case needs a date that actually carries
+// markers. Folding them into one test meant one of the two ran on a fixture that could not fail it.
+test('day detail: the day markers carry the calendar\'s own icons', async ({ page }, info) => {
+    test.skip(info.project.name !== 'mobile-chrome', 'the day panel is the touch route; desktop hovers');
+    await seedMember(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_roster_year', '2026');
+        localStorage.setItem('myb_roster_month', '11');
+    });
+    await page.clock.setFixedTime(new Date('2027-01-20T10:00:00Z'));
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    // 25 December 2026 — Christmas Day AND a bank holiday, so the row carries two chips.
+    await page.locator('.calendar-day:not(.other-month)').nth(24).click();
+    await expect(page.locator('#dayDetailContent')).toBeVisible();
+
+    // THE CALENDAR'S OWN MARKERS, not a second vocabulary invented for the panel. index.css
+    // declares these as cell `::before`/`::after` content, and this panel is where a member goes
+    // to ask what the ⭐ on a cell means — it used to answer in a sentence with no ⭐ in it.
+    // Asserted on the ICONS: the labels were always right, the vocabulary was what was missing.
+    await expect(page.locator('#dayDetailExtras .ddm-chip')).toHaveCount(2);
+    const icons = await page.locator('#dayDetailExtras .ddm-icon').allTextContents();
+    expect(icons, 'the chips lost the cell icons they exist to explain').toEqual(['🎄', '⭐']);
+});
+
+// An UNCHANGED day is the state the redesign is really for: it was the one the panel rendered in
+// monochrome, so the app's shift colour and glyph read as properties of "something happened"
+// rather than of the shift. A plain Late turn and a plain Rest day were one grey card with
+// different words on it.
+test('day detail: an UNCHANGED day still leads with its own kind glyph', async ({ page }, info) => {
+    test.skip(info.project.name !== 'mobile-chrome', 'the day panel is the touch route; desktop hovers');
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    // A cell with no override at all — nothing is seeded, so every day is its base roster.
+    const idx = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
+        .findIndex(c => !c.dataset.detailBase && c.dataset.detailShiftValue));
+    expect(idx, 'no unchanged day in view').toBeGreaterThan(-1);
+    await page.locator('.calendar-day:not(.other-month)').nth(idx).click();
+    await expect(page.locator('#dayDetailContent')).toBeVisible();
+
+    await expect(page.locator('#dayDetailChange')).toBeHidden();
+    const glyph = await page.locator('#dayDetailShiftGlyph').textContent();
+    expect(glyph, 'an unchanged day drew no kind glyph — the panel is monochrome again').toBeTruthy();
+    // The SAME glyph the cell wears, from the one badge authority.
+    const cellEmoji = await page.locator('.calendar-day:not(.other-month)').nth(idx)
+        .evaluate(c => (c.querySelector('.shift-badge')?.textContent || '').trim().charAt(0));
+    if (cellEmoji) expect(glyph.startsWith(cellEmoji),
+        `panel "${glyph}" vs cell "${cellEmoji}" — the panel and the cell disagree about the kind`)
+        .toBe(true);
+});
+
 // ── The grid is withheld until the overrides are known (v20.40) ──────────────────────────────────
 //
 // The unit tests prove the DECISION; only a browser proves the WIRING — that a real page open with a

@@ -8,6 +8,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
     getBankHolidays,
     isBankHoliday,
@@ -1068,6 +1069,78 @@ test('getSpecialDayBadges: returns objects with icon and title fields', () => {
         assert.ok(typeof b.icon  === 'string', 'icon should be a string');
         assert.ok(typeof b.title === 'string', 'title should be a string');
     }
+});
+
+// ── THE APP HAS ONE MARKER VOCABULARY, DECLARED IN THREE PLACES (v22.70) ────────────────────────
+//
+// `index.css` draws ⭐ 💷 ✂️ 🐣 🎄 as calendar-cell `::before`/`::after` content, `getSpecialDayBadges`
+// above hands the same five to admin.html's day rows, and `dayMarkers` in calendar-renderer.js hands
+// them to the day panel's chips. Three copies of one fact, and the whole point of the v22.70 chip
+// row is that a member tapping a day sees the SAME star that is on the cell — so a drift here does
+// not throw, does not fail a render, and quietly makes the panel explain a marker the calendar is
+// not showing.
+//
+// `dayMarkers` cannot be imported here: calendar-renderer.js reaches the gstatic Firebase SDK
+// through its import graph, so nothing in it loads in Node. It has no imports of its own, though,
+// so it is sliced out BY NAME and evaluated against its real source — the `sw-internals.test.mjs`
+// idiom — and compared against the REAL `getSpecialDayBadges` on the other side. Extraction throws
+// if the function is renamed, so this fails loudly rather than silently checking nothing.
+//
+// It deliberately does NOT compare the labels: the panel's are sentence case because they are
+// joined into the hover tooltip's sentence, admin's are title case because they are a badge
+// `title`. Nor the ORDER, which each surface chooses. The ICON is the shared fact.
+const _rendererSrc = readFileSync(new URL('./calendar-renderer.js', import.meta.url), 'utf8');
+const _dayMarkersSrc = /export function dayMarkers\(f\) \{[\s\S]*?\n\}/.exec(_rendererSrc);
+assert.ok(_dayMarkersSrc, 'dayMarkers could not be sliced out of calendar-renderer.js — renamed?');
+const dayMarkers = /** @type {(f:any) => {icon:string,label:string}[]} */ (
+    new Function(`${_dayMarkersSrc[0].replace('export function', 'function')}; return dayMarkers;`)());
+
+describe('dayMarkers ↔ getSpecialDayBadges — one icon per day, three surfaces', () => {
+    const SHARED = [
+        { flag: 'isBH',     date: new Date(2026, 11, 25, 12), iso: '2026-12-25', title: 'Bank Holiday' },
+        { flag: 'isCutoff', date: CUTOFF_2026,                iso: '2026-02-07', title: 'Cut-off Date' },
+        { flag: 'isPay',    date: PAYDAY_2026,                iso: '2026-02-13', title: 'Payday' },
+        { flag: 'isXmas',   date: XMAS_2026,                  iso: '2026-12-25', title: 'Christmas Day' },
+        { flag: 'isEaster', date: EASTER_2026,                iso: '2026-04-05', title: 'Easter Sunday' },
+    ];
+
+    for (const { flag, date, iso, title } of SHARED) {
+        test(`${title} wears the same icon on the day panel as on an admin day row`, () => {
+            const panel = dayMarkers({ [flag]: true });
+            assert.equal(panel.length, 1, `dayMarkers({${flag}}) should produce exactly one chip`);
+            const admin = getSpecialDayBadges(date, iso).find(b => b.title === title);
+            assert.ok(admin, `getSpecialDayBadges no longer produces a ${title} badge`);
+            assert.equal(panel[0].icon, admin.icon,
+                `${title}: the day panel says ${panel[0].icon} and the admin row says ${admin.icon} `
+                + '— the panel exists to explain the marker the calendar is showing');
+        });
+    }
+
+    // Today is the one marker with no admin badge and no cell icon (the cell tints its day number
+    // instead), so it carries a glyph of its own — a chip with none would read as one that failed
+    // to load. Pinned so the reason survives, not the glyph: change it deliberately.
+    test('Today carries a glyph of its own, having no cell icon to borrow', () => {
+        const [today] = dayMarkers({ isToday: true });
+        assert.equal(today.label, 'Today');
+        assert.ok(today.icon && today.icon.length > 0, 'the Today chip lost its glyph');
+        assert.equal(getSpecialDayBadges(PLAIN_WEEKDAY, '2026-06-17').length, 0,
+            'the admin row has no Today badge — if it gains one, these two must agree');
+    });
+
+    // Boxing Day is deliberately ABSENT from both, and index.css says why beside the 🎄: 26 December
+    // is left plain so it still reads as an overtime opportunity. A marker added to one surface and
+    // not the other is exactly the drift this block exists to catch, so the absence is pinned too.
+    test('Boxing Day is marked on neither surface, deliberately', () => {
+        const boxing = new Date(2026, 11, 26, 12);
+        assert.deepEqual(getSpecialDayBadges(boxing, '2026-12-26'), [],
+            'Boxing Day gained an admin badge — index.css leaves the cell plain on purpose');
+        // The sliced FUNCTION, with comments stripped — the module's header explains at length why
+        // Boxing Day is absent, so scanning the whole file matches its own explanation and this
+        // assertion fails on the code being correctly documented. (It did, on the first run.)
+        const body = _dayMarkersSrc[0].replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+        assert.equal(/boxing/i.test(body), false,
+            'dayMarkers gained a Boxing Day chip — the cell has no marker for it to explain');
+    });
 });
 
 // ---------------------------------------------------------------------------
