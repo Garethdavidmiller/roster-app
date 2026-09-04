@@ -516,6 +516,7 @@ roster-app/
 ├── app-name-parity.test.mjs ← **"MYB" may name the STATION; it may never name the SOFTWARE.** The on-screen name has been "Marylebone Roster" since v15.05 and was violated twice with no review catching either — the paycalc PRINT header (the one string that leaves the app on paper) and the staff-PIN card's "MYB member?" link. The distinction is the whole design: `MYB` is Marylebone's real station code, correct and expected in the guides, so a blanket ban would fire on those, acquire an exemption list and stop guarding. Scoped to `MYB` + a PRODUCT word, which needs no exemptions; the iOS home-screen meta is removed structurally, by attribute. Part of test:hygiene. Teeth-verified against both shipped defects
 ├── card-header-parity.test.mjs ← static guard for the two canonical card-header conventions across the 5 card-bearing app pages: every card title is an `h2` (operations.html had all nine as `h3` — styled identically, so its heading outline silently ran h1→h3; axe's heading-order rule is best-practice-tagged, so the a11y gate never saw it) and every card title leads with an emoji ("Change a Shift" was the only bare one in the app). Comments are stripped before matching so a long comment can't hide a card from the guard. Part of test:hygiene. Teeth-verified
 ├── coordinator-ratchet.test.mjs ← **coordinators coordinate; domain modules decide** — an already-large module may not get larger. A RATCHET, not a limit: a limit would fail the day it landed and be waived by lunchtime, so each large module carries the size it had when measured, plus 50–99 lines of room for a fix that is not a business rule. Shrinking one is free; raising a cap is a decision somebody makes. A file crossing the threshold that is NOT in the table also fails, and a cap drifting far above its file fails too — a guard with no teeth would let the whole suite pass while the thing it prevents happened. Part of test:hygiene. Teeth-verified
+├── public-data-classification.test.mjs ← **`roster-data.js` is served to anyone who asks**, so what it carries is a decision rather than an accident. It guards not the decision but its BLAST RADIUS: a classification is made once, about the fields that existed that day, and the file goes on accepting new ones. The failure is nobody publishing a phone number deliberately — it is somebody adding `mobile` for a good reason, never learning the file is world-readable, and shipping it in the same commit with nothing failing. An allowlist carries a reason per field; an unclassified one fails here. It cannot check VALUES, only names, and says so. Part of test:hygiene. Teeth-verified three ways
 ├── doc-parity.test.mjs ← the documentation is CHECKED, not merely reviewed. Five contracts: every module routed from both docs; every test, e2e spec and runner config from CLAUDE.md; every test file actually RUN by an npm script; no live doc writes down a count a constant owns; and the file tree stays a routing table (entry-length and version-stamp caps). Part of test:hygiene
 ├── auth-endpoints.test.mjs ← **who the reset-request notification reaches** — the one push that must not be a broadcast, driven through the REAL handler against a fake Firestore, a fake Auth and a recording transport. The fakes enter `require.cache` BEFORE the module loads, because it destructures `sendTargetedPush` at load time. Runs in test:functions
 ├── documents-endpoints.test.mjs ← the DOCUMENT domain's handlers EXECUTED — ingestHuddle, the three create triggers, the pay-reminder scheduler — against a fake Firestore, fake Storage and a recording transport. Organised by cost: a DOUBLE PUSH, a SILENT NON-PUSH, and a WRITE THAT SHOULD NOT EXIST. Runs in test:functions. Teeth-verified by six mutations
@@ -873,6 +874,15 @@ replacement.
 ## Roster data structure
 
 ### teamMembers fields
+
+> **⚠️ This file is WORLD-READABLE.** `roster-data.js` is served from both origins with no session,
+> no PIN and no token — 53 named staff, their pattern and cycle position, five start dates and nine
+> leave entitlements, measured 4 Sep 2026. That the base roster is public is a deliberate
+> classification (owner, 4 Sep 2026 — shift patterns are on the station's own printed rosters), and
+> the reasoning is `AUTH_PLAN.md` §2. **A field added below is published the moment it ships**, so
+> anything a stranger should not read belongs in Firestore behind a claim — as `staffContact` (the
+> work email) already does. `public-data-classification.test.mjs` fails on an unclassified field.
+
 
 ```javascript
 {
