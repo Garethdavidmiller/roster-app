@@ -124,10 +124,10 @@ tool the December 2026 proposals will actually be built in, so it is no longer b
 sketch. The chip, its keyframes and the reduced-motion override are gone; `.header-end` stays, since
 it is the flex wrapper the page badge lives in.
 
-## First-visit notice (rewritten v19.51)
+## Orientation panel (a first-visit notice until v22.59)
 
-`#linksWelcomeLb` — one-time, `createLightbox`, gated on `myb_links_welcome_seen`, **14-day expiry**
-(owner, Aug 2026; the skill's default is 28). It replaced the v12.33 beta notice, whose lead
+`#linksWelcomeLb` — `createLightbox`, gated on `myb_links_welcome_seen`, **and no longer expiring**
+(v22.59, external review). It replaced the v12.33 beta notice, whose lead
 paragraph — "this is an early beta… the finished version will look quite different" — described a
 page that stopped existing at v19.50. Only the paragraph that was still true survived; it now sits
 with two more, chosen for what a first-time visitor could otherwise get **wrong**:
@@ -143,11 +143,21 @@ with two more, chosen for what a first-time visitor could otherwise get **wrong*
 point of bringing it back. The e2e specs seed the new key; the old one is left on devices as an inert
 flag.
 
-**Know what expiry does before setting one.** `isNoticeExpired` marks the notice seen *without
-showing it*, so from ~16 Aug 2026 this lightbox is dead code on any device that had not already
-opened the page. That is correct for an announcement — and it is why both of the app's previous
-notices sat silently inert. CLAUDE.md's notice table now carries a Status column so that state is
-visible rather than inferred.
+**Know what expiry does before setting one — and this panel is why.** `isNoticeExpired` marks the
+notice seen *without showing it*, so from 16 Aug 2026 this lightbox was dead code on any device that
+had not already opened the page: a designer given Links access in September met a complex
+professional tool with none of the three facts above. That is correct for an ANNOUNCEMENT and wrong
+for ORIENTATION, and this one was both at once.
+
+**The two are now split (v22.59).** The announcement is over and is archived once, on the first
+close. The orientation does not expire until that device has actually seen it, and `#linksHowBtn`
+reopens it for ever — which also stops it being a pop-up nobody can get back to. That button is a
+pill at the TOP OF THE PAGE and deliberately not in the header: `.app-header` is `1fr auto 1fr`, so
+its two side columns are equal and every pixel a control adds to one is charged twice — one version
+in `.header-end` took the header's min-content past a 390px viewport, stretched the cards past their
+own container and left the grid card's collapse chevron 21px of reachable tap target. Do
+not re-add an expiry here: the audience for these facts is whoever arrives next, and there is no
+date after which a newcomer stops needing them.
 
 ## Design and save model (v12.09, redesigned v12.39–v12.43, multi-design v12.46–v12.47)
 
@@ -188,7 +198,25 @@ the same push through separate workflows with no ordering guarantee.
 
 A picker strip switches designs: **+ New** (blank), **⎘ Duplicate** (forks the LIVE in-memory patterns, unsaved edits included), **✎ Rename**, **✕ Delete** (disabled on the last design). Designs sort by name; the active design id persists via `lsGet('myb_links_active_design')`. Picker chips are a `<div>` wrapping separate `<button>`s — **buttons must not nest**.
 
-### Compare mode (v12.46)
+### Compare mode (v12.46; a difference SUMMARY added v22.60)
+
+**The strip above the grids does the comparison; the grids evidence it.** Two grids with gold-outlined
+diff cells is a PICTURE of the difference — reading it means holding every cell in your head. The
+strip states how many cells differ and **across how many lines** (18 on one line and 18 across six
+are different proposals, and no amount of scanning tells you which), then the four figures a choice
+actually turns on: hours a week excluding Sunday, full weekends off, transitions under 12 hours, and
+ORR factors present. Every one comes from the same pure function the single-design panels call, so
+the two views cannot report a design differently four seconds apart, and **it scores nothing** —
+`A → B`, and the reader decides.
+
+**An UNCHANGED figure still renders, muted.** Showing only what moved would leave the reader unable
+to tell "identical" from "not measured", which is this app's most repeated defect class.
+
+**The compare cells are `<span>`, not `<button>`** (v22.60). They cannot be operated —
+`.links-grid--compare` sets `pointer-events: none` and each carried `tabindex="-1"` — so as buttons
+they announced hundreds of controls to a screen reader that do nothing when reached. The class stays
+(it carries the shift colouring); the element does not.
+
 With ≥2 designs, shows two read-only grids side-by-side (≥1024px) or stacked, with a gold-outline diff on differing cells. Each compare column keeps `overflow-x:auto` even on desktop. The main grid stays **rendered** in compare mode — hidden on screen only (`body.links-compare-on` + `@media screen`) so print always outputs the active design. A print-only `#printDesignName` label names the printed sheet.
 
 ### patterns data shape

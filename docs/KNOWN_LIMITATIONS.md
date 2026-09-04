@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: September 2026 — v22.50 · Updated every 0.10 version*
+*Last updated: September 2026 — v22.60 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -1154,6 +1154,30 @@ never contingent on the beta label, and dropping it does not make any of them go
   who took the countdown seriously might have hurried or written the work off. `daysLeft` and
   `SOFT_DELETE_RETENTION_DAYS` are now explicitly DORMANT and must not drive visible copy again
   until the age comes from the server.
+
+- **Two designs may carry the SAME NAME** (external review, Sep 2026 — P2, not fixed). `createDesign`,
+  `duplicateDesign` and `renameDesign` validate length and emptiness and nothing else, so a picker can
+  show two rows reading "Dec 2026 v3" and the compare chip beside them names one of them ambiguously.
+  Nothing is destroyed by it — every read and write is keyed by document id, so the WRONG one is never
+  edited — but a designer comparing, printing or discussing a design by name can believe they are
+  looking at the other. Left as-is because the obvious fix is the wrong one: refusing a duplicate name
+  needs the full collection loaded to be correct, and the client only holds what its last read
+  returned, so a refusal computed from a partial list is worse than no refusal — it blocks a name that
+  is free and admits one that is taken. A **rename-on-collision suggestion** ("there is already a
+  design called this") is the right shape when it is worth doing, and it should be advisory, never a
+  block: two proposals for the same month legitimately share a name until somebody picks a better one.
+
+- **The generator's provenance is DEVICE-LOCAL** (external review, Sep 2026 — architectural, not
+  fixed). Which target table produced a design — the remembered table, the saved set it came from, and
+  whether it has been edited since — lives in `localStorage` under `myb_links_gen_<designId>`
+  (`links-app.js`). So a colleague opening the same shared design sees the provenance note absent, not
+  wrong: they cannot answer "what staffing was this built from?" without asking the person who built
+  it, which is exactly the question an assessing manager asks. It is on the device because
+  `firestore.rules` pins `linkDesigns` to `hasOnly(['name','patterns','updatedAt','updatedBy'])`, so
+  moving it is a **backend-first** change (rules that accept the field, deployed and confirmed, then
+  the client that writes it — CLAUDE.md's parallel-workflow ordering) and it changes what a shared
+  document asserts, which is a decision rather than a fix. Until then the note is one designer's
+  working memory and must not be read as a property of the design.
 
 ## Overtime Availability — accepted gaps (v20.56 onwards)
 

@@ -163,7 +163,7 @@ export function targetHoursLines(a) {
 export function targetProvenanceNote({ fromMemory, differsFromDefault, setName = '' }) {
     if (!fromMemory || !differsFromDefault) return null;
     return (setName
-        ? `These hours came from the saved set “${setName}”, not the demand-based default. `
-        : 'These hours are from the table your device remembers, not the demand-based default. ')
-        + 'Press “Back to the demand-based default” to load it; anything you change here is kept.';
+        ? `These hours came from the saved set “${setName}”, not the recommended Dec 2026 staffing. `
+        : 'These hours are from the table your device remembers, not the recommended Dec 2026 staffing. ')
+        + 'Press “Use the recommended Dec 2026 staffing” to load it; anything you change here is kept.';
 }

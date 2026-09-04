@@ -11,7 +11,7 @@
 
 import { APP_VERSION, CONFIG, weeklyRoster, escapeHtml } from './roster-data.js';
 import { db, doc, getDoc, setDoc, addDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
-import { initNavPanel, resetNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
+import { initNavPanel, resetNavPanel, archiveNotice } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, canOpenOvertime } from './auth-policy.js';
@@ -2072,7 +2072,7 @@ export function init() {
             });
         };
         document.getElementById('genDefaultBtn')?.addEventListener('click', async () => {
-            if (await _confirmDiscard('The demand-based default')) _resetTargets(buildDefaultTargets(), 'default');
+            if (await _confirmDiscard('The recommended Dec 2026 staffing')) _resetTargets(buildDefaultTargets(), 'default');
         });
         document.getElementById('genSeedBtn')?.addEventListener('click', async () => {
             if (await _confirmDiscard("Today's roster")) _resetTargets(buildRosterTargets(), 'seed');
@@ -3062,28 +3062,28 @@ export function init() {
     initTipsLightbox(CARD_TIPS);
 
     // ============================================
-    // FIRST-VISIT NOTICE — shown once, never again after close
+    // ORIENTATION — first visit, and for ever after from the header button
     // ============================================
-    // Replaced the v12.33 beta notice at v19.51. Two things changed with it, both deliberate:
+    // IT STOPPED REACHING ANYBODY (v22.59, external review). This shipped at v19.51 as a one-time
+    // NOTICE with a 14-day window, and `isNoticeExpired` marks a notice seen WITHOUT showing it — so
+    // from 16 Aug 2026 a designer opening Links for the first time was flagged and shown nothing.
+    // Expiry is right for an announcement and wrong for what this panel actually holds: the three
+    // things a newcomer cannot work out from the screen — nothing here touches the live roster, the
+    // fatigue checks report rather than approve, and designs are shared so anyone can edit or delete
+    // one. Someone who does not know the first is afraid to touch anything; someone who does not know
+    // the second can take a clean panel into a meeting as an approval.
     //
-    // A NEW STORAGE KEY. Reusing `myb_links_beta_seen` would have meant every current designer —
-    // all three of whom closed the beta notice months ago — never saw the replacement, which is the
-    // entire point of bringing it back. The old key is left on devices; it is an inert device flag.
+    // So the two ideas are split. The ANNOUNCEMENT is over and is not replayed — it stays in the App
+    // Notices archive, written once, on the first close. The ORIENTATION never expires until that
+    // device has actually seen it, and `#linksHowBtn` above the first card reopens it whenever anyone wants
+    // it, which is also what stops this being a pop-up nobody can get back to.
     //
-    // A 14-DAY WINDOW (owner, Aug 2026), against the skill's 28-day default. This is a small,
-    // known audience on a page they visit deliberately, so a fortnight is long enough for everyone
-    // to arrive; past that it self-dismisses rather than greeting someone months later with news.
-    // NOTE what expiry actually does: it marks the notice seen WITHOUT showing it, so after 16 Aug
-    // this lightbox is dead code on every device that had not already opened the page. That is
-    // correct for a one-time notice and is the reason both of the app's previous notices were
-    // silently inert — see CLAUDE.md's notice table, which now records expiry state.
+    // A NEW STORAGE KEY was taken at v19.51 and is kept: reusing `myb_links_beta_seen` would have
+    // meant every current designer, all three of whom closed the beta notice months ago, never saw
+    // this. The old key is left on devices as an inert flag.
     (function () {
         const NOTICE_DATE   = '2 Aug 2026';
-        const NOTICE_DAYS   = 14;
         const WELCOME_KEY   = 'myb_links_welcome_seen';
-        if (lsGet(WELCOME_KEY)) return;
-        if (isNoticeExpired(NOTICE_DATE, NOTICE_DAYS)) { lsSet(WELCOME_KEY, '1'); return; }
-
         const lb = document.getElementById('linksWelcomeLb');
         if (!lb) return;
 
@@ -3092,6 +3092,10 @@ export function init() {
             content:  /** @type {HTMLElement} */ (document.getElementById('linksWelcomeContent')),
             closeBtn: /** @type {HTMLElement} */ (document.getElementById('linksWelcomeClose')),
             onClose() {
+                // The archive entry is the ANNOUNCEMENT half and is written once. Re-archiving on
+                // every manual open would file the same notice repeatedly under a date that is no
+                // longer when anybody read it.
+                if (lsGet(WELCOME_KEY)) return;
                 lsSet(WELCOME_KEY, '1');
                 archiveNotice({
                     id:      'links-workspace-2026',
@@ -3103,6 +3107,10 @@ export function init() {
             },
         });
 
+        // The header button is unconditional — it is the whole point of the split above.
+        document.getElementById('linksHowBtn')?.addEventListener('click', () => welcome.open());
+
+        if (lsGet(WELCOME_KEY)) return;
         // Not `welcome.open()`: a one-time notice must never open stacked with another overlay —
         // if it did, one Escape used to dismiss both and the buried one was flagged seen for good.
         // Deferring leaves it unopened AND unflagged, so it gets its turn on the next load.

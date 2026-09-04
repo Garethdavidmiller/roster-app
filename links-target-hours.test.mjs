@@ -240,7 +240,7 @@ describe('the provenance note', () => {
         const note = targetProvenanceNote({ fromMemory: true, differsFromDefault: true });
         assert.match(note, /your device remembers/);
         for (const n of [note, targetProvenanceNote({ fromMemory: true, differsFromDefault: true, setName: 'X' })]) {
-            assert.match(n, /Back to the demand-based default/);
+            assert.match(n, /Use the recommended Dec 2026 staffing/);
             assert.match(n, /anything you change here is kept/);
         }
     });

@@ -2162,3 +2162,92 @@ body.auth-ready .container { display: grid; }
    page-visibility-parity trap, where the control draws in every state and nothing throws. */
 .gen-sets-retry { margin-top: 6px; }
 .gen-sets-retry[hidden] { display: none !important; }
+
+/* "How this workspace works" (v22.59; re-sited and re-toned v22.60) — the permanent way back to
+   the orientation panel. It sits on the NAVY CANVAS at the top of the page, not in the header, and
+   both facts are the a11y gate's findings rather than taste: in `.header-end` it pushed the
+   header's min-content past the viewport (see links.html), and `--text-mid` on navy fails the
+   contrast floor. On navy the third surface is a white OVERLAY, never a card fill — the same
+   `--on-navy-raised` / `--on-navy-hairline` pair the calendar's install and notification strips
+   use — and focus takes `--focus-outline-light`, because gold on navy is the drawer's idiom and
+   the app's default outline is for light surfaces. */
+.btn-how-links {
+    /* `.container` is a single-column GRID, so without this the button stretches the full width.
+       Its 12px gap owns the space beneath — no margin here, or the two stack. */
+    justify-self: start;
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    background: var(--on-navy-raised);
+    border: 1px solid var(--on-navy-hairline);
+    color: white;
+    font-family: inherit;
+    font-size: var(--type-small);
+    font-weight: 600;
+    padding: 4px 14px;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    white-space: nowrap;
+    touch-action: manipulation;
+    transition: background var(--dur-med);
+}
+.btn-how-links:focus-visible { outline: var(--focus-outline-light); outline-offset: 2px; }
+.btn-how-links:active { opacity: 0.7; }
+@media (hover: hover) and (pointer: fine) {
+    /* Background only, like the drawer's pills — an on-navy border that brightens on hover reads
+       as the control changing shape rather than lifting. */
+    .btn-how-links:hover { background: var(--on-navy-raised-strong); }
+}
+@media print { .btn-how-links { display: none !important; } }
+
+/* THE TRIAGE BLOCK (v22.60) — what to do next, above the evidence for it.
+   Not a card of its own: it is the first thing inside `.check-rows`, so it reads as the panel's
+   opening rather than as a separate verdict. The "nothing to fix" state is deliberately NOT green
+   and carries no tick — this card exists to stop a quiet panel reading as an approval. */
+.check-triage {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-light);
+}
+.check-triage-group { font-size: var(--type-small); }
+.check-triage-head {
+    display: block;
+    font-weight: 700;
+    color: var(--text-dark);
+}
+.check-triage--fix .check-triage-head { color: var(--error-red); }
+.check-triage--discuss .check-triage-head { color: var(--warning-amber); }
+/* The no-findings line is a statement, not a status: normal weight, ordinary text colour. */
+.check-triage--none .check-triage-head { font-weight: 600; color: var(--text-mid); }
+.check-triage-list {
+    margin: 4px 0 0;
+    padding-left: 20px;
+    color: var(--text-mid);
+}
+.check-triage-list li { margin-bottom: 2px; }
+
+/* COMPARE SUMMARY (v22.60) — the difference in figures, above the two grids that evidence it.
+   Sits inside `.compare-grids-wrap`, which is only shown in compare mode, so it needs no state of
+   its own. `--same` mutes an unchanged figure without hiding it: showing only what moved would
+   leave the reader unable to tell "identical" from "not measured". */
+.compare-summary {
+    grid-column: 1 / -1;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-button);
+    padding: 10px 12px;
+    margin-bottom: 12px;
+}
+.compare-sum-head { margin: 0 0 6px; font-size: var(--type-label); color: var(--text-dark); }
+.compare-sum-list {
+    margin: 0; padding: 0; list-style: none;
+    display: flex; flex-wrap: wrap; gap: 4px 18px;
+    font-size: var(--type-small);
+}
+.compare-sum-list li { display: flex; gap: 6px; align-items: baseline; }
+.compare-sum-label { color: var(--text-mid); }
+.compare-sum-val { font-weight: 700; color: var(--text-dark); font-variant-numeric: tabular-nums; }
+.compare-sum-val--same { font-weight: 600; color: var(--text-light); }
