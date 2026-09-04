@@ -413,10 +413,23 @@ export function reconcileRangeIntoCache(cache, records, startStr, endStr, opts =
     // 3. Store each fresh winner (always — so its metadata is authoritative), flagging visible changes.
     for (const [key, record] of winners) {
         const existing = cache.get(key);
+        // WHAT "DISPLAY" MEANS HERE HAS TO TRACK WHAT IS ACTUALLY DISPLAYED (v22.71). This list was
+        // type/value/note, written when a note was the only metadata on screen. v22.69 removed the
+        // note's three display paths and gave the day panel a provenance line built from `source`
+        // and `changedBy` — so the comparison was left tracking the one field nothing renders and
+        // missing the two that now do. A same-value re-save by a different person updated the cache
+        // (step 3 stores unconditionally) and reported nothing visible had changed, so the panel
+        // went on naming the previous person until an unrelated render replaced it. Reproduced.
+        //
+        // `note` stays in the list deliberately: it is '' on every override in production, so it can
+        // only ever cause a SPURIOUS repaint, and a spurious repaint is free where a missed one is
+        // the defect above. Add a field here whenever a display path starts reading it.
         if (!existing
-            || existing.type  !== record.type
-            || existing.value !== record.value
-            || existing.note  !== record.note) {
+            || existing.type      !== record.type
+            || existing.value     !== record.value
+            || existing.note      !== record.note
+            || existing.source    !== record.source
+            || existing.changedBy !== record.changedBy) {
             displayChanged = true;
         }
         cache.set(key, record);
