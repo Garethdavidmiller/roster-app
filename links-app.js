@@ -697,7 +697,7 @@ export function init() {
         el.className = 'li-status' + (tone ? ` li-status--${tone}` : '');
     }
 
-    /** Back to "nothing checked yet" — called on open and on every edit of either field. */
+    /** Back to "nothing checked yet" — called on open and on every edit of the PASTE. */
     function _importReset() {
         _importParsed = null;
         const save = _importEl('linksImportSave');
@@ -787,6 +787,16 @@ export function init() {
      * "duplicate what I'm looking at", not "duplicate the last save". */
     async function duplicateDesign() {
         if (!activeDesignId || !design) return;
+        // The fifth path that can lose the working copy, and the last to start asking (v22.62).
+        // Its wording is deliberately NOT the others' "changes will be lost" — the copy is taken
+        // from the LIVE patterns, so the work goes INTO it and the original reverts to its last
+        // save. Full reasoning: `.claude/rules/links-design.md`. Asked before the name prompt, per
+        // `createDesign`: the decision that might cancel the action must not come last.
+        if (dirty && !await confirmDialog({
+            message: 'Your unsaved changes will go into the copy, and "' + (design.name || 'this design')
+                   + '" will go back to its last save. Duplicate anyway?',
+            confirmLabel: 'Duplicate',
+        })) return;
         const name = (await promptDialog({ title: 'Duplicate design', message: 'Name for the duplicate:', defaultValue: `${design.name || 'Design'} copy`, maxLength: 100, confirmLabel: 'Duplicate' }))?.trim();
         if (!name) return;
         if (_designNameTooLong(name)) return;
@@ -1106,12 +1116,18 @@ export function init() {
         document.getElementById('linksImportCheck')?.addEventListener('click', checkImport);
         document.getElementById('linksImportSave')?.addEventListener('click', saveImport);
         document.getElementById('linksImportCancel')?.addEventListener('click', () => _importLb?.close());
-        // ANY edit to either field invalidates the check. Without this, editing the paste after a
+        // EDITING THE PASTE invalidates the check. Without this, editing the text after a
         // successful check would leave Save armed against the PREVIOUS parse — the reader would be
         // shown one design and save another, which is the one outcome this two-step exists to stop.
-        for (const id of ['linksImportText', 'linksImportName']) {
-            document.getElementById(id)?.addEventListener('input', _importReset);
-        }
+        //
+        // THE NAME DOES NOT, and used to (v22.62, external review P2). Nothing about the parse
+        // depends on it: `_importParsed` is a function of the TEXT alone, and `saveImport` reads
+        // the name fresh from the field and validates it there. Worse, resetting on it fired on the
+        // commonest path — `checkImport` pre-fills the name from the paste, so a reader who then
+        // makes it their own name for a colleague's proposal watched Save disappear and had to
+        // press Check again. The old test filled the name BEFORE checking, which is why nothing saw
+        // it.
+        document.getElementById('linksImportText')?.addEventListener('input', _importReset);
     }
     initDesignImport();
 

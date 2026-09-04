@@ -159,6 +159,19 @@ own container and left the grid card's collapse chevron 21px of reachable tap ta
 not re-add an expiry here: the audience for these facts is whoever arrives next, and there is no
 date after which a newcomer stops needing them.
 
+## Five paths can lose the working copy, and all five now ask (v22.62)
+
+New design, switching design, signing out, delete (v22.58) and **duplicate** (v22.62). Duplicate was
+the last one in silence: it ends with `_activateDesign(d)`, which is exactly the moment the other
+four protect, and it said nothing — the designer was moved to the copy while the original quietly
+went back to its last save.
+
+**Its wording is deliberately not the others'.** The copy is taken from the LIVE patterns, so the
+unsaved work is carried INTO it rather than lost; borrowing "changes will be lost" would frighten the
+reader about the wrong outcome. The surprise it has to head off is the opposite one — duplicating to
+snapshot the work and carry on in the ORIGINAL. Both halves are pinned by an e2e, including that the
+lossy sentence is NOT used.
+
 ## The workspace is used on a PHONE as well as a desktop (owner, Sep 2026)
 
 Stated because the page does not look like it: a 24 x 7 grid, a generator with a slot table, and
