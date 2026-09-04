@@ -881,7 +881,38 @@ export function init() {
         if (!canSoftDelete(designs.length)) return;
         const d = designs.find(x => x.id === id);
         if (!d) return;
-        if (!await confirmDialog({
+        // ── UNSAVED WORK IS NOT IN THE BIN (v22.56, external review) ────────────────────────
+        // Recently deleted holds the last SAVED version. Deleting the design you are editing
+        // therefore threw away every change since that save — silently, because the dialog spoke
+        // only about the document. Every other path that can lose the working copy already asks:
+        // New design, switching design, signing out and leaving the page. Delete was the one that
+        // did not, and it is the only one of the five with no undo.
+        //
+        // The fix SAVES rather than warns. Told the truth, a designer's answer is almost always
+        // "keep my work", and saving first puts everything in the bin — so restoring returns what
+        // was on screen instead of a version from some earlier point. The review proposed a third
+        // "delete without saving" button; that needs a three-action dialog, and `confirmDialog`
+        // lives in shared `overlay.js`, which every lightbox on all seven pages is built from. Not
+        // a change to make for a convenience on one path used by three people — and discarding is
+        // still available by cancelling and switching away, which already offers it.
+        if (id === activeDesignId && dirty) {
+            if (!await confirmDialog({
+                title: 'Delete design',
+                message: `"${d.name}" has unsaved changes.\n\nRecently deleted keeps the last saved version, so those changes would be lost.\n\nSaving first means the deleted copy has everything — restoring it brings back what is on screen now.`,
+                confirmLabel: 'Save, then delete',
+                danger: true,
+            })) return;
+            await saveChanges();
+            // `saveChanges` clears `dirty` only when the write actually landed, and it can end
+            // somewhere else entirely — a declined overwrite, a design deleted by somebody else, a
+            // fork into a duplicate that becomes the active design. Any of those means the delete
+            // this dialog described is no longer the one that would happen, so stop and say so
+            // rather than deleting against a state nobody agreed to.
+            if (dirty || activeDesignId !== id) {
+                _designActionStatus(`Couldn’t save "${d.name}", so nothing was deleted.`);
+                return;
+            }
+        } else if (!await confirmDialog({
             title: 'Delete design',
             // States what actually happens (v19.96). It promised "the next 30 days" while nothing
             // has expired a design since v19.86 — an under-promise, but the bin's own intro says

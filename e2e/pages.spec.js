@@ -859,6 +859,42 @@ async function openLinksWithDesign(page) {
     await expect(page.locator('.design-chip')).toHaveCount(1);
 }
 
+test('links: deleting the design you are editing does not silently bin your unsaved work', async ({ page }) => {
+    // RECENTLY DELETED HOLDS THE LAST *SAVED* VERSION (v22.56, external review). Deleting the design
+    // you are editing therefore threw away every change since that save, and the dialog said nothing
+    // — it described the document, which was accurate and not what the designer was about to lose.
+    //
+    // Every other path that can lose the working copy already asks: New design, switching design,
+    // signing out, leaving the page. Delete was the one that did not, and the only one with no undo.
+    await openLinksWithDesigns(page);
+    await expect(page.locator('.design-chip')).toHaveCount(2);   // canSoftDelete needs a second design
+
+    // Paint a real shift over a rest day. RD onto RD is deliberately not a change (v19.38), so the
+    // brush has to be one the cell does not already hold or the design never goes dirty.
+    await page.locator('#brushBar .brush-chip').nth(2).click();
+    await page.locator('.shift-cell-btn').first().click();
+    await expect(page.locator('#linksSaveBtn')).toBeEnabled();
+
+    await page.locator('.design-chip--active .design-chip-delete').click();
+    const dialog = page.locator('.dialog-overlay');
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText('unsaved changes');
+    await expect(dialog).toContainText('last saved version');
+    await expect(dialog.locator('.dialog-btn-confirm')).toHaveText('Save, then delete');
+
+    // Cancelling is safe: the design and the unsaved work both survive.
+    await dialog.locator('.dialog-btn-cancel').click();
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+    await expect(page.locator('.design-chip')).toHaveCount(2);
+    await expect(page.locator('#linksSaveBtn')).toBeEnabled();          // still dirty
+
+    // Confirming saves first, so what lands in the bin is what was on screen.
+    await page.locator('.design-chip--active .design-chip-delete').click();
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(page.locator('.design-chip')).toHaveCount(1);
+    await expect(page.locator('#linksSaveBtn')).toBeDisabled();         // the save happened
+});
+
 test('links: every paint chip is a shift the design actually contains', async ({ page }) => {
     // THE BAR OFFERED EIGHTEEN TIMES AND THE DESIGN CONTAINED NONE OF THEM (v21.14).
     //
