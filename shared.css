@@ -389,8 +389,13 @@
        written twice, which is the drift this repo keeps having to correct. `.nav-panel` still
        declares its own scoped `--nav-*` names — that explicitness is a documented decision — but
        their VALUES now come from here, so there is one place to re-tone. */
-    --on-navy-raised:   rgba(255, 255, 255, 0.09);   /* chips, prompt strips, hover fills */
+    --on-navy-raised:   rgba(255, 255, 255, 0.09);   /* chips, prompt strips, resting fills */
     --on-navy-hairline: rgba(255, 255, 255, 0.12);   /* dividers and their borders */
+    /* The pressed/hover rung above `--on-navy-raised`. Promoted out of `.nav-panel`'s scope at
+       v22.60 for exactly the reason the text tokens below were: the Links page needed an on-navy
+       hover and the only value in the app sat behind a selector it could not reach, so the choice
+       was a literal or a fourth copy of it. */
+    --on-navy-raised-strong: rgba(255, 255, 255, 0.16);
     /* TEXT on the navy canvas. Promoted here at v22.37 for the same reason the two fills above
        were: Settings' section labels sit OUTSIDE the white cards, and the first cut reached for
        `--text-mid` — an on-WHITE colour, which axe failed at once for contrast. There was no
@@ -1455,7 +1460,7 @@ body.lb-open #stickyTotal { display: none !important; }
        0.70 ≈ 7:1 for body text, 0.55 ≈ 5:1 for small headings. */
     --nav-surface:       var(--primary-blue);
     --nav-raised:        var(--on-navy-raised);        /* chips, hover fills */
-    --nav-raised-strong: rgba(255, 255, 255, 0.16);   /* active / pressed */
+    --nav-raised-strong: var(--on-navy-raised-strong); /* active / pressed */
     --nav-text:          #ffffff;
     --nav-text-muted:    var(--on-navy-muted);         /* secondary text */
     --nav-text-faint:    var(--on-navy-faint);         /* small headings */

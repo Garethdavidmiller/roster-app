@@ -2163,25 +2163,42 @@ body.auth-ready .container { display: grid; }
 .gen-sets-retry { margin-top: 6px; }
 .gen-sets-retry[hidden] { display: none !important; }
 
-/* "How it works" in the page header (v22.59) — the permanent way back to the orientation panel.
-   Deliberately quiet: it sits beside the page badge and must not compete with it, or with Save. */
+/* "How this workspace works" (v22.59; re-sited and re-toned v22.60) — the permanent way back to
+   the orientation panel. It sits on the NAVY CANVAS at the top of the page, not in the header, and
+   both facts are the a11y gate's findings rather than taste: in `.header-end` it pushed the
+   header's min-content past the viewport (see links.html), and `--text-mid` on navy fails the
+   contrast floor. On navy the third surface is a white OVERLAY, never a card fill — the same
+   `--on-navy-raised` / `--on-navy-hairline` pair the calendar's install and notification strips
+   use — and focus takes `--focus-outline-light`, because gold on navy is the drawer's idiom and
+   the app's default outline is for light surfaces. */
 .btn-how-links {
-    background: none;
-    border: 1px solid var(--border-mid);
-    color: var(--text-mid);
+    /* `.container` is a single-column GRID, so without this the button stretches the full width.
+       Its 12px gap owns the space beneath — no margin here, or the two stack. */
+    justify-self: start;
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    background: var(--on-navy-raised);
+    border: 1px solid var(--on-navy-hairline);
+    color: white;
     font-family: inherit;
-    font-size: var(--type-badge);
+    font-size: var(--type-small);
     font-weight: 600;
-    padding: 4px 10px;
+    padding: 4px 14px;
     border-radius: var(--radius-pill);
     cursor: pointer;
     white-space: nowrap;
-    transition: border-color var(--dur-med), color var(--dur-med);
+    touch-action: manipulation;
+    transition: background var(--dur-med);
 }
-.btn-how-links:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+.btn-how-links:focus-visible { outline: var(--focus-outline-light); outline-offset: 2px; }
+.btn-how-links:active { opacity: 0.7; }
 @media (hover: hover) and (pointer: fine) {
-    .btn-how-links:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
+    /* Background only, like the drawer's pills — an on-navy border that brightens on hover reads
+       as the control changing shape rather than lifting. */
+    .btn-how-links:hover { background: var(--on-navy-raised-strong); }
 }
+@media print { .btn-how-links { display: none !important; } }
 
 /* THE TRIAGE BLOCK (v22.60) — what to do next, above the evidence for it.
    Not a card of its own: it is the first thing inside `.check-rows`, so it reads as the panel's

@@ -3075,7 +3075,7 @@ export function init() {
     //
     // So the two ideas are split. The ANNOUNCEMENT is over and is not replayed — it stays in the App
     // Notices archive, written once, on the first close. The ORIENTATION never expires until that
-    // device has actually seen it, and `#linksHowBtn` in the header reopens it whenever anyone wants
+    // device has actually seen it, and `#linksHowBtn` above the first card reopens it whenever anyone wants
     // it, which is also what stops this being a pop-up nobody can get back to.
     //
     // A NEW STORAGE KEY was taken at v19.51 and is kept: reusing `myb_links_beta_seen` would have

@@ -150,8 +150,12 @@ professional tool with none of the three facts above. That is correct for an ANN
 for ORIENTATION, and this one was both at once.
 
 **The two are now split (v22.59).** The announcement is over and is archived once, on the first
-close. The orientation does not expire until that device has actually seen it, and `#linksHowBtn` in
-the page header reopens it for ever — which also stops it being a pop-up nobody can get back to. Do
+close. The orientation does not expire until that device has actually seen it, and `#linksHowBtn`
+reopens it for ever — which also stops it being a pop-up nobody can get back to. That button is a
+pill at the TOP OF THE PAGE and deliberately not in the header: `.app-header` is `1fr auto 1fr`, so
+its two side columns are equal and every pixel a control adds to one is charged twice — one version
+in `.header-end` took the header's min-content past a 390px viewport, stretched the cards past their
+own container and left the grid card's collapse chevron 21px of reachable tap target. Do
 not re-add an expiry here: the audience for these facts is whoever arrives next, and there is no
 date after which a newcomer stops needing them.
 

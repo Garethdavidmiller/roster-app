@@ -14,10 +14,14 @@ Depth comes from three layered surfaces, defined in `shared.css :root`:
 - **sunken** (`--surface-sunken` = `oklch(96.3% 0.006 250deg)`) — more visibly cool-tinted off-white for recessed elements *inside* cards
 
 **On the NAVY canvas the third rung is a white overlay, not an off-white fill** (`--on-navy-raised`
-= white 9%, `--on-navy-hairline` = white 12%; `shared.css :root`, v22.28). A card surface would be
-a hole punched in the navy; a translucent overlay reads as the same material lifted. Two things use
-it — the nav drawer's pills and the calendar's install/notification prompt strips — and both once
-carried their own copy of the two literals. `.nav-panel` still declares its scoped `--nav-raised` /
+= white 9%, `--on-navy-hairline` = white 12%, and — since v22.60 — `--on-navy-raised-strong` = white
+16% for the pressed/hover rung above it; `shared.css :root`, v22.28). A card surface would be
+a hole punched in the navy; a translucent overlay reads as the same material lifted. Three things use
+it — the nav drawer's pills, the calendar's install/notification prompt strips and the Links page's
+"How this workspace works" pill — and the first two once carried their own copy of the literals.
+The strong rung was promoted out of `.nav-panel`'s scope for the same reason the text tokens below
+were: the Links pill needed an on-navy hover and the only value in the app sat behind a selector it
+could not reach, so the choice was a literal or a fourth copy of one. `.nav-panel` still declares its scoped `--nav-raised` /
 `--nav-border` names (that explicitness is a documented decision), but their VALUES now come from
 these, so the on-navy depth re-tones from one place.
 
