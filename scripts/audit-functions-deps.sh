@@ -38,6 +38,19 @@ fi
 
 cd "$(dirname "$0")/../functions" || { echo "::error::cannot enter functions/" >&2; exit 2; }
 
+# jq parses the report, so without it EVERY run falls into the unknown branch — and the deploy path
+# would then warn-and-proceed for ever while blaming npm for our own missing tool. A missing tool is
+# not an outage: fail hard under BOTH policies, and say whose problem it is.
+#
+# `command -v` is not enough, because it passes for a tool that is present but broken, and a broken
+# jq lands in the unknown branch exactly like an absent one. Prove each tool RUNS.
+for tool in npm jq; do
+    "$tool" --version >/dev/null 2>&1 || {
+        echo "::error title=Dependency audit could not start::${tool} is missing or not working on this runner. That is a toolchain problem, not an npm outage — the audit did not run, and neither policy covers it because neither is about us."
+        exit 2
+    }
+done
+
 report=$(npm audit --omit=dev --json 2>/dev/null || true)
 
 if [ -z "$report" ] || ! printf '%s' "$report" | jq -e 'has("metadata")' >/dev/null 2>&1; then
@@ -54,6 +67,18 @@ fi
 
 crit=$(printf '%s' "$report" | jq -r '.metadata.vulnerabilities.critical // 0')
 high=$(printf '%s' "$report" | jq -r '.metadata.vulnerabilities.high // 0')
+
+# A count that is not a plain integer means the report SHAPE moved under us. Left alone, `[ "$crit"
+# -gt 0 ]` errors, the `if` is false, and a report carrying real advisories exits 0 as though clean
+# — a silent pass on a genuine CVE, and the one outcome this script exists to prevent. Verified: a
+# metadata block of {"critical":{"count":3}} did exactly that before this guard.
+case "${crit}${high}" in
+    ''|*[!0-9]*)
+        echo "::error title=Dependency audit report not understood::npm audit returned a report whose vulnerability counts are not integers (critical=${crit} high=${high}). The audit ran but cannot be interpreted, so it is treated as a FAILURE rather than guessed at — check whether npm changed its --json output shape."
+        exit 1
+        ;;
+esac
+
 echo "audit ran — critical=${crit} high=${high}"
 
 if [ "$crit" -gt 0 ] || [ "$high" -gt 0 ]; then

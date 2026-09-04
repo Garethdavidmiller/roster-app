@@ -626,6 +626,34 @@ describe('the dependency audit separates a finding from an outage', () => {
             + 'an unknown into a clean bill of health — silence is not success.');
     });
 
+    test('a report it cannot interpret is a failure, not a clean bill of health', () => {
+        // FOUND BY THE REGRESSION CHECK, and introduced by this very rewrite: with the counts read
+        // out of the report, a metadata block of {"critical":{"count":3}} made `[ "$crit" -gt 0 ]`
+        // error, the `if` false, and the script exit 0 — three critical advisories reported as
+        // clean. `set -e` is deliberately off (the unknown branch needs it that way), so nothing
+        // stopped it. The old --audit-level gate could not have this bug, which is precisely why a
+        // rewrite of a security gate gets checked rather than trusted.
+        assert.match(shSrc, /\*\[!0-9\]\*/,
+            'the counts must be validated as integers before they are compared');
+        const guard = shSrc.slice(shSrc.indexOf('case "${crit}${high}"'));
+        assert.match(guard.slice(0, guard.indexOf('esac')), /exit 1/,
+            'an uninterpretable report must FAIL. It is not the unknown branch — the audit RAN, we '
+            + 'simply cannot read it, and guessing at a shape change is how a real CVE ships.');
+    });
+
+    test('a missing or broken toolchain blames us, and stops, under both policies', () => {
+        assert.match(shSrc, /"\$tool" --version/,
+            'the tools must be proven to RUN. `command -v` passes for a jq that exists and is '
+            + 'broken, and a broken jq lands in the unknown branch exactly like an absent one — so '
+            + 'the deploy path would warn-and-proceed for ever, blaming npm for our own runner.');
+        const tools = shSrc.slice(shSrc.indexOf('for tool in'), shSrc.indexOf('report=$('));
+        assert.match(tools, /exit 2/,
+            'a toolchain failure must exit distinctly from both a finding (1) and a clean run (0)');
+        assert.doesNotMatch(tools, /AUDIT_UNKNOWN_IS_FAILURE/,
+            'neither policy may soften this: an unknown policy is about npm being unreachable, and '
+            + 'our own missing tool is not that');
+    });
+
     test('the script refuses to guess a policy the caller did not state', () => {
         // This pins the CONDITION, not the message. The first cut asserted only that the wording
         // was present, and a mutation that wrapped the whole guard in `if false` sailed through
