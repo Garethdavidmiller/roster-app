@@ -161,6 +161,16 @@ export const getDocs = (/** @type {any} */ ref) => {
   if (e2e.failGetDocs) {
     return Promise.reject(new Error(typeof e2e.failGetDocs === 'string' ? e2e.failGetDocs : 'e2e: collection read failed'));
   }
+  // PER-COLLECTION failure (v22.57), the sibling of docsByPath below. failGetDocs fails every read,
+  // which is the wrong tool for a page that reads two collections: failing the designs load as well
+  // puts the whole workspace in its empty state, so the surface under test never renders. Set
+  // window.__E2E.failGetDocsByPath = { linkTargetSets: true } to fail one and serve the rest.
+  // (No backticks in this comment — it lives INSIDE the FIREBASE_STUB template literal.)
+  const failByPath = e2e.failGetDocsByPath;
+  if (failByPath && ref && ref.path && failByPath[ref.path]) {
+    const why = failByPath[ref.path];
+    return Promise.reject(new Error(typeof why === 'string' ? why : 'e2e: collection read failed'));
+  }
   // Per-collection seeding (v21.04): window.__E2E.docsByPath = { linkTargetSets: [rows] } serves
   // those rows ONLY to reads of that collection, so a page reading two collections (designs AND
   // target sets) does not hand both the same array. A path present with an empty array is an

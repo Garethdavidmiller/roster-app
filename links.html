@@ -74,6 +74,7 @@
     <link rel="modulepreload" href="./links-seed.js">
     <link rel="modulepreload" href="./links-target-hours.js">
     <link rel="modulepreload" href="./links-target-sets.js">
+    <link rel="modulepreload" href="./links-target-sets-store.js">
     <link rel="modulepreload" href="./links-tips.js">
     <link rel="modulepreload" href="./links-window.js">
     <link rel="modulepreload" href="./login-overlay.js">
@@ -504,6 +505,12 @@
                         </div>
                     </div>
                     <p class="gen-sets-hint" id="genSetHint" aria-live="polite"></p>
+                    <!-- Shown only when the set list could not be READ (v22.57). A failed read used
+                         to render as "No saved sets yet", so there was nothing to retry and nothing
+                         saying there was anything wrong. `hidden` is toggled by refreshSetControls
+                         from `describeSetList`; the CSS rule beside it is load-bearing, because a
+                         `display:` on .btn-set out-specifies the attribute. -->
+                    <button class="btn-set gen-sets-retry" id="genSetRetryBtn" type="button" hidden>Try again</button>
                     <fieldset class="gen-objectives">
                         <legend>Line order — what to tune for</legend>
 <!-- THE SPARE SPREAD HAS NO SWITCH, SO IT HAS TO BE SAID HERE (v20.02). It is charged
