@@ -752,3 +752,63 @@ test('install strip: on desktop it leaves the browser its OWN install offer', as
     expect(prevented).toBe(false);
     await expect(page.locator('#installPrompt')).toBeHidden();
 });
+
+// ─── 360px: THE WIDTH NOTHING RENDERED ────────────────────────────────────────────────────────
+// A staff report from a 360px Samsung A-series, v22.62: the quick-action row — 📍 · Team · AL ·
+// Admin · Pay — measured 366px against 322px of usable width, so it overflowed by 6px at the
+// DEFAULT font size, and `justify-content: center` pushed it off both edges where `overflow-x:
+// clip` cut it. Newer phones are 412px and never showed it.
+//
+// The reason it shipped is the interesting part, and it is a coverage hole rather than a coding
+// mistake: the mobile e2e project is Pixel 5 at 393px, the visual baselines are 390px, and the row
+// first fits at 384px. Every automated eye sat just above the threshold, on the one width band that
+// is by far the commonest on Android. So this asserts the width itself.
+//
+// It checks the RENDERED GEOMETRY, not the CSS: a fix expressed as wrapping, as tighter spacing or
+// as shorter labels should all pass, and only "a member can see the buttons" is being pinned.
+// The FONT-SCALED cases are not padding: they are what proves the WRAP is load-bearing. Teeth-check
+// on the first cut of this guard — deleting the wrap and restoring `flex-shrink: 0` left all three
+// default-size cases GREEN, because the tighter spacing alone fits five buttons at 14px. The wrap
+// only earns its keep once Chrome's text scaling grows them, which is the setting an older phone is
+// most likely to have turned up. `--type-body` is a fixed px, so scaling `html { font-size }` would
+// have measured nothing (it did, in the first attempt to reproduce this bug) — the override has to
+// hit the buttons themselves.
+for (const [width, fontPx] of [[320, 14], [360, 14], [375, 14], [360, 18], [360, 22], [412, 20]]) {
+    test(`calendar: the quick-action row stays on screen at ${width}px / ${fontPx}px text`, async ({ page }) => {
+        await seedMember(page);
+        await seedMemberSession(page);
+        await page.setViewportSize({ width, height: 740 });
+        await page.goto('/');
+        await page.waitForSelector('.control-group--actions', { state: 'attached' });
+        if (fontPx !== 14) {
+            await page.addStyleTag({ content:
+                `.controls select, .controls button { font-size: ${fontPx}px !important; }` });
+        }
+        await page.waitForTimeout(400);
+
+        const geo = await page.evaluate((vw) => {
+            const group = document.querySelector('.control-group--actions');
+            const buttons = [...group.querySelectorAll('button')];
+            const r = group.getBoundingClientRect();
+            return {
+                left: r.left, right: r.right,
+                offscreen: buttons
+                    .map(b => ({ label: b.textContent.trim(), r: b.getBoundingClientRect() }))
+                    .filter(b => b.r.left < -0.5 || b.r.right > vw + 0.5)
+                    .map(b => b.label),
+                smallest: Math.min(...buttons.map(b => b.getBoundingClientRect().width)),
+                shortest: Math.min(...buttons.map(b => b.getBoundingClientRect().height)),
+                count: buttons.length,
+            };
+        }, width);
+
+        expect(geo.count).toBe(5);
+        expect(geo.offscreen, `clipped at ${width}px/${fontPx}px: ${geo.offscreen.join(', ')}`).toEqual([]);
+        expect(geo.left).toBeGreaterThanOrEqual(-0.5);
+        expect(geo.right).toBeLessThanOrEqual(width + 0.5);
+        // Wrapping must not be bought with an untappable control. 24px is WCAG 2.5.8 AA; v22.61 set
+        // a 30px floor for coarse pointers on the Links chips and the same standard applies here.
+        expect(geo.smallest).toBeGreaterThanOrEqual(30);
+        expect(geo.shortest).toBeGreaterThanOrEqual(30);
+    });
+}

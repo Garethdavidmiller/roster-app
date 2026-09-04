@@ -160,6 +160,49 @@
             align-items: center;
             flex-shrink: 0;
         }
+        /* THE QUICK-ACTION ROW MUST BE ABLE TO WRAP (v22.62, staff report from a 360px Samsung A).
+           📍 · Team · AL · Admin · Pay measured 366px at the default 14px against 322px of usable
+           width on a 360px device — so it overflowed by 6px with NO font scaling at all, and
+           `justify-content: center` pushed it off BOTH edges (left -3, right 363) where the body's
+           `overflow-x: clip` cut it rather than scrolling. At 320px it was 46px over. Measured.
+
+           `flex-shrink: 0` on `.control-group` was the cause AND the reason a lone `flex-wrap`
+           does nothing: an item that cannot shrink keeps its single-line max-content width, so it
+           never reaches a wrap point (candidate A of three, measured). The BUTTONS keep their own
+           `flex-shrink: 0` — that is what stops Android stretching them, which is what that rule
+           was really protecting — while this GROUP may shrink, and so may wrap.
+
+           Wrapping is the SAFETY NET, not the everyday state: tighter spacing below 400px keeps all
+           five on one line at the default size (315px into 322px), and the wrap only engages under
+           Chrome's text scaling, where no fixed padding could have saved it. Padding alone would
+           just move the threshold. Larger phones are untouched — 412px already fits at full size.
+
+           WHY NOTHING CAUGHT IT: the mobile e2e project is Pixel 5 at 393px and the visual
+           baselines are 390px, and the row first fits at 384px. The whole estate sat just above the
+           threshold, so 360px — the commonest Android width there is — was never rendered. */
+        .control-group--actions {
+            flex-wrap: wrap;
+            justify-content: center;
+            min-width: 0;
+            flex-shrink: 1;
+        }
+        /* `.controls` prefix is LOAD-BEARING, not decoration. Both of these are overridden later in
+           this file at equal specificity — `.controls select, .controls button` sets the padding,
+           and a later media block resets `.control-group { gap: 6px }` — so an unprefixed rule here
+           loses on source order and silently does nothing. It did: the first cut of this fix
+           measured 10px of computed padding instead of 8px, and the row still wrapped at 360px. */
+        /* 380px, not 400px: 384px already fits all five at the default size with 9px to spare, so
+           tightening it would change what a Pixel-class phone looks like to fix a device that was
+           never broken — and churn the 390px visual baselines for nothing. The devices that need it
+           are 320-380. Measured either side. */
+        @media (max-width: 380px) {
+            .controls .control-group--actions { gap: 5px; }
+            /* Horizontal only — the vertical padding, and so the touch target's height, is
+               untouched. The 📍 button stays 35x39px, above both WCAG 2.5.8 (24px) and the 30px
+               floor v22.61 set for coarse pointers. */
+            .controls .control-group--actions button { padding-left: 8px; padding-right: 8px; }
+        }
+
         .control-group--stacked {
             flex-direction: column;
             align-items: center;
