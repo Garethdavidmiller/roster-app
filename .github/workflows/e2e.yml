@@ -204,7 +204,13 @@ jobs:
     needs: guard
     if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # 15, NOT 10, AND THE CACHE BELOW (v22.58). This is the only job in the file that installs
+    # TWICE — the root tree and then functions/ — and it had neither a cache nor room for a slow
+    # registry. Measured on 4 Sep 2026: the root `npm ci` alone took 7m ("added 801 packages in
+    # 7m") and the job was killed mid-second-install at the 10m ceiling, twice in a row, on a PR
+    # touching no Functions code at all. It reads exactly like a Functions failure and is not one:
+    # the tests never start, so the log ends in `Terminate orphan process: (npm ci)`.
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -214,6 +220,12 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
+          # Both lockfiles, because both installs run here. The raised ceiling above is what
+          # survives a COLD cache (the first run after this change, and any lockfile bump).
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
 
       - name: Install root dependencies
         run: npm ci
