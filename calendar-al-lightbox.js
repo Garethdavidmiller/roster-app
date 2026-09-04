@@ -202,6 +202,7 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   const dayLb    = document.getElementById('dayDetailLightbox');
   const dateEl   = /** @type {HTMLElement} */ (document.getElementById('dayDetailDate'));
   const shiftEl  = /** @type {HTMLElement} */ (document.getElementById('dayDetailShift'));
+  const baseEl   = /** @type {HTMLElement} */ (document.getElementById('dayDetailBase'));
   const extrasEl = /** @type {HTMLElement} */ (document.getElementById('dayDetailExtras'));
   const noteEl   = /** @type {HTMLElement} */ (document.getElementById('dayDetailNote'));
   const payBtn   = /** @type {HTMLButtonElement|null} */ (document.getElementById('dayDetailPayBtn'));
@@ -218,6 +219,12 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     const d = cell.dataset;
     dateEl.textContent  = d.detailDay   || '';
     shiftEl.textContent = d.detailShift || '';
+    // The base-roster line is present only when an override actually changed the day, so its
+    // absence is not a claim that nothing changed — it is the renderer having found them equal.
+    if (baseEl) {
+      if (d.detailBase) { baseEl.textContent = `Changed from ${d.detailBase}`; baseEl.hidden = false; }
+      else                baseEl.hidden = true;
+    }
     if (d.detailExtras) { extrasEl.textContent = d.detailExtras; extrasEl.hidden = false; }
     else                  extrasEl.hidden = true;
     if (d.detailNote)   { noteEl.textContent = `"${d.detailNote}"`; noteEl.hidden = false; }

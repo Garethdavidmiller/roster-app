@@ -37,6 +37,55 @@ test('calendar: renders the current month from roster data', async ({ page }) =>
     expect(errors, 'Uncaught JS exceptions on index.html').toHaveLength(0);
 });
 
+// ── THE DAY PANEL SAYS WHAT THE ROSTER WAS CHANGED FROM (v22.64) ────────────────────────────────
+//
+// Reported from a phone: the panel read "Early shift 07:00-16:00" on a day whose base roster was a
+// SPARE week, and nothing on it said so. The renderer's decision is unit-tested; only a browser
+// proves the WIRING — that the dataset the renderer writes actually reaches the panel, which is a
+// separate pass over the same state and the shape three defects took this month.
+//
+// It also pins the ENTRY ANIMATION, because the same panel was found frozen at 85%: an id-level
+// `transform` out-specified `.lb-overlay.open .lb-content { scale(1) }`, so it never grew to full
+// size. Nothing could see that — every element was present and readable, so no behavioural
+// assertion and no axe rule fired, and the visual baselines had been generated with it.
+test('day detail: names the roster it was changed from, and opens at full size', async ({ page }, info) => {
+    // The panel is the TOUCH affordance — a desktop pointer reads the same content from the hover
+    // tooltip, and a click there never opens it. Mobile-only, and stated rather than assumed: the
+    // first cut ran on both and failed on chromium for exactly that reason.
+    test.skip(info.project.name !== 'mobile-chrome', 'the day panel is the touch route; desktop hovers');
+    await seedMember(page);
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        const rows = [];
+        for (let m = 1; m <= 12; m++) for (const d of [3, 4, 5, 6]) {
+            rows.push({ id: 'ov' + m + d, memberName: 'G. Miller',
+                date: '2026-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0'),
+                type: 'shift', value: '07:00-16:00', note: '' });
+        }
+        w.__E2E.docs = rows;
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+
+    const idx = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
+        .findIndex(c => c.dataset.detailBase));
+    expect(idx, 'no cell carried a base-roster line — the fixture no longer overrides a changed day')
+        .toBeGreaterThan(-1);
+    await page.locator('.calendar-day:not(.other-month)').nth(idx).click();
+
+    const base = page.locator('#dayDetailBase');
+    await expect(base).toBeVisible();
+    await expect(base).toContainText('Changed from');
+
+    // Full size, not the 85% fossil. The transform is the only observable: the text renders either
+    // way, which is exactly why this went unnoticed.
+    await page.waitForTimeout(600);
+    const t = await page.evaluate(() => getComputedStyle(
+        /** @type {any} */ (document.getElementById('dayDetailContent'))).transform);
+    expect(t, 'the panel never scaled up — an id-level transform is beating the shared .open rule')
+        .toBe('matrix(1, 0, 0, 1, 0, 0)');
+});
+
 // ── The grid is withheld until the overrides are known (v20.40) ──────────────────────────────────
 //
 // The unit tests prove the DECISION; only a browser proves the WIRING — that a real page open with a

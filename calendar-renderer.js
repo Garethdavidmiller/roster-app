@@ -26,6 +26,40 @@ const fullDayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'F
 const SHIFT_KIND_LABELS = { early: 'Early shift', late: 'Late shift', night: 'Night shift' };
 
 /**
+ * The full words for a shift value — what the tooltip, the aria-label and the day-detail panel say.
+ *
+ * ONE function because there are now TWO callers: the shift a member is actually working, and (from
+ * v22.64) the base-roster shift an override replaced. Two copies of this ladder would eventually
+ * disagree about the same value, which on this panel would read as two different days.
+ *
+ * `alwaysTime` is what the base-roster line passes. A member with a `permanentShift` gets "Early
+ * shift" with no time, because their badge never varies and the time would be noise — but the base
+ * line exists precisely to answer "what was I rostered for?", where the time IS the answer. Without
+ * it a permanent-early member whose 06:20 became 07:00 would read "Changed from Early shift".
+ *
+ * @param {string} shift    the shift value (base or effective)
+ * @param {any}    member   the member record — `permanentShift` decides whether the time is implied
+ * @param {boolean} derivedRdw  an Other day the override ladder derived as rest-day-worked
+ * @param {boolean} [alwaysTime] state the time even when `permanentShift` would imply it
+ * @returns {string}
+ */
+export function shiftWords(shift, member, derivedRdw, alwaysTime = false) {
+    if (shift === 'RD' || shift === 'OFF') return 'Rest day';
+    if (shift === 'SPARE') return 'Spare day';
+    if (shift === 'AL')    return 'Annual leave';
+    if (shift === 'SICK')  return 'Absent';
+    if (shift === 'RDW')   return 'Rest day worked';
+    const other = parseOtherValue(shift);
+    if (other) {
+        return OTHER_FLAVOURS[other.flavour].full
+            + ((other.rdw || derivedRdw) ? ' — Rest Day Worked' : '')
+            + (other.time ? ` ${other.time}` : '');
+    }
+    return SHIFT_KIND_LABELS[getShiftKind(shift, member)]
+        + ((member.permanentShift && !alwaysTime) ? '' : ` ${shift}`);
+}
+
+/**
  * Builds the HTML string for the calendar's month/week header.
  * Pure — takes explicit params, reads no global state.
  */
@@ -263,6 +297,13 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // `shift` (the badge + label parse it); rdwTime/otherDerivedRdw drive the hours slot.
         const dateStr = formatISO(currentDate);
         const override = !isBeforeMemberStart(member, currentDate) ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
+        // WHAT THE ROSTER SAID BEFORE THE CHANGE (v22.64). Captured here because the next line
+        // overwrites `shift` with the effective value, and the base is then unrecoverable — the
+        // day-detail panel could show "Early shift 07:00-16:00" with no way to tell whether that
+        // was the rostered turn or a shift given on a SPARE week, which are different weeks of
+        // somebody's life. `getBaseShift` has already applied start-date suppression, the
+        // Christmas rules and any scheduled roster change, so this is the member's real base.
+        const baseShift = shift;
         const { shift: _effShift, rdwTime, derivedRdw: otherDerivedRdw, note: overrideNote } =
             resolveEffectiveShift(override, shift, isSunday(dateStr));
         shift = _effShift;
@@ -276,18 +317,9 @@ export function buildCalendarContainer(month, year, opts = {}) {
         dayCell.className = `calendar-day ${shiftClass}`;
         dayCell.setAttribute('role', 'button');
 
-        const _otherParsed = parseOtherValue(shift);
-        const shiftLabel = shift === 'RD' || shift === 'OFF' ? 'Rest day'
-            : shift === 'SPARE' ? 'Spare day'
-            : shift === 'AL'    ? 'Annual leave'
-            : shift === 'SICK'  ? 'Absent'
-            : shift === 'RDW'   ? 'Rest day worked'
-            // Other family: the FULL word on tap/tooltip/aria (badge carries the short word).
-            : _otherParsed ? OTHER_FLAVOURS[_otherParsed.flavour].full
-                + ((_otherParsed.rdw || otherDerivedRdw) ? ' — Rest Day Worked' : '')
-                + (_otherParsed.time ? ` ${_otherParsed.time}` : '')
-            : SHIFT_KIND_LABELS[getShiftKind(shift, member)]
-                + (member.permanentShift ? '' : ` ${shift}`);
+        // The FULL word on tap/tooltip/aria (the badge carries the short one). Shared with the
+        // base-roster line below, so the two can never describe the same value differently.
+        const shiftLabel = shiftWords(shift, member, otherDerivedRdw);
 
         const isToday  = isSameDay(currentDate, today);
         const isBH     = isBankHoliday(currentDate);
@@ -316,6 +348,10 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // Structured pieces for the tap-to-view day-detail lightbox (touch devices).
         dayCell.dataset.detailDay   = `${fullDayNames[currentDate.getDay()]} ${currentDate.getDate()} ${MONTH_NAMES[month]} ${year}`;
         dayCell.dataset.detailShift = ttShift;
+        // Compared on the VALUES, not the words: a permanent-early member's 06:20 and 07:00 both
+        // read "Early shift", so comparing labels would hide exactly the change worth stating.
+        // A suppressed override resolves back to the base, so it correctly produces no line.
+        if (baseShift !== shift) dayCell.dataset.detailBase = shiftWords(baseShift, member, false, true);
         if (extras)       dayCell.dataset.detailExtras = extras;
         if (overrideNote) dayCell.dataset.detailNote   = overrideNote;
 
