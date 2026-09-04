@@ -135,7 +135,7 @@ const NETWORK_FIRST_FILES = [
     'paycalc-help.js', 'paycalc-migrations.js', 'paycalc-fill-year.js', 'paycalc-year-card.js',
     'paycalc-periods.js', 'paycalc-settings.js',
     'paycalc-roster-hint.js', 'paycalc-hpp.js', 'paycalc-hpp-schedule.js', 'paycalc-backpay.js', 'paycalc-backpay-state.js', 'paycalc-pension.js', 'paycalc-year-summary.js',
-    'paycalc-format.js', 'paycalc-breakdown.js', 'paycalc-inputs.js', 'paycalc-form-data.js', 'paycalc-transfer.js', 'paycalc-transfer-card.js', 'paycalc-inventory.js', 'paycalc-roster-suggestions.js', 'paycalc-lightboxes.js', 'paycalc-guide.html',
+    'paycalc-format.js', 'paycalc-breakdown.js', 'paycalc-inputs.js', 'paycalc-form-data.js', 'paycalc-transfer.js', 'paycalc-transfer-card.js', 'paycalc-inventory.js', 'paycalc-roster-suggestions.js', 'paycalc-lightboxes.js', 'paycalc-result-headline.js', 'paycalc-money-banner.js', 'paycalc-guide.html',
     'fip-guide.html', 'staff-guide.html',
     'railcard-guide.html', 'rangers-guide.html',
     'railcard-guide.js', 'rangers-guide.js', 'guide-print.js', 'guide-back.js', 'fip-guide.js', 'guide-shell.css',
@@ -307,6 +307,8 @@ const CORE_ASSETS = [
     "./paycalc-transfer-card.js",
     "./paycalc-roster-suggestions.js",
     "./paycalc-lightboxes.js",
+    "./paycalc-result-headline.js",
+    "./paycalc-money-banner.js",
 ];
 
 // Reference guides and icons — cached individually so a transient network error

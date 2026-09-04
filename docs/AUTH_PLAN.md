@@ -63,7 +63,7 @@ Two consequences follow, and both are easy to get wrong:
 
 ---
 
-## 2. What is actually exposed today (re-verified 28 Aug 2026)
+## 2. What is actually exposed today (re-verified 4 Sep 2026)
 
 Open reads (`allow read;` in `firestore.rules`): **`huddles`, `circulars`, `newsletters`** — the three
 document collections, deliberately, because a notification tap carries no session. Everything else
@@ -84,6 +84,34 @@ requires auth, and most requires a claim.
   documents.
 - **`storageUrl` is a permanent tokenised bearer URL**, so the document *files* are not protected by
   rules at all — see §5.
+
+- **The SHIPPED JAVASCRIPT carries the base roster, and that is a deliberate classification**
+  (owner, 4 Sep 2026 — external review). This section answered "what is exposed?" as a Firestore
+  question for as long as it existed: open collections, then Storage bearer URLs. There is a third
+  category, and §1 above names it without following it through — the shell is public *by
+  construction*, and `roster-data.js` is part of the shell.
+
+  Measured against the live site with no session, no PIN and no token: **53 named staff with their
+  roster type and cycle position, five start dates and nine leave entitlements** (76 KB), plus
+  `roster-cycle-data.js` (9 KB) carrying the patterns those numbers index into. Together they let a
+  stranger compute any named member's shift for any date, past or future.
+
+  **The owner's decision is that this is not confidential**: shift patterns are printed on the
+  station's own rosters and staff share them freely. So it is recorded here rather than as an
+  `EXC-*` row — an EXC is where deployed differs from intended, and here they agree.
+
+  Two things follow, and the second is the one that matters:
+
+  - **The PIN protects the CHANGES to the roster, not the roster.** `overrides` was closed in
+    Aug 2026 so an outsider could not read who was off and when; the base shift underneath every
+    unchanged day was public then and is public now. Anyone describing the Calendar as "behind a
+    code" should know which half that sentence covers.
+  - **A field added to `teamMembers` is published the moment it ships.** That is the live hazard —
+    not somebody publishing a phone number deliberately, but somebody adding one for a good reason
+    without ever learning this file is world-readable. `public-data-classification.test.mjs` holds
+    an allowlist with a reason per field; an unclassified field fails there, so the decision has to
+    be made in the open. Anything that should not be public belongs in Firestore behind a claim, as
+    `staffContact` (the work email) already is.
 
 **The exposure being closed is outsider-with-URL, not colleague-to-colleague.** The member selector
 already lets any staff member view any colleague's roster and leave, by design. Track E does not change

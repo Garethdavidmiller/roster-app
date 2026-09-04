@@ -1233,6 +1233,17 @@ Coordinator for `paycalc.html`. No pure pay maths, no period arithmetic here.
 - Period select, prev/next, tax-year tabs: delegated to `paycalc-periods.js`
 - Grade cache, settings save/load, rate/YTD fields: delegated to `paycalc-settings.js`
 
+### `paycalc-result-headline.js`
+Which figure is the headline, and what it is called (v22.56 — extracted from `calculate()`).
+- `headlineLabels({hasActual, payday, bpThisPeriod, hppForPeriod, bpIsEstimate, hppIsEstimate})` → `{netLabel, stickyLabelHtml, stickyAria, bdBtnHtml}` — PURE, so both branches' wording can be held side by side. The visible label and the accessible name are built from one branch deliberately: a screen-reader user and a sighted user must not disagree about whether the figure is confirmed.
+- `renderResultHeadline({actual, net, payday, …})` — paints it. **Every shared target is written on BOTH paths**; that is the contract, because a target left unwritten keeps the previous render's value. `#summary` is the one exception (the estimate path leaves the ordinary rows to paycalc-breakdown.js) and is named rather than left to be noticed.
+- The actuals gate stays with the CALLER — this module takes the resolved value, since who may see device-local payslip figures is a question about identity.
+
+### `paycalc-money-banner.js`
+The two opt-in money banners on the result card (v22.56).
+- `backPayBannerCopy({thisPeriod, amount, isEstimate, aprilYear})` · `hppBannerCopy({forPeriod, amount, isEstimate})` → `{text, note}` — PURE. `included` (the tick's own state) decides the sentence; availability only decides whether there is anything to offer. The notes differ on purpose: back pay always explains how to improve the estimate, HPP prompts only when opted in to a figure that is still an estimate — the one state with a next action.
+- `paintBanner({rootId, textId, tickId, noteId, available, included, copy, tickYear?})` — hides by `display` and touches nothing else, so a hidden banner cannot reappear carrying the previous payslip's number.
+
 ### `paycalc-lightboxes.js`
 Lightbox and overlay initialisation for `paycalc.html` — extracted from `paycalc-app.js` at v13.86.
 - `initPaycalcLightboxes()` — initialises all five overlays; returns `{ openAboutLightbox }` so the nav-panel drawer logo can open the About panel

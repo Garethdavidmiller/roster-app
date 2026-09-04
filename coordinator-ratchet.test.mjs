@@ -114,7 +114,15 @@ const CAPS = {
     // measured lines down to 1,888. Of everything in this coordinator it was the piece whose
     // removal cannot affect a figure a member reads: a scroll-position widget that touches no
     // money, no period and no storage.
-    'paycalc-app.js':          1900,
+    // 1900 → 1880 at v22.56, and the saving is smaller than it looks for a reason worth recording.
+    // The file was at 1,900 of 1,900 — the zero-headroom state this suite's own header calls the
+    // case that gets a guard waived — and the external review of v22.55 said the next change here
+    // must be an extraction. Two went: the RESULT HEADLINE (paycalc-result-headline.js) and the two
+    // OPT-IN MONEY BANNERS (paycalc-money-banner.js), 1,900 measured lines down to 1,828. Neither
+    // was chosen for its size. Both were two parallel branches writing the same targets — an actual
+    // against an estimate, a sum included against a sum merely available — which is the one shape
+    // whose failure is silent, and both now carry the invariant plus the tests that hold it.
+    'paycalc-app.js':          1880,
     // 1727 → 486 (v21.38): the store, the week editor, the Saved Changes list and the shift-type
     // table all moved out. Re-set to its new size plus the usual room — a cap left at 1800 over a
     // 486-line file is the "quietly generous" case this suite's own last check refuses.
