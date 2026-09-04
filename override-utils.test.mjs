@@ -255,13 +255,34 @@ describe('reconcileRangeIntoCache', () => {
         assert.equal(changed, true);
     });
 
-    it('a same-VALUE higher-priority winner updates the cache but reports NO display change', () => {
+    // THIS TEST CHANGED ITS ANSWER AT v22.71, AND THE REASON IS THE POINT. It asserted `false` on
+    // the reasoning that "the visible shift is identical" — true when it was written, because the
+    // shift was the only thing on screen that came from an override. v22.69 put a PROVENANCE line on
+    // the day panel, and `roster_import` → manual is precisely the swap that changes it: "From the
+    // weekly roster" becomes "Changed by …", or nothing. So the same input is now a display change,
+    // and the old expectation was not a rule this function owes anybody — it was a description of
+    // what the app happened to render at the time. It went on passing because the comparison had not
+    // been updated either; the test and the code were out of date together, which is the shape that
+    // makes a suite quietly stop guarding a thing.
+    it('a same-VALUE winner whose PROVENANCE differs is a display change (the panel renders it)', () => {
         const cache = new Map([['G. Miller|2026-08-13', rec('06:00-14:00', 'roster_import', 100)]]);
         const manual = rec('06:00-14:00', '', 50);
         const changed = reconcileRangeIntoCache(cache, [row('G. Miller', '2026-08-13', manual)],
             '2026-08-10', '2026-08-16');
         assert.equal(cache.get('G. Miller|2026-08-13'), manual, 'winner metadata is stored');
-        assert.equal(changed, false, 'the visible shift is identical → no repaint');
+        assert.equal(changed, true, 'the provenance line the day panel renders is different');
+    });
+
+    // The half of the original claim that IS still a rule: storing a higher-priority winner is not
+    // by itself a display change. Same value, same provenance, higher priority → the cache moves and
+    // the screen does not.
+    it('a same-VALUE, same-PROVENANCE higher-priority winner still reports no display change', () => {
+        const cache = new Map([['G. Miller|2026-08-13', rec('06:00-14:00', 'manual', 100, { changedBy: 'S. Silva' })]]);
+        const higher = rec('06:00-14:00', 'manual', 50, { changedBy: 'S. Silva' });
+        const changed = reconcileRangeIntoCache(cache, [row('G. Miller', '2026-08-13', higher)],
+            '2026-08-10', '2026-08-16');
+        assert.equal(cache.get('G. Miller|2026-08-13'), higher, 'winner metadata is stored');
+        assert.equal(changed, false, 'nothing on screen differs → no repaint');
     });
 
     it('an unchanged in-range record reports no display change', () => {
@@ -270,6 +291,53 @@ describe('reconcileRangeIntoCache', () => {
         const changed = reconcileRangeIntoCache(cache, [row('G. Miller', '2026-08-14', rec('06:00-14:00', '', 100))],
             '2026-08-10', '2026-08-16');
         assert.equal(changed, false);
+    });
+
+    // ── WHAT COUNTS AS A DISPLAY CHANGE MUST TRACK WHAT IS DISPLAYED (v22.71) ────────────────
+    //
+    // The return value is the caller's ONLY signal to repaint, and the cost of the two wrong
+    // answers is not symmetrical. Reporting `false` when something visible moved is SILENT: the
+    // cache is already correct (step 3 stores unconditionally), so nothing is inconsistent to find
+    // — the screen simply keeps the old text until an unrelated render happens to replace it.
+    // Reporting `true` when nothing moved costs one wasted repaint.
+    //
+    // This shipped wrong at v22.69. The comparison was type/value/note, written when a note was the
+    // only metadata on screen; that release removed the note's display paths and put a provenance
+    // line built from `source` and `changedBy` on the day panel — leaving the check tracking the one
+    // field nothing renders and missing the two that now do.
+    describe('the provenance the day panel renders (v22.71)', () => {
+        const at = (date) => `G. Miller|${date}`;
+        const seed = (r) => new Map([[at('2026-08-14'), r]]);
+        const run = (cache, r) => reconcileRangeIntoCache(
+            cache, [row('G. Miller', '2026-08-14', r)], '2026-08-10', '2026-08-16');
+
+        it('a same-value re-save by a DIFFERENT person is a display change', () => {
+            const cache = seed(rec('07:00-16:00', 'manual', 100, { changedBy: 'S. Silva' }));
+            const changed = run(cache, rec('07:00-16:00', 'manual', 100, { changedBy: 'M. Robson' }));
+            assert.equal(changed, true,
+                'the panel says "Changed by S. Silva" and would keep saying it — the value is '
+                + 'identical, so nothing else in this function would ever flag the repaint');
+            assert.equal(cache.get(at('2026-08-14')).changedBy, 'M. Robson');
+        });
+
+        it('a change of SOURCE is a display change, even at the same value and person', () => {
+            // roster_import and manual produce different sentences from `changeProvenance` —
+            // "From the weekly roster" against "Changed by …" — so the line is wrong, not stale.
+            const cache = seed(rec('07:00-16:00', 'roster_import', 100, { changedBy: 'S. Silva' }));
+            assert.equal(run(cache, rec('07:00-16:00', 'manual', 100, { changedBy: 'S. Silva' })), true);
+        });
+
+        it('an override that GAINS a changedBy is a display change', () => {
+            // The field is only carried when present, so this is undefined → a name, which is the
+            // shape a strict comparison gets wrong if it reaches for a falsy check instead.
+            const cache = seed(rec('07:00-16:00', 'manual', 100));
+            assert.equal(run(cache, rec('07:00-16:00', 'manual', 100, { changedBy: 'S. Silva' })), true);
+        });
+
+        it('genuinely nothing moved → still false, so the fix did not just make it always true', () => {
+            const cache = seed(rec('07:00-16:00', 'manual', 100, { changedBy: 'S. Silva' }));
+            assert.equal(run(cache, rec('07:00-16:00', 'manual', 100, { changedBy: 'S. Silva' })), false);
+        });
     });
 });
 
