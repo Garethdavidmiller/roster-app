@@ -3444,6 +3444,69 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
     }
 });
 
+// ── The families that carry a 30px COMMITMENT keep it (v22.65) ─────────────────────────────────
+// The sweep above is the app's enforced floor: 24px, WCAG 2.2 SC 2.5.8 AA, applied everywhere.
+// This is narrower and stricter, and it exists because 24 is a floor rather than a target.
+//
+// Two Links control families have a documented 30px commitment under a coarse pointer: the paint
+// chips (v22.61, "the primary control on the page") and the design/saved-set action rows (v22.65).
+// The second was left at 25px by the first pass — clearing the enforced floor by ONE PIXEL, in a
+// row of identically sized neighbours, one of which is `Delete`: a destructive act on shared work
+// with no bin behind a saved SET.
+//
+// A single pixel of margin is not a margin. Without this, restoring the old padding puts them back
+// to 25px and the sweep above stays green, which is precisely how the first pass missed them.
+// Probes with `elementFromPoint` for the reason the sweep's own header gives: several targets here
+// are expanded by a pseudo-element and a box measurement cannot see it.
+test('links: the 30px control families keep their target @a11y', async ({ page }, info) => {
+    test.skip(info.project.name !== 'mobile-chrome', 'a thumb, not a mouse');
+    await page.setViewportSize({ width: 360, height: 900 });   // the reported device width
+    await seedContractTargets(page);
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
+    await page.goto('/links.html');
+    await expect(page.locator('#generatorToggleHeader')).toBeVisible();
+    await page.locator('#genApplyBtn').click();
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(page.locator('#linksSaveRow')).toBeVisible();
+    await page.waitForTimeout(400);
+
+    const small = await page.evaluate(async () => {
+        const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+        const probe = (el) => {
+            const b = el.getBoundingClientRect();
+            const cx = Math.round(b.left + b.width / 2), cy = Math.round(b.top + b.height / 2);
+            const owns = (x, y) => { const t = document.elementFromPoint(x, y); return !!t && (t === el || el.contains(t)); };
+            if (!owns(cx, cy)) return null;
+            let u = 0, d = 0, l = 0, r = 0;
+            while (u < 50 && owns(cx, cy - u - 1)) u++;
+            while (d < 50 && owns(cx, cy + d + 1)) d++;
+            while (l < 80 && owns(cx - l - 1, cy)) l++;
+            while (r < 80 && owns(cx + r + 1, cy)) r++;
+            return { w: l + r + 1, h: u + d + 1 };
+        };
+        const out = [];
+        for (const sel of ['.brush-chip', '.btn-design-new', '.btn-design-import',
+                           '.btn-design-dup', '.btn-design-compare', '.btn-set']) {
+            for (const el of document.querySelectorAll(sel)) {
+                if (getComputedStyle(el).visibility === 'hidden') continue;
+                const b0 = el.getBoundingClientRect();
+                if (!b0.width || !b0.height) continue;
+                el.scrollIntoView({ block: 'center', behavior: 'instant' });
+                await sleep(30);
+                const t = probe(el);
+                // Unprobeable (covered or off-screen) is not a failure — the sweep above owns that
+                // case, and reporting it here would be a false alarm in the guard, not a finding.
+                if (t && (t.w < 30 || t.h < 30)) {
+                    out.push(`${sel}[${(el.textContent || '').trim().slice(0, 12)}] = ${t.w}x${t.h}`);
+                }
+            }
+        }
+        return [...new Set(out)];
+    });
+    expect(small, 'these families carry a 30px commitment, not the 24px floor').toEqual([]);
+});
+
 // ── The generator's numeric clauses stay in one piece on a phone (v19.65) ───────────────────────
 // Two of the five line-order objectives carry an inline number — "at most [3] weeks", "at least [4]
 // of 28". They were three loose flex children in a ~190px column, and on a COARSE pointer the box is
