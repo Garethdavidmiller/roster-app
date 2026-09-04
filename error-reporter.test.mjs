@@ -49,8 +49,23 @@ describe('ResizeObserver and view transitions', () => {
     test('the skipped view-transition notice is dropped', () => {
         assert.equal(reports('Skipping view transition because the document is hidden.'), false);
     });
+    // Reported live from Android Chrome 152 on 4 Sep 2026 (v22.62). Same declarative opt-in as the
+    // line above, different Chromium wording: the promise rejection when the document stops being
+    // fully active mid-navigation. The app never asked for the transition, so there is nothing to
+    // catch it and it lands here as an unhandled rejection.
+    test('the aborted view-transition rejection is dropped', () => {
+        assert.equal(reports('Transition was aborted because of invalid state'), false);
+    });
     test('a REAL error that merely mentions a transition is kept', () => {
         assert.equal(reports("Cannot read properties of null (reading 'startViewTransition')"), true);
+    });
+    // The other side of the filter above, and the reason it matches the WHOLE sentence. The app's
+    // own overlays run CSS transitions with a transitionend fallback; if one ever throws while
+    // aborting, that is a real fault in a real lightbox and must not be swallowed by a rule written
+    // for the browser's navigation animation.
+    test('an app-thrown abort that is NOT the browser\'s navigation transition is kept', () => {
+        assert.equal(reports('Transition was aborted by the overlay before it opened'), true);
+        assert.equal(reports('AbortError: Transition was aborted'), true);
     });
 });
 
