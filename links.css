@@ -1616,7 +1616,31 @@ body.auth-ready .container { display: grid; }
     margin-bottom: 6px;
 }
 .compare-col-head--a { color: var(--primary-blue); border-color: var(--primary-blue); }
-.compare-col-head--b { color: var(--cov-late);      border-color: var(--cov-late); }
+/* The TEXT is darkened, the border is not (v22.73). `--cov-late` at full strength is 3.14:1 on
+   white — a SERIOUS axe contrast failure at 11px, and it had never been scanned because no axe
+   state entered compare mode until this release. Darkening to 70% gives 5.82:1 and is still
+   unmistakably the coverage family's orange; the 2px rule under it is decoration, not text, so it
+   keeps the bright hue that carries the column's identity at a glance. */
+.compare-col-head--b { color: color-mix(in srgb, var(--cov-late) 70%, black); border-color: var(--cov-late); }
+
+/* KEYBOARD ACCESS TO THE SCROLLING COLUMNS (v22.73, WCAG 2.1.1 / axe scrollable-region-focusable).
+
+   AN ACCESSIBILITY FIX CAUSED THIS, WHICH IS WHY IT NEEDS WRITING DOWN. v22.60 correctly changed
+   the compare cells from `<button>` to `<span>`: they cannot be operated, so as buttons they
+   announced hundreds of controls that do nothing when reached. What nobody noticed is that those
+   buttons were also the column's ONLY focusable content — and a scrollable region containing
+   something focusable is reachable, because Tab moves to it and the browser scrolls to reveal it.
+   Removing them left the column scrollable and unreachable by keyboard: no error, no failing test,
+   and invisible until v22.73 finally pointed axe at compare mode.
+
+   Do NOT repair it by putting the buttons back. `tabindex="0"` on the wrapper makes the region
+   itself focusable and arrow-scrollable, which is two tab stops rather than several hundred.
+   `aria-labelledby` points at the column head so the name follows whichever design is in that
+   column, instead of a fixed "A"/"B" that goes stale the moment the picker changes.
+
+   The single grid needs none of this and is not a gap: its cells ARE buttons, so it has focusable
+   content and axe is right to pass it — measured at 393px, where it genuinely overflows. */
+.compare-grid-scroll:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
 
 /* Scrolls independently within its column. Unlike the single grid, this KEEPS
    overflow-x:auto on desktop — two 560px-min tables can't both fit a 1100px
@@ -2316,7 +2340,7 @@ body.auth-ready .container { display: grid; }
     }
 }
 
-/* ═══ COMPARE: ONLY THE LINES THAT DIFFER (v22.70) ════════════════════════════════════════════════
+/* ═══ COMPARE: ONLY THE LINES THAT DIFFER (v22.72) ════════════════════════════════════════════════
 
    The rotation is 24 lines and a real proposal changes three or four, so the reader's job was to
    find those among 168 cells of agreement. The rows are always RENDERED and hidden here, so the

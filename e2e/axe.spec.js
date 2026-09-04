@@ -384,6 +384,44 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    test('links COMPARE mode, with the differ-only filter applied', async ({ page }) => {
+        // NEVER SCANNED UNTIL v22.73, and it is a whole surface: a summary strip that is a live
+        // region, two read-only grids of several hundred cells, and now a toggle. The v22.60 pass
+        // reasoned its way to rendering those cells as `<span>` rather than `<button>` — correctly
+        // — but nothing checked the result, and the gate cannot promote what it does not look at.
+        // Scanned WITH the filter on, because that state hides rows and changes the strip's text:
+        // hiding table rows is exactly where a screen-reader row/column count can go wrong.
+        await seedSession(page, 'G. Miller');
+        await page.addInitScript(() => {
+            localStorage.setItem('myb_links_welcome_seen', '1');
+            const mk = (/** @type {string} */ s, /** @type {number} */ diffLines) => {
+                const p = /** @type {any} */ ({});
+                for (let i = 1; i <= 24; i++) {
+                    p[String(i)] = { sun: 'RD', mon: i <= diffLines ? s : '06:20-14:20',
+                        tue: '06:20-14:20', wed: '06:20-14:20', thu: '06:20-14:20',
+                        fri: '06:20-14:20', sat: i % 3 === 0 ? 'SPARE' : 'RD' };
+                }
+                return p;
+            };
+            const w = /** @type {any} */ (window);
+            w.__E2E = w.__E2E || {};
+            w.__E2E.docs = [
+                { id: 'd1', name: 'Design A', patterns: mk('06:20-14:20', 0), updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' },
+                { id: 'd2', name: 'Design B', patterns: mk('14:00-22:00', 3), updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' },
+            ];
+        });
+        await page.goto('/links.html');
+        await page.locator('button:has-text("Compare")').first().click();
+        await expect(page.locator('#compareGridBodyRowsA tr').first()).toBeVisible();
+        const filter = page.locator('#compareDiffOnlyBtn');
+        await expect(filter).toBeVisible();
+        await filter.click();
+        await expect(page.locator('#compareGridBodyRowsA tr:visible')).toHaveCount(3);
+
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
     // ── Open-overlay states (H2, v17.75) — the settled-page scans above never OPEN these
     // surfaces. A11Y_FINDINGS.md's promotion path calls for scanning more rendered states
     // ("an open lightbox, an error state") per page; each of these is a full interactive
