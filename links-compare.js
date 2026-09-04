@@ -14,7 +14,8 @@
  * design collection + a few render callbacks and local helpers (all defined in links-app.js).
  */
 import { escapeHtml } from './roster-data.js';
-import { DAYS, ROTATING_LINES, classifyShift, calcCoverage } from './links-design.js';
+import { DAYS, ROTATING_LINES, classifyShift, calcCoverage, runDesignChecks, weeklyHours } from './links-design.js';
+import { assessFatigue } from './links-fatigue.js';
 import { formatWindow, windowsDiffer } from './links-window.js';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -110,9 +111,58 @@ export function initLinksCompare(deps) {
         head(headA, design.name || 'Design A', design.window);
         head(headB, other.name   || 'Design B', other.window);
 
+        renderSummaryStrip(design, other);
         renderCompareGrid('compareGridBodyRowsA', 'compareGridFootA', design.patterns, other.patterns);
         renderCompareGrid('compareGridBodyRowsB', 'compareGridFootB', other.patterns, design.patterns);
         wrap.classList.add('compare-mode-active');
+    }
+
+    /**
+     * A -> B in the figures a designer is actually choosing between (v22.60, external review).
+     *
+     * Compare mode put two grids side by side and outlined the differing cells gold, which is a
+     * PICTURE of the difference: reading it meant holding 336 cells in your head and doing the
+     * comparison privately. This does the arithmetic — how many cells differ and across how many
+     * lines, then the four figures that decide which design is better.
+     *
+     * Every figure comes from the SAME pure function the single-design panels call, so the two
+     * views cannot report a design differently four seconds apart. It scores nothing and picks no
+     * winner: `A -> B` and the reader decides, which is the rule the coverage and fatigue panels
+     * already follow.
+     * @param {any} a the ACTIVE design @param {any} b the one being compared against
+     */
+    function renderSummaryStrip(a, b) {
+        const el = document.getElementById('compareSummary');
+        if (!el) return;
+        let cells = 0;
+        const lines = new Set();
+        for (let pos = 1; pos <= TOTAL_POS; pos++) {
+            const p = a.patterns[String(pos)] || emptyPattern();
+            const q = b.patterns[String(pos)] || emptyPattern();
+            for (const d of DAYS) {
+                if ((p[d] ?? 'RD') !== (q[d] ?? 'RD')) { cells++; lines.add(pos); }
+            }
+        }
+        const ca = runDesignChecks(a.patterns, TOTAL_POS), cb = runDesignChecks(b.patterns, TOTAL_POS);
+        const fa = assessFatigue(a.patterns, TOTAL_POS),   fb = assessFatigue(b.patterns, TOTAL_POS);
+        const ha = weeklyHours(a.patterns, TOTAL_POS),     hb = weeklyHours(b.patterns, TOTAL_POS);
+        const hrs = (/** @type {any} */ h) => h.exSunday === null ? '—'
+            : `${Math.floor(h.exSunday / 60)}h ${String(Math.round(h.exSunday % 60)).padStart(2, '0')}m`;
+        // An UNCHANGED figure still renders. Showing only what moved would leave the reader unable
+        // to tell "the same" from "not measured", which is this app's most repeated defect.
+        const row = (/** @type {string} */ label, /** @type {any} */ x, /** @type {any} */ y) =>
+            `<li><span class="compare-sum-label">${escapeHtml(label)}</span>` +
+            `<span class="compare-sum-val${String(x) === String(y) ? ' compare-sum-val--same' : ''}">` +
+            `${escapeHtml(String(x))} → ${escapeHtml(String(y))}</span></li>`;
+        el.innerHTML =
+            `<p class="compare-sum-head"><strong>${cells}</strong> cell${cells === 1 ? '' : 's'} differ` +
+            `${cells ? ` across <strong>${lines.size}</strong> line${lines.size === 1 ? '' : 's'}` : ''}</p>` +
+            `<ul class="compare-sum-list">` +
+            row('Hours a week (excl. Sunday)', hrs(ha), hrs(hb)) +
+            row('Full weekends off', ca.weekendsOff, cb.weekendsOff) +
+            row('Rest under 12 hours', ca.turnarounds.length, cb.turnarounds.length) +
+            row('ORR factors present', fa.present, fb.present) +
+            `</ul>`;
     }
 
     /**
@@ -141,10 +191,15 @@ export function initLinksCompare(deps) {
                 const type  = classifyShift(shift);
                 const label = shiftLabel(shift);
                 const diff  = shift !== other ? ' cell-diff' : '';
+                // A SPAN, NOT A BUTTON (v22.60, external review). These cells cannot be operated —
+                // `.links-grid--compare` sets `pointer-events: none` and every one carried
+                // `tabindex="-1"` — so rendering them as buttons announced 336 controls to a screen
+                // reader that do nothing when reached. The class stays, because it is what carries
+                // the shift colouring; `role` and `tabindex` go, because there is nothing to press.
                 return `<td class="shift-cell${diff}">` +
-                    `<button class="shift-cell-btn type-${type}" tabindex="-1" ` +
+                    `<span class="shift-cell-btn type-${type}" ` +
                     `aria-label="Line ${posStr} ${DAY_LABELS[di]}: ${escapeHtml(shift)}">` +
-                    `${escapeHtml(label)}</button></td>`;
+                    `${escapeHtml(label)}</span></td>`;
             }).join('');
 
             rows.push(`<tr class="${rowClass}" data-pos="${posStr}"><td class="pos-num">${posStr}</td>${dayCells}</tr>`);

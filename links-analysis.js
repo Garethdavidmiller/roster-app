@@ -801,7 +801,50 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             );
         }
 
-        content.innerHTML = `<div class="check-rows">${rows.join('')}${fatRows.join('')}</div>`;
+        // ── WHAT TO DO NEXT, BEFORE THE EVIDENCE FOR IT (v22.60, external review) ───────────────
+        //
+        // The card is ~30 rows and treated them all as peers, so a reader trying to answer "is this
+        // good enough to show somebody?" had to read every one and rank them privately. `FF15`,
+        // `MRSF` and "definition to confirm" sat at the same weight as "7 staffed hours with nobody
+        // on duty".
+        //
+        // The review proposed regrouping the whole card by severity. That would have broken
+        // something load-bearing: the sections are grouped by SOURCE — this app's own checks, the
+        // configured company limit, the ORR's factors, today's link — and invariant 10 requires a
+        // section claiming a limit to name whose requirement it is. An assessing manager reading a
+        // severity-sorted list could no longer tell which rows are ours and which are quoted.
+        //
+        // So the hierarchy is ADDED rather than substituted: a triage block above the evidence, each
+        // line naming its own source, with every attributed section below untouched. It states only
+        // what the rows below already say — it computes nothing of its own, so it cannot disagree
+        // with them, which is the same rule the sticky strip follows.
+        /** @type {{fix: string[], discuss: string[]}} */
+        const triage = { fix: [], discuss: [] };
+        if (unfilledLines.length) triage.fix.push(`${unfilledLines.length} of ${totalWeeks} lines not yet designed`);
+        if (turnarounds.length)   triage.fix.push(`${turnarounds.length} transition${turnarounds.length === 1 ? '' : 's'} with under 12 hours rest`);
+        if (limits.breaches)      triage.fix.push(`${limits.breaches} ${POLICY_SOURCE_CONFIRMED ? 'company limit' : 'configured limit'}${limits.breaches === 1 ? '' : 's'} breached`);
+        if (fat.present)          triage.discuss.push(`${fat.present} ORR fatigue factor${fat.present === 1 ? '' : 's'} present in this design`);
+        if (fat.standing)         triage.discuss.push(`${fat.standing} standing factor${fat.standing === 1 ? '' : 's'} — from the operation, not from this design`);
+        if (fat.confirmNeeded)    triage.discuss.push(`${fat.confirmNeeded} definition${fat.confirmNeeded === 1 ? '' : 's'} still to confirm with the assessing manager`);
+        const triageRow = (/** @type {string} */ cls, /** @type {string} */ icon,
+            /** @type {string} */ head, /** @type {string[]} */ items) => items.length
+            ? `<div class="check-triage-group ${cls}"><span class="check-triage-head">` +
+              `<span aria-hidden="true">${icon}</span> ${escapeHtml(head)}</span><ul class="check-triage-list">` +
+              items.map(t => `<li>${escapeHtml(t)}</li>`).join('') + `</ul></div>`
+            : '';
+        // NOTHING TO FIX IS SAID OUT LOUD, and it is deliberately not a tick: this card's whole
+        // reason for existing is that a quiet panel must never read as an approval. It says what was
+        // looked at, and the sections below are what say it.
+        const triageHtml =
+            `<div class="check-triage">` +
+            (triage.fix.length
+                ? triageRow('check-triage--fix', '⛔', 'Needs fixing before review', triage.fix)
+                : `<div class="check-triage-group check-triage--none"><span class="check-triage-head">` +
+                  `Nothing found that has to be fixed — the rows below say what was checked</span></div>`) +
+            triageRow('check-triage--discuss', '⚠', 'Worth discussing', triage.discuss) +
+            `</div>`;
+
+        content.innerHTML = `<div class="check-rows">${triageHtml}${rows.join('')}${fatRows.join('')}</div>`;
     }
 
     return { renderCoverageChart, renderDesignChecks, renderSummary };

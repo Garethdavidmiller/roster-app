@@ -194,7 +194,25 @@ the same push through separate workflows with no ordering guarantee.
 
 A picker strip switches designs: **+ New** (blank), **⎘ Duplicate** (forks the LIVE in-memory patterns, unsaved edits included), **✎ Rename**, **✕ Delete** (disabled on the last design). Designs sort by name; the active design id persists via `lsGet('myb_links_active_design')`. Picker chips are a `<div>` wrapping separate `<button>`s — **buttons must not nest**.
 
-### Compare mode (v12.46)
+### Compare mode (v12.46; a difference SUMMARY added v22.60)
+
+**The strip above the grids does the comparison; the grids evidence it.** Two grids with gold-outlined
+diff cells is a PICTURE of the difference — reading it means holding every cell in your head. The
+strip states how many cells differ and **across how many lines** (18 on one line and 18 across six
+are different proposals, and no amount of scanning tells you which), then the four figures a choice
+actually turns on: hours a week excluding Sunday, full weekends off, transitions under 12 hours, and
+ORR factors present. Every one comes from the same pure function the single-design panels call, so
+the two views cannot report a design differently four seconds apart, and **it scores nothing** —
+`A → B`, and the reader decides.
+
+**An UNCHANGED figure still renders, muted.** Showing only what moved would leave the reader unable
+to tell "identical" from "not measured", which is this app's most repeated defect class.
+
+**The compare cells are `<span>`, not `<button>`** (v22.60). They cannot be operated —
+`.links-grid--compare` sets `pointer-events: none` and each carried `tabindex="-1"` — so as buttons
+they announced hundreds of controls to a screen reader that do nothing when reached. The class stays
+(it carries the shift colouring); the element does not.
+
 With ≥2 designs, shows two read-only grids side-by-side (≥1024px) or stacked, with a gold-outline diff on differing cells. Each compare column keeps `overflow-x:auto` even on desktop. The main grid stays **rendered** in compare mode — hidden on screen only (`body.links-compare-on` + `@media screen`) so print always outputs the active design. A print-only `#printDesignName` label names the printed sheet.
 
 ### patterns data shape

@@ -1,7 +1,7 @@
 // Tests for links-analysis.js — the read-only analysis panels (Coverage heat map + Design checks)
 // extracted from links-app.js. Fake DOM, no module mocks → runs in `npm run test:hygiene`.
 // The pure maths is covered by links-design.test.mjs; here we prove the RENDER + the getDesign seam.
-import { test } from 'node:test';
+import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { ROTATING_LINES } from './links-design.js';
 import { POLICY_SOURCE_CONFIRMED } from './links-limits.js';
@@ -584,4 +584,66 @@ test('the summary never says "no fatigue factors" while standing factors exist',
         assert.match(strip, /0<\/strong> to act on/,
             'with nothing to act on the chip should say so explicitly rather than saying "No"');
     }
+});
+
+// ── THE TRIAGE BLOCK SAYS WHAT TO DO, AND NEVER MORE THAN THE ROWS BELOW (v22.60) ───────────────
+//
+// The card is ~30 rows and treated them as peers, so "is this good enough to show somebody?" meant
+// reading all of them. The block answers that first — and inherits this card's oldest rule, which
+// is that a quiet panel must never read as an approval. Organised by what a wrong summary costs:
+// claiming a clean bill it has not earned is silent and is the direction that matters; over-warning
+// merely teaches the reader to skip it.
+//
+// It is deliberately ADDITIVE. The sections below stay grouped by SOURCE, because invariant 10
+// requires a section claiming a limit to name whose requirement it is; a severity-sorted card would
+// have lost that. So each triage line names its own source instead.
+describe('the design-checks triage block', () => {
+    test('a clean design gets no tick and no approval — it says what was checked', () => {
+        resetDom();
+        initLinksAnalysis({ getDesign: () => ({ patterns: fullPatterns() }) }).renderDesignChecks();
+        const html = els.checksContent.innerHTML;
+        const block = html.slice(0, html.indexOf('check-rows') + 4000).split('check-section-head')[0];
+        assert.doesNotMatch(block, /check-tick|✓/,
+            'the triage block wears a tick on a clean design. This card exists because a design '
+            + 'showing nothing gets read as approved — that is the false-assurance failure the '
+            + 'fatigue model is built around, arriving in the summary instead of the rows.');
+        assert.match(block, /Nothing found that has to be fixed/,
+            'a design with no blocking findings says nothing at all, so the reader cannot tell the '
+            + 'difference between "checked, all clear" and "the block failed to render"');
+    });
+
+    test('a broken design names what to fix, and never merges standing into the findings', () => {
+        resetDom();
+        // One line left entirely as rest days: unfilled, and the fixture's early starts still give
+        // at least one STANDING factor — the pair this block must keep apart.
+        const patterns = fullPatterns();
+        patterns['3'] = { sun: 'RD', mon: 'RD', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+        const { standing } = assessFatigue(patterns, ROTATING_LINES);
+        assert.ok(standing > 0, 'fixture no longer produces a standing factor — give it early starts');
+        initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
+        const html = els.checksContent.innerHTML;
+        const block = html.split('check-section-head')[0];
+        assert.match(block, /Needs fixing before review/, 'an unfilled line is not listed as needing fixing');
+        assert.match(block, /not yet designed/);
+        assert.match(block, new RegExp(`${standing} standing`),
+            'the standing factors are not stated, so they are either invisible or folded into the '
+            + 'findings count — the distinction assessFatigue keeps deliberately');
+        assert.match(block, /not from this design/,
+            'the standing line does not say where those factors come from, which is the whole '
+            + 'reason they are counted separately');
+    });
+
+    test('every triage line names its own source, because the sections below are grouped by source', () => {
+        resetDom();
+        const patterns = fullPatterns();
+        patterns['3'] = { sun: 'RD', mon: 'RD', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+        initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
+        const block = els.checksContent.innerHTML.split('check-section-head')[0];
+        // The ORR's factors are quoted guidance, not this app's opinion, and the block must say so.
+        if (/fatigue factor/.test(block)) {
+            assert.match(block, /ORR fatigue factor/,
+                'a fatigue line in the triage does not attribute the factors to the ORR — the '
+                + 'sections below carry that attribution and the summary above them must not drop it');
+        }
+    });
 });

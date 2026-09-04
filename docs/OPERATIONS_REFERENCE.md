@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: September 2026 — v22.50 · Updated every 0.10 version*
+*Last updated: September 2026 — v22.60 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -308,18 +308,32 @@ computeCellStates(parsedResult, existingOverrides)
     REMOVE_IMPORT = a stale previous PDF import whose day now matches base — approving
                  DELETES the stale doc and writes nothing (a fresh base-matching override
                  would be redundant and mask a future base-roster change) (v15.31)
-    UNREADABLE = normaliseShift couldn't parse the cell (UNKNOWN| sentinel). Written ONLY
-                 if the admin picks one of the server's two candidate readings on the row
-                 (v19.32); with no pick it stays skip-only and writes nothing, exactly as
-                 before. A pick is offered only when the two candidates survive normalisation
-                 as DIFFERENT values — a pair that both collapse to RD is not a question with
-                 one answer. No candidates (or a bad PDF) → fix the PDF or record it manually (v15.30)
+    UNREADABLE = normaliseShift couldn't parse the cell (UNKNOWN| sentinel). NOT a dead end
+                 since v22.17 — the row can be ANSWERED where the question is asked, three ways:
+                 (a) pick one of the server's two candidate readings (v19.32), offered only when
+                 they survive normalisation as DIFFERENT values — a pair that both collapse to RD
+                 is not a question with one answer; (b) ENTER the shift on the row — type pills
+                 generated from `PILL_TYPES` plus 24-hour HH:MM boxes for Shift/RDW
+                 (`roster-entry-control.js`), composed through `manualCellValue` and then the SAME
+                 `normaliseCellValue` guards every parsed value passes, so entering a value is
+                 never a route to write what the parsed path would have refused (`other` is
+                 deliberately unsupported — its grammar needs the week editor's flavour chips, and
+                 the row says so rather than offering a pill that does nothing); (c) leave it, which
+                 is still the default and still writes nothing. The real Supervisor roster carries
+                 cells reading `SEE NATHAN` and `See CEM`, which no parser will ever resolve —
+                 that is what (b) is for (v15.30)
         ↓
 renderReviewTable() — per-person card list (presentation reworked v15.52):
   • plain-language OUTCOME SUMMARY above the list ("what Save will do")
   • each change row = a Save tick + action tag (Update / Clear old / Your choice / Not saved)
   • conflicts = inline "Keep yours / Use new roster" (was Manual / PDF); no separate banner
   • Save button shows a live count. State machine + `chosen` model UNCHANGED.
+  • the ORIGINAL PDF stays reachable from the review (v22.52) — every message on this page ends
+    in "check it against the PDF", and until then the file had left the workflow at parse time.
+    It is a DOWNLOAD, not a new tab: a blob: document inherits the creating page's CSP, and the
+    app's `object-src 'none'` blocks Chrome's plugin-backed PDF viewer, so a preview would open
+    a blank frame. The object URL is created at CLICK time (so it cannot go stale) and revoked
+    on a timer (an immediate revoke cancels the download on Android)
   shiftDisplay(shiftStr, baseShift)
     — detects "RDW|" prefix → shows 💼 RDW badge + time
     — falls back to baseShift==='RD' detection for plain times

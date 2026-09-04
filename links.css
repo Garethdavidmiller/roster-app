@@ -2182,3 +2182,55 @@ body.auth-ready .container { display: grid; }
 @media (hover: hover) and (pointer: fine) {
     .btn-how-links:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
 }
+
+/* THE TRIAGE BLOCK (v22.60) — what to do next, above the evidence for it.
+   Not a card of its own: it is the first thing inside `.check-rows`, so it reads as the panel's
+   opening rather than as a separate verdict. The "nothing to fix" state is deliberately NOT green
+   and carries no tick — this card exists to stop a quiet panel reading as an approval. */
+.check-triage {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-light);
+}
+.check-triage-group { font-size: var(--type-small); }
+.check-triage-head {
+    display: block;
+    font-weight: 700;
+    color: var(--text-dark);
+}
+.check-triage--fix .check-triage-head { color: var(--error-red); }
+.check-triage--discuss .check-triage-head { color: var(--warning-amber); }
+/* The no-findings line is a statement, not a status: normal weight, ordinary text colour. */
+.check-triage--none .check-triage-head { font-weight: 600; color: var(--text-mid); }
+.check-triage-list {
+    margin: 4px 0 0;
+    padding-left: 20px;
+    color: var(--text-mid);
+}
+.check-triage-list li { margin-bottom: 2px; }
+
+/* COMPARE SUMMARY (v22.60) — the difference in figures, above the two grids that evidence it.
+   Sits inside `.compare-grids-wrap`, which is only shown in compare mode, so it needs no state of
+   its own. `--same` mutes an unchanged figure without hiding it: showing only what moved would
+   leave the reader unable to tell "identical" from "not measured". */
+.compare-summary {
+    grid-column: 1 / -1;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-button);
+    padding: 10px 12px;
+    margin-bottom: 12px;
+}
+.compare-sum-head { margin: 0 0 6px; font-size: var(--type-label); color: var(--text-dark); }
+.compare-sum-list {
+    margin: 0; padding: 0; list-style: none;
+    display: flex; flex-wrap: wrap; gap: 4px 18px;
+    font-size: var(--type-small);
+}
+.compare-sum-list li { display: flex; gap: 6px; align-items: baseline; }
+.compare-sum-label { color: var(--text-mid); }
+.compare-sum-val { font-weight: 700; color: var(--text-dark); font-variant-numeric: tabular-nums; }
+.compare-sum-val--same { font-weight: 600; color: var(--text-light); }
