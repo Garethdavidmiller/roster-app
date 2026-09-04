@@ -1218,7 +1218,6 @@
       width: min(300px, 85vw); text-align: center;
       max-height: 80vh;
       max-height: 80dvh;
-      transform: scale(0.85);
     }
     #noticeYtdLightbox.open #noticeYtdContent { transform: scale(1); }
     #noticeYtdClose { color: rgba(255,255,255,0.45); }

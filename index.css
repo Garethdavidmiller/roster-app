@@ -2076,6 +2076,13 @@
         }
 
         /* ---- Day detail lightbox (touch tap on a calendar cell) ---- */
+        /* NO `transform` in this block. `.lb-content` owns the entry animation (0.88 -> 1 on
+           `.lb-overlay.open`) and an ID selector out-specifies it: this rule used to say
+           `scale(0.85)`, so the panel NEVER scaled up — it rendered permanently at 85%, 272px of a
+           320px panel, every glyph 15% under the type scale, and the spring entrance never played.
+           Measured rather than reasoned: `.open` was on the overlay and the computed transform was
+           still `matrix(0.85, ...)`. Four sibling panels carried the same fossil and were fixed with
+           it (v22.64). Nothing here may set `transform` again without re-freezing the animation. */
         #dayDetailContent {
             display: flex;
             flex-direction: column;
@@ -2087,10 +2094,27 @@
             padding: 30px 24px 26px;
             width: min(320px, 90vw);
             text-align: center;
-            transform: scale(0.85);
         }
         .day-detail-date  { color: rgba(255,255,255,0.6); font-size: var(--type-label); font-weight: 600; padding: 0 18px; }
         .day-detail-shift { color: white; font-size: 19px; font-weight: 700; letter-spacing: -0.3px; line-height: 1.25; }
+        /* "Changed from Spare day" — the roster before the change. Quieter than the shift it
+           qualifies and quieter than the gold day markers, because it is context rather than the
+           answer; but at --type-body, not the smaller label size, since on a spare week it is the
+           most consequential line on the panel. Its own hairline separates it from the shift
+           without becoming a second heading. */
+        .day-detail-base {
+            color: rgba(255, 255, 255, 0.78);
+            font-size: var(--type-body);
+            font-weight: 600;
+            line-height: 1.4;
+            padding-top: 9px;
+            border-top: 1px solid rgba(255, 255, 255, 0.12);
+            width: 100%;
+        }
+        /* `hidden` is a UA rule at the lowest specificity and this block sets no `display`, so the
+           attribute still wins — but the page-visibility guard exists because that is one CSS
+           declaration away from silently drawing an empty bordered row. */
+        .day-detail-base[hidden] { display: none !important; }
         .day-detail-extras {
             color: var(--accent-gold);
             font-size: var(--type-label);
@@ -2146,7 +2170,6 @@
             padding: 32px 20px 28px;
             width: min(340px, 92vw);
             text-align: center;
-            transform: scale(0.85);
         }
         #alLightboxClose { color: rgba(255,255,255,0.5); }
         @media (hover: hover) and (pointer: fine) {

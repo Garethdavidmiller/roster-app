@@ -591,6 +591,65 @@ describe('buildCalendarContainer — shift classes', () => {
 
 // ── buildCalendarContainer — special day markers ──────────────────────────────
 
+// ── WHAT THE ROSTER SAID BEFORE THE CHANGE (v22.64) ─────────────────────────────────────────────
+//
+// Reported from a phone: the day panel said "Early shift 07:00-16:00" and nothing said the week
+// underneath was a SPARE week. Those are different weeks of somebody's life — a spare week is one
+// with no assigned duties, so being given a turn on it is not the same fact as a rostered turn
+// being moved — and the panel had no way to tell them apart.
+//
+// Organised by what a wrong answer COSTS. Saying nothing when the roster DID change is the reported
+// defect and is silent. Claiming a change that did not happen is worse in a different way: it
+// invites a member to query a shift with their manager that nobody ever altered.
+describe('buildCalendarContainer — the base-roster line', () => {
+    test('an override over a SPARE week says so — the reported case', () => {
+        _mockGetBaseShift = () => 'SPARE';
+        _overrideCache.set('G. Miller|2026-01-02', { type: 'shift', value: '07:00-16:00', note: '', source: 'manual' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.equal(cell?.dataset.detailBase, 'Spare day',
+            'a shift given on a spare week does not say the week was spare — the panel reads exactly '
+            + 'like an ordinary rostered turn, which is the defect this was written for');
+        assert.match(String(cell?.dataset.detailShift), /Early shift 07:00-16:00/);
+    });
+
+    test('no override → NO base line, because nothing changed', () => {
+        _mockGetBaseShift = () => '06:00-14:00';
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.equal(cell?.dataset.detailBase, undefined,
+            'an unchanged day claims a change. "Changed from Early shift" under "Early shift" is '
+            + 'both noise and an invitation to query a shift nobody altered');
+    });
+
+    test('an override that resolves BACK to the base claims no change', () => {
+        // A SICK override on a Sunday is display-suppressed, so the effective shift IS the base.
+        _mockGetBaseShift = () => '06:00-14:00';
+        _overrideCache.set('G. Miller|2026-01-04', { type: 'sick', value: 'SICK', note: '', source: 'manual' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 4);   // Jan 4 2026 is a Sunday
+        assert.equal(cell?.dataset.detailBase, undefined,
+            'a suppressed override produced a base line, so the panel announces a change the rest of '
+            + 'the app has deliberately decided not to show');
+    });
+
+    test('AL over a rostered turn names the turn it replaced', () => {
+        _mockGetBaseShift = () => '06:00-14:00';
+        _overrideCache.set('G. Miller|2026-01-02', { type: 'annual_leave', value: 'AL', note: '', source: 'manual' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.equal(cell?.dataset.detailBase, 'Early shift 06:00-14:00');
+    });
+
+    test('a permanent-shift member still gets the TIME on the base line', () => {
+        // Their badge never varies, so the effective label omits the time by design. The base line
+        // is the one place the time is the whole answer: without it a 06:20 changed to 07:00 reads
+        // "Changed from Early shift", which states that something changed and not what.
+        _member = { name: 'G. Miller', currentWeek: 1, rosterType: 'main', permanentShift: 'early' };
+        _mockGetBaseShift = () => '06:20-14:20';
+        _overrideCache.set('G. Miller|2026-01-02', { type: 'shift', value: '07:00-16:00', note: '', source: 'manual' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.equal(cell?.dataset.detailBase, 'Early shift 06:20-14:20');
+        _member = FAKE_MEMBER;
+    });
+});
+
 describe('buildCalendarContainer — special markers', () => {
     test('payday cell → payday class and data-payday-iso set', () => {
         _mockIsPayday = () => true;

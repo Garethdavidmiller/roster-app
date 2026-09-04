@@ -767,7 +767,6 @@ body.lb-open #stickyTotal { display: none !important; }
     text-align: center;
     max-height: 80vh;
     max-height: 80dvh;
-    transform: scale(0.85);
 }
 
 /* Enlarged app icon */
@@ -1938,7 +1937,6 @@ button.nav-panel-link--notices {
     padding: 40px 40px 32px;
     width: min(var(--modal-compact), var(--modal-cap));
     text-align: center;
-    transform: scale(0.85);
 }
 .nav-cs-icon  { font-size: 52px; line-height: 1; }
 .nav-cs-title { color: white; font-size: var(--type-large); font-weight: 700; letter-spacing: -0.3px; }
