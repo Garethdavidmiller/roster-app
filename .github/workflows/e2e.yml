@@ -143,8 +143,19 @@ jobs:
           OURS=$(grep -m1 -oE "APP_VERSION = .[0-9]+[.][0-9]+." roster-data.js | grep -oE "[0-9]+[.][0-9]+")
           echo "main is v$MAIN . this branch is v$OURS"
 
+          # The question is NOT "is this file in the repo root" — it is "can a STALE copy of this
+          # file reach a member's device?" Only what the service worker caches can go stale, and a
+          # file the SW does not list cannot (sw-asset-check.test.mjs would fail if one of these
+          # were ever added to those lists). So dev tooling and manifests are excluded alongside
+          # docs and tests: `package.json` registering a new test suite failed this job at
+          # v22.56, which is a false alarm, and a version guard that cries wolf is one somebody
+          # starts bumping past without reading.
+          #
+          # Deliberately NOT excluded, because each IS user-facing: firebase.json (CSP headers and
+          # cache rules), firestore.rules / storage.rules (CLAUDE.md requires a bump for security
+          # rules), and every served .js / .css / .html.
           RUNTIME=$(git diff --name-only origin/main...HEAD \
-            | grep -vE "[.]md$|^[.]github/|^docs/|^[.]claude/|[.]test[.]mjs$|^e2e/|^scripts/|^experiments/|^test-fixtures/" || true)
+            | grep -vE "[.]md$|^[.]github/|^docs/|^[.]claude/|[.]test[.]mjs$|^e2e/|^scripts/|^experiments/|^test-fixtures/|^package(-lock)?[.]json$|^jsconfig[.]json$|^eslint[.]config[.]js$|^playwright[^/]*[.]mjs$|^githooks/" || true)
 
           if [ -z "$RUNTIME" ]; then
             echo "No served file changed - keeping v$OURS is correct."
@@ -174,6 +185,11 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
+          # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
+          # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
+          # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
+          # change invalidates it correctly.
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -204,13 +220,7 @@ jobs:
     needs: guard
     if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
-    # 15, NOT 10, AND THE CACHE BELOW (v22.58). This is the only job in the file that installs
-    # TWICE — the root tree and then functions/ — and it had neither a cache nor room for a slow
-    # registry. Measured on 4 Sep 2026: the root `npm ci` alone took 7m ("added 801 packages in
-    # 7m") and the job was killed mid-second-install at the 10m ceiling, twice in a row, on a PR
-    # touching no Functions code at all. It reads exactly like a Functions failure and is not one:
-    # the tests never start, so the log ends in `Terminate orphan process: (npm ci)`.
-    timeout-minutes: 15
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -220,12 +230,7 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
-          # Both lockfiles, because both installs run here. The raised ceiling above is what
-          # survives a COLD cache (the first run after this change, and any lockfile bump).
-          cache: 'npm'
-          cache-dependency-path: |
-            package-lock.json
-            functions/package-lock.json
+          cache: npm
 
       - name: Install root dependencies
         run: npm ci
@@ -253,7 +258,11 @@ jobs:
     needs: guard
     if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 15 → 20 (4 Sep 2026), matching the webkit sibling. The suite itself takes ~10 minutes; the
+    # old budget left no room for a slow install, and a 7-minute `npm ci` cancelled it mid-run —
+    # which reads as `cancelled`, not `failure`, so it looks like somebody stopped it rather than
+    # like the job outgrowing its box. Still bounded; the point is a bound with margin.
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -263,6 +272,11 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
+          # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
+          # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
+          # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
+          # change invalidates it correctly.
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -356,6 +370,11 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
+          # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
+          # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
+          # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
+          # change invalidates it correctly.
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -401,6 +420,11 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
+          # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
+          # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
+          # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
+          # change invalidates it correctly.
+          cache: npm
 
       # firebase-tools v15 requires Java 21+ for the Firestore/Storage emulators.
       - name: Install Java 21 (Firebase emulators)
@@ -437,6 +461,11 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
+          # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
+          # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
+          # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
+          # change invalidates it correctly.
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -498,6 +527,11 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
+          # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
+          # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
+          # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
+          # change invalidates it correctly.
+          cache: npm
 
       - name: Install dependencies
         run: npm ci

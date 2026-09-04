@@ -509,3 +509,69 @@ describe('the visual lane never gates, and never goes quiet', () => {
         }
     });
 });
+
+
+describe('the version guard exempts only what cannot go stale', () => {
+    /**
+     * The `version` job refuses a branch that changes a served file while claiming a version main
+     * already has — the v22.29 double-ship, which produces no merge conflict and leaves
+     * `service-worker.js` byte-identical across two releases.
+     *
+     * Its exclusion list is the whole rule, and it can be wrong in two directions that are nothing
+     * alike.
+     *
+     * TOO NARROW cries wolf. `package.json` registering a new test suite failed the job at v22.56
+     * — a false alarm, and a version guard that fires on changes needing no bump is one somebody
+     * learns to bump past without reading. That is how the guard stops working while staying green.
+     *
+     * TOO WIDE is silent and is the direction with teeth. Widening the list to quiet a failure is
+     * the obvious fix under time pressure, and exempting `.js`, `firebase.json` or the rules would
+     * disarm the guard for exactly the files it exists for, with nothing to show for it.
+     *
+     * The criterion, stated once so the list can be reasoned about rather than pattern-matched:
+     * **can a stale copy of this file reach a member's device?** Only what the service worker
+     * caches can, plus what carries policy at the edge.
+     */
+    const e2eSrc = readFileSync(join(WF_DIR, 'e2e.yml'), 'utf8');
+    const exclusion = (() => {
+        const from = e2eSrc.indexOf('RUNTIME=$(');
+        assert.ok(from > -1, 'the version job no longer builds a RUNTIME file list');
+        const m = /grep -vE "([^"]+)"/.exec(e2eSrc.slice(from));
+        assert.ok(m, 'the version job no longer filters its file list');
+        return new RegExp(m[1]);
+    })();
+    /** True when the guard would DEMAND a version bump for a change to this path. */
+    const needsBump = (/** @type {string} */ path) => !exclusion.test(path);
+
+    test('a change that cannot reach a device is exempt', () => {
+        for (const f of ['package.json', 'package-lock.json', 'jsconfig.json', 'eslint.config.js',
+                         'playwright.config.mjs', 'playwright.visual.mjs', 'githooks/pre-commit',
+                         'docs/AI_MAP.md', 'CLAUDE.md', 'workflow-hygiene.test.mjs',
+                         'e2e/pages.spec.js', 'scripts/bump-version.mjs']) {
+            assert.equal(needsBump(f), false,
+                `${f} cannot go stale on a device — the service worker does not cache it — so `
+                + 'demanding a version bump for it is a false alarm, and false alarms are how this '
+                + 'guard gets bumped past unread');
+        }
+    });
+
+    test('everything a member can actually be served STILL demands one', () => {
+        for (const f of ['paycalc-app.js', 'roster-data.js', 'service-worker.js', 'index.html',
+                         'paycalc.css', 'shared.css', 'manifest.json',
+                         // Not cached, but policy at the edge: the CSP header, the cache rules and
+                         // the security rules all change what a device is allowed to do.
+                         'firebase.json', 'firestore.rules', 'storage.rules']) {
+            assert.equal(needsBump(f), true,
+                `${f} is exempt from the version guard. If that was done to quiet a failing job, `
+                + 'it disarmed the guard for precisely the files it exists to protect.');
+        }
+    });
+
+    test('and the guard still fails the branch rather than warning', () => {
+        // A guard that prints and exits 0 is a comment. This one is the reason the v22.29 duplicate
+        // could not happen again, and only a non-zero exit delivers that.
+        const job = e2eSrc.slice(e2eSrc.indexOf('  version:'), e2eSrc.indexOf('  unit:'));
+        assert.match(job, /::error::/, 'the version job must annotate the failure');
+        assert.match(job, /exit 1/, 'the version job must FAIL, not warn');
+    });
+});

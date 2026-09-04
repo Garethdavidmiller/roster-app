@@ -406,6 +406,21 @@ prompts gated on stored data never reach them (the HPP banner is the worked exam
 asking two colleagues to do the task from the app alone, never by page height or word count. Cut
 decisions, not explanations.
 
+**Subject 1 — SHIPPED v22.57: Sunday vs Rest Day Working.** Chosen because it produced a real
+wrong estimate rather than a hypothetical one: a member put worked Sundays in Rest Day Working
+(1.25×) instead of Sunday Working (1.5×), about £43 light on an eight-hour day. **The app already
+had the fact, stated perfectly** — the Pay Calculator Guide's "Sunday vs RDW" tip says exactly the
+right thing — and it did not help, because a guide has to be OPENED and she was reading the form.
+That is this whole entry's premise demonstrated instead of argued, and it settles what the pass
+actually does: **carry the fact to the point of use; do not write it again somewhere new.** The
+mechanism was the payslip itself — a worked Sunday prints as "RDW Sun 1.5", so somebody matching
+payslip lines to boxes lands on Rest Day Working, whose own subtitle described what they did. Fixed
+in both directions (the redirect the Saturday row always had, plus "rostered or not" on the Sunday
+row), the payslip's misleading word named where the mistake is made, and the `?` panel given the
+same sentence. Held by `paycalc-copy-parity.test.mjs`, which pins the distinction rather than the
+wording. **Next subjects, in order of evidence: HPP and back pay** (both already carry the "nobody
+told me this exists" shape) — but wait for a real report rather than picking one.
+
 **Method, per surface.** Read it as a first-time colleague and answer: what terminology does this
 screen assume · what important thing can only be found by somebody who already knows its name · what
 is the collapsed/header copy teaching · is every acronym expanded on first meaningful use · does the
