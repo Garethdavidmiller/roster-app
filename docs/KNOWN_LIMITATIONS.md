@@ -667,6 +667,22 @@ day cells, the Team View grid and every other page keep scaling as the phone ask
 surface ever seems to need it, the answer is a second line, not a third compensating rule. Raised by
 the v22.87 external review, agreed.
 
+### Shift DURATION in the day panel — considered and declined (v22.89)
+
+Proposed by an external review, with its own caveat attached, and declined on the strength of it: a
+"9 hours" line under `07:00–16:00`, or better a paid figure.
+
+**The app has no paid-hours model, and a clock figure is not one.** Breaks are not in the data; the
+pay calculator works from hours a member ENTERS per period, never from a shift's start and end. So
+the only number available is the clock difference — which a member reading it on the panel they
+trust most would reasonably take as paid, and it is not. That is the same failure as stating "As
+rostered" over an unread month, running the other way: a confident figure the app has no basis for.
+
+It is not blocked by difficulty. `admin-shift-rules.js` already computes shift length correctly,
+midnight crossings included, and reusing it would take an afternoon — which is what makes this worth
+writing down rather than leaving to be rediscovered as an easy win. **If a real paid-duration rule
+ever exists in the data, revisit; until then a duration line is a number with nothing behind it.**
+
 ### Duplicate Firestore override documents
 If a date has multiple override documents for the same member, the cache keeps the
 most recently created one (by `createdAt` timestamp). Duplicates are logged via

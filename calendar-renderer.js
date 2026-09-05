@@ -12,7 +12,7 @@
 import {
     DAY_NAMES, MONTH_NAMES,
     isSameDay, isBankHoliday, isChristmasDay, isEasterSunday,
-    isPayday, isCutoffDate, getShiftKind, getShiftClass, getShiftBadge,
+    isPayday, isCutoffDate, getShiftKind, getShiftClass, getShiftBadge, shiftBadgeParts,
     getWeekNumberForDate, getRosterForMember, resolveMemberRoster, getBaseShift, formatISO, isSunday, isWorkedShift,
     SWIPE_THRESHOLD, SWIPE_VELOCITY, paydayForCutoff, escapeHtml,
 } from './roster-data.js';
@@ -88,6 +88,19 @@ export function shiftWords(shift, member, derivedRdw, alwaysTime = false) {
             + ((other.rdw || derivedRdw) ? ' — Rest Day Worked' : '')
             + (other.time ? ` ${other.time}` : '');
     }
+    // A VALUE THE APP ITSELF CANNOT READ IS NOT A LATE SHIFT (v22.89).
+    //
+    // The ladder below has no branch for "I don't know": `getShiftKind` calls everything that is
+    // not an early or a night a LATE, so an unparseable value came back as "Late shift SEE NATHAN"
+    // — a confident, wrong name, on the one day the member tapped BECAUSE it looked wrong. The cell
+    // beside it wears ❓ Unknown from `shiftBadgeParts`, so the two surfaces stated different
+    // things about the same day and only one of them admitted to not knowing.
+    //
+    // Asked of `shiftBadgeParts` rather than re-tested here, because that function is already the
+    // one authority on what a value IS, and a second regex would be free to disagree with it. The
+    // raw value is kept: a real Supervisor roster says "SEE NATHAN", and that is information a
+    // member can act on where "not recognised" alone is not.
+    if (shiftBadgeParts(shift).cls === 'badge-unknown') return `Not recognised: ${shift}`;
     return SHIFT_KIND_LABELS[getShiftKind(shift, member)]
         + ((member.permanentShift && !alwaysTime) ? '' : ` ${shift}`);
 }
@@ -146,6 +159,40 @@ export function dayMarkers(f) {
     if (f.isPay)    out.push({ icon: '💷', label: 'Payday' });
     if (f.isCutoff) out.push({ icon: '✂️', label: 'Cut-off date' });
     return out;
+}
+
+/**
+ * WHICH ROSTER WEEK THIS DATE FALLS IN — the panel's half of the header's week note.
+ *
+ * The month header carries "CEA Weeks 12–16", and on a phone that context is gone the moment the
+ * day panel opens over it. One DATE resolves to exactly one week, so the panel can state precisely
+ * what the header can only give as a range.
+ *
+ * TWO THINGS THIS MUST NOT DO, both of them one careless line away:
+ *
+ *   · **Never state a week for a FIXED line.** `getWeekNumberForDate` returns `currentWeek` for a
+ *     fixed roster — which names WHICH FIXED PATTERN the member sits on, not a position in a
+ *     rotation. Printed as "Week 2" it reads as the second week of a cycle that does not exist.
+ *     `weekPrefix` is `''` for exactly those members, and that is the same test the header makes,
+ *     so the two surfaces cannot disagree about who has a week at all.
+ *   · **Resolve per DATE, never from the member's base fields.** Both calls below apply
+ *     `resolveMemberRoster`, so a member with a scheduled `rosterChanges` move gets the roster they
+ *     are actually on that day.
+ *
+ * The second point is also where the panel EARNS its place rather than repeating the header: in a
+ * transition month the header suppresses the week label altogether (`isTransitionMonth` — one month
+ * spanning two numbering schemes cannot honestly be written as a range), and the panel is then the
+ * only place the week is available.
+ *
+ * @param {any} member the team member record
+ * @param {Date} date  the date whose week is wanted
+ * @returns {string} e.g. `'CEA Week 15'` — or `''` where the member has no rotating week
+ */
+export function weekContext(member, date) {
+    if (!member || !date) return '';
+    const { weekPrefix } = getRosterForMember(member, date);
+    if (!weekPrefix) return '';
+    return `${weekPrefix} ${getWeekNumberForDate(date, member)}`;
 }
 
 /**
@@ -433,6 +480,10 @@ export function buildCalendarContainer(month, year, opts = {}) {
         dayCell.dataset.tooltip = ttParts.join(' · ');
         // Structured pieces for the tap-to-view day-detail lightbox (touch devices).
         dayCell.dataset.detailDay   = `${fullDayNames[currentDate.getDay()]} ${currentDate.getDate()} ${MONTH_NAMES[month]} ${year}`;
+        // The roster week this date falls in — see `weekContext`, which also owns the one case
+        // that must stay silent (a fixed line has no rotating week to state).
+        const weekLabel = weekContext(member, currentDate);
+        if (weekLabel) dayCell.dataset.detailWeek = weekLabel;
         dayCell.dataset.detailShift = ttShift;
         // The raw effective value, so the panel can lead with the day's OWN kind glyph from
         // `shiftBadgeParts` (v22.70). Written on every day, changed or not: an unchanged day used
@@ -455,6 +506,23 @@ export function buildCalendarContainer(month, year, opts = {}) {
             dayCell.dataset.detailNowShift  = shift;
             const by = changeProvenance(override?.source, override?.changedBy);
             if (by) dayCell.dataset.detailBy = by;
+        } else if (_display === 'render') {
+            // NOTHING WAS CHANGED — AND WE ACTUALLY KNOW THAT (v22.89, external review).
+            //
+            // An unchanged day rendered nothing in the panel's change slot, so "no change is on
+            // record" and "nobody has looked yet" were the same blank to a member deliberately
+            // checking a date they were unsure about. The panel can answer that, but only where the
+            // answer is earned: `render` is the ONE display state backed by a settled server read.
+            // On a `stale` month — last-known-good data, which the grid still draws — the flag is
+            // withheld and the panel stays blank, because turning the absence of an override in a
+            // possibly-superseded cache into "As rostered" is precisely the claim
+            // calendar-data-state.js exists to stop. Silence is not the opposite claim; it is the
+            // absence of one.
+            //
+            // Decided HERE rather than in the panel because both halves are already in hand at this
+            // line — the base-vs-effective comparison and the month's knowledge — and a second copy
+            // of the knowledge rule in a view module is how the two would come to disagree.
+            dayCell.dataset.detailAsRostered = '1';
         }
         if (extras)       dayCell.dataset.detailExtras = extras;
         // JSON rather than a re-parse of the sentence above: the panel needs the icons, and

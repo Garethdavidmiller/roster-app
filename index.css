@@ -265,6 +265,24 @@
                floor v22.61 set for coarse pointers. */
             .controls .control-group--actions button { padding-left: 8px; padding-right: 8px; }
         }
+        /* COMPACT IS ABOUT WHETHER THE ROW FITS, AND WIDTH IS THE OTHER INPUT TO THAT (v22.89).
+           The tier above triggers on TEXT SCALE, which was only ever half the question. At the
+           DEFAULT text size a 320px phone needs 319px of buttons and gaps against 294px of row, so
+           the five buttons wrapped to two — the exact thing the compact tier exists to prevent,
+           happening on the narrowest phones, with the remedy already written and withheld from
+           them. Measured plain, with no scaling and no seam: two rows at 320 and 333, one row from
+           344. Dropping the four decorative icons ALONE fits it (223px of buttons), so the gap and
+           padding the 380px block already tightens are left exactly as they are.
+           This is why no text-scale tier could ever have caught it: Android's "Display size"
+           setting shrinks the CSS VIEWPORT — an older Samsung on a larger one reports ~320-333px —
+           where the separate font-size setting scales type and leaves the viewport alone. Two axes,
+           and v22.87 measured one.
+           359 rather than the measured 343: at 344 the fit has 4px of headroom, which a fallback
+           font stack would eat, and 360 is the width every other measurement in this file is taken
+           at. Narrow it if a 344-359px phone ever wants its icons back. */
+        @media (max-width: 359px) {
+            .controls .control-group--actions .btn-ico { display: none; }
+        }
 
         .controls .control-group--stacked {
             flex-direction: column;
@@ -2280,6 +2298,20 @@
             text-wrap: balance;
             line-height: 1.35;
         }
+        /* THE ROSTER WEEK, under the date it qualifies (v22.89, external review). Quieter than the
+           date above it and quieter again than the shift below: this is context FOR the date, not
+           a third fact competing with the two the member came for. Hidden entirely for a member on
+           a fixed line — `weekContext` decides that, never this stylesheet. */
+        .day-detail-week {
+            width: 100%;
+            text-align: center;
+            color: rgba(255,255,255,0.45);
+            font-size: var(--type-small);
+            font-weight: 600;
+            letter-spacing: 0.2px;
+            margin-top: 2px;
+        }
+        .day-detail-week[hidden] { display: none !important; }
         /* THE SHIFT, LED BY ITS OWN KIND GLYPH (v22.70). The panel used to be monochrome unless
            something had CHANGED — the coloured pair below was the only colour on it — so the app's
            shift identity read as a property of "something happened" rather than of the shift, and a
@@ -2340,12 +2372,23 @@
            whenever the first is on screen, which is what keeps it correct in every combination:
            change alone, markers alone, and both. */
         .day-detail-change,
+        .day-detail-asrostered,
         .day-detail-markers {
             width: 100%;
             padding-top: 12px;
             border-top: 1px solid rgba(255, 255, 255, 0.12);
         }
-        .day-detail-change:not([hidden]) + .day-detail-markers {
+        /* `~`, NOT `+` (v22.89). The rule above says the markers give up their hairline whenever a
+           block above them is already carrying one — and as an ADJACENT-sibling selector that was
+           true only while the change block sat immediately before the markers. Adding "As rostered"
+           between them would have silently stopped it matching, putting a second rule 40px below
+           the first: the four-stacked-fragments look the comment above is about, arriving with no
+           error and on the commonest day of all, an unchanged one. A general sibling combinator
+           states what was always meant — anything above, not the thing directly above — and cannot
+           be broken by inserting a fourth block later. The two selectors are never both live: a day
+           was changed or it was not. */
+        .day-detail-change:not([hidden]) ~ .day-detail-markers,
+        .day-detail-asrostered:not([hidden]) ~ .day-detail-markers {
             border-top: none;
             padding-top: 6px;
         }
@@ -2356,6 +2399,25 @@
             gap: 6px;
         }
         .day-detail-change[hidden] { display: none !important; }
+        /* "AS ROSTERED" — the change block's other state, in the change block's slot, and the
+           quietest line on the panel. It CONFIRMS an expectation rather than reporting news, so
+           anything louder would compete with the very shift it is confirming: no card, no fill, no
+           heading. The tick is the app's own affirmative idiom — the same gold as Team View's "This
+           week" dot, which is the same kind of statement — and it is `aria-hidden`, because the
+           words already say it. `display: flex` out-specifies the `hidden` attribute, so the
+           `!important` reset below is load-bearing: this is exactly the page-visibility-parity
+           trap, where the row draws empty and nothing throws. */
+        .day-detail-asrostered {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            color: rgba(255,255,255,0.5);
+            font-size: var(--type-small);
+            font-weight: 600;
+        }
+        .day-detail-asrostered[hidden] { display: none !important; }
+        .ddr-tick { color: var(--accent-gold); font-size: var(--type-label); line-height: 1; }
         .ddc-eyebrow {
             font-size: var(--type-micro);
             font-weight: 700;

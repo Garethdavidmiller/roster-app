@@ -202,6 +202,8 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   // from the hover tooltip (which is unreachable on touch).
   const dayLb    = document.getElementById('dayDetailLightbox');
   const dateEl   = /** @type {HTMLElement} */ (document.getElementById('dayDetailDate'));
+  const weekEl   = /** @type {HTMLElement} */ (document.getElementById('dayDetailWeek'));
+  const asRostEl = /** @type {HTMLElement} */ (document.getElementById('dayDetailAsRostered'));
   const glyphEl  = /** @type {HTMLElement} */ (document.getElementById('dayDetailShiftGlyph'));
   const wordsEl  = /** @type {HTMLElement} */ (document.getElementById('dayDetailShiftWords'));
   const timeEl   = /** @type {HTMLElement} */ (document.getElementById('dayDetailShiftTime'));
@@ -250,6 +252,12 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     if (!detailLb) return;
     const d = cell.dataset;
     dateEl.textContent  = d.detailDay   || '';
+    // The roster week for THIS date, or nothing. Which members have one is `weekContext`'s call in
+    // the renderer, so the panel never has to know which rosters rotate.
+    if (weekEl) {
+      weekEl.textContent = d.detailWeek || '';
+      weekEl.hidden = !d.detailWeek;
+    }
     // The words and the TIME are separate spans so a 320px wrap breaks between them and never
     // inside the value — `splitShiftLine` in calendar-renderer.js owns the split. A dataset written
     // by an older renderer (a page held open across a deploy) has neither, so fall back to the
@@ -313,6 +321,12 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
         changeEl.removeAttribute('aria-label');
       }
     }
+    // "As rostered" — the change block's other state, and ONLY where the renderer could see that a
+    // server read had settled for the month. Its ABSENCE is therefore not the opposite claim: on a
+    // last-known-good month neither line renders, which is the honest state (calendar-data-state.js).
+    // The `!d.detailBaseShift` half guards a dataset written by an OLDER renderer — a page held
+    // open across a deploy — where both flags could be present at once.
+    if (asRostEl) asRostEl.hidden = !(d.detailAsRostered && !d.detailBaseShift);
     // THE DAY MARKERS, AS THE CALENDAR'S OWN ICONS (v22.70). `detailMarkers` is the structured
     // form of the same list the tooltip's comma sentence comes from, so the two cannot name
     // different days. The parse is guarded and falls back to the sentence: a chip row is a nicety,

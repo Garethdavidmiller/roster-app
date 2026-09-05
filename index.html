@@ -240,6 +240,12 @@
         <div id="dayDetailContent" class="lb-content">
             <button id="dayDetailClose" class="lb-close" type="button" aria-label="Close">✕</button>
             <div class="day-detail-date" id="dayDetailDate"></div>
+            <!-- The roster week this date falls in. The month header carries "CEA Weeks 12–16",
+                 and on a phone that context is gone the moment this panel opens over it; one date
+                 resolves to exactly one week. Absent for a member on a fixed line, who has no
+                 rotating week to state — `weekContext` in calendar-renderer.js makes that call,
+                 from the same `weekPrefix` the header tests, so the two cannot disagree. -->
+            <div class="day-detail-week" id="dayDetailWeek" hidden></div>
             <!-- The shift, led by its OWN kind glyph (☀️ 🌙 🏠 🏖️ …) from `shiftBadgeParts` — the
                  same emoji the tapped cell wears. The glyph is aria-hidden: the words beside it
                  already say "Early shift", and a screen reader announcing the emoji's own name
@@ -274,6 +280,15 @@
                  sentence: this panel is where a member asks what the ⭐ on a cell means, and it
                  used to answer without the ⭐. Built in JS from `dayMarkers`, the one authority
                  the hover tooltip's sentence also comes from. -->
+            <!-- THE OTHER HALF OF THE CHANGE BLOCK, IN THE SAME SLOT — a day was either changed
+                 or it was not, so the two never appear together. An unchanged day used to render
+                 nothing here, which made "no change is on record" and "nobody has looked yet" the
+                 same blank to somebody checking a date they were unsure about. This is only ever
+                 written when a server read has SETTLED for the month; on last-known-good data
+                 neither line renders. The renderer decides — see `detailAsRostered`. -->
+            <div class="day-detail-asrostered" id="dayDetailAsRostered" hidden>
+                <span class="ddr-tick" aria-hidden="true">✓</span><span>As rostered</span>
+            </div>
             <div class="day-detail-markers" id="dayDetailExtras" hidden></div>
             <!-- No 💷 here: the chip above carries it, and the two sat ten pixels apart saying the
                  same thing twice. The green already IS the app's Pay identity (the nav Pay pill). -->

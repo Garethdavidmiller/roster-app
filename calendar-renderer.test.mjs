@@ -54,6 +54,16 @@ mock.module('./roster-data.js', {
             if (/^(TRG|IND|ASSESS)( RDW)?/.test(s)) return 'other-day';
             return 'early-shift';
         },
+        // `shiftWords` asks this whether a value is one the app can read at all, rather than
+        // keeping a second regex (v22.89). The stub follows the real branch order so the
+        // unrecognised case is reachable here — every value the suite uses is a known one, so
+        // nothing else changes.
+        shiftBadgeParts(s) {
+            if (!s || ['RD', 'OFF', 'SPARE', 'RDW', 'AL', 'SICK'].includes(s)) return { cls: 'badge-rest', emoji: '🏠', word: 'Rest' };
+            if (/^(TRG|IND|ASSESS|TEAM|UNION|MEET)( RDW)?( \d{2}:\d{2}-\d{2}:\d{2})?$/.test(s)) return { cls: 'badge-other', emoji: '🏷️', word: 'Train' };
+            if (!/^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$/.test(s)) return { cls: 'badge-unknown', emoji: '❓', word: 'Unknown' };
+            return { cls: 'badge-early', emoji: '☀️', word: 'Early' };
+        },
         getShiftBadge(s) {
             if (!s || s === 'RD' || s === 'OFF') return '<span class="shift-badge badge-rest"><span aria-hidden="true">🏠</span><span>Rest</span></span>';
             if (s === 'SPARE') return '<span class="shift-badge badge-spare"><span aria-hidden="true">📋</span><span>Spare</span></span>';
@@ -283,6 +293,66 @@ describe('createCalendarHeader', () => {
 //
 // These are the tests the shipped bug would have failed. Everything else in this file asserts what a
 // day cell looks like; none of it could tell you whether the cells should have been drawn at all.
+
+describe('buildCalendarContainer — "As rostered" is a CLAIM, so it has to be earned', () => {
+    // The rule lives in calendar-data-state.js and is tested exhaustively there. What nothing could
+    // see is whether the renderer ASKS it — and a flag that is written unconditionally passes every
+    // test of the rule while telling a member on a stale month that their roster is confirmed.
+    // These drive the real module: `knowledgeOf` and `decideDisplay` are deliberately not mocked.
+    test('an unchanged day on an AUTHORITATIVE month carries the flag', () => {
+        _resetKnowledge();
+        knowTestMonth();
+        _mockGetBaseShift = () => '06:00-14:00';   // and no override, so base === effective
+        // Scoped to THIS month's own days: the grid is padded with adjacent-month cells, which
+        // carry no dataset at all and would make `every` pass or fail for the wrong reason.
+        const cells = [...buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year)
+            .querySelectorAll('.calendar-day')].filter(c => c.dataset.detailDay);
+        assert.ok(cells.length, 'precondition: the grid rendered');
+        assert.ok(cells.every(c => c.dataset.detailAsRostered === '1'),
+            'a settled month with nothing changed is the one state that may say so');
+    });
+
+    test('the SAME day on a CACHED month does NOT — silence is not the opposite claim', () => {
+        _resetKnowledge();
+        noteKnowledge('2026-01', 'cached');
+        _mockGetBaseShift = () => '06:00-14:00';
+        const container = buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year);
+        const cells = [...container.querySelectorAll('.calendar-day')].filter(c => c.dataset.detailDay);
+        assert.equal(container.dataset.overrideState, 'stale');
+        assert.ok(cells.length,
+            'precondition: a cached month still DRAWS its grid — that is what makes this the ' +
+            'dangerous state. The member is reading a roster; the app just cannot promise it is ' +
+            'current, and an override recorded since could be missing from exactly this cache.');
+        assert.ok(cells.every(c => !c.dataset.detailAsRostered),
+            'a last-known-good month must not confirm that nothing was changed');
+    });
+
+    test('a CHANGED day never carries it, settled month or not', () => {
+        _resetKnowledge();
+        knowTestMonth();
+        _mockGetBaseShift = () => '06:00-14:00';
+        _overrideCache.set('G. Miller|2026-01-02', { type: 'annual_leave', value: 'AL', note: '', source: 'manual' });
+        const cell = [...buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year)
+            .querySelectorAll('.calendar-day')].find(c => (c.dataset.detailDay || '').includes(' 2 January'));
+        _overrideCache.clear();
+        assert.ok(cell, 'precondition: found the changed day');
+        assert.ok(cell.dataset.detailBaseShift, 'precondition: it rendered as a change');
+        assert.ok(!cell.dataset.detailAsRostered,
+            'the two are one slot in the panel and must never both be true');
+    });
+
+    test('the roster week is written onto every cell', () => {
+        _resetKnowledge();
+        knowTestMonth();
+        _mockGetBaseShift = () => '06:00-14:00';
+        const cells = [...buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year)
+            .querySelectorAll('.calendar-day')].filter(c => c.dataset.detailDay);
+        assert.ok(cells.length, 'precondition: the grid rendered');
+        assert.ok(cells.every(c => c.dataset.detailWeek === 'CEA Week 3'),
+            'the panel reads this straight off the cell; which members HAVE a week is weekContext\'s ' +
+            'call, and is tested against the real roster table in day-detail-explains.test.mjs');
+    });
+});
 
 describe('buildCalendarContainer — withheld grid', () => {
     test('an UNKNOWN month draws no day cells — the base roster is not a fact yet', () => {

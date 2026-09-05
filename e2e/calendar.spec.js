@@ -1367,3 +1367,112 @@ test('calendar: the team week is ANNOUNCED with the full month name, not the on-
     expect(spoken, `announced "${spoken}"`).toMatch(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\b/);
     expect(spoken, `announced the short form: "${spoken}"`).not.toMatch(/\b(Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/);
 });
+
+// ─── THE DAY PANEL'S TWO NEW LINES, AND THE NARROW-PHONE ACTION ROW (v22.89) ─────────────────────
+//
+// Both from an external review. The unit suites own the RULES — which members have a roster week,
+// which knowledge state may confirm a day — and these own the WIRING, which is the half this repo
+// has recorded losing: a perfect rule whose result is never written, or written into an element
+// nothing shows.
+
+test('day detail: states the roster week under the date', async ({ page }, info) => {
+    test.skip(info.project.name !== 'mobile-chrome', 'the day panel is the touch route; desktop hovers');
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('.calendar-day:not(.other-month)').first().click();
+
+    const week = page.locator('#dayDetailWeek');
+    await expect(week).toBeVisible();
+    // The member's OWN words, not a hardcoded "CEA": the seeded member is on the main rotation, and
+    // a fixed-line member must get no row at all (weekContext, unit-tested against the real table).
+    await expect(week).toHaveText(/^[A-Za-z]+ Week \d+$/);
+
+    // Under the date, above the shift — it is context FOR the date, not a third headline.
+    const box = async (sel) => await page.locator(sel).boundingBox();
+    const [date, wk, shift] = await Promise.all(
+        ['#dayDetailDate', '#dayDetailWeek', '#dayDetailShift'].map(box));
+    expect(wk.y, 'the week sits below the date').toBeGreaterThanOrEqual(date.y + date.height - 2);
+    expect(shift.y, 'and above the shift').toBeGreaterThanOrEqual(wk.y + wk.height - 2);
+});
+
+test('day detail: an unchanged day says so, a changed one shows the change instead', async ({ page }, info) => {
+    test.skip(info.project.name !== 'mobile-chrome', 'the day panel is the touch route; desktop hovers');
+    await seedMember(page);
+    // One override, so the same month holds both states and neither can pass by the fixture alone.
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [];
+        for (let m = 1; m <= 12; m++) {
+            w.__E2E.docs.push({ id: 'ovc' + m, memberName: 'G. Miller',
+                date: '2026-' + String(m).padStart(2, '0') + '-04',
+                type: 'shift', value: '07:00-16:00', note: '' });
+        }
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+
+    const changedIdx = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
+        .findIndex(c => c.dataset.detailBaseShift));
+    expect(changedIdx, 'the fixture no longer overrides a day in this month').toBeGreaterThan(-1);
+    const plainIdx = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
+        .findIndex(c => c.dataset.detailDay && !c.dataset.detailBaseShift));
+    expect(plainIdx, 'no unchanged day in this month').toBeGreaterThan(-1);
+
+    // THE CHANGED DAY: the change, and never the confirmation — they are one slot.
+    await page.locator('.calendar-day:not(.other-month)').nth(changedIdx).click();
+    await expect(page.locator('#dayDetailChange')).toBeVisible();
+    await expect(page.locator('#dayDetailAsRostered')).toBeHidden();
+    await page.locator('#dayDetailClose').click();
+    await expect(page.locator('#dayDetailChange')).toBeHidden();
+
+    // THE UNCHANGED DAY: the confirmation, in the same place, and in words.
+    await page.locator('.calendar-day:not(.other-month)').nth(plainIdx).click();
+    const rostered = page.locator('#dayDetailAsRostered');
+    await expect(rostered).toBeVisible();
+    await expect(rostered).toHaveText(/as rostered/i);
+    await expect(page.locator('#dayDetailChange')).toBeHidden();
+
+    // `hidden` must actually hide, and `display: flex` out-specifies the attribute — the trap
+    // page-visibility-parity guards statically and this one can see for real.
+    await expect(page.locator('#dayDetailChange')).toHaveCSS('display', 'none');
+});
+
+// The five action buttons on a phone NARROWER than the app's 360px design width. Android's
+// "Display size" setting shrinks the CSS viewport where the separate font-size setting does not, so
+// an older Samsung on a larger one reports ~320-333px — and at the DEFAULT text size the row needed
+// 319px against 294px and wrapped to two. Text scale could never have caught it: this is the other
+// axis. Measured plain, no seam and no font simulation.
+for (const width of [320, 333, 360]) {
+    test(`calendar: the action row is one line at ${width}px with no text scaling`, async ({ page }) => {
+        await seedMember(page);
+        await seedMemberSession(page);
+        await page.setViewportSize({ width, height: 820 });
+        await page.goto('/');
+        await page.waitForSelector('.control-group--actions button');
+        await page.waitForTimeout(250);
+        const geo = await page.evaluate((vw) => {
+            const btns = [...document.querySelectorAll('.control-group--actions button')];
+            const lines = btns.map(b => b.getBoundingClientRect().top).sort((a, b) => a - b)
+                .reduce((L, t) => (L.length && t - L[L.length - 1] < 8 ? L : L.concat(t)), []).length;
+            return { lines, cut: btns.filter(b => { const q = b.getBoundingClientRect();
+                        return q.left < -0.5 || q.right > vw + 0.5; }).length,
+                     stamp: document.documentElement.getAttribute('data-text-scale'),
+                     icons: [...document.querySelectorAll('.control-group--actions .btn-ico')]
+                        .filter(i => i.getBoundingClientRect().width > 0).length,
+                     // innerText, not textContent: a hidden icon span is still in textContent.
+                     // The leading emoji is stripped so one assertion covers both sides of the
+                     // breakpoint — the WORD is what must survive, with or without its icon.
+                     words: btns.slice(1).map(b => b.innerText.replace(/^[^A-Za-z]+/, '').trim()) };
+        }, width);
+        expect(geo.stamp, 'no text scaling here — this is purely a width case').toBeNull();
+        expect(geo.cut, 'no button off the edge').toBe(0);
+        expect(geo.lines, `expected one line at ${width}px, got ${geo.lines}`).toBe(1);
+        expect(geo.words, 'the WORDS are the content and never go, at any width')
+            .toEqual(['Team', 'AL', 'Admin', 'Pay']);
+        // Below the design width the four decorative icons are what pays for the single line;
+        // at 360 and above they stay.
+        expect(geo.icons, width < 360 ? 'icons drop below 360px' : 'icons stay from 360px')
+            .toBe(width < 360 ? 0 : 4);
+    });
+}
