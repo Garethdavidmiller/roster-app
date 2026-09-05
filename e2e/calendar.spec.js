@@ -91,11 +91,20 @@ test('day detail: names the roster it was changed from, and opens at full size',
 
     // Full size, not the 85% fossil. The transform is the only observable: the text renders either
     // way, which is exactly why this went unnoticed.
-    await page.waitForTimeout(600);
-    const t = await page.evaluate(() => getComputedStyle(
-        /** @type {any} */ (document.getElementById('dayDetailContent'))).transform);
-    expect(t, 'the panel never scaled up — an id-level transform is beating the shared .open rule')
-        .toBe('matrix(1, 0, 0, 1, 0, 0)');
+    //
+    // POLLED, NEVER A FIXED SLEEP (v22.93). `createLightbox` adds `.open` inside a
+    // `requestAnimationFrame`, and WebKit throttles rAF hard on a page it is not painting — so on a
+    // loaded CI shard the frame can arrive well after any sleep you pick, leaving the panel at its
+    // resting `scale(0.88)` with nothing wrong. That is what a 600ms `waitForTimeout` here did:
+    // mobile-safari failed on the first attempt AND the retry, and passed outright on the next run.
+    // This file already carries the lesson further down — a fixed wait fails on a different line
+    // each run — and this assertion was the one place still ignoring it.
+    //
+    // It keeps every tooth. A panel genuinely pinned by an id-level `transform` never reaches 1, so
+    // this still fails, just at the end of the timeout instead of at 600ms.
+    await expect(page.locator('#dayDetailContent'),
+        'the panel never scaled up — an id-level transform is beating the shared .open rule')
+        .toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
 });
 
 // A change WITHIN one shift kind — a time tweak, and probably the commonest change there is. The
@@ -169,7 +178,13 @@ test('day detail: the date clears the close button at every phone width', async 
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     await page.locator('.calendar-day:not(.other-month)').nth(29).click();
     await expect(page.locator('#dayDetailContent')).toBeVisible();
-    await page.waitForTimeout(600);
+    // Wait for the panel to have finished GROWING before measuring anything in it, and wait for it
+    // by asking rather than by sleeping — same reason as the assertion above. It matters more here
+    // than it looks: a panel still at `scale(0.88)` is measurably SMALLER, so an overlap check run
+    // against it passes for the wrong reason. A wrong-way-round pass is worse than a flake, because
+    // nothing reports it.
+    await expect(page.locator('#dayDetailContent'))
+        .toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
 
     // NO OVERLAP — measured against the RENDERED TEXT, not the element box. The date line is
     // `width: 100%` and clears the ✕ with padding, so its BOX legitimately reaches under the
