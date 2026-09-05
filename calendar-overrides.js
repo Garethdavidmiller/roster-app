@@ -38,14 +38,41 @@ export const rosterOverridesCache = new Map();
 // coordinator PUSHES the fact in. Default false, so anything that forgets to push it reads nothing.
 let _accessGranted = false;
 
+// ── THE PROVISIONAL SCOPE (v22.96) ──────────────────────────────────────────────────────────────
+//
+// Non-null means access is PROVISIONAL: granted on this device's own local session while Firebase
+// revalidates the stored identity, and confined to ONE member's data out of the LOCAL cache. The
+// owner decision behind it, and why it is a decision rather than an optimisation, are argued in
+// `calendar-access-core.js` → `decideProvisionalAccess`.
+//
+// It is the whole boundary, so it is enforced in the READS rather than remembered by the caller:
+//   · the cached read adds a `memberName` filter — a member may re-see their own roster, never a
+//     colleague's annual leave and absence;
+//   · every SERVER read refuses outright. Nothing new is fetched under an identity nobody has
+//     confirmed yet; the grant only re-shows what this device was already given.
+//
+// Null under a full grant, which is how the same reads open up again with no second code path.
+/** @type {string|null} */
+let _provisionalMember = null;
+
 /**
  * Open the override reads. Called by the Calendar coordinator once — and only once — access is
- * confirmed. There is no way to pass a "kind" of access here on purpose: named and viewer both read
- * the same data, so a second parameter would only be a second thing to get wrong.
+ * confirmed.
+ *
+ * The second argument was added at v22.96 and this comment used to say there would never be one:
+ * "named and viewer both read the same data, so a second parameter would only be a second thing to
+ * get wrong." That was right while both kinds of access read the same data. A provisional grant
+ * does not — it is one member, out of the cache — so the KIND now has to travel with the grant.
+ * The alternative was a second entry point, which is the same risk with two doors.
+ *
  * @param {boolean} granted
+ * @param {{ provisionalMember?: string|null }} [opts] provisional: cache-only, and only this member
  */
-export function setOverrideAccess(granted) {
+export function setOverrideAccess(granted, opts = {}) {
     _accessGranted = granted === true;
+    _provisionalMember = _accessGranted && typeof opts.provisionalMember === 'string' && opts.provisionalMember.trim()
+        ? opts.provisionalMember.trim()
+        : null;
     // A GRANT is a fresh start (v20.41), and it has to be, because a re-grant follows a re-lock.
     // `fetchedMonths` is a "we already have this" claim: months claimed before access was lost are
     // still claimed after it returns, so without this every `ensureOverridesCached` would no-op and
@@ -58,6 +85,9 @@ export function setOverrideAccess(granted) {
 
 /** @returns {boolean} whether override reads are currently permitted. */
 export function hasOverrideAccess() { return _accessGranted; }
+
+/** @returns {string|null} the member a PROVISIONAL grant is confined to, or null under a full one. */
+export function provisionalMember() { return _provisionalMember; }
 
 /** Called when a read is refused because ACCESS has gone, rather than because the network is poor.
  *  Injected by the coordinator for the same reason `setOverrideAccess` is pushed in: this module
@@ -206,6 +236,10 @@ export async function fetchOverridesForRange(startStr, endStr) {
     // resolving would leave the Calendar showing the base roster as though it were current — the one
     // outcome this whole feature exists to prevent.
     if (!_accessGranted) throw new Error('calendar-access-required');
+    // A provisional grant re-shows what this device already holds; it fetches nothing new under an
+    // identity nobody has confirmed. Same error as no access at all, deliberately — every caller
+    // already treats that as "not now", and a distinct one would be a new state to handle.
+    if (_provisionalMember) throw new Error('calendar-access-required');
     // Taken at ISSUE, not on completion — the whole point is the order the reads were STARTED in.
     const seq = ++_readSeq;
     const q = query(
@@ -271,11 +305,23 @@ export async function fetchOverridesForRangeFromCache(startStr, endStr) {
     // every caller from "no cache yet", which is already this function's normal empty state.
     if (!_accessGranted) return false;
     try {
-        const q = query(
-            collection(db, COLLECTIONS.overrides),
-            where('date', '>=', startStr),
-            where('date', '<=', endStr)
-        );
+        // A PROVISIONAL grant is confined to ONE member (v22.96). The filter is applied to the
+        // QUERY rather than to the results, so a colleague's overrides are never read out of the
+        // cache at all — filtering afterwards would put fifty people's annual leave and absence in
+        // memory under an identity nobody has confirmed yet, which is the thing being avoided.
+        // The `memberName` + `date` composite index already exists.
+        const q = _provisionalMember
+            ? query(
+                collection(db, COLLECTIONS.overrides),
+                where('memberName', '==', _provisionalMember),
+                where('date', '>=', startStr),
+                where('date', '<=', endStr)
+            )
+            : query(
+                collection(db, COLLECTIONS.overrides),
+                where('date', '>=', startStr),
+                where('date', '<=', endStr)
+            );
         const snapshot = await getDocsFromCache(q);
         if (snapshot.empty) return false;
         const records = collectOverrideRecords(snapshot);
@@ -320,6 +366,7 @@ export async function ensureOverridesCached(year, month, renderFn) {
     // it returns BEFORE claiming the month, or a navigation made while locked would mark the month
     // fetched and the real read after unlocking would be skipped for the rest of the session.
     if (!_accessGranted) return;
+    if (_provisionalMember) return;   // provisional: nothing is fetched from the server — see the scope note
     const key = monthKey(year, month);
     if (fetchedMonths.has(key)) return;
     fetchedMonths.add(key);
