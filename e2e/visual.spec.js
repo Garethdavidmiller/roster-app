@@ -815,14 +815,20 @@ test('nav drawer — default state (mobile 390)', async ({ page }) => {
 // current week (the date over "This week"), Team View at 412 browsing away (the date over "↩ Back to
 // this week"), and Team View on the desktop cluster. FIXED_TIME's week is the current week.
 //
-// ⚠ THIS SHOT DOES NOT REPRODUCE IN A SESSION CONTAINER, AND THE OBVIOUS FIX IS WRONG (v22.93).
-// A local `npm run test:visual` fails it while CI passes it — CI posts no drift comment, which is
-// the lane's own signal. Measured rather than assumed: the render here is byte-identical across two
-// consecutive runs AND across the v22.88 tree that generated the baseline and today's HEAD, so no
-// CSS change moved it; the container's browser or font stack simply draws it differently from the
-// runner's. **Do not regenerate it to make the local run green** — that would replace a baseline
-// that is true on CI with one that is true only here, and break the lane it was written to serve.
-// Two sessions hit this on 5 Sep 2026; both correctly left it alone.
+// ⚠ THIS SHOT MAY FAIL LOCALLY WHILE PASSING ON CI, AND THE OBVIOUS FIX IS WRONG (v22.93).
+// The whole grid sits 3px off because `#teamMemberSelect` renders 41px in some environments and
+// 44px in others: a `<select>` with `line-height: normal` takes its content box from the font the
+// control is laid out with, and that resolves differently. It is not a test artefact — a member
+// sees the control change height too — and the fix is to state a line-height on the select.
+//
+// **Do not regenerate the baseline to make a local run green.** That replaces a baseline that is
+// true on CI with one true only where you ran it, and breaks the lane it was written to serve.
+//
+// AND DO NOT CONCLUDE "DETERMINISTIC" FROM TWO RUNS. This container gave a byte-identical render
+// twice, and across two different trees, which reads as settled and is not: measured here, the
+// select is 41px in 8 runs of 8, while a parallel session measured 41 and 44 in one container on
+// one commit. Two samples cannot tell a stable difference from a split, and the confident wrong
+// answer that produces is "nothing to fix here".
 test('calendar — mobile 360', async ({ page }) => {
     await prep(page, { width: 360, height: 900 });
     await page.goto('/index.html');
