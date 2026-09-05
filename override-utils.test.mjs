@@ -259,7 +259,7 @@ describe('reconcileRangeIntoCache', () => {
     // the reasoning that "the visible shift is identical" — true when it was written, because the
     // shift was the only thing on screen that came from an override. v22.69 put a PROVENANCE line on
     // the day panel, and `roster_import` → manual is precisely the swap that changes it: "From the
-    // weekly roster" becomes "Changed by …", or nothing. So the same input is now a display change,
+    // weekly roster" becomes "Last saved by …", or nothing. So the same input is now a display change,
     // and the old expectation was not a rule this function owes anybody — it was a description of
     // what the app happened to render at the time. It went on passing because the comparison had not
     // been updated either; the test and the code were out of date together, which is the shape that
@@ -315,14 +315,14 @@ describe('reconcileRangeIntoCache', () => {
             const cache = seed(rec('07:00-16:00', 'manual', 100, { changedBy: 'S. Silva' }));
             const changed = run(cache, rec('07:00-16:00', 'manual', 100, { changedBy: 'M. Robson' }));
             assert.equal(changed, true,
-                'the panel says "Changed by S. Silva" and would keep saying it — the value is '
+                'the panel says "Last saved by S. Silva" and would keep saying it — the value is '
                 + 'identical, so nothing else in this function would ever flag the repaint');
             assert.equal(cache.get(at('2026-08-14')).changedBy, 'M. Robson');
         });
 
         it('a change of SOURCE is a display change, even at the same value and person', () => {
             // roster_import and manual produce different sentences from `changeProvenance` —
-            // "From the weekly roster" against "Changed by …" — so the line is wrong, not stale.
+            // "From the weekly roster" against "Last saved by …" — so the line is wrong, not stale.
             const cache = seed(rec('07:00-16:00', 'roster_import', 100, { changedBy: 'S. Silva' }));
             assert.equal(run(cache, rec('07:00-16:00', 'manual', 100, { changedBy: 'S. Silva' })), true);
         });

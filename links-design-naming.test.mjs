@@ -111,8 +111,59 @@ describe('proposeCopyName — the one flow where a new name is the point', () =>
             + 'is worse than no suggestion');
     });
 
-    test('it never proposes something over the length bound', () => {
-        assert.ok(proposeCopyName('y'.repeat(MAX_DESIGN_NAME), []).length <= MAX_DESIGN_NAME);
+    // THE LONG-NAME CASE IS THE SAME INVARIANT, AND IT WAS TESTED AS TWO HALVES (v22.79, external
+    // review). The rule is stated one test above — a pre-fill that `checkName` refuses is a trap —
+    // but it was only ever exercised on a SHORT name, while the long name got a test asserting
+    // nothing except `.length <= MAX`. The bug satisfied that perfectly: it produced a name of
+    // exactly the right length by cutting off the " copy" that made it new. Two halves of one
+    // invariant, checked apart, with the defect living precisely where they meet.
+    test('a source at the length bound still yields a name checkName ACCEPTS', () => {
+        const src = 'y'.repeat(MAX_DESIGN_NAME);
+        const existing = [{ id: 'a', name: src }];
+        const proposed = proposeCopyName(src, existing);
+        assert.ok(proposed.length <= MAX_DESIGN_NAME, 'still within the bound the rules enforce');
+        assert.notEqual(proposed, src,
+            'it proposed the SOURCE NAME BACK — the dialog pre-fills a name its own validation then '
+            + 'refuses, so the application argues with itself');
+        assert.equal(checkName(proposed, { existing }).ok, true);
+    });
+
+    // THE QUIETER HALF, AND THE WORSE ONE. Just under the bound the trim removed only PART of the
+    // suffix — "…yyyy c" — which collides with nothing and is therefore ACCEPTED. A design saved
+    // under a name mangled mid-word, with nothing on screen to say so.
+    test('near the bound it never proposes a HALF suffix, at any length', () => {
+        for (let len = MAX_DESIGN_NAME - 8; len <= MAX_DESIGN_NAME; len++) {
+            const src = 'y'.repeat(len);
+            const existing = [{ id: 'a', name: src }];
+            const proposed = proposeCopyName(src, existing);
+            assert.ok(proposed.endsWith(' copy'),
+                `a ${len}-character source proposed "${proposed.slice(-12)}" — the suffix was cut, `
+                + 'so the name is mangled rather than new');
+            assert.equal(checkName(proposed, { existing }).ok, true,
+                `a ${len}-character source proposed a name checkName refuses`);
+        }
+    });
+
+    // A CUT LANDING ON A SPACE, which every fixture above misses by being one repeated character —
+    // found by mutation: removing the `trimEnd` left all of them green. Real design names have
+    // spaces in them, and "…proposal  copy" is a name somebody has to look at.
+    test('a cut that lands on a space does not leave two of them before "copy"', () => {
+        const src = `${'y'.repeat(MAX_DESIGN_NAME - 6)} zzzzz`;
+        assert.equal(src.length, MAX_DESIGN_NAME, 'fixture must sit exactly on the bound');
+        const proposed = proposeCopyName(src, [{ id: 'a', name: src }]);
+        assert.ok(!/\s\scopy$/.test(proposed), `"${proposed.slice(-12)}" has a doubled space`);
+        assert.ok(proposed.endsWith(' copy'));
+    });
+
+    // The numbered candidates reserve MORE room than " copy", and the loop is where that is easy to
+    // miss: fitting the stem once, outside it, would put " copy 99" back over the bound.
+    test('a NUMBERED copy of a long name also fits, and is still accepted', () => {
+        const src = 'y'.repeat(MAX_DESIGN_NAME);
+        const existing = [{ id: 'a', name: src }, { id: 'b', name: proposeCopyName(src, []) }];
+        const proposed = proposeCopyName(src, existing);
+        assert.ok(proposed.length <= MAX_DESIGN_NAME, `"${proposed}" is ${proposed.length} characters`);
+        assert.match(proposed, / copy 2$/);
+        assert.equal(checkName(proposed, { existing }).ok, true);
     });
 
     test('a blank base still yields a usable name', () => {

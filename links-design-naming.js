@@ -91,11 +91,28 @@ export function checkName(name, ctx = {}) {
  * and returns the last candidate if every one is taken — the caller still runs `checkName`, so an
  * exhausted search surfaces as an ordinary refusal rather than a loop.
  *
+ * **THE ROOM FOR THE SUFFIX IS RESERVED BEFORE THE CANDIDATE IS BUILT** (v22.79, external review).
+ * Trimming to `MAX_DESIGN_NAME` afterwards cuts the suffix off the end — the only part that makes
+ * the name new — and it failed in two ways at once, of which the review found the louder:
+ *
+ *   · at exactly `MAX_DESIGN_NAME`, the trim removed the whole of " copy" and proposed the SOURCE
+ *     NAME BACK. The Duplicate dialog pre-filled a name and `checkName` then refused it, so the
+ *     application argued with its own suggestion;
+ *   · between `MAX_DESIGN_NAME - 4` and `MAX_DESIGN_NAME - 1` it removed only PART of the suffix
+ *     and proposed "…BBBB c". That one conflicts with nothing, so it is ACCEPTED — a design saved
+ *     under a name mangled mid-word, silently, which is the worse of the two.
+ *
+ * The stem is therefore cut to fit the suffix that is about to be added, per candidate, since
+ * " copy" and " copy 99" do not reserve the same room. `trimEnd` because a cut landing on a space
+ * would otherwise put two of them in front of "copy".
+ *
  * @param {string} base @param {Array<{id?: string, name?: string}>} existing
  */
 export function proposeCopyName(base, existing = []) {
     const stem = String(base ?? '').trim() || 'Design';
-    let candidate = `${stem} copy`;
-    for (let n = 2; n <= 99 && nameConflict(candidate, existing); n++) candidate = `${stem} copy ${n}`;
-    return candidate.slice(0, MAX_DESIGN_NAME);
+    const fit = (/** @type {string} */ suffix) =>
+        `${stem.slice(0, Math.max(1, MAX_DESIGN_NAME - suffix.length)).trimEnd()}${suffix}`;
+    let candidate = fit(' copy');
+    for (let n = 2; n <= 99 && nameConflict(candidate, existing); n++) candidate = fit(` copy ${n}`);
+    return candidate;
 }

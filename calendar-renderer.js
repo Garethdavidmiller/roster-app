@@ -36,13 +36,26 @@ const SHIFT_KIND_LABELS = { early: 'Early shift', late: 'Late shift', night: 'Ni
  * Returns '' when the document cannot say — legacy rows written before `changedBy` existed. An
  * absent line is honest; a guessed name is not, and this one names a colleague.
  *
+ * **"LAST SAVED BY", NOT "CHANGED BY"** (v22.79, external review). `changedBy` is whoever wrote the
+ * document that is currently winning — the LATEST writer, which is not always the person who made
+ * the substantive change. A manager moving 06:20 to 07:00 is the author; a second manager whose
+ * range booking later lands the same 07:00 on that day rewrites the document and takes over the
+ * name. That is not hypothetical — v22.71 fixed the cache precisely so the panel REFRESHES on a
+ * same-value re-save by a different person, which is that case reproduced.
+ *
+ * The old wording claimed authorship and was wrong in exactly that case, sending a member to ask
+ * somebody who would say they had changed nothing. "Last saved by" is true in both, and its "last"
+ * carries the useful signal the shorter phrasing loses: there may have been earlier edits. It is
+ * the same discipline as `getALEntitlement` returning null rather than a plausible figure belonging
+ * to somebody else — where the app cannot say the stronger thing, it says the weaker one.
+ *
  * @param {string|undefined} source     'manual' | 'roster_import'
  * @param {string|undefined} changedBy  the writer's member name
  * @returns {string}
  */
 export function changeProvenance(source, changedBy) {
     if (source === 'roster_import') return 'From the weekly roster';
-    return changedBy ? `Changed by ${changedBy}` : '';
+    return changedBy ? `Last saved by ${changedBy}` : '';
 }
 
 /**

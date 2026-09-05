@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: September 2026 — v22.70 · Updated every 0.10 version*
+*Last updated: September 2026 — v22.80 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -337,6 +337,43 @@ is written, not guessed at afterwards.
 
 **Read the signal correctly:** the MIRROR count going DOWN, not web.app going up. People appear on the
 new address the moment they visit, but have only *moved* when they stop appearing on the old one.
+
+### Links generator — Recommended settings, with the six objectives behind Advanced
+
+**Raised twice by external review (v22.63 and v22.71), and it is the stated reason Links scores 9.6
+rather than 9.7–9.8.** Nothing here is a defect: the card works, and the objectives are correctly
+implemented and tested (`links-adjacency.js`). The problem is the order it asks things in.
+
+The generator card opens with all six optimisation switches — *Vary the shift type · Most shifts in
+a row · Gentle week-to-week change · Full weekends off · Long weekends · Rest across the week
+boundary*. A designer therefore has to understand the optimisation engine before they have built
+anything, which is the wrong way round: the first design is the one that teaches them what the
+objectives are for.
+
+The proposed shape, unchanged from the review:
+
+> **How should the weeks be arranged?**
+> **Recommended settings ✓** — Balances shift variety, consecutive working days and useful rest.
+> **Advanced settings ▾** — today's six controls, collapsed.
+
+**The algorithms do not change.** This is disclosure order, and it is the app's own documented rule
+applied to a card that predates it: progressive disclosure may hide the fourth thing a surface owes
+a member (deep dive) and may never hide the first (that the thing exists). "Recommended settings"
+names what is happening; the six switches are depth.
+
+**The trigger is the owner.** It is a visible change to the card a designer uses most, the December
+2026 proposals are being built in it right now, and two of this app's collapse decisions have been
+reverted after shipping (the admin task navigator, the drawer's notification row). It wants a
+decision, not a sweep. If it goes ahead, `links-tips.js`'s "The default table" section and the
+generator card's one `.links-desc` sentence move with it — the desktop left-edge e2e check counts
+that sentence.
+
+**A second, smaller item travels with it:** the generator's target table loses its day context on a
+narrow screen — Mon–Fri / Sat / Sun are column headers, and a long table scrolls them out of sight.
+This is NOT the compare-grid case declined at v22.77: that grid is two designs side by side and its
+cells are self-describing once the columns are in step, whereas here a designer is typing numbers
+into a cell whose meaning is off-screen. Worth solving with a sticky header row rather than
+per-cell labels.
 
 ### Track D — App Check, monitor mode
 **Status:** Deferred · **Owner:** Gareth · **Trigger:** owner decision · **Status of record:** `SECURITY_RELEASE_PLAN.md`
