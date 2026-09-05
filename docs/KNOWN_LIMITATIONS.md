@@ -470,6 +470,22 @@ A max-effort 8-reviewer deep review (July 2026) found **no critical, high, or se
 actionable low-severity findings were fixed in the same pass. These few remain **by nature** — they
 are architecture/App-Check territory or inherent platform behaviour, not bugs to patch:
 
+- **A native `<select>` has no deterministic height until you give it one** (found v22.93, fixed for
+  the calendar's member select only). `line-height: normal` on a `<select>` resolves from the font
+  the control is laid out with, and the calendar's measured **17px on most loads and 20px on some**
+  — a 41px vs 44px control — on identical code, one browser, one container. Everything below it then
+  sits 3px out. It surfaced as a visual-baseline flake that cried wolf on two unrelated pull
+  requests (#1366, #1369), and the two committed baselines of the same control had been captured in
+  DIFFERENT states, so they disagreed with each other.
+  **The exact trigger is not pinned down.** A font-load race was the obvious candidate and was
+  disproved: with the font blocked entirely the height did not change, and at the moment the
+  screenshot is taken `document.fonts.check('16px Inter')` is true on the runs that fail as well as
+  the ones that pass. What is established is the DEPENDENCY, and stating a line-height removes it.
+  **Every other `<select>` in the app still has `line-height: normal`** — admin's member pickers,
+  paycalc's period selector, the operations dropdowns. They are presumably subject to the same
+  non-determinism; none has been measured, and none has a visual baseline tight enough to have
+  shown it. Fixing them is a one-line change each, but it moves pixels on surfaces nobody has
+  complained about, so it is listed rather than done.
 - **Analytics dynamic-map value integrity.** `analytics/activeAccounts` and `analytics/perf_<month>`
   hold date-keyed maps whose *values* Firestore rules cannot iterate/type-check, so an authenticated
   session could write junk/forged counts (this said "incl. anonymous calendar" until v21.63 — the
