@@ -837,6 +837,17 @@ body.lb-open #stickyTotal { display: none !important; }
    Found by page-visibility-parity.test.mjs. */
 .lightbox-bug-link[hidden] { display: none !important; }
 
+/* A ROW MAY BE A <button> AS WELL AS AN <a> (v22.83). These rows are ACTIONS, and links.html's
+   "How this workspace works" opens a panel rather than navigating anywhere — so it is a button, and
+   a button arrives with the UA's own border, font-family and background that this class never had
+   to override. Reset here rather than in a page stylesheet: the component is shared, so the next
+   page that needs an action row inherits the fix instead of re-deriving it. */
+button.lightbox-bug-link {
+    border: 0;
+    font-family: inherit;
+    cursor: pointer;
+}
+
 /* Privacy note — shown in lightboxes that handle personal data (Pay Calculator etc.)
    Sits below the main content, separated by a faint rule. */
 .lightbox-privacy {

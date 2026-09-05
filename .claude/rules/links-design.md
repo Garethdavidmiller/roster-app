@@ -151,12 +151,22 @@ for ORIENTATION, and this one was both at once.
 
 **The two are now split (v22.59).** The announcement is over and is archived once, on the first
 close. The orientation does not expire until that device has actually seen it, and `#linksHowBtn`
-reopens it for ever — which also stops it being a pop-up nobody can get back to. That button is a
-pill at the TOP OF THE PAGE and deliberately not in the header: `.app-header` is `1fr auto 1fr`, so
-its two side columns are equal and every pixel a control adds to one is charged twice — one version
-in `.header-end` took the header's min-content past a 390px viewport, stretched the cards past their
-own container and left the grid card's collapse chevron 21px of reachable tap target. Do
-not re-add an expiry here: the audience for these facts is whoever arrives next, and there is no
+reopens it for ever — which also stops it being a pop-up nobody can get back to.
+
+**That control is a ROW IN THE ABOUT PANEL (v22.83), not a control of its own on the page.** It was
+tried as one three times — in `.header-end`, above the header, then below it — and read as foreign
+every time, because no other page in this app has a standalone help control. The About panel already
+holds a page's own links (🔧 Operations, 🐛 Report a bug); this is a third row beside them, sharing
+their class, so it cannot look out of place. It CLOSES the About panel before opening the
+orientation lightbox — two overlays open together share one Escape, and the buried one is archived
+and flagged seen by somebody who never read it.
+
+The header remains ruled out on measurement, not taste: `.app-header` is `1fr auto 1fr`, so its two
+side columns are equal and every pixel a control adds to one is charged twice — the `.header-end`
+version took the header's min-content past a 390px viewport, stretched the cards past their own
+container and left the grid card's collapse chevron 21px of reachable tap target.
+
+Do not re-add an expiry here: the audience for these facts is whoever arrives next, and there is no
 date after which a newcomer stops needing them.
 
 ## Five paths can lose the working copy, and all five now ask (v22.62)

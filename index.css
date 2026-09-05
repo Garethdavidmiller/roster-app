@@ -181,10 +181,43 @@
            baselines are 390px, and the row first fits at 384px. The whole estate sat just above the
            threshold, so 360px — the commonest Android width there is — was never rendered. */
         .control-group--actions {
+            /* One declaration of the row's gap, read by the pair below too — the two must match or
+               the pair's inner spacing drifts from the outer at one width and not the other. */
+            --qa-gap: 6px;
+            gap: var(--qa-gap);
             flex-wrap: wrap;
             justify-content: center;
             min-width: 0;
             flex-shrink: 1;
+        }
+        /* THE WRAP MUST NOT ORPHAN A BUTTON (v22.83, owner report from the same 360px Samsung).
+           v22.62 stopped the row being CLIPPED and its guard checks exactly that — nothing off
+           screen — which it still is. What no assertion could see is the SHAPE of the wrap: five
+           items break 4 + 1, so a lone centred "💷 Pay" sat under the other four, reading as a
+           mistake rather than as a second line, and the row grew from 39px to 95px on the phone
+           with the least room to give. Measured: 360px at 18px text, 320px at the default, 412px
+           at 20px — all three produced the widow.
+
+           `.control-group--pair` makes Admin + Pay ONE unbreakable flex item, so the four wrap
+           points become three and every case above breaks 3 + 2 instead. The pairing is the app's
+           own distinction and not a layout trick — 📍 · Team · AL act on this page, Admin and Pay
+           leave it — which is why it is expressed in the markup rather than as a `:nth-child` rule
+           that the next person would read as arbitrary.
+
+           WHY NOT THE OBVIOUS ALTERNATIVES. Tighter padding or shorter labels only move the
+           threshold, and Chrome's Android text scaling does not change the CSS viewport, so no
+           media query can see the case that actually breaks (it is why v22.62 needed the wrap at
+           all). A horizontal scroll strip would keep one line and put a primary action off screen.
+           An equal-column grid sizes 📍 like "📝 Admin". Two rows at every width costs 44px of
+           calendar on phones that were never short of room. */
+        .control-group--pair {
+            display: flex;
+            align-items: center;
+            gap: var(--qa-gap);
+            flex-wrap: nowrap;
+            /* Its buttons already refuse to shrink, so a shrinkable wrapper would not compress
+               them — it would let them overflow it. */
+            flex-shrink: 0;
         }
         /* `.controls` prefix is LOAD-BEARING, not decoration. Both of these are overridden later in
            this file at equal specificity — `.controls select, .controls button` sets the padding,
@@ -196,7 +229,7 @@
            never broken — and churn the 390px visual baselines for nothing. The devices that need it
            are 320-380. Measured either side. */
         @media (max-width: 380px) {
-            .controls .control-group--actions { gap: 5px; }
+            .controls .control-group--actions { --qa-gap: 5px; }
             /* Horizontal only — the vertical padding, and so the touch target's height, is
                untouched. The 📍 button stays 35x39px, above both WCAG 2.5.8 (24px) and the 30px
                floor v22.61 set for coarse pointers. */

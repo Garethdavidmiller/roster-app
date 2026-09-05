@@ -1013,6 +1013,13 @@ for (const [width, fontPx] of [[320, 14], [360, 14], [375, 14], [360, 18], [360,
                 smallest: Math.min(...buttons.map(b => b.getBoundingClientRect().width)),
                 shortest: Math.min(...buttons.map(b => b.getBoundingClientRect().height)),
                 count: buttons.length,
+                // Grouped by rendered TOP, so this reads the wrap the browser actually performed
+                // rather than the DOM order or any CSS the fix happens to be expressed in.
+                lines: [...new Set(buttons.map(b => Math.round(b.getBoundingClientRect().top)))]
+                    .sort((a, b) => a - b)
+                    .map(top => buttons
+                        .filter(b => Math.round(b.getBoundingClientRect().top) === top)
+                        .map(b => b.textContent.trim())),
             };
         }, width);
 
@@ -1024,5 +1031,19 @@ for (const [width, fontPx] of [[320, 14], [360, 14], [375, 14], [360, 18], [360,
         // a 30px floor for coarse pointers on the Links chips and the same standard applies here.
         expect(geo.smallest).toBeGreaterThanOrEqual(30);
         expect(geo.shortest).toBeGreaterThanOrEqual(30);
+
+        // AND THE SHAPE OF THE WRAP, which is the half this guard was missing (v22.83). Everything
+        // above passed on the 4 + 1 wrap the owner then reported from the same 360px Samsung: a
+        // lone centred "💷 Pay" under four buttons, reading as a fault rather than as a second
+        // line, and 95px of a phone that had none to spare. Nothing was off screen, so "not
+        // clipped" was true and the row still looked broken.
+        //
+        // Either the five fit on ONE line, or they break 3 + 2 — never 4 + 1, never 2 + 3. The
+        // exact split is asserted rather than a softer "no line has one button", because that
+        // weaker rule is also satisfied by 1 + 4, which is the same widow at the other end.
+        expect(geo.lines.length, `${width}px/${fontPx}px wrapped onto ${geo.lines.length} lines`)
+            .toBeLessThanOrEqual(2);
+        expect(geo.lines.map(l => l.length), `${width}px/${fontPx}px: ${JSON.stringify(geo.lines)}`)
+            .toEqual(geo.lines.length === 1 ? [5] : [3, 2]);
     });
 }

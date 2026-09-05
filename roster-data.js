@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '22.82';
+export const APP_VERSION = '22.83';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any

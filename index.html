@@ -377,8 +377,15 @@
                     <button type="button" id="todayBtn"   class="today-btn"  aria-label="Go to today">📍</button>
                     <button type="button" id="teamViewBtn" class="team-btn"  aria-label="Switch to team week view">👥 Team</button>
                     <button type="button" id="alBtn"       class="al-btn"    aria-label="View annual leave balance">🏖️ AL</button>
-                    <button type="button" id="adminBtn"  class="admin-btn"  aria-label="Go to Admin" title="Admin — book leave, record absence, change a shift (sign-in required)">📝 Admin</button>
-                    <button type="button" id="payBtn"    class="pay-btn"    aria-label="Pay Calculator">💷 Pay</button>
+                    <!-- ADMIN AND PAY TRAVEL TOGETHER, and the grouping is the app's own distinction
+                         rather than a layout trick: 📍 · Team · AL all act on THIS page (jump to
+                         today, switch the view, open the leave panel) while these two LEAVE it for
+                         another page. Keeping them one unbreakable flex item is also what stops the
+                         wrap orphaning a single button — see index.css. -->
+                    <div class="control-group--pair">
+                        <button type="button" id="adminBtn"  class="admin-btn"  aria-label="Go to Admin" title="Admin — book leave, record absence, change a shift (sign-in required)">📝 Admin</button>
+                        <button type="button" id="payBtn"    class="pay-btn"    aria-label="Pay Calculator">💷 Pay</button>
+                    </div>
                 </div>
             </div>
         </nav>
