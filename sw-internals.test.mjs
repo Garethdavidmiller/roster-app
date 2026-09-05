@@ -164,3 +164,34 @@ describe('unredirect', () => {
         assert.equal(out.status, 200);
     });
 });
+
+
+// ── _revalidationCount — the worker's own answer (v22.94) ───────────────────────────────────────
+//
+// ADDED BECAUSE A MUTATION SURVIVED. `perf-reporter.js` asks the worker how many background
+// revalidations it has started, and every test of that path stubs the worker — so replacing the
+// real `_revalidated.size` with a constant `0` left all 35 reporter cases and all 62 stats cases
+// green. The metric would have reported "no revalidation ever happens", which is precisely the
+// reassuring half of the hypothesis it exists to test, on a worker that was not being asked.
+//
+// This runs the SW's real function against a seeded set, which is the only place that can.
+describe('_revalidationCount (service-worker.js)', () => {
+    const run = (/** @type {Set<string>} */ seeded) => {
+        const src = extractFn(SW, '_revalidationCount');
+        const fn = new Function('_revalidated', `${src}; return _revalidationCount();`);
+        return fn(seeded);
+    };
+
+    test('reports the size of the set the SWR branch actually fills', () => {
+        assert.equal(run(new Set()), 0);
+        assert.equal(run(new Set(['./a.js'])), 1);
+        assert.equal(run(new Set(Array.from({ length: 53 }, (_, i) => `./m${i}.js`))), 53,
+            'the count measured locally on a just-woken worker');
+    });
+
+    test('it is not a constant — the count tracks the set', () => {
+        // The exact mutation that survived: a hardcoded reply. Two different sets must not give
+        // the same answer.
+        assert.notEqual(run(new Set(['./a.js'])), run(new Set(['./a.js', './b.js'])));
+    });
+});

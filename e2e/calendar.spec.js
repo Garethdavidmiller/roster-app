@@ -1539,3 +1539,58 @@ test('day detail: an annual-leave day offers the leave dates, and no other day d
     await expect(leave).toBeHidden();
     await expect(leave).toHaveCSS('display', 'none');
 });
+
+// ─── THE SAVED-COPY LADDER RUNG (v22.95) ────────────────────────────────────────────────────────
+//
+// `rosterCached` splits the gap the 5 Sep 2026 field read exposed — Unlocked 58% over a second,
+// Shifts shown 78%, and nothing in between to say where the eighteen points went.
+//
+// IT IS HERE BECAUSE THE UNIT SUITES CANNOT SEE IT. The mark is made by the coordinator, from a
+// `.then()` on the initial fetch's `cacheSettled`; the reporter suite pins what a MARKED boot
+// records and the stats suite pins where the rung sits, and a mutation removing the `if (painted)`
+// guard left all of them green. This is the only lane that runs the real wiring.
+//
+// The rule it protects is the honesty one: a device with no saved copy has no moment at which its
+// saved copy became available. Marked anyway, first-visit boots would enter a distribution about
+// how quickly storage answers — the figure that exists to price a change for people who DO have a
+// cache would then be measuring people who do not.
+const CACHED_MARK = 'myb-roster-cached';
+
+test('calendar: a cache HIT stamps the saved-copy milestone', async ({ page }) => {
+    await seedSession(page);
+    await seedMember(page);
+    // One override in the visible window is enough — phase 1 paints and records `cached` knowledge.
+    await page.addInitScript(() => {
+        const d = new Date();
+        const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-15`;
+        window.__E2E = Object.assign(window.__E2E || {}, {
+            authUser: true,
+            cacheDocs: [{ id: 'x', memberName: 'G. Miller', date: iso, type: 'rdw', value: '09:00-17:00' }],
+        });
+    });
+    await page.goto('/index.html');
+    await expect(page.locator('.calendar-day').first()).toBeVisible({ timeout: 20000 });
+    await expect.poll(
+        () => page.evaluate((m) => performance.getEntriesByName(m).length, CACHED_MARK),
+        { message: 'a cache hit must stamp the saved-copy rung', timeout: 15000 },
+    ).toBeGreaterThan(0);
+});
+
+test('calendar: a cache MISS stamps NOTHING — it has no such moment', async ({ page }) => {
+    await seedSession(page);
+    await seedMember(page);
+    // No cacheDocs ⇒ the stub resolves an EMPTY snapshot, which is a real first-visit device.
+    await page.addInitScript(() => {
+        window.__E2E = Object.assign(window.__E2E || {}, { authUser: true });
+    });
+    await page.goto('/index.html');
+    await expect(page.locator('.calendar-day').first()).toBeVisible({ timeout: 20000 });
+    // The grid is up and the boot has run its course, so the mark would exist by now if it were
+    // made unconditionally — which is exactly the mutation this catches.
+    await expect.poll(
+        () => page.evaluate(() => performance.getEntriesByName('myb-page-ready').length),
+        { message: 'the boot must actually have finished before asserting an absence', timeout: 15000 },
+    ).toBeGreaterThan(0);
+    const marks = await page.evaluate((m) => performance.getEntriesByName(m).length, CACHED_MARK);
+    expect(marks, 'a boot with no saved copy must not be given a time').toBe(0);
+});

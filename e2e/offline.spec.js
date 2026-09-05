@@ -62,3 +62,40 @@ test('service worker precaches the app and serves it offline', async ({ page, co
     const fallback = await page.goto('/never-cached-page.html', { waitUntil: 'commit' });
     expect(fallback?.status(), 'offline uncached navigation should hit the SW fallback').toBe(200);
 });
+
+// ── The revalidation count, answered by a REAL worker (v22.94) ──────────────────────────────────
+//
+// `perf-reporter.js` asks the service worker how many background revalidations it has started, and
+// records the answer as `swrCount` — the field half of the SWR hypothesis in ROADMAP.md. Every unit
+// test of that path STUBS the worker, and `sw-internals.test.mjs` runs `_revalidationCount()` in a
+// sandbox; neither proves the message actually crosses to a live worker and comes back.
+//
+// It lands here because this is the only suite with a real registered service worker — the smoke
+// run blocks them. It is opt-in (`npm run test:offline`) and so is everything around it.
+//
+// The numbers are asserted as a RELATION, not a constant: the count must not go DOWN across a warm
+// reload, and a first install must be able to report zero. Pinning "52" would be pinning the module
+// count, which changes with the app.
+test('the service worker reports how many revalidations it has started', async ({ page }) => {
+    await page.goto('/index.html', { waitUntil: 'load' });
+    await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 20_000 });
+
+    const ask = () => page.evaluate(() => new Promise((resolve) => {
+        const ch = new MessageChannel();
+        ch.port1.onmessage = (e) => resolve(e.data);
+        navigator.serviceWorker.controller.postMessage({ type: 'REVALIDATION_COUNT' }, [ch.port2]);
+        setTimeout(() => resolve(null), 4000);
+    }));
+
+    const first = await ask();
+    expect(first, 'a live worker must answer the message at all').not.toBe(null);
+    expect(typeof first.count, 'the reply carries a numeric count').toBe('number');
+
+    // A warm reload re-requests the module graph through the stale-while-revalidate branch, which
+    // is what fills the set. Measured here at the time of writing: 0 on first install (the precache
+    // warm-up writes through cache.put and never touches that branch), then ~52.
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForTimeout(2500);
+    const second = await ask();
+    expect(second.count, 'the count is the real set, not a constant').toBeGreaterThanOrEqual(first.count);
+});

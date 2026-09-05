@@ -248,6 +248,63 @@ stronger statement of it than the ladder alone makes.
 
 ---
 
+## THE FIELD READ — 5 September 2026
+
+**The outstanding validation is closed: the identity round trip is confirmed on live staff devices.**
+Until now this rested on a controlled experiment (+300 ms injected into `accounts:lookup` moved the
+milestone +335.7 ms) and an August field localisation. The September App Speed card supplies the
+signature the plan said to look for.
+
+| Calendar milestone | over 1s | opens |
+|---|---|---|
+| Recognised | 60% | ~476 |
+| Unlocked | 58% | ~477 |
+| Shifts shown | 78% | ~472 |
+| Confirmed | 98% | ~423 |
+
+**The comparison that settles it** is `Recognised` against `Getting ready`, split by connection:
+Recognised moves with the connection grouping (~60% on the 4G-like group, ~43% on "not reported")
+while **Getting ready is 0% over half a second in every group**. Same populations, large difference
+at the network-dependent rung, none at all at the code-loading one. That is exactly the pattern this
+plan nominated as the test.
+
+**One confound, stated rather than smoothed over:** "not reported" is disproportionately Safari/iOS,
+because Safari does not expose `navigator.connection`. So 60% against 43% is not "Android's
+connection is 17 points worse" — the browser mix differs too. It does not undo the comparison,
+because the Getting-ready row is flat across the same split.
+
+**What the ladder does NOT say.** Recognised is 60% and Shifts shown is 78%, so roughly eighteen
+points appear after the member is identified. The milestones are cumulative over populations that
+are not perfectly identical, so that is not "18% are delayed by X" — but it does mean identity is
+not the whole of it. **`rosterCached` was added at v22.95 for exactly that gap**, and it is the next
+reading.
+
+**And a correction worth keeping: the app has not recently got slower.** Usable-within-a-second went
+32% (end August) → 35% (September). Recognised went 52% → 60% while the code-loading figures stayed
+flat. The complaint is real and the telemetry agrees with it, but nothing here supports reverting
+recent Calendar work — which was the fear this whole investigation started from.
+
+## Phase 2 — CLOSED on its own decision rule (5 Sep 2026)
+
+**The rule below fires, and it fires clearly.** Of the starts that could be attributed, **454 came
+from the device's saved copy and 8 from the server** — 98.3% cached. Phase 2 narrows the
+authoritative read, which by this plan's own argument cannot move a cache-served first paint by a
+millisecond. It would be a rewrite of the read path, carrying the Team View eviction trap, for a
+population that is 1.7% of attributed opens.
+
+**Read EARLY, and here is why that is defensible.** The plan named "~end September, one full month
+after v21.99" and it is the 5th. The wait existed so nobody would read a confident PERCENTAGE off a
+thin server arm — and that is not what is being read. The server arm is thin *because almost nobody
+is in it*, and the quantity the rule keys on is its SHARE of the whole, over 462 attributed opens.
+A month more data would have to change that share by a factor of twenty to flip the decision.
+
+**It reopens if that share moves.** The reading is on the card permanently; if the cache-miss
+population grows — a storage-eviction change, a large intake of new devices — this comes back.
+
+**The other half of the same reading:** 78% of those cache-served starts still take over a second to
+put shifts on screen. The roster is already on the phone. It is waiting for permission to be shown,
+which is the identity decision in `ROADMAP.md`, not a data-path problem.
+
 ## Phase 2 — the Calendar data path
 
 **Trigger:** the ladder shows the gap at Unlocked → Shifts shown, or Shifts shown → Confirmed.

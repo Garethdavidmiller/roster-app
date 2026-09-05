@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '22.93';
+const APP_VERSION = '22.95';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -54,6 +54,10 @@ function unredirect(res) {
 // Managed JS/CSS files already background-revalidated during THIS SW process lifetime
 // (see the stale-while-revalidate branch). Resets whenever the browser restarts the SW.
 const _revalidated = new Set();
+
+// The count `perf-reporter.js` asks for (v22.94). NAMED so sw-internals.test.mjs runs the real code
+// — inline in the listener below, a mutation to a constant went undetected.
+function _revalidationCount() { return _revalidated.size; }
 
 // Cross-version fallback selector (v16.86 — mixed-version window mitigation). When an asset
 // misses the CURRENT version's cache and can't be fetched (offline / a mid-deploy hosting
@@ -865,16 +869,21 @@ self.addEventListener("fetch", event => {
 });
 
 // ============================================
-// MESSAGE — SKIP_WAITING from the app
+// MESSAGE — SKIP_WAITING, and the revalidation count
 // ============================================
-// The app sends { type: "SKIP_WAITING" } if it detects a waiting SW.
-// skipWaiting() already fires on install, so this handles the rare edge
-// case where auto-activation did not occur (e.g. multiple open tabs on
-// older Chrome versions).
+// SKIP_WAITING: sent by the app if it detects a waiting SW. skipWaiting() already fires on install,
+// so this covers the rare case where auto-activation did not occur (multiple tabs, older Chrome).
 self.addEventListener("message", event => {
     if (event.data && event.data.type === "SKIP_WAITING") {
         console.log(`[SW ${APP_VERSION}] SKIP_WAITING received — activating`);
         self.skipWaiting();
+    }
+    // Revalidations since this worker woke (v22.94) — the SWR hypothesis's field half; why and the
+    // bands are in ROADMAP.md/AI_MAP. Keep two rules: a COUNT never a URL (file names are browsing
+    // information), and READ-ONLY (any script on the origin can send this).
+    if (event.data && event.data.type === "REVALIDATION_COUNT") {
+        const port = event.ports && event.ports[0];   // no port ⇒ no answer; the reader records nothing
+        if (port) port.postMessage({ count: _revalidationCount() });
     }
 });
 

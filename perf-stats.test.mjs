@@ -2,7 +2,7 @@
 // Run with: node --test perf-stats.test.mjs   (part of test:hygiene)
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { THIN_SAMPLE, PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, summarisePerfBy, PERF_DIMENSIONS, perfVerdict, loginDurationBucket, LOGIN_MAX_MS, BOOT_PHASES, bootPhases, summariseBootPhases, START_MILESTONES, summariseStartMilestones, READY_SOURCES, summariseReadySource, UPDATE_OPENS, summariseUpdateOpens } from './perf-stats.js';
+import { THIN_SAMPLE, PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, summarisePerfBy, PERF_DIMENSIONS, perfVerdict, loginDurationBucket, LOGIN_MAX_MS, BOOT_PHASES, bootPhases, summariseBootPhases, START_MILESTONES, summariseStartMilestones, READY_SOURCES, summariseReadySource, UPDATE_OPENS, summariseUpdateOpens, SWR_COUNT_BUCKETS, bucketSwrCount, SWR_HEAVY_BUCKET } from './perf-stats.js';
 
 /** Build a samples map from [page, metric, bucket, count] rows (version/mode/conn fixed). */
 function samplesFrom(rows) {
@@ -460,6 +460,7 @@ describe('summariseStartMilestones', () => {
         const samples = Object.fromEntries([
             mk('calendar', 'rosterLive', '1-3s', 5),
             mk('calendar', 'ready', 'lt500ms', 5),
+            mk('calendar', 'rosterCached', 'lt500ms', 5),
             mk('calendar', 'access', 'lt500ms', 5),
             mk('calendar', 'authBoot', 'lt500ms', 5),
         ]);
@@ -499,6 +500,26 @@ describe('summariseStartMilestones', () => {
         ]);
         const { rows } = summariseStartMilestones(samples, { page: 'calendar' });
         assert.equal(rows[0].total, 2);
+    });
+
+    test('the saved-copy rung sits BETWEEN unlocking and painting', () => {
+        // Its whole purpose is splitting that gap — the field read of 5 Sep 2026 put Unlocked at
+        // 58% over a second and Shifts shown at 78%, with nothing in between to say where the
+        // eighteen points went. Ordered after `ready` it would read as time spent AFTER the roster
+        // was on screen, which is the opposite claim.
+        const ids = START_MILESTONES.map(m => m.metric);
+        assert.ok(ids.indexOf('rosterCached') > ids.indexOf('access'), 'must come after Unlocked');
+        assert.ok(ids.indexOf('rosterCached') < ids.indexOf('ready'), 'must come before Shifts shown');
+    });
+
+    test('its label does not collide with the ready-source block on the same card', () => {
+        // Both answer "the saved copy", one as a TIME and one as a SOURCE, and they render within a
+        // couple of blocks of each other. Identical labels would read as the same figure twice.
+        const ladder = START_MILESTONES.map(m => m.label);
+        for (const src of READY_SOURCES) {
+            assert.ok(!ladder.includes(/** @type {any} */ (src.label)),
+                `"${src.label}" is used by both blocks on one card`);
+        }
     });
 
     test('every milestone has a label and a distinct id', () => {
@@ -639,5 +660,57 @@ describe('summariseUpdateOpens', () => {
 
     test('the row set is the one the card renders', () => {
         assert.deepEqual(UPDATE_OPENS.map(m => m.metric), ['readyUpdate']);
+    });
+});
+
+
+// ── bucketSwrCount — how much background work a boot carried ────────────────────────────────────
+//
+// Organised by what a wrong answer COSTS, and the directions are not symmetrical.
+//
+// The expensive one is a FABRICATED ZERO. This exists to test one claim — that a warm Calendar open
+// still issues a full sweep of conditional requests while the member waits on auth — and a browser
+// that could not answer, recorded as "0", is that claim being refuted by its own instrument. It
+// would read as the reassuring finding and end the investigation.
+//
+// The cheap one is a real count refused: one boot missing from a distribution.
+describe('bucketSwrCount', () => {
+    test('unknowable is null, and null is NOT the zero band', () => {
+        // Every one of these is "we could not find out", and each has a real cause: no service
+        // worker, no controller, a worker too old to know the message, a reply that never came.
+        for (const v of [null, undefined, NaN, Infinity, -1, 'x', {}, [], false]) {
+            assert.equal(bucketSwrCount(/** @type {any} */ (v)), null, `${String(v)} must not band`);
+        }
+        // …and a genuine zero IS a finding, so it must still band.
+        assert.equal(bucketSwrCount(0), '0');
+    });
+
+    test('the bands are the ones the review asked for, at their exact boundaries', () => {
+        // Boundaries, not midpoints: an off-by-one here moves whole boots between "did almost
+        // nothing" and "did a sweep", which is the comparison the metric exists to support.
+        assert.equal(bucketSwrCount(1), '1-10');
+        assert.equal(bucketSwrCount(10), '1-10');
+        assert.equal(bucketSwrCount(11), '11-30');
+        assert.equal(bucketSwrCount(30), '11-30');
+        assert.equal(bucketSwrCount(31), '31+');
+        assert.equal(bucketSwrCount(53), '31+', 'the count measured locally lands in the heavy band');
+    });
+
+    test('every band it can return is declared, and the heavy one is a member', () => {
+        // The card and the summarisers read the declared list; a band returned but not declared
+        // would be counted and never rendered — a silent hole in the distribution.
+        const produced = new Set([0, 1, 10, 11, 30, 31, 999].map(n => bucketSwrCount(n)));
+        for (const b of produced) assert.ok(SWR_COUNT_BUCKETS.includes(/** @type {any} */ (b)), `${b} undeclared`);
+        assert.ok(SWR_COUNT_BUCKETS.includes(SWR_HEAVY_BUCKET));
+        assert.equal(SWR_HEAVY_BUCKET, '31+');
+    });
+
+    test('the count bands cannot be confused with the duration bands', () => {
+        // They share the `bucket` slot of perfSampleKey, which is what keeps the key at six
+        // components. Overlapping vocabularies would let a duration summariser silently absorb
+        // these samples if one were ever pointed at the metric.
+        for (const b of SWR_COUNT_BUCKETS) {
+            assert.ok(!PERF_BUCKETS.includes(/** @type {any} */ (b)), `${b} collides with a duration band`);
+        }
     });
 });

@@ -225,7 +225,17 @@ const CAPS = {
     // is deliberately NO re-export barrel; the first cut had one and import-graph.test.mjs refused
     // it as a cycle, so operations-app.js imports each card from its own file.
     'operations-reports.js':    200,
-    'service-worker.js':       1000,
+    // 1000 → 1050 at v22.94, and the response word is RAISE. The growth is a message handler that
+    // answers `perf-reporter.js` with the number of background revalidations this worker has
+    // started — wiring, plus the two rules an edit must not break (a COUNT never a URL, and
+    // read-only). There was no third response available: the RULE half, the count bands, is already
+    // extracted into `perf-stats.js` and tested there, and `_revalidationCount()` was pulled out
+    // and named precisely so `sw-internals.test.mjs` could run the worker's own code — which it now
+    // does, after a mutation to a constant survived everything else.
+    // Headroom is deliberately 45 and not the usual 50–99: this is the highest-outage-risk file in
+    // the repo, and its previous cap left five lines, which was a tighter statement than the
+    // convention on purpose. Bring it back down the moment anything leaves this file.
+    'service-worker.js':       1050,
     // Crossed 900 at v21.62 (measured 910), when the silent re-establishment moved from behind the
     // member card to behind the boot skeleton — the growth is the boot ORDERING and the argument
     // for it, which is this module's one subject: what to show while access is being decided. The
