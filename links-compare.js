@@ -47,7 +47,7 @@ export function initLinksCompare(deps) {
     /** @type {any} */
     let compareDesignId = null;
     /**
-     * Show only the lines where the two designs differ (v22.73, external review).
+     * Show only the lines where the two designs differ (v22.77, external review).
      *
      * The rotation is 24 lines and a real proposal changes three or four of them, so the reader's
      * job was to find those four among 168 cells of agreement. It is a VIEW, never a filter on the
@@ -84,7 +84,7 @@ export function initLinksCompare(deps) {
         if (compareMode && !compareDesignId) {
             compareDesignId = designs.find(d => d.id !== getActiveDesignId())?.id ?? null;
         }
-        // LEAVING clears the filter; switching the compared design does not (v22.73). The
+        // LEAVING clears the filter; switching the compared design does not (v22.77). The
         // distinction is which act means "start again": re-entering compare mode should show the
         // whole picture, because a filter silently already on hides most of a design the designer
         // has only just opened, and the one clue is a clause in the strip above it. Working through
@@ -208,7 +208,7 @@ export function initLinksCompare(deps) {
     }
 
     /**
-     * The "only the lines that differ" control (v22.73).
+     * The "only the lines that differ" control (v22.77).
      *
      * OFFERED ONLY WHEN IT WOULD CHANGE SOMETHING, which is two refusals rather than one: nothing
      * differs (the filter would empty the grid), and everything differs (it would hide nothing, and
@@ -240,7 +240,7 @@ export function initLinksCompare(deps) {
     }
 
     /**
-     * Keep the two columns on the same day (v22.73).
+     * Keep the two columns on the same day (v22.77).
      *
      * Each column is its own `overflow-x` area — it has to be, since two 560px-minimum tables
      * cannot both fit a 1000px card — so scrolling one to reach Saturday left the other on Sunday,
@@ -252,7 +252,7 @@ export function initLinksCompare(deps) {
      * volley indefinitely. Cleared on the next frame, so a genuine user scroll immediately after is
      * not swallowed.
      *
-     * **AN ECHO THAT CHANGES NOTHING MUST NOT ARM THE GUARD** (v22.74). Writing `to.scrollLeft`
+     * **AN ECHO THAT CHANGES NOTHING MUST NOT ARM THE GUARD** (v22.78). Writing `to.scrollLeft`
      * fires a `scroll` on `to`, whose handler finds the two already in agreement and has nothing to
      * do. Arming the flag for it anyway holds the sync shut for a frame, and any scroll of the other
      * column landing in that frame is dropped in silence. So the ORDER of the two checks is the

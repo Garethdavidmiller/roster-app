@@ -4051,7 +4051,7 @@ test('links window: compare states BOTH windows and flags that they differ', asy
     expect(await page.locator('.compare-window--differs').count()).toBe(2);
 });
 
-// ── Compare: only the lines that differ, and the two columns on the same day (v22.73) ───────────
+// ── Compare: only the lines that differ, and the two columns on the same day (v22.77) ───────────
 //
 // The unit suite owns the rules — which lines are marked, when the control is offered, what the
 // strip claims while it is on. These are the two things only a browser answers: that pressing the
@@ -4122,7 +4122,7 @@ test('links compare: scrolling one column moves the other to the same day', asyn
     // And back the other way — a one-directional sync reads as working until you scroll the second
     // column, which is the one a designer reaches for when the first is already where they want it.
     //
-    // THE FRAME IS NOT A SLEEP TO MAKE THIS PASS (v22.74). Both scrolls above are assignments and
+    // THE FRAME IS NOT A SLEEP TO MAKE THIS PASS (v22.78). Both scrolls above are assignments and
     // nothing else: the browser delivers its own `scroll`, so this exercises the path the feature
     // actually runs on. The first cut hand-fired a synthetic `scroll` immediately after each
     // assignment, which put two events inside a single animation frame — the second landing inside

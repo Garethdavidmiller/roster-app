@@ -32,6 +32,16 @@ function patch(file, pattern, replacement) {
     const src = readFileSync(filePath, 'utf8');
     const patched = src.replace(pattern, replacement);   // String.replace accepts a string OR a function
     if (patched === src) {
+        // TWO DIFFERENT FAILURES, and they were reported as one. A no-op replace means either the
+        // pattern genuinely did not match (the version line moved or was reshaped — a real problem)
+        // or it matched and the file ALREADY says the target, which happens whenever a version
+        // conflict is resolved to the value being bumped to. Reporting both as "Pattern not matched"
+        // sends the reader hunting for a broken regex that is working correctly.
+        if (pattern.test(src)) {
+            throw new Error(`${file} already reads ${newVersion} — nothing to bump. `
+                + 'If a merge resolution set it by hand, that is the write this script should own: '
+                + 'set the line back to the previous version and re-run.');
+        }
         throw new Error(`Pattern not matched in ${file}: ${pattern}`);
     }
     writeFileSync(filePath, patched);

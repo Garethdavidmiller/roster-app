@@ -3,7 +3,7 @@
  * links-generator-targets.js — the NUMBERS the generator will run against, where they came from,
  * and what is allowed to replace them.
  *
- * Extracted from `links-app.js` at v22.72. Not a size split: `genSlots`/`genSpareLines` and the four
+ * Extracted from `links-app.js` at v22.76. Not a size split: `genSlots`/`genSpareLines` and the four
  * provenance fields beside them were the only coordinator state nothing outside the generator card
  * touched, and they exist to answer ONE question the card has to keep answering — *are these numbers
  * the default, today's roster, this design's own memory, or a colleague's saved setup, and have they

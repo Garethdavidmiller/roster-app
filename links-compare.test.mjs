@@ -33,7 +33,7 @@ function resetDom() {
         addEventListener: (/** @type {string} */ ev, /** @type {any} */ fn) => { if (ev === 'click') els.compareDiffOnlyBtn._handler = fn; } };
 }
 resetDom();
-// `querySelectorAll` returns an EMPTY LIST, not undefined (v22.73). The scroll sync asks for the
+// `querySelectorAll` returns an EMPTY LIST, not undefined (v22.77). The scroll sync asks for the
 // two `.compare-grid-scroll` wrappers at init and refuses unless it finds exactly two, which is the
 // right behaviour under a fake DOM with no wrappers — but a fake that lacks the method entirely
 // makes the module throw on import, and every test in this file then fails for a reason that has
@@ -258,7 +258,7 @@ test('the compare grid renders no operable control — those cells cannot be pre
 });
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
-// ONLY THE LINES THAT DIFFER (v22.73), organised by what a wrong answer COSTS.
+// ONLY THE LINES THAT DIFFER (v22.77), organised by what a wrong answer COSTS.
 //
 // The expensive direction is CLAIMING TOO LITTLE, and it is silent: a reader looking at four rows
 // has every reason to take them as the basis of the figures beside them and the cover row below
@@ -417,7 +417,7 @@ test('filter ON, then switched to an IDENTICAL design: every line comes back', (
     assert.doesNotMatch(els.compareSummary.innerHTML, /still cover all/);
 });
 
-// ── KEEPING THE TWO COLUMNS ON THE SAME DAY (v22.74) ─────────────────────────────────────────────
+// ── KEEPING THE TWO COLUMNS ON THE SAME DAY (v22.78) ─────────────────────────────────────────────
 // The sync exists so a designer reading across a difference finds both gold outlines beside each
 // other. It can be wrong in two directions and they are not symmetrical: a column that FAILS TO
 // FOLLOW leaves the reader comparing Saturday against Sunday and believing it, while a pair that

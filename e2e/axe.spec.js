@@ -385,7 +385,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     });
 
     test('links COMPARE mode, with the differ-only filter applied', async ({ page }) => {
-        // NEVER SCANNED UNTIL v22.74, and it is a whole surface: a summary strip that is a live
+        // NEVER SCANNED UNTIL v22.78, and it is a whole surface: a summary strip that is a live
         // region, two read-only grids of several hundred cells, and now a toggle. The v22.60 pass
         // reasoned its way to rendering those cells as `<span>` rather than `<button>` — correctly
         // — but nothing checked the result, and the gate cannot promote what it does not look at.

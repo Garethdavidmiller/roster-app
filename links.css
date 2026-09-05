@@ -1616,14 +1616,14 @@ body.auth-ready .container { display: grid; }
     margin-bottom: 6px;
 }
 .compare-col-head--a { color: var(--primary-blue); border-color: var(--primary-blue); }
-/* The TEXT is darkened, the border is not (v22.74). `--cov-late` at full strength is 3.14:1 on
+/* The TEXT is darkened, the border is not (v22.78). `--cov-late` at full strength is 3.14:1 on
    white — a SERIOUS axe contrast failure at 11px, and it had never been scanned because no axe
    state entered compare mode until this release. Darkening to 70% gives 5.82:1 and is still
    unmistakably the coverage family's orange; the 2px rule under it is decoration, not text, so it
    keeps the bright hue that carries the column's identity at a glance. */
 .compare-col-head--b { color: color-mix(in srgb, var(--cov-late) 70%, black); border-color: var(--cov-late); }
 
-/* KEYBOARD ACCESS TO THE SCROLLING COLUMNS (v22.74, WCAG 2.1.1 / axe scrollable-region-focusable).
+/* KEYBOARD ACCESS TO THE SCROLLING COLUMNS (v22.78, WCAG 2.1.1 / axe scrollable-region-focusable).
 
    AN ACCESSIBILITY FIX CAUSED THIS, WHICH IS WHY IT NEEDS WRITING DOWN. v22.60 correctly changed
    the compare cells from `<button>` to `<span>`: they cannot be operated, so as buttons they
@@ -1631,7 +1631,7 @@ body.auth-ready .container { display: grid; }
    buttons were also the column's ONLY focusable content — and a scrollable region containing
    something focusable is reachable, because Tab moves to it and the browser scrolls to reveal it.
    Removing them left the column scrollable and unreachable by keyboard: no error, no failing test,
-   and invisible until v22.74 finally pointed axe at compare mode.
+   and invisible until v22.78 finally pointed axe at compare mode.
 
    Do NOT repair it by putting the buttons back. `tabindex="0"` on the wrapper makes the region
    itself focusable and arrow-scrollable, which is two tab stops rather than several hundred.
@@ -2357,7 +2357,7 @@ body.auth-ready .container { display: grid; }
     }
 }
 
-/* ═══ COMPARE: ONLY THE LINES THAT DIFFER (v22.73) ════════════════════════════════════════════════
+/* ═══ COMPARE: ONLY THE LINES THAT DIFFER (v22.77) ════════════════════════════════════════════════
 
    The rotation is 24 lines and a real proposal changes three or four, so the reader's job was to
    find those among 168 cells of agreement. The rows are always RENDERED and hidden here, so the
