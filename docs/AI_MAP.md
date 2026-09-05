@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: September 2026 — v22.80 · Updated every 0.10 version*
+*Last updated: September 2026 — v22.90 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -596,7 +596,7 @@ Shared **in-place** sign-in overlay for every protected page (v14.45). Replaces 
 ### `sw-register.js`
 Shared service worker registration + update lifecycle (v12.28). All seven app pages import this instead of duplicating the register/activate/reload pattern.
 - `_resetForTest()` — clears the module's one-shot install/claim guards. Test seam only.
-- `registerServiceWorker({ beforeReload, bfcache })` — registers `./service-worker.js`, activates any waiting worker immediately, sets up an hourly update-check via `visibilitychange`. On `controllerchange`, calls `beforeReload()` if provided, otherwise `window.location.reload()`. `bfcache: true` adds `pagehide`/`pageshow` handlers (used by `calendar-app.js` only).
+- `registerServiceWorker({ beforeReload, bfcache, deferWhileVisible })` — registers `./service-worker.js`, activates any waiting worker immediately, sets up an hourly update-check via `visibilitychange`. On `controllerchange`, calls `beforeReload()` if provided, otherwise `window.location.reload()`. `bfcache: true` adds `pagehide`/`pageshow` handlers (used by `calendar-app.js` only). `deferWhileVisible: true` (v22.90, `calendar-app.js` only) holds that reload until the page is HIDDEN, so a release cannot take the page away mid-read; a second update supersedes the first, and an update arriving while already hidden runs at once.
 - **First-install guard (v16.09, corrected v16.88):** `suppressNextClaim` is computed before registering — `!existing && !navigator.serviceWorker.controller`, i.e. no prior registration AND no controller — and the controllerchange fired by the first install's `clients.claim()` is swallowed, because the page was just loaded from the network so it already IS the newest version. **Both halves matter:** keying on the controller ALONE (as this described until v21.17) misclassifies a hard-reloaded page, which also has a null controller while its registration and active SW still exist — there the next claim is a genuine update and must reload. The listener is attached BEFORE `register()` so a very fast first-install claim cannot fire in the microtask gap and leave the flag unconsumed for the next real update to eat. Pre-v16.09 this reloaded every brand-new device (the old `registration.waiting && controller` guard only suppressed the redundant SKIP_WAITING *message*, not the reload — the SW self-activates via install-time `skipWaiting()` regardless).
 - **No `{once:true}` (v16.09):** the controllerchange listener stays armed so a `beforeReload` that declines (links' `confirm()` → Cancel) still receives the NEXT update's event; the default path double-reload is guarded by a `reloadFired` flag instead. Tested by `sw-register.test.mjs` (test:hygiene).
 - Per-page variants: `calendar-app.js` — 500ms reload delay + bfcache; `admin-app.js` — defers reload if `hasUnsavedChanges()`; `links-app.js` — shows `confirm()` if the design is dirty; others — plain reload.

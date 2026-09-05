@@ -21,6 +21,49 @@ Phase 5 to make the plan feel finished — twice this week, measuring first stop
 worth five milliseconds, and a review that ended by inventing new work would be undoing its own
 lesson. **No engineering left in this file plausibly moves the number.**
 
+## A SECOND cost, and this plan was structurally blind to it (v22.90)
+
+**Everything above measures ONE page load. Nothing above counts how many page loads a member is made
+to do.** That gap is where a real contributor was hiding, and it is not a wall this document could
+have found by reading its own card: a reload is recorded as one more ordinary sample, so a member
+interrupted and rebooted appears in the data as two unremarkable loads.
+
+**The mechanism.** A version bump renames the SW cache, the new worker `skipWaiting`s on install and
+claims immediately, and `controllerchange` reloaded the page — on the Calendar, 500 ms later and with
+no prompt. A member reading their roster watched it vanish and rebuild, paying a **second full boot,
+including the `accounts:lookup` round trip this document spends its length on.**
+
+**The frequency is the finding.** Measured on `origin/main` for the fourteen days to 5 Sep 2026:
+
+| | |
+|---|---|
+| releases | **62 in 14 days** |
+| busiest day | **17** |
+| 4 of the last 5 days | 9 · 17 · 11 · 11 |
+
+`registration.update()` runs hourly *and on every `visibilitychange` back to visible*, so bringing
+the app to the foreground is itself an update check. At this cadence a member who opens the Calendar
+several times a day will meet a reload regularly, and each one costs the full start over again.
+
+**Fixed at v22.90, narrowly.** `deferWhileVisible` holds the reload until the page is hidden —
+seconds away on a phone, and invisible when it happens. The update still lands, so the mixed-version
+hazard the reload exists to close is not reopened; only its TIMING moved. Opt-in, and the Calendar is
+the only caller: the pages that ask before reloading do so because a member may have unsaved work, and
+deferring that question would greet them with a confirm on return.
+
+**What is claimed, and what is not.** The mechanism and the cadence are measured — the reload is
+asserted by `sw-register.test.mjs`, and the release counts come from the git log. The FIELD
+contribution is not: the analytics are admin-only, so nobody has yet counted how many Calendar opens
+were followed by a reload seconds later. **That number would settle how much of the complaint this
+owns, and it is the natural next reading** — two `ready` samples from one device inside a few seconds
+is the signature. Until it exists, treat this as a removed cost of unknown size rather than as the
+explanation.
+
+**It does not touch the identity decision.** The round trip is still the wall on a single load, and
+`ROADMAP.md` still owns that call. What changed is that some members were paying it twice.
+
+---
+
 Design detail lives beside the code, as ever — `perf-reporter.js` and `perf-stats.js` for what is
 measured, `AI_MAP.md` for the ladder's exports, `CALENDAR_DATA.md` for the invariants any change
 here must not break. This file holds the sequence, the readings and the decision rules.
