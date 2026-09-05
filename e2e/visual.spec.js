@@ -827,6 +827,17 @@ test('calendar — mobile 360', async ({ page }) => {
 // factor, read first and set second, because that is what Android does: it scales what the
 // stylesheet resolved, tier included. The calendar cells grow with it; that is not noise, it is the
 // screen a colleague on that setting actually sees.
+// The narrowest phone the app meets, and the one the v22.89 width rule is for: an older Samsung on
+// a larger Android "Display size" reports about this. No text scaling — that is the other axis, and
+// the shot above covers it. What to look at here is the action row on ONE line with its words
+// intact, which it was not before v22.89.
+test('calendar — mobile 320', async ({ page }) => {
+    await prep(page, { width: 320, height: 900 });
+    await page.goto('/index.html');
+    await settle(page, '.legend, .calendar-legend, footer');
+    await expect(page).toHaveScreenshot('calendar-mobile-320.png');
+});
+
 test('calendar — mobile 412, compact under 1.3× text', async ({ page }) => {
     await prep(page, { width: 412, height: 900 });
     await page.addInitScript(() => { const w = /** @type {any} */ (window); w.__E2E = Object.assign(w.__E2E || {}, { textScale: 1.3 }); });
@@ -917,6 +928,34 @@ test('overlay — day detail, densest state (calendar, mobile 390)', async ({ pa
 test('overlay — day detail, densest state (calendar, narrow 320)', async ({ page }) => {
     await openDenseDayPanel(page, { width: 320, height: 700 });
     await expect(page.locator('#dayDetailContent')).toHaveScreenshot('day-detail-dense-narrow-320.png');
+});
+
+// AND THE PLAIN DAY — the state a member sees on nearly every tap, and the one that had no pixel
+// coverage at all until v22.89 gave it something to say. The panel is four short lines here (date,
+// roster week, shift, "As rostered") where the dense shot is nine, and the two together are what
+// the composition has to hold: this is the sparse end, where a stray hairline or an orphaned block
+// shows up and a behavioural assertion sees nothing wrong.
+test('overlay — day detail, an UNCHANGED day (calendar, mobile 390)', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2027-01-20T10:00:00Z'));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = Object.assign(w.__E2E || {}, { authUser: true });
+        w.__E2E.docs = [];                       // nothing changed anywhere in the month
+        localStorage.setItem('myb_roster_year', '2026');
+        localStorage.setItem('myb_roster_month', '10');   // November — no Christmas, no bank holiday
+    });
+    await dismissOneTimeOverlays(page);
+    await page.goto('/');
+    await settle(page, '.calendar-day');
+    const cell = page.locator('.calendar-day:not(.other-month)').nth(9);
+    await cell.evaluate(el => /** @type {HTMLElement} */ (el).focus());
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#dayDetailAsRostered')).toBeVisible();
+    await page.evaluate(() => new Promise(r => setTimeout(r, 600)));
+    await expect(page.locator('#dayDetailContent')).toHaveScreenshot('day-detail-plain-mobile-390.png');
 });
 
 test('overlay — App Notices (calendar, desktop 1280)', async ({ page }) => {
