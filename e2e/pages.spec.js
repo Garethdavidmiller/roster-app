@@ -1704,6 +1704,64 @@ test('admin: the AL banner counts leave that is already on record', async ({ pag
         .toBe(booked.entitlement - booked.taken - booked.booked);
 });
 
+// ── THE BANNER DESCRIBES THE YEAR THE READER IS LOOKING AT (v22.82) ──────────────────────────
+// Reported by the owner: scrolled the picker to February 2027 and the four figures still described
+// 2026 — 26 taken, 2 remaining — so next year's untouched 32 days read as all but spent.
+//
+// The SAVE was never wrong: it reads the picked dates, so an actual 2027 booking counted against
+// 2027. What is wrong is the number a manager reads BEFORE booking, and that is the one a request
+// gets refused on. This is an e2e rather than a unit test because the defect is entirely in the
+// wiring — the year ladder is four lines in `updateALBanner`, each individually right, and what was
+// missing was any path from the picker's month to the function at all.
+//
+// Asserted in BOTH directions. Scrolling forward and finding a fresh entitlement proves the hook
+// fires; scrolling back and recovering the original figures proves it tracks rather than latches,
+// which a one-way test would call a pass for a banner stuck on 2027 for the rest of the session.
+test('admin: the AL banner follows the year the picker is showing', async ({ page }) => {
+    const AL_DATES = [];
+    for (let d = 1; d <= 26; d++) AL_DATES.push(`2026-06-${String(d).padStart(2, '0')}`);
+
+    await page.clock.setFixedTime(new Date('2026-08-27T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript((dates) => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = dates.map((/** @type {string} */ d, /** @type {number} */ i) => ({
+            id: 'al' + i, memberName: 'G. Miller', date: d, type: 'annual_leave', value: 'AL', note: '',
+        }));
+    }, AL_DATES);
+    await page.goto('/admin.html');
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#alToggleHeader').click();
+    await expect(page.locator('#alBanner')).toBeVisible();
+
+    const read = () => page.evaluate(() => ({
+        taken:       Number(document.getElementById('alBannerTaken')?.textContent),
+        remaining:   Number(document.getElementById('alBannerRemaining')?.textContent),
+        entitlement: Number(document.getElementById('alBannerEntitlement')?.textContent),
+    }));
+    /** Six presses from August reaches February — the month in the report. */
+    const scroll = async (/** @type {string} */ id) => {
+        for (let i = 0; i < 6; i++) { await page.locator(id).click(); await page.waitForTimeout(60); }
+    };
+
+    const thisYear = await read();
+    expect(thisYear.taken, 'the fixture must actually be on record, or every figure below is a true zero')
+        .toBeGreaterThan(0);
+
+    await scroll('#alRpNext');
+    await expect(page.locator('#alRpLabel, #alRangePicker .rp-label')).toContainText('2027');
+    const nextYear = await read();
+    expect(nextYear.taken, 'leave taken in 2026 is being counted against 2027').toBe(0);
+    expect(nextYear.remaining, 'a year with nothing booked shows the whole entitlement')
+        .toBe(nextYear.entitlement);
+
+    await scroll('#alRpPrev');
+    const backAgain = await read();
+    expect(backAgain, 'the banner latched on the later year instead of tracking the picker')
+        .toEqual(thisYear);
+});
+
 // ── "Recording for <name>" on the AL and Absence cards (v22.45) ──────────────────────────────
 // The wiring, not the rule: `_syncMemberFor` is three lines and trivially right, and the defect it
 // guards against is that nothing calls it, or that CSS renders the row for the people it was built

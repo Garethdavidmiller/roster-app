@@ -43,6 +43,7 @@ import { setStatus } from './status-text.js';
  * @param {Function}          [cfg.showSuccess]   Scroll-independent bottom success toast.
  * @param {Function}          [cfg.beforePreview] Runs before updatePreview in the change handlers (AL: hideALConfirm).
  * @param {Function}          [cfg.afterDateChange] Runs after updatePreview in the change handlers (refresh boxes).
+ * @param {(year:number)=>void} [cfg.onViewYearChange] Called with the YEAR when the picker's displayed month crosses into a new one.
  * @param {Function}          [cfg.afterSave]     Runs after a successful save (refresh banner/boxes).
  * @param {Function}          [cfg.onClick]       Runs at the very top of the save click, before the member/dates
  *   guard (AL: captures + resets the over-limit-confirmed flag, exactly as the old top-of-handler code did).
@@ -126,7 +127,7 @@ export function createRangeBookingSection(cfg) {
     }
     fromInput.addEventListener('change', onDateChange);
     toInput.addEventListener('change', onDateChange);
-    const picker = buildRangePicker(cfg.prefix);
+    const picker = buildRangePicker(cfg.prefix, { onViewYearChange: cfg.onViewYearChange });
     updatePreview();
 
     saveBtn.addEventListener('click', async () => {
