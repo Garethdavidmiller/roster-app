@@ -93,6 +93,7 @@
     <link rel="modulepreload" href="./ls.js">
     <link rel="modulepreload" href="./nav-panel.js">
     <link rel="modulepreload" href="./install-prompt.js">
+    <link rel="modulepreload" href="./text-scale.js">
     <link rel="modulepreload" href="./notif.js">
     <link rel="modulepreload" href="./overlay.js">
     <link rel="modulepreload" href="./override-utils.js">
@@ -375,16 +376,20 @@
             <div class="controls-row">
                 <div class="control-group control-group--actions">
                     <button type="button" id="todayBtn"   class="today-btn"  aria-label="Go to today">📍</button>
-                    <button type="button" id="teamViewBtn" class="team-btn"  aria-label="Switch to team week view">👥 Team</button>
-                    <button type="button" id="alBtn"       class="al-btn"    aria-label="View annual leave balance">🏖️ AL</button>
+                    <button type="button" id="teamViewBtn" class="team-btn"  aria-label="Switch to team week view"><span class="btn-ico" aria-hidden="true">👥</span> Team</button>
+                    <button type="button" id="alBtn"       class="al-btn"    aria-label="View annual leave balance"><span class="btn-ico" aria-hidden="true">🏖️</span> AL</button>
+                    <!-- THE ICON IS A SPAN (v22.87) so the compact form can drop it: under large text the
+                         word is the content and the emoji is 20–25px of decoration per button, which is the
+                         difference between one row and two. `aria-hidden`, and every button already carries
+                         its own aria-label, so nothing spoken changes. -->
                     <!-- ADMIN AND PAY TRAVEL TOGETHER, and the grouping is the app's own distinction
                          rather than a layout trick: 📍 · Team · AL all act on THIS page (jump to
                          today, switch the view, open the leave panel) while these two LEAVE it for
                          another page. Keeping them one unbreakable flex item is also what stops the
                          wrap orphaning a single button — see index.css. -->
                     <div class="control-group control-group--pair">
-                        <button type="button" id="adminBtn"  class="admin-btn"  aria-label="Go to Admin" title="Admin — book leave, record absence, change a shift (sign-in required)">📝 Admin</button>
-                        <button type="button" id="payBtn"    class="pay-btn"    aria-label="Pay Calculator">💷 Pay</button>
+                        <button type="button" id="adminBtn"  class="admin-btn"  aria-label="Go to Admin" title="Admin — book leave, record absence, change a shift (sign-in required)"><span class="btn-ico" aria-hidden="true">📝</span> Admin</button>
+                        <button type="button" id="payBtn"    class="pay-btn"    aria-label="Pay Calculator"><span class="btn-ico" aria-hidden="true">💷</span> Pay</button>
                     </div>
                 </div>
             </div>

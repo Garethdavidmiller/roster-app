@@ -1137,6 +1137,72 @@ for (const [width, fontPx] of [[320, 14], [360, 14], [390, 14], [412, 14], [412,
     });
 }
 
+// ─── COMPACT UNDER TEXT SCALING (v22.87, owner decision) ─────────────────────────────────────────
+// Android's text size scales every font and leaves the viewport alone, so at 412px the five-button
+// row wrapped to 3 + 2 the moment its buttons reached 15px ("Largest"). The owner did not want two
+// rows. text-scale.js measures the scale at boot and stamps <html>; the stylesheet tightens the row
+// only then. A headless browser has no OS text size, so the scale is STATED through the test seam
+// and the fonts scaled to match — the two halves of what a real phone does at once.
+// Three things pinned: the default and "Large" rows are untouched (no stamp); at "Largest" and
+// above the five stay on ONE line — 412px to 1.75×, 360px to 1.5× — with the icons gone and the
+// words kept; and the wrap is still there beneath it all: at a scale compact cannot absorb, the
+// row wraps 3 + 2 rather than clipping.
+for (const [width, scale, expectRows] of [[412, 1.0, 1], [412, 1.15, 1], [412, 1.3, 1], [412, 1.5, 1], [412, 1.75, 1], [360, 1.3, 1], [360, 1.5, 1], [360, 2.0, 2]]) {
+    test(`calendar: the action row at ${width}px under ${scale}× text is ${expectRows} row${expectRows > 1 ? 's' : ''}, nothing cut off`, async ({ page }) => {
+        await seedMember(page);
+        await seedMemberSession(page);
+        await page.addInitScript((sc) => { const w = /** @type {any} */ (window); w.__E2E = Object.assign(w.__E2E || {}, { textScale: sc }); }, scale);
+        await page.setViewportSize({ width, height: 820 });
+        await page.goto('/');
+        await page.waitForSelector('.control-group--actions');
+        if (scale !== 1) {
+            // Scale the fonts the way the OS would — the seam only tells the page what the scale IS.
+            await page.addStyleTag({ content:
+                `.controls select, .controls button { font-size: ${Math.round(12 * scale * 10) / 10}px !important; }` });
+        }
+        await page.waitForTimeout(300);
+        const geo = await page.evaluate((vw) => {
+            const btns = [...document.querySelectorAll('.control-group--actions button')];
+            // Lines, not distinct rounded tops: `align-items: center` puts a shorter button a pixel
+            // below a taller one on the SAME line, and an exact-top count read that as two rows.
+            const lineCount = (els) => els.map(b => b.getBoundingClientRect().top).sort((a, b) => a - b)
+                .reduce((lines, t) => (lines.length && t - lines[lines.length - 1] < 8 ? lines : lines.concat(t)), []).length;
+            const rows = lineCount(btns);
+            const cut = btns.filter(b => { const r = b.getBoundingClientRect(); return r.left < -0.5 || r.right > vw + 0.5; }).length;
+            const pad = getComputedStyle(btns[1]).paddingLeft;
+            const icons = [...document.querySelectorAll('.control-group--actions .btn-ico')];
+            return { rows, cut, pad, stamp: document.documentElement.getAttribute('data-text-scale'),
+                     iconsShown: icons.filter(i => i.getBoundingClientRect().width > 0).length,
+                     // innerText, not textContent: a hidden icon span is still in textContent.
+                     words: btns.slice(1).map(b => b.innerText.trim()) };
+        }, width);
+        expect(geo.cut, 'no button off the edge').toBe(0);
+        expect(geo.rows, `expected ${expectRows} row(s), got ${geo.rows} (padding ${geo.pad}, stamp ${geo.stamp})`).toBe(expectRows);
+        if (scale < 1.2) {
+            expect(geo.stamp, 'below the threshold the action row is NOT compact (the heading tier may be stamped)').not.toBe('compact');
+            expect(geo.pad, 'below the threshold the buttons keep their own padding, not the compact 8px').not.toBe('8px');
+            expect(geo.iconsShown, 'below the threshold every icon is drawn').toBe(4);
+        } else {
+            expect(geo.stamp, 'at and above the threshold the page is stamped compact').toBe('compact');
+            expect(geo.iconsShown, 'compact drops the four decorative icons').toBe(0);
+            expect(geo.words, 'and keeps every word').toEqual(['Team', 'AL', 'Admin', 'Pay']);
+            // The toggle rewrites the Team button; the icon must stay a hidden span through it.
+            await page.locator('#teamViewBtn').click();
+            await page.waitForSelector('.team-week-text');
+            await page.waitForTimeout(300);   // the nav row hides and the actions row moves; measure after, not during
+            const after = await page.evaluate(() => ({
+                iconsShown: [...document.querySelectorAll('.control-group--actions .btn-ico')].filter(i => i.getBoundingClientRect().width > 0).length,
+                word: document.getElementById('teamViewBtn').innerText.trim(),
+                rows: [...document.querySelectorAll('.control-group--actions button')].map(b => b.getBoundingClientRect().top).sort((a, b) => a - b)
+                    .reduce((lines, t) => (lines.length && t - lines[lines.length - 1] < 8 ? lines : lines.concat(t)), []).length,
+            }));
+            expect(after.iconsShown, 'after toggling to Team View the icons are still hidden').toBe(0);
+            expect(after.word).toBe('Month');
+            expect(after.rows, 'and the row is still as many lines as before').toBe(expectRows);
+        }
+    });
+}
+
 // ─── ON A WIDE SCREEN THE TEAM VIEW BAR IS A CLUSTER, NOT A FULL-WIDTH ROW (v22.86) ─────────────
 // At 1280px the two arrows sat at the far edges of a 1040px card, 400px from the label they move,
 // while the month view directly above keeps Prev · name · Next as one compact centred group. Both
@@ -1171,36 +1237,51 @@ for (const width of [768, 1024, 1280, 1440]) {
     });
 }
 
-// ─── THE MONTH NAME NEVER SPLITS (v22.86) ────────────────────────────────────────────────────────
-// "September 2026" is the longest heading the year produces, and at 320px and 360px — the
-// commonest Android width — it broke as "September / 2026▾" with the week note wrapped beside it,
-// in both engines. Nothing was off screen and nothing overlapped, so no guard saw it. The heading
-// row now wraps (the note drops beneath, whole) and stacks outright below 380px. Pinned on the
-// rendered geometry: the heading is ONE line, and the note is beside it or beneath it, never on it.
-for (const [width, fontPx] of [[320, 14], [360, 14], [390, 14], [412, 14], [412, 20]]) {
-    test(`calendar: the month heading stays on one line at ${width}px / ${fontPx}px, with the week note beside or beneath`, async ({ page }) => {
+// ─── THE MONTH HEADING ROW IS ONE LINE, AND THE MONTH NAME NEVER SPLITS (v22.86 → v22.87) ────────
+// "September 2026" is the longest heading the year produces. v22.86 stopped it splitting as
+// "September / 2026▾" by wrapping the row — and on the owner's phone that put the week note on a
+// second line where it had always shared the first. So the row is made cheaper instead (a smaller
+// note, no dot, a tighter gap, and a smaller base under text scaling), and this pins the OUTCOME:
+// one line at the default size from 360px up (a 320px phone has 294px for a 318px row, so there
+// the note sits beneath even at the default), one line at "Large" on 360px and at "Largest" on
+// 412px, and beyond that the note beneath the heading whole — never the heading split.
+// Scaled the way a phone scales: the heading and the note together, and the tier stated through
+// the seam, since a headless browser has no OS text size.
+for (const [width, scale, oneLine] of [[320, 1.0, false], [360, 1.0, true], [390, 1.0, true], [412, 1.0, true],
+                                       [360, 1.15, true], [412, 1.15, true], [412, 1.3, true],
+                                       [360, 1.3, false], [412, 1.5, false]]) {
+    test(`calendar: the month heading row at ${width}px under ${scale}× text is ${oneLine ? 'one line' : 'the note beneath'}, and the month never splits`, async ({ page }) => {
         await seedMember(page);
         await seedMemberSession(page);
         await page.clock.setFixedTime(new Date('2026-09-03T10:00:00Z'));
+        await page.addInitScript((sc) => { const w = /** @type {any} */ (window); w.__E2E = Object.assign(w.__E2E || {}, { textScale: sc }); }, scale);
         await page.setViewportSize({ width, height: 820 });
         await page.goto('/');
         await page.waitForSelector('.calendar-day');
-        if (fontPx !== 14) {
-            // Text scaling changes the heading too; it is `--type-xl` (24px), so scale it in step.
+        if (scale !== 1) {
+            // Scale what the stylesheet resolved (the tier is already stamped), as the OS would:
+            // read each base size first, then set the scaled size explicitly.
+            const base = await page.evaluate(() => ({
+                h: parseFloat(getComputedStyle(/** @type {Element} */ (document.querySelector('.month-year'))).fontSize),
+                n: parseFloat(getComputedStyle(/** @type {Element} */ (document.querySelector('.week-info'))).fontSize),
+            }));
             await page.addStyleTag({ content:
-                `.month-year { font-size: ${Math.round(24 * fontPx / 14)}px !important; } .week-info { font-size: ${fontPx}px !important; }` });
+                `.month-year { font-size: ${(base.h * scale).toFixed(2)}px !important; } .week-info { font-size: ${(base.n * scale).toFixed(2)}px !important; }` });
         }
-        await page.waitForTimeout(300);
+        await page.waitForTimeout(250);
         const geo = await page.evaluate(() => {
             const h = document.querySelector('.month-year'), n = document.querySelector('.week-info');
             const rh = h.getBoundingClientRect(), rn = n.getBoundingClientRect();
             const fs = parseFloat(getComputedStyle(h).fontSize);
-            return { headingLines: rh.height / (fs * 1.3), noteBeside: rn.left >= rh.right - 1, noteBeneath: rn.top >= rh.bottom - 1,
-                     overlap: !(rn.left >= rh.right - 1 || rn.top >= rh.bottom - 1 || rn.right <= rh.left + 1) };
+            return { headingLines: rh.height / (fs * 1.3), sameLine: Math.abs(rn.top - rh.top) < rh.height * 0.6 && rn.left >= rh.right - 1,
+                     beneath: rn.top >= rh.bottom - 1, noteLines: rn.height / (parseFloat(getComputedStyle(n).fontSize) * 1.3),
+                     headingPx: fs, dot: getComputedStyle(n.firstElementChild || n, '::before').content };
         });
-        expect(geo.headingLines, `the heading wrapped (${geo.headingLines.toFixed(2)} lines)`).toBeLessThan(1.5);
-        expect(geo.overlap, 'the week note sits on the heading').toBe(false);
-        expect(geo.noteBeside || geo.noteBeneath, 'the week note is beside or beneath the heading').toBe(true);
+        expect(geo.headingLines, `the month name split (${geo.headingLines.toFixed(2)} lines at ${geo.headingPx}px)`).toBeLessThan(1.5);
+        expect(geo.noteLines, 'the note never breaks mid-phrase').toBeLessThan(1.5);
+        expect(geo.dot === 'none' || geo.dot === 'normal', 'no separator dot').toBe(true);
+        if (oneLine) expect(geo.sameLine, 'the note shares the heading\'s line').toBe(true);
+        else expect(geo.beneath, 'past what the row can hold, the note sits beneath the heading, whole').toBe(true);
     });
 }
 

@@ -243,6 +243,21 @@
            tightening it would change what a Pixel-class phone looks like to fix a device that was
            never broken — and churn the 390px visual baselines for nothing. The devices that need it
            are 320-380. Measured either side. */
+        /* COMPACT UNDER TEXT SCALING (v22.87, owner decision). Android's accessibility text size
+           scales every font size and leaves the CSS viewport alone, so no width query can see it —
+           and at 412px the five-button row wrapped to 3 + 2 the moment its buttons reached 15px
+           ("Largest", 1.3×): 390px needed, 386px available. text-scale.js measures the scale at
+           boot and stamps <html> at 1.2× and above; this is the whole of what the stamp does.
+           Tighter gaps and side padding buy ~70px, and dropping the four decorative icons (the
+           word is the content; 📍 stays, it IS the content) buys ~90px more — measured: one line at
+           412px up to ~2× and at 360px up to ~1.5×, which is every Android step a 412px phone
+           offers and all but the last two on a 360px one. Beyond that the wrap below is still the
+           last resort — a fifth button cut off the edge is worse than a second row, and always was.
+           `.controls` prefix and the variable, for the reasons on `.control-group`; nothing here
+           declares `gap`. */
+        html[data-text-scale="compact"] .controls .control-group--actions { --qa-gap: 4px; }
+        html[data-text-scale="compact"] .controls .control-group--actions button { padding-left: 8px; padding-right: 8px; }
+        html[data-text-scale="compact"] .controls .control-group--actions .btn-ico { display: none; }
         @media (max-width: 380px) {
             .controls .control-group--actions { --qa-gap: 5px; }
             /* Horizontal only — the vertical padding, and so the touch target's height, is
@@ -556,22 +571,22 @@
             margin-bottom: 12px;
             padding-bottom: 10px;
             border-bottom: 1px solid var(--border-light);
-            gap: 0 8px;
-            /* THE MONTH NAME NEVER SPLITS (v22.86). "September 2026" is the longest heading the year
-               produces, and at 320px and 360px — the commonest Android width — it broke as
-               "September / 2026▾" with the week note wrapped beside it, in both engines. Wrapping
-               the ROW instead lets the note drop beneath the heading whole; and because Chrome's
-               Android text scaling does not change the CSS viewport, this net is what catches a
-               412px phone on "Large" text, which no width query can see. Below 380px the two
-               stack outright (below). */
+            gap: 0 6px;
+            /* ONE LINE BY CONSTRUCTION, WRAP AS THE LAST RESORT (v22.87, owner). v22.86 stacked the
+               heading and the week note on the narrowest phones and wrapped the note beneath on
+               the rest — and on the owner's own phone that turned a row that had always been one
+               line into two. Measured: at 360px the default row needed 337px of 334 and fitted by
+               overflowing 3px invisibly; at 412px it stopped fitting at 1.2× text. So the row is
+               made CHEAPER instead: the note is `--type-small` with no separator dot (its size and
+               its grey already set it apart, and the dot was 8px), the gap is 6px, and under text
+               scaling (`html[data-text-scale]`, from 1.1×) the two scale from a smaller base so
+               they still share the line — 360px to ~1.15×, 412px to ~1.35×. Beyond that the note
+               drops beneath the heading, whole; the heading itself never splits. Default phones
+               keep the 24px heading exactly as before. */
             flex-wrap: wrap;
         }
-        /* The separator lives here rather than in the string, so the stacked form can drop it. */
-        .week-info-text::before { content: '· '; }
-        @media (max-width: 380px) {
-            .calendar-header { flex-direction: column; align-items: center; }
-            .week-info-text::before { content: none; }
-        }
+        html[data-text-scale] .month-year { font-size: 21px; }
+        html[data-text-scale] .week-info  { font-size: var(--type-badge); }
 
         .month-year {
             font-size: var(--type-xl);
@@ -581,9 +596,10 @@
         }
 
         .week-info {
-            font-size: var(--type-label);
+            font-size: var(--type-small);   /* was --type-label; the 1px is what keeps a 360px phone on one line */
             color: var(--text-faint);
             font-weight: 400;
+            white-space: nowrap;            /* the note moves beneath whole, or not at all — it never breaks mid-phrase */
         }
 
         .calendar-grid {

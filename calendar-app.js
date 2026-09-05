@@ -39,6 +39,7 @@ import { initSwipeHandler, isSwipeCooldown, isSwipeGestureActive } from './calen
 import { initCalendarLightboxes } from './calendar-al-lightbox.js';
 import { initInitialFetch } from './calendar-initial-fetch.js';
 import { initInstallPrompt } from './install-prompt.js';
+import { applyTextScale } from './text-scale.js';
 import { initCalendarTooltip, initCalendarKeyboard } from './calendar-keyboard.js';
 
 import { setStatus } from './status-text.js';
@@ -214,6 +215,10 @@ function changeMonth(delta) {
 // Dismissed permanently on the first month navigation (swipe or button), or
 // auto-dismissed after 6s — without the timer, a user who saw the hint but
 // didn't navigate would be shown it again on every reload.
+// The phone's text scale, stamped on <html> before anything is laid out, so the action row can go
+// compact where five buttons would otherwise wrap (text-scale.js has the reasoning and the numbers).
+applyTextScale(document);
+
 (function initSwipeHint() {
     if (lsGet('myb_swipe_hint_seen')) return;
     if (!window.matchMedia('(pointer: coarse)').matches) return;
