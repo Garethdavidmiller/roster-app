@@ -62,7 +62,7 @@ explanation.
 **It does not touch the identity decision.** The round trip is still the wall on a single load, and
 `ROADMAP.md` still owns that call. What changed is that some members were paying it twice.
 
-### The reading it named is now being taken (v22.91)
+### The reading it named is now being taken (v22.92)
 
 The paragraph above says the field contribution is unmeasured and names counting it as the next
 reading. This is that instrument, and it is deliberately not the shape the paragraph guessed at.

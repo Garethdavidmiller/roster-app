@@ -381,7 +381,7 @@ export function summariseReadySource(samples, { page }) {
 }
 
 /**
- * OPENS A RELEASE CAUSED (v22.91) — the reading v22.90 shipped without.
+ * OPENS A RELEASE CAUSED (v22.92) — the reading v22.90 shipped without.
  *
  * Deferring the update reload until the member looks away removed a cost nobody could size. This is
  * how it gets sized: `readyUpdate` is written beside `ready`, from the same bucket on the same path,

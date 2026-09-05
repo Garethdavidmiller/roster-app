@@ -369,7 +369,7 @@ describe('the `ready` sample says what served the grid', () => {
     });
 });
 
-// ── OPENS A RELEASE CAUSED (v22.91) ─────────────────────────────────────────────────────────────
+// ── OPENS A RELEASE CAUSED (v22.92) ─────────────────────────────────────────────────────────────
 //
 // v22.90 deferred the update reload so a release stops interrupting a member mid-read. It shipped
 // with the cost it removes UNMEASURED, and this marker is the measurement.

@@ -358,7 +358,7 @@ describe('deferWhileVisible — the update waits for the member to look away', (
     });
 });
 
-// ── THE MARKER THAT SAYS "THIS LOAD FOLLOWED A RELEASE" (v22.91) ────────────────────────────────
+// ── THE MARKER THAT SAYS "THIS LOAD FOLLOWED A RELEASE" (v22.92) ────────────────────────────────
 //
 // v22.90 deferred the update reload and shipped with the cost it removes unmeasured. This marker is
 // the measurement's write half; `perf-reporter.test.mjs` owns the read half and the recency rule.

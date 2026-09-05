@@ -441,7 +441,7 @@ async function initPageSpeedCard() {
         return frag;
     };
 
-    /** OPENS A RELEASE CAUSED (v22.91) — the reading v22.90 shipped without.
+    /** OPENS A RELEASE CAUSED (v22.92) — the reading v22.90 shipped without.
      *
      *  That release stopped an update reload interrupting a member mid-read, and could not say how
      *  often the path runs or what the following load costs: the instrumentation is blind to it,

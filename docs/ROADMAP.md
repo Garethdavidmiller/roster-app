@@ -184,8 +184,8 @@ starts, precisely so they cannot be chosen after seeing the numbers.
 This gates more than itself: **C5 cannot complete without it**, because a member who only ever reads
 the roster never signs in and is therefore never compelled to set a password.
 
-### Calendar start — the service-worker revalidation storm (NEW, v22.90)
-**Status:** Hypothesis, not measured · **Owner:** needs an experiment on a machine with real network · **Would change:** `service-worker.js` SWR branch
+### Calendar start — the service-worker revalidation storm (NEW v22.90, MEASURED v22.92)
+**Status:** Mechanism and volume measured; the COST to a member is not · **Owner:** Gareth — the treatment is an architecture decision · **Would change:** `service-worker.js` SWR branch
 
 **Raised by external review, 5 Sep 2026, and the mechanism is confirmed in code even though the
 effect is not.** On a warm cache the SWR branch serves each managed JS/CSS file from Cache Storage
@@ -206,11 +206,46 @@ version is stronger:** a same-version deploy is not hypothetical — **v22.29 sh
 defensible now is not that the case cannot happen but that CI catches it first: the `version` job
 ("a runtime change must claim a version main has not") refuses a duplicate before it reaches main.
 
-**Do not ship it on this reasoning.** Two arms — today's SWR against same-version cache-first —
-measuring `accounts:lookup` start/finish and the ladder milestones at +0/+100/+300 ms RTT and 1x/4x/6x
-CPU. If auth improves materially under cache-first there is a second real treatment; if not, keep the
-self-heal. It could not be run from a session container: the proxy drops browser traffic to both
-origins and gstatic is unreachable, so the app does not boot in a local browser.
+**THE VOLUME IS NOW MEASURED, 5 Sep 2026 — and it is the number the hypothesis needed.** Counted at
+the server, not in the browser, against a local origin serving the same `Cache-Control: no-cache`
+Firebase Hosting sends:
+
+| Calendar open | Requests reaching the server |
+|---|---|
+| warm cache, **worker just woken** (`_revalidated` empty) | **55** — 53 of them JS/CSS |
+| warm cache, worker already awake | **2** |
+
+**53 extra requests on the first open after the service worker wakes**, and on Android the worker is
+killed when idle, so that is not an edge case — it is close to every open. The mechanism is exactly
+as the review described it, and the size is now a fact rather than an estimate.
+
+**This entry previously said the experiment could not be run from a session container. That was
+wrong, and the correction is worth keeping** because it was wrong in the direction that stops work
+happening: the proxy does block gstatic, but `e2e/fixtures.js` stubs the SDK at the network layer and
+`playwright.offline.mjs` allows service workers, which is how `e2e/offline.spec.js` has been
+exercising the real worker all along. The tooling to measure this was already in the repo.
+
+**What is still NOT measured, and it is the half that decides the case: what those 53 requests COST a
+member.** They are free on localhost and are not free on a phone radio, and no emulation here would
+be faithful enough to argue from. The reading wanted is the ladder's `authBoot`/`rosterLive`
+milestones on a real device, with the storm and without.
+
+**Do not ship a treatment on this reasoning alone.** Two candidates, and they are not equivalent:
+
+  · **Cache-first within a version.** The review's proposal, on the grounds that the mandatory bump
+    rule makes same-version content immutable. **One correction, because the honest version is
+    stronger:** a same-version deploy is not hypothetical — **v22.29 shipped twice**, and `CLAUDE.md`
+    records that this SWR pass is the ONLY thing that self-heals it. What makes cache-first
+    defensible now is not that the case cannot happen but that CI catches it first: the `version` job
+    refuses a duplicate before it reaches main. It also drops the self-heal entirely.
+  · **Keep SWR, move WHEN it runs** — the same shape as v22.90's fix, and it keeps the self-heal.
+    The revalidation currently fires the instant the cached copy is served, i.e. straight into the
+    boot's critical path. Draining it after the page marks itself ready would cost the member
+    nothing and still refresh every asset. It needs a timeout fallback, or a page that never reaches
+    `ready` never revalidates.
+
+Both touch behaviour that `CLAUDE.md` lists under *"never change without discussion"*, which is why
+neither is in this release.
 
 ### Calendar start — the identity round trip
 **Status:** Blocked on an owner decision · **Owner:** Gareth · **Measured:** `LATENCY_PLAN.md` · **Would change:** `CALENDAR_DATA.md` invariant 3
