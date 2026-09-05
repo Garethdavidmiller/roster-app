@@ -259,11 +259,12 @@ The **pure** half — no DOM, no Firebase, no storage, so it loads in Node. Same
 - `attemptBackoffMs` — a UX brake, NOT a security control. Trivially bypassed, and nothing depends on it; the real limit is the server's.
 - `noticeAudienceAllows(audience, accessType)` — **who a one-time notice is addressed to (v21.81).** `calendarAccessReady` resolves the moment access is GRANTED and says nothing about whose it is, so every Calendar notice was opening on the PIN-unlocked station PC — including one asking the reader to check their own payslips were entered, on a machine deliberately unattributable and holding nobody's. A notice declares `'members'` (a signed-in member — the DEFAULT, and where anything about your pay, settings or account belongs), `'signed-out'` (v21.84 — only where nobody is signed in: for a notice ABOUT signing in, which then retires ITSELF the moment they do, since the audience is re-checked every load and no done-flag or cross-page write is involved), or `'everyone'` (both; rarely right). An unrecognised audience is treated as members-only, because the two failure directions are not symmetrical — a notice that fails to appear gets noticed, station pay copy on a shared screen does not. A refused notice is left UNFLAGGED, so it arrives when that device is next signed in.
 
-- **`provisionalPaintFor()`** (calendar-access.js, v22.96) — the member a provisional paint is up
-  for, or null. `grantProvisional`/`revokeProvisional` are private; the paint is taken BEFORE the
-  boot restore is awaited, which is the whole point of it, and withdrawn on any decision that is not
-  `named`. Withdrawal deliberately does NOT go through `handleAccessLost`, whose message asks for the
-  staff PIN — `CALENDAR_DATA.md` invariant 11. It is **not an access type**: `_accessType` stays `'none'`, `calendarAccessReady`
+- **The PROVISIONAL PAINT** (calendar-access.js, v22.96) — nothing is exported for it, deliberately:
+  the scope reaches its only consumer as `onEveryGrant`'s argument, and a reader beside
+  `getAccessType()` would be a second way to ask a question that is not the same one. The paint is
+  taken BEFORE the boot restore is awaited, which is the whole point of it, and withdrawn on any
+  decision that is not `named`. Withdrawal deliberately does NOT go through `handleAccessLost`,
+  whose message asks for the staff PIN — `CALENDAR_DATA.md` invariant 11. It is **not an access type**: `_accessType` stays `'none'`, `calendarAccessReady`
   stays PENDING (so phase 2 of the initial fetch, the one-time notices and everything else gated on
   it simply do not run), and the write gate stays shut. A paint, not a grant.
 - **`decideProvisionalAccess({ session, teamView, selectedMember })` → `{ decision, member }`** (v22.96) answers a NARROWER

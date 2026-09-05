@@ -217,11 +217,12 @@ function watchForLateNamedIdentity() {
 //     not run yet. Nothing is fetched under an unconfirmed identity, and it costs no new code path.
 //   · it does not resolve the WRITE gate. A member may look at what they already had; they may not
 //     record anything until Firebase has said who they are.
+// Deliberately NOT exported. It was, briefly, and nothing consumed it: every consumer already
+// learns the scope from `onEveryGrant`'s argument, which is the one place it can be acted on. An
+// exported reader here would be a second way to ask a question that is not `getAccessType()`'s, on
+// the module where confusing the two is most expensive.
 /** @type {string|null} the member a provisional paint is up for, or null. */
 let _provisionalFor = null;
-
-/** @returns {string|null} the member a provisional paint is showing, or null. */
-export function provisionalPaintFor() { return _provisionalFor; }
 
 /** Paint this member's own cached roster while their stored identity is revalidated. */
 function grantProvisional(/** @type {string} */ member) {
