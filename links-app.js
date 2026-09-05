@@ -163,6 +163,10 @@ export function init() {
     markPageReady();
 
     /** @type {any} */ let openAboutLightbox = null;
+    /** The About panel's CLOSE, exposed for the same reason as its open: the panel is built inside
+     *  its own IIFE, and "How this workspace works" — a row INSIDE that panel — has to dismiss it
+     *  before opening the orientation lightbox, from a block further down the file. */
+    /** @type {any} */ let closeAboutLightbox = null;
 
     initNavPanel({
         // Drawer Circular/Newsletter read waits for the session (AUTH_PLAN.md → E1).
@@ -2442,7 +2446,7 @@ export function init() {
             bugLinkId: 'linksBugReportLink',
             getUserName: () => currentUser,
         });
-        if (about) openAboutLightbox = about.open;
+        if (about) { openAboutLightbox = about.open; closeAboutLightbox = about.close; }
 
         // The 🔧 Operations shortcut in the About panel is admin-only: operations.html
         // redirects a non-admin designer (e.g. S. Silva) straight to admin.html, so
@@ -2531,8 +2535,19 @@ export function init() {
             },
         });
 
-        // The header button is unconditional — it is the whole point of the split above.
-        document.getElementById('linksHowBtn')?.addEventListener('click', () => welcome.open());
+        // Reachable for ever, from the About panel's own list of page links (v22.83). It is
+        // unconditional — never gated on the seen flag — which is the whole point of the split
+        // above.
+        //
+        // CLOSE ABOUT FIRST, then open this after the exit transition. Two overlays open together
+        // is the stacking hazard `openNoticeIfClear` exists for: one Escape ran both `onClose`
+        // callbacks, and the buried one was archived and flagged seen by somebody who never saw it.
+        // The 500ms matches `dismissOverlay`'s fallback — the same figure, for the same reason, as
+        // the About panel's own print button in about-lightbox.js.
+        document.getElementById('linksHowBtn')?.addEventListener('click', () => {
+            closeAboutLightbox?.();
+            setTimeout(() => welcome.open(), 500);
+        });
 
         if (lsGet(WELCOME_KEY)) return;
         // Not `welcome.open()`: a one-time notice must never open stacked with another overlay —

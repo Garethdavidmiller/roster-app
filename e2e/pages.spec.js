@@ -993,7 +993,17 @@ test('links: a first-time designer gets the orientation, and can always get it b
     await expect(panel).not.toBeVisible();
 
     // …and it is reachable for ever after, which is what stops it being a pop-up nobody can re-open.
+    // Driven through the REAL route (v22.83): the way back is a row in the About panel, so the test
+    // opens the drawer, taps the brand, and taps the row — the wiring is three hops and each of them
+    // has been the thing that broke. It is deliberately not a direct `#linksHowBtn` click: that
+    // passed for three releases while the control itself sat in the wrong place.
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanelBrand').click();
+    await expect(page.locator('#iconLightbox')).toBeVisible();
     await page.locator('#linksHowBtn').click();
+    // About must CLOSE rather than stack: two open overlays share one Escape, and the buried one
+    // gets archived and flagged seen by somebody who never read it.
+    await expect(page.locator('#iconLightbox')).not.toBeVisible();
     await expect(panel).toBeVisible();
     await expect(panel).toContainText('never the live roster');
 });
