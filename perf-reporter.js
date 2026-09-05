@@ -21,6 +21,7 @@
 import { recordPerfSample } from './firebase-client.js';
 import { bucketDuration, loginDurationBucket, bootPhases } from './perf-stats.js';
 import { CONFIG } from './roster-data.js';
+import { SW_UPDATE_RELOAD as SW_RELOAD_KEY } from './storage-keys.js';
 
 // Sign-in timing marker: a wall-clock timestamp stored at the "Sign in" click (login-overlay.js),
 // read once on the destination page (recordPageLatency below) to record login-to-usable time. Stored
@@ -48,7 +49,8 @@ export function clearLoginStart() {
 // declined links' confirm and navigated somewhere else later. Erring long would attribute an
 // ordinary open to a release; erring short only DROPS an update open. Those costs are not equal, so
 // the bound is set where the wrong answer is a miss rather than a false positive.
-const SW_RELOAD_KEY = 'myb_perf_sw_reload';
+// The KEY is `storage-keys.js`'s (one spelling, two modules); the BOUND is this side's, because
+// the bound protects the metric.
 const SW_RELOAD_MAX_MS = 60 * 1000;
 
 /** The mark `markPageReady` writes and `recordPageLatency` reads. */

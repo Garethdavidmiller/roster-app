@@ -1890,10 +1890,18 @@ Deliberately NOT the default — changing `lsSet` globally would make ~200 ordin
 branch for a case that only matters when something is about to be deleted.
 
 ### `storage-keys.js`
-Single source for the CROSS-FILE localStorage key names (v16.81) — a shared key must have ONE spelling.
+Single source for the CROSS-FILE storage key names (v16.81) — a shared key must have ONE spelling.
 - `SELECTED_MEMBER` (`myb_roster_selected_member`) + `SELECTED_MEMBER_LEGACY` (`adminLastMember`, the pre-rename alias still read as a fallback) — shared by `calendar-member.js` and `admin-app.js`
 - `VIEWED_MONTH` / `VIEWED_YEAR` — shared by `calendar-state.js` and `admin-app.js` (the "open calendar on the month I was editing" hand-off)
 - `PW_FORCE_PENDING_PREFIX` — the one-shot login marker `password-force.js` reads
+- `SW_UPDATE_RELOAD` (`myb_perf_sw_reload`, v22.92) — the "this load followed a release" stamp
+  `sw-register.js` writes when it commits an update reload and `perf-reporter.js` consumes on the
+  NEXT load to record `readyUpdate`. **The one sessionStorage key here**, deliberately: it describes
+  one tab's journey and must die with the tab, so it is read and written directly in a try/catch
+  rather than through the localStorage-only `ls.js` wrappers. It is here for the single property
+  this file exists for — a drifted spelling is silent AND self-concealing, since `readyUpdate` then
+  never records and the App Speed block simply does not render, which reads as "no release has ever
+  reloaded anybody": the finding itself, asserted on nothing.
 - Per-module and paycalc-namespaced keys deliberately stay local to their modules — only keys read by MORE THAN ONE file live here.
 - `NOTICE_PW_OWN_DONE` was REMOVED at v21.84. It existed so settings-app.js could retire a
   Calendar notice; the replacement notice's `'signed-out'` audience ended the coupling rather

@@ -11,6 +11,8 @@
  * tab is hidden and fires immediately on return.
  */
 
+import { SW_UPDATE_RELOAD as SW_RELOAD_KEY } from './storage-keys.js';
+
 // Once-per-page-life guard (v16.23): coordinators whose init() can be RE-INVOKED (the in-place
 // sign-in re-entry on operations/links/paycalc) must not stack a second controllerchange handler
 // + a second hourly update interval — each registration call wired its own set.
@@ -43,7 +45,7 @@ export function _resetForTest() { _registered = false; _controllerListenerAttach
 // sessionStorage, so it dies with the tab and never reaches another one. iOS private mode throws on
 // any access, hence the wrapper — and a failure here must never stop the reload, which is why this
 // is a statement of its own and not folded into the reload expression.
-const SW_RELOAD_KEY = 'myb_perf_sw_reload';
+// The spelling lives in `storage-keys.js`, with every other key two modules have to agree on.
 
 /** Note that the reload about to happen was caused by an update. Best-effort; never throws. */
 function markUpdateReload() {
