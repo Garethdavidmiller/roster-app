@@ -827,16 +827,19 @@ test('calendar — mobile 360', async ({ page }) => {
 // factor, read first and set second, because that is what Android does: it scales what the
 // stylesheet resolved, tier included. The calendar cells grow with it; that is not noise, it is the
 // screen a colleague on that setting actually sees.
-// The narrowest phone the app meets, and the one the v22.89 width rule is for: an older Samsung on
-// a larger Android "Display size" reports about this. No text scaling — that is the other axis, and
-// the shot above covers it. What to look at here is the action row on ONE line with its words
-// intact, which it was not before v22.89.
-test('calendar — mobile 320', async ({ page }) => {
-    await prep(page, { width: 320, height: 900 });
-    await page.goto('/index.html');
-    await settle(page, '.legend, .calendar-legend, footer');
-    await expect(page).toHaveScreenshot('calendar-mobile-320.png');
-});
+// NO FULL-PAGE BASELINE AT 320px — tried at v22.89 and removed the same day, on evidence.
+//
+// 320 is where this app has the least slack in every direction, so a whole-page shot there
+// accumulates the runner's font-metric differences across the entire grid instead of absorbing
+// them. Generated here it passed; on the CI runner it drifted, while the ELEMENT shot at the same
+// width (day-detail-dense-narrow-320, regenerated in the same release) passed on both. That is the
+// distinction to keep: at 320 a scoped shot is stable and a full-page one is not.
+//
+// It cost nothing to drop, because the thing it was added to watch — the v22.89 width rule, which
+// puts the five action buttons back on ONE line below 360px — is covered behaviourally at 320, 333
+// and 360 in e2e/calendar.spec.js, on all four browser projects, in the lane that GATES. And a
+// baseline that reports drift on every run makes the drift comment worth ignoring, which is the
+// failure this repo already spent a release fixing. Do not re-add it without a runner that agrees.
 
 test('calendar — mobile 412, compact under 1.3× text', async ({ page }) => {
     await prep(page, { width: 412, height: 900 });
