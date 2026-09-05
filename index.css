@@ -2302,14 +2302,28 @@
            date above it and quieter again than the shift below: this is context FOR the date, not
            a third fact competing with the two the member came for. Hidden entirely for a member on
            a fixed line — `weekContext` decides that, never this stylesheet. */
+        /* The date and its week are ONE zone — see the note in index.html. 3px inside the pair
+           against the panel's 8px between zones, which is what makes the week read as belonging to
+           the date above rather than floating between it and the shift. */
+        .day-detail-head {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+        }
+        /* A CAPTION, not a second line of heading (v22.91). At 12px/600/45% against the date's
+           13px/600/60% the two were one pixel and one shade apart, so the eye read a two-line grey
+           block instead of a heading and its qualifier. `--type-badge` puts a real step between
+           them; the letter-spacing and the slightly higher opacity are what keep 11px legible on
+           the glass, and are the same trade the `.ddc-eyebrow` above the change pair already makes. */
         .day-detail-week {
             width: 100%;
             text-align: center;
-            color: rgba(255,255,255,0.45);
-            font-size: var(--type-small);
+            color: rgba(255,255,255,0.5);
+            font-size: var(--type-badge);
             font-weight: 600;
-            letter-spacing: 0.2px;
-            margin-top: 2px;
+            letter-spacing: 0.5px;
         }
         .day-detail-week[hidden] { display: none !important; }
         /* THE SHIFT, LED BY ITS OWN KIND GLYPH (v22.70). The panel used to be monochrome unless
@@ -2535,7 +2549,12 @@
            what it is, and the calculator is one thing you might then want, not the conclusion. An
            auto-width pill states that, and it still clears the 44px touch floor by `min-height`
            rather than by padding, so shrinking the type can never shrink the target. */
-        .day-detail-pay-btn {
+        /* The two panel actions share every dimension and differ only in colour and destination —
+           one selector list rather than a second copy that would drift. Each wears its own
+           feature's identity: green is the app's Pay colour (the nav Pay pill), teal is Annual
+           Leave's (the 🏖️ badge, the AL lightbox). */
+        .day-detail-pay-btn,
+        .day-detail-leave-btn {
             margin-top: 12px;
             align-self: center;
             padding: 0 18px;
@@ -2543,9 +2562,19 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            background: var(--green);
             color: white;
-            border: none;
+            /* TINTED, NOT FILLED (v22.91, owner: "they dominate the lightbox when used"). A solid
+               saturated block is the loudest thing on a panel whose whole job is to answer a
+               question — and on an annual-leave day, where the panel is four short lines, the
+               button was competing with the shift itself. Two of them at once was worse.
+               A tint of the feature's own colour behind white text keeps the identity and the
+               contrast (the text is unchanged; the panel behind it is dark either way) and lets the
+               action recede to what it is: an optional route, not the answer. The 44px target, the
+               weight and the button radius all stay — this is the one thing here you can press, and
+               it must not start reading as one more chip. */
+            background: color-mix(in srgb, var(--ddb) 20%, transparent);
+            border: 1px solid color-mix(in srgb, var(--ddb) 45%, transparent);
+            text-decoration: none;
             /* `--radius-button`, not `--radius-pill`: the marker chips directly above it ARE pills,
                and this is the one thing on the panel you can press. Sharing their shape made the
                action look like one more label. Every action button in the app wears this radius. */
@@ -2557,11 +2586,29 @@
             touch-action: manipulation;
             transition: background var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
         }
-        .day-detail-pay-btn[hidden] { display: none !important; }
-        .day-detail-pay-btn:active { transform: scale(var(--press-scale)); background: var(--green-hover); }
-        @media (hover: hover) and (pointer: fine) {
-            .day-detail-pay-btn:hover { background: var(--green-hover); }
+        /* `display: inline-flex` out-specifies the `hidden` attribute — the page-visibility-parity
+           trap, and on a BUTTON it is worse than a stray row: an action for a day that has none. */
+        .day-detail-pay-btn[hidden],
+        .day-detail-leave-btn[hidden] { display: none !important; }
+        /* One token, set per class — every other declaration above is shared, so the two actions
+           cannot drift apart in anything but colour. */
+        .day-detail-pay-btn   { --ddb: var(--green); }
+        .day-detail-leave-btn { --ddb: var(--al); }
+        /* Pressing FILLS it: the tint is the resting state, and the press is where the colour
+           arrives. Same on hover, where a pointer has already declared intent. */
+        .day-detail-pay-btn:active,
+        .day-detail-leave-btn:active {
+            transform: scale(var(--press-scale));
+            background: color-mix(in srgb, var(--ddb) 52%, transparent);
         }
+        @media (hover: hover) and (pointer: fine) {
+            .day-detail-pay-btn:hover,
+            .day-detail-leave-btn:hover { background: color-mix(in srgb, var(--ddb) 34%, transparent); }
+        }
+        /* Both at once is rare but real — an annual-leave day that is also a payday, about one day a
+           year per member. The second button keeps the panel's 8px zone gap instead of adding its
+           own 12px on top, so a pair reads as one action group rather than two afterthoughts. */
+        .day-detail-leave-btn:not([hidden]) + .day-detail-pay-btn { margin-top: 0; }
 
         /* ---- Annual Leave lightbox ---- */
         /* #alLightbox uses .lb-overlay — no unique properties */

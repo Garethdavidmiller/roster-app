@@ -212,6 +212,7 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   const byEl     = /** @type {HTMLElement} */ (document.getElementById('dayDetailBy'));
   const extrasEl = /** @type {HTMLElement} */ (document.getElementById('dayDetailExtras'));
   const payBtn   = /** @type {HTMLButtonElement|null} */ (document.getElementById('dayDetailPayBtn'));
+  const leaveBtn = /** @type {HTMLAnchorElement|null} */ (document.getElementById('dayDetailLeaveBtn'));
 
   /**
    * One shift badge, built as elements. Same class, emoji and word as every other badge in the app.
@@ -353,6 +354,12 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     } else {
       extrasEl.hidden = true;
     }
+    // ANNUAL LEAVE: offer the list of what else is booked (v22.91). Keyed on the EFFECTIVE value,
+    // which is the same field the panel's own kind glyph comes from — so the action appears for
+    // exactly the days that show the 🏖️ badge, and cannot drift from them. It is an ordinary link
+    // with a real href, not a scripted navigation: a member may want it in a new tab, and the
+    // destination is a page, not an action.
+    if (leaveBtn) leaveBtn.hidden = d.detailShiftValue !== 'AL';
     // Pay-marked day (payday or cut-off): offer an explicit route to the calculator. Touch has no
     // hover, so tapping such a day used to teleport to paycalc unexpectedly — now the jump is a
     // deliberate button inside the detail. A cut-off day resolves to its own payday.

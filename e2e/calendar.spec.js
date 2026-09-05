@@ -1476,3 +1476,66 @@ for (const width of [320, 333, 360]) {
             .toBe(width < 360 ? 0 : 4);
     });
 }
+
+// ─── THE DAY PANEL'S HEADING BLOCK, AND THE LEAVE ACTION (v22.91) ────────────────────────────────
+
+test('day detail: the roster week is bound to the date, not floating between it and the shift', async ({ page }, info) => {
+    test.skip(info.project.name !== 'mobile-chrome', 'the day panel is the touch route; desktop hovers');
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('.calendar-day:not(.other-month)').first().click();
+    await expect(page.locator('#dayDetailWeek')).toBeVisible();
+
+    const g = await page.evaluate(() => {
+        const b = (/** @type {string} */ s) => document.querySelector(s).getBoundingClientRect();
+        const date = b('#dayDetailDate'), week = b('#dayDetailWeek'), shift = b('.day-detail-shift');
+        return { toDate: Math.round(week.top - (date.top + date.height)),
+                 toShift: Math.round(shift.top - (week.top + week.height)),
+                 dateFs: parseFloat(getComputedStyle(document.querySelector('#dayDetailDate')).fontSize),
+                 weekFs: parseFloat(getComputedStyle(document.querySelector('#dayDetailWeek')).fontSize) };
+    });
+    // The defect this fixes was EQUIDISTANCE — 9px from the date it belongs to and 8px from the
+    // shift it does not, so it read as a floating third line. The numbers are not pinned, only the
+    // relationship, which is the thing that carries the meaning.
+    expect(g.toDate, `week sits ${g.toDate}px under the date and ${g.toShift}px above the shift`)
+        .toBeLessThan(g.toShift);
+    // And a real type step, so the two are a heading and its caption rather than two greys.
+    expect(g.weekFs, 'the week must be visibly smaller than the date').toBeLessThan(g.dateFs);
+});
+
+test('day detail: an annual-leave day offers the leave dates, and no other day does', async ({ page }, info) => {
+    test.skip(info.project.name !== 'mobile-chrome', 'the day panel is the touch route; desktop hovers');
+    await seedMember(page);
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [];
+        for (let m = 1; m <= 12; m++) {
+            w.__E2E.docs.push({ id: 'al' + m, memberName: 'G. Miller',
+                date: '2026-' + String(m).padStart(2, '0') + '-04',
+                type: 'annual_leave', value: 'AL', note: '' });
+        }
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+
+    const alIdx = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
+        .findIndex(c => c.dataset.detailShiftValue === 'AL'));
+    expect(alIdx, 'the fixture no longer puts leave in this month').toBeGreaterThan(-1);
+    const otherIdx = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
+        .findIndex(c => c.dataset.detailDay && c.dataset.detailShiftValue !== 'AL'));
+
+    await page.locator('.calendar-day:not(.other-month)').nth(alIdx).click();
+    const leave = page.locator('#dayDetailLeaveBtn');
+    await expect(leave).toBeVisible();
+    await expect(leave).toHaveText(/leave dates/i);
+    // It must NAME its destination, and reach the list rather than the page it sits on.
+    await expect(leave).toHaveAttribute('href', /admin\.html#alBookedBox/);
+    await page.locator('#dayDetailClose').click();
+
+    // Every other day: absent, and absent MEANS hidden — `display: inline-flex` out-specifies the
+    // `hidden` attribute, which on an action would offer a member a route that does not apply.
+    await page.locator('.calendar-day:not(.other-month)').nth(otherIdx).click();
+    await expect(leave).toBeHidden();
+    await expect(leave).toHaveCSS('display', 'none');
+});

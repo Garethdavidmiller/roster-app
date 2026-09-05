@@ -933,6 +933,33 @@ test('overlay — day detail, densest state (calendar, narrow 320)', async ({ pa
     await expect(page.locator('#dayDetailContent')).toHaveScreenshot('day-detail-dense-narrow-320.png');
 });
 
+// AN ANNUAL-LEAVE DAY, which from v22.91 is the only state with a second action on it. Worth a
+// shot of its own because the button is the panel's one coloured control besides the pay one, and
+// the two must read as the same component in different clothes rather than as two designs.
+test('overlay — day detail, an annual-leave day (calendar, mobile 390)', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2027-01-20T10:00:00Z'));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = Object.assign(w.__E2E || {}, { authUser: true });
+        w.__E2E.docs = [{ id: 'al', memberName: 'G. Miller', date: '2026-11-10',
+            type: 'annual_leave', value: 'AL', note: '', source: 'manual', changedBy: 'S. Silva' }];
+        localStorage.setItem('myb_roster_year', '2026');
+        localStorage.setItem('myb_roster_month', '10');
+    });
+    await dismissOneTimeOverlays(page);
+    await page.goto('/');
+    await settle(page, '.calendar-day');
+    const cell = page.locator('.calendar-day:not(.other-month)').nth(9);
+    await cell.evaluate(el => /** @type {HTMLElement} */ (el).focus());
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#dayDetailLeaveBtn')).toBeVisible();
+    await page.evaluate(() => new Promise(r => setTimeout(r, 600)));
+    await expect(page.locator('#dayDetailContent')).toHaveScreenshot('day-detail-leave-mobile-390.png');
+});
+
 // AND THE PLAIN DAY — the state a member sees on nearly every tap, and the one that had no pixel
 // coverage at all until v22.89 gave it something to say. The panel is four short lines here (date,
 // roster week, shift, "As rostered") where the dense shot is nine, and the two together are what

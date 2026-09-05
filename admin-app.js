@@ -42,6 +42,8 @@ import { recordPageLatency, markPageReady, markMilestone } from './perf-reporter
 
 import { setStatus } from './status-text.js';
 import { initAdminWeekSwipe } from './admin-week-swipe.js';
+import { resolveDeepLink } from './admin-deep-link.js';
+
 /**
  * Programmatically open a collapsible card body, keeping the collapse control's ARIA state
  * in step. `initCardCollapse` only syncs `aria-expanded` on user click, so a class-only
@@ -1616,22 +1618,16 @@ export function init() {
         // failed one leaves the page visible and unusable, which is the opposite of the claim.
         loadOverrides().then(() => { if (isOverrideCacheLoaded()) markMilestone('rosterLive'); });
 
-        // If arriving via deep-link (e.g. from the AL lightbox), open and scroll to the target card.
-        // Look the target up by ID, never `querySelector(location.hash)` — a malformed hash (#[, #%, #..)
-        // makes querySelector throw a SyntaxError, which on the in-place-login path is caught into a
-        // reload; the bad hash then survives the reload and loops. getElementById can't throw; a bad
-        // decode is swallowed and treated as "no target".
-        if (location.hash) {
-            let target = null;
-            try { const id = decodeURIComponent(location.hash.slice(1)); target = id ? document.getElementById(id) : null; }
-            catch { target = null; }
-            if (target) {
-                // Open the collapsible body inside the target card if present
-                openCollapsibleCard(target.querySelector('.card-collapsible-body'), target.querySelector('.collapse-chevron'));
-                requestAnimationFrame(() => requestAnimationFrame(() =>
-                    target.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                ));
-            }
+        // WHERE A HASH LANDS is `admin-deep-link.js`'s decision — which folds to open (a nested
+        // target needs its card AND its own), and what to scroll to. This opens and scrolls, and
+        // owns neither rule; `openCollapsibleCard` stays here because it is what keeps
+        // `aria-expanded` in step, and a second opener would be a second place to forget that.
+        const _deepLink = resolveDeepLink(location.hash, document);
+        if (_deepLink) {
+            for (const f of _deepLink.folds) openCollapsibleCard(f.body, f.chevron);
+            requestAnimationFrame(() => requestAnimationFrame(() =>
+                _deepLink.scrollTo.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            ));
         }
         // Forced password migration — fire-and-forget: it does an async Firestore read inside and is
         // NOT on the login critical path (see showAdminLogin above / LOGIN_INCIDENT.md).
