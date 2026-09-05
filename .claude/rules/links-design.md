@@ -1155,8 +1155,29 @@ none fixed — recorded so they are not re-discovered as new:
   screen at all, and the grid is **43% off-screen horizontally** (592px of table in a 338px
   wrapper), so position cannot disambiguate the column either. On the page's primary object this
   is the most serious of the three.
-- **The sticky save row takes 224px of a 727px viewport — 31% (re-measured v22.75; it was 146px of 844px, 17%, when this was written).** It has grown by 78px, and the whole of that is the summary strip: the chips wrap to THREE rows at 393px because "⛔ N staffed hours with no cover" is 203px wide and cannot share a 341px row with the 134px chip beside it, and `.sum-jump` ("Full analysis ↓") is a 44px touch target on a row of its own. On an iPhone SE (568px) it is 39% of the screen. The v22.75 pass costed the obvious trims and shipped none of them: every item in the row is load-bearing by this file's own rules — the figures may not be softened, the jump link may not drop below 44px, and packing the chips 2-up depends on the exact figures, so it fits for some designs and not others. **It is still the conversation this section says it is; what has changed is that the number is worse than the one recorded here.** Original composition: two buttons, a
-  provenance line, and the summary chips wrapped onto two rows.
+- **The sticky save row takes 190px of a 727px viewport — 26% (v22.79).** It was 146px of 844px
+  (17%) when this was first written, over an original composition of two buttons, a provenance line
+  and the summary chips on two rows; the chips then grew, took a THIRD row, and it reached 224px
+  (31%) by v22.75. **v22.79 took the one trim that costs nothing and it is back to two rows.** The
+  third row was six pixels: at 393px the strip has 341px, and "⛔ N staffed hours with no cover"
+  measures 203px, so with the 134px chip beside it the pair needed 347px and the second chip was
+  pushed onto a row of its own, leaving most of the first row empty. Chip padding `4px 10px` →
+  `3px 8px` and gap `10px` → `8px` brings the pair to 339px. Every figure still renders, no wording
+  changed, nothing was removed. Measured on the profiles that are real devices here: 393px and 412px
+  Android 224→190, iPhone 13 190, 13 Pro Max 165, desktop 90→88. `.sum-jump` ("Full analysis ↓")
+  still holds a 44px row of its own, and should — it is the only control there.
+
+  **Two further trims were costed and REFUSED.** Hiding `.links-save-meta` ("Last saved by …") below
+  1024px saves another 28px, and was refused on the merits rather than on effort: `linkDesigns` is a
+  SHARED collection, three designers edit the same documents, and `links-concurrency.js` exists
+  because a silent overwrite of a colleague's work has happened three times — who last saved, and
+  when, is exactly the fact you want while editing on a phone. And **360px still wraps to three
+  rows** (215px, accepted): closing that needs ~23px more, which means shortening "staffed hours
+  with no cover", and this file forbids softening those figures.
+
+  **The iPhone SE is NOT the case to design against** (owner, Sep 2026): none of the three people
+  with Links access has a device that narrow, so a 320px column in any measurement here is
+  hypothetical. The v22.75 note led on "39% of an iPhone SE" — optimising for a phone nobody uses.
 - **The brush bar is 239px** — 26 chips over seven rows before the grid begins.
 
 None is a regression; all three predate v19.66. The fixes are not free (the first needs a nested
