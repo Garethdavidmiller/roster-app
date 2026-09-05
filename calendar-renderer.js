@@ -156,7 +156,7 @@ export function createCalendarHeader(/** @type {any} */ firstWeekNum, /** @type 
     let weekDisplay = '';
     if (weekPrefix !== '') {
         if (firstWeekNum === lastWeekNum) {
-            weekDisplay = `· ${weekPrefix} ${firstWeekNum}`;
+            weekDisplay = `${weekPrefix} ${firstWeekNum}`;
         } else {
             // Build plural: append 's' to the last word of the prefix
             // "CEA Week" → "CEA Weeks", "BL Week" → "BL Weeks"
@@ -166,9 +166,12 @@ export function createCalendarHeader(/** @type {any} */ firstWeekNum, /** @type 
                 : weekPrefix + 's';
             // En-dash for the range (v18.19) — matches the Team Week View's "19–25 July" strip;
             // the ASCII hyphen was the app's one range rendered with the wrong dash.
-            weekDisplay = `· ${pluralPrefix} ${firstWeekNum}–${lastWeekNum}`;
+            weekDisplay = `${pluralPrefix} ${firstWeekNum}–${lastWeekNum}`;
         }
     }
+    // The "·" between the month and the week note is CSS (`.week-info-text::before`), not text
+    // (v22.86): it is a separator between two things on ONE line, and below 380px the two stack,
+    // where a line that starts with a dot reads as a typo. CSS can hide it there; a string cannot.
     return `
         <div class="month-year" role="button" tabindex="0" aria-label="Jump to month — currently ${MONTH_NAMES[month]} ${year}">${MONTH_NAMES[month]} ${year}</div>
         <div class="week-info">

@@ -156,7 +156,16 @@
 
         .control-group {
             display: flex;
-            gap: 6px;
+            /* THE GAP IS A VARIABLE, NOT A DECLARATION (v22.86). Three releases in a row lost a
+               `gap` here to source order — a later `.control-group { gap }` in a media block beat
+               a modifier's `gap` at equal specificity, twice, and the file's own comment warning
+               about it was the thing being ignored. So no rule declares `gap` on a control group
+               any more: this one reads `--cg-gap`, and every breakpoint and every modifier SETS the
+               variable. A custom property cascades per property, so a later rule that sets it for
+               `.control-group` cannot override a modifier that sets it for `.control-group--actions`
+               — there is nothing to lose to. Kept by calendar-controls-parity.test.mjs. */
+            --cg-gap: 6px;
+            gap: var(--cg-gap);
             align-items: center;
             flex-shrink: 0;
         }
@@ -188,9 +197,10 @@
            one pixel is not visible; being 3px wider on the width this whole rule exists to fit is. */
         .controls .control-group--actions {
             /* One declaration of the row's gap, read by the pair below too — the two must match or
-               the pair's inner spacing drifts from the outer at one width and not the other. */
+               the pair's inner spacing drifts from the outer at one width and not the other. The
+               group's own gap is set through `--cg-gap` (see `.control-group`), never as `gap`. */
             --qa-gap: 6px;
-            gap: var(--qa-gap);
+            --cg-gap: var(--qa-gap);
             flex-wrap: wrap;
             justify-content: center;
             min-width: 0;
@@ -216,14 +226,13 @@
            all). A horizontal scroll strip would keep one line and put a primary action off screen.
            An equal-column grid sizes 📍 like "📝 Admin". Two rows at every width costs 44px of
            calendar on phones that were never short of room. */
-        .control-group--pair {
-            display: flex;
-            align-items: center;
-            gap: var(--qa-gap);
+        /* The pair IS a control group (`class="control-group control-group--pair"`, v22.86): the
+           base rule gives it its flex row, its centring and its refusal to shrink — its buttons
+           already refuse to shrink, so a shrinkable wrapper would not compress them, it would let
+           them overflow it — and its gap arrives through `--cg-gap` like every other group's. */
+        .controls .control-group--pair {
+            --cg-gap: var(--qa-gap);
             flex-wrap: nowrap;
-            /* Its buttons already refuse to shrink, so a shrinkable wrapper would not compress
-               them — it would let them overflow it. */
-            flex-shrink: 0;
         }
         /* `.controls` prefix is LOAD-BEARING, not decoration. Both of these are overridden later in
            this file at equal specificity — `.controls select, .controls button` sets the padding,
@@ -242,10 +251,10 @@
             .controls .control-group--actions button { padding-left: 8px; padding-right: 8px; }
         }
 
-        .control-group--stacked {
+        .controls .control-group--stacked {
             flex-direction: column;
             align-items: center;
-            gap: 2px;
+            --cg-gap: 2px;
             /* THE MEMBER SELECT IS WHAT GIVES WAY, NOT THE MONTH ARROWS (v22.84). At 320px this
                row measured 334px into 300px of usable width, so `← Prev` hung 14px off the left
                edge and `Next →` 14px off the right — both cut by the body's `overflow-x: clip`,
@@ -547,7 +556,21 @@
             margin-bottom: 12px;
             padding-bottom: 10px;
             border-bottom: 1px solid var(--border-light);
-            gap: 8px;
+            gap: 0 8px;
+            /* THE MONTH NAME NEVER SPLITS (v22.86). "September 2026" is the longest heading the year
+               produces, and at 320px and 360px — the commonest Android width — it broke as
+               "September / 2026▾" with the week note wrapped beside it, in both engines. Wrapping
+               the ROW instead lets the note drop beneath the heading whole; and because Chrome's
+               Android text scaling does not change the CSS viewport, this net is what catches a
+               412px phone on "Large" text, which no width query can see. Below 380px the two
+               stack outright (below). */
+            flex-wrap: wrap;
+        }
+        /* The separator lives here rather than in the string, so the stacked form can drop it. */
+        .week-info-text::before { content: '· '; }
+        @media (max-width: 380px) {
+            .calendar-header { flex-direction: column; align-items: center; }
+            .week-info-text::before { content: none; }
         }
 
         .month-year {
@@ -1039,7 +1062,7 @@
             }
 
             .control-group {
-                gap: 6px;
+                --cg-gap: 6px;   /* the variable, never `gap` — see .control-group */
             }
         }
 
@@ -1292,7 +1315,10 @@
             display: grid;
             grid-template-columns: 1fr auto 1fr;
             align-items: center;
-            padding: 6px 10px 5px;
+            /* 4px sides, the same as `.team-week-row` beneath (v22.86): the ↩ and the ? sit in this
+               row's outer columns and the arrows in that one's, and a 10px/4px mismatch put each
+               6px off the control under it — found by the cluster guard, not by eye. */
+            padding: 6px 4px 5px;
         }
         .grade-tabs {
             display: flex;
@@ -1444,6 +1470,15 @@
                wrapped label's box now gets; the label itself was shortened as well, so it wraps at
                fewer sizes than before the gap existed at all. */
             gap: 4px;
+        }
+        /* THE BAR IS A CLUSTER, NOT A FULL-WIDTH ROW (v22.86). At 1280px the two arrows sat at the
+           far edges of a 1040px card, 400px from the label they move, while the month view directly
+           above keeps Prev · name · Next as one compact centred group. Both rows take the same cap so
+           the ↩ and the ? stay in line with the arrows beneath them; a gutter on both sides reads as
+           deliberate, which one side never does. Placed AFTER both base rules on purpose — the first
+           cut sat in a 900–1023px tablet block and so applied on no desktop at all. */
+        @media (min-width: 768px) {
+            .grade-tabs-row, .team-week-row { width: 100%; max-width: 640px; margin-left: auto; margin-right: auto; }
         }
         .team-week-center {
             display: flex;
@@ -2035,7 +2070,9 @@
 
         /* ---- Team view print layout ---- */
         @media print {
-            .grade-tabs-row, .tv-week-nav, .tv-jump-btn, #teamInfoLightbox { display: none; }
+            /* The week row too (v22.86): `.tv-print-header` states the grade and the week, so the
+               label beneath it printed the same date twice. */
+            .grade-tabs-row, .team-week-row, .tv-week-nav, .tv-jump-btn, #teamInfoLightbox { display: none; }
             .tv-scroll-hint { display: none; }
             .tv-print-header {
                 display: block;

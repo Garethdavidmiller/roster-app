@@ -1137,6 +1137,73 @@ for (const [width, fontPx] of [[320, 14], [360, 14], [390, 14], [412, 14], [412,
     });
 }
 
+// ─── ON A WIDE SCREEN THE TEAM VIEW BAR IS A CLUSTER, NOT A FULL-WIDTH ROW (v22.86) ─────────────
+// At 1280px the two arrows sat at the far edges of a 1040px card, 400px from the label they move,
+// while the month view directly above keeps Prev · name · Next as one compact centred group. Both
+// rows are capped to the same width, so the ↩ and the ? stay in line with the arrows beneath them.
+// Pinned because the first cut of the cap sat in a 900–1023px tablet block and applied on no
+// desktop at all — a static rule that reads correctly and reaches nothing.
+for (const width of [768, 1024, 1280, 1440]) {
+    test(`calendar: the team view bar is one centred cluster at ${width}px, both rows the same width`, async ({ page }) => {
+        await seedMember(page);
+        await seedMemberSession(page);
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto('/');
+        await page.waitForSelector('.calendar-day');
+        await page.locator('#teamViewBtn').click();
+        await page.waitForSelector('.team-week-text');
+        await page.locator('#tvNextWeek').click();   // browsing away, so the ↩ is on screen too
+        await page.waitForTimeout(300);
+        const geo = await page.evaluate(() => {
+            const r = (s) => document.querySelector(s).getBoundingClientRect();
+            const row = r('.team-week-row'), tabs = r('.grade-tabs-row'), card = r('.team-view-container');
+            return { rowW: Math.round(row.width), tabsW: Math.round(tabs.width), cardW: Math.round(card.width),
+                     centred: Math.abs((row.left + row.right) / 2 - (card.left + card.right) / 2) < 2,
+                     jumpLeft: Math.round(r('#tvToday').left), prevLeft: Math.round(r('#tvPrevWeek').left),
+                     helpRight: Math.round(r('#teamHelpBtn').right), nextRight: Math.round(r('#tvNextWeek').right) };
+        });
+        expect(geo.rowW, 'the week row is capped').toBeLessThanOrEqual(640);
+        expect(geo.rowW, 'the cap is narrower than the card, or it is not a cluster').toBeLessThan(geo.cardW);
+        expect(geo.tabsW, 'both rows take the same cap').toBe(geo.rowW);
+        expect(geo.centred, 'the cluster is centred in the card').toBe(true);
+        expect(Math.abs(geo.jumpLeft - geo.prevLeft), 'the ↩ lines up over ← Prev').toBeLessThanOrEqual(2);
+        expect(Math.abs(geo.helpRight - geo.nextRight), 'the ? lines up over Next →').toBeLessThanOrEqual(2);
+    });
+}
+
+// ─── THE MONTH NAME NEVER SPLITS (v22.86) ────────────────────────────────────────────────────────
+// "September 2026" is the longest heading the year produces, and at 320px and 360px — the
+// commonest Android width — it broke as "September / 2026▾" with the week note wrapped beside it,
+// in both engines. Nothing was off screen and nothing overlapped, so no guard saw it. The heading
+// row now wraps (the note drops beneath, whole) and stacks outright below 380px. Pinned on the
+// rendered geometry: the heading is ONE line, and the note is beside it or beneath it, never on it.
+for (const [width, fontPx] of [[320, 14], [360, 14], [390, 14], [412, 14], [412, 20]]) {
+    test(`calendar: the month heading stays on one line at ${width}px / ${fontPx}px, with the week note beside or beneath`, async ({ page }) => {
+        await seedMember(page);
+        await seedMemberSession(page);
+        await page.clock.setFixedTime(new Date('2026-09-03T10:00:00Z'));
+        await page.setViewportSize({ width, height: 820 });
+        await page.goto('/');
+        await page.waitForSelector('.calendar-day');
+        if (fontPx !== 14) {
+            // Text scaling changes the heading too; it is `--type-xl` (24px), so scale it in step.
+            await page.addStyleTag({ content:
+                `.month-year { font-size: ${Math.round(24 * fontPx / 14)}px !important; } .week-info { font-size: ${fontPx}px !important; }` });
+        }
+        await page.waitForTimeout(300);
+        const geo = await page.evaluate(() => {
+            const h = document.querySelector('.month-year'), n = document.querySelector('.week-info');
+            const rh = h.getBoundingClientRect(), rn = n.getBoundingClientRect();
+            const fs = parseFloat(getComputedStyle(h).fontSize);
+            return { headingLines: rh.height / (fs * 1.3), noteBeside: rn.left >= rh.right - 1, noteBeneath: rn.top >= rh.bottom - 1,
+                     overlap: !(rn.left >= rh.right - 1 || rn.top >= rh.bottom - 1 || rn.right <= rh.left + 1) };
+        });
+        expect(geo.headingLines, `the heading wrapped (${geo.headingLines.toFixed(2)} lines)`).toBeLessThan(1.5);
+        expect(geo.overlap, 'the week note sits on the heading').toBe(false);
+        expect(geo.noteBeside || geo.noteBeneath, 'the week note is beside or beneath the heading').toBe(true);
+    });
+}
+
 // ─── THE WEEK ROW IS ONE LINE, AND THE CURRENT WEEK IS SAID BY THE LABEL (v22.85) ──────────────
 // A "This week" chip beside the date, and a "↩ This week" pill when browsing away, both dropped
 // under the label on a phone with larger text and left the arrows floating between two lines.
