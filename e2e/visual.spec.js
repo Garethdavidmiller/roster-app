@@ -821,6 +821,27 @@ test('calendar — mobile 360', async ({ page }) => {
     await expect(page).toHaveScreenshot('calendar-mobile-360.png');
 });
 
+// The compact tier, as a phone at "Largest" text would draw it (external review of v22.87: the
+// geometry guards prove the row FITS at 1.3×; nothing proved it still looked designed). The seam
+// states the scale — see text-scale.js — and every element's font is then scaled by the same
+// factor, read first and set second, because that is what Android does: it scales what the
+// stylesheet resolved, tier included. The calendar cells grow with it; that is not noise, it is the
+// screen a colleague on that setting actually sees.
+test('calendar — mobile 412, compact under 1.3× text', async ({ page }) => {
+    await prep(page, { width: 412, height: 900 });
+    await page.addInitScript(() => { const w = /** @type {any} */ (window); w.__E2E = Object.assign(w.__E2E || {}, { textScale: 1.3 }); });
+    await page.goto('/index.html');
+    await settle(page, '.legend, .calendar-legend, footer');
+    await page.evaluate(() => {
+        const els = [...document.querySelectorAll('body *')];
+        const sizes = els.map(el => parseFloat(getComputedStyle(el).fontSize));
+        els.forEach((el, i) => { if (sizes[i] > 0) /** @type {HTMLElement} */ (el).style.fontSize = `${(sizes[i] * 1.3).toFixed(2)}px`; });
+    });
+    await settle(page, '.legend, .calendar-legend, footer');
+    await page.evaluate(() => new Promise(r => setTimeout(r, 300)));
+    await expect(page).toHaveScreenshot('calendar-mobile-412-compact.png');
+});
+
 async function openTeamView(page, { away = false } = {}) {
     await page.goto('/index.html');
     await settle(page, '.calendar-day');

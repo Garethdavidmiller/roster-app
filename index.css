@@ -585,6 +585,11 @@
                keep the 24px heading exactly as before. */
             flex-wrap: wrap;
         }
+        /* 21px so that, once the phone scales it back up, the heading still shares its line: at
+           "Large" (1.15×) it lands near the original 24px — held against the member's preference,
+           deliberately, for THIS two-word title only. Do not extend the pattern to any other text;
+           a surface that will not fit gets a second line. KNOWN_LIMITATIONS.md → "Under large
+           text the month heading is HELD". */
         html[data-text-scale] .month-year { font-size: 21px; }
         html[data-text-scale] .week-info  { font-size: var(--type-badge); }
 
