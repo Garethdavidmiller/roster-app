@@ -57,13 +57,18 @@ export function initLinksCompare(deps) {
      *
      * Session-scoped, like `compareMode` itself. It survives switching the compared design on
      * purpose — a designer works through several in a row — but see `_filterActive`: it is not
-     * APPLIED when nothing differs, or the grid would empty itself and read as a failed load.
+     * APPLIED when nothing differs, or the grid would empty itself and read as a failed load — and
+     * not when EVERYTHING differs either, or it is applied with nothing to hide while the control
+     * that turns it off is withheld (the control is offered only when it would hide something),
+     * leaving the strip claiming a filter nobody can see or reach until the next switch (v22.85).
      */
     let diffOnly = false;
     /** Which lines differ in the pair currently on screen. Set by the strip, read by the grids. */
     let _diffLines = new Set();
-    /** The filter is only APPLIED when it would leave something to look at. */
-    const _filterActive = () => diffOnly && _diffLines.size > 0;
+    /** The filter is only APPLIED when it would both leave something to look at AND hide something —
+     *  the same two conditions under which `renderCompareFilter` offers the control, so the state and
+     *  the way out of it can never disagree. */
+    const _filterActive = () => diffOnly && _diffLines.size > 0 && _diffLines.size < TOTAL_POS;
 
     function isCompareMode() { return compareMode; }
     function getCompareId() { return compareDesignId; }

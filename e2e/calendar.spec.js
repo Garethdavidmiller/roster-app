@@ -1137,6 +1137,68 @@ for (const [width, fontPx] of [[320, 14], [360, 14], [390, 14], [412, 14], [412,
     });
 }
 
+// ─── THE WEEK ROW IS ONE LINE, AND THE CURRENT WEEK IS SAID BY THE LABEL (v22.85) ──────────────
+// A "This week" chip beside the date, and a "↩ This week" pill when browsing away, both dropped
+// under the label on a phone with larger text and left the arrows floating between two lines.
+// Now the label carries the state (a gold rule, the today idiom) and the way back is a round ↩ in
+// the grade row's left slot, the mirror of the ?. Three things pinned: nothing else shares the
+// label's line in either state; the ↩ exists only while away and sits level with the ?; and the
+// live region SAYS "this week", because on screen the state is colour alone.
+for (const [width, fontPx] of [[320, 14], [412, 18], [412, 22], [1280, 14]]) {
+    test(`calendar: the team week row is one line, marked on the current week, with the way back beside the tabs at ${width}px / ${fontPx}px`, async ({ page }) => {
+        await seedMember(page);
+        await seedMemberSession(page);
+        await page.clock.setFixedTime(new Date('2026-09-03T10:00:00Z'));   // a cross-month week: the longest label
+        await page.setViewportSize({ width, height: 820 });
+        await page.goto('/');
+        await page.waitForSelector('.control-group--actions', { state: 'attached' });
+        if (fontPx !== 14) {
+            await page.addStyleTag({ content:
+                `.controls select, .controls button, .team-week-text, .tv-week-nav, .grade-tab { font-size: ${fontPx}px !important; }` });
+        }
+        await page.locator('#teamViewBtn').click();
+        await page.waitForSelector('.team-week-text');
+        await page.waitForTimeout(300);
+
+        const state = () => page.evaluate(() => {
+            const centre = document.querySelector('.team-week-center');
+            const label  = document.querySelector('.team-week-text');
+            const jump   = document.getElementById('tvToday');
+            const help   = document.getElementById('teamHelpBtn');
+            const r = (el) => el.getBoundingClientRect();
+            return {
+                current: label.classList.contains('is-current'),
+                // Nothing but the label in the centre — the chip and the pill are gone for good.
+                centreChildren: [...centre.children].map(el => el.className),
+                jump: jump ? { level: Math.abs(r(jump).top - r(help).top) < 2, leftOfTabs: r(jump).right <= r(document.querySelector('.grade-tabs')).left } : null,
+            };
+        });
+
+        const here = await state();
+        expect(here.current, 'the current week is marked').toBe(true);
+        expect(here.centreChildren).toEqual(['team-week-text is-current']);
+        expect(here.jump, 'no way-back button on the week you are already on').toBeNull();
+
+        await page.locator('#tvNextWeek').click();
+        await page.waitForTimeout(300);
+        const away = await state();
+        expect(away.current).toBe(false);
+        expect(away.centreChildren).toEqual(['team-week-text']);
+        expect(away.jump, 'browsing away offers a way back').not.toBeNull();
+        expect(away.jump.level, 'the ↩ sits level with the ?').toBe(true);
+        expect(away.jump.leftOfTabs, 'the ↩ is in the left slot, before the tabs').toBe(true);
+        // The live region speaks on each MOVE (not on opening the view), so both halves are
+        // asserted after a move: away says the week alone, back says "this week" as well.
+        await expect.poll(() => page.locator('#ariaAnnouncer').textContent()).toMatch(/^Week of \d/);
+        expect(await page.locator('#ariaAnnouncer').textContent()).not.toMatch(/this week/);
+
+        await page.locator('#tvToday').click();
+        await page.waitForTimeout(300);
+        expect((await state()).current, 'the ↩ brings you back').toBe(true);
+        await expect.poll(() => page.locator('#ariaAnnouncer').textContent()).toMatch(/this week/);
+    });
+}
+
 // The abbreviation above is a WIDTH decision. The screen-reader announcement has no width, so it
 // keeps the full month — a spoken "Jul" would be a regression bought for a column it does not sit
 // in. Asserted on the live region's text, which nothing visual can see.

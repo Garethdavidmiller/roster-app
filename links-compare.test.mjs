@@ -417,6 +417,32 @@ test('filter ON, then switched to an IDENTICAL design: every line comes back', (
     assert.doesNotMatch(els.compareSummary.innerHTML, /still cover all/);
 });
 
+// THE OTHER END OF THE SAME EDGE (v22.85, found in review). Switch, with the filter armed, to a
+// design where EVERY line differs: nothing would be hidden, so the control is withheld — and the
+// filter was still APPLIED, so the strip claimed "still cover all 24 lines" for a filter nobody could
+// see or turn off. The rule is now the one `renderCompareFilter` already uses to OFFER the control:
+// something to show AND something to hide. Cosmetic, but a state with no way out is a defect.
+test('filter ON, then switched to a design where EVERY line differs: nothing is claimed, nothing is hidden', () => {
+    resetDom();
+    const A = fullPatterns(), B = partlyDifferent(3), ALL = fullPatterns('14:00-22:00');
+    const { deps } = makeDeps({
+        getDesigns: () => [{ id: 'a', name: 'A', patterns: A }, { id: 'b', name: 'B', patterns: B },
+                           { id: 'all', name: 'All', patterns: ALL }],
+        getDesign:  () => ({ id: 'a', name: 'A', patterns: A }),
+    });
+    const c = initLinksCompare(deps);
+    c.toggleCompareMode();
+    press();
+    assert.ok(els.compareGridsWrap.classList.contains('compare-diff-only'));
+
+    c.selectCompareDesign('all');
+    assert.equal(els.compareFilter.hidden, true, 'a filter that would hide nothing is not offered');
+    assert.equal(els.compareGridsWrap.classList.contains('compare-diff-only'), false,
+        'and so it must not be APPLIED either — a filter you cannot see or switch off is a trap');
+    assert.doesNotMatch(els.compareSummary.innerHTML, /still cover all/,
+        'the strip must not claim a filter is on when none is');
+});
+
 // ── KEEPING THE TWO COLUMNS ON THE SAME DAY (v22.78) ─────────────────────────────────────────────
 // The sync exists so a designer reading across a difference finds both gold outlines beside each
 // other. It can be wrong in two directions and they are not symmetrical: a column that FAILS TO

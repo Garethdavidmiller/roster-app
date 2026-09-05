@@ -1333,16 +1333,20 @@
             outline-offset: 2px;
             box-shadow: var(--focus-ring);
         }
-        .tv-current-badge {
-            display: inline-block;
-            font-size: var(--type-micro);
-            font-weight: 700;
-            background: var(--accent-gold);
-            color: var(--primary-blue);
-            padding: 2px 7px;
-            border-radius: 10px;
-            white-space: nowrap;
-            vertical-align: middle;
+        /* THE CURRENT WEEK IS A GOLD RULE UNDER THE DATE (v22.85) — the calendar's today idiom
+           (the today cell, the 📍 button, and the today column directly beneath this label are all
+           this gold), so it reads without a word, and it takes no width beside the label. It
+           replaced a "This week" chip that fitted beside the date on a desktop and dropped under it
+           on a phone with larger text, leaving the arrows floating between two lines. Spoken by the
+           live region ("— this week"), since on screen it is colour alone.
+           `text-decoration`, not a border or a box-shadow: it follows the text exactly, including
+           across a wrap, and the offset keeps it clear of descenders. */
+        .team-week-text.is-current {
+            text-decoration: underline;
+            text-decoration-color: var(--accent-gold);
+            text-decoration-thickness: 3px;
+            text-underline-offset: 5px;
+            text-decoration-skip-ink: none;
         }
         /* Today column — gold header matches calendar's today convention */
         .team-table thead .tv-today-col {
@@ -1359,31 +1363,24 @@
             text-align: center;
             padding: 3px 0 6px;
         }
-        /* ── "↩ This week" jump button — appears when browsing away from current week ── */
-        .tv-today-btn {
-            display: inline-block;
-            font-size: var(--type-micro);
-            font-weight: 700;
-            background: none;
-            color: var(--primary-blue);
-            border: 2px solid var(--primary-blue);
-            padding: 2px 7px;
-            border-radius: 10px;
-            white-space: nowrap;
-            vertical-align: middle;
-            cursor: pointer;
-            font-family: inherit;
-            touch-action: manipulation;
-            transition: background var(--dur-med), color var(--dur-med);
+        /* ── ↩ back to this week (v22.85) — only while browsing away from the current week ──
+           A round button in the grade row's left slot, the mirror of the ? on the right: it borrows
+           `.team-help-btn`'s recipe wholesale so the two are one family, and adds only the arrow's
+           own size and an invisible 44px tap expander (the visible disc is 20px, like the ?; the
+           grade tabs use the same trick). It used to be an outlined "↩ This week" pill under the
+           date, in the centre column — which is why the centre was two lines whenever you were
+           anywhere but this week. */
+        .grade-tabs-actions--start { justify-content: flex-start; }
+        .tv-jump-btn {
+            position: relative;
+            font-size: var(--type-label);
+            line-height: 1;
         }
-        @media (hover: hover) and (pointer: fine) {
-            .tv-today-btn:hover { background: var(--primary-blue); color: white; }
-        }
-        .tv-today-btn:active { opacity: 0.75; transform: scale(var(--press-scale)); }
-        .tv-today-btn:focus-visible {
-            outline: var(--focus-outline);
-            outline-offset: 2px;
-            box-shadow: var(--focus-ring);
+        .tv-jump-btn::before {
+            content: '';
+            position: absolute;
+            inset: -12px;
+            border-radius: 50%;
         }
         .tv-empty {
             text-align: center;
@@ -1440,8 +1437,13 @@
                flush against both arrows — measured at ZERO px to each at 320/360/390 default and at
                412 under any text scaling. On screen "2026" sat directly against "← Prev" and read
                as a collision. Shortening the label (below) stops the wrap in every case measured;
-               this gap is what makes the worst case merely tidy rather than broken. */
-            gap: 8px;
+               this gap is what makes the worst case merely tidy rather than broken.
+               4px, NOT 8 (v22.85): the gap is charged twice against the centre column, and at 412px
+               under 20px text the 8px version took exactly the 16px the longest label needed — one
+               line without it, two with it. The guard asks for 4px of clearance and 4px is what a
+               wrapped label's box now gets; the label itself was shortened as well, so it wraps at
+               fewer sizes than before the gap existed at all. */
+            gap: 4px;
         }
         .team-week-center {
             display: flex;
@@ -2033,7 +2035,7 @@
 
         /* ---- Team view print layout ---- */
         @media print {
-            .grade-tabs-row, .tv-week-nav, .tv-today-btn, #teamInfoLightbox { display: none; }
+            .grade-tabs-row, .tv-week-nav, .tv-jump-btn, #teamInfoLightbox { display: none; }
             .tv-scroll-hint { display: none; }
             .tv-print-header {
                 display: block;
@@ -2056,7 +2058,7 @@
             .team-table tbody .tv-today-col {
                 -webkit-print-color-adjust: exact; print-color-adjust: exact;
             }
-            .tv-current-badge {
+            .team-week-text.is-current {
                 -webkit-print-color-adjust: exact; print-color-adjust: exact;
             }
             .tv-cell { white-space: normal; }

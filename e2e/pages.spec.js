@@ -1000,6 +1000,17 @@ test('links: a first-time designer gets the orientation, and can always get it b
     await page.locator('#navMenuBtn').click();
     await page.locator('#navPanelBrand').click();
     await expect(page.locator('#iconLightbox')).toBeVisible();
+    // The row must be the SAME HEIGHT as the two anchors either side of it (v22.85). It is a <button>
+    // among <a>s, and it rendered 2px taller for one release with identical padding, font-size and
+    // line-height — the leading glyph was a text character Inter does not carry, and the fallback
+    // font's line box is taller. Nothing throws and no axe rule fires; only comparing the boxes sees
+    // it. Asserted on the rendered heights so any future glyph, tag or reset change is measured.
+    const rowHeights = await page.evaluate(() =>
+        [...document.querySelectorAll('#iconLightbox .lightbox-bug-link')]
+            .filter(el => !el.hidden)
+            .map(el => Math.round(el.getBoundingClientRect().height)));
+    expect(rowHeights.length, 'the About panel lists the page rows').toBeGreaterThanOrEqual(2);
+    expect(new Set(rowHeights).size, `About rows differ in height: ${rowHeights.join(', ')}px`).toBe(1);
     await page.locator('#linksHowBtn').click();
     // About must CLOSE rather than stack: two open overlays share one Escape, and the buried one
     // gets archived and flagged seen by somebody who never read it.

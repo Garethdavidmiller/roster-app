@@ -140,7 +140,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
     }
 
     /**
-     * The week this grid is showing — "12–18 Jul 2026", or "28 Jun – 4 Jul 2026" across a month
+     * The week this grid is showing — "12–18 Jul 2026", or "28 Jun–4 Jul 2026" across a month
      * boundary — short enough to stay on ONE line beside the two arrows.
      *
      * SHORT MONTHS, matching the Admin week grid (v22.84). The full-month form measured 245px
@@ -150,6 +150,11 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
      * `admin-week-editor.js` already uses for exactly this row, and its header records the same
      * defect arriving there first; this is that fix applied to the surface that still had it, not
      * a new abbreviation invented here.
+     *
+     * NO SPACES ROUND THE DASH in the cross-month form (v22.85) — "30 Aug–5 Sep 2026", exactly as
+     * `admin-week-editor.js` writes the same week and as the same-month form here has always done.
+     * The two spaces were 11px at 20px text, and 11px was the difference between one line and two
+     * at 412px under Android's "Large" setting for the longest label the year produces. Measured.
      *
      * The abbreviation is a WIDTH decision, so it belongs only to the surface that has a width:
      * the screen-reader announcement (`announceTeamWeek`) passes `MONTH_NAMES` and keeps saying
@@ -163,7 +168,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         const s = dates[0], e = dates[6];
         return s.getMonth() === e.getMonth()
             ? `${s.getDate()}–${e.getDate()} ${months[e.getMonth()]} ${e.getFullYear()}`
-            : `${s.getDate()} ${months[s.getMonth()]} – ${e.getDate()} ${months[e.getMonth()]} ${e.getFullYear()}`;
+            : `${s.getDate()} ${months[s.getMonth()]}–${e.getDate()} ${months[e.getMonth()]} ${e.getFullYear()}`;
     }
 
     // ── RENDER ────────────────────────────────────────────────────────────────
@@ -200,10 +205,20 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             .sort((a, b) => a.name.localeCompare(b.name));
 
         const isCurrentWeek = currentTeamWeekStart.getTime() === getSunday(new Date()).getTime();
-        // "This week" badge when on the current week; "↩ This week" nav button when browsing away.
-        const currentBadge = isCurrentWeek
-            ? '<span class="tv-current-badge">This week</span>'
-            : '<button class="tv-today-btn" id="tvToday" aria-label="Jump to current week">↩ This week</button>';
+        // THE LABEL STATES THE CURRENT WEEK, AND NOTHING SHARES ITS LINE (v22.85). Until now a
+        // "This week" chip sat beside the date on the current week and a "↩ This week" pill when
+        // browsing away — and on a phone with larger text neither fitted beside the longest label,
+        // so both dropped beneath it and the two arrows floated between the lines. Reported as
+        // untidy from a 412px phone, and it was: the centre was one line or two depending on the
+        // week and the text size, with the arrows centred on whichever it happened to be.
+        // Now the current week is a gold rule under the date — the calendar's own today idiom,
+        // and the same gold as the today column directly beneath — and the way back, only while
+        // browsing away, is a round ↩ in the grade row's empty left slot, mirroring the ? on the
+        // right. The row is one line at every width and every text size, and the 📍 button and the
+        // T key still jump here too, as they always did.
+        const labelCls = isCurrentWeek ? 'team-week-text is-current' : 'team-week-text';
+        const jumpBtn  = isCurrentWeek ? '' :
+            '<button class="team-help-btn tv-jump-btn" id="tvToday" aria-label="Back to this week" title="Back to this week">↩</button>';
 
         const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
         const todayIndex = weekDates.findIndex(d => d.getTime() === todayMidnight.getTime());
@@ -265,7 +280,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             <div class="team-view-container">
                 <div class="tv-print-header">Team View · ${grade} · ${weekLabel} · Printed ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
                 <div class="grade-tabs-row">
-                    <div></div>
+                    <div class="grade-tabs-actions grade-tabs-actions--start">${jumpBtn}</div>
                     <div class="grade-tabs" role="tablist" aria-label="Grade selector">${gradeBtns}</div>
                     <div class="grade-tabs-actions">
                         <button class="team-help-btn" id="teamHelpBtn" aria-label="Team view tips and colour key">?</button>
@@ -274,7 +289,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
                 <div class="team-week-row">
                     <button class="tv-week-nav" id="tvPrevWeek" aria-label="Previous week">← Prev</button>
                     <div class="team-week-center">
-                        <span class="team-week-text">${weekLabel}</span>${currentBadge}
+                        <span class="${labelCls}">${weekLabel}</span>
                     </div>
                     <button class="tv-week-nav" id="tvNextWeek" aria-label="Next week">Next →</button>
                 </div>
@@ -350,9 +365,8 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             currentTeamWeekStart = getSunday(new Date());
             renderTeamView(currentTeamGrade);
             announceTeamWeek();
-            // The "↩ This week" button is replaced by a non-interactive "This week"
-            // badge on the current week, so focus can't return to it. Move focus to a
-            // stable control (Next week) instead of letting it drop to <body>.
+            // The ↩ button is not rendered on the current week, so focus can't return to it.
+            // Move focus to a stable control (Next week) instead of letting it drop to <body>.
             /** @type {HTMLElement} */ (calendarDisplay.querySelector('#tvNextWeek'))?.focus();
         });
 
@@ -493,7 +507,11 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         const announcer = document.getElementById('ariaAnnouncer');
         if (!announcer) return;
         announcer.textContent = '';
-        requestAnimationFrame(() => { announcer.textContent = `Week of ${formatTeamWeekLabel(currentTeamWeekStart, MONTH_NAMES)}`; });
+        // "this week" is spoken, because on screen it is only a colour (the gold rule under the date).
+        const isCurrentWeek = currentTeamWeekStart.getTime() === getSunday(new Date()).getTime();
+        requestAnimationFrame(() => {
+            announcer.textContent = `Week of ${formatTeamWeekLabel(currentTeamWeekStart, MONTH_NAMES)}${isCurrentWeek ? ' — this week' : ''}`;
+        });
     }
 
     // ── CONVENIENCE ───────────────────────────────────────────────────────────
