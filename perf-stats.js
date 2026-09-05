@@ -369,6 +369,13 @@ export const START_MILESTONES = /** @type {const} */ ([
     // near-identical names for two different things in one card is the kind of collision a reader
     // resolves silently and wrongly. This rung is the saved session being restored, no typing.
     { metric: 'authBoot',   label: 'Recognised',   sub: 'your saved sign-in being restored' },
+    // **THE LADDER IS NO LONGER MONOTONIC FOR EVERY MEMBER, AND THE INVERSION IS THE POINT
+    // (v22.96).** Each rung is measured from navigation start and bucketed on its own, so none is
+    // derived by subtracting another and every figure below stays true — but a returning member now
+    // takes the PROVISIONAL PAINT, which puts `rosterCached` and `ready` on screen BEFORE this rung
+    // resolves. So `Shifts shown` reading faster than `Unlocked` is not a broken card: it is the
+    // fast path working, and it is exactly the signature `LATENCY_PLAN.md` says to look for.
+    // Do not "fix" it by marking access at the paint — a paint is not a grant.
     { metric: 'access',     label: 'Unlocked',     sub: 'the Calendar deciding you may see it' },
     // THE RUNG THAT SPLITS THE GAP NOBODY COULD SEE (v22.95). The field read of 5 Sep 2026 put
     // Unlocked at 58% over a second and Shifts shown at 78% — about eighteen points appearing

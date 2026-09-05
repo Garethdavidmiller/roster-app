@@ -47,17 +47,22 @@ like a server-side one until somebody calls the endpoint directly.
 | 14 | **Overtime has two audiences, and reviewing is not participating.** `isOvertimeReviewer` (admin/manager) sees everyone's declarations; a beta participant answers only for themselves. Never widen the first to make the nav pill work. | `auth-policy.js` (`isOvertimeReviewer`/`canOpenOvertime`) · `roster-data.js` |
 | 15 | **A saved work email is an ADDRESS, not a credential.** `staffContact.workEmail` is what somebody typed; nothing has shown that anyone can receive mail there. It may recover an account only after possession is proven and recorded server-side. Wiring "send a reset here" to an unverified address is account takeover by mistyping. | `CREDENTIAL_LIFECYCLE.md` §8 (design) · not yet built |
 | 16 | **A step-up check is the SERVER reading `auth_time`.** A client that remembers when it last asked is an affordance, not a control — invariant 6, arriving by a second route. Fails closed: no `auth_time`, no elevated operation. | `CREDENTIAL_LIFECYCLE.md` §3 (design) · not yet built |
+| 17 | **A local session is not an identity, and a provisional paint is not a grant.** The session is a localStorage record this device wrote for itself. It may buy a member ONE thing while Firebase revalidates them — a scoped re-show of override data this device already received while genuinely authorised — and nothing else: no server read, no write, no other member, and `calendarAccessReady` stays pending throughout. | `calendar-access-core.js` (`decideProvisionalAccess`) · `CALENDAR_DATA.md` 13 |
 
 ---
 
-**One open decision sits on this boundary.** Restoring a saved identity costs a network round trip
-— Firebase validates the stored user against the server before emitting it, on every boot, which is
-how a disabled account stops being restored. That round trip is the measured cause of the Calendar's
-start-latency wall, and the only way off it is to trust the local session for one paint. The trade
-is priced in `ROADMAP.md` → *Calendar start — the identity round trip*, and the measurement behind
-it in `LATENCY_PLAN.md`. **Recorded here because it is this contract's question, not the
-performance plan's** — the answer decides how much a local session is allowed to mean before the
-server has agreed with it.
+**The decision that sat on this boundary was ANSWERED on 5 Sep 2026, and invariant 17 is the
+answer.** Restoring a saved identity costs a network round trip — Firebase validates the stored user
+against the server before emitting it, on every boot, which is how a disabled account stops being
+restored. That round trip is the measured cause of the Calendar's start-latency wall, and the only
+way off it was to trust the local session for one paint. The owner's ruling is that a returning
+member may be re-shown **their own already authorised cached roster** while it completes.
+
+**It was this contract's question, not the performance plan's**, and the answer is a statement about
+how much a local session is allowed to mean: exactly one thing, scoped to one member, for the length
+of one revalidation. Never for the shared PIN viewer, which holds no identity to re-show. The whole
+pre-decision write-up is preserved in `ROADMAP_HISTORY.md`; the measurement is in `LATENCY_PLAN.md`;
+what shipped is `calendar-access-core.js` → `decideProvisionalAccess`.
 
 ---
 

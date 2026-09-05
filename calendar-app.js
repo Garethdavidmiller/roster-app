@@ -1263,17 +1263,35 @@ initNavPanel({
 // would run against unbuilt state, so it must be skipped there and only there.
 let _workspaceStarted = false;
 
+/** Enable or disable the member selector and the Team View button. @param {boolean} on */
+function _crossMemberControls(on) {
+    for (const id of ['teamMemberSelect', 'teamViewBtn']) {
+        const el = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
+        if (el) el.disabled = !on;
+    }
+}
+
 initCalendarAccess({
     // EVERY grant, not just the first (v20.41). Both of these are things the access-lost path turns
     // OFF, so both have to come back on when access returns — which is precisely what re-entering
     // the PIN after a rotation is. Left in the one-shot below, a re-unlocked Calendar came back with
     // its override gate still shut: every read refused at source, every month stuck on "Checking
     // this month", and a Try again that could not win.
-    onEveryGrant: () => {
+    // The argument is the PROVISIONAL SCOPE (v22.96): a member name means "this member's own data,
+    // out of the local cache, nothing from the server"; `null` is the ordinary full grant; `false`
+    // means the provisional paint is being withdrawn because the identity did not confirm.
+    onEveryGrant: (/** @type {string|null|false} */ scope = null) => {
+        if (scope === false) { setOverrideAccess(false); _crossMemberControls(true); return; }
         // Open the override reads BEFORE building the workspace. The reverse order would let the
         // first render's `ensureOverridesCached` run against a closed gate, silently claim nothing,
         // and leave the month unfetched for the session.
-        setOverrideAccess(true);
+        setOverrideAccess(true, { provisionalMember: typeof scope === 'string' ? scope : null });
+        // The two controls that would put SOMEBODY ELSE on screen. A provisional paint is scoped to
+        // one member, so during it these are the only way to reach a grid the scope cannot fill —
+        // the colleague's base roster would draw with their leave and absence silently missing.
+        // `decideProvisionalAccess` already refuses a boot that STARTS in either state; this covers
+        // the tap inside the window, which on a slow connection is a real second or two.
+        _crossMemberControls(typeof scope !== 'string');
         // Month navigation and Team View reach Firestore through `ensureOverridesCached`, not
         // through the initial fetch — so they need the same access-lost recovery, and they are the
         // likelier path once a session has been open for a while (v20.15).

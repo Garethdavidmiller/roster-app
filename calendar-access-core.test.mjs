@@ -19,7 +19,7 @@ import assert from 'node:assert/strict';
 import {
     CALENDAR_VIEWER_UID, CALENDAR_VIEWER_CLAIM, PIN_LENGTH,
     isViewerUser, decideAccess, normalisePin, isCompletePin,
-    classifyUnlockFailure, attemptBackoffMs, noticeAudienceAllows,
+    classifyUnlockFailure, attemptBackoffMs, noticeAudienceAllows, decideProvisionalAccess,
 } from './calendar-access-core.js';
 
 const member  = { uid: 'abc123', isAnonymous: false };
@@ -273,4 +273,74 @@ describe('which devices a notice is addressed to', () => {
             assert.equal(noticeAudienceAllows(/** @type {any} */ (audience), 'viewer'), false);
         }
     });
+});
+
+// ── THE PROVISIONAL DECISION (v22.96) ───────────────────────────────────────────────────────────
+//
+// Organised by what a wrong answer COSTS, because the two directions are nothing like each other.
+//
+// Saying `'own-cached'` when it should have said `'none'` puts data on screen under an identity
+// nobody has confirmed — and the expensive shape is not "somebody sees a roster they should not",
+// which the member scope in `calendar-overrides.js` already prevents. It is the QUIETER one: the
+// screen is about to draw a COLLEAGUE, the scope cannot fill it, and their base roster paints with
+// their annual leave and absence silently missing. Nothing errors, nothing is withheld, and it
+// reads exactly like a true answer. That is the failure `CALENDAR_DATA.md` invariant 1 exists for,
+// reached from a direction the readiness model cannot see, which is why it is refused HERE.
+//
+// Saying `'none'` when it could have said `'own-cached'` costs that member the fast path and
+// nothing else — they boot exactly as they did before v22.96.
+describe('decideProvisionalAccess — may we re-show this person their own saved roster?', () => {
+    const SESSION = { name: 'G. Miller' };
+
+    test('a live local session with a name is the whole of the positive case', () => {
+        assert.deepEqual(decideProvisionalAccess({ session: SESSION }),
+            { decision: 'own-cached', member: 'G. Miller' });
+    });
+
+    test('no session, no name, no paint', () => {
+        for (const session of [null, undefined, {}, { name: '' }, { name: '   ' }, { name: 42 }]) {
+            const got = decideProvisionalAccess({ session: /** @type {any} */ (session) });
+            assert.deepEqual(got, { decision: 'none', member: null }, `${JSON.stringify(session)} must not paint`);
+        }
+        // And with no argument at all — the caller passing nothing must not be a grant.
+        assert.deepEqual(decideProvisionalAccess(), { decision: 'none', member: null });
+    });
+
+    test('TEAM VIEW is refused, because it cannot be scoped to one member', () => {
+        // The saved view mode draws the whole team. A scope of one would paint fifty colleagues
+        // from the base roster with one person's leave applied — so this boot is simply not
+        // eligible, and that member sees exactly the pre-v22.96 behaviour.
+        assert.deepEqual(decideProvisionalAccess({ session: SESSION, teamView: true }),
+            { decision: 'none', member: null });
+        assert.equal(decideProvisionalAccess({ session: SESSION, teamView: false }).decision, 'own-cached');
+    });
+
+    test('a selection naming a COLLEAGUE is refused', () => {
+        // The quiet one. Staff look each other up, so the stored selection is often not you.
+        assert.deepEqual(decideProvisionalAccess({ session: SESSION, selectedMember: 'S. Silva' }),
+            { decision: 'none', member: null });
+    });
+
+    test('no selection at all is NOT a colleague — that device renders you', () => {
+        // The common first-open case, and refusing it would cost the fast path to everybody who has
+        // never touched the dropdown.
+        for (const sel of [null, undefined, '', '   ']) {
+            assert.equal(decideProvisionalAccess({ session: SESSION, selectedMember: sel }).decision,
+                'own-cached', `${JSON.stringify(sel)} is an absent selection, not somebody else`);
+        }
+    });
+
+    test('a selection naming YOU is allowed, and the comparison is not fooled by whitespace', () => {
+        assert.equal(decideProvisionalAccess({ session: SESSION, selectedMember: 'G. Miller' }).decision, 'own-cached');
+        assert.equal(decideProvisionalAccess({ session: { name: ' G. Miller ' }, selectedMember: 'G. Miller' }).member,
+            'G. Miller', 'the scope must be the trimmed name the cache is keyed by');
+        assert.equal(decideProvisionalAccess({ session: SESSION, selectedMember: ' G. Miller ' }).decision, 'own-cached');
+    });
+
+    // NOT TESTED, and deliberately not faked: that the returned `member` is the SESSION name rather
+    // than the selection. By the time the function returns, the selection is either absent or equal
+    // to the session name — every other case was refused above — so the two are the same value and
+    // no assertion can tell them apart. Sourcing the scope from the selection is a mutation that
+    // survives this suite, because it is not a behaviour change. The property is held by the
+    // colleague refusal above, not by a test of its own; see the note in the module.
 });

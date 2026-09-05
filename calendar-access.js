@@ -49,7 +49,9 @@
 import { auth, signInWithCustomToken, signInAnonymously, signOut, setViewerPersistence, onAuthStateChanged, currentUserAfterBoot } from './firebase-client.js';
 import { getSession, clearSession, reconcileExpiredIdentity, ensureNamedSession } from './session.js';
 import { CONFIG } from './roster-data.js';
-import { isViewerUser, decideAccess, normalisePin, isCompletePin, classifyUnlockFailure, attemptBackoffMs, PIN_LENGTH, CALENDAR_VIEWER_CLAIM } from './calendar-access-core.js';
+import { lsGet } from './ls.js';
+import { SELECTED_MEMBER } from './storage-keys.js';
+import { isViewerUser, decideAccess, decideProvisionalAccess, normalisePin, isCompletePin, classifyUnlockFailure, attemptBackoffMs, PIN_LENGTH, CALENDAR_VIEWER_CLAIM } from './calendar-access-core.js';
 
 /** The exchange endpoint. Same region + project as every other MYB function. */
 const UNLOCK_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/unlockCalendarViewer';
@@ -72,7 +74,9 @@ let _resolveAccess = null;
 let _consecutiveFailures = 0;
 /** @type {(() => void)|null} */
 let _onGranted = null;
-/** Runs on EVERY grant, where `_onGranted` runs once. @type {(() => void)|null} */
+/** Runs on EVERY grant, where `_onGranted` runs once.
+ *  @type {((scope?: string|null|false) => void)|null} — the argument is the PROVISIONAL SCOPE
+ *  (v22.96): a member name = that member's own cached data; `null` = full grant; `false` = withdraw. */
 let _onEveryGrant = null;
 /** @type {(() => void)|null} */
 let _resolveAuth = null;
@@ -197,6 +201,61 @@ function watchForLateNamedIdentity() {
     return stop;
 }
 
+// ── THE PROVISIONAL PAINT (v22.96) ──────────────────────────────────────────────────────────────
+//
+// The owner decision of 5 Sep 2026. What it permits and what it refuses is argued once, in
+// `calendar-access-core.js` → `decideProvisionalAccess`; this is the wiring.
+//
+// **IT IS NOT AN ACCESS TYPE, AND THAT IS DELIBERATE.** `_accessType` stays `'none'` throughout, so
+// every one of the eight places that read it is right as written — the late-identity watcher keeps
+// watching, `handleAccessLost` has nothing to re-lock, and `getAccessType()` does not tell a caller
+// this member has access, because they do not yet. Provisional is a PAINT, not a grant.
+//
+// Two things it deliberately does NOT do, and both are what keep it narrow:
+//   · it does not resolve `calendarAccessReady`. Phase 2 of the initial fetch waits on that promise
+//     — so the authoritative read, the one-time notices and everything else gated on it simply do
+//     not run yet. Nothing is fetched under an unconfirmed identity, and it costs no new code path.
+//   · it does not resolve the WRITE gate. A member may look at what they already had; they may not
+//     record anything until Firebase has said who they are.
+/** @type {string|null} the member a provisional paint is up for, or null. */
+let _provisionalFor = null;
+
+/** @returns {string|null} the member a provisional paint is showing, or null. */
+export function provisionalPaintFor() { return _provisionalFor; }
+
+/** Paint this member's own cached roster while their stored identity is revalidated. */
+function grantProvisional(/** @type {string} */ member) {
+    _provisionalFor = member;
+    document.body.classList.remove('calendar-locked');
+    document.body.classList.add('calendar-unlocked');
+    hideLockPanel();               // owns the skeleton timer — see initCalendarAccess
+    setWorkspaceHidden(false);
+    // The SCOPE travels with the grant: the coordinator's wrapper passes it to
+    // `setOverrideAccess`, which puts the `memberName` filter in the cached query itself.
+    if (_onEveryGrant) { try { _onEveryGrant(member); } catch (e) { console.error('[CalendarAccess] provisional gate failed', e); } }
+    if (_onGranted) { const fn = _onGranted; _onGranted = null; try { fn(); } catch (e) { console.error('[CalendarAccess] provisional start failed', e); } }
+}
+
+/**
+ * Take it back, because the identity did not confirm.
+ *
+ * **A MEMBER IS NEVER SENT TO THE STAFF PIN** — `CALENDAR_DATA.md` invariant 11 — so this does not
+ * call `handleAccessLost`, whose message asks for the PIN. This is somebody whose own stored
+ * session did not revalidate, and the honest next step is their own sign-in, which the caller shows
+ * by falling through to the ordinary `none` handling.
+ *
+ * The gate is shut FIRST and the workspace hidden immediately: between those two, a render must not
+ * be able to repaint from the cache we are in the middle of withdrawing.
+ */
+function revokeProvisional() {
+    if (!_provisionalFor) return;
+    _provisionalFor = null;
+    if (_onEveryGrant) { try { _onEveryGrant(false); } catch (e) { console.error('[CalendarAccess] provisional revoke failed', e); } }
+    setWorkspaceHidden(true);
+    document.body.classList.remove('calendar-unlocked');
+    document.body.classList.add('calendar-locked');
+}
+
 /** Commit an access decision exactly once, and let the Calendar start. */
 function grant(/** @type {'named'|'viewer'|'open'} */ type) {
     _accessType = type;
@@ -217,7 +276,10 @@ function grant(/** @type {'named'|'viewer'|'open'} */ type) {
     // source and every month sat on "Checking this month" for ever. That is not a corner — revoking
     // the viewer's tokens is a documented step of rotating the PIN, so it is the NORMAL path, and it
     // is the one place the user has already done everything right.
-    if (_onEveryGrant) { try { _onEveryGrant(); } catch (e) { console.error('[CalendarAccess] gate reopen failed', e); } }
+    // Clears any provisional scope: `_onEveryGrant(null)` re-opens the gate UNSCOPED, so a member
+    // whose identity just confirmed stops being confined to their own row.
+    _provisionalFor = null;
+    if (_onEveryGrant) { try { _onEveryGrant(null); } catch (e) { console.error('[CalendarAccess] gate reopen failed', e); } }
     if (_onGranted) { const fn = _onGranted; _onGranted = null; try { fn(); } catch (e) { console.error('[CalendarAccess] start failed', e); } }
     if (_resolveAccess) { const r = _resolveAccess; _resolveAccess = null; r(); }
     // The WRITE gate. `named`/`viewer` already hold a user, so it is the same instant; `open` has a
@@ -783,7 +845,7 @@ export function handleAccessLost() {
 /**
  * Decide access and either start the Calendar or show the unlock panel.
  *
- * @param {{ onGranted: () => void, onEveryGrant?: (() => void)|null }} deps
+ * @param {{ onGranted: () => void, onEveryGrant?: ((scope?: string|null|false) => void)|null }} deps
  *   onGranted runs ONCE, the first time access is granted. It is how `calendar-app.js` defers every
  *   piece of Calendar initialisation — the member dropdown, the render, the fetch, the swipe handler
  *   — so that none of it exists while locked. Running it twice would duplicate all of that.
@@ -806,10 +868,34 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null }) {
     // path out of it — `grant()` and both cards call `hideLockPanel()`, which owns the timer.
     _skeletonTimer = setTimeout(() => { _skeletonTimer = null; showBootSkeleton(); }, SKELETON_AFTER_MS);
 
+    // ── THE FAST PATH (v22.96) ──────────────────────────────────────────────────────────────────
+    //
+    // Taken BEFORE the await, which is the whole point: `resolveAccess` waits on
+    // `currentUserAfterBoot`, and that wait is the `accounts:lookup` round trip the September field
+    // read shows at over a second on 60% of Calendar opens.
+    //
+    // Not under the PIN-off rollback: that mode signs everyone in anonymously and grants access to
+    // all of it anyway, so a provisional paint would add a second path to the same screen.
+    //
+    // The two preconditions beyond the session are READ here and argued in the decision. They come
+    // from storage rather than from `calendar-member.js`, which has not been asked anything yet.
+    const _prov = CONFIG.CALENDAR_PIN_ACCESS === false
+        ? { decision: 'none', member: null }
+        : decideProvisionalAccess({
+            session: getSession(),
+            teamView: lsGet('myb_team_view') === '1',
+            selectedMember: lsGet(SELECTED_MEMBER),
+        });
+    if (_prov.decision === 'own-cached' && _prov.member) grantProvisional(_prov.member);
+
     /** @type {'named'|'viewer'|'open'|'none'} */
     let type;
     try { type = await resolveAccess(); }
     catch (e) { console.error('[CalendarAccess] decision failed', e); type = 'none'; }
+
+    // The identity did not confirm, so the paint goes back. `grant()` clears it on the other
+    // branch; here nothing else would, and leaving it up is the one outcome this must not have.
+    if (_provisionalFor && type !== 'named') revokeProvisional();
 
     // ── THE SWITCH (v20.16) ─────────────────────────────────────────────────────────────────────
     //

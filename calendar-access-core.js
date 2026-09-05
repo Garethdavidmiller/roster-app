@@ -161,23 +161,48 @@ export function decideAccess({ session, firebaseUser }) {
  * ── WHAT IT DOES NOT LICENSE ────────────────────────────────────────────────────────────────────
  *
  * Returning `'own-cached'` is not access. The caller must still refuse, until `decideAccess` says
- * `'named'`: any SERVER read, any write, any other member's cached data, Team View, and every other
- * protected page. The gate that enforces the member scope is `calendar-overrides.js`; this function
- * only says whose name it may be scoped to.
+ * `'named'`: any SERVER read, any write, any other member's cached data, entering Team View, and
+ * every other protected page. The gate that enforces the member scope is `calendar-overrides.js`;
+ * this function only says whose name it may be scoped to.
  *
  * A SESSION IS NOT AN IDENTITY, and that is exactly what makes this a decision rather than a bug
  * fix. The local session is a localStorage record this device wrote for itself — it proves somebody
  * signed in on this device inside the window, not that they still may. That is why the answer is
  * confined to data the same device already received while genuinely authorised.
  *
- * @param {{ session: any }} input
+ * ── THE TWO PRECONDITIONS BEYOND THE SESSION, AND WHY THEY ARE HERE ─────────────────────────────
+ *
+ * The scope is ONE member, so the paint is only honest if that member is who the screen was about
+ * to show. Both of the ways it might not be are settled HERE, at the decision, rather than by
+ * disabling things afterwards — a precondition that refuses costs a member the fast path and
+ * nothing else, where a half-painted screen being corrected costs them a wrong answer first.
+ *
+ *   · `teamView` — the saved view mode. Team View is the whole team at once, so a scoped paint
+ *     would draw fifty colleagues from the base roster with one person's leave applied. It cannot
+ *     be narrowed; it is simply not eligible, and that member boots exactly as they do today.
+ *   · `selectedMember` — the name the grid was going to render. It is a stored preference and can
+ *     be a COLLEAGUE: staff look each other up. Painting then means showing that colleague's base
+ *     roster with their annual leave and absence silently missing — the one thing
+ *     `CALENDAR_DATA.md` invariant 1 exists to prevent, arrived at from a new direction. If the
+ *     screen is not about to show you, there is nothing of yours to re-show.
+ *
+ * @param {{ session: any, teamView?: boolean, selectedMember?: string|null }} input
  * @returns {{ decision: 'own-cached'|'none', member: string|null }}
  */
-export function decideProvisionalAccess({ session } = /** @type {any} */ ({})) {
+export function decideProvisionalAccess({ session, teamView = false, selectedMember = null } = /** @type {any} */ ({})) {
     const name = session && typeof session.name === 'string' ? session.name.trim() : '';
     // No name, no scope. There is no such thing as an unscoped provisional grant here: the member
     // IS the boundary, so a grant we cannot attach a name to would be a grant to everything.
     if (!name) return { decision: 'none', member: null };
+    if (teamView === true) return { decision: 'none', member: null };
+    // An ABSENT selection is fine and common — a device that has never chosen renders the session
+    // member. Only a selection naming somebody ELSE disqualifies.
+    const shown = typeof selectedMember === 'string' ? selectedMember.trim() : '';
+    if (shown && shown !== name) return { decision: 'none', member: null };
+    // The scope is the SESSION name. Past the refusal above, `shown` is either empty or exactly
+    // this name, so the two are indistinguishable here and no test can separate them — the
+    // property is held by that refusal, not by this line. Stated because the line looks like a
+    // choice and is not one: it becomes a real choice the moment somebody relaxes the refusal.
     return { decision: 'own-cached', member: name };
 }
 

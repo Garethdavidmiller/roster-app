@@ -29,15 +29,21 @@ beside the code, where it cannot drift from the thing it describes. Every row po
 | 10 | **Phase 1 paints with no network and no auth.** Requiring a session for reads must never put a sign-in round trip in front of data the device already holds. | `calendar-initial-fetch.js` |
 | 11 | **A member is never sent to the staff PIN.** A held session with no restored identity gets a sign-in card, and the late-identity watcher keeps listening. | `calendar-access.js` · `calendar-access-core.js` |
 | 12 | **The viewer's persistence is session-only, and boot must not migrate it.** `setPersistence` moves the current user between stores. | `firebase-client.js` (`authReady`) |
+| 13 | **A provisional paint is scoped to ONE member, and is not access.** While a stored identity is being revalidated the Calendar may re-show that member's own cached overrides — nothing from the server, nothing of anybody else's, no write, and `calendarAccessReady` stays pending. A boot that would draw somebody else (Team View, or a stored selection naming a colleague) is refused outright rather than narrowed. | `calendar-access-core.js` (`decideProvisionalAccess`) · `calendar-overrides.js` |
 
-**One open decision touches invariant 3, and the invariant stands until it is answered.** The
-Calendar's access decision waits on a network round trip Firebase makes to validate the stored user,
-and that round trip is the measured cause of the start-latency wall (`LATENCY_PLAN.md`). Taking it
-off the critical path would mean painting cached overrides before the account is confirmed live.
-**It is recorded as a question, not as a plan** — `ROADMAP.md` → *Calendar start — the identity
-round trip*, where the cost is priced and three defensible answers are set out. Nothing here is
-softened in the meantime: an invariant that starts hedging against a decision nobody has taken is an
-invariant that has already been half-abandoned.
+**The decision that hung over invariant 3 was ANSWERED on 5 Sep 2026, and invariant 13 is the
+answer.** The Calendar's access decision waited on the network round trip Firebase makes to validate
+a stored user, and that round trip is the measured cause of the start-latency wall
+(`LATENCY_PLAN.md`) — over a second on roughly 60% of opens. The owner's ruling: a returning member
+may see **their own already authorised cached roster** while it completes.
+
+Invariant 3 is unchanged and still means what it said. What changed is the size of the thing a grant
+can be: the client still refuses the read at source, and it now also refuses it *by member*. The
+policy cost is real and is stated rather than described as an optimisation — a member whose account
+was disabled since their last visit can see their own previously cached roster for the length of the
+validation window. The argument, including why the trade is smaller than it looks (the app already
+behaves this way with no network at all), is in `calendar-access-core.js` →
+`decideProvisionalAccess`.
 
 ---
 

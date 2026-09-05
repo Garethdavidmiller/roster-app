@@ -358,6 +358,15 @@ async function initPageSpeedCard() {
      *  signed in quickly but unlocked slowly points at the gate, unlocked quickly but shifts slow
      *  points at Firestore. Subtracting is not asked of the reader — the rows already nest.
      *
+     *  **THEY STOPPED NESTING FOR EVERY MEMBER AT v22.96**, and the note had to change with them.
+     *  A returning member is now shown their own saved roster BEFORE the gate finishes deciding
+     *  (`calendar-access-core.js` → `decideProvisionalAccess`), so "Shifts shown" can beat
+     *  "Unlocked". Every figure is still true — each rung is timed from the page opening and
+     *  bucketed on its own, nothing is derived by subtraction — but an unqualified "each step
+     *  includes the ones above it" is now a false sentence on a card whose whole job is to be
+     *  trusted, and a reader meeting the inversion with that note in front of them would rightly
+     *  conclude the card was broken.
+     *
      *  Renders nothing until updated devices report, and each row appears only when IT has data —
      *  so a partly-reported ladder shows the rungs it has rather than a row of zeroes.
      *  @param {Record<string, number>} samples @param {string} page */
@@ -369,7 +378,7 @@ async function initPageSpeedCard() {
         heading.className = 'usage-section-label speed-dim-label';
         heading.textContent = 'How far the start gets';
         frag.appendChild(heading);
-        frag.appendChild(noteLine('Each step includes the ones above it, so compare neighbouring rows: a big jump is where the time went. Same bands as the rest of the card.'));
+        frag.appendChild(noteLine('Compare neighbouring rows: a big jump is where the time went. Each step is timed from the page opening, so they normally run in order — but a returning member is now shown their saved roster before the Calendar finishes checking who they are, so "Shifts shown" beating "Unlocked" is that working, not a fault. Same bands as the rest of the card.'));
 
         const list = document.createElement('div');
         list.className = 'speed-rows';

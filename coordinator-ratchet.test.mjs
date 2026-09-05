@@ -243,7 +243,13 @@ const CAPS = {
     // is the gate's stagecraft, and a Node test cannot hold an ordering between paints. If this
     // grows again, the candidate to extract is the panel-building trio (lock card / member card /
     // skeleton) as a presentation module — they share only `_panel` and the host lookup.
-    'calendar-access.js':      1000,
+    // RAISED at v22.96 (measured 1006) for the provisional paint — the owner-approved cached-roster
+    // fast path. A raise and not an extraction, deliberately: the extraction named above is a real
+    // refactor of the highest-outage-risk boot path in the app, and doing it in the same commit as
+    // a change to what the Calendar may SHOW would put two independent risks behind one review. The
+    // candidate stands and is now overdue. What landed here is wiring only — the decision, the
+    // preconditions and the whole safety argument are in calendar-access-core.js, tested in Node.
+    'calendar-access.js':      1055,
     // Crossed 900 at v21.85 on a ONE-LINE import — `setStatus`, so the four back-pay notices stop
     // announcing their leading glyph. It had been sitting at exactly 900 since v21.82, when the
     // response to the same pressure was to trim a comment of my own rather than raise the ceiling;

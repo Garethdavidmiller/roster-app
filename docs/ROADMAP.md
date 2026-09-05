@@ -299,92 +299,30 @@ Both touch behaviour that `CLAUDE.md` lists under *"never change without discuss
 neither is in this release.
 
 ### Calendar start — the identity round trip
-**Status:** Blocked on an owner decision · **Owner:** Gareth · **Measured:** `LATENCY_PLAN.md` · **Would change:** `CALENDAR_DATA.md` invariant 3
+**Status:** DECIDED and SHIPPED (v22.96) · **Decided by:** Gareth, 5 Sep 2026 · **Where it lives now:** `CALENDAR_DATA.md` invariant 13
 
-**FIELD-CONFIRMED ON LIVE DEVICES, 5 Sep 2026.** This was "extremely strong controlled experiment
-plus historical field localisation" until the September App Speed read supplied the predicted
-signature: `Recognised` moves with the connection grouping while `Getting ready` is 0% over half a
-second in every group. Same populations, large difference at the network rung, none at the
-code-loading one. `LATENCY_PLAN.md` → "THE FIELD READ" carries the table and the one confound.
+The owner's answer was **option 2 — yes, for a named member with a live local session only**: a
+returning member is shown their own already authorised cached roster while Firebase revalidates the
+stored identity, instead of waiting for it. Never the shared PIN viewer, whose whole security model
+is that it holds no identity.
 
-**And the number that makes this the decision rather than an option:** 454 of 462 attributed starts
-were served from the device's OWN saved copy, and **78% of those still took over a second to put
-shifts on screen**. The roster is already on the phone. It is waiting for permission to be shown.
+The whole entry as it stood when the decision was taken — the field confirmation, the offline
+measurement, the two couplings and all three candidate answers — is in `ROADMAP_HISTORY.md`, moved
+verbatim. It is worth keeping whole: the reasoning is what a future reader will need if the boundary
+is ever widened, and none of it can be reconstructed from the code.
 
-**The measurement is finished and it names one thing.** Every Calendar boot issues a single
-`accounts:lookup` so Firebase can validate the stored user before emitting it, and the access
-decision waits for it — so the first shift a member sees is behind a network round trip on every
-load. Injecting 300 ms of latency into that one call moved the milestone by 336 ms. It is not
-conditional on the token having expired; it happens on every boot. Preconnect is already in place on
-all seven pages, so the connection is warm and there is no easy win left in it.
+**What shipped is narrower than option 2 as written**, and the two extra refusals are the part to
+know before touching it. The scope is ONE member, so a boot that was about to draw somebody else is
+refused outright rather than narrowed: **Team View**, and a **stored selection naming a colleague**.
+Both would otherwise paint a colleague's base roster with their leave and absence silently missing —
+invariant 1's failure reached from a new direction. Those members boot exactly as they did before.
 
-**What removing it from the critical path would mean.** The Calendar would paint its CACHED
-overrides on the strength of the local session, before the server has confirmed the account is still
-live. That is `CALENDAR_DATA.md` invariant 3 — *no access, no override data, at source* — which
-exists because the local Firestore cache serves reads the rules would deny
-(`experiments/firestore-offline-proof/`, measured).
-
-**The cost, stated as precisely as it can be.** A member whose account was disabled since their last
-visit would see one paint of their own already-cached roster before the lookup returned and the app
-corrected. Bounded three ways: it is **their own** data, **already on their device**, and it is
-**one paint**. No new data is read — server-side rules still refuse every network read without the
-claim, and that is untouched.
-
-**Why it is still not obvious.** The whole point of the v20.12 access gate was that possession of a
-device is not authorisation, and "they already have it cached" is the argument the gate was built to
-refuse. The honest position is that this is a smaller version of the same question, not a different
-one — which is exactly why it is a decision rather than an optimisation.
-
-**Measured 31 Aug 2026: the check the wait buys is only enforced when the network is UP.** With the
-auth endpoint unreachable, Firebase emits the stored user anyway (130 ms, restored — the offline arm
-of `experiments/auth-firestore-split-proof/`). So an offline device — the installed app in a tunnel
-— already trusts the stored identity under the SHIPPED behaviour, and a disabled account already
-paints its cached roster there. The "no" answer therefore protects strictly less than it appears:
-it enforces the check exactly and only on the loads where the wait is also longest.
-
-**One reading first, and it is now available (`VAL-AUTH-006`).** The round-trip finding is an
-emulator result; the field contribution is inferred. The signature it predicts is that `Recognised`
-tracks connection quality far more strongly than `Getting ready` does — a network wall moves with the
-network, a code-parse wall does not. **Operations → App Speed → "Does the connection slow the start?"**
-puts the two side by side on the same bands. It was not readable until v22.28 (the card could split
-only the whole-load figure), which is why this entry could sit here for weeks describing a check
-nobody could run. If the signature is absent, the finding is wrong and this decision should wait.
-
-**Two couplings, so neither decision is taken as if the other did not exist:**
-- **Track E scales this decision's cost.** If E3 ever ships, every load runs the member restore, so
-  the round-trip wait applies to the whole population rather than to signed-in members only. Decide
-  this with that in view, or Track E quietly re-opens it.
-- **`AUTH_PLAN.md` §4's grace mode is this same trust question at greater severity** — it
-  contemplates trusting a stored identity for DAYS offline; the "no" here refuses to trust it for
-  one paint online. The measured offline behaviour above says the app already sits nearer grace
-  mode than the "no" answer assumes. An owner weighing this should read that section first.
-
-**An independent external review reached the same conclusion (5 Sep 2026)** — same primary
-bottleneck, same preferred answer, and it argues for option 3 on a ground worth recording: the app
-already has the vocabulary. Staff understand a Calendar that shows a known state while it checks for
-changes, so the existing quiet `Updating…` carries this with no new language and nothing alarming.
-
-**Three answers are all reasonable**, and the engineering differs completely:
-1. **No** — the gate holds; accept the round trip and close this. Then the ladder's `Recognised`
-   row should be re-labelled as a floor rather than a target, so nobody re-opens it every quarter —
-   and `LATENCY_PLAN.md` closes, recording the second as the price of the security model.
-2. **Yes, for a named member with a live local session only** — never for the shared PIN viewer,
-   whose whole security model is that it holds no identity. The narrowest useful form.
-3. **Yes, with a visible tell** — paint, and mark the grid as unconfirmed until the lookup lands.
-
-**Option 3 is cheaper than it first reads, and that should be weighed before choosing** (deep
-review, 30 Aug 2026). It is not a new design: the Calendar already ships the ENTIRE state it needs —
-the `cached`/`stale` display state that draws a labelled last-known grid, and the sync chip that
-says "Updating…" and withdraws on confirmation. Staff have been taught to read that state for
-months. Identity taking the same two-phase shape as data would EXTEND shipped, tested machinery
-rather than invent an "unconfirmed" state nobody has seen — which is a materially smaller cost than
-"a design decision about a state most members would never see", the wording this entry carried
-before. What it does NOT change: the security question itself is identical in options 2 and 3, and
-the choice between them is about honesty on screen, not about safety.
-
-**Do not start building any of them before the answer** — and before the answer, run the
-field-confirmation check in `LATENCY_PLAN.md` (does `Recognised` track connection quality the way a
-network wall must?). The measurement is done; what is left is not a performance question.
+**What remains open, and it is small.** Option 3's *visible tell* was not adopted as such, and may
+not be needed: phase 1 already notes the months `cached`, so the grid is drawn as a cached grid by
+machinery staff have read for months, and phase 2 confirms it. Whether that is enough, or whether
+the paint deserves to say so in its own words, is a question to answer from use rather than from
+first principles. **Read `LATENCY_PLAN.md` for what the change is worth before revisiting it** — the
+next App Speed read is the first evidence either way.
 
 ### Track C5 — retire the surname default
 **Status:** Blocked · **Owner:** Gareth · **Plan:** `PASSWORD_PLAN.md` · **Gate:** ≥90% migrated
