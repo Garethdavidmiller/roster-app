@@ -1375,21 +1375,52 @@
             outline-offset: 2px;
             box-shadow: var(--focus-ring);
         }
-        /* THE CURRENT WEEK IS A GOLD RULE UNDER THE DATE (v22.85) — the calendar's today idiom
-           (the today cell, the 📍 button, and the today column directly beneath this label are all
-           this gold), so it reads without a word, and it takes no width beside the label. It
-           replaced a "This week" chip that fitted beside the date on a desktop and dropped under it
-           on a phone with larger text, leaving the arrows floating between two lines. Spoken by the
-           live region ("— this week"), since on screen it is colour alone.
-           `text-decoration`, not a border or a box-shadow: it follows the text exactly, including
-           across a wrap, and the offset keeps it clear of descenders. */
-        .team-week-text.is-current {
-            text-decoration: underline;
-            text-decoration-color: var(--accent-gold);
-            text-decoration-thickness: 3px;
-            text-underline-offset: 5px;
-            text-decoration-skip-ink: none;
+        /* THE SECOND LINE OF THE WEEK ROW (v22.88): "This week" as a state, or "↩ Back to this
+           week" as an action — the words a colleague should not have to decode from a gold rule and
+           a bare ↩ (v22.85, reversed on review). Always present, so the centre is the same shape on
+           every week and the arrows, aligned to the date line above it, never float. The state
+           carries the app's today idiom as a small gold dot, the action is a quiet text button on
+           the same grid as everything else here. */
+        .tv-week-status {
+            font-size: var(--type-small);
+            font-weight: 600;
+            line-height: 1.25;
+            white-space: nowrap;
         }
+        .tv-week-status--now { color: var(--text-mid); }
+        .tv-week-status--now::before {
+            content: '';
+            display: inline-block;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--accent-gold);
+            margin-right: 5px;
+            vertical-align: 1px;
+        }
+        .tv-week-status--back {
+            position: relative;              /* for the tap expander below */
+            background: none;
+            border: 0;
+            padding: 2px 6px;
+            margin: -2px -6px;
+            border-radius: 6px;
+            color: var(--primary-blue);
+            font-family: inherit;
+            cursor: pointer;
+            text-decoration: underline;
+            text-decoration-color: var(--border-mid);
+            text-underline-offset: 3px;
+            touch-action: manipulation;
+            transition: text-decoration-color var(--dur-med), background var(--dur-med);
+        }
+        /* A 12px text button is a small target: the same invisible expander the grade tabs use,
+           vertical only so it cannot overlap the arrows either side. */
+        .tv-week-status--back::before { content: ''; position: absolute; inset: -12px 0; }
+        @media (hover: hover) and (pointer: fine) {
+            .tv-week-status--back:hover { text-decoration-color: var(--primary-blue); background: var(--bg-faint); }
+        }
+        .tv-week-status--back:active { opacity: 0.75; }
+        .tv-week-status--back:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
         /* Today column — gold header matches calendar's today convention */
         .team-table thead .tv-today-col {
             background: var(--accent-gold);
@@ -1404,25 +1435,6 @@
             color: var(--text-faint);
             text-align: center;
             padding: 3px 0 6px;
-        }
-        /* ── ↩ back to this week (v22.85) — only while browsing away from the current week ──
-           A round button in the grade row's left slot, the mirror of the ? on the right: it borrows
-           `.team-help-btn`'s recipe wholesale so the two are one family, and adds only the arrow's
-           own size and an invisible 44px tap expander (the visible disc is 20px, like the ?; the
-           grade tabs use the same trick). It used to be an outlined "↩ This week" pill under the
-           date, in the centre column — which is why the centre was two lines whenever you were
-           anywhere but this week. */
-        .grade-tabs-actions--start { justify-content: flex-start; }
-        .tv-jump-btn {
-            position: relative;
-            font-size: var(--type-label);
-            line-height: 1;
-        }
-        .tv-jump-btn::before {
-            content: '';
-            position: absolute;
-            inset: -12px;
-            border-radius: 50%;
         }
         .tv-empty {
             text-align: center;
@@ -1472,7 +1484,10 @@
         }
         .team-week-row {
             display: flex;
-            align-items: center;
+            /* The arrows align to the DATE line, not to the two-line centre's middle (v22.88): the
+               label's line box is given the arrows' own height below, so the three sit on one
+               band and the second line hangs beneath it. */
+            align-items: flex-start;
             padding: 2px 4px 4px;
             /* CLEARANCE THE LABEL CANNOT EAT (v22.84, owner report from a 412px phone). The centre
                is `flex: 1`, so a label that wraps fills the whole column and its painted box runs
@@ -1498,16 +1513,25 @@
         }
         .team-week-center {
             display: flex;
+            flex-direction: column;         /* the date, then the status line — always two lines (v22.88) */
             align-items: center;
-            gap: 6px;
+            gap: 1px;
             flex: 1;
-            justify-content: center;
-            flex-wrap: wrap;
+            min-width: 0;
         }
         .team-week-text {
             font-size: var(--type-medium);
             font-weight: 700;
             color: var(--primary-blue);
+            text-align: center;
+            /* The arrows' height exactly — their --type-label (13px) text at line-height 1, 6px of
+               padding and a 2px border each side — written in the LABEL's own em so it still tracks
+               them under OS text scaling: 13/16 of this 16px label is the arrows' 13px, and both
+               scale together, while the 16px of padding and border does not scale on either. A
+               centred flex line box, so a wrapped label grows downward, not upward. */
+            display: flex;
+            align-items: center;
+            min-height: calc(0.8125em + 16px);
         }
         .tv-week-nav {
             background: var(--primary-blue);
@@ -2088,7 +2112,7 @@
         @media print {
             /* The week row too (v22.86): `.tv-print-header` states the grade and the week, so the
                label beneath it printed the same date twice. */
-            .grade-tabs-row, .team-week-row, .tv-week-nav, .tv-jump-btn, #teamInfoLightbox { display: none; }
+            .grade-tabs-row, .team-week-row, .tv-week-nav, #teamInfoLightbox { display: none; }
             .tv-scroll-hint { display: none; }
             .tv-print-header {
                 display: block;
@@ -2109,9 +2133,6 @@
                 -webkit-print-color-adjust: exact; print-color-adjust: exact;
             }
             .team-table tbody .tv-today-col {
-                -webkit-print-color-adjust: exact; print-color-adjust: exact;
-            }
-            .team-week-text.is-current {
                 -webkit-print-color-adjust: exact; print-color-adjust: exact;
             }
             .tv-cell { white-space: normal; }

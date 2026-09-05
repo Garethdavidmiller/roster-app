@@ -210,20 +210,19 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         const now = new Date();
         const printedOn = `${now.getDate()} ${MONTH_ABB[now.getMonth()]} ${now.getFullYear()}`;
         const isCurrentWeek = currentTeamWeekStart.getTime() === getSunday(new Date()).getTime();
-        // THE LABEL STATES THE CURRENT WEEK, AND NOTHING SHARES ITS LINE (v22.85). Until now a
-        // "This week" chip sat beside the date on the current week and a "↩ This week" pill when
-        // browsing away — and on a phone with larger text neither fitted beside the longest label,
-        // so both dropped beneath it and the two arrows floated between the lines. Reported as
-        // untidy from a 412px phone, and it was: the centre was one line or two depending on the
-        // week and the text size, with the arrows centred on whichever it happened to be.
-        // Now the current week is a gold rule under the date — the calendar's own today idiom,
-        // and the same gold as the today column directly beneath — and the way back, only while
-        // browsing away, is a round ↩ in the grade row's empty left slot, mirroring the ? on the
-        // right. The row is one line at every width and every text size, and the 📍 button and the
-        // T key still jump here too, as they always did.
-        const labelCls = isCurrentWeek ? 'team-week-text is-current' : 'team-week-text';
-        const jumpBtn  = isCurrentWeek ? '' :
-            '<button class="team-help-btn tv-jump-btn" id="tvToday" aria-label="Back to this week" title="Back to this week">↩</button>';
+        // THE WORDS ARE BACK, ON A LINE OF THEIR OWN (v22.88, external review + owner). v22.85 made
+        // the current week a gold rule under the date and the way back a glyph-only ↩ beside the
+        // grade tabs — tidy, and two things a colleague had to DECODE where two words would have told
+        // them. The centre is now a designed two-line stack on EVERY week: the date, then a small
+        // second line that is either "This week" (a state) or "↩ Back to this week" (an action).
+        // Deliberately two lines rather than the chip the label used to share a line with: that chip
+        // fitted beside the date on a desktop and dropped under it on a phone, so the centre was one
+        // line or two depending on the week and the text size, with the arrows floating between.
+        // Here the arrows align to the DATE line (`.team-week-row`), and the second line is always
+        // there, so nothing moves between weeks. 📍 and the T key still jump here too.
+        const statusLine = isCurrentWeek
+            ? '<span class="tv-week-status tv-week-status--now">This week</span>'
+            : '<button class="tv-week-status tv-week-status--back" id="tvToday" type="button">↩ Back to this week</button>';
 
         const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
         const todayIndex = weekDates.findIndex(d => d.getTime() === todayMidnight.getTime());
@@ -285,7 +284,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             <div class="team-view-container">
                 <div class="tv-print-header">Team View · ${grade} · ${weekLabel} · Printed ${printedOn}</div>
                 <div class="grade-tabs-row">
-                    <div class="grade-tabs-actions grade-tabs-actions--start">${jumpBtn}</div>
+                    <div></div>
                     <div class="grade-tabs" role="tablist" aria-label="Grade selector">${gradeBtns}</div>
                     <div class="grade-tabs-actions">
                         <button class="team-help-btn" id="teamHelpBtn" aria-label="Team view tips and colour key">?</button>
@@ -294,7 +293,8 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
                 <div class="team-week-row">
                     <button class="tv-week-nav" id="tvPrevWeek" aria-label="Previous week">← Prev</button>
                     <div class="team-week-center">
-                        <span class="${labelCls}">${weekLabel}</span>
+                        <span class="team-week-text">${weekLabel}</span>
+                        ${statusLine}
                     </div>
                     <button class="tv-week-nav" id="tvNextWeek" aria-label="Next week">Next →</button>
                 </div>
@@ -370,8 +370,8 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             currentTeamWeekStart = getSunday(new Date());
             renderTeamView(currentTeamGrade);
             announceTeamWeek();
-            // The ↩ button is not rendered on the current week, so focus can't return to it.
-            // Move focus to a stable control (Next week) instead of letting it drop to <body>.
+            // "Back to this week" is not rendered on the current week, so focus can't return to
+            // it. Move focus to a stable control (Next week) instead of letting it drop to <body>.
             /** @type {HTMLElement} */ (calendarDisplay.querySelector('#tvNextWeek'))?.focus();
         });
 

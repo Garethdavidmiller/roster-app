@@ -1206,7 +1206,7 @@ for (const [width, scale, expectRows] of [[412, 1.0, 1], [412, 1.15, 1], [412, 1
 // ─── ON A WIDE SCREEN THE TEAM VIEW BAR IS A CLUSTER, NOT A FULL-WIDTH ROW (v22.86) ─────────────
 // At 1280px the two arrows sat at the far edges of a 1040px card, 400px from the label they move,
 // while the month view directly above keeps Prev · name · Next as one compact centred group. Both
-// rows are capped to the same width, so the ↩ and the ? stay in line with the arrows beneath them.
+// rows are capped to the same width, so the ? stays in line with the arrow beneath it.
 // Pinned because the first cut of the cap sat in a 900–1023px tablet block and applied on no
 // desktop at all — a static rule that reads correctly and reaches nothing.
 for (const width of [768, 1024, 1280, 1440]) {
@@ -1218,21 +1218,19 @@ for (const width of [768, 1024, 1280, 1440]) {
         await page.waitForSelector('.calendar-day');
         await page.locator('#teamViewBtn').click();
         await page.waitForSelector('.team-week-text');
-        await page.locator('#tvNextWeek').click();   // browsing away, so the ↩ is on screen too
+        await page.locator('#tvNextWeek').click();   // browsing away, the fuller state
         await page.waitForTimeout(300);
         const geo = await page.evaluate(() => {
             const r = (s) => document.querySelector(s).getBoundingClientRect();
             const row = r('.team-week-row'), tabs = r('.grade-tabs-row'), card = r('.team-view-container');
             return { rowW: Math.round(row.width), tabsW: Math.round(tabs.width), cardW: Math.round(card.width),
                      centred: Math.abs((row.left + row.right) / 2 - (card.left + card.right) / 2) < 2,
-                     jumpLeft: Math.round(r('#tvToday').left), prevLeft: Math.round(r('#tvPrevWeek').left),
                      helpRight: Math.round(r('#teamHelpBtn').right), nextRight: Math.round(r('#tvNextWeek').right) };
         });
         expect(geo.rowW, 'the week row is capped').toBeLessThanOrEqual(640);
         expect(geo.rowW, 'the cap is narrower than the card, or it is not a cluster').toBeLessThan(geo.cardW);
         expect(geo.tabsW, 'both rows take the same cap').toBe(geo.rowW);
         expect(geo.centred, 'the cluster is centred in the card').toBe(true);
-        expect(Math.abs(geo.jumpLeft - geo.prevLeft), 'the ↩ lines up over ← Prev').toBeLessThanOrEqual(2);
         expect(Math.abs(geo.helpRight - geo.nextRight), 'the ? lines up over Next →').toBeLessThanOrEqual(2);
     });
 }
@@ -1285,64 +1283,69 @@ for (const [width, scale, oneLine] of [[320, 1.0, false], [360, 1.0, true], [390
     });
 }
 
-// ─── THE WEEK ROW IS ONE LINE, AND THE CURRENT WEEK IS SAID BY THE LABEL (v22.85) ──────────────
-// A "This week" chip beside the date, and a "↩ This week" pill when browsing away, both dropped
-// under the label on a phone with larger text and left the arrows floating between two lines.
-// Now the label carries the state (a gold rule, the today idiom) and the way back is a round ↩ in
-// the grade row's left slot, the mirror of the ?. Three things pinned: nothing else shares the
-// label's line in either state; the ↩ exists only while away and sits level with the ?; and the
-// live region SAYS "this week", because on screen the state is colour alone.
-for (const [width, fontPx] of [[320, 14], [412, 18], [412, 22], [1280, 14]]) {
-    test(`calendar: the team week row is one line, marked on the current week, with the way back beside the tabs at ${width}px / ${fontPx}px`, async ({ page }) => {
+// ─── THE WEEK ROW: THE DATE, THEN THE WORDS (v22.85 → v22.88) ───────────────────────────────────
+// v22.85 said the current week with a gold rule under the date and put the way back in a glyph-only
+// ↩ beside the grade tabs — tidy, and two things a colleague had to decode. Reversed on review: the
+// centre is now a designed two-line stack on EVERY week — the date, then "This week" (a state) or
+// "↩ Back to this week" (an action) — with the arrows aligned to the date line, so nothing floats
+// and nothing moves between weeks. Pinned: both lines present in both states, the second beneath the
+// first, the action only while away and it works, the date line level with the arrows, and the
+// words themselves — because the words are the point.
+for (const [width, scale] of [[320, 1.0], [412, 1.3], [412, 1.6], [1280, 1.0]]) {
+    test(`calendar: the team week row is the date over its words, arrows level with the date, at ${width}px / ${scale}× text`, async ({ page }) => {
         await seedMember(page);
         await seedMemberSession(page);
         await page.clock.setFixedTime(new Date('2026-09-03T10:00:00Z'));   // a cross-month week: the longest label
         await page.setViewportSize({ width, height: 820 });
         await page.goto('/');
         await page.waitForSelector('.control-group--actions', { state: 'attached' });
-        if (fontPx !== 14) {
-            await page.addStyleTag({ content:
-                `.controls select, .controls button, .team-week-text, .tv-week-nav, .grade-tab { font-size: ${fontPx}px !important; }` });
-        }
         await page.locator('#teamViewBtn').click();
         await page.waitForSelector('.team-week-text');
+        if (scale !== 1) {
+            // Scale the way the OS does — every size by the same factor — so the date line's em-based
+            // height and the arrows' font-based height move together, as they do on a phone.
+            const base = await page.evaluate(() => Object.fromEntries(['.team-week-text', '.tv-week-nav', '.tv-week-status', '.grade-tab']
+                .map(sel => [sel, parseFloat(getComputedStyle(/** @type {Element} */ (document.querySelector(sel))).fontSize)])));
+            await page.addStyleTag({ content: Object.entries(base).map(([sel, px]) => `${sel} { font-size: ${(px * scale).toFixed(2)}px !important; }`).join(' ') });
+        }
         await page.waitForTimeout(300);
 
         const state = () => page.evaluate(() => {
-            const centre = document.querySelector('.team-week-center');
-            const label  = document.querySelector('.team-week-text');
-            const jump   = document.getElementById('tvToday');
-            const help   = document.getElementById('teamHelpBtn');
             const r = (el) => el.getBoundingClientRect();
+            const label = /** @type {HTMLElement} */ (document.querySelector('.team-week-text'));
+            const status = /** @type {HTMLElement|null} */ (document.querySelector('.tv-week-status'));
+            const prev = r(document.querySelector('#tvPrevWeek'));
+            const lb = r(label);
             return {
-                current: label.classList.contains('is-current'),
-                // Nothing but the label in the centre — the chip and the pill are gone for good.
-                centreChildren: [...centre.children].map(el => el.className),
-                jump: jump ? { level: Math.abs(r(jump).top - r(help).top) < 2, leftOfTabs: r(jump).right <= r(document.querySelector('.grade-tabs')).left } : null,
+                words: status ? status.innerText.trim() : null,
+                isButton: status ? status.tagName === 'BUTTON' && status.id === 'tvToday' : null,
+                beneath: status ? r(status).top >= lb.bottom - 1 : null,
+                // The date line is level with the arrows: the arrow box sits inside the label's first line box.
+                level: prev.top >= lb.top - 1 && prev.bottom <= lb.top + lb.height + 1,
+                jumpBesideTabs: !!document.querySelector('.grade-tabs-row #tvToday'),
             };
         });
 
         const here = await state();
-        expect(here.current, 'the current week is marked').toBe(true);
-        expect(here.centreChildren).toEqual(['team-week-text is-current']);
-        expect(here.jump, 'no way-back button on the week you are already on').toBeNull();
+        expect(here.words, 'on the current week the second line says so').toBe('This week');
+        expect(here.isButton, 'and it is a statement, not a control').toBe(false);
+        expect(here.beneath, 'the words sit beneath the date').toBe(true);
+        expect(here.level, 'the arrows are level with the date line').toBe(true);
+        expect(here.jumpBesideTabs, 'nothing beside the grade tabs').toBe(false);
 
         await page.locator('#tvNextWeek').click();
         await page.waitForTimeout(300);
         const away = await state();
-        expect(away.current).toBe(false);
-        expect(away.centreChildren).toEqual(['team-week-text']);
-        expect(away.jump, 'browsing away offers a way back').not.toBeNull();
-        expect(away.jump.level, 'the ↩ sits level with the ?').toBe(true);
-        expect(away.jump.leftOfTabs, 'the ↩ is in the left slot, before the tabs').toBe(true);
-        // The live region speaks on each MOVE (not on opening the view), so both halves are
-        // asserted after a move: away says the week alone, back says "this week" as well.
+        expect(away.words, 'browsing away, the second line is the way back, in words').toBe('↩ Back to this week');
+        expect(away.isButton, 'and it is a real button').toBe(true);
+        expect(away.beneath).toBe(true);
+        expect(away.level).toBe(true);
         await expect.poll(() => page.locator('#ariaAnnouncer').textContent()).toMatch(/^Week of \d/);
         expect(await page.locator('#ariaAnnouncer').textContent()).not.toMatch(/this week/);
 
         await page.locator('#tvToday').click();
         await page.waitForTimeout(300);
-        expect((await state()).current, 'the ↩ brings you back').toBe(true);
+        expect((await state()).words, 'the words bring you back').toBe('This week');
         await expect.poll(() => page.locator('#ariaAnnouncer').textContent()).toMatch(/this week/);
     });
 }
