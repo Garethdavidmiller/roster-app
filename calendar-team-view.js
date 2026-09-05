@@ -10,7 +10,7 @@
  * Do not edit here for: personal calendar, override cache management, nav structure.
  */
 
-import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, TEAM_GRADES, getBaseShift, escapeHtml, formatISO,
+import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, MONTH_NAMES, TEAM_GRADES, getBaseShift, escapeHtml, formatISO,
          SHIFT_TIME_REGEX, getShiftKind, isSunday } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
 import { isBeforeMemberStart, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
@@ -139,9 +139,9 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         return { text: escapeHtml(shift), cls: '', label: shift };
     }
 
-    /** Formats a Sunday-anchored week as "19–25 May 2026" or "28 Apr – 4 May 2026". */
     /**
-     * The week this grid is showing, short enough to stay on ONE line beside the two arrows.
+     * The week this grid is showing — "12–18 Jul 2026", or "28 Jun – 4 Jul 2026" across a month
+     * boundary — short enough to stay on ONE line beside the two arrows.
      *
      * SHORT MONTHS, matching the Admin week grid (v22.84). The full-month form measured 245px
      * against a centre column of 167–237px, so it wrapped to two lines at 320, 360 and 390 at the
@@ -150,13 +150,20 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
      * `admin-week-editor.js` already uses for exactly this row, and its header records the same
      * defect arriving there first; this is that fix applied to the surface that still had it, not
      * a new abbreviation invented here.
+     *
+     * The abbreviation is a WIDTH decision, so it belongs only to the surface that has a width:
+     * the screen-reader announcement (`announceTeamWeek`) passes `MONTH_NAMES` and keeps saying
+     * "July" — a spoken "Jul" would be a regression bought for a column it does not sit in.
+     *
+     * @param {Date} sunday  the week's Sunday
+     * @param {readonly string[]} [months]  month table — `MONTH_ABB` (default) or `MONTH_NAMES`
      */
-    function formatTeamWeekLabel(/** @type {any} */ sunday) {
+    function formatTeamWeekLabel(/** @type {any} */ sunday, months = MONTH_ABB) {
         const dates = getTeamWeekDates(sunday);
         const s = dates[0], e = dates[6];
         return s.getMonth() === e.getMonth()
-            ? `${s.getDate()}–${e.getDate()} ${MONTH_ABB[e.getMonth()]} ${e.getFullYear()}`
-            : `${s.getDate()} ${MONTH_ABB[s.getMonth()]} – ${e.getDate()} ${MONTH_ABB[e.getMonth()]} ${e.getFullYear()}`;
+            ? `${s.getDate()}–${e.getDate()} ${months[e.getMonth()]} ${e.getFullYear()}`
+            : `${s.getDate()} ${months[s.getMonth()]} – ${e.getDate()} ${months[e.getMonth()]} ${e.getFullYear()}`;
     }
 
     // ── RENDER ────────────────────────────────────────────────────────────────
@@ -486,7 +493,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         const announcer = document.getElementById('ariaAnnouncer');
         if (!announcer) return;
         announcer.textContent = '';
-        requestAnimationFrame(() => { announcer.textContent = `Week of ${formatTeamWeekLabel(currentTeamWeekStart)}`; });
+        requestAnimationFrame(() => { announcer.textContent = `Week of ${formatTeamWeekLabel(currentTeamWeekStart, MONTH_NAMES)}`; });
     }
 
     // ── CONVENIENCE ───────────────────────────────────────────────────────────

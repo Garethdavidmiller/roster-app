@@ -1136,3 +1136,21 @@ for (const [width, fontPx] of [[320, 14], [360, 14], [390, 14], [412, 14], [412,
         expect(geo.text, 'the week label went back to full month names').not.toMatch(/January|February|August|September|November|December/);
     });
 }
+
+// The abbreviation above is a WIDTH decision. The screen-reader announcement has no width, so it
+// keeps the full month — a spoken "Jul" would be a regression bought for a column it does not sit
+// in. Asserted on the live region's text, which nothing visual can see.
+test('calendar: the team week is ANNOUNCED with the full month name, not the on-screen short form', async ({ page }) => {
+    await seedMember(page);
+    await seedMemberSession(page);
+    await page.setViewportSize({ width: 390, height: 820 });
+    await page.goto('/');
+    await page.waitForSelector('.control-group--actions', { state: 'attached' });
+    await page.locator('#teamViewBtn').click();
+    await page.waitForSelector('.team-week-text');
+    await page.locator('#tvNextWeek').click();
+    await expect.poll(() => page.locator('#ariaAnnouncer').textContent()).toMatch(/^Week of \d/);
+    const spoken = await page.locator('#ariaAnnouncer').textContent();
+    expect(spoken, `announced "${spoken}"`).toMatch(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\b/);
+    expect(spoken, `announced the short form: "${spoken}"`).not.toMatch(/\b(Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/);
+});
