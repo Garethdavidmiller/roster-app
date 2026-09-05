@@ -1140,6 +1140,38 @@ test('links: the sticky summary bar carries a live reading of the analysis below
     await expect.poll(() => chips.allTextContents()).not.toEqual(before);
 });
 
+// ── A CARD THAT FITS A SHEET MUST NOT STRADDLE TWO (v22.75) ──────────────────────────────────────
+//
+// Found by generating a real A4 landscape PDF, which is the only way to see it: on screen the page
+// is one continuous column and nothing is wrong. The coverage card is 635px against 718px of
+// printable height and was breaking anyway — the hour header and the SUNDAY row printed at the foot
+// of the grid's sheet with MON–SAT overleaf, so a reader comparing days had Sunday on a different
+// piece of paper. The checks card's triage block split between its heading and its own list, landing
+// "4 definitions still to confirm" alone at the top of a sheet.
+//
+// Asserted through the CASCADE under print media rather than by scanning the stylesheet for the
+// declaration: the failure this guards is the rule being overridden or dropped, and a source scan
+// answers a different question. `emulateMedia` is what makes the print branch reachable at all.
+test('links: the coverage card and the triage block are not split across printed sheets', async ({ page }) => {
+    await openLinksWithDesign(page);
+    await page.emulateMedia({ media: 'print' });
+    const got = await page.evaluate(() => {
+        const v = sel => { const el = document.querySelector(sel); if (!el) return 'MISSING';
+            const c = getComputedStyle(el); return c.breakInside || c.pageBreakInside; };
+        return { coverage: v('#coverageCard'), triage: v('.check-triage') };
+    });
+    expect(got.coverage, 'the coverage heat map may not break between its days').toBe('avoid');
+    expect(got.triage, 'the triage heading may not be separated from its own list').toBe('avoid');
+    // The grid card deliberately does NOT carry this — it is the sheet the masthead belongs to and
+    // the whole rotation has to land on ONE sheet, which a rule that could push it to page 2 works
+    // against. Pinned so the print fix above is not "helpfully" widened to it.
+    const grid = await page.evaluate(() => {
+        const c = getComputedStyle(document.querySelector('#linksGridCard'));
+        return c.breakInside || c.pageBreakInside; });
+    expect(grid, 'the grid card must stay free to start page 1 at the top').not.toBe('avoid');
+    await page.emulateMedia({ media: 'screen' });
+});
+
 test('links: the hard limit is its own section, above the advisory factors and never collapsed', async ({ page }) => {
     // 13 consecutive worked days is CHILTERN's roster limit, derived from the post-Clapham Hidden
     // standard (v19.96) — a company limit, not legislation and not a current industry-wide rule —
