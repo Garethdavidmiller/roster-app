@@ -779,6 +779,25 @@ try {
         // Bounded, and short. A cache MISS resolves false immediately, a slow read falls through at
         // the deadline, and either way the old behaviour follows — so nothing waits on a device that
         // has nothing to show. This is the one place in the boot where waiting is the faster answer.
+        // WHEN THE DEVICE'S OWN SAVED COPY BECAME AVAILABLE (v22.95) — the ladder rung that splits
+        // the Unlocked → Shifts shown gap. The 5 Sep 2026 field read put Unlocked at 58% over a
+        // second and Shifts shown at 78%, with no rung between them to say where the eighteen
+        // points went, and 98% of attributed starts are served from this very cache.
+        //
+        // MARKED HERE, in the coordinator, and not inside `calendar-initial-fetch.js` — the same
+        // rule as the three rungs above: the modules that own these events do not carry telemetry.
+        // It is not only tidiness. Importing `perf-reporter.js` into that module pulls the gstatic
+        // Firebase graph into it, and its test suite stops loading at all; the first cut did
+        // exactly that and `calendar-initial-fetch.test.mjs` refused to build.
+        //
+        // Only on a real hit: a device with no saved copy has no such moment, and giving it one
+        // would put first-visit boots into a distribution about how quickly storage answers.
+        // Attached BEFORE the race so a cache that settles fast is still marked — the race's own
+        // timeout branch discards which promise won, and this must not depend on that.
+        _initialFetch.cacheSettled
+            .then(painted => { if (painted) markMilestone('rosterCached'); })
+            .catch(() => { /* never rejects; here so a future change cannot make it unhandled */ });
+
         const _cachePainted = await Promise.race([
             _initialFetch.cacheSettled,
             new Promise(r => setTimeout(r, CACHE_FIRST_PAINT_MS)),

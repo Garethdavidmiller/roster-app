@@ -209,7 +209,13 @@ fraction of Calendar opens actually follow a release, which turns this from a pl
 into a sized one.
 
 ### Calendar start — the service-worker revalidation storm (NEW v22.90, MEASURED v22.92)
-**Status:** Mechanism and volume measured; the COST to a member is not · **Owner:** Gareth — the treatment is an architecture decision · **Would change:** `service-worker.js` SWR branch
+**Status:** SECONDARY hypothesis (demoted 5 Sep 2026 on field evidence); mechanism and volume measured, cost not · **Owner:** Gareth — the treatment is an architecture decision · **Would change:** `service-worker.js` SWR branch
+
+**Demoted, and by the evidence rather than by losing interest.** The September App Speed read shows
+installed-app and browser opens within about three points of each other on the code metric (~17% vs
+~20% over a second), so there is no sign that the installed PWA — where the service worker actually
+runs — is where the delay lives. The identity path has direct field evidence; this does not. It is
+still worth the controlled test below, and it is no longer a candidate for the main cause.
 
 **Raised by external review, 5 Sep 2026, and the mechanism is confirmed in code even though the
 effect is not.** On a warm cache the SWR branch serves each managed JS/CSS file from Cache Storage
@@ -294,6 +300,16 @@ neither is in this release.
 
 ### Calendar start — the identity round trip
 **Status:** Blocked on an owner decision · **Owner:** Gareth · **Measured:** `LATENCY_PLAN.md` · **Would change:** `CALENDAR_DATA.md` invariant 3
+
+**FIELD-CONFIRMED ON LIVE DEVICES, 5 Sep 2026.** This was "extremely strong controlled experiment
+plus historical field localisation" until the September App Speed read supplied the predicted
+signature: `Recognised` moves with the connection grouping while `Getting ready` is 0% over half a
+second in every group. Same populations, large difference at the network rung, none at the
+code-loading one. `LATENCY_PLAN.md` → "THE FIELD READ" carries the table and the one confound.
+
+**And the number that makes this the decision rather than an option:** 454 of 462 attributed starts
+were served from the device's OWN saved copy, and **78% of those still took over a second to put
+shifts on screen**. The roster is already on the phone. It is waiting for permission to be shown.
 
 **The measurement is finished and it names one thing.** Every Calendar boot issues a single
 `accounts:lookup` so Firebase can validate the stored user before emitting it, and the access

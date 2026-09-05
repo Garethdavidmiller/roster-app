@@ -460,6 +460,7 @@ describe('summariseStartMilestones', () => {
         const samples = Object.fromEntries([
             mk('calendar', 'rosterLive', '1-3s', 5),
             mk('calendar', 'ready', 'lt500ms', 5),
+            mk('calendar', 'rosterCached', 'lt500ms', 5),
             mk('calendar', 'access', 'lt500ms', 5),
             mk('calendar', 'authBoot', 'lt500ms', 5),
         ]);
@@ -499,6 +500,26 @@ describe('summariseStartMilestones', () => {
         ]);
         const { rows } = summariseStartMilestones(samples, { page: 'calendar' });
         assert.equal(rows[0].total, 2);
+    });
+
+    test('the saved-copy rung sits BETWEEN unlocking and painting', () => {
+        // Its whole purpose is splitting that gap — the field read of 5 Sep 2026 put Unlocked at
+        // 58% over a second and Shifts shown at 78%, with nothing in between to say where the
+        // eighteen points went. Ordered after `ready` it would read as time spent AFTER the roster
+        // was on screen, which is the opposite claim.
+        const ids = START_MILESTONES.map(m => m.metric);
+        assert.ok(ids.indexOf('rosterCached') > ids.indexOf('access'), 'must come after Unlocked');
+        assert.ok(ids.indexOf('rosterCached') < ids.indexOf('ready'), 'must come before Shifts shown');
+    });
+
+    test('its label does not collide with the ready-source block on the same card', () => {
+        // Both answer "the saved copy", one as a TIME and one as a SOURCE, and they render within a
+        // couple of blocks of each other. Identical labels would read as the same figure twice.
+        const ladder = START_MILESTONES.map(m => m.label);
+        for (const src of READY_SOURCES) {
+            assert.ok(!ladder.includes(/** @type {any} */ (src.label)),
+                `"${src.label}" is used by both blocks on one card`);
+        }
     });
 
     test('every milestone has a label and a distinct id', () => {

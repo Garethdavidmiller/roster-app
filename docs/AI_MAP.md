@@ -1691,6 +1691,15 @@ Anonymous page-load latency recorder (Project 0 instrumentation, v14.89; FCP + a
   may see anything, which is no place for telemetry. Observed from outside the instants are the same
   to within a microtask. Labels + the summariser: `perf-stats.START_MILESTONES` /
   `summariseStartMilestones`; rendered as "How far the start gets" by `operations-reports.js`.
+  **`rosterCached` ("Roster found") joined the ladder at v22.95**, between Unlocked and Shifts
+  shown, because the 5 Sep 2026 field read put those at 58% and 78% over a second with nothing
+  between them to say where the eighteen points went — and 98% of attributed starts are served from
+  that very cache. It is marked from `calendar-app.js` off the initial fetch's `cacheSettled`, like
+  every other rung and for the same reason plus a concrete one: importing `perf-reporter.js` into
+  `calendar-initial-fetch.js` pulls the gstatic graph in and its test suite stops loading. **Only on
+  a real cache hit** — a device with no saved copy has no such moment, and the guard that keeps it
+  that way is only visible to `e2e/calendar.spec.js`, since removing it leaves every unit suite
+  green.
 - **`READY_SOURCES` / `summariseReadySource`** (perf-stats.js, v21.99) split the `Shifts shown` rung
   by WHAT SERVED IT — `readyCached` against `readyFetched`, written by `markPageReady(source)` and
   rendered as "What put the shifts on screen". It exists to decide `LATENCY_PLAN.md` Phase 2, which

@@ -370,6 +370,16 @@ export const START_MILESTONES = /** @type {const} */ ([
     // resolves silently and wrongly. This rung is the saved session being restored, no typing.
     { metric: 'authBoot',   label: 'Recognised',   sub: 'your saved sign-in being restored' },
     { metric: 'access',     label: 'Unlocked',     sub: 'the Calendar deciding you may see it' },
+    // THE RUNG THAT SPLITS THE GAP NOBODY COULD SEE (v22.95). The field read of 5 Sep 2026 put
+    // Unlocked at 58% over a second and Shifts shown at 78% — about eighteen points appearing
+    // between deciding a member may look and actually painting their roster, with no rung in
+    // between to say where. This is the device's own saved copy coming back out of storage, which
+    // is what 98% of attributed starts are served from.
+    //
+    // It reports ONLY when the cache produced something. A device with no saved copy has no such
+    // moment, and giving it one would put a first-visit boot into a distribution about how quickly
+    // storage answers — the same rule every other rung here follows.
+    { metric: 'rosterCached', label: 'Roster found', sub: 'your own saved copy, back from this device' },
     { metric: 'ready',      label: 'Shifts shown', sub: 'a roster on screen, saved or current' },
     { metric: 'rosterLive', label: 'Confirmed',    sub: 'those shifts checked against the server' },
 ]);

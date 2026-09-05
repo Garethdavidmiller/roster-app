@@ -620,3 +620,31 @@ describe('the boot records how much the service worker was doing', () => {
         assert.deepEqual(_samples, []);
     });
 });
+
+
+// ── THE SAVED-COPY RUNG (v22.95) ────────────────────────────────────────────────────────────────
+//
+// It reports only when the device's own cache actually produced something. That is the honesty
+// rule, and it is the one an edit would break: a first visit, or a phone whose storage has been
+// evicted, has no moment at which its saved copy became available. Giving it one would put boots
+// with no cache into a distribution about how quickly storage answers, and the figure exists
+// precisely to price a change for the people who DO have a cache.
+describe('the `rosterCached` milestone', () => {
+    test('a marked cache hit is recorded on the ladder', async () => {
+        _samples.length = 0; _marks.clear(); _ss.clear();
+        const { recordPageLatency, markMilestone } = await import('./perf-reporter.js?fresh=rc-hit');
+        recordPageLatency('calendar', 'S. Silva');
+        markMilestone('rosterCached');
+        await new Promise(r => setTimeout(r, 0));
+        assert.ok(_samples.some(s => s.metric === 'rosterCached'), 'a real cache hit reports');
+    });
+
+    test('an UNMARKED boot reports nothing — a cache miss has no such moment', async () => {
+        _samples.length = 0; _marks.clear(); _ss.clear();
+        const { recordPageLatency } = await import('./perf-reporter.js?fresh=rc-miss');
+        recordPageLatency('calendar', 'S. Silva');
+        await new Promise(r => setTimeout(r, 0));
+        assert.ok(!_samples.some(s => s.metric === 'rosterCached'),
+            'a boot with no saved copy must not be given a time');
+    });
+});

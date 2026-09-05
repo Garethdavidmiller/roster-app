@@ -140,7 +140,7 @@ function askSwrCount() {
 }
 
 /** @type {Record<string, string>} milestone id → performance.mark name */
-const MILESTONE_MARKS = { authBoot: 'myb-auth-boot', access: 'myb-access', rosterLive: 'myb-roster-live' };
+const MILESTONE_MARKS = { authBoot: 'myb-auth-boot', access: 'myb-access', rosterCached: 'myb-roster-cached', rosterLive: 'myb-roster-live' };
 /** @type {Record<string, (t: number) => void>} */
 const _resolveMilestone = {};
 /** @type {Record<string, Promise<number>>} */
@@ -152,7 +152,7 @@ for (const id of Object.keys(MILESTONE_MARKS)) {
 /**
  * Mark one of the start-ladder milestones. Idempotent, silent on any platform without the
  * Performance API, and — like `markPageReady` — it must never be able to break the page it times.
- * @param {'authBoot'|'access'|'rosterLive'} id
+ * @param {'authBoot'|'access'|'rosterCached'|'rosterLive'} id
  * @returns {void}
  */
 export function markMilestone(id) {
