@@ -7,8 +7,9 @@
 // move — and a screenshot only catches the widths it happens to be taken at.
 //
 // So the rules that make the trap impossible are pinned STATICALLY, on the stylesheet's text:
-//   1. a control-group modifier is always written `.controls .control-group--…` (specificity 0,2,0),
-//      so no bare `.control-group` rule can outrank it;
+//   1. a control-group modifier is always written `.controls .control-group--…` (specificity 0,2,0,
+//      with any further prefix such as `html[data-text-scale]` welcome in FRONT of it), so no bare
+//      `.control-group` rule can outrank it;
 //   2. no rule declares `gap` on a control group at all — the base rule reads `--cg-gap` and every
 //      breakpoint and modifier SETS the variable, which cascades per property and so cannot be
 //      lost to a later rule for a different selector;
@@ -45,7 +46,7 @@ test('1. every control-group MODIFIER is written under `.controls`, so no bare r
     const offenders = RULES
         .filter(r => /\.control-group--/.test(r.selector))
         .flatMap(r => r.selector.split(',').map(s => s.trim()))
-        .filter(s => /\.control-group--/.test(s) && !s.startsWith('.controls .'));
+        .filter(s => /\.control-group--/.test(s) && !/(^|\s)\.controls \.control-group--/.test(s));
     assert.deepEqual(offenders, [], `unprefixed modifier rule(s): ${offenders.join(' | ')}`);
 });
 

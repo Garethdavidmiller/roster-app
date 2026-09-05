@@ -490,7 +490,12 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         const legend  = document.querySelector('.legend');
         if (teamBtn) {
             teamBtn.classList.toggle('active', teamViewMode);
-            teamBtn.textContent = teamViewMode ? '📅 Month' : '👥 Team';
+            // innerHTML, not textContent (v22.87): the icon is a span the compact form hides, and a
+            // plain string here would put the raw emoji back the moment the view toggled. Static
+            // markup, no data — nothing here comes from a user or a document.
+            teamBtn.innerHTML = teamViewMode
+                ? '<span class="btn-ico" aria-hidden="true">📅</span> Month'
+                : '<span class="btn-ico" aria-hidden="true">👥</span> Team';
             teamBtn.setAttribute('aria-label', teamViewMode
                 ? 'Switch back to monthly calendar'
                 : 'Switch to team week view');

@@ -169,9 +169,8 @@ export function createCalendarHeader(/** @type {any} */ firstWeekNum, /** @type 
             weekDisplay = `${pluralPrefix} ${firstWeekNum}–${lastWeekNum}`;
         }
     }
-    // The "·" between the month and the week note is CSS (`.week-info-text::before`), not text
-    // (v22.86): it is a separator between two things on ONE line, and below 380px the two stack,
-    // where a line that starts with a dot reads as a typo. CSS can hide it there; a string cannot.
+    // No "·" between the month and the week note (v22.87): the note's smaller grey type already
+    // sets it apart, and the dot was 8px of the budget that keeps a 360px phone on one line.
     return `
         <div class="month-year" role="button" tabindex="0" aria-label="Jump to month — currently ${MONTH_NAMES[month]} ${year}">${MONTH_NAMES[month]} ${year}</div>
         <div class="week-info">
