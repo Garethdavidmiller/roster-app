@@ -8,7 +8,7 @@
  */
 import { sessionReady } from './session.js';
 import { withClaimRetry, getPerfStats } from './firebase-client.js';
-import { SPEED_GROUPS, perfVerdict, summarisePerfBy, PERF_DIMENSIONS, summariseBootPhases, summariseStartMilestones, summariseReadySource, THIN_SAMPLE } from './perf-stats.js';
+import { SPEED_GROUPS, perfVerdict, summarisePerfBy, PERF_DIMENSIONS, summariseBootPhases, summariseStartMilestones, summariseReadySource, summariseUpdateOpens, THIN_SAMPLE } from './perf-stats.js';
 import { escapeHtml } from './roster-data.js';
 import { PRIVACY_FOOTER, PAGE_META, _cardLoadError, _usageMonthLabel } from './operations-reports.js';
 
@@ -441,6 +441,65 @@ async function initPageSpeedCard() {
         return frag;
     };
 
+    /** OPENS A RELEASE CAUSED (v22.92) — the reading v22.90 shipped without.
+     *
+     *  That release stopped an update reload interrupting a member mid-read, and could not say how
+     *  often the path runs or what the following load costs: the instrumentation is blind to it,
+     *  because a reload arrives as one more ordinary open.
+     *
+     *  Two things the note must carry, and both are corrections to a reading the card otherwise
+     *  invites. **This row is a SUBSET of "Shifts shown", not a split of it** — the opposite relation
+     *  to the block above, so a reader who met that one first would subtract. And on the Calendar the
+     *  deferred reload runs while the page is HIDDEN, so a slow figure here is a background load
+     *  finishing at its leisure, not a member waiting; read the other way it would condemn the fix
+     *  for working.
+     *
+     *  The share is stated rather than left to be computed: the divisor is a number in a different
+     *  block, and asking a reader to hold it is how a card gets read wrong.
+     *  @param {Record<string, number>} samples @param {string} page */
+    const updateOpenRows = (samples, page) => {
+        const { rows } = summariseUpdateOpens(samples, { page });
+        if (!rows.length) return null;
+        // The divisor comes from the ladder's own summary, so the two blocks cannot disagree about
+        // what `ready` counts. Absent (a device reporting `readyUpdate` but no `ready` cannot exist,
+        // but nothing here should depend on that) ⇒ the share sentence is dropped, not guessed.
+        const readyTotal = summariseStartMilestones(samples, { page }).rows
+            .find(r => r.metric === 'ready')?.total || 0;
+        const frag = document.createDocumentFragment();
+        const heading = document.createElement('p');
+        heading.className = 'usage-section-label speed-dim-label';
+        heading.textContent = 'Opens that followed a release';
+        frag.appendChild(heading);
+        const share = readyTotal
+            ? ` That is ${Math.round((rows[0].total / readyTotal) * 100)}% of them.`
+            : '';
+        frag.appendChild(noteLine(
+            `An update installs and the page reloads onto it. These opens are also counted in “Shifts shown” above, not separately.${share} On the calendar the reload waits until the page is hidden, so a slow figure here is a background load, not somebody waiting.`));
+
+        const list = document.createElement('div');
+        list.className = 'speed-rows';
+        const head = document.createElement('div');
+        head.className = 'speed-row speed-row--why speed-dual-head';
+        head.innerHTML = '<span></span><span></span>'
+            + '<span class="speed-dual-label">over 1s</span>'
+            + '<span class="speed-dual-label">opens</span>';
+        list.appendChild(head);
+        rows.forEach(r => {
+            const row = document.createElement('div');
+            row.className = 'speed-row speed-row--why';
+            const thin = r.total < THIN_SAMPLE;
+            row.innerHTML =
+                `<span class="speed-row-label"><span class="speed-row-name">${escapeHtml(r.label)}</span>`
+                    + `${thin ? '<span class="speed-thin">(few)</span>' : ''}</span>` +
+                `<span class="speed-bar" role="img" aria-label="${escapeHtml(r.sub)}: ${r.pctQuick}% quick, ${r.pctOk}% a moment, ${r.pctSlow}% slow">${segs(r)}</span>` +
+                `<span class="speed-row-count">${r.pctOver1s}%</span>` +
+                `<span class="speed-row-sub">${r.total.toLocaleString('en-GB')}</span>`;
+            list.appendChild(row);
+        });
+        frag.appendChild(list);
+        return frag;
+    };
+
     /** The whole "why" section, for the page with the most samples.
      *
      *  Deliberately NOT hardcoded to the Calendar, even though the Calendar is what prompted it and
@@ -472,6 +531,11 @@ async function initPageSpeedCard() {
         // reading it anywhere else would leave the reader to remember which row it belonged to.
         const source = readySourceRows(samples, busiest.page);
         if (source) { frag.appendChild(source); any = true; }
+        // Then the OTHER subset of that same rung — the opens a release caused. Beside the block
+        // above because both split "Shifts shown", and after it because this one is rarer: it
+        // renders only once updated devices have actually been reloaded by a release.
+        const updates = updateOpenRows(samples, busiest.page);
+        if (updates) { frag.appendChild(updates); any = true; }
         // Then the ladder's FIRST rung against the network, beside the stage that does not touch it
         // — the comparison `LATENCY_PLAN.md` gates its open decision on. It sits here because both
         // halves are milestones the two blocks above have just named.

@@ -5349,6 +5349,58 @@ test('operations: App speed can split Recognised by connection, beside Getting r
     expect(pcts.appRows).toEqual(['0%', '0%']);
 });
 
+test('operations: App speed reports the opens a release caused, as a SHARE of all opens', async ({ page }) => {
+    /*
+     * THE RULE TESTED, THE WIRING NOT — this is the wiring.
+     *
+     * `summariseUpdateOpens` is pinned next door and the marker's two halves in
+     * sw-register.test.mjs / perf-reporter.test.mjs. None of that can see the thing that makes the
+     * block worth having: the SHARE, which the card computes by dividing this block's count by a
+     * total that lives in a DIFFERENT block's summary. A divisor read from the wrong page, the wrong
+     * metric, or a second summary that disagreed with the first would all render a perfectly
+     * plausible percentage, and every unit test would stay green.
+     *
+     * So the numbers are chosen to make a wrong divisor visible: 30 update opens against 600 `ready`
+     * is 5%, and every near-miss divisor on this fixture gives a different answer — the paycalc
+     * `ready` (300) gives 10%, the calendar's `readyCached` (200) gives 15%, and this block's own
+     * total gives 100%.
+     */
+    await page.addInitScript(() => {
+        window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: {
+            '22_91|calendar|ready|lt500ms|standalone|4g':       400,
+            '22_91|calendar|ready|1-3s|standalone|4g':          200,
+            '22_91|calendar|readyUpdate|1-3s|standalone|4g':     30,
+            // Decoys, each of which is a divisor a plausible mistake would reach for.
+            '22_91|calendar|readyCached|lt500ms|standalone|4g': 200,
+            '22_91|paycalc|ready|lt500ms|standalone|4g':        300,
+            '22_91|paycalc|readyUpdate|1-3s|standalone|4g':     150,
+            // Calendar is the busiest page, so it is the one the "why" section describes.
+            '22_91|calendar|domReady|lt500ms|standalone|4g':    600,
+            '22_91|paycalc|domReady|lt500ms|standalone|4g':     300,
+        } } };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const speed = page.locator('#pageSpeedContent');
+    await expect(speed).toContainText('Opens that followed a release');
+    await expect(speed).toContainText('After a release');
+    await expect(speed, 'the share is stated, not left for the reader to divide across two blocks')
+        .toContainText('That is 5% of them');
+
+    // The subset relation, in the words the reader gets. Without it the block sits under a partition
+    // that does not add up and invites exactly the wrong arithmetic.
+    await expect(speed).toContainText('also counted in');
+
+    // And the row counts THIS page's update opens — not paycalc's 150, which would read as 25%.
+    const total = await speed.evaluate(() => {
+        const label = [...document.querySelectorAll('.speed-dim-label')]
+            .find(el => el.textContent === 'Opens that followed a release');
+        return label.nextElementSibling.nextElementSibling
+            .querySelector('.speed-row--why:not(.speed-dual-head) .speed-row-sub')?.textContent;
+    });
+    expect(total).toBe('30');
+});
+
 // ── Staff Login Accounts: the provisioning audit (v22.53) ───────────────────────────────────────
 //
 // The rule is unit-tested next door and the card's own decisions in admin-auth.test.mjs; what only

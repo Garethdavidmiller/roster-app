@@ -1,6 +1,9 @@
 // @ts-check
 /**
- * storage-keys.js — single source for the CROSS-FILE localStorage keys (v16.81 debt sweep).
+ * storage-keys.js — single source for the CROSS-FILE storage keys (v16.81 debt sweep).
+ *
+ * localStorage, with ONE deliberate sessionStorage exception (`SW_UPDATE_RELOAD`, v22.92) whose own
+ * comment says why it is here and why it does not go through `ls.js`.
  *
  * Only keys shared by more than one module live here. Per-module keys stay local to their
  * file (and the whole paycalc namespace is built by `pcPrefix()` in paycalc-migrations.js —
@@ -35,6 +38,20 @@ export const VIEWED_YEAR  = 'myb_roster_year';
  *  overlay to real sign-ins only: without it the compel would ambush a member on an ordinary page
  *  load, which is the v14.77 "Fix 4" defect the work-email check's identical marker exists to stop. */
 export const PW_FORCE_PENDING_PREFIX = 'myb_pw_force_pending_';
+
+/** The one-shot "this load followed a release" marker — a `Date.now()` stamp WRITTEN by
+ *  sw-register.js the moment it commits an update reload, and CONSUMED by perf-reporter.js on the
+ *  load that follows, which records it as `readyUpdate`. Cross-file by construction: the writer and
+ *  the reader are different pages of the same visit, so it cannot live in either module.
+ *
+ *  **It is sessionStorage, not localStorage** — the first key here that is, and deliberately: it
+ *  describes ONE tab's journey and must die with the tab rather than follow the device. So it is
+ *  read and written directly (in a try/catch — iOS private mode throws), NOT through the `ls.js`
+ *  wrappers, which are localStorage-only. It is here for the one property this file exists for: a
+ *  single spelling. A drifted one is silent AND self-concealing — nothing errors, `readyUpdate`
+ *  simply never records, and the App Speed block then does not render at all, which reads as
+ *  "no release has ever reloaded anybody": the finding itself, asserted on no evidence. */
+export const SW_UPDATE_RELOAD = 'myb_perf_sw_reload';
 
 /*
  * `NOTICE_PW_OWN_DONE` lived here until v21.84, and its removal is the point rather than tidying.

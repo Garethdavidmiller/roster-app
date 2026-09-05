@@ -368,3 +368,131 @@ describe('the `ready` sample says what served the grid', () => {
         assert.ok(!_samples.some(s2 => s2.metric === 'readyFetched'));
     });
 });
+
+// ── OPENS A RELEASE CAUSED (v22.92) ─────────────────────────────────────────────────────────────
+//
+// v22.90 deferred the update reload so a release stops interrupting a member mid-read. It shipped
+// with the cost it removes UNMEASURED, and this marker is the measurement.
+//
+// Organised by what a wrong answer costs, and the directions are not equal. A FALSE POSITIVE — an
+// ordinary open filed as an update open — inflates the one number the fix is judged on, using
+// somebody's slow morning as evidence for work that was already done. It is also the reachable one,
+// because the marker is written before the reload is certain: links' confirm offers Cancel, and a
+// flag left behind would attribute whatever that tab loaded next. A MISS only under-reports, and
+// under-reporting a cost that has already been removed costs nothing but the argument.
+//
+// The one-shot rule is the same as the login marker's, and it exists for the same reason in reverse:
+// the marker is ALWAYS cleared, and recorded only when the session is not the developer's.
+describe('the `ready` sample says whether a release caused the open', () => {
+    const SW_KEY = 'myb_perf_sw_reload';
+    // Fresh instance per case, for the same reason the block above needs one: `_readySource` is
+    // module state, and these cases drive `markPageReady` too.
+    const load = async (/** @type {string} */ tag) => {
+        _marks.clear();
+        _samples.length = 0;
+        _ss.clear();
+        global.performance = /** @type {any} */ ({
+            getEntriesByType: () => [],
+            getEntriesByName: (/** @type {string} */ n) => (_marks.has(n) ? [_marks.get(n)] : []),
+            mark: (/** @type {string} */ n) => { _marks.set(n, { name: n, startTime: 640 }); },
+        });
+        return import(`./perf-reporter.js?fresh=up-${tag}`);
+    };
+
+    test('a fresh marker records `readyUpdate` BESIDE `ready`, never instead of it', async () => {
+        // Beside, because the share is a division: `ready` has to keep counting every open or the
+        // denominator moves with the numerator and the percentage is meaningless.
+        const { recordPageLatency, markPageReady } = await load('fresh');
+        _ss.set(SW_KEY, String(Date.now() - 300));
+        recordPageLatency('calendar', 'S. Silva');
+        markPageReady('cached');
+        await Promise.resolve();
+        const metrics = _samples.map(s => s.metric);
+        assert.ok(metrics.includes('ready'), '`ready` still counts this open');
+        assert.ok(metrics.includes('readyUpdate'));
+    });
+
+    test('both samples carry the SAME bucket and page — one reading, two names', async () => {
+        // If they could differ, the row would be comparing a different measurement to the one it is
+        // presented as a subset of, and the card's share sentence would be arithmetic over two
+        // populations.
+        const { recordPageLatency, markPageReady } = await load('bucket');
+        _ss.set(SW_KEY, String(Date.now() - 300));
+        recordPageLatency('calendar', 'S. Silva');
+        markPageReady('fetched');
+        await Promise.resolve();
+        const ready = _samples.find(s => s.metric === 'ready');
+        const upd = _samples.find(s => s.metric === 'readyUpdate');
+        assert.ok(ready && upd);
+        assert.equal(upd.bucket, ready.bucket);
+        assert.equal(upd.page, ready.page);
+        assert.equal(upd.conn, ready.conn);
+        assert.equal(upd.mode, ready.mode);
+    });
+
+    test('an ordinary open — no marker — is NOT an update open', async () => {
+        const { recordPageLatency, markPageReady } = await load('none');
+        recordPageLatency('calendar', 'S. Silva');
+        markPageReady('cached');
+        await Promise.resolve();
+        assert.ok(_samples.some(s => s.metric === 'ready'));
+        assert.ok(!_samples.some(s => s.metric === 'readyUpdate'),
+            'nothing said a release caused this, so nothing may claim one did');
+    });
+
+    test('a STALE marker is refused — the declined-confirm case', async () => {
+        // The reachable false positive. sw-register writes the marker before calling beforeReload,
+        // and links' beforeReload can be declined; the marker then survives until that tab navigates
+        // somewhere else, minutes or hours later. Refusing it is the whole reason it is a timestamp
+        // and not a flag.
+        const { recordPageLatency, markPageReady } = await load('stale');
+        _ss.set(SW_KEY, String(Date.now() - 10 * 60 * 1000));
+        recordPageLatency('calendar', 'S. Silva');
+        markPageReady('cached');
+        await Promise.resolve();
+        assert.ok(_samples.some(s => s.metric === 'ready'));
+        assert.ok(!_samples.some(s => s.metric === 'readyUpdate'));
+        assert.equal(_ss.has(SW_KEY), false, 'and it is cleared, not left to go on being refused');
+    });
+
+    test('a marker from the FUTURE is refused rather than treated as instant', async () => {
+        // A device whose clock jumped back between the write and the read. `now - t` is then
+        // negative, which is smaller than the bound — so a naive one-sided comparison accepts it.
+        const { recordPageLatency, markPageReady } = await load('future');
+        _ss.set(SW_KEY, String(Date.now() + 5 * 60 * 1000));
+        recordPageLatency('calendar', 'S. Silva');
+        markPageReady('cached');
+        await Promise.resolve();
+        assert.ok(!_samples.some(s => s.metric === 'readyUpdate'));
+    });
+
+    test('the marker is ONE-SHOT: the open after the update open is ordinary', async () => {
+        // Left in place it would mark every subsequent open in that tab, and the share would climb
+        // towards 100% on a device that simply never closed the app.
+        const { recordPageLatency, markPageReady } = await load('oneshot');
+        _ss.set(SW_KEY, String(Date.now() - 300));
+        recordPageLatency('calendar', 'S. Silva');
+        markPageReady('cached');
+        await Promise.resolve();
+        assert.equal(_ss.has(SW_KEY), false);
+        _samples.length = 0;
+        const next = await load('oneshot-2');
+        next.recordPageLatency('calendar', 'S. Silva');
+        next.markPageReady('cached');
+        await Promise.resolve();
+        assert.ok(!_samples.some(s => s.metric === 'readyUpdate'));
+    });
+
+    test('an ADMIN reload records nothing but STILL consumes the marker', async () => {
+        // Exactly the login marker's rule, and it bites harder here: the developer is the one person
+        // who reloads onto a release constantly. A marker left behind by an excluded load would
+        // attribute the next STAFF open on that device to an update that was never theirs.
+        const { recordPageLatency, markPageReady } = await load('admin');
+        _ss.set(SW_KEY, String(Date.now() - 300));
+        recordPageLatency('calendar', 'G. Miller');
+        markPageReady('cached');
+        await Promise.resolve();
+        assert.deepEqual(_samples, []);
+        assert.equal(_ss.has(SW_KEY), false, 'consumed, so it cannot mis-attribute a later staff load');
+    });
+});

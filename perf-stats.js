@@ -381,6 +381,33 @@ export function summariseReadySource(samples, { page }) {
 }
 
 /**
+ * OPENS A RELEASE CAUSED (v22.92) — the reading v22.90 shipped without.
+ *
+ * Deferring the update reload until the member looks away removed a cost nobody could size. This is
+ * how it gets sized: `readyUpdate` is written beside `ready`, from the same bucket on the same path,
+ * whenever the load followed an update.
+ *
+ * **It is a SUBSET of `ready`, not a split of it** — the opposite relation to `READY_SOURCES` above,
+ * and the card must say which it is or the reader will apply the wrong arithmetic to whichever block
+ * they met second. Because it is a subset, the counts divide cleanly: this row's total over the
+ * ladder's `ready` total is the share of opens that followed a release.
+ *
+ * ONE ROW, deliberately. The complement ("opens no release caused") would be a second sample on
+ * every load, on every page, to carry a number `ready` already holds — writes bought for a
+ * subtraction. And it is not rendered next to a re-drawn `ready` bar either: the ladder above
+ * already draws that one, and the same figure twice on one card is how a card comes to state it two
+ * ways.
+ */
+export const UPDATE_OPENS = /** @type {const} */ ([
+    { metric: 'readyUpdate', label: 'After a release', sub: 'the open that followed an update installing' },
+]);
+
+/** @param {Record<string, number>} samples @param {{page: string}} opts */
+export function summariseUpdateOpens(samples, { page }) {
+    return _summariseMetricRows(samples, page, UPDATE_OPENS);
+}
+
+/**
  * The shared body. Extracted rather than copied when the ready-source split arrived: the bucket
  * banding, the thin-sample total and the deliberately-inverted `pctOver1s` are one reading, and two
  * copies of them is how a card comes to state the same figure two ways.

@@ -21,6 +21,7 @@
 import { recordPerfSample } from './firebase-client.js';
 import { bucketDuration, loginDurationBucket, bootPhases } from './perf-stats.js';
 import { CONFIG } from './roster-data.js';
+import { SW_UPDATE_RELOAD as SW_RELOAD_KEY } from './storage-keys.js';
 
 // Sign-in timing marker: a wall-clock timestamp stored at the "Sign in" click (login-overlay.js),
 // read once on the destination page (recordPageLatency below) to record login-to-usable time. Stored
@@ -38,6 +39,19 @@ export function markLoginStart() {
 export function clearLoginStart() {
     try { sessionStorage.removeItem(LOGIN_T0_KEY); } catch { /* sessionStorage unavailable */ }
 }
+
+// The marker `sw-register.js` writes immediately before an update-triggered reload, read once on the
+// load that follows it (recordPageLatency below) to record `readyUpdate`. Its module header has why
+// it is a timestamp; this side owns the bound, because the bound protects the METRIC.
+//
+// A minute is generous against every legitimate delay — the Calendar's beforeReload waits 500ms, the
+// default path reloads at once — and short against the one that must not be honoured: a member who
+// declined links' confirm and navigated somewhere else later. Erring long would attribute an
+// ordinary open to a release; erring short only DROPS an update open. Those costs are not equal, so
+// the bound is set where the wrong answer is a miss rather than a false positive.
+// The KEY is `storage-keys.js`'s (one spelling, two modules); the BOUND is this side's, because
+// the bound protects the metric.
+const SW_RELOAD_MAX_MS = 60 * 1000;
 
 /** The mark `markPageReady` writes and `recordPageLatency` reads. */
 export const PAGE_READY_MARK = 'myb-page-ready';
@@ -225,7 +239,20 @@ export function recordPageLatency(page, identity = null) {
             }
         } catch { /* sessionStorage unavailable — skip login timing */ }
 
-        if (excluded) return;   // developer's own session: marker consumed above, nothing else recorded
+        // Did this load follow a release? One-shot by the SAME rule as the login marker above, and
+        // for the same reason: ALWAYS cleared, RECORDED only when not excluded — a developer's own
+        // reload must not leave a marker that then attributes a member's next open to an update.
+        // Read here, used inside `recordReady` below, which may run much later.
+        let afterUpdate = false;
+        try {
+            const t = Number(sessionStorage.getItem(SW_RELOAD_KEY));
+            if (t) {
+                sessionStorage.removeItem(SW_RELOAD_KEY);
+                afterUpdate = Date.now() - t >= 0 && Date.now() - t < SW_RELOAD_MAX_MS;
+            }
+        } catch { /* sessionStorage unavailable — this load simply reports no update attribution */ }
+
+        if (excluded) return;   // developer's own session: markers consumed above, nothing else recorded
 
         // First Contentful Paint (metric 'fcp') — when the user first SEES content, i.e. the page
         // "appears". From the Paint Timing API, a SEPARATE timeline to Navigation Timing's domReady
@@ -255,6 +282,12 @@ export function recordPageLatency(page, identity = null) {
                 recordPerfSample({ page, metric: _readySource === 'cached' ? 'readyCached' : 'readyFetched',
                     bucket, mode, conn });
             }
+            // The same reading again, for the loads a release caused. A SUBSET of `ready` — not a
+            // split of it, which is the opposite of the two rows above and the thing the card has to
+            // say. Because it is written here, from the same bucket, on the same path, the two
+            // counts divide: `readyUpdate` over `ready` IS the share of opens that followed a
+            // release, which is the question v22.90 left unanswerable.
+            if (afterUpdate) recordPerfSample({ page, metric: 'readyUpdate', bucket, mode, conn });
         };
         let readyNow;
         try { readyNow = performance.getEntriesByName?.(PAGE_READY_MARK)?.[0]?.startTime; }

@@ -62,6 +62,32 @@ explanation.
 **It does not touch the identity decision.** The round trip is still the wall on a single load, and
 `ROADMAP.md` still owns that call. What changed is that some members were paying it twice.
 
+### The reading it named is now being taken (v22.92)
+
+The paragraph above says the field contribution is unmeasured and names counting it as the next
+reading. This is that instrument, and it is deliberately not the shape the paragraph guessed at.
+
+**Not "two `ready` samples from one device inside a few seconds".** The analytics are counters, not
+events — `perf_<YYYY-MM>` holds `version|page|metric|bucket|mode|conn → count` and no device
+identity, deliberately, so there is nothing to correlate a pair against and adding one would trade
+the privacy property for a statistic. The device that knows is the device it happened to, at the
+moment it happened, so it says so: `sw-register.js` stamps a sessionStorage timestamp when it
+commits a reload, and `perf-reporter.js` reads it back on the load that follows and records
+`readyUpdate` beside the ordinary `ready`.
+
+**What it can answer, once staff devices report.** `readyUpdate` is a strict SUBSET of `ready`,
+written from the same bucket on the same code path, so the counts divide: the share of Calendar opens
+that followed a release, and what those opens cost against every other open. Rendered on the App
+Speed card as "Opens that followed a release".
+
+**And the caveat that has to travel with it, because it inverts the obvious reading.** Since v22.90
+the Calendar's update reload runs while the page is HIDDEN. So on the Calendar this measures a
+BACKGROUNDED load — which is the right question now (did the deferred reload finish before the
+member came back?) and is emphatically *not* the cost of the behaviour v22.90 removed. That cost is
+now unmeasurable in the field, and honestly so: the only way to measure it would be to reinstate it.
+What survives is the FREQUENCY, which is the half that sizes the complaint, and on the pages that
+still reload in the foreground the duration means what it looks like.
+
 ---
 
 Design detail lives beside the code, as ever — `perf-reporter.js` and `perf-stats.js` for what is

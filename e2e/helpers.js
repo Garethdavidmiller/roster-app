@@ -584,6 +584,13 @@ export function perfSamples() {
     // the block exists to reveal, and a 50/50 fixture would hide a layout fault in either row.
     add('calendar', 'readyCached',  'lt500ms', 480); add('calendar', 'readyCached',  '1-3s', 60);
     add('calendar', 'readyFetched', '1-3s', 140);    add('calendar', 'readyFetched', '3-8s', 110);
+    // OPENS A RELEASE CAUSED (v22.92) — a small share, deliberately, because that is the shape the
+    // row has to stay readable in. A `readyUpdate` count anywhere near `ready` would be a fixture
+    // asserting the finding rather than exercising the layout, and it would hide the case the block
+    // is most likely to render badly: a two-digit count and a single-digit percentage beside a bar
+    // built from four figures. It must stay a SUBSET of the `ready` seeded above, or the card's
+    // share sentence would print a percentage over 100 and nothing would fail.
+    add('calendar', 'readyUpdate', '1-3s', 26); add('calendar', 'readyUpdate', '3-8s', 14);
     // Second connection class, so the "Why some are slower" splits have something to split.
     add('calendar', 'domReady', '1-3s', 160, '3g'); add('calendar', 'domReady', '3-8s', 90, '3g');
     add('calendar', 'domReady', '1-3s', 60, '4g', 'browser');

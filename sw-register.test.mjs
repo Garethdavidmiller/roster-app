@@ -78,6 +78,15 @@ function makeHarness({ controlled = false, waiting = false, hasRegistration = co
     // A real 60-min interval would hold the test process open — stub it.
     globalThis.setInterval   = /** @type {any} */ (() => 0);
     globalThis.clearInterval = /** @type {any} */ (() => {});
+    // The update-reload marker `perf-reporter.js` reads on the next load. A Map, not a stub that
+    // swallows writes: what these cases assert is the VALUE that was stored and when.
+    /** @type {Map<string, string>} */
+    const store = new Map();
+    globalThis.sessionStorage = /** @type {any} */ ({
+        getItem: (/** @type {string} */ k) => (store.has(k) ? store.get(k) : null),
+        setItem: (/** @type {string} */ k, /** @type {any} */ v) => { store.set(k, String(v)); },
+        removeItem: (/** @type {string} */ k) => { store.delete(k); },
+    });
 
     // Release the once-per-page-life guard so each test case registers fresh (v16.23).
     _resetForTest();
@@ -87,6 +96,7 @@ function makeHarness({ controlled = false, waiting = false, hasRegistration = co
         posted,
         container,
         swListeners,
+        store,
         fireControllerChange() { (swListeners['controllerchange'] || []).forEach(fn => fn()); },
         docListeners,
         /** Background/foreground the fake page, firing visibilitychange like a browser does. */
@@ -344,6 +354,96 @@ describe('deferWhileVisible — the update waits for the member to look away', (
             h.setVisibility('hidden');
             assert.equal(called, 1, 'the page owns HOW it reloads; this only owns WHEN');
             assert.equal(h.state.reloads, 0, 'beforeReload replaces the default reload');
+        } finally { h.restore(); }
+    });
+});
+
+// ── THE MARKER THAT SAYS "THIS LOAD FOLLOWED A RELEASE" (v22.92) ────────────────────────────────
+//
+// v22.90 deferred the update reload and shipped with the cost it removes unmeasured. This marker is
+// the measurement's write half; `perf-reporter.test.mjs` owns the read half and the recency rule.
+//
+// The rule tested, the WIRING not — that is this repo's named blind spot, and it is exactly the
+// shape here: `markUpdateReload` could be perfect and record nothing, because the line that calls it
+// sits on one branch of a path with four ways through. So these cases assert the marker is written
+// on the paths a member actually takes, and NOT on the one that is not an update at all.
+describe('the update-reload marker', () => {
+    const KEY = 'myb_perf_sw_reload';
+
+    test('a default-path reload writes the marker before reloading', async () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        try {
+            registerServiceWorker();
+            await h.flush();
+            h.fireControllerChange();
+            assert.equal(h.state.reloads, 1);
+            assert.ok(h.store.has(KEY), 'the load that follows this reload must be attributable');
+            assert.ok(Number(h.store.get(KEY)) > 0, 'a timestamp, not a flag — the reader refuses stale ones');
+        } finally { h.restore(); }
+    });
+
+    test('a beforeReload page writes it too — the reload it does is still an update', async () => {
+        // The branch a naive placement misses. `run()` returns early into beforeReload, so a marker
+        // written after that call would never be reached on admin, operations, links OR the calendar
+        // — i.e. on every page that has one, which is every page the figure is about.
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        try {
+            registerServiceWorker({ beforeReload: () => {} });
+            await h.flush();
+            h.fireControllerChange();
+            assert.equal(h.state.reloads, 0, 'the page owns the reload');
+            assert.ok(h.store.has(KEY), 'and it is still an update-caused load when it happens');
+        } finally { h.restore(); }
+    });
+
+    test('a DEFERRED reload writes it when it finally runs, not when it was held', async () => {
+        // The calendar's path since v22.90. Written at hide time, so the timestamp measures the gap
+        // to the load that follows — which is what the recency bound is checked against. Written at
+        // hold time it could be arbitrarily old by the time the member looks away, and every
+        // deferred reload would be refused as stale: the metric would report zero on the one page
+        // it was built for, and read as "releases never interrupt anybody".
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        try {
+            registerServiceWorker({ deferWhileVisible: true });
+            await h.flush();
+            h.fireControllerChange();
+            assert.equal(h.store.has(KEY), false, 'nothing has reloaded yet');
+            h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 1);
+            assert.ok(h.store.has(KEY));
+        } finally { h.restore(); }
+    });
+
+    test('the FIRST-INSTALL claim writes NOTHING — it is not an update', async () => {
+        // The suppressed branch returns before `run()`, and it must: a brand-new device's first
+        // controllerchange is not a release landing on anybody. Marking it would file every first
+        // open on every new install as an update open — a false positive at exactly the moment a
+        // member has no history to compare it against.
+        const h = makeHarness({ controlled: false });
+        try {
+            registerServiceWorker();
+            await h.flush();
+            h.fireControllerChange();
+            assert.equal(h.state.reloads, 0);
+            assert.equal(h.store.has(KEY), false);
+        } finally { h.restore(); }
+    });
+
+    test('sessionStorage throwing does not stop the reload', async () => {
+        // iOS private mode throws on every access. The marker is a measurement; the reload is how a
+        // device stops running old code against a new cache. Losing the second to the first would
+        // trade a real correctness property for a statistic.
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        try {
+            globalThis.sessionStorage = /** @type {any} */ ({
+                getItem: () => { throw new Error('SecurityError'); },
+                setItem: () => { throw new Error('SecurityError'); },
+                removeItem: () => { throw new Error('SecurityError'); },
+            });
+            registerServiceWorker();
+            await h.flush();
+            h.fireControllerChange();
+            assert.equal(h.state.reloads, 1, 'the reload is not optional');
         } finally { h.restore(); }
     });
 });

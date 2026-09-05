@@ -596,7 +596,7 @@ Shared **in-place** sign-in overlay for every protected page (v14.45). Replaces 
 ### `sw-register.js`
 Shared service worker registration + update lifecycle (v12.28). All seven app pages import this instead of duplicating the register/activate/reload pattern.
 - `_resetForTest()` — clears the module's one-shot install/claim guards. Test seam only.
-- `registerServiceWorker({ beforeReload, bfcache, deferWhileVisible })` — registers `./service-worker.js`, activates any waiting worker immediately, sets up an hourly update-check via `visibilitychange`. On `controllerchange`, calls `beforeReload()` if provided, otherwise `window.location.reload()`. `bfcache: true` adds `pagehide`/`pageshow` handlers (used by `calendar-app.js` only). `deferWhileVisible: true` (v22.90, `calendar-app.js` only) holds that reload until the page is HIDDEN, so a release cannot take the page away mid-read; a second update supersedes the first, and an update arriving while already hidden runs at once.
+- `registerServiceWorker({ beforeReload, bfcache, deferWhileVisible })` — registers `./service-worker.js`, activates any waiting worker immediately, sets up an hourly update-check via `visibilitychange`. On `controllerchange`, calls `beforeReload()` if provided, otherwise `window.location.reload()`. `bfcache: true` adds `pagehide`/`pageshow` handlers (used by `calendar-app.js` only). `deferWhileVisible: true` (v22.90, `calendar-app.js` only) holds that reload until the page is HIDDEN, so a release cannot take the page away mid-read; a second update supersedes the first, and an update arriving while already hidden runs at once. Whichever path runs, it stamps a sessionStorage timestamp (v22.92) that `perf-reporter.js` reads on the following load to record `readyUpdate` — the reading v22.90 shipped without.
 - **First-install guard (v16.09, corrected v16.88):** `suppressNextClaim` is computed before registering — `!existing && !navigator.serviceWorker.controller`, i.e. no prior registration AND no controller — and the controllerchange fired by the first install's `clients.claim()` is swallowed, because the page was just loaded from the network so it already IS the newest version. **Both halves matter:** keying on the controller ALONE (as this described until v21.17) misclassifies a hard-reloaded page, which also has a null controller while its registration and active SW still exist — there the next claim is a genuine update and must reload. The listener is attached BEFORE `register()` so a very fast first-install claim cannot fire in the microtask gap and leave the flag unconsumed for the next real update to eat. Pre-v16.09 this reloaded every brand-new device (the old `registration.waiting && controller` guard only suppressed the redundant SKIP_WAITING *message*, not the reload — the SW self-activates via install-time `skipWaiting()` regardless).
 - **No `{once:true}` (v16.09):** the controllerchange listener stays armed so a `beforeReload` that declines (links' `confirm()` → Cancel) still receives the NEXT update's event; the default path double-reload is guarded by a `reloadFired` flag instead. Tested by `sw-register.test.mjs` (test:hygiene).
 - Per-page variants: `calendar-app.js` — 500ms reload delay + bfcache; `admin-app.js` — defers reload if `hasUnsavedChanges()`; `links-app.js` — shows `confirm()` if the design is dirty; others — plain reload.
@@ -1699,6 +1699,18 @@ Anonymous page-load latency recorder (Project 0 instrumentation, v14.89; FCP + a
   rather than a seventh key field, because `parsePerfSampleKey` splits the key positionally and a
   new field would invalidate every sample already stored. **The two do not sum to `ready`** — a page
   that cannot tell its source reports `ready` alone.
+- **`UPDATE_OPENS` / `summariseUpdateOpens`** (perf-stats.js, v22.92) answer the question v22.90
+  shipped without: how often does a release reload somebody, and what does that load cost?
+  `readyUpdate` is written beside `ready`, from the same bucket on the same path, when the load
+  followed an update — so **it is a SUBSET of `ready`, not a split of it**, the opposite relation to
+  `READY_SOURCES` above, and the card states which because a reader who met that block first would
+  subtract. Being a subset is also what makes the share arithmetic honest: `readyUpdate` over `ready`
+  IS the fraction of opens a release caused. The marker itself is `sw-register.js`'s — a TIMESTAMP in
+  sessionStorage, written when the reload is committed, because `run()` serves the `beforeReload`
+  path too and links' confirm can be declined; `perf-reporter.js` owns the recency bound and applies
+  the login marker's one-shot rule (always cleared, recorded only when not excluded). **On the
+  Calendar the reload now happens while the page is HIDDEN**, so a slow figure there describes a
+  background load rather than somebody waiting — the card says so, or the fix reads as the fault.
   **`ready` is deliberately NOT the last rung** — it fires on a cached grid as readily as a confirmed
   one, which is right, but a device can show yesterday's roster instantly and take another two
   seconds to confirm it.
@@ -1878,10 +1890,18 @@ Deliberately NOT the default — changing `lsSet` globally would make ~200 ordin
 branch for a case that only matters when something is about to be deleted.
 
 ### `storage-keys.js`
-Single source for the CROSS-FILE localStorage key names (v16.81) — a shared key must have ONE spelling.
+Single source for the CROSS-FILE storage key names (v16.81) — a shared key must have ONE spelling.
 - `SELECTED_MEMBER` (`myb_roster_selected_member`) + `SELECTED_MEMBER_LEGACY` (`adminLastMember`, the pre-rename alias still read as a fallback) — shared by `calendar-member.js` and `admin-app.js`
 - `VIEWED_MONTH` / `VIEWED_YEAR` — shared by `calendar-state.js` and `admin-app.js` (the "open calendar on the month I was editing" hand-off)
 - `PW_FORCE_PENDING_PREFIX` — the one-shot login marker `password-force.js` reads
+- `SW_UPDATE_RELOAD` (`myb_perf_sw_reload`, v22.92) — the "this load followed a release" stamp
+  `sw-register.js` writes when it commits an update reload and `perf-reporter.js` consumes on the
+  NEXT load to record `readyUpdate`. **The one sessionStorage key here**, deliberately: it describes
+  one tab's journey and must die with the tab, so it is read and written directly in a try/catch
+  rather than through the localStorage-only `ls.js` wrappers. It is here for the single property
+  this file exists for — a drifted spelling is silent AND self-concealing, since `readyUpdate` then
+  never records and the App Speed block simply does not render, which reads as "no release has ever
+  reloaded anybody": the finding itself, asserted on nothing.
 - Per-module and paycalc-namespaced keys deliberately stay local to their modules — only keys read by MORE THAN ONE file live here.
 - `NOTICE_PW_OWN_DONE` was REMOVED at v21.84. It existed so settings-app.js could retire a
   Calendar notice; the replacement notice's `'signed-out'` audience ended the coupling rather
