@@ -1164,6 +1164,30 @@
             .controls select {
                 padding: 10px 30px 10px 10px;
                 font-size: var(--type-medium); /* Must stay 16px — iOS Safari zooms viewport if select < 16px */
+                /* PINNED, BECAUSE `normal` IS NOT DETERMINISTIC ON A NATIVE SELECT (v22.93).
+                   A `<select>` with no line-height takes its content height from the font the
+                   control is laid out with, and this one measured 17px on most loads and 20px on
+                   some — 41px against 44px overall — on identical code, in one browser, in one
+                   container. Everything below it then sits 3px up or down: the whole calendar
+                   grid, every cell, every badge.
+                   It is not only a test problem, though that is how it surfaced (the mobile
+                   baselines were captured in the rarer state, so the report-only visual lane cried
+                   wolf on two unrelated pull requests). A member on a cold load can see the same
+                   3px jump under the month arrows.
+                   20px is the value the baselines already hold, and it is the safe direction:
+                   Inter's ascent+descent at 16px is ~19.4px, so 17px would put the glyph box
+                   outside a line box the control clips. It also lands the select on 44px, which is
+                   the touch-target floor this app holds everything else to.
+                   The exact trigger for the two states is NOT pinned down — but the dependency is
+                   what makes it possible, and stating a height removes the dependency.
+                   UNITLESS, NOT `20px`, AND THE SUITE IS WHAT SAID SO. A px line-height does not
+                   scale with the member's Android text size, so the first cut broke the 1.3×
+                   compact baseline — and on a real phone at "Largest" it would have held the line
+                   box at 20px while the glyphs grew past it, clipping the member's own name. That
+                   is a worse fault than the one being fixed, and it renders perfectly on every
+                   machine set to the default. 1.25 × 16px is the same 20px at the default size, so
+                   nothing moves for anybody who was not affected. */
+                line-height: 1.25;
             }
 
             /* Reduce the gap between the month heading and the day-name row. */
