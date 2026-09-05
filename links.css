@@ -236,18 +236,43 @@ body.auth-ready .container { display: grid; }
    page-visibility-parity.test.mjs — the third instance of this trap in the app. */
 .links-summary[hidden] { display: none !important; }
 
+/* THE STRIP IS ONE ROW SHORTER ON A PHONE THAN IT NEEDS TO BE (v22.79). The save row is sticky, so
+   whatever it costs it costs permanently: measured at 224px of a 393px x 851px phone — 31% of the
+   screen, against the 146px/17% this file recorded when the strip had three chips. The whole of the
+   growth is here.
+
+   It wraps to THREE rows because of six pixels. At 393px the strip has 341px, and "⛔ N staffed
+   hours with no cover" measures 203px — so with the 134px chip beside it the pair needs 347px and
+   the second chip is pushed to a row of its own, leaving most of the first row empty. Taking the
+   chip padding from 4px 10px to 3px 8px and the gap from 10px to 8px brings the pair to 339px, and
+   the strip to TWO rows and 190px (26%).
+
+   WHAT THIS DELIBERATELY DOES NOT DO is remove anything. Every figure still renders, no wording
+   changes, and `.links-save-meta` ("Last saved by …") stays on every width — hiding it below 1024px
+   was measured too (a further 28px) and refused: `linkDesigns` is a SHARED collection, three
+   designers edit the same documents, and `links-concurrency.js` exists because a silent overwrite
+   of a colleague's work has happened three times. Who last saved, and when, is exactly the fact you
+   want while editing on a phone. 28px is not worth it.
+
+   360px still wraps to three rows (215px) and that is accepted rather than unseen — closing it
+   needs ~23px more, i.e. shortening "staffed hours with no cover", which this page's own rules
+   forbid. Nor is 320px what any of this is sized against: none of the three people with Links
+   access has a device that narrow (owner, Sep 2026). */
 .links-summary {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 6px 10px;
+    gap: 5px 8px;
     margin-left: auto;
 }
 .sum-chip {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    padding: 4px 10px;
+    /* 3px 8px, not 4px 10px — see the note on `.links-summary`. It is a density change and nothing
+       else: same type token, same weight, same pill radius, same colours, and the chip is not a
+       control so it owes no tap target. */
+    padding: 3px 8px;
     border-radius: var(--radius-pill);
     font-size: var(--type-badge);
     font-weight: 600;                    /* quiet-status tier — a reading, not a label to scan */
