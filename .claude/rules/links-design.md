@@ -295,7 +295,7 @@ Single dirty flag + one `linksSaveBtn` / `saveChanges()`. Grid clicks are **dele
   tint** deliberately — a fourth coloured chip would read as a fourth finding. Naming the design was
   chosen over hiding the strip: a designer comparing options still wants live analysis of the one
   they are editing.
-- **Accepted, not fixed:** each compare column keeps `overflow-x: auto` with no scroll affordance, so at 1280px both grids clip mid-column with nothing indicating they scroll. Adding a fade would fight the gold diff outline; the alternative is a narrower cell, which hurts the primary (single-design) view. Revisit only with a real complaint.
+- **Accepted, not fixed, and now MEASURED rather than assumed (v22.75):** each compare column keeps `overflow-x: auto` with no scroll affordance, so at 1280px both grids clip mid-column with nothing indicating they scroll. That is an inconsistency on its face — `.links-grid-wrapper` and `.gen-slot-table-wrap` both carry the standard `local`/`scroll` gradient cue for exactly this — so the stated reason was tested before being inherited again. **It holds, for a reason the note did not give:** the compare cells are TRANSPARENT (`.shift-cell` computes `rgba(0,0,0,0)` and a diff cell's own button only `… / 0.16`), so a wrapper-background fade is not painted harmlessly beneath them — it shows THROUGH them and tints the last 24px of every column, gold diff outlines included. The first cut of this reasoning was that a wrapper background sits under opaque cells and therefore cannot fight anything; it was wrong, and only measuring the computed backgrounds said so. The alternative is still a narrower cell, which hurts the primary (single-design) view. Revisit only with a real complaint.
 
 ### Paint mode (v12.39)
 A brush chip bar above the grid (`#brushBar`) — clicking a chip arms that shift; clicking grid cells then applies it directly (no dropdown); clicking the armed chip again or pressing Escape disarms. With no brush armed, a cell click opens the dropdown as before. `.shift-cell-btn` and `.brush-chip` set `touch-action: manipulation` — paint mode is rapid tapping, which otherwise triggers double-tap zoom on iOS/Android.
@@ -1155,7 +1155,7 @@ none fixed — recorded so they are not re-discovered as new:
   screen at all, and the grid is **43% off-screen horizontally** (592px of table in a 338px
   wrapper), so position cannot disambiguate the column either. On the page's primary object this
   is the most serious of the three.
-- **The sticky save row takes 146px of an 844px viewport — 17%**, permanently: two buttons, a
+- **The sticky save row takes 224px of a 727px viewport — 31% (re-measured v22.75; it was 146px of 844px, 17%, when this was written).** It has grown by 78px, and the whole of that is the summary strip: the chips wrap to THREE rows at 393px because "⛔ N staffed hours with no cover" is 203px wide and cannot share a 341px row with the 134px chip beside it, and `.sum-jump` ("Full analysis ↓") is a 44px touch target on a row of its own. On an iPhone SE (568px) it is 39% of the screen. The v22.75 pass costed the obvious trims and shipped none of them: every item in the row is load-bearing by this file's own rules — the figures may not be softened, the jump link may not drop below 44px, and packing the chips 2-up depends on the exact figures, so it fits for some designs and not others. **It is still the conversation this section says it is; what has changed is that the number is worse than the one recorded here.** Original composition: two buttons, a
   provenance line, and the summary chips wrapped onto two rows.
 - **The brush bar is 239px** — 26 chips over seven rows before the grid begins.
 
@@ -1289,6 +1289,24 @@ the headroom is currently ~99px rather than the ~15px the 28-line era had.
 the budget is ~21px per line: the sheet takes 28 today and 4 fewer is where the room came from. If
 the rotation grows again, or the cell font or the masthead changes, RE-MEASURE — the constraint is
 the 718px, not any of these figures.
+
+**THE OTHER TWO CARDS MUST NOT STRADDLE A SHEET, AND UNTIL v22.75 BOTH DID.** The one-sheet rule
+above is about the GRID, and everything below it had simply never been looked at on paper — the
+whole print section was reasoned from card heights, which is a screen measurement. Generated as a
+real A4 landscape PDF, the coverage card (635px, comfortably inside 718px) was breaking anyway: its
+hour header and the SUNDAY row printed at the foot of the grid's sheet with MON–SAT overleaf. A
+reader comparing days then has Sunday on a different piece of paper, which is the one thing a heat
+map exists to prevent. The checks card's triage block split between its heading and its own list,
+landing "4 definitions still to confirm" alone at the top of a sheet with nothing above it saying
+what it was one of. Both now carry `break-inside: avoid`.
+
+**The GRID card deliberately does NOT get that rule**, and the e2e pins its absence: it is the sheet
+the masthead belongs to, it has always started at the top of page 1, and a rule that could push a
+619px card to page 2 works directly against the one-sheet constraint this section is built around.
+
+**A screen measurement cannot see any of this.** On screen the page is one continuous column and
+nothing is wrong; the card heights that this section quotes were all correct throughout. Print is
+its own render, and the only way to review it is to produce the document.
 
 **There is a Print button** (`#linksPrintBtn`, v19.62) in the sticky save row beside Save changes —
 outlined, because two filled buttons would compete and saving is the one that matters. All of the

@@ -1683,6 +1683,23 @@ body.auth-ready .container { display: grid; }
     /* Print collapsed cards too — paper has no tap-to-expand */
     .card-collapsible-body { display: block !important; }
 
+    /* A CARD THAT FITS A SHEET IS NOT ALLOWED TO STRADDLE TWO (v22.75). Measured from a real A4
+       landscape PDF: the coverage card is 635px against 718px of printable height, and it was
+       breaking anyway — the hour header and the SUNDAY row printed alone at the foot of the grid's
+       sheet, with MON–SAT overleaf. A reader comparing days then has Sunday on a different piece of
+       paper, which is the one thing a heat map exists to prevent. `avoid` moves it whole.
+
+       The GRID card is deliberately NOT given this: at 619px it fits, but it is the sheet the
+       masthead belongs to, and a rule that could push it to page 2 would break the "whole rotation
+       on ONE sheet" constraint this file's print section is built around. It has always started at
+       the top of page 1 and nothing here changes that. */
+    #coverageCard { break-inside: avoid; page-break-inside: avoid; }
+
+    /* The triage block is a heading and the list it introduces — it was splitting between them, so
+       "4 definitions still to confirm" arrived at the top of the next sheet with nothing above it
+       saying what it was one of. Short enough to keep whole (106px measured). */
+    .check-triage { break-inside: avoid; page-break-inside: avoid; }
+
     /* Masthead on the printed sheet (hidden on screen): which design, which version, printed when */
     .print-design-name {
         display: flex;
