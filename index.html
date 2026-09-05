@@ -284,19 +284,20 @@
                      document cannot say, which is honest — the alternative names a colleague. -->
                 <span class="ddc-by" id="dayDetailBy" hidden></span>
             </div>
-            <!-- WHAT IS TRUE OF THE DATE, as the calendar's own markers. Chips, not a comma
-                 sentence: this panel is where a member asks what the ⭐ on a cell means, and it
-                 used to answer without the ⭐. Built in JS from `dayMarkers`, the one authority
-                 the hover tooltip's sentence also comes from. -->
             <!-- THE OTHER HALF OF THE CHANGE BLOCK, IN THE SAME SLOT — a day was either changed
                  or it was not, so the two never appear together. An unchanged day used to render
                  nothing here, which made "no change is on record" and "nobody has looked yet" the
                  same blank to somebody checking a date they were unsure about. This is only ever
-                 written when a server read has SETTLED for the month; on last-known-good data
+                 written when a server read has SETTLED for the month AND the date is not before the
+                 member joined; on last-known-good data, and on a month a new starter predates,
                  neither line renders. The renderer decides — see `detailAsRostered`. -->
             <div class="day-detail-asrostered" id="dayDetailAsRostered" hidden>
                 <span class="ddr-tick" aria-hidden="true">✓</span><span>As rostered</span>
             </div>
+            <!-- WHAT IS TRUE OF THE DATE, as the calendar's own markers. Chips, not a comma
+                 sentence: this panel is where a member asks what the ⭐ on a cell means, and it
+                 used to answer without the ⭐. Built in JS from `dayMarkers`, the one authority
+                 the hover tooltip's sentence also comes from. -->
             <div class="day-detail-markers" id="dayDetailExtras" hidden></div>
             <!-- No 💷 here: the chip above carries it, and the two sat ten pixels apart saying the
                  same thing twice. The green already IS the app's Pay identity (the nav Pay pill). -->

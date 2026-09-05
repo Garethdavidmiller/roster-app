@@ -814,6 +814,15 @@ test('nav drawer — default state (mobile 390)', async ({ page }) => {
 // Four shots close that: the month view at 360 (the commonest Android width), Team View at 360 on the
 // current week (the date over "This week"), Team View at 412 browsing away (the date over "↩ Back to
 // this week"), and Team View on the desktop cluster. FIXED_TIME's week is the current week.
+//
+// ⚠ THIS SHOT DOES NOT REPRODUCE IN A SESSION CONTAINER, AND THE OBVIOUS FIX IS WRONG (v22.93).
+// A local `npm run test:visual` fails it while CI passes it — CI posts no drift comment, which is
+// the lane's own signal. Measured rather than assumed: the render here is byte-identical across two
+// consecutive runs AND across the v22.88 tree that generated the baseline and today's HEAD, so no
+// CSS change moved it; the container's browser or font stack simply draws it differently from the
+// runner's. **Do not regenerate it to make the local run green** — that would replace a baseline
+// that is true on CI with one that is true only here, and break the lane it was written to serve.
+// Two sessions hit this on 5 Sep 2026; both correctly left it alone.
 test('calendar — mobile 360', async ({ page }) => {
     await prep(page, { width: 360, height: 900 });
     await page.goto('/index.html');

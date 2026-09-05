@@ -2619,13 +2619,24 @@
            trap, and on a BUTTON it is worse than a stray row: an action for a day that has none. */
         .day-detail-pay-btn[hidden],
         .day-detail-leave-btn[hidden] { display: none !important; }
-        /* One token, set per class — every other declaration above is shared, so the two actions
-           cannot drift apart in anything but colour. */
-        /* Two tokens, set per class — every other declaration is shared, so the two actions cannot
-           drift apart in anything but colour. Each wears its own feature's identity: green is the
-           app's Pay colour (the nav Pay pill), teal is Annual Leave's (the 🏖️ badge, the AL panel). */
+        /* Two tokens — the fill and its pressed/hover rung — set per class, because every other
+           declaration above is shared and colour is the only thing the two actions may differ in.
+           (This carried a second, stale copy of itself saying "One token" until v22.93, left behind
+           when the hover rung was added.) */
         .day-detail-pay-btn   { --ddb: var(--green); --ddb-hover: var(--green-hover); }
         .day-detail-leave-btn { --ddb: var(--al);    --ddb-hover: var(--al-hover); }
+        /* THE PANEL'S ONLY TAB STOPS BESIDES THE ✕, AND THEY HAD NO RING OF THEIR OWN (v22.93).
+           Every other control in this stylesheet declares one, so these two were falling back to
+           the browser's default on a surface the app deliberately replaced it on everywhere else.
+           GOLD, not `--focus-outline`: that token is navy, which is this panel's own background —
+           the same reason `.calendar-day` and the prompt strip already use gold. The 2px offset
+           puts the ring on the navy behind the button rather than on its teal or green fill, so one
+           token serves both colours. */
+        .day-detail-pay-btn:focus-visible,
+        .day-detail-leave-btn:focus-visible {
+            outline: var(--focus-outline-gold);
+            outline-offset: 2px;
+        }
         .day-detail-pay-btn:active,
         .day-detail-leave-btn:active {
             transform: scale(var(--press-scale));

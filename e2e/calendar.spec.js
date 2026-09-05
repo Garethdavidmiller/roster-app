@@ -1438,6 +1438,52 @@ test('day detail: an unchanged day says so, a changed one shows the change inste
     await expect(page.locator('#dayDetailChange')).toHaveCSS('display', 'none');
 });
 
+test('day detail: a month before the member joined confirms nothing', async ({ page }, info) => {
+    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
+    // THE FOURTH WAY "As rostered" CAN BE UNEARNED, and the only one that is not about knowledge
+    // (v22.93). J. Davies starts 5 May 2026, so April 2026 is entirely before their roster begins:
+    // `getBaseShift` suppresses every shift to a rest day, base and effective therefore match, and
+    // the day lands in the unchanged branch on a month whose read has settled — the one state
+    // allowed to speak. The panel confirmed a rest day nobody was ever rostered for.
+    //
+    // Reachable by pressing Prev, which is exactly what a new starter does. Driven through the REAL
+    // roster table rather than a fixture, because the rule is about a member's own `startDate` and a
+    // fixture would only prove the branch, not that any member reaches it.
+    await seedMember(page, 'J. Davies');
+    await seedMemberSession(page, 'J. Davies');
+    await page.addInitScript(() => {
+        // calendar-state.js restores a PAST month from these; a future one is refused.
+        localStorage.setItem('myb_roster_month', '3');    // April, 0-indexed
+        localStorage.setItem('myb_roster_year',  '2026');
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+
+    const state = await page.evaluate(() => {
+        const cells = [...document.querySelectorAll('.calendar-day:not(.other-month)')]
+            .filter(c => c.dataset.detailDay);
+        return {
+            month:    document.querySelector('.month-year')?.textContent?.trim(),
+            grid:     document.querySelector('.calendar-grid')?.parentElement?.dataset.overrideState,
+            n:        cells.length,
+            claiming: cells.filter(c => c.dataset.detailAsRostered).length,
+        };
+    });
+    expect(state.month, 'the persisted month must have been restored').toContain('April 2026');
+    expect(state.n, 'precondition: the grid rendered its days').toBeGreaterThan(0);
+    expect(state.claiming,
+        'every day in this month is before J. Davies started, so none of them is a roster the app ' +
+        'can confirm — the rest days shown are suppression, not rostered rest days').toBe(0);
+
+    // And the panel is correspondingly silent, rather than the flag being written and ignored.
+    await page.locator('.calendar-day:not(.other-month)').first().click();
+    await expect(page.locator('#dayDetailAsRostered')).toBeHidden();
+    // The WEEK still shows: the month header states it too, and `weekContext` exists so the two
+    // surfaces cannot disagree about who has a rotating week. Silencing one and not the other would
+    // be the drift that function was written to prevent.
+    await expect(page.locator('#dayDetailWeek')).toBeVisible();
+});
+
 // The five action buttons on a phone NARROWER than the app's 360px design width. Android's
 // "Display size" setting shrinks the CSS viewport where the separate font-size setting does not, so
 // an older Samsung on a larger one reports ~320-333px — and at the DEFAULT text size the row needed
