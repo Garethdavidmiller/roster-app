@@ -1107,8 +1107,12 @@ never contingent on the beta label, and dropping it does not make any of them go
   Measured at 390×844: the grid is **43% off-screen horizontally** (592px of table in a 338px
   wrapper) with no LINE/SUN/MON header on screen for most of the scroll, so neither a label nor a
   countable column position tells you which day you are editing; the generator's SUN column and the
-  footer totals clip the same way. The sticky save row takes **146px of an 844px viewport (17%)**
-  and the brush bar **239px**.
+  footer totals clip the same way. The sticky save row takes **190px of a 727px viewport (26%)**
+  and the brush bar **239px**. (That figure was **146px/17%** here until v22.81 and had been
+  wrong for two releases — the strip grew to 224px as chips were added, and v22.79 took it back
+  to 190px by packing them two-up. The v22.80 0.10 sweep re-stamped this file without catching
+  it, which is the recurring lesson: a stamp says a document was visited, not that its
+  measurements were re-taken.)
   **Accepted rather than fixed**, on three grounds: the workspace's own first-visit notice says
   *"Best used on a desktop or tablet; the grid is tight on a phone"*; a tablet at ≥768px
   gets the working desktop layout, so this is phone-only; and the plan explicitly defers redesigning

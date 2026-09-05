@@ -373,7 +373,14 @@ narrow screen — Mon–Fri / Sat / Sun are column headers, and a long table scr
 This is NOT the compare-grid case declined at v22.77: that grid is two designs side by side and its
 cells are self-describing once the columns are in step, whereas here a designer is typing numbers
 into a cell whose meaning is off-screen. Worth solving with a sticky header row rather than
-per-cell labels.
+per-cell labels — **but note what that costs, because the obvious version cannot work**: below
+768px the wrapper sets `overflow-x: auto`, and per spec the other axis then computes to `auto`
+too, so the wrapper is a vertical scroll container as tall as its own content and `position:
+sticky` sticks to a box that never scrolls. The declaration is already there and already inert
+(KNOWN_LIMITATIONS records it; `e2e/pages.spec.js` pins both states). Making it stick needs a
+`max-height` and a NESTED SCROLLBOX around the primary creation path — which is precisely what
+the review said it would rather avoid. So the two candidate remedies are a nested scrollbox or
+per-cell labels, and the owner is choosing between them, not approving the cheaper-sounding one.
 
 ### Track D — App Check, monitor mode
 **Status:** Deferred · **Owner:** Gareth · **Trigger:** owner decision · **Status of record:** `SECURITY_RELEASE_PLAN.md`
