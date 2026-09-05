@@ -15,6 +15,15 @@
 //     rendering noise that would have been committed as though reviewed. Reverting a file and
 //     re-running is the check: still passes ⇒ it was noise and does not belong in the diff.
 //
+// A THIRD, ABOUT DIAGNOSING A DRIFT BEFORE YOU REGENERATE (v22.94). A shot that fails locally and
+// passes on CI is not automatically an environment difference to be lived with. `calendar-mobile-360`
+// was diagnosed that way on 5 Sep 2026 — byte-identical here across two runs AND across two trees,
+// which reads as settled — and the real cause was a `<select>` whose height was 41px or 44px
+// depending on the font the control was laid out with, carrying 3px into every row beneath it. A
+// member saw it too. **Two samples cannot tell a stable difference from a split**, so "it renders
+// consistently here" is not evidence of determinism; and the conclusion that costs most is the
+// comfortable one, "nothing to fix". Bisect to the element before deciding the lane is at fault.
+//
 // Determinism: the clock is pinned so the calendar + pay period are fixed; Firebase is stubbed
 // (fixtures.js) so reads are empty; a fixed member is seeded; every one-time overlay is
 // pre-dismissed; fonts + layout are awaited before capture. See playwright.visual.mjs.
@@ -814,21 +823,6 @@ test('nav drawer — default state (mobile 390)', async ({ page }) => {
 // Four shots close that: the month view at 360 (the commonest Android width), Team View at 360 on the
 // current week (the date over "This week"), Team View at 412 browsing away (the date over "↩ Back to
 // this week"), and Team View on the desktop cluster. FIXED_TIME's week is the current week.
-//
-// ⚠ THIS SHOT MAY FAIL LOCALLY WHILE PASSING ON CI, AND THE OBVIOUS FIX IS WRONG (v22.93).
-// The whole grid sits 3px off because `#teamMemberSelect` renders 41px in some environments and
-// 44px in others: a `<select>` with `line-height: normal` takes its content box from the font the
-// control is laid out with, and that resolves differently. It is not a test artefact — a member
-// sees the control change height too — and the fix is to state a line-height on the select.
-//
-// **Do not regenerate the baseline to make a local run green.** That replaces a baseline that is
-// true on CI with one true only where you ran it, and breaks the lane it was written to serve.
-//
-// AND DO NOT CONCLUDE "DETERMINISTIC" FROM TWO RUNS. This container gave a byte-identical render
-// twice, and across two different trees, which reads as settled and is not: measured here, the
-// select is 41px in 8 runs of 8, while a parallel session measured 41 and 44 in one container on
-// one commit. Two samples cannot tell a stable difference from a split, and the confident wrong
-// answer that produces is "nothing to fix here".
 test('calendar — mobile 360', async ({ page }) => {
     await prep(page, { width: 360, height: 900 });
     await page.goto('/index.html');
