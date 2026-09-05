@@ -14,6 +14,41 @@
 export const PERF_BUCKETS = ['lt500ms', '500ms-1s', '1-3s', '3-8s', 'over8s'];
 
 /**
+ * HOW MUCH BACKGROUND WORK THE SERVICE WORKER DID DURING A BOOT (v22.94).
+ *
+ * A COUNT vocabulary, and deliberately not a duration one. The external calendar-latency review
+ * asked for exactly these bands — "0 / 1–10 / 11–30 / 31+" — because the question is whether a boot
+ * carrying a full revalidation sweep is materially slower than one carrying none, and the interesting
+ * shape is the two ENDS: a worker already awake does almost none, a worker that just woke does the
+ * lot.
+ *
+ * **These strings live in the same `bucket` slot of `perfSampleKey` as the duration bands**, which
+ * keeps the key at six components — a seventh would invalidate every sample stored since v21.30.
+ * The cost is that the duration summarisers would band these nonsensically if pointed at them, so
+ * they never are: every summariser filters by METRIC first, and no duration row names `swrCount`.
+ */
+export const SWR_COUNT_BUCKETS = ['0', '1-10', '11-30', '31+'];
+
+/**
+ * Bucket a revalidation COUNT. Returns null for anything that is not a finite count, so a browser
+ * that could not answer (no controller, no reply, an older worker that does not know the message)
+ * records nothing rather than a fabricated zero — the two are different, and "no service worker
+ * revalidations happened" is the finding this exists to test.
+ * @param {number} n
+ * @returns {string|null}
+ */
+export function bucketSwrCount(n) {
+    if (typeof n !== 'number' || !isFinite(n) || n < 0) return null;
+    if (n === 0) return '0';
+    if (n <= 10) return '1-10';
+    if (n <= 30) return '11-30';
+    return '31+';
+}
+
+/** The band from which a boot counts as carrying a FULL sweep — the review's "31+". */
+export const SWR_HEAVY_BUCKET = '31+';
+
+/**
  * Bucket a duration in milliseconds into one of PERF_BUCKETS. Returns null for a non-finite or
  * negative value (e.g. a timing field the browser never populated) so the caller skips it.
  * @param {number} ms

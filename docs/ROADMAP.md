@@ -184,6 +184,30 @@ starts, precisely so they cannot be chosen after seeing the numbers.
 This gates more than itself: **C5 cannot complete without it**, because a member who only ever reads
 the roster never signs in and is therefore never compelled to set a password.
 
+### Calendar start — how often we deploy (OWNER DECISION, not a code change)
+**Status:** Recommended by external review, not adopted · **Owner:** Gareth · **Would change:** release cadence, nothing in the tree
+
+**The review's top-ranked item, and the only one that costs nothing.** It observed that this app
+shipped many small releases in a short period and that each one puts installed devices through an
+update: a new versioned cache, a warm-up, and a `controllerchange` reload. A colleague opening the
+Calendar just after a release boots twice and calls it "the roster takes ages"; they have no way to
+know they crossed a deployment.
+
+**The measured cadence:** 62 releases in the fourteen days to 5 Sep 2026, 17 on the busiest day.
+`registration.update()` runs hourly AND on every `visibilitychange` back to visible, so foregrounding
+the app is itself an update check. At that rate a reload is a regular event rather than a rare one.
+
+**What has already been done about the IMPACT rather than the cadence.** v22.90 holds the reload
+until the page is hidden, so a release no longer takes the Calendar away mid-read, and v22.92 added
+`readyUpdate` so the share of opens that follow a release is now measurable rather than argued.
+
+**What has NOT been decided, which is the review's actual point:** whether to batch releases so
+installed devices spend most opens in the warm steady state — develop freely, ship one stable
+release every few days rather than several a day. It needs no code and no security trade, so it is
+recorded here rather than built. **Read `readyUpdate` on the App Speed card first**: it now says what
+fraction of Calendar opens actually follow a release, which turns this from a plausible argument
+into a sized one.
+
 ### Calendar start — the service-worker revalidation storm (NEW v22.90, MEASURED v22.92)
 **Status:** Mechanism and volume measured; the COST to a member is not · **Owner:** Gareth — the treatment is an architecture decision · **Would change:** `service-worker.js` SWR branch
 
@@ -230,6 +254,21 @@ wrong, and the correction is worth keeping** because it was wrong in the directi
 happening: the proxy does block gstatic, but `e2e/fixtures.js` stubs the SDK at the network layer and
 `playwright.offline.mjs` allows service workers, which is how `e2e/offline.spec.js` has been
 exercising the real worker all along. The tooling to measure this was already in the repo.
+
+**THE FIELD HALF IS NOW INSTRUMENTED (v22.94).** The 53 is a local measurement on one machine; what
+real staff phones do was unknown, and that is the review's second suggested metric. The service
+worker now answers a read-only `REVALIDATION_COUNT` message with the size of the set it already
+keeps, and `perf-reporter.js` records two samples at `ready`: **`swrCount`** in the review's own
+bands (0 / 1–10 / 11–30 / 31+), and **`readyHeavySwr`** — `ready` again, on the heavy band only, so
+its distribution is directly comparable with `ready` overall. That answers both halves of the
+review's question: how many revalidations a real boot carries, and whether a boot carrying a full
+sweep reaches the roster more slowly. A COUNT and never a URL; a browser that cannot answer records
+NOTHING rather than a zero, because "no revalidation happened" is the finding under test.
+
+**A live worker confirms the local figure independently.** Driven through a real registered service
+worker (`e2e/offline.spec.js`), the count reads **0 on a first install** — the precache warm-up
+writes through `cache.put` and never touches the SWR branch — and **52 after a warm reload**, against
+the 53 requests counted at the server. Two different instruments, one machine, the same number.
 
 **What is still NOT measured, and it is the half that decides the case: what those 53 requests COST a
 member.** They are free on localhost and are not free on a phone radio, and no emulation here would

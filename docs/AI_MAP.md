@@ -1699,6 +1699,18 @@ Anonymous page-load latency recorder (Project 0 instrumentation, v14.89; FCP + a
   rather than a seventh key field, because `parsePerfSampleKey` splits the key positionally and a
   new field would invalidate every sample already stored. **The two do not sum to `ready`** — a page
   that cannot tell its source reports `ready` alone.
+- **`SWR_COUNT_BUCKETS` / `bucketSwrCount` / `SWR_HEAVY_BUCKET`** (perf-stats.js, v22.94) band how
+  much BACKGROUND WORK the service worker did during a boot — the external latency review's second
+  suggested measurement, and the field half of the revalidation-storm hypothesis. A **count**
+  vocabulary (`0` / `1-10` / `11-30` / `31+`, the review's own bands), living in the same `bucket`
+  slot of `perfSampleKey` as the duration bands so the key stays at six components; every summariser
+  filters by METRIC first, so no duration row can absorb them. `perf-reporter.js` asks the worker
+  over a MessageChannel (`REVALIDATION_COUNT` → `_revalidationCount()`, which returns the size of
+  the set the SWR branch already keeps) and records `swrCount`, plus `readyHeavySwr` — `ready` again
+  on the heavy band only, so a full-sweep boot is directly comparable with `ready` overall.
+  **Anything unknowable records NOTHING, never 0** (no worker, no controller, a worker too old to
+  know the message, a reply that never comes): "no revalidation happened" is the finding under test,
+  and a fabricated zero would refute it with its own instrument.
 - **`UPDATE_OPENS` / `summariseUpdateOpens`** (perf-stats.js, v22.92) answer the question v22.90
   shipped without: how often does a release reload somebody, and what does that load cost?
   `readyUpdate` is written beside `ready`, from the same bucket on the same path, when the load

@@ -19,7 +19,7 @@
  */
 
 import { recordPerfSample } from './firebase-client.js';
-import { bucketDuration, loginDurationBucket, bootPhases } from './perf-stats.js';
+import { bucketDuration, loginDurationBucket, bootPhases, bucketSwrCount, SWR_HEAVY_BUCKET } from './perf-stats.js';
 import { CONFIG } from './roster-data.js';
 import { SW_UPDATE_RELOAD as SW_RELOAD_KEY } from './storage-keys.js';
 
@@ -103,6 +103,42 @@ const _pageReady = new Promise((resolve) => { _resolveReady = resolve; });
 // The DEFERRED half is what makes these usable at all. `access` fires early and would usually be
 // present, but `rosterLive` waits on Firestore — the very case worth measuring is the one where it
 // lands after `recordPageLatency` has run.
+// ── HOW MUCH BACKGROUND WORK THE SERVICE WORKER DID DURING THIS BOOT (v22.94) ───────────────────
+//
+// The external calendar-latency review's second suggested measurement. Its service-worker
+// hypothesis — that a warm cache still issues a full sweep of conditional requests while the member
+// waits on `accounts:lookup` — has a MECHANISM confirmed in code and a VOLUME measured locally (53
+// requests on the first open after the worker wakes, against 2 when it is already awake), and no
+// field evidence at all. This is the field evidence.
+//
+// Asked, not counted here: the worker already keeps the set that makes the refresh once-only, so
+// this reads its size over a MessageChannel. A COUNT and never a URL — which files a device fetched
+// is browsing information, and the number answers the question by itself.
+//
+// **Every failure answers `null`, never 0.** No controller, no reply, a worker too old to know the
+// message, or a browser with no service worker at all — none of those is "this boot did no
+// revalidation", and recording them as zero would manufacture the reassuring half of the very
+// finding this is here to test. The timeout exists because a MessageChannel reply that never comes
+// would otherwise hold the promise for the life of the page.
+const SWR_COUNT_TIMEOUT_MS = 1500;
+
+/** Ask the controlling service worker how many revalidations it has started since it woke.
+ *  @returns {Promise<number|null>} the count, or null when it cannot be known. */
+function askSwrCount() {
+    return new Promise((resolve) => {
+        let done = false;
+        const finish = (/** @type {number|null} */ v) => { if (!done) { done = true; resolve(v); } };
+        try {
+            const ctrl = navigator.serviceWorker && navigator.serviceWorker.controller;
+            if (!ctrl) { finish(null); return; }
+            const ch = new MessageChannel();
+            ch.port1.onmessage = (e) => finish(typeof e.data?.count === 'number' ? e.data.count : null);
+            ctrl.postMessage({ type: 'REVALIDATION_COUNT' }, [ch.port2]);
+            setTimeout(() => finish(null), SWR_COUNT_TIMEOUT_MS);
+        } catch { finish(null); }   // no MessageChannel, a detached controller, a throwing postMessage
+    });
+}
+
 /** @type {Record<string, string>} milestone id → performance.mark name */
 const MILESTONE_MARKS = { authBoot: 'myb-auth-boot', access: 'myb-access', rosterLive: 'myb-roster-live' };
 /** @type {Record<string, (t: number) => void>} */
@@ -288,6 +324,21 @@ export function recordPageLatency(page, identity = null) {
             // counts divide: `readyUpdate` over `ready` IS the share of opens that followed a
             // release, which is the question v22.90 left unanswerable.
             if (afterUpdate) recordPerfSample({ page, metric: 'readyUpdate', bucket, mode, conn });
+            // …and how much background work the worker did getting here. Two samples, because the
+            // review asks two questions: how many revalidations a real boot carries (`swrCount`,
+            // in COUNT bands), and whether a boot carrying a full sweep reaches the roster more
+            // slowly than one that does not. The second is the same SUBSET trick as `readyUpdate`
+            // — `readyHeavySwr` is written beside `ready`, from the same bucket, only on the heavy
+            // band — so its distribution is directly comparable with `ready` overall and the key
+            // stays at six components.
+            askSwrCount().then((n) => {
+                const band = bucketSwrCount(/** @type {any} */ (n));
+                if (!band) return;   // unknowable — see askSwrCount; never recorded as zero
+                recordPerfSample({ page, metric: 'swrCount', bucket: band, mode, conn });
+                if (band === SWR_HEAVY_BUCKET) {
+                    recordPerfSample({ page, metric: 'readyHeavySwr', bucket, mode, conn });
+                }
+            }).catch(() => { /* never rejects; here so a future change cannot make it unhandled */ });
         };
         let readyNow;
         try { readyNow = performance.getEntriesByName?.(PAGE_READY_MARK)?.[0]?.startTime; }

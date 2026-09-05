@@ -496,3 +496,127 @@ describe('the `ready` sample says whether a release caused the open', () => {
         assert.equal(_ss.has(SW_KEY), false, 'consumed, so it cannot mis-attribute a later staff load');
     });
 });
+
+
+// ── HOW MUCH BACKGROUND WORK THE WORKER DID (v22.94) ────────────────────────────────────────────
+//
+// The rule is pinned next door; this is the WIRING, which is where this class of metric goes wrong.
+// `askSwrCount` talks to a service worker over a MessageChannel — four things can go quiet (no
+// worker, no controller, a worker too old to know the message, a reply that never arrives) and
+// every one of them must answer "unknowable", never "zero".
+//
+// That asymmetry is the whole point. This exists to test the claim that a warm Calendar open still
+// issues a full sweep of conditional requests while the member waits on auth. A silent browser
+// recorded as 0 refutes that claim with its own instrument, reads as the reassuring answer, and
+// ends the investigation.
+describe('the boot records how much the service worker was doing', () => {
+    const load = async (/** @type {string} */ tag) => {
+        _marks.clear(); _samples.length = 0; _ss.clear();
+        global.performance = /** @type {any} */ ({
+            getEntriesByType: () => [],
+            getEntriesByName: (/** @type {string} */ n) => (_marks.has(n) ? [_marks.get(n)] : []),
+            mark: (/** @type {string} */ n) => { _marks.set(n, { name: n, startTime: 640 }); },
+        });
+        return import(`./perf-reporter.js?fresh=swr-${tag}`);
+    };
+    /** Install a fake controller that answers `count` down the port, or stays silent for null. */
+    const withWorker = (/** @type {number|null} */ count) => {
+        Object.defineProperty(global, 'navigator', {
+            value: /** @type {any} */ ({ serviceWorker: { controller: count === null ? null : {
+                postMessage: (/** @type {any} */ _m, /** @type {any[]} */ ports) => {
+                    if (ports && ports[0]) ports[0].postMessage({ count });
+                },
+            } } }), configurable: true,
+        });
+    };
+    // A minimal MessageChannel: port2 is what the worker replies on, port1 what we listen on.
+    global.MessageChannel = /** @type {any} */ (class {
+        constructor() {
+            /** @type {any} */ const p1 = { onmessage: null };
+            this.port1 = p1;
+            this.port2 = { postMessage: (/** @type {any} */ d) => p1.onmessage && p1.onmessage({ data: d }) };
+        }
+    });
+
+    test('a heavy boot records the COUNT and the ready SUBSET beside `ready`', async () => {
+        // Both halves of the review's question: how many revalidations this boot carried, and
+        // whether a boot carrying a full sweep reached the roster more slowly.
+        withWorker(53);
+        const { recordPageLatency, markPageReady } = await load('heavy');
+        recordPageLatency('calendar', 'S. Silva');
+        markPageReady('cached');
+        await new Promise(r => setTimeout(r, 0));
+        const byMetric = Object.fromEntries(_samples.map(s => [s.metric, s]));
+        assert.ok(byMetric.ready, '`ready` still counts every open');
+        assert.equal(byMetric.swrCount?.bucket, '31+');
+        assert.ok(byMetric.readyHeavySwr, 'a heavy boot is comparable against `ready`');
+        assert.equal(byMetric.readyHeavySwr.bucket, byMetric.ready.bucket, 'one reading, two names');
+    });
+
+    test('a LIGHT boot records the count but NOT the ready subset', async () => {
+        // The subset is the heavy band only. Recording it for every boot would make it a copy of
+        // `ready` and the comparison meaningless.
+        withWorker(2);
+        const { recordPageLatency, markPageReady } = await load('light');
+        recordPageLatency('calendar', 'S. Silva');
+        markPageReady('cached');
+        await new Promise(r => setTimeout(r, 0));
+        const metrics = _samples.map(s => s.metric);
+        assert.ok(metrics.includes('swrCount'));
+        assert.equal(_samples.find(s => s.metric === 'swrCount').bucket, '1-10');
+        assert.ok(!metrics.includes('readyHeavySwr'));
+    });
+
+    test('NO CONTROLLER records nothing — not a zero', async () => {
+        // The expensive direction. A browser with no controlling worker did not "do no
+        // revalidation"; nobody knows what it did.
+        withWorker(null);
+        const { recordPageLatency, markPageReady } = await load('nosw');
+        recordPageLatency('calendar', 'S. Silva');
+        markPageReady('cached');
+        await new Promise(r => setTimeout(r, 0));
+        assert.ok(_samples.some(s => s.metric === 'ready'), 'the ordinary sample is unaffected');
+        assert.ok(!_samples.some(s => s.metric === 'swrCount'), 'unknowable must not become 0');
+        assert.ok(!_samples.some(s => s.metric === 'readyHeavySwr'));
+    });
+
+    test('a worker that answers NONSENSE records nothing', async () => {
+        // An older worker that does not know the message replies with something else, or nothing
+        // useful. Same rule: unknowable, not zero.
+        Object.defineProperty(global, 'navigator', {
+            value: /** @type {any} */ ({ serviceWorker: { controller: {
+                postMessage: (/** @type {any} */ _m, /** @type {any[]} */ ports) => {
+                    if (ports && ports[0]) ports[0].postMessage({ notACount: true });
+                },
+            } } }), configurable: true,
+        });
+        const { recordPageLatency, markPageReady } = await load('junk');
+        recordPageLatency('calendar', 'S. Silva');
+        markPageReady('cached');
+        await new Promise(r => setTimeout(r, 0));
+        assert.ok(!_samples.some(s => s.metric === 'swrCount'));
+    });
+
+    test('a genuine ZERO is a finding, and IS recorded', async () => {
+        // The other side of the same rule: a worker that really did nothing is exactly the
+        // evidence that would refute the hypothesis, so it must not be thrown away with the
+        // unknowables.
+        withWorker(0);
+        const { recordPageLatency, markPageReady } = await load('zero');
+        recordPageLatency('calendar', 'S. Silva');
+        markPageReady('cached');
+        await new Promise(r => setTimeout(r, 0));
+        assert.equal(_samples.find(s => s.metric === 'swrCount')?.bucket, '0');
+    });
+
+    test('an ADMIN load records nothing at all', async () => {
+        // The developer reloads onto releases constantly, so their boots are exactly the ones that
+        // would be heavy — and they must not colour the staff figures.
+        withWorker(53);
+        const { recordPageLatency, markPageReady } = await load('admin');
+        recordPageLatency('calendar', 'G. Miller');
+        markPageReady('cached');
+        await new Promise(r => setTimeout(r, 0));
+        assert.deepEqual(_samples, []);
+    });
+});
