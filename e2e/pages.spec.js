@@ -1,5 +1,5 @@
 import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, seedMemberSession, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, seedMemberSession, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the literal 22 — and `links: the rotation
 // length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
@@ -3397,7 +3397,7 @@ test('every page renders in Inter, not a browser default', async ({ page }) => {
 // coverage gap rather than fixing a defect. The 24px tap-target test below stays mobile-chrome-only:
 // it is WCAG 2.2 and engine-neutral, so it has no equivalent reason to cross.
 test('no focusable field falls below 16px on a touch device @a11y', async ({ page }, info) => {
-    test.skip(!['mobile-chrome','mobile-safari'].includes(info.project.name), 'needs a real coarse pointer');
+    test.skip(!isTouchProject(info), 'needs a real coarse pointer');
     await page.setViewportSize({ width: 390, height: 900 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
@@ -3640,7 +3640,7 @@ test('links: the 30px control families keep their target @a11y', async ({ page }
 // every visual test green. A screenshot could not police it anyway, since re-baselining just records
 // whatever it wrapped to.
 test('links: a numeric objective clause does not come apart on a phone', async ({ page }, info) => {
-    test.skip(!['mobile-chrome','mobile-safari'].includes(info.project.name), 'needs a real coarse pointer');
+    test.skip(!isTouchProject(info), 'needs a real coarse pointer');
     // 360, not the suite's usual 390 — that is the reported device (1080px at DPR 3), and it is the
     // 30px that decided this. The clause fits at 390 and fragments at 360.
     await page.setViewportSize({ width: 360, height: 900 });
@@ -3772,7 +3772,10 @@ test('links: the empty-state button opens the generator with its chevron and ARI
 // A screenshot would not police this reliably: the baseline is a whole-card capture, and a
 // re-baseline records whatever the alignment happens to be. Measuring the left edges does.
 test('links: the generator card lines up on one left edge at desktop width', async ({ page }, info) => {
-    test.skip(info.project.name === 'mobile-chrome', 'the shared column only applies at >=1024px');
+    // Both phone projects, not one: this skipped mobile-chrome and then RAN on mobile-safari,
+    // which forced a 1280 viewport and measured the same desktop layout a second time. A
+    // project gate should name the class of device, not one member of it.
+    test.skip(isTouchProject(info), 'the shared column only applies at >=1024px');
     // v20.98: the generator refuses targets that cannot pay the contracted week, and the
     // roster seed cannot at this rotation — so a spec that generates brings work with it.
     await seedContractTargets(page);

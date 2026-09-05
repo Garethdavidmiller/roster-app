@@ -630,3 +630,23 @@ export function stubPerfReads(page) {
         await route.fulfill({ response: res, body: src.replace(anchor, anchor + fixture), contentType: 'text/javascript' });
     });
 }
+
+/**
+ * THE PROJECTS WITH A REAL COARSE POINTER — i.e. the ones where touch-only UI actually exists.
+ *
+ * Written once because it was written twice, and the third copy was the one that went wrong: nine
+ * day-panel tests were gated to `mobile-chrome` ALONE, so the app's only touch route to what a day
+ * IS never once ran on the engine every iPhone uses, while `mobile-safari` sat in CI as a full job.
+ * The same gap was found and closed for the 16px-field rule at v22.12; this is the list that stops
+ * it being rediscovered a third time.
+ *
+ * Deliberately NOT every non-desktop project: a test that is mobile-chrome-only for a reason that is
+ * genuinely engine-neutral (WCAG tap targets) states that reason and keeps its own narrow gate.
+ */
+export const TOUCH_PROJECTS = ['mobile-chrome', 'mobile-safari'];
+
+/**
+ * Is this run on a device with a coarse pointer? Pass Playwright's `info`.
+ * @param {{project: {name: string}}} info
+ */
+export const isTouchProject = (info) => TOUCH_PROJECTS.includes(info.project.name);
