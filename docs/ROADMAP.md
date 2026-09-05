@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: September 2026 — v22.80 · Updated every 0.10 version*
+*Last updated: September 2026 — v22.90 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -184,6 +184,34 @@ starts, precisely so they cannot be chosen after seeing the numbers.
 This gates more than itself: **C5 cannot complete without it**, because a member who only ever reads
 the roster never signs in and is therefore never compelled to set a password.
 
+### Calendar start — the service-worker revalidation storm (NEW, v22.90)
+**Status:** Hypothesis, not measured · **Owner:** needs an experiment on a machine with real network · **Would change:** `service-worker.js` SWR branch
+
+**Raised by external review, 5 Sep 2026, and the mechanism is confirmed in code even though the
+effect is not.** On a warm cache the SWR branch serves each managed JS/CSS file from Cache Storage
+and then background-revalidates it — at most once per SW PROCESS lifetime, and an Android SW is
+killed when idle, so "once per process" approximates "once per app launch". That is ~49 modules plus
+CSS issuing background requests while the page is making the one request the member is waiting for.
+
+**The step that makes it concrete, measured 5 Sep 2026:** Firebase Hosting serves the app's JS/CSS
+with `Cache-Control: no-cache`. Those revalidations are therefore real conditional requests, not
+silent browser-cache hits. The SWR branch's own comment already names the hazard — *"pure radio /
+connection contention against the page's own Firestore traffic"* — which is why the per-request
+version was replaced by the per-process one.
+
+**The proposed treatment is cache-first WITHIN a version**, on the grounds that the mandatory bump
+rule makes same-version content immutable. **One correction to that argument, because the honest
+version is stronger:** a same-version deploy is not hypothetical — **v22.29 shipped twice**, and
+`CLAUDE.md` records that this SWR pass is the ONLY thing that self-heals it. What makes cache-first
+defensible now is not that the case cannot happen but that CI catches it first: the `version` job
+("a runtime change must claim a version main has not") refuses a duplicate before it reaches main.
+
+**Do not ship it on this reasoning.** Two arms — today's SWR against same-version cache-first —
+measuring `accounts:lookup` start/finish and the ladder milestones at +0/+100/+300 ms RTT and 1x/4x/6x
+CPU. If auth improves materially under cache-first there is a second real treatment; if not, keep the
+self-heal. It could not be run from a session container: the proxy drops browser traffic to both
+origins and gstatic is unreachable, so the app does not boot in a local browser.
+
 ### Calendar start — the identity round trip
 **Status:** Blocked on an owner decision · **Owner:** Gareth · **Measured:** `LATENCY_PLAN.md` · **Would change:** `CALENDAR_DATA.md` invariant 3
 
@@ -234,6 +262,11 @@ nobody could run. If the signature is absent, the finding is wrong and this deci
   contemplates trusting a stored identity for DAYS offline; the "no" here refuses to trust it for
   one paint online. The measured offline behaviour above says the app already sits nearer grace
   mode than the "no" answer assumes. An owner weighing this should read that section first.
+
+**An independent external review reached the same conclusion (5 Sep 2026)** — same primary
+bottleneck, same preferred answer, and it argues for option 3 on a ground worth recording: the app
+already has the vocabulary. Staff understand a Calendar that shows a known state while it checks for
+changes, so the existing quiet `Updating…` carries this with no new language and nothing alarming.
 
 **Three answers are all reasonable**, and the engineering differs completely:
 1. **No** — the gate holds; accept the round trip and close this. Then the ladder's `Recognised`

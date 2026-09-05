@@ -1,10 +1,26 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: September 2026 — v22.80 · Updated every 0.10 version*
+*Last updated: September 2026 — v22.90 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
 ---
+
+## The Pages mirror costs every cold load 21% more bytes (measured 5 Sep 2026)
+
+`garethdavidmiller.github.io/roster-app/` is where most staff still open the app, and it serves the
+app's JS/CSS with **gzip** where Firebase Hosting serves **brotli**. Measured across the Calendar's
+52 critical-path files:
+
+| Origin | Transferred |
+|---|---|
+| `myb-roster.web.app` | **339 KB** |
+| the Pages mirror | **409 KB** |
+
+**Not fixable in this repo** — GitHub Pages chooses its own encoding, and there is no header we can
+set there (the same reason the CSP is mirrored into a `<meta>`). It is recorded because it prices
+the canonical-URL changeover: the mirror's half of the staff pay that penalty on every cold load,
+and again on every release, of which there were 62 in the fourteen days to 5 Sep 2026.
 
 ## A failed deploy is now announced — but the gate can still flake (Aug 2026)
 

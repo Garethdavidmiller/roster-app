@@ -1047,6 +1047,11 @@ window.addEventListener('beforeprint', stampPrintDate);
 registerServiceWorker({
     beforeReload: () => setTimeout(() => window.location.reload(), 500),
     bfcache: true,
+    // The Calendar is the app's opening page and the one staff reported as slow, and it is the only
+    // page where an update can interrupt PURE READING — there is nothing here to save, so nothing to
+    // ask about. `deferWhileVisible` holds the reload until the member looks away; the reasoning,
+    // and why the pages with confirm dialogs deliberately do not get it, is in sw-register.js.
+    deferWhileVisible: true,
 });
 
 // ============================================

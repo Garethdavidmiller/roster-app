@@ -34,12 +34,20 @@ export function _resetForTest() { _registered = false; _controllerListenerAttach
  *                                        The callback decides if/when to reload.
  * @param {boolean}  [opts.bfcache]       Add pagehide/pageshow handlers to manage
  *                                        the update-check interval across bfcache restore.
+ * @param {boolean}  [opts.deferWhileVisible] Hold an update's reload until the page is hidden,
+ *                                        so a release never takes the page away mid-read. Opt-in;
+ *                                        see the controllerchange handler for why only the
+ *                                        Calendar uses it.
  */
-export function registerServiceWorker({ beforeReload, bfcache = false } = {}) {
+export function registerServiceWorker({ beforeReload, bfcache = false, deferWhileVisible = false } = {}) {
     if (!('serviceWorker' in navigator)) return;
     if (_registered) return;
     _registered = true;
     let reloadFired = false;
+    // `deferWhileVisible` state: the update that is waiting for the member to look away, and
+    // whether the one-shot listener that will run it has been attached.
+    let pendingReload = /** @type {null | (() => void)} */ (null);
+    let hiddenHookAttached = false;
     // TRUE first install = no registration existed when the page started (v16.23). The
     // first-install reload suppression used to key on `navigator.serviceWorker.controller`
     // alone — but a HARD RELOAD (or any SW-bypassed load) also leaves controller null while
@@ -72,10 +80,50 @@ export function registerServiceWorker({ beforeReload, bfcache = false } = {}) {
                 _controllerListenerAttached = true;
                 navigator.serviceWorker.addEventListener('controllerchange', () => {
                     if (suppressNextClaim) { suppressNextClaim = false; return; }
-                    if (beforeReload) { beforeReload(); return; }
-                    if (reloadFired) return;
-                    reloadFired = true;
-                    window.location.reload();
+                    const run = () => {
+                        if (beforeReload) { beforeReload(); return; }
+                        if (reloadFired) return;
+                        reloadFired = true;
+                        window.location.reload();
+                    };
+                    // ── A RELEASE MUST NOT TAKE THE PAGE AWAY WHILE SOMEBODY IS READING IT ──────
+                    //
+                    // An update reloads, and that is right: it is how a device stops running old JS
+                    // against the new SW's version cache. What was wrong is WHEN. This app shipped
+                    // 62 releases in the 14 days to 5 Sep 2026 — 17 on one day — and each one claims
+                    // the moment it installs, so a member with the Calendar open watched their
+                    // roster vanish and rebuild, paying a second full boot INCLUDING the auth round
+                    // trip that `LATENCY_PLAN.md` measures as the wall. It reads as "the calendar is
+                    // slow", and the latency instrumentation cannot see it: a reload is recorded as
+                    // one more page-load sample, so the ladder shows two ordinary loads rather than
+                    // one member interrupted.
+                    //
+                    // So the reload waits for the member to look away. On a phone that is seconds —
+                    // locking the screen or switching apps both fire it — and they come back to a
+                    // page that is already new. If they never look away they keep a working page on
+                    // the old version until they navigate, which is the correct trade: the update is
+                    // not urgent, and interrupting them is what caused the complaint.
+                    //
+                    // OPT-IN, and the Calendar is the only caller. The pages that ask before
+                    // reloading (admin, operations, links) are asking because a member may have
+                    // unsaved work, and deferring THAT question until they background the app would
+                    // greet them with a confirm dialog on return. Their behaviour is untouched.
+                    //
+                    // Already hidden ⇒ run now: nobody is watching, which is the whole condition.
+                    if (deferWhileVisible && document.visibilityState === 'visible') {
+                        pendingReload = run;   // a second update supersedes the first; one reload serves both
+                        if (!hiddenHookAttached) {
+                            hiddenHookAttached = true;
+                            document.addEventListener('visibilitychange', () => {
+                                if (document.visibilityState !== 'hidden') return;
+                                const fn = pendingReload;
+                                pendingReload = null;
+                                if (fn) fn();
+                            });
+                        }
+                        return;
+                    }
+                    run();
                 });
             }
             return navigator.serviceWorker.register('./service-worker.js').then(registration => {

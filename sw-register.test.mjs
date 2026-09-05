@@ -17,7 +17,7 @@
 // window, document, timers) is faked with plain objects; registerServiceWorker reads them
 // all at call time, so no jsdom is needed.
 
-import { test } from 'node:test';
+import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
 const { registerServiceWorker, _resetForTest } = await import('./sw-register.js');
@@ -66,7 +66,15 @@ function makeHarness({ controlled = false, waiting = false, hasRegistration = co
         location: { reload: () => { state.reloads++; } },
         addEventListener: () => {},
     });
-    globalThis.document = /** @type {any} */ ({ addEventListener: () => {}, hidden: false });
+    /** @type {Record<string, Function[]>} */
+    const docListeners = {};
+    globalThis.document = /** @type {any} */ ({
+        addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => {
+            (docListeners[t] = docListeners[t] || []).push(fn);
+        },
+        hidden: false,
+        visibilityState: 'visible',
+    });
     // A real 60-min interval would hold the test process open — stub it.
     globalThis.setInterval   = /** @type {any} */ (() => 0);
     globalThis.clearInterval = /** @type {any} */ (() => {});
@@ -80,6 +88,13 @@ function makeHarness({ controlled = false, waiting = false, hasRegistration = co
         container,
         swListeners,
         fireControllerChange() { (swListeners['controllerchange'] || []).forEach(fn => fn()); },
+        docListeners,
+        /** Background/foreground the fake page, firing visibilitychange like a browser does. */
+        setVisibility(/** @type {'visible'|'hidden'} */ v) {
+            globalThis.document.visibilityState = v;
+            globalThis.document.hidden = v === 'hidden';
+            (docListeners['visibilitychange'] || []).forEach(fn => fn());
+        },
         /** Resolve a deferred register() (only meaningful with deferRegister: true). */
         resolveRegister() { _resolveRegister?.(); },
         /** Flush the getRegistration().then(register().then(...)) chain (all microtasks). */
@@ -214,4 +229,121 @@ test('register() failure then re-invocation does NOT stack a second controllerch
         assert.equal((h.swListeners['controllerchange'] || []).length, 1,
             'the retry must NOT attach a second controllerchange listener (would double-fire beforeReload)');
     } finally { h.restore(); }
+});
+
+
+// ── deferWhileVisible: a release must not take the page away mid-read (v22.90) ──────────────────
+//
+// Organised by what each wrong answer COSTS, because they are not symmetrical. Reloading a member
+// who is READING is the shipped defect and the expensive one: the roster vanishes, a second full
+// boot runs including the auth round trip, and it reads as the app being slow — which is exactly
+// the complaint this came from. NEVER reloading is the failure a careless fix produces: the device
+// keeps running old JS against the new SW's version cache, which is the mixed-version hazard the
+// reload exists to close. So both directions are pinned, and the DEFAULT is pinned too — the pages
+// that ask before reloading must not silently acquire this.
+
+describe('deferWhileVisible — the update waits for the member to look away', () => {
+    test('a visible page is NOT reloaded when the update lands', async () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        try {
+            registerServiceWorker({ deferWhileVisible: true });
+            await h.flush();
+            h.fireControllerChange();
+            assert.equal(h.state.reloads, 0,
+                'the member was reading; the roster must not vanish and rebuild under them');
+        } finally { h.restore(); }
+    });
+
+    test('and it reloads the moment they DO look away', async () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        try {
+            registerServiceWorker({ deferWhileVisible: true });
+            await h.flush();
+            h.fireControllerChange();
+            h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 1,
+                'deferring must not mean never — the device would run old JS against the new cache');
+        } finally { h.restore(); }
+    });
+
+    test('an update that arrives while ALREADY hidden reloads at once', async () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        try {
+            registerServiceWorker({ deferWhileVisible: true });
+            await h.flush();
+            h.setVisibility('hidden');
+            h.fireControllerChange();
+            assert.equal(h.state.reloads, 1, 'nobody is watching, which is the whole condition');
+        } finally { h.restore(); }
+    });
+
+    test('two releases while they read still cost exactly ONE reload', async () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        try {
+            registerServiceWorker({ deferWhileVisible: true });
+            await h.flush();
+            h.fireControllerChange();
+            h.fireControllerChange();
+            h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 1, 'a superseded update must not stack a second reload');
+        } finally { h.restore(); }
+    });
+
+    // THE CASE WITH THE TEETH, and the one above does not have them. Consuming `pendingReload`
+    // rather than merely reading it only matters on the SECOND hide, and a single hide cycle passes
+    // either way — a mutation that dropped the consume survived the test above and was caught only
+    // here. It bites on `beforeReload` pages specifically: the default path is already guarded by
+    // `reloadFired`, but a page that supplies its own reload (the Calendar does) has no such guard,
+    // so a stale pending entry fires its reload again every time the member backgrounds the app.
+    test('backgrounding a SECOND time does not re-fire an update already spent', async () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        try {
+            let called = 0;
+            registerServiceWorker({ deferWhileVisible: true, beforeReload: () => { called++; } });
+            await h.flush();
+            h.fireControllerChange();
+            h.setVisibility('hidden');
+            assert.equal(called, 1, 'the update runs when they first look away');
+            h.setVisibility('visible');
+            h.setVisibility('hidden');
+            assert.equal(called, 1,
+                'no new release has landed — backgrounding again must not reload them a second time');
+        } finally { h.restore(); }
+    });
+
+    test('coming back to the foreground does not reload — only hiding does', async () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        try {
+            registerServiceWorker({ deferWhileVisible: true });
+            await h.flush();
+            h.fireControllerChange();
+            h.setVisibility('visible');
+            assert.equal(h.state.reloads, 0, 'a visibilitychange to VISIBLE is the member arriving');
+        } finally { h.restore(); }
+    });
+
+    test('WITHOUT the flag the reload is immediate — the other pages are untouched', async () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        try {
+            registerServiceWorker();
+            await h.flush();
+            h.fireControllerChange();
+            assert.equal(h.state.reloads, 1,
+                'admin/operations/links must keep reloading as they do today');
+        } finally { h.restore(); }
+    });
+
+    test('deferral still routes through beforeReload, not around it', async () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        try {
+            let called = 0;
+            registerServiceWorker({ deferWhileVisible: true, beforeReload: () => { called++; } });
+            await h.flush();
+            h.fireControllerChange();
+            assert.equal(called, 0, 'held while visible');
+            h.setVisibility('hidden');
+            assert.equal(called, 1, 'the page owns HOW it reloads; this only owns WHEN');
+            assert.equal(h.state.reloads, 0, 'beforeReload replaces the default reload');
+        } finally { h.restore(); }
+    });
 });
