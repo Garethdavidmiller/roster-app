@@ -32,6 +32,16 @@
 //     that says what compact MEANS and the static guard can still read it.
 //   · `window.__E2E?.textScale` is a TEST SEAM: a headless browser cannot be given an OS text size,
 //     so the e2e suites assert the compact row by stating a scale. It is read only when present.
+//
+// Two limits, named so nobody over-reads the tests (external review of v22.87):
+//   · The e2e suites prove the RESPONSE, not the DETECTION. Every run states the scale through the
+//     seam and scales the fonts itself; none of them can turn up a real Android setting and read
+//     what the probe makes of it. That bridge is validated on a real phone, and if a colleague on a
+//     large setting reports two rows, the probe is the first suspect. KNOWN_LIMITATIONS.md carries it.
+//   · The month heading's 21px base under `html[data-text-scale]` HOLDS that one heading near its
+//     original size against the member's preference. Accepted for a two-word title on a row that
+//     costs a whole calendar line; not to be extended to anything else. A surface that will not fit
+//     gets a second line — never a third compensating rule.
 
 /** From here the month heading row tightens ("Large", 1.15×, is in — it is where 360px stops fitting). */
 export const LARGE_FROM = 1.1;

@@ -806,6 +806,66 @@ test('nav drawer — default state (mobile 390)', async ({ page }) => {
     await expect(page).toHaveScreenshot('nav-drawer-mobile-390.png');
 });
 
+// ── The Team View bar and the 360px month view (v22.88, external review) ──────────────────────────
+//
+// The v22.83–v22.87 chain was a run of narrow-width defects that every geometry guard could answer
+// "does it overlap?" about and no baseline could answer "does it look right?" about — there was no
+// Team View baseline at all, and no calendar baseline at the 360px width where the chain started.
+// Four shots close that: the month view at 360 (the commonest Android width), Team View at 360 on the
+// current week (the date over "This week"), Team View at 412 browsing away (the date over "↩ Back to
+// this week"), and Team View on the desktop cluster. FIXED_TIME's week is the current week.
+test('calendar — mobile 360', async ({ page }) => {
+    await prep(page, { width: 360, height: 900 });
+    await page.goto('/index.html');
+    await settle(page, '.legend, .calendar-legend, footer');
+    await expect(page).toHaveScreenshot('calendar-mobile-360.png');
+});
+
+// The compact tier, as a phone at "Largest" text would draw it (external review of v22.87: the
+// geometry guards prove the row FITS at 1.3×; nothing proved it still looked designed). The seam
+// states the scale — see text-scale.js — and every element's font is then scaled by the same
+// factor, read first and set second, because that is what Android does: it scales what the
+// stylesheet resolved, tier included. The calendar cells grow with it; that is not noise, it is the
+// screen a colleague on that setting actually sees.
+test('calendar — mobile 412, compact under 1.3× text', async ({ page }) => {
+    await prep(page, { width: 412, height: 900 });
+    await page.addInitScript(() => { const w = /** @type {any} */ (window); w.__E2E = Object.assign(w.__E2E || {}, { textScale: 1.3 }); });
+    await page.goto('/index.html');
+    await settle(page, '.legend, .calendar-legend, footer');
+    await page.evaluate(() => {
+        const els = [...document.querySelectorAll('body *')];
+        const sizes = els.map(el => parseFloat(getComputedStyle(el).fontSize));
+        els.forEach((el, i) => { if (sizes[i] > 0) /** @type {HTMLElement} */ (el).style.fontSize = `${(sizes[i] * 1.3).toFixed(2)}px`; });
+    });
+    await settle(page, '.legend, .calendar-legend, footer');
+    await page.evaluate(() => new Promise(r => setTimeout(r, 300)));
+    await expect(page).toHaveScreenshot('calendar-mobile-412-compact.png');
+});
+
+async function openTeamView(page, { away = false } = {}) {
+    await page.goto('/index.html');
+    await settle(page, '.calendar-day');
+    await page.locator('#teamViewBtn').click();
+    await settle(page, '.team-week-text');
+    if (away) { await page.locator('#tvNextWeek').click(); await settle(page, '#tvToday'); }
+    await page.evaluate(() => new Promise(r => setTimeout(r, 300)));
+}
+test('team view — mobile 360, this week', async ({ page }) => {
+    await prep(page, { width: 360, height: 900 });
+    await openTeamView(page);
+    await expect(page).toHaveScreenshot('team-view-mobile-360.png');
+});
+test('team view — mobile 412, browsing away', async ({ page }) => {
+    await prep(page, { width: 412, height: 900 });
+    await openTeamView(page, { away: true });
+    await expect(page).toHaveScreenshot('team-view-mobile-412-away.png');
+});
+test('team view — desktop 1280', async ({ page }) => {
+    await prep(page, { width: 1280, height: 900 });
+    await openTeamView(page);
+    await expect(page).toHaveScreenshot('team-view-desktop-1280.png');
+});
+
 // ── The day-detail panel (v22.70) ───────────────────────────────────────────────────────────────
 //
 // The calendar's only touch route to what a day IS, and the densest read-only overlay in the app —

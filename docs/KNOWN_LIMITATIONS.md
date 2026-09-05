@@ -640,6 +640,33 @@ everywhere and displayed nowhere — but it is the kind of thing that is only ch
 somebody remembers the ordering. Full note beside `buildOverrideWrite` in `override-utils.js` and in
 `docs/DATA_MODEL.md` → overrides.
 
+### The text-scale tiers are proven against a STATED scale, not a real Android setting (v22.87)
+
+`text-scale.js` measures how much larger than the stylesheet's sizes the phone is drawing its text,
+and the calendar's two control rows tighten from the tier it stamps. The pure rules are unit-tested
+and the rows are driven through a real browser at eight width/scale pairs — but every one of those
+runs states the scale through the `window.__E2E.textScale` seam and then scales the fonts itself,
+because a headless browser has no OS text-size setting to turn up. So the suites prove that *when
+the page believes the text is 1.3×, the rows respond correctly*. They do not prove that a Samsung
+"Largest" or a Pixel accessibility font size makes the hidden 16px probe **measure** 1.3×. That
+bridge — real setting → probe reading — is real-device validation, and it has been done exactly the
+way the feature was found: on the owner's own phone. If a colleague on a large text setting reports
+two rows, suspect the probe before the CSS: the response is pinned, the detection is not.
+
+### Under large text the month heading is HELD at its size — a compromise, not a pattern (v22.87)
+
+`html[data-text-scale] .month-year { font-size: 21px }` in `index.css`: once the phone's text is
+1.1× or more, the heading's base drops from 24px so that after the phone scales it back up it still
+shares a line with the week note. At "Large" (1.15×) that lands at roughly the original 24px — the
+member asked for larger text and this one heading stays where it was. The owner's decision was one
+line ("like it used to be"), and for this row the trade is right: the week note is 12px metadata and
+the heading is a two-word title that a member reads by shape. **Do not extend the pattern.** It is
+a way of resisting an accessibility preference, and it is defensible only where the words are few,
+the size stays legible, and the alternative row costs a whole line of the calendar. Body copy, the
+day cells, the Team View grid and every other page keep scaling as the phone asks. If a third
+surface ever seems to need it, the answer is a second line, not a third compensating rule. Raised by
+the v22.87 external review, agreed.
+
 ### Duplicate Firestore override documents
 If a date has multiple override documents for the same member, the cache keeps the
 most recently created one (by `createdAt` timestamp). Duplicates are logged via
