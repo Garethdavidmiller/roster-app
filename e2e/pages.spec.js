@@ -4051,6 +4051,91 @@ test('links window: compare states BOTH windows and flags that they differ', asy
     expect(await page.locator('.compare-window--differs').count()).toBe(2);
 });
 
+// ── Compare: only the lines that differ, and the two columns on the same day (v22.77) ───────────
+//
+// The unit suite owns the rules — which lines are marked, when the control is offered, what the
+// strip claims while it is on. These are the two things only a browser answers: that pressing the
+// button actually filters (the handler is attached to markup written by `innerHTML`, so nothing in
+// Node can see it fire), and that scrolling one column moves the other, which is a layout fact
+// about two independent `overflow-x` areas and has no representation outside a rendered page.
+
+/** A design differing from `morningOnlyPatterns()` on exactly `n` lines. */
+function partlyDifferentPatterns(n) {
+    /** @type {any} */ const p = morningOnlyPatterns();
+    for (let i = 1; i <= n; i++) p[String(i)] = { ...p[String(i)], mon: '12:00-19:00' };
+    return p;
+}
+
+test('links compare: the filter hides the identical lines, and says so both ways', async ({ page }) => {
+    await openWindowDesign(page, [{
+        id: 'b', name: 'Nearly the same', patterns: partlyDifferentPatterns(3),
+        updatedAt: 1750000000000, updatedBy: 'S. Silva',
+    }]);
+    await page.locator('button:has-text("Compare")').first().click();
+    await expect(page.locator('#compareGridBodyRowsA tr')).toHaveCount(ROTATING_LINES);
+
+    const btn = page.locator('#compareDiffOnlyBtn');
+    await expect(btn).toBeVisible();
+    await expect(btn).toHaveText(/Show only the 3 lines that differ/);
+    await btn.click();
+
+    // VISIBLE rows, not rendered rows — the filter is CSS over a complete grid, so a count of `tr`
+    // would pass with the stylesheet deleted. Both columns, because a filter applied to one only
+    // would put the two grids out of step row for row, which is worse than not filtering at all.
+    await expect(page.locator('#compareGridBodyRowsA tr:visible')).toHaveCount(3);
+    await expect(page.locator('#compareGridBodyRowsB tr:visible')).toHaveCount(3);
+    await expect(page.locator('#compareGridBodyRowsA tr')).toHaveCount(ROTATING_LINES);
+
+    // The claim that keeps the three visible rows from being read as the basis of the figures.
+    await expect(page.locator('#compareSummary')).toContainText(`still cover all ${ROTATING_LINES} lines`);
+    await expect(page.locator('.compare-filter-note')).toContainText(`${ROTATING_LINES - 3} identical lines hidden`);
+
+    await btn.click();
+    await expect(page.locator('#compareGridBodyRowsA tr:visible')).toHaveCount(ROTATING_LINES);
+    await expect(page.locator('#compareSummary')).not.toContainText('still cover all');
+});
+
+test('links compare: scrolling one column moves the other to the same day', async ({ page }) => {
+    await openWindowDesign(page, [{
+        id: 'b', name: 'Nearly the same', patterns: partlyDifferentPatterns(3),
+        updatedAt: 1750000000000, updatedBy: 'S. Silva',
+    }]);
+    await page.locator('button:has-text("Compare")').first().click();
+    await expect(page.locator('#compareGridBodyRowsA tr')).toHaveCount(ROTATING_LINES);
+
+    const cols = page.locator('.compare-grid-scroll');
+    await expect(cols).toHaveCount(2);
+    // Narrow enough that the 560px-minimum tables genuinely overflow their columns — without real
+    // overflow `scrollLeft` stays 0 and the assertion below would pass on a broken sync.
+    await page.setViewportSize({ width: 1024, height: 1000 });
+    const room = await cols.first().evaluate(el => el.scrollWidth - el.clientWidth);
+    expect(room, 'the columns must actually overflow, or this test proves nothing').toBeGreaterThan(0);
+
+    // WITHIN RANGE, deliberately. The first cut asked for 120px against 103px of travel, and the
+    // browser clamped — so the assertion failed on a working sync, which is the kind of red that
+    // gets a correct guard deleted. Half the available travel is reachable at any viewport.
+    const mid = Math.round(room / 2);
+    expect(mid).toBeGreaterThan(0);
+    await cols.first().evaluate((el, x) => { el.scrollLeft = x; }, mid);
+    await expect.poll(() => cols.nth(1).evaluate(el => el.scrollLeft)).toBe(mid);
+
+    // And back the other way — a one-directional sync reads as working until you scroll the second
+    // column, which is the one a designer reaches for when the first is already where they want it.
+    //
+    // THE FRAME IS NOT A SLEEP TO MAKE THIS PASS (v22.78). Both scrolls above are assignments and
+    // nothing else: the browser delivers its own `scroll`, so this exercises the path the feature
+    // actually runs on. The first cut hand-fired a synthetic `scroll` immediately after each
+    // assignment, which put two events inside a single animation frame — the second landing inside
+    // the guard the first had just armed. That is not something a user or a browser can do, and it
+    // failed on WebKit while passing on Chromium, which reads exactly like an engine bug and is not
+    // one: the pre-fix module passes this version. Two real gestures are always a frame apart, so
+    // waiting one is the honest model. Teeth checked by deleting the sync — both directions go to 0.
+    const quarter = Math.max(1, Math.round(room / 4));
+    await page.evaluate(() => new Promise(r => requestAnimationFrame(() => r(null))));
+    await cols.nth(1).evaluate((el, x) => { el.scrollLeft = x; }, quarter);
+    await expect.poll(() => cols.first().evaluate(el => el.scrollLeft)).toBe(quarter);
+});
+
 test('links: the summary strip names WHICH design it describes, but only in compare mode', async ({ page }) => {
     // Every figure in the strip comes from the ACTIVE design. With two grids on screen an
     // unlabelled "24 lines designed · All service covered · N fatigue factors" reads as a verdict on

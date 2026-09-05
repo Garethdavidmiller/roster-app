@@ -109,7 +109,7 @@ const CAPS = {
     // The ceiling comes down with it rather than being banked as headroom — the v21.87 reasoning
     // above — so the raise of ten lines survives on its merits and the saving of seventy-six is
     // not quietly spent.
-    'links-app.js':            3150,   // ← the next Links rule goes in a domain module
+    'links-app.js':            2600,   // ← the next Links rule goes in a domain module
     // 2000 → 1900 at v21.89. The sticky take-home bar left for paycalc-sticky-total.js — 1,988
     // measured lines down to 1,888. Of everything in this coordinator it was the piece whose
     // removal cannot affect a figure a member reads: a scroll-position widget that touches no

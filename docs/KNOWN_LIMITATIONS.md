@@ -1321,9 +1321,20 @@ them with the correct current types if the pay suggestion is producing wrong res
 
 Not every uncaught error is a fault in this app. Six classes are suppressed before the Firestore
 write, by the pure `shouldReport` in `client-errors.js`: the opaque cross-origin `Script error.`,
-browser-extension URL schemes, `ResizeObserver loop`, the skipped declarative view transition, a
-service-worker background-update failure **when accompanied by a network phrase**, and **WebKit's
-IndexedDB teardown messages when they come from the SDK origin**.
+browser-extension URL schemes, `ResizeObserver loop`, the declarative view transition the browser
+abandoned, a service-worker background-update failure **when accompanied by a network phrase**, and
+**WebKit's IndexedDB teardown messages when they come from the SDK origin**.
+
+The view-transition class carries **TWO Chromium wordings for one cause** (the second added v22.67,
+from a live Android Chrome 152 report). `Skipping view transition …` is its own worded skip;
+`Transition was aborted because of invalid state` is the DOMException it rejects the transition
+promise with when the document stops being fully active mid-navigation — a tap through to another
+page, the app switcher, a back gesture. The app never asked for the transition (`shared.css` opts
+in declaratively with `@view-transition { navigation: auto }`), so there is no promise for it to
+handle and the rejection lands here; the navigation it names completed correctly. The second is
+matched IN FULL rather than on `Transition was aborted`, because this log's recorded failure
+direction is the filter that is too broad — a rule written for the browser's navigation animation
+must not swallow an overlay of ours that genuinely fails while aborting.
 
 That last one came from a staff report on an iPhone (iOS 18.7 / Safari 26.5, v19.19):
 
