@@ -204,6 +204,11 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             .filter(m => !m.hidden && m.role === grade)
             .sort((a, b) => a.name.localeCompare(b.name));
 
+        // The app's own month table, not `toLocaleDateString` (v22.86): en-GB's short form of
+        // September is "Sept", so the print header said "Printed 3 Sept 2026" above a week label
+        // saying "5 Sep 2026" — two spellings of one month on one sheet.
+        const now = new Date();
+        const printedOn = `${now.getDate()} ${MONTH_ABB[now.getMonth()]} ${now.getFullYear()}`;
         const isCurrentWeek = currentTeamWeekStart.getTime() === getSunday(new Date()).getTime();
         // THE LABEL STATES THE CURRENT WEEK, AND NOTHING SHARES ITS LINE (v22.85). Until now a
         // "This week" chip sat beside the date on the current week and a "↩ This week" pill when
@@ -278,7 +283,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
 
         calendarDisplay.innerHTML = `
             <div class="team-view-container">
-                <div class="tv-print-header">Team View · ${grade} · ${weekLabel} · Printed ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                <div class="tv-print-header">Team View · ${grade} · ${weekLabel} · Printed ${printedOn}</div>
                 <div class="grade-tabs-row">
                     <div class="grade-tabs-actions grade-tabs-actions--start">${jumpBtn}</div>
                     <div class="grade-tabs" role="tablist" aria-label="Grade selector">${gradeBtns}</div>
