@@ -2581,23 +2581,28 @@
         .day-detail-leave-btn {
             margin-top: 12px;
             align-self: center;
-            padding: 0 18px;
-            min-height: 44px;
+            /* SMALLER, WHICH IS WHAT THE COMPLAINT WAS ABOUT (v22.92, owner). 44px is the platform
+               RECOMMENDATION, not a floor: this stylesheet already sets 30px as the app's own floor
+               for a coarse pointer, and WCAG 2.5.8 AA asks 24px. 34x~112px is a 23% shorter button
+               with 4px still in hand — where 30px would sit exactly on the floor with nothing spare
+               for a future text-scale tier to eat. */
+            padding: 0 14px;
+            min-height: 34px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             color: white;
-            /* TINTED, NOT FILLED (v22.91, owner: "they dominate the lightbox when used"). A solid
-               saturated block is the loudest thing on a panel whose whole job is to answer a
-               question — and on an annual-leave day, where the panel is four short lines, the
-               button was competing with the shift itself. Two of them at once was worse.
-               A tint of the feature's own colour behind white text keeps the identity and the
-               contrast (the text is unchanged; the panel behind it is dark either way) and lets the
-               action recede to what it is: an optional route, not the answer. The 44px target, the
-               weight and the button radius all stay — this is the one thing here you can press, and
-               it must not start reading as one more chip. */
-            background: color-mix(in srgb, var(--ddb) 20%, transparent);
-            border: 1px solid color-mix(in srgb, var(--ddb) 45%, transparent);
+            /* SOLID, AND THE TINT IT REPLACED WAS THE WRONG FIX (v22.92). v22.91 read the "they
+               dominate" report as being about COLOUR and washed the fill out to ~20%. It was about
+               SIZE. Compared side by side the wash costs more than it buys: a translucent control on
+               a dark panel reads as UNAVAILABLE, which is the one thing an action must never look
+               like — and every other action in the app is a solid fill (`.btn-action` on paycalc,
+               admin, settings), so the two panel buttons would have been the only exception to the
+               app's own button idiom. The line beneath this one calls it "the one thing on the panel
+               you can press"; a fill states that, a wash argues with it. Shrinking the box fixes the
+               dominance without inventing a style that exists nowhere else. */
+            background: var(--ddb);
+            border: none;
             text-decoration: none;
             /* `--radius-button`, not `--radius-pill`: the marker chips directly above it ARE pills,
                and this is the one thing on the panel you can press. Sharing their shape made the
@@ -2616,18 +2621,19 @@
         .day-detail-leave-btn[hidden] { display: none !important; }
         /* One token, set per class — every other declaration above is shared, so the two actions
            cannot drift apart in anything but colour. */
-        .day-detail-pay-btn   { --ddb: var(--green); }
-        .day-detail-leave-btn { --ddb: var(--al); }
-        /* Pressing FILLS it: the tint is the resting state, and the press is where the colour
-           arrives. Same on hover, where a pointer has already declared intent. */
+        /* Two tokens, set per class — every other declaration is shared, so the two actions cannot
+           drift apart in anything but colour. Each wears its own feature's identity: green is the
+           app's Pay colour (the nav Pay pill), teal is Annual Leave's (the 🏖️ badge, the AL panel). */
+        .day-detail-pay-btn   { --ddb: var(--green); --ddb-hover: var(--green-hover); }
+        .day-detail-leave-btn { --ddb: var(--al);    --ddb-hover: var(--al-hover); }
         .day-detail-pay-btn:active,
         .day-detail-leave-btn:active {
             transform: scale(var(--press-scale));
-            background: color-mix(in srgb, var(--ddb) 52%, transparent);
+            background: var(--ddb-hover);
         }
         @media (hover: hover) and (pointer: fine) {
             .day-detail-pay-btn:hover,
-            .day-detail-leave-btn:hover { background: color-mix(in srgb, var(--ddb) 34%, transparent); }
+            .day-detail-leave-btn:hover { background: var(--ddb-hover); }
         }
         /* Both at once is rare but real — an annual-leave day that is also a payday, about one day a
            year per member. The second button keeps the panel's 8px zone gap instead of adding its
