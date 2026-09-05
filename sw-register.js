@@ -26,6 +26,30 @@ let _controllerListenerAttached = false;
 /** TEST-ONLY: reset the once-per-page-life guards between test cases. */
 export function _resetForTest() { _registered = false; _controllerListenerAttached = false; }
 
+// ── THE MARKER THAT SAYS "THIS LOAD FOLLOWED A RELEASE" ──────────────────────────────────────────
+//
+// v22.90 stopped a release interrupting a member mid-read. Nothing could then say how often that
+// path runs, or what the load after it costs, because the latency instrumentation is structurally
+// blind to it: a reload arrives as one more ordinary page-load sample, so an interrupted member
+// looks like two unremarkable opens. `perf-reporter.js` reads this marker on the NEXT load and
+// records a `readyUpdate` sample beside the ordinary `ready` one.
+//
+// A TIMESTAMP, not a flag, and the reason is the same one `LOGIN_T0_KEY` carries: the reload is not
+// certain when this is written. `run()` serves both paths, and a `beforeReload` may decline — links'
+// confirm offers Cancel. A bare flag would then sit in sessionStorage and mis-attribute whatever
+// that tab navigated to next. A timestamp lets the reader refuse a stale one, and the recency bound
+// lives THERE, beside the metric it protects, not here.
+//
+// sessionStorage, so it dies with the tab and never reaches another one. iOS private mode throws on
+// any access, hence the wrapper — and a failure here must never stop the reload, which is why this
+// is a statement of its own and not folded into the reload expression.
+const SW_RELOAD_KEY = 'myb_perf_sw_reload';
+
+/** Note that the reload about to happen was caused by an update. Best-effort; never throws. */
+function markUpdateReload() {
+    try { sessionStorage.setItem(SW_RELOAD_KEY, String(Date.now())); } catch { /* sessionStorage unavailable */ }
+}
+
 /**
  * Register the service worker and handle the skip-waiting → reload lifecycle.
  *
@@ -81,6 +105,7 @@ export function registerServiceWorker({ beforeReload, bfcache = false, deferWhil
                 navigator.serviceWorker.addEventListener('controllerchange', () => {
                     if (suppressNextClaim) { suppressNextClaim = false; return; }
                     const run = () => {
+                        markUpdateReload();
                         if (beforeReload) { beforeReload(); return; }
                         if (reloadFired) return;
                         reloadFired = true;

@@ -2,7 +2,7 @@
 // Run with: node --test perf-stats.test.mjs   (part of test:hygiene)
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { THIN_SAMPLE, PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, summarisePerfBy, PERF_DIMENSIONS, perfVerdict, loginDurationBucket, LOGIN_MAX_MS, BOOT_PHASES, bootPhases, summariseBootPhases, START_MILESTONES, summariseStartMilestones, READY_SOURCES, summariseReadySource } from './perf-stats.js';
+import { THIN_SAMPLE, PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, summarisePerfBy, PERF_DIMENSIONS, perfVerdict, loginDurationBucket, LOGIN_MAX_MS, BOOT_PHASES, bootPhases, summariseBootPhases, START_MILESTONES, summariseStartMilestones, READY_SOURCES, summariseReadySource, UPDATE_OPENS, summariseUpdateOpens } from './perf-stats.js';
 
 /** Build a samples map from [page, metric, bucket, count] rows (version/mode/conn fixed). */
 function samplesFrom(rows) {
@@ -564,5 +564,80 @@ describe('summariseReadySource', () => {
         ]);
         const { rows } = summariseReadySource(samples, { page: 'calendar' });
         assert.equal(rows[0].total, 5);
+    });
+});
+
+// ── summariseUpdateOpens — opens a RELEASE caused ────────────────────────────────────────────────
+//
+// Organised by what a wrong answer costs, and the two directions are not symmetrical.
+//
+// The expensive one is the SHARE coming out wrong, because the share is the whole point: v22.90
+// deferred the update reload on the argument that releases interrupt members often, and this row is
+// the only thing that can size that. A share that reads high on data that does not support it
+// justifies work nobody needed; one that reads low retires a real cost as imaginary. And the share
+// is a DIVISION between two blocks, which is exactly where a subset silently becomes a partition.
+//
+// The cheap one is the row being absent when it should be present — a missing row on a card, which
+// somebody notices.
+describe('summariseUpdateOpens', () => {
+    test('it counts only the update opens, and does NOT absorb the `ready` it is a subset of', () => {
+        // The relation this whole feature rests on: `readyUpdate` is written BESIDE `ready`, never
+        // instead of it, so both counts exist and the division is meaningful. Folding `ready` in
+        // here would make the row report every open and the share read 100%.
+        const samples = Object.fromEntries([
+            mk('calendar', 'ready', 'lt500ms', 900),
+            mk('calendar', 'readyUpdate', '1-3s', 30),
+        ]);
+        const { rows } = summariseUpdateOpens(samples, { page: 'calendar' });
+        assert.equal(rows.length, 1);
+        assert.equal(rows[0].metric, 'readyUpdate');
+        assert.equal(rows[0].total, 30, 'the 900 ordinary opens are not this row');
+    });
+
+    test('the count divides against `ready` to give the share — the two summaries agree', () => {
+        // The card computes the share from TWO summaries, so this asserts they see the same
+        // population. Driven through both real functions rather than restating either.
+        const samples = Object.fromEntries([
+            mk('calendar', 'ready', 'lt500ms', 160),
+            mk('calendar', 'ready', '1-3s', 40),
+            mk('calendar', 'readyUpdate', '1-3s', 20),
+        ]);
+        const readyTotal = summariseStartMilestones(samples, { page: 'calendar' }).rows
+            .find(r => r.metric === 'ready').total;
+        const { rows } = summariseUpdateOpens(samples, { page: 'calendar' });
+        assert.equal(readyTotal, 200);
+        assert.equal(Math.round((rows[0].total / readyTotal) * 100), 10);
+    });
+
+    test('the other ready variants are not swept in', () => {
+        // `readyCached`/`readyFetched` split the same rung and sit in the block above. Counting one
+        // here would inflate the share with loads no release caused — the expensive direction.
+        const samples = Object.fromEntries([
+            mk('calendar', 'readyCached', 'lt500ms', 300),
+            mk('calendar', 'readyFetched', '1-3s', 100),
+            mk('calendar', 'readyUpdate', '1-3s', 7),
+        ]);
+        const { rows } = summariseUpdateOpens(samples, { page: 'calendar' });
+        assert.equal(rows.length, 1);
+        assert.equal(rows[0].total, 7);
+    });
+
+    test('no update open reported ⇒ NO row, never a zero', () => {
+        // A zero here would state "no release has ever reloaded anybody", which is the finding
+        // itself — asserted on an empty collection. Same rule as the ladder and the source split.
+        const samples = Object.fromEntries([mk('calendar', 'ready', 'lt500ms', 500)]);
+        assert.equal(summariseUpdateOpens(samples, { page: 'calendar' }).rows.length, 0);
+    });
+
+    test('another page’s update opens are not mixed in', () => {
+        const samples = Object.fromEntries([
+            mk('calendar', 'readyUpdate', 'lt500ms', 4),
+            mk('paycalc', 'readyUpdate', '3s+', 400),
+        ]);
+        assert.equal(summariseUpdateOpens(samples, { page: 'calendar' }).rows[0].total, 4);
+    });
+
+    test('the row set is the one the card renders', () => {
+        assert.deepEqual(UPDATE_OPENS.map(m => m.metric), ['readyUpdate']);
     });
 });
