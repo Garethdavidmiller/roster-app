@@ -124,8 +124,12 @@
              other page in this app has a standalone help control, so wherever it went it read as
              something that did not belong rather than as something badly styled.
              First-time discovery is NOT this element's job — the panel opens by itself on a
-             designer's first visit. This is only how somebody gets back to it. -->
-        <button type="button" id="linksHowBtn" class="lightbox-bug-link"><span aria-hidden="true">ⓘ</span> How this workspace works</button>
+             designer's first visit. This is only how somebody gets back to it.
+             ℹ️ and not ⓘ (v22.85): the text glyph is not in Inter, and the font it falls back to
+             carries a taller line box — measured, this row rendered 35px between two 33px
+             neighbours with identical padding, font-size and line-height. An emoji goes through the
+             same colour font as the 🔧 and 🐛 either side of it, so the three rows are one height. -->
+        <button type="button" id="linksHowBtn" class="lightbox-bug-link"><span aria-hidden="true">ℹ️</span> How this workspace works</button>
         <a id="linksBugReportLink" class="lightbox-bug-link" href="#"><span aria-hidden="true">🐛</span> Report a bug</a>
     </div>
 </div>
