@@ -180,7 +180,13 @@
            WHY NOTHING CAUGHT IT: the mobile e2e project is Pixel 5 at 393px and the visual
            baselines are 390px, and the row first fits at 384px. The whole estate sat just above the
            threshold, so 360px — the commonest Android width there is — was never rendered. */
-        .control-group--actions {
+        /* `.controls` prefix, for the reason the comment further down already gave and this rule
+           did not heed at v22.83: `@media (max-width: 1023px) { .control-group { gap: 6px } }` sits
+           LATER in this file at equal specificity, so an unprefixed `gap` here loses to it on every
+           phone and tablet. It did — below 380px the outer gaps stayed 6px while the pair's inner
+           gap took the 5px, so the row rendered 6·6·6·5 and sat 3px wider than v22.82. Uneven by
+           one pixel is not visible; being 3px wider on the width this whole rule exists to fit is. */
+        .controls .control-group--actions {
             /* One declaration of the row's gap, read by the pair below too — the two must match or
                the pair's inner spacing drifts from the outer at one width and not the other. */
             --qa-gap: 6px;
@@ -240,7 +246,33 @@
             flex-direction: column;
             align-items: center;
             gap: 2px;
+            /* THE MEMBER SELECT IS WHAT GIVES WAY, NOT THE MONTH ARROWS (v22.84). At 320px this
+               row measured 334px into 300px of usable width, so `← Prev` hung 14px off the left
+               edge and `Next →` 14px off the right — both cut by the body's `overflow-x: clip`,
+               and the same arithmetic the action row below was fixed for at v22.63, in the row
+               above it that nobody re-measured.
+               `.control-group` sets `flex-shrink: 0`, which is right for the two arrow buttons —
+               a squashed "← Prev" is unreadable — and wrong for the dropdown, which already
+               ellipsises a long name and is the one item here with room to give. `min-width: 0`
+               is the load-bearing half: a flex item's default `min-width: auto` floors it at its
+               own min-content, so `flex-shrink` alone would not have moved it. */
+            flex-shrink: 1;
+            min-width: 0;
         }
+        /* THE SELECT MUST FOLLOW THE GROUP, and it does not by default: the group centres its
+           children, so the select keeps its own content width and simply overflows a shrunken
+           parent — painting the dropdown straight over `← Prev` and `Next →` by 19px at 320px,
+           21px at 360px/18px text and 35px at 360px/22px. Letting the group shrink without letting
+           its select follow is half a fix, and the visible half is the wrong one: the old behaviour
+           at least pushed the arrows off screen where `overflow-x: clip` hid them, while this
+           covered them where they still looked tappable.
+           `align-self: stretch` and NOT `max-width: 100%`: a percentage max-width against a
+           shrink-to-fit parent is the cyclic case, and Chromium resolves it as `none` — which
+           throws away the `.controls select { max-width: 200px }` cap and made the select WIDER at
+           1280px than it had been. Caught by the visual baseline, not by the phone widths this fix
+           is for. Stretching takes the group's used width with no percentage and no cycle, so the
+           cap still applies and the desktop row is byte-identical. */
+        .controls .control-group--stacked select { align-self: stretch; }
 
         .controls button {
             min-width: auto;
@@ -1403,6 +1435,13 @@
             display: flex;
             align-items: center;
             padding: 2px 4px 4px;
+            /* CLEARANCE THE LABEL CANNOT EAT (v22.84, owner report from a 412px phone). The centre
+               is `flex: 1`, so a label that wraps fills the whole column and its painted box runs
+               flush against both arrows — measured at ZERO px to each at 320/360/390 default and at
+               412 under any text scaling. On screen "2026" sat directly against "← Prev" and read
+               as a collision. Shortening the label (below) stops the wrap in every case measured;
+               this gap is what makes the worst case merely tidy rather than broken. */
+            gap: 8px;
         }
         .team-week-center {
             display: flex;
@@ -2816,8 +2855,12 @@
             padding: 2px 6px;
             transition: background var(--dur-med);
         }
+        /* NON-BREAKING space, or the caret is a word of its own (v22.84). With a plain space the
+           browser may break between the year and the ▾ — measured at 360px under Chrome's text
+           scaling, where "September 2026" filled the line and the caret dropped alone onto the
+           next one, reading as a stray glyph rather than as this heading's affordance. */
         .month-year::after {
-            content: ' ▾';
+            content: '\00a0▾';
             font-size: 0.6em;
             opacity: 0.5;
             vertical-align: middle;
