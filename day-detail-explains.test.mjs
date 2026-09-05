@@ -193,6 +193,7 @@ describe('the panel has somewhere to put each explanation', () => {
         ['dayDetailExtras',      'the day-marker chips'],
         ['dayDetailWeek',        'the roster week'],
         ['dayDetailAsRostered',  'the unchanged-day confirmation'],
+        ['dayDetailLeaveBtn',    'the annual-leave route to the recorded dates'],
     ]) {
         test(`index.html still has ${what} (#${id})`, () => {
             assert.ok(HTML.includes(`id="${id}"`), `#${id} is gone from index.html`);
@@ -200,7 +201,8 @@ describe('the panel has somewhere to put each explanation', () => {
     }
 
     test('the class each of them needs is defined in index.css', () => {
-        for (const cls of ['day-detail-week', 'day-detail-asrostered', 'ddr-tick', 'ddm-chip']) {
+        for (const cls of ['day-detail-head', 'day-detail-week', 'day-detail-asrostered',
+                           'ddr-tick', 'ddm-chip', 'day-detail-leave-btn']) {
             assert.ok(CSS.includes(`.${cls}`), `.${cls} is used by the panel and not defined`);
         }
     });

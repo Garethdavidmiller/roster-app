@@ -239,13 +239,21 @@
     <div id="dayDetailLightbox" class="lb-overlay" role="dialog" aria-label="Day details" aria-modal="true">
         <div id="dayDetailContent" class="lb-content">
             <button id="dayDetailClose" class="lb-close" type="button" aria-label="Close">✕</button>
-            <div class="day-detail-date" id="dayDetailDate"></div>
-            <!-- The roster week this date falls in. The month header carries "CEA Weeks 12–16",
-                 and on a phone that context is gone the moment this panel opens over it; one date
-                 resolves to exactly one week. Absent for a member on a fixed line, who has no
-                 rotating week to state — `weekContext` in calendar-renderer.js makes that call,
-                 from the same `weekPrefix` the header tests, so the two cannot disagree. -->
-            <div class="day-detail-week" id="dayDetailWeek" hidden></div>
+            <!-- ONE HEADING BLOCK, not two lines that happen to be adjacent (v22.91). The panel's
+                 outer flex gap is the rhythm BETWEEN zones, so while the week was a sibling of the
+                 date it sat 9px from the date it belongs to and 8px from the shift it does not —
+                 equidistant, and it read as a floating third line rather than a caption. Wrapping
+                 makes one flex child = one zone, which is what the panel's own "zones" model
+                 already claimed, and leaves the tight 2px pairing to this box. -->
+            <div class="day-detail-head">
+                <div class="day-detail-date" id="dayDetailDate"></div>
+                <!-- The roster week this date falls in. The month header carries "CEA Weeks 12–16",
+                     and on a phone that context is gone the moment this panel opens over it; one
+                     date resolves to exactly one week. Absent for a member on a fixed line, who has
+                     no rotating week to state — `weekContext` in calendar-renderer.js makes that
+                     call, from the same `weekPrefix` the header tests, so the two cannot disagree. -->
+                <div class="day-detail-week" id="dayDetailWeek" hidden></div>
+            </div>
             <!-- The shift, led by its OWN kind glyph (☀️ 🌙 🏠 🏖️ …) from `shiftBadgeParts` — the
                  same emoji the tapped cell wears. The glyph is aria-hidden: the words beside it
                  already say "Early shift", and a screen reader announcing the emoji's own name
@@ -292,6 +300,14 @@
             <div class="day-detail-markers" id="dayDetailExtras" hidden></div>
             <!-- No 💷 here: the chip above carries it, and the two sat ten pixels apart saying the
                  same thing twice. The green already IS the app's Pay identity (the nav Pay pill). -->
+            <!-- ANNUAL LEAVE DAYS ONLY (v22.91, owner request). The same rule as the pay button
+                 beneath it: an action appears where it is relevant and nowhere else, so the panel
+                 never becomes an advertisement for another page. The question an AL day raises once
+                 "why does this say AL?" is answered — which the change pair above already does — is
+                 "what else have I booked?", and that is a different surface: the Recorded Annual
+                 Leave dates list on Admin. The link names its destination rather than describing a
+                 journey, and `admin-app.js` resolves the nested target so it lands OPEN. -->
+            <a class="day-detail-leave-btn" id="dayDetailLeaveBtn" href="admin.html#alBookedBox" hidden>View leave dates</a>
             <button type="button" class="day-detail-pay-btn" id="dayDetailPayBtn" hidden>View pay estimate</button>
         </div>
     </div>

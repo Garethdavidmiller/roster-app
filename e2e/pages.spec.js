@@ -5430,3 +5430,37 @@ test('operations: a fully provisioned roster says so, and still adds no strip it
     await expect(page.locator('#authSetupGaps')).toContainText('Everyone on the roster has a login');
     await expect(page.locator('#attentionStrip')).toBeHidden();
 });
+
+// The day panel's "View leave dates" points INSIDE a card, at a box with a fold of its own. Both
+// have to open or the link scrolls to something folded away and reads as a button that does
+// nothing — which is what it did before v22.91, silently.
+test('admin: a deep link to the Recorded Annual Leave dates box opens BOTH folds', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-08-27T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html#alBookedBox');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.waitForTimeout(400);
+    const open = await page.evaluate(() => ({
+        card: document.getElementById('alBody')?.classList.contains('open'),
+        box:  document.getElementById('alBookedBody')?.classList.contains('open'),
+        cardAria: document.getElementById('alChevron')?.getAttribute('aria-expanded'),
+        boxAria:  document.getElementById('alBookedChevron')?.getAttribute('aria-expanded'),
+    }));
+    expect(open.card, 'the Annual Leave card must open — the box lives inside it').toBe(true);
+    expect(open.box, 'and the box\'s own fold, or the link lands on the thing it named, closed').toBe(true);
+    // `initCardCollapse` only syncs aria on a click, so a class-only open would leave a screen
+    // reader hearing "collapsed" on both.
+    expect(open.cardAria).toBe('true');
+    expect(open.boxAria).toBe('true');
+});
+
+// The existing deep links name a CARD, and must behave exactly as they did — the v22.91 change
+// walks up to the containing card, which for these is the target itself.
+test('admin: the existing card deep link still opens that card', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-08-27T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html#book-annual-leave');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.waitForTimeout(400);
+    expect(await page.evaluate(() => document.getElementById('alBody')?.classList.contains('open'))).toBe(true);
+});
