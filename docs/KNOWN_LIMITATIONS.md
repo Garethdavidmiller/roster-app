@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: September 2026 — v22.70 · Updated every 0.10 version*
+*Last updated: September 2026 — v22.80 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -922,6 +922,25 @@ intermediate Google deps do). Re-check with `npm audit` / `npm outdated` periodi
 The Links workspace (`links.html`) no longer carries a beta marker (removed v19.50 — it is the tool
 the December 2026 proposals are built in). The constraints below are unchanged by that; they were
 never contingent on the beta label, and dropping it does not make any of them go away:
+
+- **Duplicate names are refused from the list you LOADED, not from the collection (v22.80, external
+  review).** `links-design-naming.js` (v22.66) closed the case a designer can see: two rows reading
+  "Option A" in a picker that drives Compare, Delete and the shared setups. What it does not close
+  is the race. The check runs in the browser against the designs this page has fetched, so two
+  designers holding the same list can each create "Option B" before either sees the other's
+  document, and Firestore keys on a random id, so both writes succeed and neither person is told.
+  The guarantee is therefore **"you cannot knowingly create a duplicate from the list you loaded"**,
+  and not "duplicate names cannot exist" — worth stating because the refusal message reads like the
+  stronger promise.
+
+  **Not closed deliberately.** Closing it needs server-owned uniqueness — a transactionally reserved
+  document whose id IS the normalised name, or the equivalent in a Cloud Function — which is real
+  machinery for a workspace with three designers who mostly work at different times, and it would
+  have to fail somehow when the reservation and the design write disagree. The client rule already
+  removes the case that actually happens (one person, one list, a name they can see). Revisit if the
+  designer count grows or two people start working the same hour; the shape to reach for is
+  `links-target-sets-store.js`'s transaction, which already refuses to land on a version nobody
+  agreed to.
 
 - **The rotation is 24 lines with 4 spare weeks, on evidence class C (v19.98, corrected v20.01/02).**
   The December 2026 link is the CEA/main roster widened from 20 and excludes the bilingual roster

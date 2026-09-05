@@ -87,7 +87,7 @@ test('day detail: names the roster it was changed from, and opens at full size',
     expect(new Set(pills).size, `both pills read the same: ${pills.join(' / ')}`).toBe(pills.length);
     // One sentence for a screen reader — the badges read individually would be three fragments of
     // one fact, and the arrow is not a word.
-    await expect(change).toHaveAttribute('aria-label', /^Changed from Spare day to /);
+    await expect(change).toHaveAttribute('aria-label', /^Base roster Spare day, changed to /);
 
     // Full size, not the 85% fossil. The transform is the only observable: the text renders either
     // way, which is exactly why this went unnoticed.

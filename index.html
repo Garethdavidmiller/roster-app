@@ -255,8 +255,15 @@
                  above the day markers, which are about the DATE and not the turn. The badges are
                  built in JS from `shiftBadgeParts` — colour and emoji come from the one authority,
                  so the panel can never colour a shift differently from the cell that was tapped. -->
+            <!-- The eyebrow NAMES THE LEFT BADGE (v22.79, external review). It said only "Changed",
+                 which reads as "what this was immediately before" — and the left badge is always
+                 `getBaseShift`, the member's own pattern, never the previous override. On a chained
+                 change (rest day → a shift somebody allocated → annual leave) that made the panel
+                 state a change which never happened, quietly and plausibly. Naming the base roster
+                 is also the more useful fact, and "base roster" is vocabulary the Team view note
+                 already teaches. -->
             <div class="day-detail-change" id="dayDetailChange" hidden>
-                <span class="ddc-eyebrow">Changed</span>
+                <span class="ddc-eyebrow">Changed from base roster</span>
                 <span class="ddc-pair" id="dayDetailChangePair"></span>
                 <!-- Who made the change, or that it came in with the weekly roster. Absent when the
                      document cannot say, which is honest — the alternative names a colleague. -->

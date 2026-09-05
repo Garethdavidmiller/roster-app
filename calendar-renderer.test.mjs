@@ -8,6 +8,7 @@
  */
 import { test, describe, mock, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 // ── Mock-controllable state ───────────────────────────────────────────────────
 
@@ -600,6 +601,56 @@ describe('buildCalendarContainer — shift classes', () => {
 // Organised by what a wrong answer COSTS. Saying nothing when the roster DID change is the reported
 // defect and is silent. Claiming a change that did not happen is worse in a different way: it
 // invites a member to query a shift with their manager that nobody ever altered.
+// A CHAINED CHANGE — WHAT THE PAIR CAN SAY, AND WHAT IT CANNOT (v22.79, external review).
+//
+// The left badge is `getBaseShift`: the member's own pattern, with start-date suppression, the
+// Christmas rules and any scheduled roster change applied. It is NOT the value that was on the day
+// immediately before the current one, and overrides chain — a rest day can be given an allocated
+// turn, and that turn can later be replaced by annual leave. The AL document keeps `replacedType`
+// so the entitlement maths stays right, but it does not keep the turn's VALUE, so the previous
+// shift is genuinely unrecoverable from what the calendar holds.
+//
+// Labelled only "Changed", the panel therefore stated a change that never happened — rest day
+// straight to annual leave — for somebody who was due to work 07:00-16:00 the moment before. The
+// data was never wrong; the sentence around it was, and it is the sentence a member reads.
+//
+// THE TWO HALVES ARE ONE TEST ON PURPOSE. Asserting the data is base-derived, and asserting the
+// label says so, are each true of the shipped defect when checked alone — which is exactly how the
+// `proposeCopyName` bug survived in the naming suite. They only mean something together.
+describe('a chained change says which value it is showing', () => {
+    test('the left badge is the BASE ROSTER, and the panel names it as that', () => {
+        // Base roster: a rest day. Somebody allocated 07:00-16:00 on it; annual leave then replaced
+        // that turn, which is why the winning document carries `replacedType: 'shift'`.
+        _mockGetBaseShift = () => 'RD';
+        _overrideCache.set('G. Miller|2026-01-02', {
+            type: 'annual_leave', value: 'AL', note: '', source: 'manual',
+            changedBy: 'S. Silva', replacedType: 'shift',
+        });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+
+        assert.equal(cell?.dataset.detailBaseShift, 'RD',
+            'the left badge is the base roster — it is NOT 07:00-16:00, the value that was actually '
+            + 'on the day before the leave, which nothing in the calendar still holds');
+        assert.equal(cell?.dataset.detailNowShift, 'AL');
+
+        const html = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
+        const eyebrow = html.match(/<span class="ddc-eyebrow">([^<]*)<\/span>/)?.[1] ?? '';
+        assert.match(eyebrow, /base roster/i,
+            `the panel labels that pair "${eyebrow}". The left badge is the base roster and the `
+            + 'right one is now; a label that does not say so reads as "what it was immediately '
+            + 'before", which on a chained change is a change that never happened');
+    });
+
+    test('the ordinary single change is unharmed — the base IS the previous value there', () => {
+        _mockGetBaseShift = () => '06:00-14:00';
+        _overrideCache.set('G. Miller|2026-01-02',
+            { type: 'annual_leave', value: 'AL', note: '', source: 'manual', changedBy: 'S. Silva' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.equal(cell?.dataset.detailBaseShift, '06:00-14:00');
+        assert.equal(cell?.dataset.detailNowShift, 'AL');
+    });
+});
+
 describe('who changed the day', () => {
     // The owner asked for the person's name (Sep 2026). Two answers, and they are NOT the same
     // shape: a roster upload is the weekly roster arriving, and its `changedBy` is whoever ran the
@@ -609,7 +660,7 @@ describe('who changed the day', () => {
         _overrideCache.set('G. Miller|2026-01-02',
             { type: 'annual_leave', value: 'AL', note: '', source: 'manual', changedBy: 'S. Silva' });
         const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
-        assert.equal(cell?.dataset.detailBy, 'Changed by S. Silva');
+        assert.equal(cell?.dataset.detailBy, 'Last saved by S. Silva');
     });
 
     test('a ROSTER UPLOAD does not name the uploader — it names the roster', () => {

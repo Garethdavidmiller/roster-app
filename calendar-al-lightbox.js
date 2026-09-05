@@ -302,8 +302,10 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
         }
         // The provenance joins the SENTENCE rather than being read after it, so a screen reader
         // gets one fact and not two fragments.
+        // Same correction as the eyebrow: it is the BASE ROSTER on the left, not the previous
+        // value, so the sentence leads with what that badge actually is.
         changeEl.setAttribute('aria-label',
-          `Changed from ${d.detailBase} to ${d.detailShift || ''}`.trim()
+          `Base roster ${d.detailBase}, changed to ${d.detailShift || ''}`.trim()
           + (d.detailBy ? `. ${d.detailBy}` : ''));
         changeEl.hidden = false;
       } else {
