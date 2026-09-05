@@ -5,6 +5,15 @@
 // absence) and the 🪑 preview. No entitlement check and no confirm bar (absence is not capped).
 // Imports data and Firebase directly; receives admin-app.js-owned DOM handles and shared
 // functions via initSickSection(deps) to avoid circular imports.
+//
+// NO PER-YEAR FIGURE, which is why the AL banner's v22.82 year bug has no analogue here (checked
+// behaviourally, not assumed). That defect was a figure scoped to a YEAR — leave taken, leave left
+// — derived from a fallback year rather than from the year the range picker was DISPLAYING, so
+// scrolling into 2027 left next year's fresh entitlement reading as spent. This card states nothing
+// scoped to a year: the 1-year cap is measured from the picked start date, the preview is built
+// from the picked dates, and the booked-absences box lists EVERY year with the year in each month
+// heading. So the picker's `onViewYearChange` is deliberately not wired here — there is nothing on
+// this card for it to correct.
 
 import { escapeHtml, parseISODate } from './roster-data.js';
 import { createRangeBookingSection } from './admin-range-booking.js';

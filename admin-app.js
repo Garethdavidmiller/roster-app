@@ -33,6 +33,7 @@ import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { isRestShift, computePeriodDeleteIds, mergeBookedPeriods, composeOtherValue } from './override-utils.js';
 import { alPosition, countedAlDates, consumesEntitlement, dispatcherBreakdown } from './al-entitlement.js';
+import { alFigureYear } from './admin-al-year.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
@@ -519,11 +520,12 @@ export function init() {
     // ============================================
     // ANNUAL LEAVE BANNER
     // ============================================
+    /** The year the AL range picker is SHOWING, or null until it crosses a year (see admin-al-year.js). */
+    let alPickerViewYear = /** @type {number|null} */ (null);
+
     /**
-     * Refreshes the AL entitlement banner above the Annual Leave card.
-     * Shows taken, booked, and remaining days for the year inferred from
-     * the current AL date inputs or the week currently being viewed.
-     * Hidden when no member is selected.
+     * Refreshes the AL entitlement banner above the Annual Leave card: taken, booked and remaining
+     * for the year `admin-al-year.js` picks. Hidden when there is nothing truthful to state.
      */
     function updateALBanner() {
         const banner      = /** @type {HTMLElement} */ (document.getElementById('alBanner'));
@@ -552,8 +554,11 @@ export function init() {
         const member      = teamMembers.find(m => m.name === memberName);
         if (!member)      { showNothing(); return; }
 
-        const alFrom      = /** @type {HTMLInputElement|null} */ (document.getElementById('alFrom'));
-        const yearStr     = alFrom?.value ? alFrom.value.substring(0, 4) : (fieldDate.value ? fieldDate.value.substring(0, 4) : String(new Date().getFullYear()));
+        // WHICH YEAR THESE FOUR FIGURES DESCRIBE — the precedence between the four places this page
+        // implies one is `admin-al-year.js`, where the ordering that broke is tested with no DOM.
+        const alFrom  = /** @type {HTMLInputElement|null} */ (document.getElementById('alFrom'));
+        const yearStr = alFigureYear({ pickedFrom: alFrom?.value, pickerViewYear: alPickerViewYear,
+                                       shiftDate: fieldDate.value, today: new Date() });
         // The banner and the two save-time cap checks must answer ONE question the same way — see
         // al-entitlement.js for the two rules and the disagreement that made it a module.
         const { entitlement, taken, booked, remaining } = alPosition({
@@ -1168,6 +1173,9 @@ export function init() {
         syncMemberDisplay,
         populateMemberDropdown, lastMember,
         updateALBanner, updateALBookedBox, updateSickBookedBox,
+        // ONLY the AL picker feeds this — the Sick card has a picker too and no per-year figure
+        // above it (admin-sick.js says so). The first cut wired it there; `tsc` caught it, no test.
+        setALPickerYear: (/** @type {number} */ y) => { alPickerViewYear = y; },
         getCurrentUser: () => currentUser, showALConfirm, hideALConfirm, showInChangeAShift,
         showSuccess,
     })?.updateAlPreview ?? null;

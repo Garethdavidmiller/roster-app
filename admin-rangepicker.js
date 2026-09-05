@@ -36,7 +36,13 @@ export function getDateRange(fromVal, toVal) {
  * @param {string} prefix  'al' | 'sick'
  * @returns {{ reset: Function }}
  */
-export function buildRangePicker(prefix) {
+/**
+ * @param {string} prefix
+ * @param {{ onViewYearChange?: (year:number) => void }} [opts]
+ *   `onViewYearChange` fires when the DISPLAYED month crosses into a different year — see
+ *   `notifyView` for why it is the year and not the month, and why it never fires on build.
+ */
+export function buildRangePicker(prefix, opts = {}) {
 
     const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const TRANSITION  = prefersReduced ? 'none' : 'transform 0.3s cubic-bezier(0.4,0,0.2,1)';
@@ -77,6 +83,28 @@ export function buildRangePicker(prefix) {
         mo += delta;
         if (mo > 11) { mo = 0; yr++; }
         if (mo < 0)  { mo = 11; yr--; }
+    }
+
+    /**
+     * Tell the consumer the displayed YEAR changed.
+     *
+     * **NOT called from `moveMonth`, which is the obvious place and the wrong one.**
+     * `buildAdjPanel` moves the month, renders an off-screen panel and then restores `yr`/`mo` by
+     * direct assignment — so a hook inside `moveMonth` fires twice on every swipe START, naming a
+     * year nobody is looking at, and the restore never corrects it because it is not a move. It is
+     * called instead from the two places the view genuinely COMMITS: `render`, and the swipe's own
+     * commit branch, which sets the label itself rather than calling `render`.
+     *
+     * Seeded with the build-time year so it never fires on init: before the reader has moved the
+     * picker, the month on screen is just today's, and the consumer has better signals for that.
+     * Year rather than month because that is the only granularity an entitlement has.
+     */
+    let lastNotifiedYr = yr;
+    let notifySuppressed = false;
+    function notifyView() {
+        if (notifySuppressed || yr === lastNotifiedYr) return;
+        lastNotifiedYr = yr;
+        opts.onViewYearChange?.(yr);
     }
 
     /** @type {HTMLElement} */ (document.getElementById(prefix + 'RpPrev')).addEventListener('click', () => { moveMonth(-1); render(); });
@@ -158,6 +186,7 @@ export function buildRangePicker(prefix) {
         grid.style.transition = '';
         grid.style.transform  = '';
         renderGrid(grid);
+        notifyView();
     }
 
     function commit() {
@@ -178,11 +207,21 @@ export function buildRangePicker(prefix) {
     /** @param {number} delta */
     function buildAdjPanel(delta) {
         const savedMo = mo, savedYr = yr;
+        // The month is moved here only to RENDER an off-screen neighbour, and moved straight back.
+        // Nothing outside may hear about it: on a swipe that starts in January or December the
+        // neighbour is in another year, so an unsuppressed listener is told the reader has moved to
+        // a year they have not moved to — and if they then snap back rather than commit, nothing
+        // ever corrects it. The suppression is here rather than at the call site because it belongs
+        // to this function's trick, and because putting the notification in `moveMonth` is the
+        // obvious simplification for whoever reads this next. Mutation-checked: with this guard,
+        // moving it there is harmless.
+        notifySuppressed = true;
         moveMonth(delta);
         const panel = document.createElement('div');
         panel.className = 'rp-grid rp-adj-panel';
         renderGrid(panel);
         mo = savedMo; yr = savedYr;
+        notifySuppressed = false;
         clip.appendChild(panel);
         return panel;
     }
@@ -264,6 +303,7 @@ export function buildRangePicker(prefix) {
             const discard  = goLeft ? swPanelPrev : swPanelNext;
             moveMonth(goLeft ? +1 : -1);
             label.textContent = `${MONTH_NAMES[mo]} ${yr}`;
+            notifyView();   // this branch paints its own label rather than calling `render`
             // Slide both panels to their committed positions
             grid.style.transition     = TRANSITION;
             grid.style.transform      = `translate3d(${goLeft ? -swWidth : swWidth}px,0,0)`;

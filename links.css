@@ -2273,40 +2273,75 @@ body.auth-ready .container { display: grid; }
 .gen-sets-retry { margin-top: 6px; }
 .gen-sets-retry[hidden] { display: none !important; }
 
-/* "How this workspace works" (v22.59; re-sited and re-toned v22.60) — the permanent way back to
-   the orientation panel. It sits on the NAVY CANVAS at the top of the page, not in the header, and
-   both facts are the a11y gate's findings rather than taste: in `.header-end` it pushed the
-   header's min-content past the viewport (see links.html), and `--text-mid` on navy fails the
-   contrast floor. On navy the third surface is a white OVERLAY, never a card fill — the same
-   `--on-navy-raised` / `--on-navy-hairline` pair the calendar's install and notification strips
-   use — and focus takes `--focus-outline-light`, because gold on navy is the drawer's idiom and
-   the app's default outline is for light surfaces. */
+/* "How this workspace works" (v22.59; re-sited v22.60 and v22.82, re-toned v22.82) — the permanent
+   way back to the orientation panel. It sits on the NAVY CANVAS between the header and the first
+   card. That it is not in `.header-end` is the a11y gate's finding rather than taste: there it
+   pushed the header's min-content past the viewport (see links.html).
+
+   A LINK, NOT A CHIP (v22.82). It wore the raised-chip idiom — a filled, bordered capsule — which
+   the calendar uses for prompt STRIPS: things addressed AT you, that you act on and dismiss. This
+   is the opposite: always there, secondary to everything below it, and offered rather than urged.
+   So the fill and the border go. What replaced them first was an UNDERLINE, and that was wrong in
+   the other direction — nothing else in this app underlines at rest, so it read as unstyled browser
+   furniture. The affordance is the GOLD GLYPH: gold is already how this app marks an actionable
+   thing on navy (the drawer's Admin pill), it is one small mark rather than a whole loud line, and
+   the underline comes back on hover, where a pointer is asking a question.
+
+   `--on-navy-muted` for the words rather than white: 8.68:1 measured against the canvas, so it is
+   quiet by TONE and still far past the 4.5:1 the gate enforces — the v22.59 attempt used
+   `--text-mid` and failed contrast, and the lesson was not "use white", it was "check".
+   MEASURE IT BY PAINTING IT, not by reading the string: `body`'s background is an `oklch()`, and a
+   naive `match(/[\d.]+/g)` over that returns 0.233, 0.068, 251.2 — which is then treated as an RGB
+   triple and yields a confident 4.48, a FAIL, for a colour that passes. Resolve through a canvas
+   fill and read the pixel back. */
 .btn-how-links {
-    /* `.container` is a single-column GRID, so without this the button stretches the full width.
-       Its 12px gap owns the space beneath — no margin here, or the two stack. */
+    /* `.container` is a single-column GRID, so without this the button stretches the full width. */
     justify-self: start;
     display: inline-flex;
     align-items: center;
+    gap: 8px;
+    /* The ink lines up with the CARD TITLE below it (16px of card padding), not with the card's
+       outer edge — the link introduces the page's content, so it reads as belonging to the column
+       of text rather than floating to the left of it. */
+    padding: 4px 2px 4px 16px;
+    /* Closer to the card than to the header: it introduces what is beneath it. `.app-header`
+       already carries -8px, so the 12px grid gap above resolves to 4px; this takes the gap below
+       to 8px, which is the wrong way round without the -4px. */
+    margin-bottom: -4px;
+    /* The text is small and the row is quiet, so the TARGET is made by padding rather than by the
+       ink. Below the app's 24px floor a calm control becomes a fiddly one. */
     min-height: 32px;
-    background: var(--on-navy-raised);
-    border: 1px solid var(--on-navy-hairline);
-    color: white;
+    background: none;
+    border: 0;
+    color: var(--on-navy-muted);
     font-family: inherit;
     font-size: var(--type-small);
-    font-weight: 600;
-    padding: 4px 14px;
-    border-radius: var(--radius-pill);
+    font-weight: 500;
+    /* NO underline at rest. It had one until v22.82 and the owner was right about it: nothing else
+       in this app underlines, so it read as unstyled browser furniture rather than as part of the
+       page. The affordance is carried by the gold glyph instead — gold is what this app makes
+       actionable things on navy — and the underline returns on hover, where a pointer is asking. */
+    text-decoration: none;
     cursor: pointer;
     white-space: nowrap;
     touch-action: manipulation;
-    transition: background var(--dur-med);
+    transition: color var(--dur-med);
 }
-.btn-how-links:focus-visible { outline: var(--focus-outline-light); outline-offset: 2px; }
+/* The GLYPH is the affordance, so it carries the brand accent while the sentence stays quiet — a
+   fully-gold line competes with the header for a control that is secondary to everything below it.
+   It is `aria-hidden` in the markup, so the accessible name stays the sentence. */
+.btn-how-links-glyph { color: var(--accent-gold); font-size: 1.25em; line-height: 1; }
+.btn-how-links:focus-visible { outline: var(--focus-outline-light); outline-offset: 3px; border-radius: var(--radius-xs); }
 .btn-how-links:active { opacity: 0.7; }
 @media (hover: hover) and (pointer: fine) {
-    /* Background only, like the drawer's pills — an on-navy border that brightens on hover reads
-       as the control changing shape rather than lifting. */
-    .btn-how-links:hover { background: var(--on-navy-raised-strong); }
+    /* Tone and underline, not fill: a background appearing under a text link on hover re-creates
+       the chip this stopped being. */
+    .btn-how-links:hover { color: white; }
+    .btn-how-links:hover .btn-how-links-label {
+        text-decoration: underline;
+        text-decoration-thickness: 1px;
+        text-underline-offset: 3px;
+    }
 }
 @media print { .btn-how-links { display: none !important; } }
 

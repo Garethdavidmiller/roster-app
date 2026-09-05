@@ -92,6 +92,7 @@ before deleting anything, because the number alone has now been wrong once.
 | Link-design maths — shift classification, custom-time validation, coverage counting (per-type + hour-by-hour), rotating-window generator, design quality checks | `links-design.js` (pure — no DOM/Firebase; tested by `links-design.test.mjs`) · `runDesignChecks(patterns, rotatingLines)` returns `{ weekendsOff, weekendsOffPct, totalWeeks, unfilledLines, turnarounds, longestStretch, balance }` |
 | Annual Leave Booking section | `admin-al.js` |
 | Which AL days consume entitlement, and a member's taken/booked/remaining position | `al-entitlement.js` (pure — no DOM/Firebase; tested by `al-entitlement.test.mjs`) |
+| WHICH YEAR the Admin AL figures describe, when four surfaces each imply one | `admin-al-year.js` (pure — no DOM/Firebase; tested by `admin-al-year.test.mjs`) |
 | Sick Days Recording section | `admin-sick.js` |
 | Huddle upload (admin-only, operations page) | `huddle.js` → `initHuddleUpload` |
 | Push notifications card (all staff, settings page) | `huddle.js` → `initHuddleNotifications` |
@@ -1118,9 +1119,16 @@ Which annual-leave days consume entitlement, and where that leaves a member (v21
 - **Why it exists:** the set feeding `projectAnnualLeaveOverage` was hand-built at FOUR call sites — the AL banner, the week-grid save's cap check, `admin-al.js`'s pre-save check, and the calendar's own AL lightbox — in three different combinations of the rules, because each was fixed where its own bug was reported. So the app answered one question four ways and could contradict itself: the banner showed fewer days remaining than the save path would act on, and a member's calendar balance was a fourth answer. All four now call this.
 - Imports `getALEntitlement`, `getBaseShift`, `isSunday`, `parseISODate` from `roster-data.js`; `isRestShift`, `isContractedWorkOverride` from `override-utils.js`. Imported by `admin-app.js`, `admin-al.js` and `calendar-al-lightbox.js`.
 
+### `admin-al-year.js`
+Which calendar year the Annual Leave figures on `admin.html` describe (v22.82). Pure — no DOM, no Firebase, **no imports at all**, so the ordering can be tested without a page.
+- `alFigureYear({ pickedFrom, pickerViewYear, shiftDate, today })` → `'YYYY'` — the precedence between the four places the Admin page implies a year, strongest signal first: the AL range's **picked start date**; the year the **range picker is DISPLAYING**, but only once it has crossed a year boundary; the week open on **Change a Shift** (v16.21); then **today**.
+- **Why it exists:** the ORDER is the whole rule and the order is what broke. Reported by the owner at v22.82 — the range picker scrolled to February 2027 and the banner still read 2026, taken 26 and remaining 2, so next year's untouched 32 days looked almost spent. The SAVE path was never wrong (`admin-al.js` derives its years from the dates actually picked), which is what makes this class of defect quiet: nothing is written incorrectly, and a manager refusing a leave request does it from the number on screen.
+- **Two rungs are easy to "tidy" and must not be.** A picked start date outranks the displayed month, because it states what is being booked while the month is only where the eye is. And `pickerViewYear` is `null` until the picker genuinely crosses a year rather than "whatever the picker shows" — passing it unconditionally would let it win from first paint and take every case the Change a Shift week has owned since v16.21, including a manager who arrived at this card from a week they were already editing.
+- Fed by `admin-rangepicker.js`'s `onViewYearChange` (wired through `admin-range-booking.js` → `admin-al.js`), read by `updateALBanner` in `admin-app.js`. **Deliberately not wired on the Absence card** — see `admin-sick.js`, which states no per-year figure.
+
 ### `admin-sick.js`
 Sick Days Recording section (extracted v9.93; thin config wrapper over `admin-range-booking.js` since v16.08).
-- `initSickSection(deps)` — supplies the sick config to `createRangeBookingSection`: the 1-year cap (maternity / long-term absence) and the 🪑 preview. No entitlement check and no confirm bar (absence is not capped). Receives DOM handles and callbacks via `deps` to avoid circular imports.
+- `initSickSection(deps)` — supplies the sick config to `createRangeBookingSection`: the 1-year cap (maternity / long-term absence) and the 🪑 preview. No entitlement check and no confirm bar (absence is not capped). **No per-year figure anywhere on the card** (checked behaviourally at v22.82, not assumed), which is why `admin-al-year.js`'s year ladder has no analogue here: the 1-year cap is measured from the picked start date, the preview is built from the picked dates, and the booked-absences box lists every year with the year in each month heading. The picker's `onViewYearChange` is therefore deliberately unwired on this card. Receives DOM handles and callbacks via `deps` to avoid circular imports.
 - Imports `escapeHtml` from `roster-data.js`; `createRangeBookingSection` from `admin-range-booking.js`.
 
 ### `admin-overrides.js`

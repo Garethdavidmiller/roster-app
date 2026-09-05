@@ -199,19 +199,6 @@
 </div>
 <main class="container">
 
-    <!-- THE PERMANENT WAY BACK TO THE ORIENTATION PANEL (v22.59; re-sited v22.60).
-         It spent one version in `.header-end` and could not stay there: `.app-header` is
-         `1fr auto 1fr`, so the two side columns are EQUAL and every pixel this button added to
-         column 3 was charged twice — the header's min-content went past 390px, the cards were
-         stretched 14px wider than their own container, and the grid card's collapse chevron was
-         pushed against the viewport edge with only 21px of reachable tap target left. Nothing threw;
-         the a11y gate caught it. Here it costs the chrome nothing, keeps its WORDS (a bare `?` is
-         the one thing a first-time designer cannot read), and wears the on-navy raised idiom the
-         calendar's prompt strips already use — a grey-on-navy pill fails contrast, which is the
-         other half of what the gate reported. -->
-    <button type="button" class="btn-how-links" id="linksHowBtn">How this workspace works</button>
-
-
     <header class="app-header">
         <button type="button" class="btn-burger" id="navMenuBtn"
                 aria-label="Open navigation menu" aria-expanded="false">☰</button>
@@ -223,6 +210,30 @@
             <span class="badge-page" id="linksBadge"><span class="badge-glyph" aria-hidden="true">🔗</span> Links</span>
         </div>
     </header>
+
+    <!-- THE PERMANENT WAY BACK TO THE ORIENTATION PANEL (v22.59; re-sited v22.60 and again v22.82).
+         WHERE IT MAY NOT GO, and why, because both have been tried:
+           · `.header-end` (v22.59). `.app-header` is `1fr auto 1fr`, so the side columns are EQUAL
+             and every pixel added to column 3 is charged twice. The header's min-content went past
+             390px, the cards were stretched 14px wider than their own container, and the grid
+             card's chevron was left 21px of reachable tap target. Nothing threw; the a11y gate
+             caught it.
+           · ABOVE the header (v22.60–v22.81). That fixed the geometry and created a different
+             problem, which is what the owner reported: it made a secondary link the FIRST thing on
+             the page, above the app's own name, floating on navy in the raised-chip idiom the
+             calendar uses for prompt STRIPS. At 393px it reads as browser furniture rather than as
+             part of this page.
+         It now sits after the header and before the first card — the app identifies itself, then
+         the page offers its orientation — and it is a LINK rather than a chip, because it is
+         secondary to everything below it and a filled capsule claimed otherwise. It keeps its
+         WORDS: a bare `?` is the one thing a first-time designer cannot read. -->
+    <button type="button" class="btn-how-links" id="linksHowBtn">
+        <span class="btn-how-links-glyph" aria-hidden="true">ⓘ</span><!--
+        The label is its own span so the hover UNDERLINE can be drawn on the words alone.
+        `text-decoration` propagates from the button to its descendants and a child cannot refuse it,
+        so underlining the button drew a second, gold, detached stub beneath the glyph — which reads
+        as a rendering fault. -->
+        <span class="btn-how-links-label">How this workspace works</span></button>
 
     <!-- ==================== LINK DESIGN GRID ==================== -->
     <div class="card" id="linksGridCard">

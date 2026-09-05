@@ -35,6 +35,7 @@ export function triggerConfirmedALSave() {
  * @param {Function}          deps.populateMemberDropdown Fills a <select> with teamMembers
  * @param {string|null}       deps.lastMember          Last-used member name from localStorage
  * @param {Function}          deps.updateALBanner      Refreshes the AL entitlement banner
+ * @param {Function}          deps.setALPickerYear     Records the year the range picker is DISPLAYING
  * @param {Function}          deps.updateALBookedBox   Refreshes the AL booked-periods box
  * @param {Function}          deps.updateSickBookedBox Refreshes the sick booked-periods box
  * @param {() => (string|null)} deps.getCurrentUser     Live getter for the logged-in user name (for the
@@ -48,7 +49,7 @@ export function initALSection({
     alMember,
     syncMemberDisplay,
     populateMemberDropdown, lastMember,
-    updateALBanner, updateALBookedBox, updateSickBookedBox,
+    updateALBanner, updateALBookedBox, updateSickBookedBox, setALPickerYear,
     getCurrentUser, showALConfirm, hideALConfirm, showInChangeAShift, showSuccess,
 }) {
     // Captured at the top of each save click (before the member/dates guard) so an early
@@ -141,6 +142,9 @@ export function initALSection({
         getCurrentUser, showInChangeAShift, showSuccess,
         beforePreview: () => hideALConfirm?.(),
         afterDateChange: () => { updateALBanner(); updateALBookedBox(); },
+        // The picker crossing into another year is a change of SUBJECT, not of selection: the
+        // figures above it describe a year, and the reader is now looking at a different one.
+        onViewYearChange: (/** @type {number} */ y) => { setALPickerYear(y); updateALBanner(); },
         afterSave: () => { updateALBanner(); updateALBookedBox(); updateSickBookedBox(); },
         onClick: () => { confirmedOverLimit = _alBookingConfirmed; _alBookingConfirmed = false; },
         preSave: checkEntitlement,
