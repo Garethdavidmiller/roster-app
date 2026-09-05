@@ -10,7 +10,7 @@
  * Do not edit here for: personal calendar, override cache management, nav structure.
  */
 
-import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, TEAM_GRADES, getBaseShift, escapeHtml, formatISO,
+import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, TEAM_GRADES, getBaseShift, escapeHtml, formatISO,
          SHIFT_TIME_REGEX, getShiftKind, isSunday } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
 import { isBeforeMemberStart, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
@@ -140,12 +140,23 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
     }
 
     /** Formats a Sunday-anchored week as "19–25 May 2026" or "28 Apr – 4 May 2026". */
+    /**
+     * The week this grid is showing, short enough to stay on ONE line beside the two arrows.
+     *
+     * SHORT MONTHS, matching the Admin week grid (v22.84). The full-month form measured 245px
+     * against a centre column of 167–237px, so it wrapped to two lines at 320, 360 and 390 at the
+     * default size and at 412 under any text scaling — stranding "2026" alone on the second line,
+     * flush against "← Prev". Reported from a 412px phone. `MONTH_ABB` is the same table
+     * `admin-week-editor.js` already uses for exactly this row, and its header records the same
+     * defect arriving there first; this is that fix applied to the surface that still had it, not
+     * a new abbreviation invented here.
+     */
     function formatTeamWeekLabel(/** @type {any} */ sunday) {
         const dates = getTeamWeekDates(sunday);
         const s = dates[0], e = dates[6];
         return s.getMonth() === e.getMonth()
-            ? `${s.getDate()}–${e.getDate()} ${MONTH_NAMES[e.getMonth()]} ${e.getFullYear()}`
-            : `${s.getDate()} ${MONTH_NAMES[s.getMonth()]} – ${e.getDate()} ${MONTH_NAMES[e.getMonth()]} ${e.getFullYear()}`;
+            ? `${s.getDate()}–${e.getDate()} ${MONTH_ABB[e.getMonth()]} ${e.getFullYear()}`
+            : `${s.getDate()} ${MONTH_ABB[s.getMonth()]} – ${e.getDate()} ${MONTH_ABB[e.getMonth()]} ${e.getFullYear()}`;
     }
 
     // ── RENDER ────────────────────────────────────────────────────────────────

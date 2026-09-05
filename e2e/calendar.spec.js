@@ -1047,3 +1047,92 @@ for (const [width, fontPx] of [[320, 14], [360, 14], [375, 14], [360, 18], [360,
             .toEqual(geo.lines.length === 1 ? [5] : [3, 2]);
     });
 }
+
+// ─── THE ROW ABOVE IT, AND THE ONE THING NO OVERFLOW CHECK CAN SEE ───────────────────────────────
+// v22.63 fixed the quick-action row and nobody re-measured the nav row directly above it. At 320px
+// it was 334px into 300px, so `← Prev` and `Next →` each hung 14px off an edge and were cut by the
+// body's `overflow-x: clip`. Letting the member-select group shrink fixed that and introduced a
+// WORSE failure for one release: the group shrank, the select kept its 200px `max-width`, and the
+// dropdown painted straight OVER both arrows — 19px at 320, 21px at 360/18px, 35px at 360/22px.
+//
+// That is the case this block exists for. An overflow assertion cannot see it: nothing leaves the
+// viewport, the page does not scroll, every element is present and "visible", and the arrows are
+// still hit-testable underneath. Only comparing the boxes to each other says anything is wrong.
+// So this asserts SEPARATION, not containment — and on the rendered geometry, so any fix passes.
+for (const [width, fontPx] of [[320, 14], [360, 14], [360, 18], [360, 22], [390, 14], [412, 20]]) {
+    test(`calendar: the month arrows and the member select never overlap at ${width}px / ${fontPx}px text`, async ({ page }) => {
+        await seedMember(page);
+        await seedMemberSession(page);
+        await page.setViewportSize({ width, height: 780 });
+        await page.goto('/');
+        await page.waitForSelector('#teamMemberSelect', { state: 'attached' });
+        if (fontPx !== 14) {
+            await page.addStyleTag({ content:
+                `.controls select, .controls button { font-size: ${fontPx}px !important; }` });
+        }
+        await page.waitForTimeout(300);
+
+        const geo = await page.evaluate((vw) => {
+            const box = (sel) => {
+                const r = document.querySelector(sel).getBoundingClientRect();
+                return { left: r.left, right: r.right };
+            };
+            const sel = box('#teamMemberSelect');
+            return {
+                gapLeft:  sel.left - box('#prevMonth').right,
+                gapRight: box('#nextMonth').left - sel.right,
+                offscreen: [...document.querySelectorAll('.controls button, .controls select')]
+                    .filter(e => { const r = e.getBoundingClientRect(); return r.left < -0.5 || r.right > vw + 0.5; })
+                    .map(e => e.id || e.textContent.trim()),
+                pageOverflow: document.documentElement.scrollWidth - vw,
+            };
+        }, width);
+
+        expect(geo.offscreen, `cut off at ${width}px/${fontPx}px: ${geo.offscreen.join(', ')}`).toEqual([]);
+        expect(geo.pageOverflow, `the page scrolls sideways at ${width}px/${fontPx}px`).toBeLessThanOrEqual(0);
+        // A positive gap both sides. Zero would mean touching, negative means one is painted over
+        // the other — which is what shipped, and what looks tappable while being covered.
+        expect(geo.gapLeft, `the select overlaps ← Prev by ${-geo.gapLeft}px`).toBeGreaterThan(0);
+        expect(geo.gapRight, `the select overlaps Next → by ${-geo.gapRight}px`).toBeGreaterThan(0);
+    });
+}
+
+// ─── THE TEAM VIEW'S WEEK LABEL MUST NOT SIT ON ITS ARROWS ───────────────────────────────────────
+// Reported from a 412px phone: the full-month label ("30 August – 5 September 2026") measured 245px
+// against a centre column of 167–237px, so it wrapped and — because the centre is `flex: 1` — its
+// painted box ran flush against both arrows at ZERO px. On screen "2026" sat against "← Prev".
+// The label is now the short form the Admin week grid already uses, and the row carries a gap, so
+// the worst case is a tidy two lines rather than a collision.
+for (const [width, fontPx] of [[320, 14], [360, 14], [390, 14], [412, 14], [412, 20]]) {
+    test(`calendar: the team week label clears its arrows at ${width}px / ${fontPx}px text`, async ({ page }) => {
+        await seedMember(page);
+        await seedMemberSession(page);
+        await page.setViewportSize({ width, height: 820 });
+        await page.goto('/');
+        await page.waitForSelector('.control-group--actions', { state: 'attached' });
+        if (fontPx !== 14) {
+            await page.addStyleTag({ content:
+                `.controls select, .controls button, .team-week-text, .tv-week-nav { font-size: ${fontPx}px !important; }` });
+        }
+        await page.locator('#teamViewBtn').click();
+        await page.waitForSelector('.team-week-text');
+        await page.waitForTimeout(400);
+
+        const geo = await page.evaluate(() => {
+            const b = (sel) => { const r = document.querySelector(sel).getBoundingClientRect();
+                return { left: r.left, right: r.right }; };
+            const label = b('.team-week-text');
+            return {
+                gapLeft:  label.left - b('#tvPrevWeek').right,
+                gapRight: b('#tvNextWeek').left - label.right,
+                text: document.querySelector('.team-week-text').textContent.trim(),
+            };
+        });
+
+        expect(geo.gapLeft, `the week label touches ← Prev (${geo.gapLeft}px)`).toBeGreaterThanOrEqual(4);
+        expect(geo.gapRight, `the week label touches Next → (${geo.gapRight}px)`).toBeGreaterThanOrEqual(4);
+        // The SHORT form is what keeps it on one line at the widths staff actually use. Asserted on
+        // the rendered text so a revert to full month names fails here rather than on a screenshot.
+        expect(geo.text, 'the week label went back to full month names').not.toMatch(/January|February|August|September|November|December/);
+    });
+}
