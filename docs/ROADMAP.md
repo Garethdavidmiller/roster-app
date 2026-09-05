@@ -219,6 +219,12 @@ Firebase Hosting sends:
 killed when idle, so that is not an edge case — it is close to every open. The mechanism is exactly
 as the review described it, and the size is now a fact rather than an estimate.
 
+**Read that as REQUESTS, not bytes, or it will be over-stated.** In production each one is a
+conditional request that answers `304` with no body, so the cost is 53 round trips and their
+share of the connection — not 53 downloads. That is the whole reason the figure alone does not
+settle the case: 53 round trips are nothing on a desk and are not nothing on a phone radio
+alongside the `accounts:lookup` the member is actually waiting for.
+
 **This entry previously said the experiment could not be run from a session container. That was
 wrong, and the correction is worth keeping** because it was wrong in the direction that stops work
 happening: the proxy does block gstatic, but `e2e/fixtures.js` stubs the SDK at the network layer and
