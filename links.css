@@ -1487,6 +1487,25 @@ body.auth-ready .container { display: grid; }
     color: white;
     border-color: var(--primary-blue);
 }
+/* HOVER MUST NOT OUT-SPECIFY THE ACTIVE STATE (v22.81). The hover rule above is
+   `.btn-design-compare:hover:not(:disabled)` — (0,3,0), because `:not(:disabled)` contributes its
+   argument — while `.btn-design-compare.compare-active` is only (0,2,0). So pointing at the button
+   that is CURRENTLY IN compare mode dropped it out of its blue state and painted it as though it
+   were idle: the one control whose whole job is to show which mode you are in stopped showing it,
+   on every engine, for as long as the pointer rested there.
+   It also had a second cost nobody could see from the page. `.btn-design-compare` carries a 0.12s
+   transition on background and colour, so leaving the button animated white text back over a
+   near-white ground — and axe, scanning the compare surface right after the pointer moved to the
+   filter, sampled that frame and reported a SERIOUS contrast failure. Measured mid-flight:
+   oklab(0.394) text on oklab(0.884); settled, it is white on --primary-blue at 16.78:1. The check
+   failed on roughly two runs in five under desktop WebKit — including on a pull request whose only
+   change was two lines of Markdown — which is what makes this a merge blocker rather than a
+   cosmetic slip. Fixing the specificity removes the animation the scan was catching, so the flake
+   goes with the bug rather than being waited out. */
+.btn-design-compare.compare-active:hover:not(:disabled) {
+    background: var(--primary-blue);
+    color: white;
+}
 .btn-design-compare:disabled { opacity: 0.4; cursor: default; }
 /* Compare's `margin-left: auto` (above) separates the mode toggle from the create actions on one
    wide row. Once the row wraps it stops separating anything and just punches a hole mid-row, so it
