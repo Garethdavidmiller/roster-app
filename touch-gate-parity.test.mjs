@@ -93,7 +93,12 @@ describe('a touch-only test runs on every touch engine', () => {
             `expected the mobile projects to be found in the configs, got [${[...declared]}] — if the `
           + 'naming convention changed, this scan must change with it');
 
-        const { TOUCH_PROJECTS } = await import('./e2e/helpers.js');
+        // FROM `touch-projects.js`, NOT `helpers.js`. This suite is in the no-dependency lane, and
+        // helpers.js imports `@playwright/test` at module scope — so importing the list from there
+        // made the one suite whose header promises "nothing installed" the only suite in that lane
+        // that could not run without an install. Found by an external reviewer working from a ZIP,
+        // which is the only vantage point it was visible from.
+        const { TOUCH_PROJECTS } = await import('./e2e/touch-projects.js');
         assert.deepEqual([...TOUCH_PROJECTS].sort(), [...declared].sort(),
             'TOUCH_PROJECTS and the configs disagree about which projects are touch devices. Every '
           + 'touch-gated test keys on that list, so a mobile project missing from it is a project '
