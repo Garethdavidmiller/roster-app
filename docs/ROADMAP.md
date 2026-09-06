@@ -278,27 +278,23 @@ its distribution is directly comparable with `ready` overall. A COUNT and never 
 that cannot answer records NOTHING rather than a zero, because "no revalidation happened" is the
 finding under test.
 
-**IT IS INSTRUMENTED AND NOT YET READABLE, AND THIS ENTRY SAID OTHERWISE (corrected v23.00, from the
-24-hour bug check).** It claimed the two samples "answer both halves of the review's question". They
-cannot answer anything yet: both are WRITE-ONLY. `perf-stats.js` carries `SWR_COUNT_BUCKETS`,
-`bucketSwrCount` and `SWR_HEAVY_BUCKET`, but no summariser — its six are `summarisePerf`,
-`summarisePerfBy`, `summariseStartMilestones`, `summariseReadySource`, `summariseUpdateOpens` and
-`summariseBootPhases` — and `operations-speed.js` does not mention either metric. So every Calendar
-open pays a MessageChannel round trip, a bound wait and one or two Firestore increments, and no
-surface exists on which an admin could read the result back.
+**IT WAS INSTRUMENTED AND NOT READABLE FOR SIX RELEASES, AND THIS ENTRY SAID OTHERWISE (found
+v23.00, closed v23.01).** From v22.94 it claimed the two samples "answer both halves of the review's
+question". They could not answer anything: `perf-stats.js` carried `SWR_COUNT_BUCKETS`,
+`bucketSwrCount` and `SWR_HEAVY_BUCKET` with no summariser over them, and `operations-speed.js`
+mentioned neither metric — so every Calendar open paid a MessageChannel round trip, a bounded wait
+and one or two Firestore increments onto a surface where nobody could read the result back.
 
-The contrast with `readyUpdate` (v22.92) is the whole point: that one shipped writer, summariser,
-card row and e2e together, and is answerable today. This is the same shape as the estate's named
-blind spot — the rule tested, the wiring not — arrived at from the other end: the RECORDING has
-eleven unit cases and a live-worker e2e, and the READING does not exist.
+The contrast with `readyUpdate` (v22.92) is why it went unnoticed for so long: that one shipped
+writer, summariser, card row and e2e together and was answerable the day it landed. This was the
+estate's named blind spot — the rule tested, the wiring not — arrived at from the other end: the
+RECORDING had eleven unit cases and a live-worker e2e, and the READING did not exist at all.
 
-**Closing it is one of three decisions, and it is the owner's:** render it (a count summariser
-alongside `summariseUpdateOpens`, plus a block in the App Speed card — neither exists yet, so
-neither is named here, and `doc-parity.test.mjs` refused the first draft of this line for naming a
-symbol that does not exist, which is the guard doing exactly its job), stop
-writing it until somebody wants the answer, or leave it accruing deliberately with this paragraph as
-the record. Nothing here is broken; it is a half-built instrument, and the half that is missing is
-the half that was the point.
+**Of the three ways to close it — render it, stop writing it, or leave it accruing deliberately with
+this paragraph as the record — the answer was to RENDER it, and v23.01 did.** `summariseSwrCounts`
+and `summariseHeavySwrOpens` now feed the App Speed card's "What the app's background worker was
+doing" block. Nothing was ever broken; it was a half-built instrument, and the half that was missing
+was the half that was the point.
 
 **A live worker confirms the local figure independently.** Driven through a real registered service
 worker (`e2e/offline.spec.js`), the count reads **0 on a first install** — the precache warm-up
