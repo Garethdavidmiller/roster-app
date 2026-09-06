@@ -56,6 +56,22 @@ describe('ResizeObserver and view transitions', () => {
     test('the aborted view-transition rejection is dropped', () => {
         assert.equal(reports('Transition was aborted because of invalid state'), false);
     });
+    // Reported live from paycalc.html on Android Edge 152, 6 Sep 2026 (a device running v22.96 —
+    // so it already CARRIED the two filters above and this still got through). Chromium words a
+    // SKIPPED transition differently from an ABORTED one, and neither existing rule matches it.
+    // Third message, same declarative opt-in, same meaning to the member: nothing happened.
+    test('the SKIPPED view-transition rejection is dropped', () => {
+        assert.equal(reports('Transition was skipped'), false);
+        assert.equal(reports('AbortError: Transition was skipped'), false);
+    });
+    // The other side of that third rule. `skip` is a word the app's own code could easily use about
+    // something real — a skipped save, a skipped roster row — so the match is the whole phrase, and
+    // these are the neighbours it must not reach.
+    test('an app error about skipping something real is kept', () => {
+        assert.equal(reports('Transition was skipped by the overlay because it never opened'), true);
+        assert.equal(reports('Save was skipped: the batch had no writes'), true);
+        assert.equal(reports('Roster row was skipped'), true);
+    });
     test('a REAL error that merely mentions a transition is kept', () => {
         assert.equal(reports("Cannot read properties of null (reading 'startViewTransition')"), true);
     });
