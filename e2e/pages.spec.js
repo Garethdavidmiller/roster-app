@@ -5592,6 +5592,42 @@ test('admin: a deep link to the Recorded Annual Leave dates box opens BOTH folds
     expect(open.boxAria).toBe('true');
 });
 
+// FOLDS OPEN IS NOT THE SAME AS LANDED ON, and the second half is what was reported (6 Sep 2026:
+// "it takes me to admin and not to the Recorded Annual Leave dates sub card"). The box sits below
+// the banner, the member row, the range picker, the preview and the Save button, so the card's own
+// scroll leaves it off the bottom of the screen. Two smooth scrolls a frame apart do NOT resolve to
+// the later one — see `createDeepLinkLanding`. Nothing else in the estate can see this: every fold
+// is open, every aria state is right, no assertion fails and the member sees no leave dates.
+//
+// The assertion is the box's BOTTOM EDGE, deliberately. "Did it scroll?" passes on the broken
+// behaviour (it scrolled — to the card), and "is it in view?" passes on a box whose last 32px are
+// below the fold, which is exactly what shipped.
+test('admin: a deep link to the AL box lands with the WHOLE box on screen', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.clock.setFixedTime(new Date('2026-08-27T09:00:00Z'));
+    // Recorded leave, or the box renders empty and short enough to fit anywhere by luck.
+    await page.addInitScript(() => {
+        window.__E2E = { ...(window.__E2E || {}), docs: [
+            { id: 'a1', memberName: 'G. Miller', date: '2026-09-14', type: 'annual_leave', value: 'AL', note: '' },
+            { id: 'a2', memberName: 'G. Miller', date: '2026-09-15', type: 'annual_leave', value: 'AL', note: '' },
+            { id: 'a3', memberName: 'G. Miller', date: '2026-09-16', type: 'annual_leave', value: 'AL', note: '' },
+        ] };
+    });
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await page.goto('/admin.html#alBookedBox');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await expect(page.locator('#alBookedBox')).toBeVisible();
+    await page.waitForTimeout(1500);   // the smooth scroll, and anything that would fight it
+    const box = await page.evaluate(() => {
+        const r = document.getElementById('alBookedBox').getBoundingClientRect();
+        return { top: Math.round(r.top), bottom: Math.round(r.bottom), vh: window.innerHeight };
+    });
+    expect(box.top, 'the box must be on screen, not above it').toBeGreaterThanOrEqual(0);
+    expect(box.bottom, `the WHOLE box must be on screen — top ${box.top}, bottom ${box.bottom}, ` +
+        `viewport ${box.vh}`).toBeLessThanOrEqual(box.vh);
+});
+
 // The existing deep links name a CARD, and must behave exactly as they did — the v22.91 change
 // walks up to the containing card, which for these is the target itself.
 test('admin: the existing card deep link still opens that card', async ({ page }) => {

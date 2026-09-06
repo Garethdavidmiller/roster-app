@@ -93,7 +93,11 @@ async function initPageSpeedCard() {
         return div;
     };
 
-    /** A lighter sub-heading for the two "opening a page" milestones. @param {string} emoji @param {string} label */
+    /** A lighter sub-heading for the blocks nested UNDER "📄 Opening pages" — the three milestones,
+     *  and the per-page table that breaks all three down. There is exactly one builder for this rank
+     *  on purpose: "By page" spent three releases at the section rank, announcing itself as a peer
+     *  of its own parent, because it was assembled by hand instead of asking for a rank.
+     *  @param {string} emoji @param {string} label */
     const subMilestone = (emoji, label) => {
         const p = document.createElement('p');
         p.className = 'speed-subhead speed-subhead--sub';
@@ -117,10 +121,12 @@ async function initPageSpeedCard() {
      *  @param {Array<any>} fcpByPage @param {Array<any>} pagesByPage @param {Array<any>} readyByPage @param {string} month */
     const dualRows = (fcpByPage, pagesByPage, readyByPage, month) => {
         const frag = document.createDocumentFragment();
-        const heading = document.createElement('p');
-        heading.className = 'usage-section-label';
-        heading.textContent = `By page — ${_usageMonthLabel(month)}`;
-        frag.appendChild(heading);
+        // A CHILD of "Opening pages", and it must read as one (v23.02). It carried the section
+        // label — the rank its own parent uses — so the same table that breaks the three milestones
+        // down by page announced itself as a peer of them. Its three siblings above are ✨ / 📦 / ✅
+        // under the same heading, so it takes their treatment and, like every other heading on
+        // either reporting card, leads with an emoji.
+        frag.appendChild(subMilestone('📑', `By page — ${_usageMonthLabel(month)}`));
 
         const fcpMap   = new Map(fcpByPage.map(p => [p.page, p]));
         const pagesMap = new Map(pagesByPage.map(p => [p.page, p]));
@@ -295,7 +301,16 @@ async function initPageSpeedCard() {
         heading.textContent = 'Does the connection slow the start?';
         frag.appendChild(heading);
         frag.appendChild(noteLine('Restoring your sign-in talks to the server; loading this page\u2019s code does not. If the first group spreads across connection speeds and the second does not, the wait is the network rather than the app.'));
-        groups.forEach(g => frag.appendChild(/** @type {DocumentFragment} */ (g.block)));
+        // Each half goes in its own bracket so the pair visibly hang off the question — and so the
+        // reader can see where the comparison ENDS and the next sibling block starts. The heading
+        // inside each is the ordinary breakdown one; `.speed-dim-group` restyles it, which is what
+        // keeps `breakdownRows` free of any idea that it is sometimes nested.
+        groups.forEach(g => {
+            const box = document.createElement('div');
+            box.className = 'speed-dim-group';
+            box.appendChild(/** @type {DocumentFragment} */ (g.block));
+            frag.appendChild(box);
+        });
         return frag;
     };
 

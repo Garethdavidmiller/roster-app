@@ -42,7 +42,7 @@ import { recordPageLatency, markPageReady, markMilestone } from './perf-reporter
 
 import { setStatus } from './status-text.js';
 import { initAdminWeekSwipe } from './admin-week-swipe.js';
-import { resolveDeepLink } from './admin-deep-link.js';
+import { resolveDeepLink, createDeepLinkLanding } from './admin-deep-link.js';
 
 /**
  * Programmatically open a collapsible card body, keeping the collapse control's ARIA state
@@ -71,6 +71,10 @@ function openCollapsibleCard(body, chevron) {
  * calls the nested initAuthorised(), NOT init(), so module wiring happens once.
  */
 export function init() {
+    /** Where an `admin.html#…` arrival scrolls to, and the one-shot state behind its second scroll.
+     *  Inside init() deliberately: at module scope it would be a bare `window` reference in the one
+     *  coordinator whose stated property is that importing it runs nothing. */
+    const _landing = createDeepLinkLanding(window);
     // Allow ?logout in the URL to force-clear session (useful when the sign-out
     // button is unreachable due to a broken or skipped login state).
     if (new URLSearchParams(location.search).has('logout')) {
@@ -1384,6 +1388,9 @@ export function init() {
             body.appendChild(monthDiv);
         }
         box.hidden = false;
+        // The box now has a height for the first time, which is the one moment a deep link can
+        // land on it. No-op unless somebody arrived by one.
+        _landing.settle(boxId);
     }
 
     /**
@@ -1625,9 +1632,7 @@ export function init() {
         const _deepLink = resolveDeepLink(location.hash, document);
         if (_deepLink) {
             for (const f of _deepLink.folds) openCollapsibleCard(f.body, f.chevron);
-            requestAnimationFrame(() => requestAnimationFrame(() =>
-                _deepLink.scrollTo.scrollIntoView({ behavior: 'smooth', block: 'start' })
-            ));
+            _landing.arrive(_deepLink);
         }
         // Forced password migration — fire-and-forget: it does an async Firestore read inside and is
         // NOT on the login critical path (see showAdminLogin above / LOGIN_INCIDENT.md).
