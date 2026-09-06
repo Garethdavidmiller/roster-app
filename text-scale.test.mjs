@@ -43,6 +43,59 @@ describe('a probe that cannot measure never says compact', () => {
     });
 });
 
+// ── THE PROBE MUST NOT BE ABLE TO BLANK THE CALENDAR (v22.99, bug check) ────────────────────────
+//
+// `calendar-app.js` calls `applyTextScale(document)` at MODULE SCOPE, with no try above it. That
+// makes this the one instrument in the app whose failure is not a missing measurement but a missing
+// PAGE: an exception aborts the coordinator's evaluation and the grid renders nothing at all.
+// Measured, not reasoned about — with a throw injected into the probe, a real browser drew ZERO
+// `.calendar-day` cells.
+//
+// So the cost here is wildly asymmetric. Swallowing a probe failure loses a layout tier that most
+// phones never needed; NOT swallowing it loses the roster. These cases pin the swallow, in the four
+// shapes a hostile or exotic document can take.
+describe('a failing probe costs the tier, never the page', () => {
+    const throwingDoc = (/** @type {string} */ where) => ({
+        body: {},
+        documentElement: { setAttribute() {}, removeAttribute() {} },
+        createElement() {
+            if (where === 'createElement') throw new Error('no elements here');
+            return {
+                style: {}, setAttribute() {}, remove() {},
+                set textContent(_v) { if (where === 'textContent') throw new Error('detached'); },
+                getBoundingClientRect() {
+                    if (where === 'rect') throw new Error('no layout');
+                    return { height: 16 };
+                },
+            };
+        },
+    });
+
+    for (const where of ['createElement', 'textContent', 'rect']) {
+        test(`a throw from ${where} reports an unscaled 1, not an exception`, () => {
+            const doc = throwingDoc(where);
+            assert.equal(measureTextScale(/** @type {any} */ (doc)), 1);
+            assert.doesNotThrow(() => applyTextScale(/** @type {any} */ (doc)));
+        });
+    }
+
+    test('appendChild throwing is survived too — the probe never reaches the DOM', () => {
+        const doc = /** @type {any} */ (throwingDoc('none'));
+        doc.body.appendChild = () => { throw new Error('body is not accepting children'); };
+        assert.equal(measureTextScale(doc), 1);
+    });
+
+    test('a documentElement that refuses the stamp still returns the reading', () => {
+        const doc = /** @type {any} */ (throwingDoc('none'));
+        doc.body.appendChild = () => {};
+        doc.documentElement = { setAttribute() { throw new Error('frozen'); }, removeAttribute() {} };
+        // 1.0 stamps nothing, so force a tier: the throw must come from the stamp, not the tier test.
+        doc.createElement = () => ({ style: {}, setAttribute() {}, remove() {}, textContent: '',
+            getBoundingClientRect: () => ({ height: 16 * 1.3 }) });
+        assert.doesNotThrow(() => applyTextScale(doc));
+    });
+});
+
 describe('the measurement and the stamp', () => {
     test('a 16px probe rendered 20.8px tall is 1.3×, and the root is stamped compact', () => {
         const doc = fakeDoc(20.8);
