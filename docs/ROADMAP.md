@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: September 2026 — v22.90 · Updated every 0.10 version*
+*Last updated: September 2026 — v23.00 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -266,10 +266,31 @@ real staff phones do was unknown, and that is the review's second suggested metr
 worker now answers a read-only `REVALIDATION_COUNT` message with the size of the set it already
 keeps, and `perf-reporter.js` records two samples at `ready`: **`swrCount`** in the review's own
 bands (0 / 1–10 / 11–30 / 31+), and **`readyHeavySwr`** — `ready` again, on the heavy band only, so
-its distribution is directly comparable with `ready` overall. That answers both halves of the
-review's question: how many revalidations a real boot carries, and whether a boot carrying a full
-sweep reaches the roster more slowly. A COUNT and never a URL; a browser that cannot answer records
-NOTHING rather than a zero, because "no revalidation happened" is the finding under test.
+its distribution is directly comparable with `ready` overall. A COUNT and never a URL; a browser
+that cannot answer records NOTHING rather than a zero, because "no revalidation happened" is the
+finding under test.
+
+**IT IS INSTRUMENTED AND NOT YET READABLE, AND THIS ENTRY SAID OTHERWISE (corrected v23.00, from the
+24-hour bug check).** It claimed the two samples "answer both halves of the review's question". They
+cannot answer anything yet: both are WRITE-ONLY. `perf-stats.js` carries `SWR_COUNT_BUCKETS`,
+`bucketSwrCount` and `SWR_HEAVY_BUCKET`, but no summariser — its six are `summarisePerf`,
+`summarisePerfBy`, `summariseStartMilestones`, `summariseReadySource`, `summariseUpdateOpens` and
+`summariseBootPhases` — and `operations-speed.js` does not mention either metric. So every Calendar
+open pays a MessageChannel round trip, a bound wait and one or two Firestore increments, and no
+surface exists on which an admin could read the result back.
+
+The contrast with `readyUpdate` (v22.92) is the whole point: that one shipped writer, summariser,
+card row and e2e together, and is answerable today. This is the same shape as the estate's named
+blind spot — the rule tested, the wiring not — arrived at from the other end: the RECORDING has
+eleven unit cases and a live-worker e2e, and the READING does not exist.
+
+**Closing it is one of three decisions, and it is the owner's:** render it (a count summariser
+alongside `summariseUpdateOpens`, plus a block in the App Speed card — neither exists yet, so
+neither is named here, and `doc-parity.test.mjs` refused the first draft of this line for naming a
+symbol that does not exist, which is the guard doing exactly its job), stop
+writing it until somebody wants the answer, or leave it accruing deliberately with this paragraph as
+the record. Nothing here is broken; it is a half-built instrument, and the half that is missing is
+the half that was the point.
 
 **A live worker confirms the local figure independently.** Driven through a real registered service
 worker (`e2e/offline.spec.js`), the count reads **0 on a first install** — the precache warm-up

@@ -82,6 +82,23 @@ export function measureTextScale(doc) {
     const seam = /** @type {any} */ (globalThis).__E2E?.textScale;
     if (typeof seam === 'number' && Number.isFinite(seam) && seam > 0) return seam;
     if (!doc?.body) return 1;
+    try {
+        return _probe(doc);
+    } catch {
+        // A MEASUREMENT MUST NEVER BREAK THE PAGE IT MEASURES (v22.99). This runs at MODULE SCOPE in
+        // `calendar-app.js`, before anything else, so an exception here does not degrade the text
+        // scaling — it aborts the coordinator's evaluation and the Calendar renders NOTHING.
+        // Verified rather than assumed: with a throw injected here the grid draws zero cells.
+        // Every sibling instrument in this app already carries this guard for the same reason
+        // (`markMilestone`: "it must never be able to break the page it times"); this one was the
+        // exception, and it is the one that runs earliest on the app's opening page.
+        // 1 is the honest fallback: unmeasured means unscaled, and no tier is stamped.
+        return 1;
+    }
+}
+
+/** The probe itself. Separated so the guard above reads as one statement. */
+function _probe(/** @type {Document} */ doc) {
     const probe = doc.createElement('span');
     probe.textContent = 'X';
     probe.setAttribute('aria-hidden', 'true');
@@ -99,11 +116,15 @@ export function measureTextScale(doc) {
  */
 export function applyTextScale(doc) {
     const scale = measureTextScale(doc);
-    const root = doc?.documentElement;
-    if (root) {
-        const tier = tierFor(scale);
-        if (tier) root.setAttribute('data-text-scale', tier);
-        else root.removeAttribute('data-text-scale');
-    }
+    // Guarded for the same reason as the probe: this is the half that touches `<html>`, and the
+    // caller runs it at module scope with nothing above it to catch a throw.
+    try {
+        const root = doc?.documentElement;
+        if (root) {
+            const tier = tierFor(scale);
+            if (tier) root.setAttribute('data-text-scale', tier);
+            else root.removeAttribute('data-text-scale');
+        }
+    } catch { /* no documentElement, or a hostile setAttribute — the page renders unscaled */ }
     return scale;
 }

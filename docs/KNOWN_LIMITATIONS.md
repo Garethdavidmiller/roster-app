@@ -1,8 +1,27 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: September 2026 — v22.90 · Updated every 0.10 version*
+*Last updated: September 2026 — v23.00 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
+
+---
+
+## Two latency metrics are written on every Calendar open and read by nothing (v22.94, found v23.00)
+
+`swrCount` and `readyHeavySwr` are recorded but have **no reader**. `perf-stats.js` declares
+`SWR_COUNT_BUCKETS`, `bucketSwrCount` and `SWR_HEAVY_BUCKET` and provides no summariser for them;
+`operations-speed.js` contains no reference to either. So the cost is paid — a MessageChannel round
+trip to the service worker, a bounded wait, and one or two Firestore analytics increments per open —
+and the App Speed card offers no surface on which the answer could appear.
+
+**Recorded here as a live constraint, not as a defect.** Nothing misbehaves and no member sees
+anything; the instrument is simply half built, and the missing half is the one that was the point of
+building it. It matters because the writes accrue indefinitely and because the service-worker
+hypothesis they exist to settle is, in the meantime, still unsettled.
+
+The decision that closes it — render it, stop writing it, or keep accruing on purpose — is the
+owner's and is set out in ROADMAP.md → the SW revalidation entry. Compare `readyUpdate` (v22.92),
+which shipped its writer, summariser, card row and e2e together and is answerable today.
 
 ---
 
