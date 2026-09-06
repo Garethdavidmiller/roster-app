@@ -262,6 +262,30 @@ describe('e2e.yml runs once per branch, and only on new work', () => {
             'the concurrency group must cancel in progress; queueing them still runs both');
     });
 
+    test('the version guard cannot fail a branch that has already landed', () => {
+        // THE CONCURRENCY GROUP DOES NOT COVER THIS, which is why the escape exists in the job.
+        // It cancels a push run against its own PR run only while both are in flight; the ordinary
+        // working sequence — push, wait for green, THEN open the PR and merge — separates them by a
+        // whole CI cycle, so the PR run starts with nothing to cancel and then races the merge.
+        // Twice on 6 Sep 2026 that run compared the branch against a main which by then contained
+        // it (`main is v22.99 . this branch is v22.99`) and sent a failure email for a release that
+        // was correct.
+        //
+        // Ancestry cannot detect it — main squash-merges, so the branch's commits are never
+        // ancestors however completely it has landed, and a `pull_request` checkout is a merge
+        // commit that was on neither side. Only the CONTENT answers, so that is what is pinned:
+        // a two-dot diff against main's tip, restricted to the served files the branch touched.
+        const job = blockOf('version');
+        assert.match(job, /git diff --name-only origin\/main HEAD --/,
+            'the version job no longer checks whether its change is already on main by CONTENT. '
+            + 'Without it, any PR merged while its pull_request run is in flight fails a guard it '
+            + 'cannot satisfy — and a version guard that cries wolf is one somebody starts bumping '
+            + 'past without reading, which is the job\'s own stated reason for existing.');
+        // And the escape must sit BEFORE the comparison, or it cannot prevent the failure.
+        assert.ok(job.indexOf('git diff --name-only origin/main HEAD --') < job.indexOf('does not exceed main'),
+            'the already-landed escape runs after the version comparison, so the comparison still fails first');
+    });
+
     test('the concurrency key collides a push with its own pull_request', () => {
         // The point of the whole change. `github.ref` is refs/heads/<branch> on a push and
         // refs/pull/<n>/merge on a PR, so keying on it alone puts the two events in different

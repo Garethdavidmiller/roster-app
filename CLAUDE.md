@@ -86,6 +86,16 @@ breakage".
 > merging**, and re-bump if somebody got there first. The remedy afterwards is a fresh bump and a
 > redeploy; there is no way to make the duplicated version reach those devices.
 >
+> **⚠️ A RED `version` JOB ON A RELEASE THAT SHIPPED FINE IS PROBABLY THE TWO-RUNS TRAP.** Every PR
+> gets **two** CI runs — one for `push`, one for `pull_request` — and the second fires when the PR is
+> OPENED. Merge promptly and that run's `version` job compares the branch against a main which by
+> then CONTAINS it: `main is v22.99 . this branch is v22.99`, failed, and an email about a release
+> that was correct. It happened twice on 6 Sep 2026. **Two lessons, and the second is the one that
+> cost something:** the job now detects an already-landed branch by CONTENT and skips (ancestry
+> cannot tell you, because main squash-merges), so this should not recur — and *"CI is green"* means
+> BOTH runs, not the one you happened to open. Reporting a merge as fully green off the `push` run
+> alone is how the first of those two went unnoticed.
+>
 > **⚠️ INCREMENT IS EXACTLY 0.01 PER CHANGE — never 0.10.** A batch/change goes e.g.
 > `15.90 → 15.91 → 15.92`. The **"update every 0.10 version"** documentation rule further down is
 > ONLY about *when to re-stamp the docs* (when the version crosses a 0.10 line, e.g. `…99 → 16.00`) —
