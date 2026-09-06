@@ -194,6 +194,7 @@ describe('the panel has somewhere to put each explanation', () => {
         ['dayDetailWeek',        'the roster week'],
         ['dayDetailAsRostered',  'the unchanged-day confirmation'],
         ['dayDetailLeaveBtn',    'the annual-leave route to the recorded dates'],
+        ['dayDetailActions',     'the row the two routes share'],
     ]) {
         test(`index.html still has ${what} (#${id})`, () => {
             assert.ok(HTML.includes(`id="${id}"`), `#${id} is gone from index.html`);
@@ -202,8 +203,29 @@ describe('the panel has somewhere to put each explanation', () => {
 
     test('the class each of them needs is defined in index.css', () => {
         for (const cls of ['day-detail-head', 'day-detail-week', 'day-detail-asrostered',
-                           'ddr-tick', 'ddm-chip', 'day-detail-leave-btn']) {
+                           'ddr-tick', 'ddm-chip', 'day-detail-leave-btn', 'day-detail-actions']) {
             assert.ok(CSS.includes(`.${cls}`), `.${cls} is used by the panel and not defined`);
+        }
+    });
+
+    // THE ROW MUST DISAPPEAR WITH ITS CHILDREN (v22.98). The behaviour is asserted in
+    // e2e/calendar.spec.js, which is where it belongs; this is the cheap half that says the RULE is
+    // still written, because deleting one selector is how it would go — and the day it goes, every
+    // ordinary day gains 12px under a panel with no actions and nothing anywhere reports it.
+    test('an action row with nothing to show collapses itself', () => {
+        assert.match(CSS, /\.day-detail-actions:not\(:has\(> :not\(\[hidden\]\)\)\)\s*\{[^}]*display:\s*none/,
+            'the empty-row guard is gone: a panel with no actions will draw the row\'s margin anyway');
+    });
+
+    // The verb is what made the pair fit on one line — 295px of labels against 288px of content
+    // width, measured. A label that grows back to "View …" silently returns the panel to a stacked
+    // 76px block, and no assertion about the ROW would notice, because it would still be a row.
+    test('neither action label carries the redundant verb', () => {
+        for (const id of ['dayDetailLeaveBtn', 'dayDetailPayBtn']) {
+            const m = new RegExp(`id="${id}"[^>]*>([^<]*)<`).exec(HTML);
+            assert.ok(m, `#${id} is gone from index.html`);
+            assert.doesNotMatch(m[1].trim(), /^View\b/i,
+                `#${id} reads "${m[1].trim()}" — the verb costs the row the width it needs`);
         }
     });
 });

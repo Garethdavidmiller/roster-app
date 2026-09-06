@@ -2577,10 +2577,36 @@
            one selector list rather than a second copy that would drift. Each wears its own
            feature's identity: green is the app's Pay colour (the nav Pay pill), teal is Annual
            Leave's (the 🏖️ badge, the AL lightbox). */
+        /* THE ACTION ROW (v22.98). The two routes sat STACKED, and at 34px each plus the zone gap
+           that is a 76px block — the tallest group on a panel whose subject is the change row above
+           it. Shrinking the buttons could not fix that, because the problem was that there are two
+           of them: v22.92 took 23% off the height and the block still outweighed the answer.
+           Side by side it is 34px, and the panel reads top-down again.
+           THE LABELS ARE WHAT MADE IT FIT, and they are the substantive half of this change.
+           "View leave dates" + "View pay estimate" measure 139 + 148 + 8 = 295px against 288px of
+           content width — six pixels short of a row, at EVERY width. Without the verb they are
+           106 + 112 + 8 = 226px and fit at 390px and at 320px with room. The word was also the one
+           part of the label that says nothing: the comment on the leave link already asks it to
+           NAME ITS DESTINATION rather than describe a journey, and "View" describes the journey.
+           `flex-wrap` is the honest fallback, not a decoration — a future text-scale tier or a
+           longer label wraps back to the stack rather than overflowing the panel. */
+        .day-detail-actions {
+            margin-top: 12px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            align-items: center;
+        }
+        /* AN EMPTY ROW MUST NOT DRAW ITS OWN MARGIN. Most days have neither action — the pair is
+           about one day a year per member — so a row that stays put adds 12px of nothing to the
+           COMMON case to serve the rare one. `:has()` asks the children directly, so the rule
+           cannot drift from what is actually on screen the way a third place holding the same
+           state would; the same technique already runs in four of this app's stylesheets. */
+        .day-detail-actions:not(:has(> :not([hidden]))) { display: none; }
+
         .day-detail-pay-btn,
         .day-detail-leave-btn {
-            margin-top: 12px;
-            align-self: center;
             /* SMALLER, WHICH IS WHAT THE COMPLAINT WAS ABOUT (v22.92, owner). 44px is the platform
                RECOMMENDATION, not a floor: this stylesheet already sets 30px as the app's own floor
                for a coarse pointer, and WCAG 2.5.8 AA asks 24px. 34x~112px is a 23% shorter button
@@ -2646,10 +2672,10 @@
             .day-detail-pay-btn:hover,
             .day-detail-leave-btn:hover { background: var(--ddb-hover); }
         }
-        /* Both at once is rare but real — an annual-leave day that is also a payday, about one day a
-           year per member. The second button keeps the panel's 8px zone gap instead of adding its
-           own 12px on top, so a pair reads as one action group rather than two afterthoughts. */
-        .day-detail-leave-btn:not([hidden]) + .day-detail-pay-btn { margin-top: 0; }
+        /* Both at once is rare but real — an annual-leave day that is also a payday, about one day
+           a year per member — and it is the case the row above was designed against: the pair now
+           shares one line and one 8px gap, owned by `.day-detail-actions`, so neither button
+           carries spacing of its own. */
 
         /* ---- Annual Leave lightbox ---- */
         /* #alLightbox uses .lb-overlay — no unique properties */
