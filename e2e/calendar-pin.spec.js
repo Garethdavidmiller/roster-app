@@ -685,7 +685,7 @@ test.describe('one-time notices and the PIN unlock', () => {
     });
 });
 
-// ── THE PROVISIONAL PAINT (v22.96) ──────────────────────────────────────────────────────────────
+// ── THE PROVISIONAL PAINT (v22.97) ──────────────────────────────────────────────────────────────
 //
 // A returning member sees the roster this device already holds for them WHILE their stored identity
 // is revalidated, instead of after. The decision is pure and pinned in `calendar-access-core`; the
@@ -717,7 +717,7 @@ test('a returning member sees their roster WHILE the identity is still being con
     });
     await page.goto('/index.html');
 
-    // Well inside the restore: before v22.96 this window held a splash, then a lock decision.
+    // Well inside the restore: before v22.97 this window held a splash, then a lock decision.
     await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 3000 });
     await expect(page.locator('#calLockPin')).toHaveCount(0);
     // Scoped, so the controls that would put somebody else on screen are shut for the duration.

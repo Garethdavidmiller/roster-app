@@ -370,7 +370,7 @@ export const START_MILESTONES = /** @type {const} */ ([
     // resolves silently and wrongly. This rung is the saved session being restored, no typing.
     { metric: 'authBoot',   label: 'Recognised',   sub: 'your saved sign-in being restored' },
     // **THE LADDER IS NO LONGER MONOTONIC FOR EVERY MEMBER, AND THE INVERSION IS THE POINT
-    // (v22.96).** Each rung is measured from navigation start and bucketed on its own, so none is
+    // (v22.97).** Each rung is measured from navigation start and bucketed on its own, so none is
     // derived by subtracting another and every figure below stays true — but a returning member now
     // takes the PROVISIONAL PAINT, which puts `rosterCached` and `ready` on screen BEFORE this rung
     // resolves. So `Shifts shown` reading faster than `Unlocked` is not a broken card: it is the

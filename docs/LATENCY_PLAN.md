@@ -9,7 +9,7 @@ that. Phase 1 shipped. Phase 3 was priced at 4.6–52 ms against a wall of over 
 
 | Open item | What it is | Who / when |
 |---|---|---|
-| ~~**The identity round trip**~~ | **ANSWERED 5 Sep 2026 and SHIPPED (v22.96)** — see the section below | Gareth · done |
+| ~~**The identity round trip**~~ | **ANSWERED 5 Sep 2026 and SHIPPED (v22.97)** — see the section below | Gareth · done |
 | **The Phase 2 reading** | A NUMBER — the card's "What put the shifts on screen" split, read against the rule in the Phase 2 section | ~end September 2026, one full month after v21.99 |
 
 **The close-out changed shape when the identity question was answered YES** (see below). The path
@@ -426,7 +426,7 @@ Injecting latency into that one call moves the milestone almost one-for-one — 
 `authBootstrap` for +300 ms of latency. On a real mobile connection that round trip **is** the wall,
 and no arrangement of the module graph shortens it.
 
-### THE ANSWER — 5 September 2026, and what shipped (v22.96)
+### THE ANSWER — 5 September 2026, and what shipped (v22.97)
 
 **The owner's ruling: yes, a returning member may see their own already authorised cached roster**
 while the lookup completes. `ROADMAP.md`'s option 2 — a named member with a live local session, never
@@ -455,7 +455,7 @@ document's to make. `calendar-access.js` decides what a viewer may SEE from the 
 so an account disabled since the last load would be trusted for the length of one paint. The
 question belongs to `CALENDAR_DATA.md` and `AUTH_AND_SESSIONS.md`, and it should be answered before
 anything is built. **It WAS written up as a decision with the cost priced and three defensible
-answers, and it was answered on 5 Sep 2026** — option 2, shipped v22.96; see "THE ANSWER" above. The
+answers, and it was answered on 5 Sep 2026** — option 2, shipped v22.97; see "THE ANSWER" above. The
 write-up is preserved in `ROADMAP_HISTORY.md`, and both contracts now carry the rule rather than the
 question (`CALENDAR_DATA.md` 13, `AUTH_AND_SESSIONS.md` 17).
 

@@ -275,7 +275,7 @@ describe('which devices a notice is addressed to', () => {
     });
 });
 
-// ── THE PROVISIONAL DECISION (v22.96) ───────────────────────────────────────────────────────────
+// ── THE PROVISIONAL DECISION (v22.97) ───────────────────────────────────────────────────────────
 //
 // Organised by what a wrong answer COSTS, because the two directions are nothing like each other.
 //
@@ -288,7 +288,7 @@ describe('which devices a notice is addressed to', () => {
 // reached from a direction the readiness model cannot see, which is why it is refused HERE.
 //
 // Saying `'none'` when it could have said `'own-cached'` costs that member the fast path and
-// nothing else — they boot exactly as they did before v22.96.
+// nothing else — they boot exactly as they did before v22.97.
 describe('decideProvisionalAccess — may we re-show this person their own saved roster?', () => {
     const SESSION = { name: 'G. Miller' };
 
@@ -309,7 +309,7 @@ describe('decideProvisionalAccess — may we re-show this person their own saved
     test('TEAM VIEW is refused, because it cannot be scoped to one member', () => {
         // The saved view mode draws the whole team. A scope of one would paint fifty colleagues
         // from the base roster with one person's leave applied — so this boot is simply not
-        // eligible, and that member sees exactly the pre-v22.96 behaviour.
+        // eligible, and that member sees exactly the pre-v22.97 behaviour.
         assert.deepEqual(decideProvisionalAccess({ session: SESSION, teamView: true }),
             { decision: 'none', member: null });
         assert.equal(decideProvisionalAccess({ session: SESSION, teamView: false }).decision, 'own-cached');

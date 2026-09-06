@@ -38,7 +38,7 @@ export const rosterOverridesCache = new Map();
 // coordinator PUSHES the fact in. Default false, so anything that forgets to push it reads nothing.
 let _accessGranted = false;
 
-// ── THE PROVISIONAL SCOPE (v22.96) ──────────────────────────────────────────────────────────────
+// ── THE PROVISIONAL SCOPE (v22.97) ──────────────────────────────────────────────────────────────
 //
 // Non-null means access is PROVISIONAL: granted on this device's own local session while Firebase
 // revalidates the stored identity, and confined to ONE member's data out of the LOCAL cache. The
@@ -59,7 +59,7 @@ let _provisionalMember = null;
  * Open the override reads. Called by the Calendar coordinator once — and only once — access is
  * confirmed.
  *
- * The second argument was added at v22.96 and this comment used to say there would never be one:
+ * The second argument was added at v22.97 and this comment used to say there would never be one:
  * "named and viewer both read the same data, so a second parameter would only be a second thing to
  * get wrong." That was right while both kinds of access read the same data. A provisional grant
  * does not — it is one member, out of the cache — so the KIND now has to travel with the grant.
@@ -305,7 +305,7 @@ export async function fetchOverridesForRangeFromCache(startStr, endStr) {
     // every caller from "no cache yet", which is already this function's normal empty state.
     if (!_accessGranted) return false;
     try {
-        // A PROVISIONAL grant is confined to ONE member (v22.96). The filter is applied to the
+        // A PROVISIONAL grant is confined to ONE member (v22.97). The filter is applied to the
         // QUERY rather than to the results, so a colleague's overrides are never read out of the
         // cache at all — filtering afterwards would put fifty people's annual leave and absence in
         // memory under an identity nobody has confirmed yet, which is the thing being avoided.

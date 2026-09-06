@@ -251,7 +251,7 @@ describe('ACCESS LOST MID-SESSION — month navigation is the likely path, not t
 });
 
 
-// ── THE PROVISIONAL GRANT (v22.96) ──────────────────────────────────────────────────────────────
+// ── THE PROVISIONAL GRANT (v22.97) ──────────────────────────────────────────────────────────────
 //
 // The owner decision of 5 Sep 2026: a returning member may re-see their OWN cached roster while
 // Firebase revalidates their stored identity. `decideProvisionalAccess` says whose name it may be

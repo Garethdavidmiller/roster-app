@@ -299,7 +299,7 @@ Both touch behaviour that `CLAUDE.md` lists under *"never change without discuss
 neither is in this release.
 
 ### Calendar start — the identity round trip
-**Status:** DECIDED and SHIPPED (v22.96) · **Decided by:** Gareth, 5 Sep 2026 · **Where it lives now:** `CALENDAR_DATA.md` invariant 13
+**Status:** DECIDED and SHIPPED (v22.97) · **Decided by:** Gareth, 5 Sep 2026 · **Where it lives now:** `CALENDAR_DATA.md` invariant 13
 
 The owner's answer was **option 2 — yes, for a named member with a live local session only**: a
 returning member is shown their own already authorised cached roster while Firebase revalidates the

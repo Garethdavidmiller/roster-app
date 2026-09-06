@@ -1680,7 +1680,7 @@ realistic sizes, and `max-height:none` would break the animation. A finite cap i
 
 ## Calendar start — the identity round trip: the entry as it stood when the decision was taken (5 Sep 2026)
 
-**Moved VERBATIM from ROADMAP.md at v22.96.** The owner answered **option 2** and it shipped in that
+**Moved VERBATIM from ROADMAP.md at v22.97.** The owner answered **option 2** and it shipped in that
 release; `CALENDAR_DATA.md` invariant 13 is the standing rule and `ROADMAP.md` carries the short live
 entry. This is kept whole rather than summarised because it is the only place the reasoning exists —
 the measurement, the offline finding that reframed what the "no" answer actually protects, and the

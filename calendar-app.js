@@ -1277,7 +1277,7 @@ initCalendarAccess({
     // the PIN after a rotation is. Left in the one-shot below, a re-unlocked Calendar came back with
     // its override gate still shut: every read refused at source, every month stuck on "Checking
     // this month", and a Try again that could not win.
-    // The argument is the PROVISIONAL SCOPE (v22.96): a member name means "this member's own data,
+    // The argument is the PROVISIONAL SCOPE (v22.97): a member name means "this member's own data,
     // out of the local cache, nothing from the server"; `null` is the ordinary full grant; `false`
     // means the provisional paint is being withdrawn because the identity did not confirm.
     onEveryGrant: (/** @type {string|null|false} */ scope = null) => {

@@ -358,7 +358,7 @@ async function initPageSpeedCard() {
      *  signed in quickly but unlocked slowly points at the gate, unlocked quickly but shifts slow
      *  points at Firestore. Subtracting is not asked of the reader — the rows already nest.
      *
-     *  **THEY STOPPED NESTING FOR EVERY MEMBER AT v22.96**, and the note had to change with them.
+     *  **THEY STOPPED NESTING FOR EVERY MEMBER AT v22.97**, and the note had to change with them.
      *  A returning member is now shown their own saved roster BEFORE the gate finishes deciding
      *  (`calendar-access-core.js` → `decideProvisionalAccess`), so "Shifts shown" can beat
      *  "Unlocked". Every figure is still true — each rung is timed from the page opening and

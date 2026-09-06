@@ -131,7 +131,7 @@ export function decideAccess({ session, firebaseUser }) {
 }
 
 /**
- * MAY WE PAINT THIS MEMBER'S OWN CACHED ROSTER WHILE FIREBASE IS STILL CHECKING? (v22.96)
+ * MAY WE PAINT THIS MEMBER'S OWN CACHED ROSTER WHILE FIREBASE IS STILL CHECKING? (v22.97)
  *
  * ── THE DECISION THIS ENCODES, AND WHOSE IT WAS ─────────────────────────────────────────────────
  *

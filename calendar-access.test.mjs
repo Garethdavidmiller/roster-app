@@ -887,7 +887,7 @@ describe('THE ON/OFF SWITCH — CONFIG.CALENDAR_PIN_ACCESS', () => {
     });
 });
 
-// ── THE PROVISIONAL PAINT (v22.96) ──────────────────────────────────────────────────────────────
+// ── THE PROVISIONAL PAINT (v22.97) ──────────────────────────────────────────────────────────────
 //
 // The WIRING, which is the half `calendar-access-core.test.mjs` cannot see. The decision there is
 // pure and now well pinned; what is untested by it is whether the boot ever ASKS, whether the

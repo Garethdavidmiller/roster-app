@@ -76,7 +76,7 @@ let _consecutiveFailures = 0;
 let _onGranted = null;
 /** Runs on EVERY grant, where `_onGranted` runs once.
  *  @type {((scope?: string|null|false) => void)|null} — the argument is the PROVISIONAL SCOPE
- *  (v22.96): a member name = that member's own cached data; `null` = full grant; `false` = withdraw. */
+ *  (v22.97): a member name = that member's own cached data; `null` = full grant; `false` = withdraw. */
 let _onEveryGrant = null;
 /** @type {(() => void)|null} */
 let _resolveAuth = null;
@@ -201,7 +201,7 @@ function watchForLateNamedIdentity() {
     return stop;
 }
 
-// ── THE PROVISIONAL PAINT (v22.96) ──────────────────────────────────────────────────────────────
+// ── THE PROVISIONAL PAINT (v22.97) ──────────────────────────────────────────────────────────────
 //
 // The owner decision of 5 Sep 2026. What it permits and what it refuses is argued once, in
 // `calendar-access-core.js` → `decideProvisionalAccess`; this is the wiring.
@@ -869,7 +869,7 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null }) {
     // path out of it — `grant()` and both cards call `hideLockPanel()`, which owns the timer.
     _skeletonTimer = setTimeout(() => { _skeletonTimer = null; showBootSkeleton(); }, SKELETON_AFTER_MS);
 
-    // ── THE FAST PATH (v22.96) ──────────────────────────────────────────────────────────────────
+    // ── THE FAST PATH (v22.97) ──────────────────────────────────────────────────────────────────
     //
     // Taken BEFORE the await, which is the whole point: `resolveAccess` waits on
     // `currentUserAfterBoot`, and that wait is the `accounts:lookup` round trip the September field
