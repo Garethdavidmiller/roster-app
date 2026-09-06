@@ -9,6 +9,17 @@ service firebase.storage {
       // calendar session can open a Huddle. The bearer URL is the real access control
       // (same model as firestore.rules /circulars). Don't store confidential files
       // here unless that delivery model changes.
+      //
+      // **AND FOR A DOCX HUDDLE THE DELIVERY MODEL HAS ALREADY CHANGED** (measured 6 Sep 2026).
+      // The sentence above reasons about the FILE — you need the bearer URL to read it. Since DOCX
+      // ingest, the converted text is also written to the Firestore huddles doc as `htmlContent`,
+      // and `firestore.rules` grants that collection a bare `allow read;`. So the Huddle's WORDS
+      // need no URL and no credential at all: an unauthenticated REST read of /huddles returns them
+      // (verified against the live project — the same request against /overrides is denied, which
+      // is what v20.12 closed while this collection was left as it was). Nothing here is wrong;
+      // the caution above is simply narrower than the exposure. Whether a day plan is confidential
+      // is the owner's call, and it has never been recorded — until it is, treat "don't store
+      // confidential files here" as also meaning "and don't assume the text is behind the URL".
       // Writes come from two paths:
       //   1. ingestHuddle Cloud Function — uses Admin SDK, bypasses these rules entirely.
       //   2. Manual admin upload in operations.html — uses the browser Firebase Storage SDK;

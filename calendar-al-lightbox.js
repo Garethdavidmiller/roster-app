@@ -168,10 +168,16 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
         if (breakdownEl) breakdownEl.hidden = true;
         return;
       }
-      // getALEntitlement returns proRatedAL[year] BEFORE the Dispatcher branch, so a pro-rated
-      // dispatcher's entitlement is NOT 22+lieu — the "22 base + N lieu" split would show a
-      // negative lieu figure (e.g. "22 base + -10 BH lieu"). Hide the breakdown for a pro-rated
-      // joining year; it applies again from their first full year (v16.69 review fix).
+      // HIDE THE BREAKDOWN FOR A PRO-RATED JOINING YEAR — still right, for a reason that INVERTED
+      // at v22.50 and this comment did not (found 6 Sep 2026, doc sweep). It used to say
+      // `getALEntitlement` returns `proRatedAL[year]` BEFORE the Dispatcher branch, so entitlement
+      // was not 22+lieu. The Dispatcher branch now comes FIRST and pro-rata scales only the BASE,
+      // so entitlement genuinely IS base + lieu. What makes the split still unsafe is the string
+      // below: it hardcodes `22` as the base, which is exactly what a pro-rated year replaces, so
+      // it would label a 12-day base as 22 and derive the lieu count from the wrong subtraction.
+      // The suppression is the only thing standing between that expression and the screen — if you
+      // ever show this for a pro-rated year, take the base from the member rather than the literal
+      // (v16.69 review fix; reasoning corrected 6 Sep 2026).
       const _proRated = /** @type {any} */ (member).proRatedAL?.[year] !== undefined;
       const breakdown = (/** @type {any} */ (member).role === 'Dispatcher' && !_proRated)
         ? `22 base + ${entitlement - 22} BH lieu` : null;
