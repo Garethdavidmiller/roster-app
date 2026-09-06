@@ -684,3 +684,75 @@ test.describe('one-time notices and the PIN unlock', () => {
         expect(errors, 'Uncaught JS exceptions on a member calendar').toHaveLength(0);
     });
 });
+
+// ── THE PROVISIONAL PAINT (v22.97) ──────────────────────────────────────────────────────────────
+//
+// A returning member sees the roster this device already holds for them WHILE their stored identity
+// is revalidated, instead of after. The decision is pure and pinned in `calendar-access-core`; the
+// grant/revoke wiring is pinned in `calendar-access.test.mjs`. What neither can answer is the pair
+// of properties that only exist on a rendered page, and both are the failure this feature could
+// plausibly ship with:
+//
+//   · that the grid is genuinely UP while the round trip is still open. Every unit assertion can
+//     say a callback fired; only a browser can say a member is looking at their shifts.
+//   · that the two cross-member controls come BACK. They are disabled for the length of the paint,
+//     so the way this breaks in production is not a leak — it is a Team View button that is dead
+//     for the rest of the session, on a page where nothing throws and nothing is logged.
+//
+// `authRestoreDelayMs` is the lever: it holds the persisted-user restore open, which is exactly the
+// `accounts:lookup` wait the fast path exists to skip.
+
+test('a returning member sees their roster WHILE the identity is still being confirmed', async ({ page }) => {
+    test.setTimeout(60_000);
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    // 5s: comfortably longer than the paint, and comfortably INSIDE `resolveAccess`'s own bound, so
+    // this exercises provisional → confirmed and nothing else. The first cut used 8s, which tripped
+    // that bound — the decision resolved `none`, the paint was REVOKED (re-enabling the controls),
+    // and the late-restore watcher granted afterwards. Every assertion still passed, and the last
+    // one passed on the revoke rather than on the grant: a mutation pinning the controls disabled
+    // for ever sailed through it. The delay is load-bearing, not padding.
+    await page.addInitScript(() => {
+        window.__E2E = Object.assign(window.__E2E || {}, { authUser: true, authRestoreDelayMs: 5000 });
+    });
+    await page.goto('/index.html');
+
+    // Well inside the restore: before v22.97 this window held a splash, then a lock decision.
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 3000 });
+    await expect(page.locator('#calLockPin')).toHaveCount(0);
+    // Scoped, so the controls that would put somebody else on screen are shut for the duration.
+    await expect(page.locator('#teamViewBtn')).toBeDisabled();
+    await expect(page.locator('#teamMemberSelect')).toBeDisabled();
+
+    // …and they come back when the identity confirms. This is the assertion that would fail on a
+    // shipped grant bug — a Team View button dead for the rest of the session, nothing thrown and
+    // nothing logged. Re-checked after a settle, because "enabled at some instant" is satisfied by
+    // a transient and this must be the resting state.
+    await expect(page.locator('#teamViewBtn')).toBeEnabled({ timeout: 20_000 });
+    await page.waitForTimeout(500);
+    await expect(page.locator('#teamViewBtn')).toBeEnabled();
+    await expect(page.locator('#teamMemberSelect')).toBeEnabled();
+});
+
+test('a TEAM VIEW member is not painted early, and their team grid still restores', async ({ page }) => {
+    // The precondition, end to end: the whole team cannot be drawn from a one-member scope, so this
+    // boot is simply not eligible. The delay is what makes the refusal OBSERVABLE — without it the
+    // paint and the confirmation land together and the test passes whether the rule exists or not.
+    test.setTimeout(60_000);
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_team_view', '1');
+        window.__E2E = Object.assign(window.__E2E || {}, { authUser: true, authRestoreDelayMs: 5000 });
+    });
+    await page.goto('/index.html');
+
+    // Nothing is painted while the identity is in flight — this member waits, as they always did.
+    await page.waitForTimeout(2000);
+    await expect(page.locator('.team-week-text')).toHaveCount(0);
+    await expect(page.locator('#calendarDisplay')).toBeHidden();
+
+    // Refusing costs the fast path and nothing else: the team grid arrives on confirmation.
+    await expect(page.locator('.team-week-text')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('#teamViewBtn')).toBeEnabled();
+});

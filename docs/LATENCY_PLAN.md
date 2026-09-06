@@ -9,12 +9,19 @@ that. Phase 1 shipped. Phase 3 was priced at 4.6–52 ms against a wall of over 
 
 | Open item | What it is | Who / when |
 |---|---|---|
-| **The identity round trip** | An owner DECISION — `ROADMAP.md` → *Calendar start — the identity round trip*. The wall is one unconditional `accounts:lookup` per boot; everything now funnels into whether the app may paint before it returns | **Gareth**, when ready — the field-confirmation check below first |
+| ~~**The identity round trip**~~ | **ANSWERED 5 Sep 2026 and SHIPPED (v22.97)** — see the section below | Gareth · done |
 | **The Phase 2 reading** | A NUMBER — the card's "What put the shifts on screen" split, read against the rule in the Phase 2 section | ~end September 2026, one full month after v21.99 |
 
-**And the close-out.** There is a likely path where the identity answer is "no — the gate holds" and
-the cache-miss share comes back small. In that world this plan **CLOSES**, recording ~1 second to
-`Recognised` as the PRICE OF THE SECURITY MODEL — a cost that was chosen, not a problem nobody
+**The close-out changed shape when the identity question was answered YES** (see below). The path
+this section anticipated — "no, the gate holds", and the plan closes recording the second as the
+price of the security model — is not the one taken. What closes it now is a READING: the next App
+Speed month has to show the `Recognised` → `Shifts shown` gap actually moving for the population the
+fast path serves. **A shipped change is not a measured one**, and this plan's whole method has been
+to refuse that substitution.
+
+**The paragraph below is kept because its reasoning still holds for anything that comes after this.**
+There is a likely path where the remaining answers come back small. In that world this plan
+**CLOSES**, recording what is left to `Recognised` as the PRICE OF THE SECURITY MODEL — a cost that was chosen, not a problem nobody
 solved. That is a success ending, not a failure: the alternative is a plan that can only end by
 fading, which is the quiet stop the section at the bottom warns against. Do not go looking for a
 Phase 5 to make the plan feel finished — twice this week, measuring first stopped confident work
@@ -419,6 +426,27 @@ Injecting latency into that one call moves the milestone almost one-for-one — 
 `authBootstrap` for +300 ms of latency. On a real mobile connection that round trip **is** the wall,
 and no arrangement of the module graph shortens it.
 
+### THE ANSWER — 5 September 2026, and what shipped (v22.97)
+
+**The owner's ruling: yes, a returning member may see their own already authorised cached roster**
+while the lookup completes. `ROADMAP.md`'s option 2 — a named member with a live local session, never
+the shared PIN viewer. The standing rule is `CALENDAR_DATA.md` invariant 13; the argument and the
+policy cost are in `calendar-access-core.js` → `decideProvisionalAccess`, and the whole pre-decision
+entry is preserved verbatim in `ROADMAP_HISTORY.md`.
+
+**What shipped is narrower than the ruling, by two refusals discovered while building it.** The paint
+is scoped to ONE member, so a boot that was about to draw somebody else is refused rather than
+narrowed: Team View, and a stored selection naming a colleague. Both would have painted a colleague's
+base roster with their leave and absence silently missing — invariant 1's failure arriving from a
+direction the readiness model cannot see. Those members boot exactly as before.
+
+**What it is worth is NOT YET MEASURED, and must not be assumed.** The prediction is specific and
+therefore falsifiable: `Recognised` should stop gating `Shifts shown` for cache-served starts, so the
+78%-over-a-second figure for those starts should fall while `Getting ready` is unchanged. Read it in
+Operations → App Speed at the end of the first full month. **If it does not move, the diagnosis was
+wrong and this is the evidence** — the fast path removes the wait from the critical path by
+construction, so no movement means the wall was somewhere else after all.
+
 ### Why there is no Phase 5 written here yet
 
 The obvious treatment is to stop waiting: paint from the locally-stored identity and let the lookup
@@ -426,9 +454,10 @@ confirm in the background. **That is a security trade, not a performance tweak**
 document's to make. `calendar-access.js` decides what a viewer may SEE from the restored identity,
 so an account disabled since the last load would be trusted for the length of one paint. The
 question belongs to `CALENDAR_DATA.md` and `AUTH_AND_SESSIONS.md`, and it should be answered before
-anything is built. **It is now written up as a decision with the cost priced and three defensible
-answers: `ROADMAP.md` → *Calendar start — the identity round trip*.** Both contracts point at it,
-and neither is softened while it is open.
+anything is built. **It WAS written up as a decision with the cost priced and three defensible
+answers, and it was answered on 5 Sep 2026** — option 2, shipped v22.97; see "THE ANSWER" above. The
+write-up is preserved in `ROADMAP_HISTORY.md`, and both contracts now carry the rule rather than the
+question (`CALENDAR_DATA.md` 13, `AUTH_AND_SESSIONS.md` 17).
 
 What can be said without that decision: the app already knows how to do this shape safely for DATA
 — the Calendar's two-phase load paints from the local cache and then reconciles authoritatively

@@ -259,6 +259,30 @@ The **pure** half — no DOM, no Firebase, no storage, so it loads in Node. Same
 - `attemptBackoffMs` — a UX brake, NOT a security control. Trivially bypassed, and nothing depends on it; the real limit is the server's.
 - `noticeAudienceAllows(audience, accessType)` — **who a one-time notice is addressed to (v21.81).** `calendarAccessReady` resolves the moment access is GRANTED and says nothing about whose it is, so every Calendar notice was opening on the PIN-unlocked station PC — including one asking the reader to check their own payslips were entered, on a machine deliberately unattributable and holding nobody's. A notice declares `'members'` (a signed-in member — the DEFAULT, and where anything about your pay, settings or account belongs), `'signed-out'` (v21.84 — only where nobody is signed in: for a notice ABOUT signing in, which then retires ITSELF the moment they do, since the audience is re-checked every load and no done-flag or cross-page write is involved), or `'everyone'` (both; rarely right). An unrecognised audience is treated as members-only, because the two failure directions are not symmetrical — a notice that fails to appear gets noticed, station pay copy on a shared screen does not. A refused notice is left UNFLAGGED, so it arrives when that device is next signed in.
 
+- **The PROVISIONAL PAINT** (calendar-access.js, v22.97) — nothing is exported for it, deliberately:
+  the scope reaches its only consumer as `onEveryGrant`'s argument, and a reader beside
+  `getAccessType()` would be a second way to ask a question that is not the same one. The paint is
+  taken BEFORE the boot restore is awaited, which is the whole point of it, and withdrawn on any
+  decision that is not `named`. Withdrawal deliberately does NOT go through `handleAccessLost`,
+  whose message asks for the staff PIN — `CALENDAR_DATA.md` invariant 11. It is **not an access type**: `_accessType` stays `'none'`, `calendarAccessReady`
+  stays PENDING (so phase 2 of the initial fetch, the one-time notices and everything else gated on
+  it simply do not run), and the write gate stays shut. A paint, not a grant.
+- **`decideProvisionalAccess({ session, teamView, selectedMember })` → `{ decision, member }`** (v22.97) answers a NARROWER
+  question than `decideAccess`: may we re-show this person the roster **this device already holds
+  for them**, for the seconds while their stored identity is revalidated? An owner decision of
+  5 Sep 2026, taken on measurement — 454 of 462 attributed starts are cache-served and 78% of those
+  still take over a second, so the roster is on the phone waiting for permission. `'own-cached'`
+  is **not access**: the caller must still refuse every server read, every write, Team View, every
+  other member's cached data and every other page until `decideAccess` says `'named'`. A blank or
+  missing name returns `'none'` — the member IS the boundary, so an unnamed grant would be a grant
+  to everything. The scope is ENFORCED in `calendar-overrides.js`, not remembered by the caller.
+  **Two preconditions beyond the session, both refusing rather than narrowing:** Team View (the whole
+  team cannot be drawn from a one-member scope) and a stored selection naming a COLLEAGUE (their base
+  roster would draw with their leave and absence silently missing — invariant 1 reached from a new
+  direction). A refused boot behaves exactly as it did before v22.97. Tested by
+  calendar-access-core.test.mjs; the grant/revoke WIRING by calendar-access.test.mjs, and the paint
+  itself only by e2e/calendar-pin.spec.js — no unit assertion can say a member is looking at shifts.
+
 ### `calendar-overrides.js`
 Firestore override cache for `index.html` — extracted from `calendar-app.js` at v13.82.
 - `rosterOverridesCache` — exported `Map` keyed `"memberName|YYYY-MM-DD"`; imported by `calendar-renderer.js` for cell rendering and by the coordinator
@@ -273,6 +297,7 @@ Firestore override cache for `index.html` — extracted from `calendar-app.js` a
 - `monthKey(year, month)` — `"YYYY-MM"` key string for the `fetchedMonths` Set
 - `_initialFetchInProgress` — exported live binding; coordinator reads it to skip competing fetches during the initial 3-month load
 - `setInitialFetchInProgress(v)`, `addFetchedMonths(keys)`, `clearFetchedMonth(key)` — setters called by `calendar-initial-fetch.js` (the initial 3-month fetch module). `clearFetchedMonth` also re-arms the failure repaint: it is the "start again" signal, and a month being given a fresh attempt has to be allowed to report the outcome of it
+- `provisionalMember()` — the member a PROVISIONAL grant is confined to (v22.97), or null under a full one. Non-null means: cached reads carry a `memberName` filter IN THE QUERY (never a filter over results — a colleague's overrides are not read at all), and every server read refuses.
 - `hasOverrideAccess()` / `setOverrideAccessLostHandler(fn)` — the gate's read side, and the coordinator-injected callback fired when a read comes back `permission-denied`. Both are INJECTED rather than imported for the same reason the gate is: this module must not depend on the access layer it exists to back up.
 - `setOverrideAccess(granted)` — the gate. **A grant is a FRESH START (v20.41):** granting clears `fetchedMonths` and `_failureRepainted`. It has to, because a re-grant follows a re-lock — months claimed under the old session were still claimed under the new one, so every `ensureOverridesCached` no-opped and a re-unlocked Calendar never read anything again. With its knowledge forgotten at the same moment, that was a permanent "Checking this month" and a Try again that could not win. Revoking viewer tokens is a documented step of rotating the PIN, so this is the ordinary path. Revoking deliberately does NOT clear: a shut gate reads nothing regardless, and clearing there would let anything running in between re-claim months against it
 

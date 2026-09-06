@@ -131,6 +131,82 @@ export function decideAccess({ session, firebaseUser }) {
 }
 
 /**
+ * MAY WE PAINT THIS MEMBER'S OWN CACHED ROSTER WHILE FIREBASE IS STILL CHECKING? (v22.97)
+ *
+ * ── THE DECISION THIS ENCODES, AND WHOSE IT WAS ─────────────────────────────────────────────────
+ *
+ * An owner decision of 5 Sep 2026, taken on measurement: 454 of 462 attributed Calendar starts are
+ * served from the device's own saved copy, and 78% of those still take over a second to put shifts
+ * on screen. The roster is already on the phone; it is waiting for permission. `decideAccess` below
+ * requires a restored Firebase user, and getting one costs an `accounts:lookup` round trip that the
+ * field data now confirms is the wall.
+ *
+ * This answers a DIFFERENT and much narrower question than `decideAccess`, and the difference is
+ * the whole safety argument. `decideAccess` asks "may this browser read override data?" — server
+ * reads, every member, writes downstream. This asks only: *may we re-show this person the data this
+ * device already holds for them, for the seconds while their stored identity is revalidated?*
+ *
+ * ── WHY THE TRADE IS SMALLER THAN IT FIRST LOOKS ────────────────────────────────────────────────
+ *
+ * The app ALREADY does this when the network is down. Firebase restores a stored user without
+ * completing `accounts:lookup` when it cannot reach the endpoint (measured in
+ * experiments/auth-firestore-split-proof), so "previously stored identity ⇒ locally stored roster"
+ * is today's behaviour offline. What was odd is that a mediocre connection was treated more
+ * strictly than no connection at all.
+ *
+ * It is still a real policy choice and must not be described as merely an optimisation: a member
+ * whose account was disabled since their last visit can see their own previously cached roster for
+ * the length of the validation window.
+ *
+ * ── WHAT IT DOES NOT LICENSE ────────────────────────────────────────────────────────────────────
+ *
+ * Returning `'own-cached'` is not access. The caller must still refuse, until `decideAccess` says
+ * `'named'`: any SERVER read, any write, any other member's cached data, entering Team View, and
+ * every other protected page. The gate that enforces the member scope is `calendar-overrides.js`;
+ * this function only says whose name it may be scoped to.
+ *
+ * A SESSION IS NOT AN IDENTITY, and that is exactly what makes this a decision rather than a bug
+ * fix. The local session is a localStorage record this device wrote for itself — it proves somebody
+ * signed in on this device inside the window, not that they still may. That is why the answer is
+ * confined to data the same device already received while genuinely authorised.
+ *
+ * ── THE TWO PRECONDITIONS BEYOND THE SESSION, AND WHY THEY ARE HERE ─────────────────────────────
+ *
+ * The scope is ONE member, so the paint is only honest if that member is who the screen was about
+ * to show. Both of the ways it might not be are settled HERE, at the decision, rather than by
+ * disabling things afterwards — a precondition that refuses costs a member the fast path and
+ * nothing else, where a half-painted screen being corrected costs them a wrong answer first.
+ *
+ *   · `teamView` — the saved view mode. Team View is the whole team at once, so a scoped paint
+ *     would draw fifty colleagues from the base roster with one person's leave applied. It cannot
+ *     be narrowed; it is simply not eligible, and that member boots exactly as they do today.
+ *   · `selectedMember` — the name the grid was going to render. It is a stored preference and can
+ *     be a COLLEAGUE: staff look each other up. Painting then means showing that colleague's base
+ *     roster with their annual leave and absence silently missing — the one thing
+ *     `CALENDAR_DATA.md` invariant 1 exists to prevent, arrived at from a new direction. If the
+ *     screen is not about to show you, there is nothing of yours to re-show.
+ *
+ * @param {{ session: any, teamView?: boolean, selectedMember?: string|null }} input
+ * @returns {{ decision: 'own-cached'|'none', member: string|null }}
+ */
+export function decideProvisionalAccess({ session, teamView = false, selectedMember = null } = /** @type {any} */ ({})) {
+    const name = session && typeof session.name === 'string' ? session.name.trim() : '';
+    // No name, no scope. There is no such thing as an unscoped provisional grant here: the member
+    // IS the boundary, so a grant we cannot attach a name to would be a grant to everything.
+    if (!name) return { decision: 'none', member: null };
+    if (teamView === true) return { decision: 'none', member: null };
+    // An ABSENT selection is fine and common — a device that has never chosen renders the session
+    // member. Only a selection naming somebody ELSE disqualifies.
+    const shown = typeof selectedMember === 'string' ? selectedMember.trim() : '';
+    if (shown && shown !== name) return { decision: 'none', member: null };
+    // The scope is the SESSION name. Past the refusal above, `shown` is either empty or exactly
+    // this name, so the two are indistinguishable here and no test can separate them — the
+    // property is held by that refusal, not by this line. Stated because the line looks like a
+    // choice and is not one: it becomes a real choice the moment somebody relaxes the refusal.
+    return { decision: 'own-cached', member: name };
+}
+
+/**
  * Reduce raw field input to a PIN candidate: digits only, never longer than the PIN.
  *
  * Digits-only rather than a `type="number"` field, because a number input on a phone brings a

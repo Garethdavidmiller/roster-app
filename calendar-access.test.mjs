@@ -149,6 +149,17 @@ let reconcileGate = null;
 const CONFIG = { CALENDAR_PIN_ACCESS: true };
 mock.module('./roster-data.js', { namedExports: { CONFIG } });
 
+// The provisional paint's two preconditions beyond the session are read from storage, so the
+// harness needs one. Real `ls.js`, real keys — a mocked `lsGet` would let the module read a key
+// nobody writes and the test would still pass.
+/** @type {Map<string,string>} */
+const store = new Map();
+globalThis.localStorage = /** @type {any} */ ({
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => { store.set(k, String(v)); },
+    removeItem: (k) => { store.delete(k); },
+});
+
 const {
     unlockWithPin, getAccessType, isViewerMode, initCalendarAccess, lockCalendar, handleAccessLost,
     calendarAccessReady, calendarAuthReady,
@@ -241,6 +252,7 @@ beforeEach(() => {
     silentReauthUser = undefined;
     reconcileGate = null;
     authSubs.clear();
+    store.clear();
     fetchQueue = [];
     lastFetchBody = null;
     fakeDom();
@@ -872,5 +884,128 @@ describe('THE ON/OFF SWITCH — CONFIG.CALENDAR_PIN_ACCESS', () => {
         assert.equal(ops.includes('signInAnonymously'), false,
             'an anonymous session was created while the Calendar was locked — it grants nothing '
             + 'under the tightened rules and would be a round trip for a token no rule accepts');
+    });
+});
+
+// ── THE PROVISIONAL PAINT (v22.97) ──────────────────────────────────────────────────────────────
+//
+// The WIRING, which is the half `calendar-access-core.test.mjs` cannot see. The decision there is
+// pure and now well pinned; what is untested by it is whether the boot ever ASKS, whether the
+// answer arrives before the round trip it exists to skip, and whether a paint that should not have
+// happened is taken back. This repo's named blind spot is exactly this gap — "the rule tested, the
+// wiring not" — and every one of the mutations below leaves the pure suite green.
+//
+// The observable is `onEveryGrant`'s argument, because that is the whole contract with the
+// coordinator: a member NAME scopes the override cache to one person and disables the two controls
+// that would show another; `null` is the ordinary unscoped grant; `false` withdraws the paint.
+//
+// One thing these cannot see, found by mutation and recorded rather than faked: passing
+// `_provisionalFor` instead of a literal `null` at the confirming grant. It is not a behaviour
+// change, because `grant()` clears the field on the line ABOVE — the ORDERING is the guard, and
+// swapping those two lines IS caught.
+describe('the provisional paint — showing a returning member their own saved roster first', () => {
+    /** Run a boot with the confirmation held open, and return the handles to inspect and release. */
+    function bootHeld({ session = { name: 'G. Miller' }, storage = {} } = {}) {
+        for (const [k, v] of Object.entries(storage)) store.set(k, v);
+        sessionValue = session;
+        let release;
+        reconcileGate = new Promise(r => { release = r; });
+        /** @type {Array<string|null|false>} */
+        const scopes = [];
+        let started = 0;
+        const done = initCalendarAccess({
+            onGranted: () => { started++; },
+            onEveryGrant: (scope) => { scopes.push(scope === undefined ? null : scope); },
+        });
+        return { scopes, done, release, started: () => started };
+    }
+
+    test('the paint lands BEFORE the confirmation, which is the entire point', async () => {
+        // Held open, nothing has answered yet — and the member is already looking at their roster.
+        const b = bootHeld();
+        await Promise.resolve(); await Promise.resolve();
+        assert.deepEqual(b.scopes, ['G. Miller'], 'the boot did not paint while the identity was in flight');
+        assert.equal(b.started(), 1, 'the workspace was not built for the paint');
+        currentUser = { uid: 'member-1', isAnonymous: false };
+        b.release();
+        assert.equal(await b.done, 'named');
+        assert.deepEqual(b.scopes, ['G. Miller', null], 'the confirmed member stayed confined to their own row');
+    });
+
+    test('a confirmation that FAILS takes the paint back', async () => {
+        // The one outcome this must not have is a roster left on screen under an identity that did
+        // not confirm. `false` is the withdrawal — the coordinator shuts the override gate on it.
+        const b = bootHeld();
+        await Promise.resolve(); await Promise.resolve();
+        assert.deepEqual(b.scopes, ['G. Miller']);
+        b.release();
+        assert.equal(await b.done, 'none', 'no identity confirmed');
+        assert.deepEqual(b.scopes, ['G. Miller', false], 'the paint was left up after the identity failed');
+    });
+
+    test('a VIEWER confirmation also takes it back — the paint was scoped to a member', async () => {
+        // The PIN station is not this member. Reaching `viewer` means the stored session did not
+        // revalidate, so the one person the scope named is not who is here.
+        const b = bootHeld();
+        await Promise.resolve(); await Promise.resolve();
+        currentUser = { uid: 'calendar-viewer', isAnonymous: false };
+        b.release();
+        assert.equal(await b.done, 'viewer');
+        assert.equal(b.scopes[1], false, 'a viewer inherited a member-scoped paint');
+    });
+
+    test('TEAM VIEW does not paint — the whole team cannot be scoped to one member', async () => {
+        const b = bootHeld({ storage: { myb_team_view: '1' } });
+        await Promise.resolve(); await Promise.resolve();
+        assert.deepEqual(b.scopes, [], 'a team-view boot painted a one-member scope');
+        assert.equal(b.started(), 0);
+        currentUser = { uid: 'member-1', isAnonymous: false };
+        b.release();
+        assert.equal(await b.done, 'named');
+        assert.deepEqual(b.scopes, [null], 'it must still boot normally — refusing costs the fast path, not the Calendar');
+    });
+
+    test('a stored selection naming a COLLEAGUE does not paint', async () => {
+        // The quiet failure: their base roster would draw with their leave and absence missing.
+        const b = bootHeld({ storage: { myb_roster_selected_member: 'S. Silva' } });
+        await Promise.resolve(); await Promise.resolve();
+        assert.deepEqual(b.scopes, [], 'a colleague was about to be drawn from a one-member scope');
+    });
+
+    test('a stored selection naming YOURSELF paints', async () => {
+        const b = bootHeld({ storage: { myb_roster_selected_member: 'G. Miller' } });
+        await Promise.resolve(); await Promise.resolve();
+        assert.deepEqual(b.scopes, ['G. Miller']);
+    });
+
+    test('no session, no paint', async () => {
+        const b = bootHeld({ session: null });
+        await Promise.resolve(); await Promise.resolve();
+        assert.deepEqual(b.scopes, [], 'a device with no session was shown somebody\'s roster');
+    });
+
+    test('it is NOT an access type — nothing may read it as one', async () => {
+        // `_accessType` staying 'none' is what keeps the late-identity watcher watching and stops
+        // `getAccessType()` telling a caller this member has access. Eight places read it.
+        const b = bootHeld();
+        await Promise.resolve(); await Promise.resolve();
+        assert.deepEqual(b.scopes, ['G. Miller'], 'guard: the paint must be up for this to mean anything');
+        assert.equal(getAccessType(), 'none', 'a paint was reported as access');
+        assert.equal(isViewerMode(), false);
+        b.release();
+        await b.done;
+    });
+
+    // LAST IN THIS BLOCK, deliberately: `handleAccessLost` — which `beforeEach` uses to reset the
+    // module's access state — early-returns on `'open'`, because there is no lock card to return
+    // to when the PIN is switched off. So a test that grants `open` leaves `_accessType` at
+    // `'open'` for every test after it, and the one above would then read a leaked value.
+    test('the PIN-off rollback does not paint — that mode grants everything anyway', async () => {
+        CONFIG.CALENDAR_PIN_ACCESS = false;
+        const b = bootHeld();
+        await Promise.resolve(); await Promise.resolve();
+        assert.deepEqual(b.scopes, [], 'the rollback mode grew a second path to the same screen');
+        b.release();
+        await b.done;
     });
 });
