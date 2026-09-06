@@ -459,6 +459,64 @@ export function summariseUpdateOpens(samples, { page }) {
     return _summariseMetricRows(samples, page, UPDATE_OPENS);
 }
 
+// ── HOW MUCH THE SERVICE WORKER WAS DOING (v23.00) ──────────────────────────────────────────────
+//
+// `swrCount` and `readyHeavySwr` were written from v22.94 and read by NOTHING until this block:
+// every Calendar load asked the worker for its revalidation count and wrote the answer to
+// Firestore, and no surface could show it. That is the worst of the three states an instrument can
+// be in — it kept costing writes and could not answer the question it was built for. Found by an
+// external review of the release that added it.
+//
+// TWO METRICS, TWO DIFFERENT SHAPES, and this is the thing not to tidy into one:
+//   · `swrCount` is a DISTRIBUTION OVER COUNT BANDS — how many revalidations a boot carried. Its
+//     buckets are `SWR_COUNT_BUCKETS`, not durations, so `_summariseMetricRows` cannot read it:
+//     that function bands through `_BUCKET_GROUP`, which knows only quick/ok/slow, and every row
+//     would silently total zero and be dropped. Hence its own summariser below.
+//   · `readyHeavySwr` is a SUBSET OF `ready`, banded by DURATION exactly like `readyUpdate` — so it
+//     uses the shared body and is directly comparable with the ladder's own `Shifts shown` row.
+//
+// Together they answer the demoted-but-open hypothesis in LATENCY_PLAN.md: does a boot carrying a
+// full revalidation sweep reach the roster more slowly than one that does not?
+export const HEAVY_SWR_OPENS = /** @type {const} */ ([
+    { metric: 'readyHeavySwr', label: 'Worker busy', sub: 'the open where the worker was rechecking 31+ files' },
+]);
+
+/** @param {Record<string, number>} samples @param {{page: string}} opts */
+export function summariseHeavySwrOpens(samples, { page }) {
+    return _summariseMetricRows(samples, page, HEAVY_SWR_OPENS);
+}
+
+/**
+ * The `swrCount` distribution for one page, in `SWR_COUNT_BUCKETS` order.
+ *
+ * A band with no samples is OMITTED rather than rendered as zero — the same rule the rest of this
+ * file follows, and it matters most here: `'0'` means "the worker rechecked nothing", which is a
+ * real and reassuring answer, so a manufactured zero would be indistinguishable from the finding.
+ * `askSwrCount` never records a band it could not establish, so anything absent is genuinely
+ * unobserved rather than observed-as-none.
+ *
+ * @param {Record<string, number>} samples
+ * @param {{page: string}} opts
+ * @returns {{ total: number, rows: Array<{ band: string, count: number, pct: number }> }}
+ */
+export function summariseSwrCounts(samples, { page }) {
+    /** @type {Record<string, number>} */
+    const perBand = {};
+    for (const [key, raw] of Object.entries(samples || {})) {
+        const n = Number(raw);
+        if (!Number.isFinite(n) || n <= 0) continue;
+        const parsed = parsePerfSampleKey(key);
+        if (parsed.page !== page || parsed.metric !== 'swrCount') continue;
+        if (!SWR_COUNT_BUCKETS.includes(parsed.bucket)) continue;   // an unknown band is not a band
+        perBand[parsed.bucket] = (perBand[parsed.bucket] || 0) + n;
+    }
+    const total = Object.values(perBand).reduce((a, b) => a + b, 0);
+    const rows = SWR_COUNT_BUCKETS
+        .filter(b => perBand[b])
+        .map(b => ({ band: b, count: perBand[b], pct: total ? Math.round((perBand[b] / total) * 100) : 0 }));
+    return { total, rows };
+}
+
 /**
  * The shared body. Extracted rather than copied when the ready-source split arrived: the bucket
  * banding, the thin-sample total and the deliberately-inverted `pctOver1s` are one reading, and two

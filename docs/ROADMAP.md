@@ -208,8 +208,16 @@ recorded here rather than built. **Read `readyUpdate` on the App Speed card firs
 fraction of Calendar opens actually follow a release, which turns this from a plausible argument
 into a sized one.
 
-### Calendar start — the service-worker revalidation storm (NEW v22.90, MEASURED v22.92)
-**Status:** SECONDARY hypothesis (demoted 5 Sep 2026 on field evidence); mechanism and volume measured, cost not · **Owner:** Gareth — the treatment is an architecture decision · **Would change:** `service-worker.js` SWR branch
+### Calendar start — the service-worker revalidation storm (NEW v22.90, MEASURED v22.92, READABLE v23.00)
+**Status:** SECONDARY hypothesis (demoted 5 Sep 2026 on field evidence); mechanism and volume measured, cost now READABLE on the card — **the next App Speed visit can settle this** · **Owner:** Gareth — the treatment is an architecture decision · **Would change:** `service-worker.js` SWR branch
+
+**The instrument was WRITE-ONLY from v22.94 until v23.00**, and that is worth recording rather than
+quietly fixing: `swrCount` and `readyHeavySwr` were written on every Calendar load and read by
+nothing — no summariser, no card row — so the measurement this entry rests on could not actually be
+taken, while still costing a Firestore write per open. Found by external review of the release that
+added it. The readout is now on the App Speed card ("What the app's background worker was doing"),
+so **this entry is answerable at the next reading**: if the full-sweep boots are no slower than
+`Shifts shown` overall, the worker is not what staff are waiting for and this closes.
 
 **Demoted, and by the evidence rather than by losing interest.** The September App Speed read shows
 installed-app and browser opens within about three points of each other on the code metric (~17% vs

@@ -1745,6 +1745,21 @@ Anonymous page-load latency recorder (Project 0 instrumentation, v14.89; FCP + a
   **Anything unknowable records NOTHING, never 0** (no worker, no controller, a worker too old to
   know the message, a reply that never comes): "no revalidation happened" is the finding under test,
   and a fabricated zero would refute it with its own instrument.
+- **`HEAVY_SWR_OPENS` / `summariseHeavySwrOpens` / `summariseSwrCounts`** (perf-stats.js, v23.00) are
+  the READOUT for the service-worker instrument. `swrCount` and `readyHeavySwr` had been WRITTEN
+  since v22.94 and read by nothing: no summariser, no card row, so every Calendar load paid a
+  MessageChannel round trip and one or two Firestore increments for a sample no surface could
+  display, and the hypothesis the instrument exists to test could not be answered by it. Found by
+  external review of the release that added it. **Two shapes, deliberately not unified:**
+  `summariseSwrCounts` is a DISTRIBUTION over `SWR_COUNT_BUCKETS` — counts, not durations, so
+  `_summariseMetricRows` cannot read it (that bands through `_BUCKET_GROUP`, which knows only
+  quick/ok/slow, and every row would total zero and be dropped); `summariseHeavySwrOpens` is a
+  SUBSET of `ready` banded by duration, exactly like `readyUpdate`, so it is directly comparable
+  with the ladder's own row and answers whether the busiest boots actually arrived later. A band
+  with no samples is OMITTED rather than zeroed, which matters most for `'0'`: that band means "the
+  worker rechecked nothing", the reassuring half of the finding, and a manufactured zero would be
+  indistinguishable from it. **If the card block ever goes, remove the writes in the same commit** —
+  write-only telemetry is the state this entry exists to record having been in.
 - **`UPDATE_OPENS` / `summariseUpdateOpens`** (perf-stats.js, v22.92) answer the question v22.90
   shipped without: how often does a release reload somebody, and what does that load cost?
   `readyUpdate` is written beside `ready`, from the same bucket on the same path, when the load
