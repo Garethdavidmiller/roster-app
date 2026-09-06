@@ -306,6 +306,57 @@ test('getALEntitlement: all CEAs incl. fixed-line (C. Reen) get the standard 32 
     assert.equal(getALEntitlement({ name: 'K. Jedlinski', role: 'CEA', rosterType: 'fixed' }), 32);
 });
 
+// ── A CEA's entitlement follows the CONTRACT, not the LINE (owner, 6 Sep 2026) ──────────────────
+//
+// Organised by what a wrong answer COSTS, because the two directions are not alike.
+//
+// Paying 32 to a bilingual contract is the SHIPPED defect and the silent one: two days vanish from
+// the Admin banner, the week-grid cap, `admin-al.js`'s booking cap and `alPosition`, the app
+// challenges a booking the roster clerk allows, and nothing fails — a wrong leave balance renders
+// perfectly and books against perfectly.
+//
+// Paying 34 to a plain CEA contract is what the OBVIOUS FIX produces, and it is the reason these
+// tests exist at all. Keying on `rosterType === 'bilingual'` passes every case anybody would think
+// to write today, because the only two bilingual rows are the only two bilingual contracts. It
+// breaks the moment a CEA is parked on a bilingual line while waiting for a CEA one — routine, per
+// the owner — and it breaks in the staff member's favour, so nobody reports it.
+test('getALEntitlement: a bilingual CONTRACT gets 34', () => {
+    assert.equal(getALEntitlement({ name: 'T. Gherbi', role: 'CEA', rosterType: 'bilingual', bilingualContract: true }), 34);
+    assert.equal(getALEntitlement({ name: 'D. Irvine', role: 'CEA', rosterType: 'bilingual', bilingualContract: true }), 34);
+});
+
+test('getALEntitlement: a CEA parked on a BILINGUAL LINE without the contract still gets 32', () => {
+    // The case the line-based fix gets wrong. There is nobody in this state in the roster today,
+    // which is exactly why it needs a test rather than an example.
+    assert.equal(getALEntitlement({ name: 'A. Waiting', role: 'CEA', rosterType: 'bilingual' }), 32);
+});
+
+test('getALEntitlement: the flag is read STRICTLY, so a stray value cannot buy two days', () => {
+    // `bilingualContract` is hand-maintained in a file 53 people are listed in. A truthy-test would
+    // let a note, a date or a stray '' decide somebody's leave.
+    for (const v of ['yes', 1, 'true', {}, [], 'false']) {
+        assert.equal(getALEntitlement({ role: 'CEA', rosterType: 'main', bilingualContract: /** @type {any} */ (v) }), 32,
+            `bilingualContract: ${JSON.stringify(v)} must not grant the premium`);
+    }
+    assert.equal(getALEntitlement({ role: 'CEA', rosterType: 'main', bilingualContract: false }), 32);
+});
+
+test('getALEntitlement: a bilingual contract still yields to a joining year\'s pro-rata', () => {
+    // Pro-rata is checked before the CEA branch, and must stay that way: a part-year bilingual
+    // starter is owed part of 34, and the figure the clerk agrees is the one in proRatedAL.
+    assert.equal(getALEntitlement({ role: 'CEA', rosterType: 'bilingual', bilingualContract: true, proRatedAL: { 2026: 17 } }, 2026), 17);
+});
+
+test('getALEntitlement: the two bilingual contracts in the REAL roster are the ones flagged', () => {
+    // Drives the shipped data, not a fixture — the fix is worth nothing if the flag is on nobody.
+    // Pinned as a SET so adding a third contract fails here and gets read by a person.
+    const flagged = teamMembers.filter(m => m.bilingualContract === true).map(m => m.name).sort();
+    assert.deepEqual(flagged, ['D. Irvine', 'T. Gherbi']);
+    for (const m of flagged.map(n => teamMembers.find(x => x.name === n))) {
+        assert.equal(getALEntitlement(m), 34, `${m.name} holds a bilingual contract`);
+    }
+});
+
 test('getALEntitlement: an unresolved member is refused, not defaulted', () => {
     // v22.45: an unresolved member is REFUSED, not handed a CEA's 32. See the null-entitlement
     // block in al-entitlement.test.mjs for why a fall-through default is the dangerous answer here.
@@ -842,10 +893,13 @@ test('getBaseShift: Christmas Day (Dec 25) always returns RD regardless of roste
 // ---------------------------------------------------------------------------
 
 test('getALEntitlement: proRatedAL overrides standard entitlement for the joining year', () => {
-    // M. Okeke has proRatedAL: { 2026: 23 }; standard CEA entitlement is 32
+    // M. Okeke has proRatedAL: { 2026: 24 }; standard CEA entitlement is 32.
+    // 24 and NOT the 23 a day-count from his startDate gives: he worked here through an agency
+    // first and that service counts, so the figure is agreed rather than derived (owner, 6 Sep
+    // 2026). Asserted against the roster clerk's workbook — do not "fix" it back to the formula.
     const member = teamMembers.find(m => m.name === 'M. Okeke');
     assert.ok(member, 'M. Okeke not found in teamMembers');
-    assert.equal(getALEntitlement(member, 2026), 23, 'Expected pro-rated AL of 23 for joining year');
+    assert.equal(getALEntitlement(member, 2026), 24, 'Expected pro-rated AL of 24 for joining year');
     assert.equal(getALEntitlement(member, 2027), 32, 'Expected standard CEA AL of 32 from year after joining');
 });
 
