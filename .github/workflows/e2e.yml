@@ -165,6 +165,32 @@ jobs:
           echo "Served files changed:"
           echo "$RUNTIME" | sed "s/^/  /"
 
+          # ── A BRANCH ALREADY ON MAIN CANNOT BE GATED AGAINST MAIN ────────────────────────────
+          #
+          # Every PR gets TWO runs: one for `push` and one for `pull_request`. The second fires
+          # when the PR is OPENED, so a PR merged shortly afterwards leaves that run comparing the
+          # branch against a main which by then CONTAINS it — `main is v22.99 . this branch is
+          # v22.99`, failed, and a red notification for a release that shipped correctly. It
+          # happened twice on 6 Sep 2026 (v22.97 and v22.99), both merged with the version verified
+          # by hand against main first, and both perfectly fine on main afterwards.
+          #
+          # Ancestry cannot answer this: main squash-merges, so the branch's commits are never
+          # ancestors of main however thoroughly it has landed — and on a `pull_request` event the
+          # checkout is a MERGE commit that was never on either side. What DOES answer it is the
+          # content. `origin/main...HEAD` above asks what the branch changed since it forked; this
+          # asks the question that actually gates a release — **if this landed, would main's served
+          # files change?** If they would not, the change is already there and there is nothing to
+          # version.
+          #
+          # It cannot weaken the guard, because the two questions differ only when main already
+          # holds identical content for every file the branch touches. A branch that would still
+          # change something reaches the comparison below exactly as before — including the case
+          # this job exists for, another branch taking your version while you sat in CI.
+          if [ -z "$(git diff --name-only origin/main HEAD -- $(echo "$RUNTIME" | tr "\n" " ") || true)" ]; then
+            echo "main already carries every served change on this branch - it has landed. Nothing left to gate."
+            exit 0
+          fi
+
           if [ "$(hundredths "$OURS")" -le "$(hundredths "$MAIN")" ]; then
             echo "::error::This branch changes served files but its version (v$OURS) does not exceed main (v$MAIN). Run npm run bump <version>. Shipping a version twice leaves service-worker.js byte-identical across two releases, so devices that took the first install no new worker - the v22.29 incident, which does NOT produce a merge conflict."
             exit 1
