@@ -297,7 +297,15 @@ const LIVE_DOCS = ['./CLAUDE.md', './docs/AI_MAP.md', './docs/ROADMAP.md', './do
     // makes it the one most likely to be believed and the least likely to be reread. It joined at
     // v22.32, when it was written to tell an external reviewer which lanes run with nothing
     // installed — a claim that is worthless the moment it is out of date.
-    './README.md'];
+    './README.md',
+    // THE FEATURE CONTRACTS, added 6 Sep 2026 by the document sweep. They were the docs with the
+    // best claim to this guard and the only live ones without it: a contract is nothing but a table
+    // of symbol names pointing at module headers, so a rename turns every row into a dead end — and
+    // CLAUDE.md's own rule is that "a contract nobody updates is worse than none, because it is
+    // believed". They passed on the day they were added, which is the moment to adopt a guard
+    // rather than after it has drifted. `ARCHITECTURE.md` joins for the same reason: it is the
+    // index, so a name it gets wrong misroutes every reader who starts there.
+    './docs/CALENDAR_DATA.md', './docs/AUTH_AND_SESSIONS.md', './docs/ARCHITECTURE.md'];
 
 // ── CONTRACT 1c: AI_MAP KNOWS every export — the other direction of 1b ─────────────────────────
 //
@@ -399,6 +407,7 @@ const EXTERNAL_VOCAB = new Set([
     'getBlob',        // a Firebase Storage SDK call, discussed as an option we did not take
     'devDependency',  // npm
     '_headers',       // the Netlify/Cloudflare convention, named when comparing hosting platforms
+    'auth_time',      // a Firebase ID-token claim the server reads; ours to consume, never to define
 ]);
 
 test('no live doc names a symbol the source does not contain', () => {
