@@ -255,7 +255,10 @@ export const teamMembers = [
     { name: 'L. Atrakimaviciene',      currentWeek: 11, rosterType: 'main',       role: 'CEA' },
     { name: 'J. Haque',                currentWeek: 12, rosterType: 'main',       role: 'CEA' },
     { name: 'R. Frimpong',             currentWeek: 13, rosterType: 'main',       role: 'CEA', hidden: true },
-    { name: 'M. Okeke',                currentWeek: 13, rosterType: 'main',       role: 'CEA', startDate: new Date(2026, 3, 20), proRatedAL: { 2026: 23 } },
+    // M. Okeke — 24, NOT the 23 a day-count gives: prior AGENCY service counts, so his startDate is
+    // when he joined the payroll and not when entitlement began (owner, 6 Sep 2026). Agreed, not
+    // derived — do not "correct" it back to the formula. Pinned in roster-data.test.mjs.
+    { name: 'M. Okeke',                currentWeek: 13, rosterType: 'main',       role: 'CEA', startDate: new Date(2026, 3, 20), proRatedAL: { 2026: 24 } },
     { name: 'N. Tuck',                 currentWeek: 14, rosterType: 'main',       role: 'CEA' },
     { name: 'R. Forrester-Blackstock', currentWeek: 15, rosterType: 'main',       role: 'CEA' },
     { name: 'S. Langley',              currentWeek: 16, rosterType: 'main',       role: 'CEA' },

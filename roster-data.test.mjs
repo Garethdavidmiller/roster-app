@@ -893,10 +893,13 @@ test('getBaseShift: Christmas Day (Dec 25) always returns RD regardless of roste
 // ---------------------------------------------------------------------------
 
 test('getALEntitlement: proRatedAL overrides standard entitlement for the joining year', () => {
-    // M. Okeke has proRatedAL: { 2026: 23 }; standard CEA entitlement is 32
+    // M. Okeke has proRatedAL: { 2026: 24 }; standard CEA entitlement is 32.
+    // 24 and NOT the 23 a day-count from his startDate gives: he worked here through an agency
+    // first and that service counts, so the figure is agreed rather than derived (owner, 6 Sep
+    // 2026). Asserted against the roster clerk's workbook — do not "fix" it back to the formula.
     const member = teamMembers.find(m => m.name === 'M. Okeke');
     assert.ok(member, 'M. Okeke not found in teamMembers');
-    assert.equal(getALEntitlement(member, 2026), 23, 'Expected pro-rated AL of 23 for joining year');
+    assert.equal(getALEntitlement(member, 2026), 24, 'Expected pro-rated AL of 24 for joining year');
     assert.equal(getALEntitlement(member, 2027), 32, 'Expected standard CEA AL of 32 from year after joining');
 });
 
