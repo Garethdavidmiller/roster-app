@@ -308,8 +308,21 @@
                  "what else have I booked?", and that is a different surface: the Recorded Annual
                  Leave dates list on Admin. The link names its destination rather than describing a
                  journey, and `admin-app.js` resolves the nested target so it lands OPEN. -->
-            <a class="day-detail-leave-btn" id="dayDetailLeaveBtn" href="admin.html#alBookedBox" hidden>View leave dates</a>
-            <button type="button" class="day-detail-pay-btn" id="dayDetailPayBtn" hidden>View pay estimate</button>
+            <!-- ONE ROW, AND THE WRAPPER IS NOT DECORATION (v22.98). Stacked, the two actions were
+                 a 76px block — the tallest thing on a panel whose subject is the change row above
+                 them, so the routes outweighed the answer. Side by side halves it to 34px. The row
+                 is what makes that possible: they are direct flex children of a COLUMN, so nothing
+                 short of a container puts them on one line.
+                 IT MUST HIDE ITSELF WHEN BOTH CHILDREN ARE HIDDEN. A row that stays draws its own
+                 12px on every ordinary day — a gap under a panel with no actions, on the common
+                 case rather than the rare one. `:has()` asks the question of the children rather
+                 than trusting a third place to be updated. Pinned in BOTH directions by
+                 e2e/calendar.spec.js — nothing on screen says "there is an empty box here", so an
+                 empty row that still draws is invisible to every other kind of check. -->
+            <div class="day-detail-actions" id="dayDetailActions">
+                <a class="day-detail-leave-btn" id="dayDetailLeaveBtn" href="admin.html#alBookedBox" hidden>Leave dates</a>
+                <button type="button" class="day-detail-pay-btn" id="dayDetailPayBtn" hidden>Pay estimate</button>
+            </div>
         </div>
     </div>
 

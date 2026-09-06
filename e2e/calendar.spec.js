@@ -1583,8 +1583,12 @@ test('day detail: an annual-leave day offers the leave dates, and no other day d
     const alIdx = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
         .findIndex(c => c.dataset.detailShiftValue === 'AL'));
     expect(alIdx, 'the fixture no longer puts leave in this month').toBeGreaterThan(-1);
+    // NEITHER action: not leave, and not a pay-marked day. The row's own guard is about the day
+    // that has nothing to offer, so a payday would prove the opposite of what the last block asks.
     const otherIdx = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
-        .findIndex(c => c.dataset.detailDay && c.dataset.detailShiftValue !== 'AL'));
+        .findIndex(c => c.dataset.detailDay && c.dataset.detailShiftValue !== 'AL'
+                        && !c.dataset.paydayIso && !c.dataset.cutoffIso));
+    expect(otherIdx, 'the fixture has no ordinary day left to check').toBeGreaterThan(-1);
 
     await page.locator('.calendar-day:not(.other-month)').nth(alIdx).click();
     const leave = page.locator('#dayDetailLeaveBtn');
@@ -1592,6 +1596,9 @@ test('day detail: an annual-leave day offers the leave dates, and no other day d
     await expect(leave).toHaveText(/leave dates/i);
     // It must NAME its destination, and reach the list rather than the page it sits on.
     await expect(leave).toHaveAttribute('href', /admin\.html#alBookedBox/);
+    // THE ROW IS A ROW (v22.98). Stacked, the pair was the tallest group on the panel; the label
+    // shortening is what let them share a line, so a reverted label silently reverts the layout.
+    await expect(page.locator('#dayDetailActions')).toHaveCSS('display', 'flex');
     await page.locator('#dayDetailClose').click();
 
     // Every other day: absent, and absent MEANS hidden — `display: inline-flex` out-specifies the
@@ -1599,6 +1606,10 @@ test('day detail: an annual-leave day offers the leave dates, and no other day d
     await page.locator('.calendar-day:not(.other-month)').nth(otherIdx).click();
     await expect(leave).toBeHidden();
     await expect(leave).toHaveCSS('display', 'none');
+    // AND THE ROW GOES WITH THEM. A container that outlives its children draws 12px of margin
+    // under a panel with no actions — on the COMMON day, to serve the one-a-year pair. Nothing on
+    // screen says "there is an empty box here", which is why it is asserted rather than eyeballed.
+    await expect(page.locator('#dayDetailActions')).toHaveCSS('display', 'none');
 });
 
 // ─── THE SAVED-COPY LADDER RUNG (v22.95) ────────────────────────────────────────────────────────
