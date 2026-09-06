@@ -9,6 +9,9 @@
  */
 
 import { createLightbox } from './overlay.js';
+import { getAccessType } from './calendar-access.js';
+import { personalActionsAllowed } from './calendar-access-core.js';
+import { getSession } from './session.js';
 import { shiftBadgeParts } from './roster-data.js';
 import { getCurrentMember } from './calendar-member.js';
 import { getDisplayYear } from './calendar-state.js';
@@ -354,18 +357,31 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     } else {
       extrasEl.hidden = true;
     }
+    // BOTH ACTIONS ARE ADDRESSED TO A PERSON, AND THE PANEL MUST NOT OFFER THEM TO SOMEBODY ELSE
+    // (v23.04, owner report). "Leave dates" opens Admin's record of YOUR leave and "Pay estimate"
+    // opens YOUR calculator, so on a colleague's calendar — which any signed-in member may browse —
+    // both silently change subject, and on a PIN-unlocked station PC neither has a subject at all.
+    // The rule is `personalActionsAllowed` in calendar-access-core.js, which is pure and carries
+    // the argument, including why viewer mode is a SEPARATE refusal from the name match rather
+    // than a consequence of it. Asked per open, never cached: the member selector changes under a
+    // page that is never reloaded, and access can be re-granted or lost mid-session.
+    const personal = personalActionsAllowed({
+        accessType:  getAccessType(),
+        sessionName: getSession()?.name,
+        shownMember: getCurrentMember()?.name,
+    });
     // ANNUAL LEAVE: offer the list of what else is booked (v22.91). Keyed on the EFFECTIVE value,
     // which is the same field the panel's own kind glyph comes from — so the action appears for
     // exactly the days that show the 🏖️ badge, and cannot drift from them. It is an ordinary link
     // with a real href, not a scripted navigation: a member may want it in a new tab, and the
     // destination is a page, not an action.
-    if (leaveBtn) leaveBtn.hidden = d.detailShiftValue !== 'AL';
+    if (leaveBtn) leaveBtn.hidden = !personal || d.detailShiftValue !== 'AL';
     // Pay-marked day (payday or cut-off): offer an explicit route to the calculator. Touch has no
     // hover, so tapping such a day used to teleport to paycalc unexpectedly — now the jump is a
     // deliberate button inside the detail. A cut-off day resolves to its own payday.
     const payTarget = d.paydayIso || (d.cutoffIso ? paydayForCutoff(d.cutoffIso) : null);
     if (payBtn) {
-      if (payTarget && navigateToPaycalc) {
+      if (personal && payTarget && navigateToPaycalc) {
         payBtn.hidden = false;
         payBtn.onclick = () => { detailLb.close(); navigateToPaycalc(payTarget); };
       } else {

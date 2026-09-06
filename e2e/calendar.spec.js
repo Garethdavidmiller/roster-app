@@ -1567,7 +1567,14 @@ test('day detail: the roster week is bound to the date, not floating between it 
 
 test('day detail: an annual-leave day offers the leave dates, and no other day does', async ({ page }, info) => {
     test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
-    await seedMember(page);
+    // SIGNED IN, ON THEIR OWN CALENDAR — the only state the action is offered in since v23.04, and
+    // it has to be seeded explicitly: this file's default is a VIEWER session (see its header), and
+    // a PIN-unlocked machine now gets no personal actions at all. This test is about the AL rule,
+    // so it needs the identity rule satisfied to reach it; the identity rule has its own test below.
+    // `seedMemberSession`, not `seedSession` — `decideAccess` rule 1 wants a restored FIREBASE USER
+    // as well as a local session, so a session alone leaves the access type `none` and the Calendar
+    // never paints at all (measured, not assumed).
+    await seedMemberSession(page, 'G. Miller');
     await page.addInitScript(() => {
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
         w.__E2E.docs = [];
@@ -1609,6 +1616,94 @@ test('day detail: an annual-leave day offers the leave dates, and no other day d
     // AND THE ROW GOES WITH THEM. A container that outlives its children draws 12px of margin
     // under a panel with no actions — on the COMMON day, to serve the one-a-year pair. Nothing on
     // screen says "there is an empty box here", which is why it is asserted rather than eyeballed.
+    await expect(page.locator('#dayDetailActions')).toHaveCSS('display', 'none');
+});
+
+// ─── A PERSONAL ACTION MUST BELONG TO SOMEBODY (v23.04) ─────────────────────────────────────────
+//
+// Reported by the owner, 6 Sep 2026. "Leave dates" opens Admin's record of YOUR leave and "Pay
+// estimate" opens YOUR calculator, so on a colleague's calendar both silently change subject, and
+// on a PIN-unlocked station PC neither has a subject at all.
+//
+// THE RULE IS UNIT-TESTED NEXT DOOR; THIS IS THE WIRING, which is the half that fails in practice —
+// `personalActionsAllowed` is trivially right about every input it is HANDED, and the ways to get
+// this wrong are not asking it, asking it once at init (the member selector changes under a page
+// that is never reloaded), or handing it the session name as both arguments, which makes it
+// tautologically true. Each of those leaves the unit suite green.
+
+test('day detail: a COLLEAGUE’s day offers neither personal action', async ({ page }, info) => {
+    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
+    // Signed in as one member, looking at another — what the member selector is FOR, and the
+    // reported case. The leave day is seeded against the member on SCREEN, so the panel has every
+    // reason to offer the button except the one that matters.
+    //
+    // FULL `named` ACCESS FIRST, then the selection moved. The first cut seeded a bare session and
+    // a different member, and PASSED — for the wrong reason: a session with no Firebase user leaves
+    // the access type `none`, so the buttons were hidden by having no identity at all and the
+    // colleague rule was never reached. Proven by mutation: comparing the session name with ITSELF
+    // (a tautology that can never refuse) left that version green. A later `addInitScript` wins, so
+    // this is a signed-in G. Miller genuinely looking at S. Silva.
+    await seedMemberSession(page, 'G. Miller');
+    await page.addInitScript(() => localStorage.setItem('myb_roster_selected_member', 'S. Silva'));
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [];
+        for (let m = 1; m <= 12; m++) {
+            w.__E2E.docs.push({ id: 'al' + m, memberName: 'S. Silva',
+                date: '2026-' + String(m).padStart(2, '0') + '-04',
+                type: 'annual_leave', value: 'AL', note: '' });
+        }
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+
+    const alIdx = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
+        .findIndex(c => c.dataset.detailShiftValue === 'AL'));
+    expect(alIdx, 'the fixture no longer puts leave on the colleague’s month').toBeGreaterThan(-1);
+    await page.locator('.calendar-day:not(.other-month)').nth(alIdx).click();
+    // ABSENT, and absent MEANS hidden — `display: inline-flex` out-specifies the `hidden`
+    // attribute, so a missing CSS rule renders a live button while every check believes it is gone.
+    await expect(page.locator('#dayDetailLeaveBtn')).toBeHidden();
+    await expect(page.locator('#dayDetailLeaveBtn')).toHaveCSS('display', 'none');
+    await expect(page.locator('#dayDetailActions')).toHaveCSS('display', 'none');
+    await page.locator('#dayDetailClose').click();
+
+    // AND THE PAY BUTTON, which is gated on a pay-marked DATE and would otherwise be offered on a
+    // day belonging to somebody else — the same defect reached by the other of the two routes.
+    const payIdx = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
+        .findIndex(c => c.dataset.paydayIso || c.dataset.cutoffIso));
+    expect(payIdx, 'the month has no pay-marked day to check').toBeGreaterThan(-1);
+    await page.locator('.calendar-day:not(.other-month)').nth(payIdx).click();
+    await expect(page.locator('#dayDetailPayBtn')).toBeHidden();
+    await expect(page.locator('#dayDetailActions')).toHaveCSS('display', 'none');
+});
+
+test('day detail: a PIN-unlocked screen offers neither personal action', async ({ page }, info) => {
+    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
+    // The station PC — and deliberately the HARD version of it: a stale local session naming the
+    // very member whose calendar is on screen. That state is reachable, not contrived (an iOS ITP
+    // eviction drops the Firebase user while the 60-day session lives on, so `decideAccess` falls
+    // to `viewer` with the name still in localStorage), and it is the only fixture that can see the
+    // viewer refusal work. With no session seeded the buttons are hidden by the NAME check instead,
+    // which is why the first cut of this test survived a mutation hardcoding the access type to
+    // `named`. The viewer seed must come last so it is not outranked.
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await seedViewerAccess(page);
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'al1', memberName: 'G. Miller', date: '2026-01-04',
+                          type: 'annual_leave', value: 'AL', note: '' }];
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+
+    const payIdx = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
+        .findIndex(c => c.dataset.paydayIso || c.dataset.cutoffIso));
+    expect(payIdx, 'the month has no pay-marked day to check').toBeGreaterThan(-1);
+    await page.locator('.calendar-day:not(.other-month)').nth(payIdx).click();
+    await expect(page.locator('#dayDetailPayBtn')).toBeHidden();
+    await expect(page.locator('#dayDetailLeaveBtn')).toBeHidden();
     await expect(page.locator('#dayDetailActions')).toHaveCSS('display', 'none');
 });
 

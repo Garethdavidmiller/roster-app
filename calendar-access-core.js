@@ -101,6 +101,52 @@ export function noticeAudienceAllows(audience, accessType) {
 }
 
 /**
+ * May the day panel offer a PERSONAL action — "Leave dates", "Pay estimate"? (v23.04)
+ *
+ * Both buttons are addressed to a PERSON, not to a date. "Leave dates" opens Admin's record of
+ * *your* annual leave; "Pay estimate" opens *your* calculator, against pay data stored per member
+ * on this device. Neither has a meaning on a day belonging to somebody else, and neither has one at
+ * all on a station PC — the same reasoning `noticeAudienceAllows` above applies to notices, carried
+ * one step further, because a button is a stronger claim than a notice: it says *this will show you
+ * yours*, and following it to a colleague's roster day and arriving at your own leave list is a
+ * contradiction the member has to work out for themselves. Reported by the owner, 6 Sep 2026: the
+ * confusion is the cost, and doubt about the app is the compounding one.
+ *
+ * TWO REFUSALS, AND THE SECOND DOES NOT SUBSUME THE FIRST — which is the whole reason this is a
+ * function and not an `=== ` beside the buttons.
+ *
+ *   1. **Not in viewer mode**, whatever the device remembers. It is tempting to check the identity
+ *      alone and call the PIN case covered, since `decideAccess` returns `named` whenever there is
+ *      a live session. It does not: rule 1 requires a RESTORED FIREBASE USER as well, so an iOS ITP
+ *      eviction (~7 days of no PWA use) leaves a perfectly valid 60-day local session that falls
+ *      through to `viewer` the moment a PIN token is restored. The name is still in localStorage,
+ *      and an identity-only rule would light both buttons on exactly the shared screen this exists
+ *      to keep them off. That state is reachable, not defensive.
+ *   2. **The calendar on screen must be the signed-in member's own.** The member selector is open
+ *      to every signed-in member — looking at a colleague's roster is an ordinary thing to do — and
+ *      an action that silently switches subject is worse than one that is absent.
+ *
+ * `open` mode (the staff PIN switched off) is deliberately NOT a third case: it says nothing about
+ * identity, so a signed-in member browsing their own calendar keeps the buttons and a device with
+ * no session has no name to match. Rule 2 already answers it, correctly, in both directions.
+ *
+ * An absent, blank or unmatched name is a refusal — the buttons are a convenience, and the cost of
+ * failing closed is a member using the nav drawer instead.
+ *
+ * @param {object} input
+ * @param {'named'|'viewer'|'open'|'none'|string} input.accessType  getAccessType()
+ * @param {string|null|undefined} input.sessionName   the signed-in member (getSession()?.name)
+ * @param {string|null|undefined} input.shownMember   whose calendar is on screen
+ * @returns {boolean}
+ */
+export function personalActionsAllowed({ accessType, sessionName, shownMember }) {
+    if (accessType === 'viewer') return false;
+    const who = typeof sessionName === 'string' ? sessionName.trim() : '';
+    const shown = typeof shownMember === 'string' ? shownMember.trim() : '';
+    return !!who && who === shown;
+}
+
+/**
  * Decide what kind of Calendar access this browser has RIGHT NOW.
  *
  * @param {object} input
