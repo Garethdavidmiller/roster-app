@@ -241,7 +241,7 @@ export const teamMembers = [
     { name: 'A. Hared',                currentWeek: 2,  rosterType: 'main',       role: 'CEA' },
     { name: 'G. Miller',               currentWeek: 3,  rosterType: 'main',       role: 'CEA' },
     { name: 'M. Robson',               currentWeek: 4,  rosterType: 'main',       role: 'CEA' },
-    { name: 'J. Davies',               currentWeek: 5,  rosterType: 'main',       role: 'CEA', startDate: new Date(2026, 4, 5), proRatedAL: { 2026: 22 } },
+    { name: 'J. Davies',               currentWeek: 5,  rosterType: 'main',       role: 'CEA', startDate: new Date(2026, 4, 5), proRatedAL: { 2026: 20 } },
     { name: 'I. Cooper',               currentWeek: 6,  rosterType: 'main',       role: 'CEA' },
     { name: 'A. Panchal',              currentWeek: 7,  rosterType: 'main',       role: 'CEA' },
     { name: 'C. Francisco-Charles',    currentWeek: 8,  rosterType: 'main',       role: 'CEA' },
@@ -274,7 +274,7 @@ export const teamMembers = [
     // link on wk10 (the slot S. Boyle vacates, after O. Mylla) via rosterChanges. AL pro-rated
     // for 2026 (CEA 32 → ⌈212/365×32⌉ = 19 for a 3 Jun start); standard 32 from 2027.
     { name: 'K. Jedlinski',            currentWeek: 2,  rosterType: 'fixed',      role: 'CEA',
-      startDate: new Date(2026, 5, 3), proRatedAL: { 2026: 19 },
+      startDate: new Date(2026, 5, 3), proRatedAL: { 2026: 18 },
       rosterChanges: [{ from: new Date(2026, 5, 28), rosterType: 'main', currentWeek: 10 }] },
 
     // Dispatchers — 10-week rotating cycle, reference week starting 01/02/26
@@ -306,11 +306,11 @@ export const teamMembers = [
     // training days are ever recorded, and recording them only adds the 🏷️ Train badge on top.
     // He joins the link on Mon 20 Jul 2026. `currentWeek: 4` there is REFERENCE-ANCHORED (see
     // .claude/rules/roster-data.md) — the same value S. Faure carries, i.e. her line.
-    // `proRatedAL` is 22 × 186/365 rounded up. It is a FLAT figure and it suppresses the dynamic
-    // Dispatcher calculation, so the three remaining 2026 bank holidays (31 Aug, 25 Dec, 28 Dec)
-    // earn him no lieu day this year. Owner decision, Sep 2026. 2027 reverts to 22 + lieu on its own.
+    // `proRatedAL` is 11 — TRANSCRIBED from the roster clerk's workbook, the authority for it (owner,
+    // 6 Sep 2026); a day-count rounded up gives 12, which this file used to carry. It is FLAT and
+    // suppresses the Dispatcher lieu calculation, so 2026's last three bank holidays earn none.
     { name: 'B. Toth',                 currentWeek: 2,  rosterType: 'fixed',      role: 'Dispatcher',
-      startDate: new Date(2026, 5, 29), proRatedAL: { 2026: 12 },
+      startDate: new Date(2026, 5, 29), proRatedAL: { 2026: 11 },
       rosterChanges: [{ from: new Date(2026, 6, 20), rosterType: 'dispatcher', currentWeek: 4 }] },
 
     // CES — Customer Experience Supervisors (reference: w/c 15 Feb 2026)

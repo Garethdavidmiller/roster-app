@@ -11,11 +11,12 @@ Run through every step in order. Do not skip steps.
 
 - [ ] Add entry to `teamMembers` with `name`, `currentWeek`, `rosterType`, `role` — plus any optional fields that apply (`hidden`, `managerOnly`, `permanentShift`, `noProRate`, `rosterChanges`; see CLAUDE.md → teamMembers fields)
 - [ ] If joining mid-year: add `startDate: new Date(year, month-1, day)` — **midnight only, no time component**
-- [ ] If joining mid-year: add `proRatedAL: { year: N }` — formula: `⌈(daysRemainingInYear / 365) × entitlement⌉`
-  - Count from start date inclusive to 31 Dec inclusive
-  - CEA entitlement = 32 days; CES = 34 days; **Dispatcher = 22** — and the formula DOES apply to a Dispatcher, against that base. This said "do not use this formula" until 3 Sep 2026, which was wrong in a way worth knowing: the recorded value for the one live mid-year Dispatcher is exactly what the formula gives on 22, so the caution described nothing anybody had done.
-  - **Do not add lieu days into `proRatedAL`.** A Dispatcher earns one per bank holiday worked, and since v22.50 `getALEntitlement` adds them on top of the pro-rated base automatically. Baking them in would count them twice.
-  - Example: May 5 start (CEA) → 241 days → ⌈241/365 × 32⌉ = 22
+- [ ] If joining mid-year: add `proRatedAL: { year: N }` — **ASK THE ROSTER CLERK AND TRANSCRIBE. Do not calculate it.**
+  - The clerk's annual leave workbook (`Customer Service Annual Leave <year>.xlsx` → the Marylebone Totals sheet, `AL allowance` column) is the AUTHORITY for this figure (owner, 6 Sep 2026). It is a contractual number the roster office agrees and payroll works to; this app transcribes it.
+  - **This step used to carry a formula, `⌈(daysRemainingInYear / 365) × entitlement⌉`, and it produced the wrong answer for every mid-year starter in the roster.** Measured 6 Sep 2026 against the clerk's book: Toth 12 vs 11, Jedlinski 19 vs 18, Davies 22 vs 20, Okeke 23 vs 24. Its own worked example was Davies. Two of those are a rounding difference the formula could in principle be fixed for; the others are not reachable by ANY formula from the fields in `roster-data.js` — Okeke had prior AGENCY service, so his `startDate` is when he joined the payroll and not when his entitlement began accruing. A figure that depends on facts this app does not hold cannot be derived here, and a plausible derivation is worse than no derivation because nothing fails when it is wrong.
+  - A rough day-count is fine as a SANITY CHECK — if the clerk's figure is wildly off what you expect, ask — but the clerk's number is what goes in the file.
+  - **Do not add lieu days into `proRatedAL`.** A Dispatcher earns one per bank holiday worked, and since v22.50 `getALEntitlement` adds them on top of the pro-rated base automatically. Baking them in would count them twice. (Check the clerk has not already included them either.)
+  - Record WHY beside the entry whenever the figure is not what a day-count would suggest — Okeke's line is the model. The next reader's instinct is to "correct" it back to the formula, and that silently takes days off somebody.
 
 ## Step 2 — Firebase Auth (always required)
 
