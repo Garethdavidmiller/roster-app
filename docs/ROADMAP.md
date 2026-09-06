@@ -363,6 +363,51 @@ two-month warning, because "must be done by April" reliably becomes "started in 
 
 ---
 
+### The v23.01 external review — the decisions it leaves with the owner (6 Sep 2026)
+**Status:** An INDEX, not a work item · **Why:** a broad review arrived with eleven follow-ups, nine
+of which are decisions rather than code, and a list held only in a conversation is a list that gets
+re-raised · **Owner:** Gareth · **Trigger:** none for most; three cannot be taken before a date ·
+**Review:** 28 Sep 2026, when the two measurements become readable
+
+**Two of its findings were CODE, and both are closed.** The no-install test lane had stopped being
+no-install — `touch-gate-parity.test.mjs` reached its list through `e2e/helpers.js`, which imports
+`@playwright/test` — and nothing ran that lane, so only somebody working from a ZIP could ever have
+found it, which is who did. Fixed, with the lane now gated in CI. The other was this file
+contradicting itself about the service-worker metrics, fixed the same day.
+
+**One was REFUSED, on evidence.** The review flagged the provisional cached-roster paint as a
+security compromise: its scope is a localStorage session name, which is editable. True, and the
+consequence does not follow — `firestore.rules` grants `overrides` read to any `name` claim, not per
+member, because Team Week View shows every colleague's shifts to any signed-in member by design. A
+forged session name shows an attacker a SUBSET of what that device can already read legitimately, so
+the incremental disclosure is zero. Invariant 13's *"nothing of anybody else's"* is a scope-of-paint
+property, not a confidentiality boundary. **Recording it as an accepted compromise would put a false
+threat model into a contract**, which is worse than leaving it alone.
+
+**Three items were re-raised without knowing they had been decided or measured**, which is the main
+reason this section exists — so the next review's re-raises cost a link rather than a rebuild.
+
+| The decision | Where it lives |
+|---|---|
+| Did the cached-roster fast path actually work? | "Calendar start — the identity round trip" above, and MAINTENANCE_CALENDAR's 28 Sep row. **Not answerable yet:** it shipped 6 Sep, so a reading taken now is a few days of samples — which is how you conclude a fix worked when what you measured was the weekend |
+| Is the service-worker revalidation storm costing staff anything? | The SW revalidation entry above. Same date, same card visit, same reason for waiting: the instrument landed 5 Sep and its readout 6 Sep |
+| Make `myb-roster.web.app` the canonical staff URL | **NEW — no home before this row.** KNOWN_LIMITATIONS measures the mirror's 21% byte penalty; nothing recorded the decision that measurement prices. It is the one change with two payoffs — fewer bytes on every cold load, and headers and redirects reaching the half of the staff that has neither. The cost is operational, not technical: telling colleagues, and the install and notification target moving |
+| Pay Calculator progressive disclosure on phones | **ALREADY DECLINED**, 3 Sep 2026 — see "More pay tools — DECLINED" below, which took the same proposal through four drafts and a measured prototype. The review restates the observation the prototype answered (the page is long on a phone) and brings no new evidence, so the recorded trigger stands: **a staff report about the tail of the page**, which does not exist. Do not add instrumentation to test it |
+| Links generator — Recommended first, Advanced second | Already an entry below, unchanged by this review |
+| A small WebKit visual smoke set | **NEW.** Visual regression is Chromium-only, so iOS *behaviour* is better proven than iOS *appearance*. Not all of the baselines — a handful: Calendar mobile, Team View, the day panel, Admin mobile, the paycalc sticky area, the drawer, one guide. Costs CI time on every branch, which is the decision |
+| Print visual baselines | **NEW**, and it needs a fact only the owner has: which surfaces do colleagues actually print? Print CSS exists everywhere; pixel-locking everything would be cost without a reader. The candidates are the ones where a page break changes meaning — Calendar, Team View, Links, Pay Calculator, Admin |
+| A real-iPhone release checklist | **NEW, and nobody else can do it.** Playwright WebKit is the engine, not a phone: it cannot reproduce standalone PWA chrome, keyboard resize, safe areas across models, or ITP eviction. Four devices, not a matrix — an older notch iPhone, a current one, one installed to the Home Screen, one at large text |
+| Freeze Calendar and Team View aesthetics | **NEW**, and it is a policy rather than a change. The review's argument is the one this file already records against itself: the v22.83–v22.99 sequence shows how one narrow-width fix cascades into the next. Reopen for a reproduced defect, an accessibility finding or a repeated staff request — not for polish |
+| Remove the real payslip fixture from the public mirror | ARCHITECTURE_PLAN.md → MILLER_ACTUALS, which holds the options and the measurement. The review calls it the largest remaining privacy problem and that is fair; every route costs something, because the fixture's whole value is that it is genuine payroll output |
+| `ytd_2627` when it lapses (~26 Nov) | The notice table in `CLAUDE.md`, which already says decide rather than re-date |
+
+**What the review did NOT find is worth as much as what it did.** It read the code, the startup
+architecture, the responsive CSS, the committed baselines, the print rules, both engines' test
+configuration and the accessibility protections, and produced one code defect — in the test estate,
+not the app.
+
+---
+
 ## NEXT — likely, but a trigger is required
 
 ### Overtime full launch — the three things the beta must answer first
