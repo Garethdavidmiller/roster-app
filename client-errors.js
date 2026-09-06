@@ -53,8 +53,21 @@ export function shouldReport(message, src, hostname) {
     // MATCHED IN FULL, not on a fragment. "Transition was aborted" alone would also swallow any
     // future overlay or animation failure the app might genuinely want to see, and this log's
     // recorded failure direction is the filter that is too broad.
+    //
+    // A THIRD WORDING, SAME CAUSE (v23.03, live report — paycalc.html, Android Edge 152, 6 Sep
+    // 2026). This is the DOMException Chromium rejects with when the transition is SKIPPED rather
+    // than aborted; the v22.67 pair does not match it, so it reached the log on a device already
+    // carrying that filter. The three arrive from the same declarative opt-in and mean the same
+    // thing to a member: nothing. The navigation they name completed correctly.
     if (message.includes('Skipping view transition')) return false;
     if (message.includes('Transition was aborted because of invalid state')) return false;
+    // ANCHORED, NOT A SUBSTRING, AND THE TEST CAUGHT THE FIRST TRY. Chromium's message is the whole
+    // string — bare, or behind its error name — so a plain `includes` also swallows
+    // "Transition was skipped by the overlay because it never opened", which is an app fault in a
+    // real lightbox. `skip` is an ordinary word this app uses about real things (a skipped save, a
+    // skipped roster row), so this one rule earns an anchor where the two above are distinctive
+    // enough not to need one.
+    if (/(^|:\s*)Transition was skipped\.?$/.test(message.trim())) return false;
 
     // Chrome emits this as an unhandled rejection when its own background SW-update check fails on
     // a network blip. Only suppress alongside a recognised network phrase — a genuine SW
