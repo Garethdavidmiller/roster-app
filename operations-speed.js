@@ -8,7 +8,7 @@
  */
 import { sessionReady } from './session.js';
 import { withClaimRetry, getPerfStats } from './firebase-client.js';
-import { SPEED_GROUPS, perfVerdict, summarisePerfBy, PERF_DIMENSIONS, summariseBootPhases, summariseStartMilestones, summariseReadySource, summariseUpdateOpens, THIN_SAMPLE } from './perf-stats.js';
+import { SPEED_GROUPS, perfVerdict, summarisePerfBy, PERF_DIMENSIONS, summariseBootPhases, summariseStartMilestones, summariseReadySource, summariseUpdateOpens, summariseSwrCounts, summariseHeavySwrOpens, THIN_SAMPLE } from './perf-stats.js';
 import { escapeHtml } from './roster-data.js';
 import { PRIVACY_FOOTER, PAGE_META, _cardLoadError, _usageMonthLabel } from './operations-reports.js';
 
@@ -450,6 +450,97 @@ async function initPageSpeedCard() {
         return frag;
     };
 
+    /** HOW MUCH THE SERVICE WORKER WAS DOING, and whether it cost the member anything (v23.00).
+     *
+     *  Two blocks because there are two questions, and the second is the one with a decision behind
+     *  it. `swrCount` says how many files the worker rechecked on a boot — a COUNT distribution, not
+     *  a timing one, so it gets plain shares and no quick/moment/slow bar: banding counts on a
+     *  duration scale would read as speed and it is not speed. `readyHeavySwr` then asks whether the
+     *  busiest boots actually arrived later, and IS a timing row — a SUBSET of "Shifts shown", the
+     *  same relation as the release block above, so the note says so rather than leaving a reader to
+     *  subtract.
+     *
+     *  **This existed as writes with no readout from v22.94 until v23.00** — every Calendar load
+     *  paid for a sample nothing could display. Rendering it is what makes the cost worth paying;
+     *  if this block is ever removed, remove the writes in `perf-reporter.js` in the same commit.
+     *  @param {Record<string, number>} samples
+     *  @param {string} page */
+    const swrRows = (samples, page) => {
+        const counts = summariseSwrCounts(samples, { page });
+        const heavy = summariseHeavySwrOpens(samples, { page });
+        if (!counts.total && !heavy.rows.length) return null;
+        const frag = document.createDocumentFragment();
+        const heading = document.createElement('p');
+        heading.className = 'usage-section-label speed-dim-label';
+        heading.textContent = 'What the app’s background worker was doing';
+        frag.appendChild(heading);
+        frag.appendChild(noteLine(
+            'After a release the worker rechecks the app’s own files. This is how many it was rechecking as each page opened — a count, not a speed.'));
+
+        if (counts.total) {
+            const list = document.createElement('div');
+            list.className = 'speed-rows';
+            const head = document.createElement('div');
+            head.className = 'speed-row speed-row--why speed-dual-head';
+            head.innerHTML = '<span></span><span></span>'
+                + '<span class="speed-dual-label">share</span>'
+                + '<span class="speed-dual-label">opens</span>';
+            list.appendChild(head);
+            // Plain words for the bands. NOT derived from `SWR_COUNT_BUCKETS`, and the fallback below
+            // is why that is safe: a band added there without a word here renders as the raw band
+            // ('101+'), which is ugly and true, rather than vanishing from a distribution.
+            /** @type {Record<string, string>} */
+            const WORDS = { '0': 'Nothing to recheck', '1-10': 'A few files', '11-30': 'Some files', '31+': 'A full sweep' };
+            counts.rows.forEach(r => {
+                const row = document.createElement('div');
+                row.className = 'speed-row speed-row--why';
+                const thin = r.count < THIN_SAMPLE;
+                row.innerHTML =
+                    `<span class="speed-row-label"><span class="speed-row-name">${escapeHtml(WORDS[r.band] || r.band)}</span>`
+                        + `${thin ? '<span class="speed-thin">(few)</span>' : ''}</span>` +
+                    `<span class="speed-row-sub">${escapeHtml(r.band)}</span>` +
+                    `<span class="speed-row-count">${r.pct}%</span>` +
+                    `<span class="speed-row-sub">${r.count.toLocaleString('en-GB')}</span>`;
+                list.appendChild(row);
+            });
+            frag.appendChild(list);
+        }
+
+        if (heavy.rows.length) {
+            // The divisor is the ladder's own `ready`, exactly as the release block does it, so the
+            // two cannot disagree about what an open is. Absent ⇒ the share sentence is dropped.
+            const readyTotal = summariseStartMilestones(samples, { page }).rows
+                .find(r => r.metric === 'ready')?.total || 0;
+            const share = readyTotal
+                ? ` That is ${Math.round((heavy.rows[0].total / readyTotal) * 100)}% of them.`
+                : '';
+            frag.appendChild(noteLine(
+                `And whether it cost anything: these are the opens where the worker was rechecking a full sweep. They are also counted in “Shifts shown” above, not separately.${share} If this row is no slower than that one, the worker is not what staff are waiting for.`));
+            const hl = document.createElement('div');
+            hl.className = 'speed-rows';
+            const hh = document.createElement('div');
+            hh.className = 'speed-row speed-row--why speed-dual-head';
+            hh.innerHTML = '<span></span><span></span>'
+                + '<span class="speed-dual-label">over 1s</span>'
+                + '<span class="speed-dual-label">opens</span>';
+            hl.appendChild(hh);
+            heavy.rows.forEach(r => {
+                const row = document.createElement('div');
+                row.className = 'speed-row speed-row--why';
+                const thin = r.total < THIN_SAMPLE;
+                row.innerHTML =
+                    `<span class="speed-row-label"><span class="speed-row-name">${escapeHtml(r.label)}</span>`
+                        + `${thin ? '<span class="speed-thin">(few)</span>' : ''}</span>` +
+                    `<span class="speed-bar" role="img" aria-label="${escapeHtml(r.sub)}: ${r.pctQuick}% quick, ${r.pctOk}% a moment, ${r.pctSlow}% slow">${segs(r)}</span>` +
+                    `<span class="speed-row-count">${r.pctOver1s}%</span>` +
+                    `<span class="speed-row-sub">${r.total.toLocaleString('en-GB')}</span>`;
+                hl.appendChild(row);
+            });
+            frag.appendChild(hl);
+        }
+        return frag;
+    };
+
     /** OPENS A RELEASE CAUSED (v22.92) — the reading v22.90 shipped without.
      *
      *  That release stopped an update reload interrupting a member mid-read, and could not say how
@@ -545,6 +636,11 @@ async function initPageSpeedCard() {
         // renders only once updated devices have actually been reloaded by a release.
         const updates = updateOpenRows(samples, busiest.page);
         if (updates) { frag.appendChild(updates); any = true; }
+        // Then what the WORKER was doing while all that happened. After the release block because
+        // it is the same subject seen one layer down — a release is what gives the worker files to
+        // recheck — and its heavy-boot row is a subset of the same `ready` rung those two split.
+        const swr = swrRows(samples, busiest.page);
+        if (swr) { frag.appendChild(swr); any = true; }
         // Then the ladder's FIRST rung against the network, beside the stage that does not touch it
         // — the comparison `LATENCY_PLAN.md` gates its open decision on. It sits here because both
         // halves are milestones the two blocks above have just named.

@@ -5429,6 +5429,64 @@ test('operations: App speed reports the opens a release caused, as a SHARE of al
     expect(total).toBe('30');
 });
 
+test('operations: App speed shows what the background worker was doing, and whether it cost anything', async ({ page }) => {
+    /*
+     * THE WIRING, and this block is the reason the rule exists.
+     *
+     * `swrCount` and `readyHeavySwr` were WRITTEN from v22.94 and rendered by nothing until v23.00 —
+     * no summariser, no card row — so every Calendar load paid a MessageChannel round trip and a
+     * Firestore increment for a sample no surface could show, and the whole estate stayed green.
+     * A unit test on the summarisers would not have caught that: they did not exist either. Only a
+     * test that loads the real page and looks for the words can.
+     *
+     * The fixture separates the two shapes, which is the thing most likely to be "tidied" into one:
+     *   · `swrCount` is a COUNT distribution — 80 boots rechecking nothing against 20 doing a full
+     *     sweep is 80%/20%, and neither number is a duration.
+     *   · `readyHeavySwr` is a SUBSET of `ready` banded by time — 20 against 400 is 5% of opens.
+     * A summariser that read the count bands through the duration bander would drop the first block
+     * entirely; one that read the heavy row as a distribution would state 100%.
+     */
+    await page.addInitScript(() => {
+        window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: {
+            '22_91|calendar|ready|lt500ms|standalone|4g':          380,
+            '22_91|calendar|ready|1-3s|standalone|4g':              20,
+            '22_91|calendar|swrCount|0|standalone|4g':              80,
+            '22_91|calendar|swrCount|31+|standalone|4g':            20,
+            '22_91|calendar|readyHeavySwr|1-3s|standalone|4g':      20,
+            // Decoys: another page's worker figures, which must not reach this page's rows.
+            '22_91|paycalc|swrCount|0|standalone|4g':              999,
+            '22_91|paycalc|readyHeavySwr|1-3s|standalone|4g':      999,
+            '22_91|calendar|domReady|lt500ms|standalone|4g':       600,
+            '22_91|paycalc|domReady|lt500ms|standalone|4g':        300,
+        } } };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const speed = page.locator('#pageSpeedContent');
+    await expect(speed).toContainText('What the app’s background worker was doing');
+
+    // The COUNT distribution, in words rather than band strings, and as shares.
+    await expect(speed).toContainText('Nothing to recheck');
+    await expect(speed).toContainText('A full sweep');
+    await expect(speed, 'counts are stated as a share of boots, not as a speed').toContainText('80%');
+
+    // The SUBSET row, and the sentence that stops a reader subtracting it from "Shifts shown".
+    await expect(speed).toContainText('Worker busy');
+    await expect(speed).toContainText('also counted in');
+    await expect(speed, '20 heavy opens against 400 ready is 5% — a wrong divisor gives a different number')
+        .toContainText('That is 5% of them');
+
+    // And it is THIS page's data: paycalc's 999s must not appear anywhere in the block.
+    const text = await speed.evaluate(() => {
+        const label = [...document.querySelectorAll('.speed-dim-label')]
+            .find(el => el.textContent === 'What the app\u2019s background worker was doing');
+        let n = label, out = '';
+        while ((n = n.nextElementSibling) && !n.classList.contains('speed-dim-label')) out += n.textContent;
+        return out;
+    });
+    expect(text).not.toContain('999');
+});
+
 // ── Staff Login Accounts: the provisioning audit (v22.53) ───────────────────────────────────────
 //
 // The rule is unit-tested next door and the card's own decisions in admin-auth.test.mjs; what only
