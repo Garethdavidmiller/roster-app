@@ -20,6 +20,7 @@ import {
     CALENDAR_VIEWER_UID, CALENDAR_VIEWER_CLAIM, PIN_LENGTH,
     isViewerUser, decideAccess, normalisePin, isCompletePin,
     classifyUnlockFailure, attemptBackoffMs, noticeAudienceAllows, decideProvisionalAccess,
+    personalActionsAllowed,
 } from './calendar-access-core.js';
 
 const member  = { uid: 'abc123', isAnonymous: false };
@@ -343,4 +344,76 @@ describe('decideProvisionalAccess — may we re-show this person their own saved
     // no assertion can tell them apart. Sourcing the scope from the selection is a mutation that
     // survives this suite, because it is not a behaviour change. The property is held by the
     // colleague refusal above, not by a test of its own; see the note in the module.
+});
+
+
+describe('personalActionsAllowed — a button that says "yours" must mean it', () => {
+    // Organised by what each wrong answer COSTS, and they are not symmetrical.
+    //
+    //   · OFFERING TOO MUCH is the reported defect and the quiet one. Nothing errors: the member
+    //     taps "Leave dates" on a colleague's annual-leave day and arrives at a correct, complete
+    //     list of their OWN leave, which they then have to work out is not what they asked for.
+    //     On a PIN-unlocked station PC it is worse — the panel offers a personal route from a
+    //     screen that belongs to nobody.
+    //   · OFFERING TOO LITTLE costs a signed-in member on their own calendar one tap through the
+    //     nav drawer. Real, and an order of magnitude cheaper, which is why every ambiguous input
+    //     below is asserted to refuse.
+
+    const OWN = { accessType: 'named', sessionName: 'G. Miller', shownMember: 'G. Miller' };
+
+    test('your own calendar, signed in — the case both buttons exist for', () => {
+        assert.equal(personalActionsAllowed(OWN), true);
+    });
+
+    test('a COLLEAGUE’s calendar refuses, however you are signed in', () => {
+        // Browsing somebody else's roster is an ordinary thing every signed-in member may do —
+        // that is what the member selector is — so this is not an edge case, it is the report.
+        for (const type of ['named', 'open', 'none']) {
+            assert.equal(
+                personalActionsAllowed({ ...OWN, accessType: type, shownMember: 'S. Silva' }), false,
+                `${type}: a colleague's day must offer no personal action`);
+        }
+    });
+
+    test('VIEWER mode refuses even with a live session name — the state that is reachable', () => {
+        // THE CASE AN IDENTITY-ONLY RULE GETS WRONG, and it is not defensive. `decideAccess` needs
+        // a restored FIREBASE USER as well as a session, so an iOS ITP eviction (~7 days of no PWA
+        // use) leaves a valid 60-day local session that falls through to `viewer` the moment a PIN
+        // token is restored — name still in localStorage, PIN on screen. Checking only the name
+        // would light both buttons on exactly the shared machine this keeps them off.
+        assert.equal(personalActionsAllowed({ ...OWN, accessType: 'viewer' }), false,
+            'a stale local name must not survive into viewer mode');
+        assert.equal(personalActionsAllowed({ accessType: 'viewer', sessionName: null, shownMember: 'G. Miller' }),
+            false, 'and the ordinary PIN case, with no session at all');
+    });
+
+    test('`open` mode is decided by the NAME, not by the mode', () => {
+        // The PIN switched off says nothing about identity, so it must not be a third refusal:
+        // a signed-in member browsing their own calendar keeps the buttons.
+        assert.equal(personalActionsAllowed({ ...OWN, accessType: 'open' }), true);
+        assert.equal(personalActionsAllowed({ accessType: 'open', sessionName: null, shownMember: 'G. Miller' }),
+            false, 'and a device with no session has no name to match');
+    });
+
+    test('no name, a blank name and a missing member all refuse', () => {
+        // A convenience fails closed. `undefined === undefined` is TRUE, which is the shape that
+        // turns "both unknown" into "it is yours" — asserted rather than reasoned about.
+        for (const [who, shown] of [[null, 'G. Miller'], [undefined, undefined], ['', ''],
+                                    ['   ', '   '], ['G. Miller', null], ['G. Miller', '']]) {
+            assert.equal(personalActionsAllowed({ accessType: 'named', sessionName: who, shownMember: shown }),
+                false, `${JSON.stringify(who)} vs ${JSON.stringify(shown)} must refuse`);
+        }
+    });
+
+    test('the comparison survives stored whitespace, on either side', () => {
+        assert.equal(personalActionsAllowed({ ...OWN, sessionName: ' G. Miller ' }), true);
+        assert.equal(personalActionsAllowed({ ...OWN, shownMember: 'G. Miller ' }), true);
+    });
+
+    test('a non-string on either side is refused rather than coerced', () => {
+        for (const bad of [42, {}, [], true]) {
+            assert.equal(personalActionsAllowed({ accessType: 'named', sessionName: bad, shownMember: bad }),
+                false, `${JSON.stringify(bad)} is not a name`);
+        }
+    });
 });
