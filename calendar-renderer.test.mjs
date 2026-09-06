@@ -341,6 +341,29 @@ describe('buildCalendarContainer — "As rostered" is a CLAIM, so it has to be e
             'the two are one slot in the panel and must never both be true');
     });
 
+    test('a day BEFORE the member joined carries neither the flag nor a change', () => {
+        // The fourth way the claim is unearned, and the only one that is not about knowledge.
+        // `getBaseShift` suppresses every shift before `startDate`, so base and effective are both
+        // 'RD' and the day falls into the unchanged branch — on a settled month, which is the one
+        // state allowed to speak. The panel then said "\u2713 As rostered" over a rest day nobody was
+        // ever rostered for, on a month a new starter can reach by pressing Prev.
+        //
+        // "We do not know" and "there is nothing to know" are different silences, and only the first
+        // was covered: every knowledge state above is about a read that may yet arrive, where this is
+        // a date the roster has no opinion on at all.
+        _resetKnowledge();
+        knowTestMonth();
+        _mockGetBaseShift   = () => 'RD';     // what start-date suppression actually returns
+        _mockIsBeforeMember = () => true;
+        const cells = [...buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year)
+            .querySelectorAll('.calendar-day')].filter(c => c.dataset.detailDay);
+        _mockIsBeforeMember = () => false;
+        assert.ok(cells.length, 'precondition: the grid still renders — the cells are drawn, just empty');
+        assert.ok(cells.every(c => !c.dataset.detailAsRostered),
+            'a date before the member started is not a roster the app can confirm; the rest day ' +
+            'shown there is suppression, not a rostered rest day');
+    });
+
     test('the roster week is written onto every cell', () => {
         _resetKnowledge();
         knowTestMonth();

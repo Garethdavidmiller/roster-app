@@ -42,7 +42,21 @@
  * A retry here automates the discriminating test a human was doing by hand: an ENGINE difference —
  * the thing this suite exists to catch — is deterministic and fails both attempts, so the job stays
  * red for it. A slow-runner race passes on retry and is reported as "flaky" in the summary rather
- * than failing the run. CI-only, because locally a first-attempt failure is something you are
+ * than failing the run.
+ *
+ * **THE ONE CASE THAT DISCRIMINATOR GETS WRONG, and it has now happened (v22.93).** Both attempts
+ * run on the SAME machine inside the SAME job, so a race that is correlated with LOAD rather than
+ * with luck fails twice and reads as an engine difference. A day-panel assertion slept 600ms and
+ * then read a transform that `createLightbox` sets inside a `requestAnimationFrame` — and WebKit
+ * throttles rAF hard on a page it is not painting, so on a loaded shard the frame simply had not
+ * arrived. It failed the attempt and the retry, passed outright on the next run, and reproduced
+ * nowhere locally. Read strictly by the rule above, that says "engine difference" and sends the
+ * next person hunting a WebKit CSS bug that does not exist.
+ *
+ * So: two failures here mean *deterministic on this machine*, which is not the same as
+ * deterministic. Before concluding engine, check whether the assertion waits by SLEEPING — a fixed
+ * timeout against anything gated on a frame, a transition or a network reply is the shape that
+ * produces this, and the fix is to poll rather than to lengthen the sleep. CI-only, because locally a first-attempt failure is something you are
  * actively looking at and a silent retry would hide it mid-diagnosis.
  *
  * The DEPLOY gate keeps its single-shot rule unchanged — that reasoning (an automatic retry hands a
@@ -63,9 +77,13 @@
  *     npx playwright install webkit          # the browser binary
  *     npx playwright install-deps webkit     # ~20 system libs — apt, so it needs root
  *
- * The FIRST alone is not enough and fails in a misleading way: the download succeeds, then the
- * launch dies listing missing shared objects (gstreamer, libwoff2, libenchant, libmanette…). That
- * reads like "unsupported" rather than "one more command", which is the trap.
+ * The FIRST alone may not be enough, and when it is not it fails in a misleading way: the download
+ * succeeds, then the launch dies listing missing shared objects (gstreamer, libwoff2, libenchant,
+ * libmanette…). That reads like "unsupported" rather than "one more command", which is the trap.
+ * **Try the first alone before reaching for root** (v22.93): on the container of 5 Sep 2026 the
+ * system libraries were already present and `install-deps` was never needed — the browser
+ * downloaded and mobile-safari launched. This paragraph said flatly that one command cannot work,
+ * which would have had a session without root give up on running the engine at all.
  *
  * Measured after doing it: **719 passed, 0 failed, 13.2 minutes** for both projects on this
  * container. So it is slow enough to be worth backgrounding and fast enough that there is no

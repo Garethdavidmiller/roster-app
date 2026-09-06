@@ -680,10 +680,17 @@ and the rows are driven through a real browser at eight width/scale pairs — bu
 runs states the scale through the `window.__E2E.textScale` seam and then scales the fonts itself,
 because a headless browser has no OS text-size setting to turn up. So the suites prove that *when
 the page believes the text is 1.3×, the rows respond correctly*. They do not prove that a Samsung
-"Largest" or a Pixel accessibility font size makes the hidden 16px probe **measure** 1.3×. That
-bridge — real setting → probe reading — is real-device validation, and it has been done exactly the
-way the feature was found: on the owner's own phone. If a colleague on a large text setting reports
-two rows, suspect the probe before the CSS: the response is pinned, the detection is not.
+"Largest" or a Pixel accessibility font size makes the hidden 16px probe **measure** 1.3×.
+
+**What IS on record, and what is not** (tightened v22.93 — the two halves of this entry used to
+disagree with each other). Measured: at the DEFAULT text size the probe reads exactly 1.0 in a real
+browser, so nothing is stamped and no phone gets a compact row it did not need — `line-height: 1` is
+what makes that font-independent, and had the box been sized from font metrics it would have read
+~1.2 and compacted everybody. **The scaled reading is NOT confirmed on a real device.** The feature
+was found on the owner's phone; the probe's answer at "Largest" has not been read back off one, and
+the previous wording implied it had while the next sentence warned that it had not. If a colleague
+on a large text setting reports two rows, suspect the probe before the CSS: the response is pinned,
+the detection is not.
 
 ### Under large text the month heading is HELD at its size — a compromise, not a pattern (v22.87)
 

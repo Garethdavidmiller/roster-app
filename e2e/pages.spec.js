@@ -1,5 +1,5 @@
 import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, seedMemberSession, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, seedMemberSession, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the literal 22 — and `links: the rotation
 // length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
@@ -1979,14 +1979,27 @@ test('admin: every base-roster badge in a week shares one left edge', async ({ p
     // measured at three different values over one seven-row week (654 / 615 / 613 at 1280px),
     // because `REST` is short, a time is long, and 🦉 is wider than ☀️. One width fixes it by
     // construction; `tabular-nums` is what stops the TIMES varying among themselves.
+    //
+    // The member is a FIXED-roster one for the reason given on the base-roster-time test below, and
+    // for a second reason that only bites here: on a week where every badge is identical this
+    // assertion PASSES TRIVIALLY — one left edge, because there is only one badge width to have an
+    // edge. That is the worse half of the same clock dependence, because a green test proving
+    // nothing is indistinguishable from a green test proving something. The distinct-text
+    // precondition is what stops it, and it is the assertion to keep if this ever gets rewritten.
     for (const width of [390, 1280]) {
         await page.setViewportSize({ width, height: 1200 });
         await seedSession(page);
         await page.goto('/admin.html');
-        await page.locator('#fieldMember').selectOption('L. Atrakimaviciene');
+        await page.locator('#fieldMember').selectOption('C. Reen');
         await page.waitForSelector('.day-row', { timeout: 10000 });
-        const lefts = await page.evaluate(() => [...new Set([...document.querySelectorAll('.day-row .col-base .shift-badge')]
-            .map(b => Math.round(b.getBoundingClientRect().left)))]);
+        const badges = await page.evaluate(() => [...document.querySelectorAll('.day-row .col-base .shift-badge')]
+            .map(b => ({ left: Math.round(b.getBoundingClientRect().left),
+                         text: (b.textContent || '').replace(/\s+/g, ' ').trim() })));
+        const texts = [...new Set(badges.map(b => b.text))];
+        expect(texts.length,
+            `@${width}px the week must hold badges of DIFFERENT widths, or one left edge is free — got ${texts.join(' | ')}`)
+            .toBeGreaterThan(1);
+        const lefts = [...new Set(badges.map(b => b.left))];
         expect(lefts, `@${width}px every badge starts at the same x — got ${lefts.join(', ')}`).toHaveLength(1);
     }
 });
@@ -1998,10 +2011,21 @@ test('admin: the BASE ROSTER column shows the time, not just Early/Late', async 
     //
     // A WIRING test, deliberately. `getShiftBadge`'s option is unit-tested both ways; what only a
     // browser can show is that the week grid PASSES it, and that the time fits the row it lives in.
+    //
+    // THE MEMBER IS ON A FIXED LINE ON PURPOSE — DO NOT SWAP IT BACK FOR A ROTATING ONE (v22.97).
+    // This used to read whatever week the real clock happened to land on, for a member on the
+    // 20-week main roster — and FOUR of those twenty weeks are entirely SPARE. So the precondition
+    // below was true four weeks in five and false the fifth, with nothing anywhere saying so: on
+    // 6 Sep 2026 the rotation reached one and the suite went red on every engine at once, with no
+    // code change behind it, which is indistinguishable from a real regression until you look.
+    // `C. Reen` is `rosterType: 'fixed'` with no `rosterChanges` and no `startDate`, so their week
+    // is the same seven days for ever — five 12:00-19:00 and two rest days. That is what lets the
+    // count below be EXACT rather than a floor, and a floor is what hid the problem: `> 2` also
+    // passes on the week that has three.
     await page.setViewportSize({ width: 390, height: 900 });
     await seedSession(page);
     await page.goto('/admin.html');
-    await page.locator('#fieldMember').selectOption('L. Atrakimaviciene');
+    await page.locator('#fieldMember').selectOption('C. Reen');
     await page.waitForSelector('.day-row', { timeout: 10000 });
 
     const worked = await page.evaluate(() => [...document.querySelectorAll('.day-row')]
@@ -2015,7 +2039,8 @@ test('admin: the BASE ROSTER column shows the time, not just Early/Late', async 
         .filter(x => /badge/.test('') === false));
 
     const timed = worked.filter(x => /\d{2}:\d{2}-\d{2}:\d{2}/.test(x.text));
-    expect(timed.length, 'this member works most of the week — the fixture must contain worked days').toBeGreaterThan(2);
+    expect(timed.length, 'C. Reen works Mon–Fri on a fixed line — five timed days, every week')
+        .toBe(5);
     for (const b of timed) {
         expect(b.aria, 'the classification moves into the accessible name, it is not dropped')
             .toMatch(/^(Early|Late|Night) shift, \d{2}:\d{2} to \d{2}:\d{2}$/);
@@ -3397,7 +3422,7 @@ test('every page renders in Inter, not a browser default', async ({ page }) => {
 // coverage gap rather than fixing a defect. The 24px tap-target test below stays mobile-chrome-only:
 // it is WCAG 2.2 and engine-neutral, so it has no equivalent reason to cross.
 test('no focusable field falls below 16px on a touch device @a11y', async ({ page }, info) => {
-    test.skip(!['mobile-chrome','mobile-safari'].includes(info.project.name), 'needs a real coarse pointer');
+    test.skip(!isTouchProject(info), 'needs a real coarse pointer');
     await page.setViewportSize({ width: 390, height: 900 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
@@ -3640,7 +3665,7 @@ test('links: the 30px control families keep their target @a11y', async ({ page }
 // every visual test green. A screenshot could not police it anyway, since re-baselining just records
 // whatever it wrapped to.
 test('links: a numeric objective clause does not come apart on a phone', async ({ page }, info) => {
-    test.skip(!['mobile-chrome','mobile-safari'].includes(info.project.name), 'needs a real coarse pointer');
+    test.skip(!isTouchProject(info), 'needs a real coarse pointer');
     // 360, not the suite's usual 390 — that is the reported device (1080px at DPR 3), and it is the
     // 30px that decided this. The clause fits at 390 and fragments at 360.
     await page.setViewportSize({ width: 360, height: 900 });
@@ -3772,7 +3797,10 @@ test('links: the empty-state button opens the generator with its chevron and ARI
 // A screenshot would not police this reliably: the baseline is a whole-card capture, and a
 // re-baseline records whatever the alignment happens to be. Measuring the left edges does.
 test('links: the generator card lines up on one left edge at desktop width', async ({ page }, info) => {
-    test.skip(info.project.name === 'mobile-chrome', 'the shared column only applies at >=1024px');
+    // Both phone projects, not one: this skipped mobile-chrome and then RAN on mobile-safari,
+    // which forced a 1280 viewport and measured the same desktop layout a second time. A
+    // project gate should name the class of device, not one member of it.
+    test.skip(isTouchProject(info), 'the shared column only applies at >=1024px');
     // v20.98: the generator refuses targets that cannot pay the contracted week, and the
     // roster seed cannot at this rotation — so a spec that generates brings work with it.
     await seedContractTargets(page);

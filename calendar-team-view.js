@@ -517,7 +517,12 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         const announcer = document.getElementById('ariaAnnouncer');
         if (!announcer) return;
         announcer.textContent = '';
-        // "this week" is spoken, because on screen it is only a colour (the gold rule under the date).
+        // "this week" is SPOKEN as well as shown (v22.93). It reads as a duplicate of the
+        // `.tv-week-status--now` line and is not: that line is read when a screen reader reaches it
+        // in the grid, and this region is the only thing that fires ON A WEEK CHANGE — announcing
+        // the date alone would drop the state at the one moment it changes. (Until v22.88 the state
+        // was a gold rule with no words at all, which is what this line used to say; the words came
+        // back and the reason for speaking them did not go away.)
         const isCurrentWeek = currentTeamWeekStart.getTime() === getSunday(new Date()).getTime();
         requestAnimationFrame(() => {
             announcer.textContent = `Week of ${formatTeamWeekLabel(currentTeamWeekStart, MONTH_NAMES)}${isCurrentWeek ? ' — this week' : ''}`;

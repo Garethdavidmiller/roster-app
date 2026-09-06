@@ -1,5 +1,5 @@
 import { test, expect, enforceNamedSession, enableInplaceLogin, enableCalendarPin } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink, seedViewerAccess, seedMemberSession } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink, seedViewerAccess, seedMemberSession, isTouchProject } from './helpers.js';
 
 // ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
 // Since v20.12 the Calendar opens only for a member session or the shared staff PIN, so a spec that
@@ -52,7 +52,7 @@ test('day detail: names the roster it was changed from, and opens at full size',
     // The panel is the TOUCH affordance — a desktop pointer reads the same content from the hover
     // tooltip, and a click there never opens it. Mobile-only, and stated rather than assumed: the
     // first cut ran on both and failed on chromium for exactly that reason.
-    test.skip(info.project.name !== 'mobile-chrome', 'the day panel is the touch route; desktop hovers');
+    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
     await seedMember(page);
     await page.addInitScript(() => {
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
@@ -91,11 +91,20 @@ test('day detail: names the roster it was changed from, and opens at full size',
 
     // Full size, not the 85% fossil. The transform is the only observable: the text renders either
     // way, which is exactly why this went unnoticed.
-    await page.waitForTimeout(600);
-    const t = await page.evaluate(() => getComputedStyle(
-        /** @type {any} */ (document.getElementById('dayDetailContent'))).transform);
-    expect(t, 'the panel never scaled up — an id-level transform is beating the shared .open rule')
-        .toBe('matrix(1, 0, 0, 1, 0, 0)');
+    //
+    // POLLED, NEVER A FIXED SLEEP (v22.93). `createLightbox` adds `.open` inside a
+    // `requestAnimationFrame`, and WebKit throttles rAF hard on a page it is not painting — so on a
+    // loaded CI shard the frame can arrive well after any sleep you pick, leaving the panel at its
+    // resting `scale(0.88)` with nothing wrong. That is what a 600ms `waitForTimeout` here did:
+    // mobile-safari failed on the first attempt AND the retry, and passed outright on the next run.
+    // This file already carries the lesson further down — a fixed wait fails on a different line
+    // each run — and this assertion was the one place still ignoring it.
+    //
+    // It keeps every tooth. A panel genuinely pinned by an id-level `transform` never reaches 1, so
+    // this still fails, just at the end of the timeout instead of at 600ms.
+    await expect(page.locator('#dayDetailContent'),
+        'the panel never scaled up — an id-level transform is beating the shared .open rule')
+        .toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
 });
 
 // A change WITHIN one shift kind — a time tweak, and probably the commonest change there is. The
@@ -104,7 +113,7 @@ test('day detail: names the roster it was changed from, and opens at full size',
 // headline saying it did. Found by looking at the render, not by reasoning about it. A timed pill
 // shows its TIME; the kind is still carried by the colour, the emoji and the accessible label.
 test('day detail: a same-KIND change still reads as a change', async ({ page }, info) => {
-    test.skip(info.project.name !== 'mobile-chrome', 'the day panel is the touch route; desktop hovers');
+    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
     await seedMember(page);
     await page.addInitScript(() => {
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
@@ -147,7 +156,7 @@ test('day detail: a same-KIND change still reads as a change', async ({ page }, 
 // means, and it answered in a comma-joined sentence with no ⭐ in it. Asserted against the ICONS,
 // because the labels were always right — it is the vocabulary that was missing.
 test('day detail: the date clears the close button at every phone width', async ({ page }, info) => {
-    test.skip(info.project.name !== 'mobile-chrome', 'the day panel is the touch route; desktop hovers');
+    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
     // THE CASE HAS TO BE ONE THAT CAN BITE, and the first version of this test was not: at 320px
     // the longest date wraps and clears the button on the broken CSS as well as the fixed CSS, so
     // the mutation passed. Measured across 320/360/390/412 on "Wednesday 30 September 2026" — the
@@ -169,7 +178,13 @@ test('day detail: the date clears the close button at every phone width', async 
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     await page.locator('.calendar-day:not(.other-month)').nth(29).click();
     await expect(page.locator('#dayDetailContent')).toBeVisible();
-    await page.waitForTimeout(600);
+    // Wait for the panel to have finished GROWING before measuring anything in it, and wait for it
+    // by asking rather than by sleeping — same reason as the assertion above. It matters more here
+    // than it looks: a panel still at `scale(0.88)` is measurably SMALLER, so an overlap check run
+    // against it passes for the wrong reason. A wrong-way-round pass is worse than a flake, because
+    // nothing reports it.
+    await expect(page.locator('#dayDetailContent'))
+        .toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
 
     // NO OVERLAP — measured against the RENDERED TEXT, not the element box. The date line is
     // `width: 100%` and clears the ✕ with padding, so its BOX legitimately reaches under the
@@ -202,7 +217,7 @@ test('day detail: the date clears the close button at every phone width', async 
 // needs the longest date the app renders, and the marker case needs a date that actually carries
 // markers. Folding them into one test meant one of the two ran on a fixture that could not fail it.
 test('day detail: the day markers carry the calendar\'s own icons', async ({ page }, info) => {
-    test.skip(info.project.name !== 'mobile-chrome', 'the day panel is the touch route; desktop hovers');
+    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
     await seedMember(page);
     await page.addInitScript(() => {
         localStorage.setItem('myb_roster_year', '2026');
@@ -229,7 +244,7 @@ test('day detail: the day markers carry the calendar\'s own icons', async ({ pag
 // rather than of the shift. A plain Late turn and a plain Rest day were one grey card with
 // different words on it.
 test('day detail: an UNCHANGED day still leads with its own kind glyph', async ({ page }, info) => {
-    test.skip(info.project.name !== 'mobile-chrome', 'the day panel is the touch route; desktop hovers');
+    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
     await seedMember(page);
     await page.goto('/');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
@@ -1376,7 +1391,7 @@ test('calendar: the team week is ANNOUNCED with the full month name, not the on-
 // nothing shows.
 
 test('day detail: states the roster week under the date', async ({ page }, info) => {
-    test.skip(info.project.name !== 'mobile-chrome', 'the day panel is the touch route; desktop hovers');
+    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
     await seedMember(page);
     await page.goto('/');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
@@ -1397,7 +1412,7 @@ test('day detail: states the roster week under the date', async ({ page }, info)
 });
 
 test('day detail: an unchanged day says so, a changed one shows the change instead', async ({ page }, info) => {
-    test.skip(info.project.name !== 'mobile-chrome', 'the day panel is the touch route; desktop hovers');
+    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
     await seedMember(page);
     // One override, so the same month holds both states and neither can pass by the fixture alone.
     await page.addInitScript(() => {
@@ -1436,6 +1451,52 @@ test('day detail: an unchanged day says so, a changed one shows the change inste
     // `hidden` must actually hide, and `display: flex` out-specifies the attribute — the trap
     // page-visibility-parity guards statically and this one can see for real.
     await expect(page.locator('#dayDetailChange')).toHaveCSS('display', 'none');
+});
+
+test('day detail: a month before the member joined confirms nothing', async ({ page }, info) => {
+    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
+    // THE FOURTH WAY "As rostered" CAN BE UNEARNED, and the only one that is not about knowledge
+    // (v22.93). J. Davies starts 5 May 2026, so April 2026 is entirely before their roster begins:
+    // `getBaseShift` suppresses every shift to a rest day, base and effective therefore match, and
+    // the day lands in the unchanged branch on a month whose read has settled — the one state
+    // allowed to speak. The panel confirmed a rest day nobody was ever rostered for.
+    //
+    // Reachable by pressing Prev, which is exactly what a new starter does. Driven through the REAL
+    // roster table rather than a fixture, because the rule is about a member's own `startDate` and a
+    // fixture would only prove the branch, not that any member reaches it.
+    await seedMember(page, 'J. Davies');
+    await seedMemberSession(page, 'J. Davies');
+    await page.addInitScript(() => {
+        // calendar-state.js restores a PAST month from these; a future one is refused.
+        localStorage.setItem('myb_roster_month', '3');    // April, 0-indexed
+        localStorage.setItem('myb_roster_year',  '2026');
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+
+    const state = await page.evaluate(() => {
+        const cells = [...document.querySelectorAll('.calendar-day:not(.other-month)')]
+            .filter(c => c.dataset.detailDay);
+        return {
+            month:    document.querySelector('.month-year')?.textContent?.trim(),
+            grid:     document.querySelector('.calendar-grid')?.parentElement?.dataset.overrideState,
+            n:        cells.length,
+            claiming: cells.filter(c => c.dataset.detailAsRostered).length,
+        };
+    });
+    expect(state.month, 'the persisted month must have been restored').toContain('April 2026');
+    expect(state.n, 'precondition: the grid rendered its days').toBeGreaterThan(0);
+    expect(state.claiming,
+        'every day in this month is before J. Davies started, so none of them is a roster the app ' +
+        'can confirm — the rest days shown are suppression, not rostered rest days').toBe(0);
+
+    // And the panel is correspondingly silent, rather than the flag being written and ignored.
+    await page.locator('.calendar-day:not(.other-month)').first().click();
+    await expect(page.locator('#dayDetailAsRostered')).toBeHidden();
+    // The WEEK still shows: the month header states it too, and `weekContext` exists so the two
+    // surfaces cannot disagree about who has a rotating week. Silencing one and not the other would
+    // be the drift that function was written to prevent.
+    await expect(page.locator('#dayDetailWeek')).toBeVisible();
 });
 
 // The five action buttons on a phone NARROWER than the app's 360px design width. Android's
@@ -1480,7 +1541,7 @@ for (const width of [320, 333, 360]) {
 // ─── THE DAY PANEL'S HEADING BLOCK, AND THE LEAVE ACTION (v22.91) ────────────────────────────────
 
 test('day detail: the roster week is bound to the date, not floating between it and the shift', async ({ page }, info) => {
-    test.skip(info.project.name !== 'mobile-chrome', 'the day panel is the touch route; desktop hovers');
+    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
     await seedMember(page);
     await page.goto('/');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
@@ -1505,7 +1566,7 @@ test('day detail: the roster week is bound to the date, not floating between it 
 });
 
 test('day detail: an annual-leave day offers the leave dates, and no other day does', async ({ page }, info) => {
-    test.skip(info.project.name !== 'mobile-chrome', 'the day panel is the touch route; desktop hovers');
+    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
     await seedMember(page);
     await page.addInitScript(() => {
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};

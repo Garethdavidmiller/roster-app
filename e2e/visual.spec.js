@@ -15,6 +15,15 @@
 //     rendering noise that would have been committed as though reviewed. Reverting a file and
 //     re-running is the check: still passes ⇒ it was noise and does not belong in the diff.
 //
+// A THIRD, ABOUT DIAGNOSING A DRIFT BEFORE YOU REGENERATE (v22.94). A shot that fails locally and
+// passes on CI is not automatically an environment difference to be lived with. `calendar-mobile-360`
+// was diagnosed that way on 5 Sep 2026 — byte-identical here across two runs AND across two trees,
+// which reads as settled — and the real cause was a `<select>` whose height was 41px or 44px
+// depending on the font the control was laid out with, carrying 3px into every row beneath it. A
+// member saw it too. **Two samples cannot tell a stable difference from a split**, so "it renders
+// consistently here" is not evidence of determinism; and the conclusion that costs most is the
+// comfortable one, "nothing to fix". Bisect to the element before deciding the lane is at fault.
+//
 // Determinism: the clock is pinned so the calendar + pay period are fixed; Firebase is stubbed
 // (fixtures.js) so reads are empty; a fixed member is seeded; every one-time overlay is
 // pre-dismissed; fonts + layout are awaited before capture. See playwright.visual.mjs.

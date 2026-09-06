@@ -434,7 +434,12 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // three consumers can never disagree. An Other day keeps its raw grammar value in
         // `shift` (the badge + label parse it); rdwTime/otherDerivedRdw drive the hours slot.
         const dateStr = formatISO(currentDate);
-        const override = !isBeforeMemberStart(member, currentDate) ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
+        // Before the member joined, `getBaseShift` has already suppressed the shift and no override
+        // may apply — so this day has no roster at all. Kept as a NAMED value because the "As
+        // rostered" branch below needs the same answer, and re-asking would be a second place for
+        // the two to disagree.
+        const preStart = isBeforeMemberStart(member, currentDate);
+        const override = !preStart ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
         // WHAT THE ROSTER SAID BEFORE THE CHANGE (v22.64). Captured here because the next line
         // overwrites `shift` with the effective value, and the base is then unrecoverable — the
         // day-detail panel could show "Early shift 07:00-16:00" with no way to tell whether that
@@ -506,7 +511,7 @@ export function buildCalendarContainer(month, year, opts = {}) {
             dayCell.dataset.detailNowShift  = shift;
             const by = changeProvenance(override?.source, override?.changedBy);
             if (by) dayCell.dataset.detailBy = by;
-        } else if (_display === 'render') {
+        } else if (_display === 'render' && !preStart) {
             // NOTHING WAS CHANGED — AND WE ACTUALLY KNOW THAT (v22.89, external review).
             //
             // An unchanged day rendered nothing in the panel's change slot, so "no change is on
@@ -522,6 +527,15 @@ export function buildCalendarContainer(month, year, opts = {}) {
             // Decided HERE rather than in the panel because both halves are already in hand at this
             // line — the base-vs-effective comparison and the month's knowledge — and a second copy
             // of the knowledge rule in a view module is how the two would come to disagree.
+            //
+            // `preStart` is the FOURTH way the claim can be unearned, and the only one that is not
+            // about knowledge (v22.93). Before a member's start date `getBaseShift` suppresses every
+            // shift to `RD`, so base and effective match and the day lands here — on a settled month,
+            // which is the one state allowed to speak. The panel then confirmed a rest day nobody was
+            // ever rostered for, on a month a new starter reaches by pressing Prev. "We do not know"
+            // and "there is nothing to know" are different silences; only the first was covered.
+            // The roster WEEK is deliberately still stated on such a day: the month header states it
+            // too, and `weekContext`'s whole design is that the two surfaces cannot disagree.
             dayCell.dataset.detailAsRostered = '1';
         }
         if (extras)       dayCell.dataset.detailExtras = extras;
