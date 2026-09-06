@@ -632,18 +632,17 @@ export function stubPerfReads(page) {
 }
 
 /**
- * THE PROJECTS WITH A REAL COARSE POINTER — i.e. the ones where touch-only UI actually exists.
+ * THE PROJECTS WITH A REAL COARSE POINTER — re-exported so every spec keeps importing it from here.
  *
- * Written once because it was written twice, and the third copy was the one that went wrong: nine
- * day-panel tests were gated to `mobile-chrome` ALONE, so the app's only touch route to what a day
- * IS never once ran on the engine every iPhone uses, while `mobile-safari` sat in CI as a full job.
- * The same gap was found and closed for the 16px-field rule at v22.12; this is the list that stops
- * it being rediscovered a third time.
- *
- * Deliberately NOT every non-desktop project: a test that is mobile-chrome-only for a reason that is
- * genuinely engine-neutral (WCAG tap targets) states that reason and keeps its own narrow gate.
+ * The list itself moved to `e2e/touch-projects.js`, which imports NOTHING, because the static suite
+ * that checks it (`touch-gate-parity.test.mjs`) runs with no `node_modules` and this file imports
+ * `@playwright/test` on line 5. That header has the argument; do not move the value back.
  */
-export const TOUCH_PROJECTS = ['mobile-chrome', 'mobile-safari'];
+// NOTE the import-then-export pair. A bare `export { TOUCH_PROJECTS } from './touch-projects.js'`
+// re-exports the name WITHOUT binding it in this module's scope, so `isTouchProject` below would
+// throw a ReferenceError the first time a spec called it — and every touch-gated test calls it.
+import { TOUCH_PROJECTS } from './touch-projects.js';
+export { TOUCH_PROJECTS };
 
 /**
  * Is this run on a device with a coarse pointer? Pass Playwright's `info`.

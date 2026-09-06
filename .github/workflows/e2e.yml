@@ -228,6 +228,52 @@ jobs:
           # Canonical check command (lint + tests) lives in package.json.
           npm run check
 
+  # ── THE NO-INSTALL LANE, ACTUALLY RUN WITHOUT AN INSTALL (6 Sep 2026) ─────────────────────────
+  #
+  # `npm run test:nodeps` exists for ONE reader: somebody reviewing this repo from a GitHub ZIP with
+  # nothing installed. README.md tells them the whole default lane passes on a bare Node binary,
+  # because external reviews kept reporting the estate as unverified after an install failed in
+  # their sandbox.
+  #
+  # Nothing ran it. Not `npm run check`, not any job in this file — so its one claim could only ever
+  # be falsified by the stranger it was written for, and on 6 Sep 2026 that is exactly who
+  # falsified it: `touch-gate-parity.test.mjs` had started reaching `TOUCH_PROJECTS` through
+  # `e2e/helpers.js`, which imports `@playwright/test` at module scope. On a bare checkout the suite
+  # died on ERR_MODULE_NOT_FOUND while its own header still promised "nothing installed". Invisible
+  # from every normal checkout, where the import resolves and it passes.
+  #
+  # This job is the cheapest one in the file BECAUSE it skips the install that every sibling runs —
+  # the absence of `npm ci` is the whole test, not an optimisation. The explicit node_modules
+  # assertion below exists so it can never start passing for the wrong reason: a future `cache:`
+  # or install step would otherwise turn this into a duplicate of `unit` that silently proves
+  # nothing, which is precisely the failure mode it was added to catch.
+  nodeps:
+    needs: guard
+    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      # No `cache: npm`, and deliberately no install step after it.
+      - name: Install Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+
+      - name: Prove nothing is installed
+        run: |
+          if [ -e node_modules ] || [ -e functions/node_modules ]; then
+            echo "::error::node_modules exists, so this job is no longer testing the no-install lane. Remove whatever installs or restores it - the absence IS the test."
+            exit 1
+          fi
+          echo "no node_modules - the lane is being tested as a reviewer would meet it"
+
+      - name: Run every suite that needs nothing installed
+        run: npm run test:nodeps
+
   # ── CLOUD FUNCTIONS, ON THE RUNTIME THEY ACTUALLY RUN ON (v21.82) ──────────────────────────────
   #
   # `npm run check` above does NOT include test:functions — that command needs functions/node_modules

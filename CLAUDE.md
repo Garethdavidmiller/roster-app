@@ -592,6 +592,7 @@ roster-app/
 │   ├── visual.spec.js ← visual-regression baselines — runs ONLY via `npm run test:visual`. Clock-pinned, Firebase-stubbed, fixed-viewport screenshots vs committed PNGs. **Opt-in and deliberately NOT a CI gate** (pixel diffs are environment-sensitive), so a CSS change can still ship un-screenshotted — run it before merging one. Regeneration and the tolerance limits are documented in the spec header
 │   ├── offline.spec.js     ← offline-behaviour proof: runs ONLY via `npm run test:offline` under `playwright.offline.mjs`. Verifies the SW/offline-first paths (calendar opens from cache with the network cut). EXCLUDED from the http-server smoke run
 │   ├── visual-baselines/   ← committed baseline PNGs for visual.spec.js — page surfaces, overlays, the dense read-only cards, and (v22.70) the day-detail panel at 390 and 320. Each shot's reason is in the spec beside it. Regenerate wholesale if the rendering environment (browser/OS/font stack) changes
+│   ├── touch-projects.js ← `TOUCH_PROJECTS`, the mobile Playwright projects, in a file that imports NOTHING. Its own module because `touch-gate-parity.test.mjs` runs in the no-install lane and `helpers.js` imports `@playwright/test`; helpers.js re-exports it so no spec changed. Its header has the argument
 │   ├── helpers.js          ← shared spec helpers (collectFatalErrors, seedSession/seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview + ROSTER_REVIEW_PARSE — the review table only exists after a successful parse, so reaching it means stubbing the Cloud Function and driving the real upload; defined once because the CI wiring test and the opt-in visual baseline both need it; and `clickInView`, which scrolls with `window.scrollTo` rather than `el.scrollIntoView` because WebKit does not move the Links page with the latter — measured, not assumed) — imported by the smoke specs
 │   └── fixtures.js         ← hermetic Firebase: intercepts `gstatic.com/firebasejs/**`, serves local no-op stubs of every symbol firebase-client.js imports. `writeBatch` RECORDS its `set()` payloads to `window.__E2E.batchWrites` (v19.35) so a spec can assert what was actually WRITTEN rather than what a summary line claims — the two are separate passes over the same state. `enforceNamedSession(page)` rewrites roster-data.js to flip `ENFORCE_NAMED_SESSION` on, and `window.__E2E.failSignIn` forces sign-in to fail — for the B1 enforcement tests
 ├── playwright.config.mjs   ← Playwright config: chromium + mobile-chrome projects, local http-server, SW blocked, CDN-free. Uses pre-installed Chromium in dev (`/opt/pw-browsers`); CI installs its own. `testIgnore: csp.spec.js` (that spec needs the Hosting emulator's headers)
@@ -663,7 +664,13 @@ npm run test:unit     # all --experimental-test-module-mocks tests
 # install: the Cloud Functions handler suites (`functions/node_modules`), the two rules suites (the
 # emulator), and lint/typecheck/Playwright (the root install). The command PRINTS how many suites
 # it is running and which it is skipping, so the figures are never written down here to go stale,
-# and its exclusion list is DERIVED from the test:functions and test:rules scripts below:
+# and its exclusion list is DERIVED from the test:functions and test:rules scripts below.
+# **IT NOW GATES EVERY BRANCH AND PR** as the `nodeps` job in e2e.yml (6 Sep 2026), which runs it
+# with NO `npm ci` and fails if `node_modules` exists at all — the absence is the test. Until then
+# nothing ran this lane, so its one claim could only be falsified by the stranger it was written
+# for, and it was: `touch-gate-parity.test.mjs` had started importing `TOUCH_PROJECTS` through
+# `e2e/helpers.js`, which imports `@playwright/test`, so the suite promising "nothing installed"
+# was the only one in the lane that needed an install. The list now lives in `e2e/touch-projects.js`:
 npm run test:nodeps
 
 npm run test:functions # Cloud Functions tests (roster-parse-helpers.test.mjs + functions-surface.test.mjs, which requires functions/index.js and pins the deploy surface, + overtime-endpoints.test.mjs + auth-endpoints.test.mjs + push-transport.test.mjs + documents-endpoints.test.mjs) — not part of npm test (needs functions/node_modules)
