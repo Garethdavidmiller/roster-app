@@ -9,6 +9,11 @@
  *     elsewhere can see it.
  *   · OPENING THE WRONG FOLD is what a guessed selector produces: the page moves, something opens,
  *     and it is not what was asked for. Louder, but it teaches a member to distrust the link.
+ *   · LANDING SHORT is the same cost as opening too little, arrived at differently: the folds open
+ *     correctly and the page still does not end up showing the box, because the card's scroll and
+ *     the box's scroll are two smooth animations and the later one silently loses. Reported 6 Sep
+ *     2026 as "it takes me to admin and not to the Recorded Annual Leave dates sub card" AFTER the
+ *     folds were already being opened correctly, which is why it has its own block.
  *   · THROWING is the one with history. A malformed hash fed to `querySelector` raises a
  *     SyntaxError, which on admin's in-place-login path is caught into a reload — and the bad hash
  *     survives that reload, so it loops. That is why the id is looked up, never selected.
@@ -19,7 +24,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { resolveDeepLink, NESTED_DEEP_LINKS } from './admin-deep-link.js';
+import { resolveDeepLink, NESTED_DEEP_LINKS, createDeepLinkLanding } from './admin-deep-link.js';
 
 /**
  * The smallest document that can answer the two questions this module asks of one: find an element
@@ -133,5 +138,92 @@ describe('a hash that names nothing, or cannot be read', () => {
 
     test('no document is no answer rather than a crash', () => {
         assert.equal(resolveDeepLink('#alBookedBox', /** @type {any} */ (null)), null);
+    });
+});
+
+
+describe('landing on the box — the scroll, and the one that has to be cancelled', () => {
+    /** A window that records the order of everything a landing does to it. */
+    function fakeWin(ids = ['alBookedBox']) {
+        /** @type {string[]} */ const log = [];
+        /** @type {(()=>void)[]} */ const frames = [];
+        const els = Object.fromEntries(ids.map((id) => [id, {
+            id, scrollIntoView: (/** @type {any} */ o) => log.push(`into:${id}:${o?.block}:${o?.behavior}`),
+        }]));
+        return {
+            log,
+            /** Run every queued frame callback, twice — `scrollTo` waits two frames. */
+            flush() { for (let i = 0; i < 4; i++) { const q = frames.splice(0); for (const f of q) f(); } },
+            win: {
+                scrollY: 40, scrollX: 0,
+                requestAnimationFrame: (/** @type {()=>void} */ f) => { frames.push(f); return 1; },
+                // Two-argument form on purpose — see the module. Recorded as given, so a switch to
+                // the options form (and its `behavior` enum) shows up here as a changed signature
+                // rather than as a silent TypeError inside a requestAnimationFrame.
+                scrollTo: (/** @type {any} */ x, /** @type {any} */ y) => log.push(`win:${x},${y}`),
+                document: { getElementById: (/** @type {string} */ id) => els[id] || null },
+            },
+            els,
+        };
+    }
+
+    test('the box scroll is preceded by an instant scroll to where we already are', () => {
+        // THE WHOLE FIX. Two smooth scrolls a frame apart do not resolve to the later one: a box a
+        // short page cannot lift to the top clamps to the maximum the page is already at, Chrome
+        // finds nothing to do, and the card's animation finishes on top of it. The instant scroll
+        // aborts the animation in flight. Measured at 390x844 — without it the box landed with its
+        // last 32px below the fold, which is exactly what was reported.
+        const f = fakeWin();
+        const landing = createDeepLinkLanding(/** @type {any} */ (f.win));
+        landing.arrive({ scrollTo: /** @type {any} */ (f.els.alBookedBox), settleOn: 'alBookedBox' });
+        f.flush();
+        landing.settle('alBookedBox');
+        f.flush();
+        assert.deepEqual(f.log, [
+            'win:0,40', 'into:alBookedBox:start:smooth',   // the card
+            'win:0,40', 'into:alBookedBox:start:smooth',   // the box, once it has a height
+        ], 'every scroll must cancel whatever is still in flight before it aims');
+    });
+
+    test('settle fires ONCE — a later re-render must not yank the page', () => {
+        // The box re-renders on every member change, every save and every delete. Re-scrolling on a
+        // later render would move the page under somebody who is already using the card.
+        const f = fakeWin();
+        const landing = createDeepLinkLanding(/** @type {any} */ (f.win));
+        landing.arrive({ scrollTo: /** @type {any} */ (f.els.alBookedBox), settleOn: 'alBookedBox' });
+        f.flush();
+        f.log.length = 0;
+        landing.settle('alBookedBox');
+        landing.settle('alBookedBox');
+        landing.settle('alBookedBox');
+        f.flush();
+        assert.equal(f.log.filter((l) => l.startsWith('into:')).length, 1, 'exactly one settle scroll');
+    });
+
+    test('settle does nothing at all when nobody arrived by a deep link', () => {
+        // The common case: `_renderBookedPeriods` calls settle on every render, deep link or not.
+        const f = fakeWin();
+        createDeepLinkLanding(/** @type {any} */ (f.win)).settle('alBookedBox');
+        f.flush();
+        assert.deepEqual(f.log, []);
+    });
+
+    test('a plain card link settles on nothing — settleOn is null and no box scroll follows', () => {
+        const f = fakeWin(['book-annual-leave', 'alBookedBox']);
+        const landing = createDeepLinkLanding(/** @type {any} */ (f.win));
+        landing.arrive({ scrollTo: /** @type {any} */ (f.els['book-annual-leave']), settleOn: null });
+        f.flush();
+        f.log.length = 0;
+        landing.settle('alBookedBox');
+        f.flush();
+        assert.deepEqual(f.log, [], 'a card link is on the page already — nothing to finish');
+    });
+
+    test('settle on a box that has since left the DOM is silent, not a throw', () => {
+        const f = fakeWin();
+        const landing = createDeepLinkLanding(/** @type {any} */ (f.win));
+        landing.arrive({ scrollTo: /** @type {any} */ (f.els.alBookedBox), settleOn: 'gone' });
+        f.flush();
+        assert.doesNotThrow(() => { landing.settle('gone'); f.flush(); });
     });
 });

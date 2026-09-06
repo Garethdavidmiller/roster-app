@@ -1360,6 +1360,14 @@ select:focus-visible, input:focus-visible {
     }
 }
 
+/* ── The two reporting cards (Usage + App Speed) ─────────────────────────────
+   They draw the SAME component — a labelled track with a count — and had drifted to two heights
+   (8px on Usage, 12px on App Speed). They sit in the same desktop column, one under the other, so
+   the difference read as two components rather than one. Declared once, used by both; the only bar
+   allowed to differ is the aggregate sign-in bar, which is deliberately taller because it is that
+   card's headline figure and has nothing beside it to be consistent with. */
+:root { --report-bar-h: 10px; }
+
 /* ── Usage card ─────────────────────────────────────────────────────────────
    Anonymous usage analytics (accounts active + page popularity). Uses the shared
    surface/text/type tokens so it reads as part of the same card family. */
@@ -1380,7 +1388,11 @@ select:focus-visible, input:focus-visible {
     border-radius: var(--radius);
 }
 .usage-stat-num {
-    font-size: 28px;
+    /* The other reporting card's headline figure (`.speed-verdict-num`) is `--type-xl`, and these
+       two sit one under the other in the same desktop column. This was the only literal font-size
+       in either card — 28px against 24px, which is close enough to look like a mistake rather than
+       a decision, and far enough to see. */
+    font-size: var(--type-xl);
     font-weight: 800;
     line-height: 1.1;
     letter-spacing: -0.5px;
@@ -1486,7 +1498,7 @@ select:focus-visible, input:focus-visible {
 .usage-bars {
     display: flex;
     flex-direction: column;
-    gap: 7px;
+    gap: 8px;   /* the same gap as .speed-rows — see --report-bar-h */
 }
 .usage-bar-row {
     display: grid;
@@ -1502,7 +1514,7 @@ select:focus-visible, input:focus-visible {
     text-overflow: ellipsis;
 }
 .usage-bar-track {
-    height: 8px;
+    height: var(--report-bar-h);
     background: var(--surface-sunken);
     border: 1px solid var(--border-light);
     border-radius: var(--radius-pill);
@@ -1616,7 +1628,7 @@ select:focus-visible, input:focus-visible {
 .speed-row-label > .speed-thin { flex: none; }
 .speed-bar {
     display: flex;
-    height: 12px;
+    height: var(--report-bar-h);
     border-radius: var(--radius-pill);
     overflow: hidden;
     background: var(--surface-sunken);
@@ -1660,8 +1672,10 @@ select:focus-visible, input:focus-visible {
    Usage card. Without it the whole card is one continuous scroll: "Opening pages" and "Why some are
    slower" are separate questions and nothing marked where either began. */
 .speed-subhead--rule {
-    margin-top: 20px;
-    padding-top: 16px;
+    /* The same 18/14 as `.usage-section-label--sub`, which draws the identical rule on the Usage
+       card directly above this one. It was 20/16 for no reason anyone recorded. */
+    margin-top: 18px;
+    padding-top: 14px;
     border-top: 1px solid var(--border-light);
 }
 
@@ -1722,6 +1736,27 @@ select:focus-visible, input:focus-visible {
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--text-mid);
+}
+
+/* …AND ONE OF THOSE BLOCKS HAS CHILDREN OF ITS OWN, which is the same flattening one level deeper
+   (v23.02). "Does the connection slow the start?" poses a comparison and renders its two halves —
+   "Recognised" and "Getting ready" — through the ordinary breakdown renderer, so parent and child
+   carried the identical eyebrow. Three uppercase labels in a row, and nothing said the last two
+   were the answer to the first; nor where the comparison ended and the next sibling block began.
+   Subordinated the same way its parent was: by TREATMENT, not by size. The child drops the
+   uppercase (an eyebrow under an eyebrow is not a rank) and the pair hang off a hairline, which is
+   what marks the group's extent — the thing a label alone cannot do. */
+.speed-dim-group {
+    border-left: 2px solid var(--border-light);
+    padding-left: 12px;
+    margin-top: 10px;
+}
+.speed-dim-group + .speed-dim-group { margin-top: 14px; }
+.speed-dim-group .speed-dim-label {
+    margin-top: 0;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--text-dark);
 }
 
 /* Per-page milestone bars: label | appears | code loaded | usable | count (v20.80 — the third bar
