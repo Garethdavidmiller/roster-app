@@ -58,6 +58,11 @@ const PUBLIC_MEMBER_FIELDS = /** @type {const} */ ({
     proRatedAL:    'A joining year’s leave entitlement in days. A number of days off, not pay.',
     rosterChanges: 'Scheduled moves between patterns — dates and pattern names, nothing personal.',
     permanentShift:'Forces an early/late badge. A display hint.',
+    bilingualContract: 'Whether this CEA holds a bilingual contract, which carries 34 days\u2019 '
+        + 'leave rather than 32. A contractual grade, not a language skill and not a health or '
+        + 'personal fact \u2014 the same class of thing as `role`, which is already public. It '
+        + 'cannot be derived from `rosterType`: a CEA on a plain contract is routinely placed on '
+        + 'a bilingual line until a CEA one frees up.',
 });
 
 describe('roster-data.js is world-readable, so what it carries is a decision', () => {

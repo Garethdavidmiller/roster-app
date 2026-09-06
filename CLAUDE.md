@@ -914,6 +914,9 @@ replacement.
   hidden: false,           // Optional — hides from dropdown
   managerOnly: false,      // Optional — login-only manager/clerk account (Management group); hidden from the calendar member selector, has no roster of its own
   permanentShift: 'early', // Optional — forces early/late badge on all worked days
+  bilingualContract: true, // Optional — this CEA holds a BILINGUAL CONTRACT: 34 days' leave, not 32.
+                           // The CONTRACT, not the line. A plain CEA is routinely placed on a bilingual
+                           // line until a CEA one frees up, so `rosterType` cannot stand in for this.
   startDate: new Date(2026, 3, 20), // Optional — midnight local time: new Date(year, month-1, day)
   noProRate: true,                  // Optional — set for secondment returns: startDate suppresses pre-return shifts but pay and AL are full-year (no pro-rating in paycalc; joiner banner hidden)
   proRatedAL: { 2026: 23 }, // Optional — the joining year's entitlement (a Dispatcher's lieu days are still added)
@@ -927,7 +930,8 @@ replacement.
 
 | Role / type | Days |
 |-------------|------|
-| CEA (main, bilingual, fixed — incl. C. Reen's fixed line) | 32/year |
+| CEA on a **bilingual contract** (`bilingualContract: true`) | 34/year |
+| CEA, every other contract (main, fixed — incl. C. Reen's fixed line) | 32/year |
 | CES (`ces`) | 34/year |
 | Dispatcher | 22 + 1 lieu per BH worked (`countDispatcherBankHolidaysWorked`) — a joining year's `proRatedAL` replaces the **22**, never the total |
 | anything else, or an unresolved member | **`null`** — no entitlement on record (v22.45). It used to fall through to a CEA's 32, handing a Management row (or any role added later) a complete, plausible figure belonging to somebody else. Not reachable today — every Management row carries `hidden: true`, so no picker offers one — which is why it is a guard rather than a fix. **Callers must TEST for null and refuse to render**: `null - taken - booked` is a NUMBER, not NaN, so the arithmetic that looks harmless is the one that invents a balance. All four call sites do (`alPosition`, the Admin banner + week-grid cap, `admin-al.js`'s booking cap, the calendar AL lightbox, which falls back to its existing em-dash state) |

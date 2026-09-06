@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '22.98';
+export const APP_VERSION = '22.99';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -263,8 +263,8 @@ export const teamMembers = [
     { name: 'J. Sumaili',              currentWeek: 18, rosterType: 'main',       role: 'CEA' },
     { name: 'T. Bibi',                 currentWeek: 19, rosterType: 'main',       role: 'CEA' },
     { name: 'T. Nsuala',               currentWeek: 20, rosterType: 'main',       role: 'CEA' },
-    { name: 'D. Irvine',               currentWeek: 3,  rosterType: 'bilingual',  role: 'CEA' },
-    { name: 'T. Gherbi',               currentWeek: 6,  rosterType: 'bilingual',  role: 'CEA' },
+    { name: 'D. Irvine',               currentWeek: 3,  rosterType: 'bilingual',  role: 'CEA', bilingualContract: true },
+    { name: 'T. Gherbi',               currentWeek: 6,  rosterType: 'bilingual',  role: 'CEA', bilingualContract: true },
     { name: 'C. Reen',                 currentWeek: 1,  rosterType: 'fixed',      role: 'CEA' },
     // New starter (3 Jun 2026). Phase 1 (3–27 Jun): own fixed line — pattern 2 (09:00–16:00
     // Mon–Fri), the same line S. Boyle later moves to. Phase 2 (from Sun 28 Jun): joins the main
@@ -346,9 +346,11 @@ export const teamMembers = [
 //                    "Worked" means the resolved shift (base roster after Firestore overrides)
 //                    is not RD, OFF, SPARE, AL, or SICK. SPARE does NOT count — only actual
 //                    worked shifts (time-format shifts or RDW) earn a lieu day.
-//   All CEAs       → 32 days  (main, bilingual, fixed, or any other CEA rosterType).
-//                    C. Reen is a CEA on a fixed roster (NOT CEA-BL), so 32 — corrected Jun 2026;
-//                    getALEntitlement returns 32 for every CEA incl. fixed. Pinned by roster-data.test.mjs.
+//   CEA            → 34 days on a BILINGUAL CONTRACT (`bilingualContract: true`), else 32.
+//                    The CONTRACT, never the rosterType: a plain CEA is routinely put on a
+//                    bilingual LINE until a CEA one frees up, so the line proves nothing.
+//                    C. Reen is a CEA on a fixed roster (NOT CEA-BL), so 32 — corrected Jun 2026.
+//                    Pinned by roster-data.test.mjs, incl. the line-vs-contract case.
 
 /**
  * Count how many UK bank holidays a dispatcher actually worked in a given year,
@@ -439,10 +441,18 @@ export function getALEntitlement(member, year = new Date().getFullYear(), overri
     // IS an allowance and there is no earned component to protect.
     if (member.proRatedAL && member.proRatedAL[year] !== undefined) return member.proRatedAL[year];
     if (member.role === 'CES') return 34;
-    // Every CEA — main, bilingual, or fixed (C. Reen, plus any temporary fixed line) — gets
-    // the standard 32. There is no fixed-roster AL premium
-    // (corrected June 2026: C. Reen is contractually CEA, not CEA-BL, so 32, not 34).
-    if (member.role === 'CEA') return 32;
+    // A CEA's entitlement follows the CONTRACT THEY HOLD, NOT THE LINE THEY ARE ON (owner, 6 Sep
+    // 2026): a bilingual contract is 34 days, every other CEA 32, whatever pattern they work.
+    //
+    // **`rosterType === 'bilingual'` IS THE WRONG TEST AND IT LOOKS RIGHT** — a plain CEA is
+    // routinely put on a bilingual line until a CEA one frees up, so the line is a rota fact and
+    // keying on it would quietly hand that person two days they are not owed. It passes today only
+    // because the two coincide today. The line-vs-contract case is pinned in roster-data.test.mjs.
+    //
+    // The June 2026 correction was RIGHT about C. Reen (contractually CEA on a fixed line) and
+    // wrong to generalise: it collapsed every CEA to 32 and took two days from the two genuine
+    // bilingual contracts, unnoticed, because a wrong balance still renders and still books.
+    if (member.role === 'CEA') return member.bilingualContract === true ? 34 : 32;
     // NO ENTITLEMENT ON RECORD REFUSES RATHER THAN GUESSING (v22.45). This used to fall through to
     // `return 32`, so a Management row — or any role added later — would have been handed a CEA's
     // leave: a complete, plausible figure belonging to somebody else. **Not a defect anyone could
