@@ -690,7 +690,13 @@
        register than the result beside it. */
     .ytd-yearso {
       background: var(--surface); border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-2); padding: 14px 16px; margin: 0;
+      box-shadow: var(--shadow-2); padding: 14px 16px;
+      /* The mobile stack's own 12px, like every other card — it shipped at `margin: 0`, which is
+         right in the two contexts that own their spacing with flex `gap` (the desktop sidebar and
+         print) and wrong in the one that does not. On mobile it left this card FLUSH against the
+         Year to Date card below it, so the two read as one tall card with a seam. Both flex
+         contexts reset it: `.pc-side > *` on desktop, and the print block below. */
+      margin: 0 0 12px;
     }
     .yearso-head {
       font-size: var(--type-small); font-weight: 700; color: var(--text-dark); margin-bottom: 6px;
@@ -1182,6 +1188,8 @@
         page-break-inside: avoid !important;
         margin-bottom: 0 !important;
       }
+      /* `gap` owns the print flow's spacing, exactly as it does for the two cards above. */
+      .ytd-yearso { margin-bottom: 0 !important; }
       .hhmm-wrap { display: flex !important; }
       .hhmm-field input {
         border: none !important; background: transparent !important;
