@@ -41,6 +41,7 @@
     --navy-dark: #00152a;   /* = --primary-blue-dark */
     --navy-mid:  #0a2d52;   /* mid-navy tint, used by guide + paycalc-guide */
     --gold:      #f5c800;   /* = --accent-gold       */
+    --white:     #fff;      /* the chip fill — the shell draws .chip, so the shell must own it */
     --info-bg:   #eef4ff;   /* blue tint used for .info boxes in guide + paycalc-guide */
 }
 
@@ -134,9 +135,10 @@ html { color-scheme: only light; -webkit-text-size-adjust: 100%; text-size-adjus
    no chip-bar — these rules are simply unused there). Unified here from the two
    byte-identical per-page copies; the fip variant is the canonical one, so
    railcard now also gets the `.chip[aria-current]` active-chip highlight it
-   previously lacked. --bg/--border/--white/--navy resolve from each guide page's
-   own :root at the use-site. Border-radius stays a 99px literal — guides don't
-   import the app token system. */
+   previously lacked. --bg/--border/--navy resolve from each guide page's own :root at
+   the use-site; --white is the shell's own (v23.13 — the two document guides define no
+   --white, and css-var-parity.test.mjs reads a token this file names as this file's to
+   supply). Border-radius stays a 99px literal — guides don't import the app token system. */
 .chip-bar {
     position: sticky;
     top: 54px;   /* refined by the page's JS to the measured header height */

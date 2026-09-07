@@ -442,7 +442,7 @@ body.auth-ready .container { display: grid; }
    (people on duty · cars per hour), and the eye would read the darker one as "more of the same".
    --cov-late (orange) is already in this stylesheet's coverage family, so the pair still reads as
    one artefact. */
-.cov-demand { border-top: 3px solid var(--border); }
+.cov-demand { border-top: 3px solid var(--border-light); }
 .dem-head-row th {
     font-size: var(--type-badge);
     font-weight: 700;

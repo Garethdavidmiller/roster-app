@@ -645,11 +645,11 @@
        field) would contradict. `:disabled` also keeps it out of the Tab order, which is correct —
        there is nothing to type. */
     .pfx.is-disabled input, #pensionAmt:disabled {
-      background: var(--bg-faint); color: var(--text-muted); font-weight: 700;
-      cursor: default; border-color: var(--border-light); -webkit-text-fill-color: var(--text-muted);
+      background: var(--bg-faint); color: var(--text-mid); font-weight: 700;
+      cursor: default; border-color: var(--border-light); -webkit-text-fill-color: var(--text-mid);
       opacity: 1;   /* iOS Safari fades a disabled input to ~0.4 and the figure stops being legible */
     }
-    .pfx.is-disabled .pfx-sym { color: var(--text-muted); }
+    .pfx.is-disabled .pfx-sym { color: var(--text-mid); }
 
     .adj-sign-btn {
       width: 44px; height: 44px; flex-shrink: 0;
@@ -1477,8 +1477,8 @@
      cannot edit this" has ONE appearance across the calculator rather than one per author.
      -webkit-text-fill-color because iOS Safari otherwise fades the value past legibility. */
   input:disabled, .pfx input:disabled {
-    background: var(--bg-faint); color: var(--text-muted);
-    -webkit-text-fill-color: var(--text-muted); opacity: 1;
+    background: var(--bg-faint); color: var(--text-mid);
+    -webkit-text-fill-color: var(--text-mid); opacity: 1;
     cursor: default; border-color: var(--border-light);
   }
   @media (hover: hover) and (pointer: fine) {
@@ -1649,7 +1649,7 @@
     content: '·';
     position: absolute;
     left: 4px;
-    color: var(--gold);
+    color: var(--accent-gold);
 }
 /* A plain block, NOT a flex row: .btn-action is width:100% so a flex row would wrap to a
    stack anyway — and its `gap` would then stack on top of the shared
