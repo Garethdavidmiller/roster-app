@@ -59,10 +59,9 @@
  * Three things the reorder does NOT change, because they are the security model and this is only
  * the order of two cards: what each route GRANTS (`decideAccess` is untouched), that a member is
  * never sent to the PIN (`showMemberPanel` still answers a held session), and that nothing is on
- * screen before access is granted. It also adds ONE route back to the PIN card as the first card,
- * `#staff-pin` — the hash a "Use the staff PIN instead" sign-out reloads with, so the tap lands
- * where it was going, and a bookmark a station PC can keep. Consumed and cleared at boot, never
- * stored.
+ * screen before access is granted. ONE route asks for the PIN card first: `#staff-pin`, which a
+ * "Use the staff PIN instead" sign-out reloads with and a station PC can bookmark — consumed at
+ * boot, never stored.
  *
  * The cards share ONE slot (`calendar-lock-slot.js`) so at most one of them can exist at a time.
  */
@@ -675,21 +674,22 @@ function showLockPanel() {
  *   is not "you have not signed in" — an expired session, say.
  */
 async function showSignInPanel(notice = '') {
-    hideLockPanel();
+    // Hide the workspace NOW (the access-lost path arrives with a Calendar on screen) but take
+    // nothing else down until the card can replace it: v23.19 emptied the slot BEFORE the fetch,
+    // so a slow first visit saw a blank page where the PIN card used to draw at once. Whatever is
+    // up stays up meanwhile — the skeleton (or its armed timer), or the PIN card on a swap.
     document.body.classList.add('calendar-locked');
     setWorkspaceHidden(true);
+    /** @type {typeof import('./login-overlay.js')} */ let mod;
+    // No module (a first visit on a connection that drops mid-boot) must still leave a DOOR: the
+    // PIN card needs nothing fetched, so fall back to it.
+    try { mod = await import('./login-overlay.js'); }
+    catch { if (_accessType === 'none') showLockPanel(); return; }
+    // Access may have arrived while the module loaded (the late-identity watcher, a silent
+    // re-auth). A card mounted over a granted Calendar is the one outcome this must not have.
+    if (_accessType !== 'none') return;
     const panel = mountLockCard({ labelledBy: 'loginSubtitle' });
     if (!panel) return;
-    /** @type {typeof import('./login-overlay.js')} */ let mod;
-    // If the module cannot be had (a first visit on a connection that drops mid-boot), the front
-    // door must still be a DOOR: the PIN card needs nothing fetched, so fall back to it rather than
-    // leave an empty section where the card should be.
-    try { mod = await import('./login-overlay.js'); }
-    catch { if (panel.isConnected) showLockPanel(); return; }
-    // The slot may have moved on while the module loaded (a late identity granted; the PIN hash
-    // path). A card mounted into a section no longer on the page would be invisible and harmless,
-    // but "invisible and harmless" is not a property to rely on.
-    if (!panel.isConnected) return;
     const { initLoginOverlay } = mod;
     initLoginOverlay({
         pageLabel: 'Calendar',
@@ -896,6 +896,14 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null }) {
     setWorkspaceHidden(true);
     document.body.classList.add('calendar-locked');
 
+    // `#staff-pin` is read ONCE and removed whatever the decision: a member with a session who opened
+    // a station PC's bookmark must not carry it into their own Calendar (v23.19's locked-path-only
+    // consumption let them).
+    const pinFirst = window.location.hash === PIN_FIRST_HASH;
+    if (pinFirst) {
+        try { history.replaceState(history.state, '', window.location.pathname + window.location.search); } catch { /* noop */ }
+    }
+
     // Say something if the decision is slow (v20.80). Scheduled BEFORE the await, cleared by every
     // path out of it — `grant()` and both cards call `hideLockPanel()`, which owns the timer.
     armSkeleton(SKELETON_AFTER_MS);
@@ -989,13 +997,9 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null }) {
     if (!held?.name) {
         // Nothing held: the front door. Sign-in first (owner decision, v23.19); the PIN card first
         // ONLY when asked for by the hash — a "Use the staff PIN instead" sign-out, or a station
-        // PC's bookmark. The hash is consumed here so it is not carried forward.
-        if (window.location.hash === PIN_FIRST_HASH) {
-            try { history.replaceState(history.state, '', window.location.pathname + window.location.search); } catch { /* noop */ }
-            showLockPanel();
-        } else {
-            await showSignInPanel();
-        }
+        // PC's bookmark (consumed above).
+        if (pinFirst) showLockPanel();
+        else await showSignInPanel();
         return 'none';
     }
 

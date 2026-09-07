@@ -218,12 +218,16 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     // textContent for the three caller-supplied strings, never interpolation: the label and the
     // notice are the app's own words today, but a card built by string concatenation on the front
     // door is not the place to rely on where a value came from.
-    if (notice) { const n = overlay.querySelector('#loginNotice'); if (n) n.textContent = notice; }
     if (alternative) {
         const a = overlay.querySelector('#loginAlternative'); if (a) a.textContent = alternative.label;
         const h = overlay.querySelector('#loginAlternativeHint'); if (h && alternative.hint) h.textContent = alternative.hint;
     }
     (inline ? /** @type {HTMLElement} */ (host) : document.body).appendChild(overlay);
+    // The notice is written AFTER the card is in the document, not before: it is a `role="status"`
+    // live region, and a live region only announces CHANGES made while it is in the accessibility
+    // tree — text it was created with is read by nobody. The staff-PIN card's message channel
+    // follows the same rule (calendar-access.js → `say`).
+    if (notice) { const n = overlay.querySelector('#loginNotice'); if (n) n.textContent = notice; }
 
     const gradeSelect   = /** @type {HTMLSelectElement} */ (overlay.querySelector('#loginGrade'));
     const nameSelect    = /** @type {HTMLSelectElement} */ (overlay.querySelector('#loginName'));

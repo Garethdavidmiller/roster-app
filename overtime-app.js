@@ -46,6 +46,7 @@ import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
+import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import * as OTD from './overtime-data.js';
@@ -229,6 +230,10 @@ export function init() {
         // read, which is why the three `auth-ready` pages get away with marking synchronously. It
         // is in a `finally`, not the success path: a page that failed to load still took time, and
         // dropping its sample would quietly bias the figures towards loads that went well.
+        // The forced set-password step, as on every other page that mounts the sign-in (v23.21 —
+        // this coordinator was the one that had never run it, so a reviewer who signed in here was
+        // asked on whichever page they opened next). Fails open by design; never awaited here.
+        sessionReady.then(() => initPasswordForce(currentUser)).catch(() => {});
         sessionReady.then(() => {
             initErrorReporter();
             recordUsage('overtime', currentUser);

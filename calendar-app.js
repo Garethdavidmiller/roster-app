@@ -15,7 +15,9 @@
 import { CONFIG, MONTH_NAMES, computeEaster, getPaydaysAndCutoffs, formatISO } from './roster-data.js';
 import { authReady, authBootstrap } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
-import { getSession, clearSession } from './session.js';   // reconcileExpiredIdentity now runs inside calendar-access.js
+import { getSession, clearSession, ensureNamedSession } from './session.js';   // reconcileExpiredIdentity now runs inside calendar-access.js
+import { initPasswordForce } from './password-force.js';
+import { PW_FORCE_PENDING_PREFIX } from './storage-keys.js';
 import { canOpenOvertime } from './auth-policy.js';       // nav-drawer pill gating only — never a boundary
 import { initTeamView } from './calendar-team-view.js';
 import { initNavPanel } from './nav-panel.js';
@@ -1192,6 +1194,35 @@ initNavPanel({
 // would run against unbuilt state, so it must be skipped there and only there.
 let _workspaceStarted = false;
 
+/** Settles when the forced set-password step has run, or was not due — the notices wait on it. */
+/** @type {(v: any) => void} */ let _resolvePasswordForce = () => {};
+const _passwordForceSettled = new Promise(resolve => { _resolvePasswordForce = resolve; });
+
+/**
+ * The "set your own password" step, on the Calendar (v23.21). Since v23.19 the front door IS a
+ * sign-in, so this is where most members now sign in — and the one-shot marker that sign-in sets
+ * was consumed nowhere until they next opened Admin or Settings. Two things about the shape:
+ *   · The marker is read HERE first. `initPasswordForce` checks it too, but `ensureNamedSession`
+ *     has to run before it (below), and that must not become an unconditional step on every load
+ *     of the app's most-opened page — the Calendar's boot is measured to the millisecond.
+ *   · `ensureNamedSession` is passed as `ready`, not skipped. The Calendar's boot confirms an
+ *     identity WITHOUT feeding the auth store, so `authStatus` would read unresolved, the gate would
+ *     refuse, and the marker — consumed before the gate on purpose — would be gone for good. For a
+ *     member already current it is a local check, no network.
+ * Never rejects: the overlay fails open by design, and the notices queue behind this promise.
+ * @returns {Promise<boolean>}
+ */
+async function _runPasswordForce() {
+    const name = getSession()?.name;
+    if (!name || getAccessType() !== 'named' || !lsGet(PW_FORCE_PENDING_PREFIX + name)) return false;
+    try {
+        return await initPasswordForce(name, { ready: ensureNamedSession(name).catch(() => false) });
+    } catch (e) {
+        console.warn('[Calendar] forced password step failed to run:', e);
+        return false;
+    }
+}
+
 /** Enable or disable the member selector and the Team View button. @param {boolean} on */
 function _crossMemberControls(on) {
     for (const id of ['teamMemberSelect', 'teamViewBtn']) {
@@ -1248,6 +1279,7 @@ initCalendarAccess({
     // ONCE: re-running this would re-wire the swipe handler and re-launch the initial 3-month fetch.
     onGranted: () => {
         _workspaceStarted = true;
+        _resolvePasswordForce(_runPasswordForce());
         // CAUGHT, because the workspace start became async at v21.29 (it awaits a bounded chance
         // for the local cache to paint first). An un-awaited async call with no catch turns any
         // throw in here into an unhandled rejection — which `error-reporter.js` does capture, so it
@@ -1260,6 +1292,7 @@ initCalendarAccess({
     },
 });
 
-// The page's one-time notices (pw-own-2026, backpay-2026, and whatever /new-notice adds next).
-// Their wiring lives in calendar-notices.js — see its header for why they left this file.
-initCalendarNotices();
+// The page's one-time notices (sign-in-2026, backpay-2026, and whatever /new-notice adds next).
+// Their wiring lives in calendar-notices.js — see its header for why they left this file. They
+// queue behind the forced set-password step (below), the way the paycalc YTD notice does.
+initCalendarNotices({ after: _passwordForceSettled });

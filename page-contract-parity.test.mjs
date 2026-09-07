@@ -205,6 +205,20 @@ test('every app page has an auth-policy entry, so none falls back to the fail-cl
     assert.deepEqual(missing, [], 'page ids with no PAGE_POLICIES entry');
 });
 
+test('every coordinator that signs a member in also runs the forced set-password step', () => {
+    // `login-overlay.js` sets a ONE-SHOT marker on every confirmed sign-in, and `password-force.js`
+    // consumes it on the next authorised load of the page that ran it. A coordinator that mounts
+    // the sign-in but never runs the step leaves the marker to whichever page the member opens
+    // next — or, on the Calendar (which had no login until v23.19), to nobody: the member signs in
+    // on the app's front door and is never asked to choose a password. Found at v23.19 by review,
+    // when the front door became the place most members sign in.
+    const coordinators = APP_PAGES.map(p => (p === 'index.html' ? 'calendar-app.js' : p.replace(/\.html$/, '-app.js')));
+    const signsIn = coordinators.filter(f => existsSync(new URL(f, import.meta.url)) && /initLoginOverlay\(/.test(read(f)));
+    assert.ok(signsIn.length >= 6, `expected every protected page's coordinator to mount the sign-in; found ${signsIn.length}`);
+    const missing = signsIn.filter(f => !/initPasswordForce\(/.test(read(f)));
+    assert.deepEqual(missing, [], 'coordinators that sign a member in but never run initPasswordForce');
+});
+
 test('every app page has a nav pill, so the drawer is a complete map', () => {
     // The drawer renders the CURRENT page as an inert pill rather than omitting it, which is what
     // keeps the row the same shape everywhere. A page with no entry breaks that on its own surface.

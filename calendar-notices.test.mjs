@@ -111,9 +111,13 @@ async function wire({ accessType = 'none', present = NOTICES.map(n => n.overlay)
 async function settleAccess() {
     _access.decide();
     await _access.promise;
-    await Promise.resolve();
+    await drain();
     mock.timers.tick(2000);
 }
+/** The gate chains a SECOND await after access (`after` — the forced set-password step, v23.21),
+ *  so one microtask is no longer enough to reach the defer. Drain a handful rather than count
+ *  hops: a count is the kind of number that is right until the next await is added. */
+async function drain() { for (let i = 0; i < 8; i++) await Promise.resolve(); }
 
 // THE CLOCK IS PINNED, and to a date rather than to "today", because a notice has a life: the
 // members-audience one carries a hard cutoff and the audience matrix below can only be exercised
@@ -184,7 +188,7 @@ describe('2 · a notice arriving at the wrong moment', () => {
         await wire({ accessType: 'none' });
         _access.decide();
         await _access.promise;
-        await Promise.resolve();
+        await drain();
         mock.timers.tick(1400);
         assert.equal(_openedViaHelper.length, 0);
         mock.timers.tick(200);
