@@ -32,6 +32,7 @@ import { initDocViewer } from './calendar-doc-viewer.js';
 import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress, setOverrideAccess, setOverrideAccessLostHandler, monthKey, clearFetchedMonth } from './calendar-overrides.js';
 import { forget as forgetOverrideKnowledge, knowledgeOf, decideDisplay, showsRoster } from './calendar-data-state.js';
 import { initCalendarAccess, calendarAccessReady, calendarAuthReady, getAccessType, isViewerMode, lockCalendar, handleAccessLost } from './calendar-access.js';
+import { personalActionsAllowed } from './calendar-access-core.js';
 import { getCurrentMember, getSelectedMemberIndex, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName, isFirstRun } from './calendar-member.js';
 import { buildCalendarContainer } from './calendar-renderer.js';
 import { getDisplayMonth, getDisplayYear, setDisplayMonth, setDisplayYear, changeDisplay, persistViewedMonth } from './calendar-state.js';
@@ -240,12 +241,26 @@ function dismissSwipeHint() {
 // Navigate to the pay calculator for a given payday ISO date string.
 // Goes straight to ./paycalc.html — paycalc does its own in-place login when needed (it no longer
 // bounces through admin.html to authenticate). Always call this helper — never duplicate the nav logic.
-/** @param {any} paydayStr */
+//
+// THE ONE GATE FOR EVERY ROUTE TO THE CALCULATOR (v23.07) — the calculator is somebody's OWN, so
+// `personalActionsAllowed` (calendar-access-core.js, which carries the whole argument) decides here
+// as well as on the day panel's buttons. Three routes reach it and the panel was only one: a
+// desktop click on a pay cell and keyboard Enter on one are the others. Gating HERE is the point —
+// one authority, and a fourth route added later inherits it rather than having to remember.
+// Returns whether it went, because a refused Enter must fall through to the day panel rather than
+// become a dead key; see calendar-keyboard.js.
+/** @param {any} paydayStr @returns {boolean} */
 function navigateToPaycalc(paydayStr) {
+    if (!personalActionsAllowed({
+        accessType:  getAccessType(),
+        sessionName: getSession()?.name,
+        shownMember: /** @type {any} */ (getCurrentMember())?.name,
+    })) return false;
     // paycalc handles its own in-place sign-in for unsigned users (Option B, v14.45+), so go
     // there directly — the ?payday= param survives the post-login reload. (Previously this
     // bounced unsigned users to admin?redirect=paycalc, which no longer returns here.)
     window.location.href = `./paycalc.html?payday=${paydayStr}`;
+    return true;
 }
 
 

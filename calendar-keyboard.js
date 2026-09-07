@@ -58,7 +58,9 @@ export function initCalendarTooltip() {
  * Initialise keyboard navigation for calendar day cells (roving tabindex).
  * Arrow keys move focus between cells; PageUp/Down change months; Enter/Space activate.
  *
- * @param {{ navigateToPaycalc: (paydayStr: string) => void, openDayDetail: ((cell: HTMLElement) => void)|null }} deps
+ * @param {{ navigateToPaycalc: (paydayStr: string) => boolean, openDayDetail: ((cell: HTMLElement) => void)|null }} deps
+ *   `navigateToPaycalc` RETURNS whether it went — this module acts on the answer (see the Enter
+ *   case), so the boolean is part of the contract and not an incidental return value.
  */
 export function initCalendarKeyboard({ navigateToPaycalc, openDayDetail }) {
   document.addEventListener('keydown', e => {
@@ -89,11 +91,15 @@ export function initCalendarKeyboard({ navigateToPaycalc, openDayDetail }) {
       case 'Enter':
       case ' ':
         e.preventDefault();
-        if (focused.dataset.paydayIso) { navigateToPaycalc(focused.dataset.paydayIso); return; }
+        // A REFUSED jump falls through to the day panel rather than swallowing the key (v23.07).
+        // `navigateToPaycalc` now answers whether it went, because the calculator is personal and
+        // it declines on a colleague's calendar or a PIN-unlocked screen. Returning here on a
+        // refusal would make Enter a dead key on exactly those days — worse than the jump it
+        // replaced, and only for keyboard users, who have no hover tooltip to fall back on.
+        if (focused.dataset.paydayIso && navigateToPaycalc(focused.dataset.paydayIso)) return;
         if (focused.dataset.cutoffIso) {
           const payday = paydayForCutoff(focused.dataset.cutoffIso);
-          if (payday) navigateToPaycalc(payday);
-          return;
+          if (payday && navigateToPaycalc(payday)) return;
         }
         openDayDetail?.(/** @type {HTMLElement} */ (focused));
         return;

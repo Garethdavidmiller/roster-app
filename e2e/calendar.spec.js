@@ -1707,6 +1707,110 @@ test('day detail: a PIN-unlocked screen offers neither personal action', async (
     await expect(page.locator('#dayDetailActions')).toHaveCSS('display', 'none');
 });
 
+// ─── AND THE OTHER TWO ROUTES TO THE CALCULATOR (v23.07) ────────────────────────────────────────
+//
+// v23.04 gated the day panel's two buttons. It gated ONE of three ways into the pay calculator: a
+// DESKTOP CLICK on a pay-marked cell and keyboard ENTER on one both called `navigateToPaycalc`
+// directly, so the panel was tidy and the routes around it still jumped from a colleague's calendar
+// or a PIN-unlocked station PC. These run on DESKTOP, where those two routes live — the touch
+// projects never reach them (a tap always opens the panel), which is exactly why the phone-only
+// tests above could not see this.
+//
+// ONE MUTATION HERE PROVABLY CANNOT FAIL, and saying so is better than a test that pretends
+// otherwise: making `navigateToPaycalc` return `false` after a SUCCESSFUL jump changes nothing
+// observable. Its only consumer is the keyboard's fall-through, and by the time a successful jump
+// returns, `window.location` is already leaving the page — so the panel it would then open is torn
+// down before it can be seen. The refusal direction is what carries meaning, and that is covered
+// in both branches below.
+
+test('calendar: a desktop click on a pay day does NOT reach the calculator from a colleague’s month', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'the desktop click route is what this covers; touch opens the panel');
+    await seedMemberSession(page, 'G. Miller');
+    await page.addInitScript(() => localStorage.setItem('myb_roster_selected_member', 'S. Silva'));
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+
+    const payIdx = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
+        .findIndex(c => c.dataset.paydayIso || c.dataset.cutoffIso));
+    expect(payIdx, 'the month has no pay-marked day to click').toBeGreaterThan(-1);
+    await page.locator('.calendar-day:not(.other-month)').nth(payIdx).click();
+    await page.waitForTimeout(600);
+    // Still on the calendar. Asserted as the URL rather than "no navigation happened", because the
+    // failure this catches is arriving somewhere — paycalc would take it, show its own sign-in and
+    // look perfectly healthy, which is the whole reason the jump was confusing rather than broken.
+    expect(page.url(), 'a colleague’s pay day must not open YOUR calculator').not.toContain('paycalc');
+});
+
+test('calendar: a desktop click on YOUR OWN pay day still reaches the calculator', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'the desktop click route is what this covers');
+    // The other direction, and the one that would be silently lost by over-gating: the route has
+    // worked since v10.17 and most members are looking at their own calendar every time.
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+
+    const payIdx = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
+        .findIndex(c => c.dataset.paydayIso || c.dataset.cutoffIso));
+    expect(payIdx, 'the month has no pay-marked day to click').toBeGreaterThan(-1);
+    await page.locator('.calendar-day:not(.other-month)').nth(payIdx).click();
+    await page.waitForURL(/paycalc/, { timeout: 5000 });
+    expect(page.url()).toContain('payday=');
+});
+
+test('calendar: a refused Enter opens the day panel rather than doing nothing', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'Enter on a focused cell is the keyboard route');
+    // THE DIRECTION A CARELESS FIX GETS WRONG. Refusing the jump is right; refusing it and
+    // returning would leave Enter dead on exactly those days, and only for keyboard users, who
+    // have no hover tooltip to fall back on. So the refusal has to HAND OVER, not swallow.
+    //
+    // BOTH BRANCHES, SEPARATELY SELECTED, and that is not thoroughness for its own sake. The Enter
+    // handler treats a PAYDAY and a CUT-OFF differently (a cut-off resolves to its own payday
+    // first), so they are two code paths. The first cut of this test picked "the first pay-marked
+    // day in the month" — which is the CUT-OFF, since it falls earlier in the period — so a
+    // mutation that broke the payday branch outright sailed through it. Measured, not reasoned.
+    await seedMemberSession(page, 'G. Miller');
+    await page.addInitScript(() => localStorage.setItem('myb_roster_selected_member', 'S. Silva'));
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+
+    for (const kind of ['paydayIso', 'cutoffIso']) {
+        const idx = await page.evaluate((k) => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
+            .findIndex(c => c.dataset[k]), kind);
+        expect(idx, `the month has no ${kind} day to focus`).toBeGreaterThan(-1);
+        await page.locator('.calendar-day:not(.other-month)').nth(idx)
+            .evaluate(el => /** @type {HTMLElement} */ (el).focus());
+        await page.keyboard.press('Enter');
+        await expect(page.locator('#dayDetailLightbox'), `${kind}: Enter must hand over to the panel`)
+            .toBeVisible();
+        expect(page.url(), `${kind}: and it must not have jumped`).not.toContain('paycalc');
+        // …and the panel it opened carries no personal action either, on the same colleague's day.
+        await expect(page.locator('#dayDetailPayBtn')).toBeHidden();
+        await page.locator('#dayDetailClose').click();
+        await expect(page.locator('#dayDetailLightbox')).toBeHidden();
+    }
+});
+
+test('calendar: a PIN-unlocked desktop cannot click through to the calculator', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'the desktop click route is what this covers');
+    // THE STATION PC, which is a desktop — so this is the machine the whole change is about, and
+    // the ONLY fixture that can see the viewer refusal work on this route. The name check cannot
+    // stand in for it: seed a stale session naming the very member on screen (reachable — an iOS
+    // ITP eviction drops the Firebase user while the 60-day session lives on) and a rule that only
+    // compared names would wave this straight through.
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await seedViewerAccess(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+
+    const payIdx = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
+        .findIndex(c => c.dataset.paydayIso || c.dataset.cutoffIso));
+    expect(payIdx, 'the month has no pay-marked day to click').toBeGreaterThan(-1);
+    await page.locator('.calendar-day:not(.other-month)').nth(payIdx).click();
+    await page.waitForTimeout(600);
+    expect(page.url(), 'a shared screen must not open anybody’s calculator').not.toContain('paycalc');
+});
+
 // ─── THE SAVED-COPY LADDER RUNG (v22.95) ────────────────────────────────────────────────────────
 //
 // `rosterCached` splits the gap the 5 Sep 2026 field read exposed — Unlocked 58% over a second,

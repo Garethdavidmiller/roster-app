@@ -394,6 +394,12 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // teleport to paycalc with no warning — instead open the day-detail lightbox, which offers an
         // explicit "View pay estimate" button for pay-marked days (v16.57).
         if (!window.matchMedia('(pointer: coarse)').matches) {
+            // The return value is IGNORED here, and that is the right answer rather than an
+            // oversight (v23.07). `navigateToPaycalc` declines on a colleague's calendar or a
+            // PIN-unlocked screen, and a declined click then does what a click on EVERY OTHER
+            // desktop cell already does — nothing, because the hover tooltip is the desktop
+            // route to a day's detail. The keyboard is the case that needs the answer, and it
+            // takes it; see calendar-keyboard.js's Enter branch.
             const paydayIso = cell.dataset.paydayIso;
             if (paydayIso) { navigateToPaycalc?.(paydayIso); return; }
             const cutoffIso = cell.dataset.cutoffIso;
