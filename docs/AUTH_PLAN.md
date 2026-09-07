@@ -280,6 +280,12 @@ Binary, and it decides whether this is a day or several weeks.
 Everything past this gate touches the app's front door, opened many times a day.
 
 ### E3 — named calendar, soft posture
+
+> **Not E3, and worth saying so (v23.19):** the Calendar's front door now leads with the member
+> SIGN-IN card and offers the staff PIN one tap behind it (owner decision, 7 Sep 2026). That is the
+> ORDER of two cards, not a requirement: nothing is asked of anyone that was not asked before, no
+> policy flips to `requireNamed`, and the PIN still grants exactly what it did. E3 remains dormant.
+
 Flip `PAGE_POLICIES.calendar` to `{ requireNamed: true }` in `auth-policy.js` (genuinely one line — the
 policy layer is clean) and wire the shared `login-overlay.js`. Gate on `ENFORCE_NAMED_SESSION` in **soft**
 posture and *measure* (§6) before hardening. Do not tighten rules in the same window.

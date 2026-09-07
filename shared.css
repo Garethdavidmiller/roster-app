@@ -2215,6 +2215,24 @@ button.nav-panel-link--notices {
 }
 #loginOverlay.visible, #pwForceOverlay.visible { display: flex; }
 
+/* The SAME card mounted INLINE (v23.19) — the Calendar's sign-in-first front door mounts the shared
+   login card inside its lock slot (`login-overlay.js` host mode) rather than as a fixed sheet over
+   the page. Everything the fixed wrapper does is undone here and nothing else changes: the card
+   inside is `#loginCard`, wearing the recipe below, exactly as it does on the five sub-pages. Same
+   specificity as the `.visible` rule and later in the source, so this wins whichever order the two
+   classes were added in. */
+#loginOverlay.login-overlay--inline,
+#loginOverlay.login-overlay--inline.visible {
+    display: block;
+    position: static;
+    inset: auto;
+    background: none;
+    z-index: auto;
+    overflow: visible;
+    padding: 0;
+    width: 100%;
+}
+
 /* Overlay, not a card — --radius-xl with the other compact dialogs (v18.90; was --radius-lg, the
    card radius).
 
@@ -2415,6 +2433,25 @@ button.nav-panel-link--notices {
    "half signed-in" escape route the v14.75 login fix closed (JS preventDefault is the real guard;
    this just makes the disabled state visible). */
 .login-back--busy { opacity: 0.4; pointer-events: none; cursor: default; }
+/* As a BUTTON — the OTHER WAY IN, on the Calendar's cards ("Use the staff PIN instead", "Sign in
+   instead"): the link's place under the primary action, with the button chrome removed, the 44px
+   touch target a bare text link would not have, and a heavier, underlined treatment than the
+   sub-pages' "← Back to roster" — because on the front door this is a route a visiting colleague
+   has to FIND, not a way out. One recipe here rather than a page-local copy (it was `.cal-lock-alt`
+   in index.css until v23.19, when the shared login card grew the same control). */
+button.login-back {
+    background: none;
+    border: none;
+    padding: 10px 8px;
+    font-family: inherit;
+    font-weight: 600;
+    text-decoration: underline;
+    cursor: pointer;
+}
+button.login-back:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: var(--radius-sm); }
+/* The one-line reason the card is up (an expired session). A hint, standing alone above the fields,
+   so it carries the gap `.login-field` would otherwise give it. */
+.login-notice { margin: 0 0 18px; text-align: center; }
 /* Staged "still working" reassurance under the Sign in button (display:none until it has text). */
 .login-status {
     display: none;

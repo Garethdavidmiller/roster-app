@@ -14,7 +14,7 @@
  *     the pages actually consult it on a viewer session is a wiring question.
  */
 import { test, expect } from './fixtures.js';
-import { seedMember, seedMemberSession, seedSession, seedSessionOnce, stubPinExchange, enterPin, collectFatalErrors, seedViewerAccess, clearNoticeFlags } from './helpers.js';
+import { seedMember, seedMemberSession, seedSession, seedSessionOnce, stubPinExchange, enterPin, openPinCard, signInThroughOverlay, collectFatalErrors, seedViewerAccess, clearNoticeFlags } from './helpers.js';
 import { disableCalendarPin, enableCalendarPin } from './fixtures.js';
 
 // Every test here sets `CONFIG.CALENDAR_PIN_ACCESS` explicitly rather than inheriting it, and the
@@ -30,13 +30,25 @@ test.beforeEach(async ({ page }) => { await enableCalendarPin(page); });
 
 // ── Locked ──────────────────────────────────────────────────────────────────────────────────────
 
-test('a fresh browser gets the unlock card, and NO roster data', async ({ page }) => {
+test('a fresh browser gets the SIGN-IN card first, and NO roster data', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await seedMember(page);              // a member was chosen on this machine before — still locked
     await page.goto('/index.html');
 
+    // ── THE FRONT DOOR IS SIGN-IN FIRST (v23.19, owner decision) ────────────────────────────────
+    // Most people opening the app are staff with a password; the PIN is for the shared PC and for
+    // visiting or agency staff, and is one tap behind. From v20.12 to v23.18 this asserted the PIN
+    // field here.
     await expect(page.locator('#calendarLock')).toBeVisible();
-    await expect(page.locator('#calLockPin')).toBeVisible();
+    await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
+    await expect(page.locator('#loginName')).toBeVisible();
+    await expect(page.locator('#calLockPin')).toHaveCount(0);
+    await expect(page.locator('#loginAlternative')).toHaveText(/staff PIN/i);
+    await expect(page.locator('#loginAlternativeHint')).toContainText(/agency/i);
+    // Inline, not a modal: no dialog role, no scroll lock, and the drawer's burger is still there.
+    await expect(page.locator('#loginOverlay')).not.toHaveAttribute('role', 'dialog');
+    await expect(page.locator('body')).not.toHaveClass(/lb-open/);
+    await expect(page.locator('#navMenuBtn')).toBeVisible();
 
     // THE ASSERTION THIS FILE EXISTS FOR. Not "hidden" — ABSENT. The workspace is never built while
     // locked, so the grid has no children and the member dropdown has no options. A design that
@@ -57,14 +69,62 @@ test('the splash comes down on the LOCKED path — no infinite loading screen', 
     await page.goto('/index.html');
     // The dismissal used to sit after the first render. Locked, that render never happens.
     await expect(page.locator('#splash')).toBeHidden({ timeout: 5000 });
+    await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
+});
+
+test('the staff PIN is one tap behind the sign-in card, and the way back is in place', async ({ page }) => {
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
+    await page.locator('#loginAlternative').click();
+    // A swap in ONE slot: the PIN card is up, the sign-in card is gone — not covered, gone.
     await expect(page.locator('#calLockPin')).toBeVisible();
+    await expect(page.locator('#loginCard')).toHaveCount(0);
+    expect(await page.locator('#calendarLock').count()).toBe(1);
+    await expect(page.locator('#calLockSignIn')).toHaveText(/sign in/i);
+    await page.locator('#calLockSignIn').click();
+    await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
+    await expect(page.locator('#calLockPin')).toHaveCount(0);
+    expect(await page.locator('#calendarLock').count()).toBe(1);
+});
+
+test('Escape on the front-door card does NOT leave the page', async ({ page }) => {
+    // The modal overlay's Escape goes "back to the roster". Inline on the roster's own page that
+    // would reload under a form somebody is typing into — so host mode installs no Escape.
+    await page.goto('/index.html');
+    await page.locator('#loginPassword').fill('abc');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    await expect(page.locator('#loginPassword')).toHaveValue('abc');
+});
+
+test('signing in from the front door SAVES the session and lands on the roster', async ({ page }) => {
+    // The whole point of the reorder: a member with a password gets in from the first screen, with
+    // nothing to find. The real shared form, the real sign-in core, the stub's happy path; success
+    // reloads and the boot decision then answers `named` — no second code path.
+    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { signInEstablishes: true }); });
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
+    await signInThroughOverlay(page, 'G. Miller');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('#calendarLock')).toHaveCount(0);
+    const stored = await page.evaluate(() => localStorage.getItem('myb_admin_session'));
+    expect(stored).toContain('G. Miller');
+});
+
+test('`#staff-pin` lands on the PIN card first, and the hash is consumed', async ({ page }) => {
+    // The one direct route to the PIN card: what a "Use the staff PIN instead" sign-out reloads
+    // with, and what a station PC can bookmark. It must not stay in the address bar.
+    await page.goto('/index.html#staff-pin');
+    await expect(page.locator('#calLockPin')).toBeVisible();
+    await expect(page.locator('#loginCard')).toHaveCount(0);
+    expect(new URL(page.url()).hash).toBe('');
 });
 
 test('the nav drawer and the guides stay reachable while locked', async ({ page }) => {
     // Locking the building to reach the noticeboard would be absurd: the guides, the Huddle and the
     // documents are deliberately outside the gate.
     await page.goto('/index.html');
-    await expect(page.locator('#calLockPin')).toBeVisible();
+    await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
     await page.locator('#navMenuBtn').click();
     await expect(page.locator('#navPanel')).toBeVisible();
     await expect(page.locator('#navPanel')).toContainText('Railcard');
@@ -85,7 +145,7 @@ test('locked: a Daily Huddle tap says what to do, and issues NO read', async ({ 
     // route a notification tap and a real staff tap both take) and from '/index.html' would be a
     // full navigation to a different path.
     await page.goto('/');
-    await expect(page.locator('#calLockPin')).toBeVisible();
+    await expect(page.locator('#calendarLock')).toBeVisible();
     const before = await docReads(page);
     await page.locator('#navMenuBtn').click();
     await page.locator('#navPanel a[href="./#huddle"]').click();
@@ -102,7 +162,7 @@ test('locked: a Daily Huddle tap says what to do, and issues NO read', async ({ 
 test('locked: a Circular deep link says what to do, issues NO read, and is FINISHED by the PIN', async ({ page }) => {
     await stubPinExchange(page);
     await page.goto('/index.html#circular');
-    await expect(page.locator('#calLockPin')).toBeVisible();
+    await expect(page.locator('#calendarLock')).toBeVisible();
     await expect(page.locator('#docViewer')).toBeVisible();
     await expect(page.locator('#docViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Weekly Retail Circular');
     const before = await docReads(page);
@@ -119,7 +179,7 @@ test('locked: a Circular deep link says what to do, issues NO read, and is FINIS
 
 test('locked: the drawer refuses a Circular tap without opening a tab', async ({ page }) => {
     await page.goto('/index.html');
-    await expect(page.locator('#calLockPin')).toBeVisible();
+    await expect(page.locator('#calendarLock')).toBeVisible();
     const before = await docReads(page);
     const popups = [];
     page.on('popup', p => popups.push(p));
@@ -146,7 +206,7 @@ test('the correct PIN unlocks the Calendar and the roster appears', async ({ pag
     await stubPinExchange(page);
     await page.goto('/index.html');
 
-    await expect(page.locator('#calLockPin')).toBeVisible();
+    await expect(page.locator('#calendarLock')).toBeVisible();
     await enterPin(page, '1234');
 
     await expect(page.locator('#calendarLock')).toHaveCount(0);
@@ -161,6 +221,7 @@ test('the correct PIN unlocks the Calendar and the roster appears', async ({ pag
 
 test('the submit button stays disabled until four digits are entered', async ({ page }) => {
     await page.goto('/index.html');
+    await openPinCard(page);
     const submit = page.locator('#calLockSubmit');
     await expect(submit).toBeDisabled();
     await page.locator('#calLockPin').fill('12');
@@ -174,6 +235,7 @@ test('non-digits are stripped as they are typed', async ({ page }) => {
     // handler sees it, so a fill-based assertion would be testing maxlength and calling it the
     // digit filter. Typing is also what a member actually does.
     await page.goto('/index.html');
+    await openPinCard(page);
     await page.locator('#calLockPin').pressSequentially('1a2b3c4d');
     await expect(page.locator('#calLockPin')).toHaveValue('1234');
 });
@@ -223,7 +285,7 @@ test('showing the card WARMS the exchange function while the member types', asyn
     const warm = page.waitForRequest(r =>
         r.url().includes('unlockCalendarViewer') && r.method() === 'GET', { timeout: 5000 });
     await page.goto('/index.html');
-    await expect(page.locator('#calLockPin')).toBeVisible();
+    await openPinCard(page);
     await warm;
 });
 
@@ -303,7 +365,7 @@ test('when the browser SESSION ends, the PIN is required again', async ({ page }
 
     await page.evaluate(() => sessionStorage.clear());
     await page.reload();
-    await expect(page.locator('#calLockPin')).toBeVisible();
+    await expect(page.locator('#calendarLock')).toBeVisible();   // the front door again (sign-in first)
     await expect(page.locator('#calendarDisplay')).toBeHidden();
     expect(await page.locator('#calendarDisplay').innerHTML()).toBe('');
 });
@@ -463,7 +525,7 @@ test('a slow decision shows a SKELETON, not a blank page — and no roster data 
     await expect(page.locator('#calendarDisplay')).toBeHidden();
 
     // And it goes when the decision lands.
-    await expect(page.locator('#calLockPin')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('#calendarLock')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('#calendarBooting')).toHaveCount(0);
 });
 
@@ -522,6 +584,7 @@ test('the unlock card is operable by keyboard alone', async ({ page }) => {
     await seedMember(page);
     await stubPinExchange(page);
     await page.goto('/index.html');
+    await openPinCard(page);
     const pin = page.locator('#calLockPin');
     await pin.focus();
     await page.keyboard.type('1234');
@@ -531,6 +594,7 @@ test('the unlock card is operable by keyboard alone', async ({ page }) => {
 
 test('the PIN field is labelled, and large enough not to trigger iOS focus zoom', async ({ page }) => {
     await page.goto('/index.html');
+    await openPinCard(page);
     const label = page.locator('label[for="calLockPin"]');
     await expect(label).toBeVisible();
     // iOS Safari zooms the whole page when a focused field is under 16px. On the app's front door
@@ -548,9 +612,13 @@ test('the card does not overflow at 360px, nor sprawl at 1440px', async ({ page 
     expect(overflow).toBeLessThanOrEqual(1);
 
     await page.setViewportSize({ width: 1440, height: 900 });
-    const w = await page.locator('.cal-lock-card').evaluate(el => el.getBoundingClientRect().width);
-    // Compact on purpose — a wide centred panel is what a corporate login portal looks like.
+    // Both cards this slot can hold — the sign-in card is up first; the PIN card wears the same recipe.
+    const w = await page.locator('#calendarLock #loginCard').evaluate(el => el.getBoundingClientRect().width);
     expect(w).toBeLessThanOrEqual(440);
+    await openPinCard(page);
+    const w2 = await page.locator('.cal-lock-card').evaluate(el => el.getBoundingClientRect().width);
+    // Compact on purpose — a wide centred panel is what a corporate login portal looks like.
+    expect(w2).toBeLessThanOrEqual(440);
 });
 
 // ── Regressions found by the v20.15 bug sweep ───────────────────────────────────────────────────
@@ -562,7 +630,7 @@ test('the nav drawer shows NO footer while the Calendar is locked', async ({ pag
     // NOTIFICATION BELL. The bell is documented as signed-in only, and a viewer tapping it would be
     // denied by the v20.12 push-subscription rule: a control that cannot succeed, offered.
     await page.goto('/index.html');
-    await expect(page.locator('#calLockPin')).toBeVisible();
+    await expect(page.locator('#calendarLock')).toBeVisible();
     await page.locator('#navMenuBtn').click();
     await expect(page.locator('#navPanel')).toBeVisible();
     await expect(page.locator('.nav-panel-footer')).toBeHidden();

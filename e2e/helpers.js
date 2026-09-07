@@ -355,9 +355,27 @@ export async function stubPinExchange(page, { status = 200, token = 'E2E_VIEWER_
     });
 }
 
+/**
+ * Get the staff-PIN card on screen. Since v23.19 the front door is the member SIGN-IN card and the
+ * PIN card is one tap behind it ("Use the staff PIN instead"), so a test about the PIN card first
+ * has to ask for it — the way a visiting colleague does. Idempotent: if the PIN card is already up
+ * (a `#staff-pin` arrival, a re-lock from viewer mode) it changes nothing.
+ * @param {import('@playwright/test').Page} page
+ */
+export async function openPinCard(page) {
+    const pin = page.locator('#calLockPin');
+    const usePin = page.locator('#loginAlternative');
+    await pin.or(usePin).first().waitFor();
+    if (await pin.count()) return;
+    await usePin.click();
+    await pin.waitFor();
+}
+
 /** Type the PIN and press Unlock. Uses the real form, so the digits-only filter and the
- *  disabled-until-complete button are exercised rather than bypassed. */
+ *  disabled-until-complete button are exercised rather than bypassed. Reaches the PIN card first if
+ *  the sign-in card is the one on screen (`openPinCard`). */
 export async function enterPin(page, pin = '1234') {
+    await openPinCard(page);
     await page.locator('#calLockPin').fill(pin);
     await page.locator('#calLockSubmit').click();
 }
