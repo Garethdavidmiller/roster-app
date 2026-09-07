@@ -3392,20 +3392,6 @@
            card in this family leaves 14–24px. */
         #calLockWhy { margin: 0 0 18px; }
 
-        /* Sits under the primary button, where `.login-back` sits on the login card. The extra
-           padding is the 44px touch target a bare text link would not have. */
-        .cal-lock-alt {
-            display: inline-block;
-            padding: 10px 8px;
-            background: none;
-            border: none;
-            font-family: inherit;
-            font-weight: 600;
-            text-decoration: underline;
-            cursor: pointer;
-        }
-        .cal-lock-alt:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: var(--radius-sm); }
-
         /* The lock card is not part of a printed roster, and a printed page cannot be unlocked. */
         @media print {
             .cal-lock { display: none !important; }

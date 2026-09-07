@@ -605,15 +605,18 @@ lets both be fixed at once.
 | Situation | What happens |
 |---|---|
 | Signed-in member, live session | Nothing changes. No PIN, no interruption; the session rule (60 days) is untouched. |
-| Shared PC, fresh browser | The Calendar area shows a small "Enter the staff PIN" card. Four digits → the roster, including whichever member was last selected on that machine. |
+| Any browser holding nothing — a new phone, a shared PC's fresh browser (v23.19) | The Calendar area shows the **member sign-in card** first (grade · name · password — the same card as the other pages), with **"Use the staff PIN instead"** beneath it and a line saying who the PIN is for: visiting or agency staff, or anyone without a password yet. One tap → the "Enter the staff PIN" card. Four digits → the roster, including whichever member was last selected on that machine. A station PC can bookmark `./#staff-pin` to land on the PIN card directly. |
 | Same browser, reload or navigation | Stays unlocked. The viewer session lives as long as the browser session. |
 | Browser closed and reopened | The PIN is asked for again. That is the point — a PC left on a Windows account does not carry the roster into the next person's day. |
 | Guides, Huddle, Circular, Newsletter | Reachable **without** the PIN. The nav drawer is never locked. |
 | A member whose sign-in has been lost from the device (v20.79) | They get **their own sign-in card**, never the PIN — see below. |
 | A slow start on a poor connection (v20.80) | A greyed-out calendar shape while the app works out what to show, rather than a blank screen. |
 
-A member on a shared PC can also use **"Sign in instead"** on the unlock card, and a viewer can
-press **Lock Calendar** in the nav drawer before walking away.
+The PIN card's **"Sign in instead"** goes back to the sign-in card, and a viewer can press **Lock
+Calendar** in the nav drawer before walking away — that lands on the PIN card, because whoever
+pressed it got in with the PIN. (From v20.12 to v23.18 the PIN card came first and sign-in was the
+link; the order was reversed on 7 Sep 2026 because most people opening the app are staff with a
+password of their own, and signing in is what ends the code for them for 60 days.)
 
 ### "It asked me for a PIN and I'm signed in" — what that used to mean (v20.79)
 

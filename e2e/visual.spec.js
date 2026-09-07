@@ -43,7 +43,7 @@
 // e2e responsive/calendar specs; the calendar's pixels are still locked at desktop width below.
 
 import { test, expect, enableCalendarPin } from './fixtures.js';
-import { seedSession, seedMember, openRosterReview, openReference, stubPerfReads } from './helpers.js';
+import { seedSession, seedMember, openRosterReview, openReference, stubPerfReads, openPinCard } from './helpers.js';
 import { ROTATING_LINES } from '../links-design.js';
 
 // A Wednesday inside G. Miller's rendered roster window — gives a stable "Today" cell and a
@@ -1042,22 +1042,35 @@ test('overlay — Tips panel (settings, desktop 1280)', async ({ page }) => {
 // second copy in a comment is what goes stale — this line carried one)
 // the default — otherwise the front door stops being baselined the day it ships and nobody notices,
 // which is the failure mode this whole file exists to prevent.
-test('calendar — staff PIN unlock card @1280', async ({ page }) => {
+// The front door is the SIGN-IN card since v23.19 (owner decision); the PIN card is one tap behind
+// it. The two `calendar-lock-*` baselines keep their names — they baseline the locked front door,
+// whichever card that is — and the PIN card gets its own.
+test('calendar — front door: the sign-in card @1280', async ({ page }) => {
     await page.clock.setFixedTime(FIXED_TIME);
     await enableCalendarPin(page);
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto('/index.html');
-    await settle(page, '#calLockPin');
+    await settle(page, '#calendarLock #loginCard');
     await expect(page).toHaveScreenshot('calendar-lock-desktop-1280.png');
 });
 
-test('calendar — staff PIN unlock card @390', async ({ page }) => {
+test('calendar — front door: the sign-in card @390', async ({ page }) => {
     await page.clock.setFixedTime(FIXED_TIME);
     await enableCalendarPin(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/index.html');
-    await settle(page, '#calLockPin');
+    await settle(page, '#calendarLock #loginCard');
     await expect(page).toHaveScreenshot('calendar-lock-mobile-390.png');
+});
+
+test('calendar — staff PIN card @390', async ({ page }) => {
+    await page.clock.setFixedTime(FIXED_TIME);
+    await enableCalendarPin(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/index.html');
+    await openPinCard(page);
+    await settle(page, '#calLockPin');
+    await expect(page).toHaveScreenshot('calendar-lock-pin-mobile-390.png');
 });
 
 

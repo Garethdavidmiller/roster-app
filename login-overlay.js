@@ -17,6 +17,22 @@
  *   enforce-failure messaging).
  * Does NOT own: what happens AFTER a confirmed sign-in — the caller passes onSuccess (typically a
  *   reload, or admin's inline email-check-then-reload).
+ *
+ * ── TWO WAYS TO MOUNT IT (v23.19) ───────────────────────────────────────────────────────────────
+ *
+ * By default it is a fixed full-screen OVERLAY: a modal dialog over a page the member is not yet
+ * allowed to use, with a scroll lock, a focus trap, Escape back to the roster and a "← Back to
+ * roster" link. That is right on the five sub-pages, where there IS a roster to go back to.
+ *
+ * Passing `host` mounts the SAME card INLINE, in page flow, inside the element given — which is how
+ * the Calendar's front door shows it (calendar-access.js → `showSignInPanel`). There, every one of
+ * the modal behaviours is wrong: nothing is behind the card to lock or trap, the nav drawer and the
+ * guides must stay reachable beside it, "back to roster" is the page it is already on, and Escape
+ * would reload the page under a form somebody is typing into. So in host mode none of them are
+ * installed, the wrapper is not a dialog, and the back link is replaced by the caller's
+ * `alternative` — on the Calendar, "Use the staff PIN instead". The FORM and everything behind it
+ * (the sign-in core, the lockout, the reset request, the status line) is identical in both modes on
+ * purpose: one sign-in, mounted two ways, rather than a second card that drifts.
  */
 
 import { CONFIG, getMembersForGrade } from './roster-data.js';
@@ -114,13 +130,19 @@ export function dismissLoginOverlay() {
     unlockBodyScroll();
 }
 
-/** Build the overlay markup. `pageLabel` sets the subtitle, e.g. "Admin" → "Admin · Sign in". */
-function overlayHtml(/** @type {string} */ pageLabel) {
+/** Build the overlay markup. `pageLabel` sets the subtitle, e.g. "Admin" → "Admin · Sign in".
+ *  `alternative` (host mode) replaces the back link with a button the caller wires; `notice` is one
+ *  line under the subtitle saying WHY the card is up when that is not obvious ("access has expired").
+ *  @param {string} pageLabel
+ *  @param {{ label: string, hint?: string }|null} alternative
+ *  @param {string} notice */
+function overlayHtml(pageLabel, alternative, notice) {
     return `
     <div id="loginCard">
         <img src="icon-192.png" alt="Marylebone Roster">
         <div class="login-app-name">Marylebone Roster</div>
-        <div class="login-subtitle">${pageLabel} · Sign in</div>
+        <div class="login-subtitle" id="loginSubtitle">${pageLabel} · Sign in</div>
+        ${notice ? '<p class="login-hint login-notice" id="loginNotice" role="status"></p>' : ''}
         <div class="login-field">
             <label for="loginGrade">Grade</label>
             <select id="loginGrade"><option value="">— Select grade —</option></select>
@@ -153,7 +175,10 @@ function overlayHtml(/** @type {string} */ pageLabel) {
              doc id (so the queue can never exceed the roster) are what make the open door safe. -->
         <button type="button" id="loginResetRequest" class="login-reset-request">Can’t get in? Ask the admin to reset your password</button>
         <div id="loginResetStatus" class="login-receipt" aria-live="polite"></div>
-        <a href="./" class="login-back">← Back to roster</a>
+        ${alternative
+            ? `<button type="button" class="login-back" id="loginAlternative"></button>` +
+              (alternative.hint ? `<p class="login-help" id="loginAlternativeHint"></p>` : '')
+            : `<a href="./" class="login-back">← Back to roster</a>`}
     </div>`;
 }
 
@@ -165,18 +190,40 @@ function overlayHtml(/** @type {string} */ pageLabel) {
  * @param {(name: string) => (void | Promise<void>)} opts.onSuccess  Runs after a CONFIRMED named
  *   sign-in (surname matched AND, when B1 is on, the member's own Firebase session is active).
  *   Typically `() => window.location.reload()`; admin passes an inline email-check + reload.
+ * @param {HTMLElement|null} [opts.host]  Mount INLINE inside this element instead of as a fixed
+ *   modal over the page (see the module header). No scroll lock, no focus trap, no Escape.
+ * @param {{ label: string, hint?: string, onSelect: () => void }|null} [opts.alternative]  Replaces
+ *   the "← Back to roster" link with a button — the other way in, where there is one. Ignored while
+ *   a sign-in is in flight, for the same reason the link is.
+ * @param {string} [opts.notice]  One line under the subtitle saying why the card is up, when it is
+ *   not obvious — an expired session, say. Empty renders nothing.
  * @returns {void}
  */
-export function initLoginOverlay({ pageLabel, onSuccess }) {
+export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternative = null, notice = '' }) {
     // Inject the overlay (idempotent — never double-mount).
     if (document.getElementById('loginOverlay')) return;
+    const inline = !!host;
     const overlay = document.createElement('div');
     overlay.id = 'loginOverlay';
-    overlay.setAttribute('role', 'dialog');
-    overlay.setAttribute('aria-label', `Sign in to ${pageLabel}`);
-    overlay.setAttribute('aria-modal', 'true');
-    overlay.innerHTML = overlayHtml(pageLabel);
-    document.body.appendChild(overlay);
+    if (inline) {
+        // A card in the page, not a dialog: the drawer, the guides and the rest of the page are
+        // meant to stay reachable around it, and `aria-modal` would tell a screen reader they are not.
+        overlay.classList.add('login-overlay--inline');
+    } else {
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-label', `Sign in to ${pageLabel}`);
+        overlay.setAttribute('aria-modal', 'true');
+    }
+    overlay.innerHTML = overlayHtml(pageLabel, alternative, notice);
+    // textContent for the three caller-supplied strings, never interpolation: the label and the
+    // notice are the app's own words today, but a card built by string concatenation on the front
+    // door is not the place to rely on where a value came from.
+    if (notice) { const n = overlay.querySelector('#loginNotice'); if (n) n.textContent = notice; }
+    if (alternative) {
+        const a = overlay.querySelector('#loginAlternative'); if (a) a.textContent = alternative.label;
+        const h = overlay.querySelector('#loginAlternativeHint'); if (h && alternative.hint) h.textContent = alternative.hint;
+    }
+    (inline ? /** @type {HTMLElement} */ (host) : document.body).appendChild(overlay);
 
     const gradeSelect   = /** @type {HTMLSelectElement} */ (overlay.querySelector('#loginGrade'));
     const nameSelect    = /** @type {HTMLSelectElement} */ (overlay.querySelector('#loginName'));
@@ -192,7 +239,7 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
     if (!CONFIG.PASSWORD_RESET_REQUESTS) resetBtn?.remove();
     const resetStatusEl = /** @type {HTMLElement} */ (overlay.querySelector('#loginResetStatus'));
     const statusEl      = /** @type {HTMLElement} */ (overlay.querySelector('#loginStatus'));
-    const backLink      = /** @type {HTMLAnchorElement} */ (overlay.querySelector('.login-back'));
+    const backLink      = /** @type {HTMLElement} */ (overlay.querySelector('.login-back'));
 
     // Show/hide the password. It isn't a secret (the hint literally states the convention), and
     // typing it blind on a phone is the main cause of the 3-strikes 30s lockout — so a reveal
@@ -208,13 +255,15 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
     });
 
     overlay.classList.add('visible');
-    lockBodyScroll();
+    if (!inline) lockBodyScroll();
     // Pre-warm Firebase Auth restoration now, while the user is still picking grade/name and typing
     // their password — so the sign-in click pays only for the network sign-in, not persistence setup
     // + IndexedDB restore on top. Best-effort and side-effect-free (see primeAuth in session.js).
     primeAuth();
 
-    overlay.addEventListener('keydown', e => {
+    // MODAL behaviours only. Inline, Escape has nowhere to go (the roster is this page) and a focus
+    // trap on a card the drawer sits beside is a cage — see the module header.
+    if (!inline) overlay.addEventListener('keydown', e => {
         // Ignore Escape while a sign-in is in progress — navigating mid-submit would leave the
         // user neither signed in nor on the calendar. Keyed on _signingIn, NOT submitBtn.disabled
         // (v16.23): the button is also disabled for the whole 30s password lockout, which made
@@ -255,7 +304,12 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
     // handler below only engages once focus is already inside the overlay, so it was dead. Sighted
     // keyboard-only sign-in was effectively broken on all five protected pages (axe can't see focus
     // movement, so the a11y gate stayed green). v18.28.
-    (gradeRestored ? nameSelect : gradeSelect).focus();
+    //
+    // Inline, only on a device with a real keyboard: autofocusing a select on a phone throws the
+    // picker up over a card the member has not read yet — the same rule the staff-PIN card follows.
+    if (!inline || (window.matchMedia && window.matchMedia('(pointer: fine)').matches)) {
+        (gradeRestored ? nameSelect : gradeSelect).focus();
+    }
 
     gradeSelect.addEventListener('change', () => {
         errorEl.classList.remove('visible');
@@ -512,8 +566,13 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
 
     // Don't abandon an in-flight sign-in via the Back link — same intent as the Escape guard above.
     // Gated on `_signingIn` (true ONLY during the Firebase round trip), NOT on submitBtn.disabled,
-    // so a mere 30s password lockout still lets the user escape to the public roster.
-    backLink.addEventListener('click', e => { if (_signingIn) e.preventDefault(); });
+    // so a mere 30s password lockout still lets the user escape to the public roster. The same guard
+    // covers the caller's alternative (host mode): switching cards mid-submit would tear this one
+    // down under a sign-in that may then succeed into a page that has moved on.
+    backLink.addEventListener('click', e => {
+        if (_signingIn) { e.preventDefault(); return; }
+        if (alternative) alternative.onSelect();
+    });
 
     submitBtn.addEventListener('click', () => { attempt().catch(() => {}); });
     passwordInput.addEventListener('keydown', e => { if (e.key === 'Enter') attempt().catch(() => {}); });

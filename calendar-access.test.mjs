@@ -106,6 +106,22 @@ function emitAuth(user) {
     for (const cb of [...authSubs]) cb(user);
 }
 
+/** Every `initLoginOverlay` call the module makes — the front door is the shared card mounted
+ *  INLINE (v23.19), and this is the seam: the real module imports the Firebase SDK through
+ *  perf-reporter, and its form is proven in a browser (e2e/calendar-pin.spec.js). Here it records
+ *  where it was asked to mount and what alternative it was given, and paints a marker into the host
+ *  so `lastPanelHtml` can tell the sign-in card from the PIN card. @type {any[]} */
+let loginMounts = [];
+mock.module('./login-overlay.js', {
+    namedExports: {
+        initLoginOverlay: (opts) => {
+            loginMounts.push(opts);
+            if (opts.host) opts.host.innerHTML = '<div id="loginCard">SIGN-IN CARD</div>';
+        },
+        dismissLoginOverlay: () => {},
+    },
+});
+
 mock.module('./session.js', {
     namedExports: {
         getSession: () => sessionValue,
@@ -191,6 +207,8 @@ function fakeDom() {
             appendChild(c) { this._children.push(c); return c; },
             _removed: false,
             remove() { this._removed = true; },
+            // The real property the module reads after an `await` to check the slot has not moved on.
+            get isConnected() { return !this._removed; },
             focus() {},
             addEventListener(t, fn) { this._listeners.set(t, fn); },
             querySelector(sel) { return el(sel.replace('#', '')); },
@@ -206,7 +224,11 @@ function fakeDom() {
         createElement: () => mkEl('created'),
         querySelector: (sel) => el(sel),
     };
-    globalThis.window = { matchMedia: () => ({ matches: false }), location: { replace() {}, reload() {} } };
+    globalThis.window = {
+        matchMedia: () => ({ matches: false }),
+        location: { hash: '', replace(url) { ops.push('replace:' + url); }, reload() {} },
+    };
+    globalThis.history = { state: null, replaceState(_s, _t, url) { ops.push('replaceState:' + url); } };
     // Node 22 defines `navigator` as a getter-only global, so a plain assignment throws. The
     // module only reads `navigator.onLine`, so redefining the property is both sufficient and the
     // only thing that works here.
@@ -255,6 +277,7 @@ beforeEach(() => {
     store.clear();
     fetchQueue = [];
     lastFetchBody = null;
+    loginMounts = [];
     fakeDom();
     // Reset the module's own access state between tests. `_accessType` is module-level (it has to
     // be — the whole app asks one module "may this browser see the roster?"), so without this a
@@ -502,6 +525,53 @@ describe('initCalendarAccess', () => {
         assert.equal(started, 0, 'the Calendar was built while locked');
     });
 
+    // ── THE FRONT DOOR IS SIGN-IN FIRST (v23.19, owner decision) ────────────────────────────────
+    //
+    // Most people opening the app are staff with a password; the PIN is for the shared PC and for
+    // visiting or agency staff. So a browser holding NOTHING gets the member sign-in card, and the
+    // PIN is one tap behind it — not the other way round, as it was from v20.12 to v23.18.
+
+    test('nothing at all → the SIGN-IN card first, mounted inline, with the PIN one tap behind it', async () => {
+        await initCalendarAccess({ onGranted: () => {} });
+        assert.equal(loginMounts.length, 1, 'the shared sign-in card was not mounted');
+        const m = loginMounts[0];
+        assert.equal(m.host, lastPanel(), 'the card was not mounted INTO the lock slot (inline), but as a modal over it');
+        assert.ok(lastPanelHtml().includes('SIGN-IN CARD'));
+        assert.ok(!lastPanelHtml().includes('calLockPin'), 'the PIN field was on the front door');
+        assert.match(m.alternative?.label || '', /staff PIN/i, 'no route to the PIN from the front door');
+        assert.match(m.alternative?.hint || '', /agency/i, 'the card does not say who the PIN is for');
+
+        // The alternative swaps the cards IN PLACE — one slot, no reload, no second panel.
+        m.alternative.onSelect();
+        assert.ok(lastPanelHtml().includes('calLockPin'), 'taking the alternative did not show the PIN card');
+        assert.ok(!lastPanelHtml().includes('SIGN-IN CARD'), 'the sign-in card is still up under the PIN card');
+        assert.ok(m.host._removed, 'the previous card was not taken down');
+    });
+
+    test('the PIN card\'s "Sign in instead" returns to the sign-in card, in place', async () => {
+        await initCalendarAccess({ onGranted: () => {} });
+        loginMounts[0].alternative.onSelect();
+        const back = document.getElementById('calLockSignIn');
+        assert.ok(back, 'the PIN card offers no way back to sign-in');
+        back._listeners.get('click')();
+        await new Promise(r => setTimeout(r, 20));   // the overlay module is imported lazily
+        assert.equal(loginMounts.length, 2, 'sign-in was not re-mounted');
+        assert.ok(lastPanelHtml().includes('SIGN-IN CARD'));
+        assert.ok(!lastPanelHtml().includes('calLockPin'));
+    });
+
+    test('`#staff-pin` asks for the PIN card FIRST, and the hash is consumed', async () => {
+        // The one way to land on the PIN card directly: a "Use the staff PIN instead" sign-out
+        // reloads with it, and a station PC can bookmark it. It must not survive the boot — a
+        // member who then signs in would otherwise carry it in the address bar.
+        globalThis.window.location.hash = '#staff-pin';
+        await initCalendarAccess({ onGranted: () => {} });
+        assert.ok(lastPanelHtml().includes('calLockPin'), 'the hash did not bring the PIN card first');
+        assert.equal(loginMounts.length, 0, 'the sign-in card was mounted as well');
+        assert.ok(ops.some(o => o.startsWith('replaceState:')), 'the hash was left in the address bar');
+        assert.ok(!ops.some(o => o.includes('#staff-pin')), 'the replaced URL still carries the hash');
+    });
+
     test('an ANONYMOUS identity is locked out — the old bootstrap grants nothing', async () => {
         currentUser = { uid: 'anon', isAnonymous: true };
         let started = 0;
@@ -569,6 +639,9 @@ describe('initCalendarAccess', () => {
         assert.ok(ops.indexOf('clearSession') < ops.lastIndexOf('reload'),
             'reloaded before clearing — the reload would restore the session it was meant to drop');
         assert.equal(sessionValue, null, 'the local session was not actually dropped');
+        // v23.19: the reload lands on the sign-in card unless it says otherwise. The tap said PIN.
+        assert.equal(globalThis.window.location.hash, '#staff-pin',
+            'the reload will show the sign-in card — the tap asked for the PIN');
     });
 
     test('the silent re-establishment GRANTS when it works — and NO sign-in surface is ever shown', async () => {
@@ -725,12 +798,54 @@ describe('lockCalendar + handleAccessLost', () => {
         assert.equal(getAccessType(), 'named');
     });
 
+    test('locking lands on the PIN card, not the sign-in card — this is a PIN machine', async () => {
+        await unlockWithPin('1234');
+        ops = [];
+        await lockCalendar();
+        assert.ok(ops.includes('replace:./#staff-pin'), `the next person gets the sign-in card: ${JSON.stringify(ops)}`);
+    });
+
     test('losing access mid-session drops back to locked rather than looping on retry', async () => {
         // A Firestore `permission-denied` after the Calendar is open means the session expired, not
         // that the network is poor. Left as a sync-chip retry it is a loop the member cannot win.
         await unlockWithPin('1234');
         handleAccessLost();
         assert.equal(getAccessType(), 'none');
+    });
+
+    test('a VIEWER losing access gets the PIN card back, with the reason on it', async () => {
+        await unlockWithPin('1234');
+        handleAccessLost();
+        assert.ok(lastPanelHtml().includes('calLockPin'));
+        assert.match(document.getElementById('calLockMsg').textContent, /expired/i);
+    });
+
+    test('a MEMBER losing access gets their own card — never the PIN (CALENDAR_DATA.md 11)', async () => {
+        // Until v23.19 this path showed the PIN card to everyone, which sent a signed-in member to a
+        // shared code — the one thing the member card exists to prevent, reached from a different
+        // direction. The way back in is the way they came in.
+        sessionValue = { name: 'G. Miller' };
+        currentUser = { uid: 'member-1', isAnonymous: false };
+        await initCalendarAccess({ onGranted: () => {} });
+        assert.equal(getAccessType(), 'named');
+        handleAccessLost();
+        assert.equal(getAccessType(), 'none');
+        assert.ok(!lastPanelHtml().includes('id="calLockPin"'), 'a member was sent to the staff PIN');
+        assert.ok(lastPanelHtml().includes('calLockWho'), 'the member card was not shown');
+        assert.match(document.getElementById('calLockWhy').textContent, /expired/i, 'the card does not say why it is up');
+    });
+
+    test('a MEMBER whose SESSION has also gone gets the sign-in card, with the reason on it', async () => {
+        sessionValue = { name: 'G. Miller' };
+        currentUser = { uid: 'member-1', isAnonymous: false };
+        await initCalendarAccess({ onGranted: () => {} });
+        sessionValue = null;   // expired and cleared by the time the read was refused
+        loginMounts = [];
+        handleAccessLost();
+        await new Promise(r => setTimeout(r, 20));
+        assert.equal(loginMounts.length, 1, 'the sign-in card was not shown');
+        assert.match(loginMounts[0].notice || '', /expired/i, 'the card does not say why it is up');
+        assert.ok(!lastPanelHtml().includes('id="calLockPin"'), 'a member was sent to the staff PIN');
     });
 
     test('handleAccessLost is a no-op when already locked', () => {

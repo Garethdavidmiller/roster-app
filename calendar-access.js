@@ -44,6 +44,27 @@
  *   · Recording "unlocked" in localStorage. There is no such flag and there must not be: the
  *     Firebase auth state IS the authority, so there is exactly one thing to get right and no
  *     second copy that can disagree with it.
+ *
+ * ── THE FRONT DOOR IS SIGN-IN FIRST; THE PIN IS THE FALLBACK (v23.19, owner decision) ────────────
+ *
+ * A browser holding nothing is shown the member SIGN-IN card (`showSignInPanel` — the shared
+ * `login-overlay.js` card, mounted inline), with "Use the staff PIN instead" beneath it. Until
+ * v23.18 it was the other way round: the PIN card first and "Sign in instead" as the link. The
+ * order was inherited from the PIN's origin as the low-friction answer for shared office PCs, and
+ * it had the front door optimised for the minority: most people opening the app are staff with a
+ * password of their own, and signing in is what ends the code for them for 60 days. The PIN is for
+ * the shared PC, and for visiting or agency staff who need the roster, the Huddle and the guides
+ * without an account — a real audience, and one tap away, not the default.
+ *
+ * Three things the reorder does NOT change, because they are the security model and this is only
+ * the order of two cards: what each route GRANTS (`decideAccess` is untouched), that a member is
+ * never sent to the PIN (`showMemberPanel` still answers a held session), and that nothing is on
+ * screen before access is granted. It also adds ONE route back to the PIN card as the first card,
+ * `#staff-pin` — the hash a "Use the staff PIN instead" sign-out reloads with, so the tap lands
+ * where it was going, and a bookmark a station PC can keep. Consumed and cleared at boot, never
+ * stored.
+ *
+ * The cards share ONE slot (`calendar-lock-slot.js`) so at most one of them can exist at a time.
  */
 
 import { auth, signInWithCustomToken, signInAnonymously, signOut, setViewerPersistence, onAuthStateChanged, currentUserAfterBoot } from './firebase-client.js';
@@ -52,6 +73,12 @@ import { CONFIG } from './roster-data.js';
 import { lsGet } from './ls.js';
 import { SELECTED_MEMBER } from './storage-keys.js';
 import { isViewerUser, decideAccess, decideProvisionalAccess, normalisePin, isCompletePin, classifyUnlockFailure, attemptBackoffMs, PIN_LENGTH, CALENDAR_VIEWER_CLAIM } from './calendar-access-core.js';
+import { mountLockCard, unmountLockCard, lockCardId, armSkeleton, showBootSkeleton } from './calendar-lock-slot.js';
+
+/** The hash that asks for the staff-PIN card FIRST (see the module header). Read once at boot and
+ *  removed from the address bar, so it is never carried into a member's session or a bookmark made
+ *  afterwards. */
+const PIN_FIRST_HASH = '#staff-pin';
 
 /** The exchange endpoint. Same region + project as every other MYB function. */
 const UNLOCK_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/unlockCalendarViewer';
@@ -431,7 +458,9 @@ export async function lockCalendar() {
     if (isViewerUser(auth.currentUser)) {
         throw new Error('viewer still current after sign-out — Calendar not locked');
     }
-    window.location.replace('./');
+    // Back to the PIN card, not the sign-in card: whoever pressed Lock got in with the PIN, so this
+    // is a machine the PIN is used on, and the next person is most likely to want the same route.
+    window.location.replace('./' + PIN_FIRST_HASH);
 }
 
 // ── The workspace gate ──────────────────────────────────────────────────────────────────────────
@@ -466,14 +495,13 @@ function setWorkspaceHidden(hidden) {
  *  mistyped got a subtly different button back from the one they pressed. */
 const SUBMIT_LABEL = 'Unlock Calendar →';
 
-/** @type {HTMLElement|null} */ let _panel = null;
 /** @type {any} */ let _backoffTimer = null;
-/** @type {any} */ let _skeletonTimer = null;
 
+/** Take whatever card is up off the page. The slot owns the element and the skeleton timer
+ *  (calendar-lock-slot.js); the PIN card's backoff timer is this module's and is cleared here. */
 function hideLockPanel() {
-    if (_panel) { _panel.remove(); _panel = null; }
+    unmountLockCard();
     if (_backoffTimer) { clearTimeout(_backoffTimer); _backoffTimer = null; }
-    if (_skeletonTimer) { clearTimeout(_skeletonTimer); _skeletonTimer = null; }
 }
 
 /** How long the decision may take before the page has to say something. Long enough that a normal
@@ -488,51 +516,6 @@ const SKELETON_AFTER_MS = 400;
  *  will probably need. Shorter than `trySilentReauth`'s own 8s ceiling on purpose — the attempt
  *  keeps running behind the card and a late success still grants. */
 const SILENT_BEFORE_CARD_MS = 4000;
-
-/**
- * Say "working", while the access decision is still outstanding.
- *
- * ── THE HOLE THIS FILLS (v20.80) ────────────────────────────────────────────────────────────────
- *
- * The splash is dismissed by `calendar-app.js` at module-execution time — deliberately, because
- * leaving it up would trap a locked visitor behind a loading screen with no way out. But the access
- * decision resolves LATER, and between the two there is nothing on the page at all: a navy field, a
- * burger and a wordmark. MEASURED, with the auth restore held at 3s: splash down at ~700ms, the
- * card or the grid at ~3.6s, and 2.9 seconds of blank in between. It reads as a broken app, which
- * is a worse answer than the loading screen it replaced. `splash-watchdog.js` does not cover it
- * either — it stands down the moment the splash gets `.hidden`, which is exactly when this starts.
- *
- * It shows the SHAPE of a calendar and no data — no dates, no shift text, nothing from the roster
- * module — so it is safe in front of a visitor who may turn out to have no access at all. That is
- * why it is here rather than in the workspace: `calendar-app.js` may not run a single line until
- * access is granted, and this has to appear before that is known.
- *
- * It occupies `_panel`, so every existing teardown already removes it: `grant()` and both cards
- * call `hideLockPanel()` first.
- */
-function showBootSkeleton() {
-    // Nothing should be up when this fires — `hideLockPanel` owns the timer and every path that
-    // answers the decision calls it — but replace rather than stack, like both cards do, so this can
-    // never orphan a panel it did not build.
-    hideLockPanel();
-    const host = document.querySelector('.container') || document.body;
-    if (!host) return;
-    const el = document.createElement('section');
-    el.id = 'calendarBooting';
-    el.className = 'cal-boot';
-    // Month bar, day-name row, then 42 cells — six weeks, the calendar's own worst case, so the
-    // block does not resize when the real grid replaces it. The measurements in the CSS are the
-    // REAL grid's, taken from a rendered calendar rather than guessed, so the swap is a fill-in
-    // rather than a re-layout. `aria-hidden` because it is scenery: the live region above is what a
-    // screen reader should hear, and 42 announced blanks is what it should not.
-    el.innerHTML =
-        '<p class="sr-only" role="status">Loading the roster…</p>' +
-        '<div class="cal-boot-head" aria-hidden="true"></div>' +
-        '<div class="cal-boot-days" aria-hidden="true">' + '<span></span>'.repeat(7) + '</div>' +
-        '<div class="cal-boot-grid" aria-hidden="true">' + '<span class="cal-boot-cell"></span>'.repeat(42) + '</div>';
-    host.appendChild(el);
-    _panel = el;
-}
 
 /**
  * Build and show the staff-access panel.
@@ -561,27 +544,17 @@ function showLockPanel() {
     try { fetch(UNLOCK_URL, { method: 'GET', cache: 'no-store' }).catch(() => {}); }
     catch { /* fetch unavailable — the submit path is unaffected */ }
 
-    // Falls back to <body>. `.container` has been there since the app was written, but the cost of
-    // it being absent is not "the card is misplaced" — it is a navy page with no card, no calendar
-    // and no way forward, on the app's front door. A misplaced card is recoverable; nothing is not.
-    const host = document.querySelector('.container') || document.body;
-    if (!host) return;
-
-    const panel = document.createElement('section');
-    panel.id = 'calendarLock';
-    panel.className = 'cal-lock';
-    panel.setAttribute('aria-labelledby', 'calLockTitle');
     // Mirrors `#loginCard`'s structure element for element (v20.14) — icon, app name, subtitle,
     // a left-aligned `.login-field` with its uppercase label and hint, the shared primary button,
     // the `.login-error` channel, then a quiet text link. Staff meet this exact shape on five other
     // pages; the PIN card is the sixth page's version of the same moment and should not be a
     // second, nearly-identical design. The classes are the login family's on purpose, the way
     // `#pwForceContent` reuses them — see the shared.css comment on the panel recipe.
-    panel.innerHTML = `
+    const panel = mountLockCard({ labelledBy: 'calLockTitle', html: `
         <div class="cal-lock-card">
             <img src="./icon-192.png" alt="" loading="eager">
             <div class="login-app-name">Marylebone Roster</div>
-            <div class="login-subtitle">Calendar · Staff PIN</div>
+            <div class="login-subtitle" id="calLockTitle">Calendar · Staff PIN</div>
             <form id="calLockForm" novalidate>
                 <div class="login-field">
                     <label for="calLockPin">Staff PIN</label>
@@ -594,15 +567,14 @@ function showLockPanel() {
                 <div class="login-error" id="calLockMsg" role="status" aria-live="polite"></div>
                 <button id="calLockSubmit" type="submit" disabled>${SUBMIT_LABEL}</button>
             </form>
-            <button class="login-back cal-lock-alt" id="calLockSignIn" type="button">Sign in instead</button>
+            <button class="login-back" id="calLockSignIn" type="button">Sign in instead</button>
             <!-- The login family's footer treatment, and it answers a real question this screen
                  otherwise leaves hanging: a new starter opening the app for the first time has no
                  way to know the code or who holds it. "The admin" per the wording conventions —
                  access to the app is an app matter, not a rostering one. -->
             <p class="login-help">Don’t know the PIN? Ask the admin.</p>
-        </div>`;
-    host.appendChild(panel);
-    _panel = panel;
+        </div>` });
+    if (!panel) return;
 
     const form   = /** @type {HTMLFormElement} */ (panel.querySelector('#calLockForm'));
     const input  = /** @type {HTMLInputElement} */ (panel.querySelector('#calLockPin'));
@@ -674,19 +646,65 @@ function showLockPanel() {
         input.focus();
     });
 
-    // Reuses the shared member login overlay rather than duplicating a second sign-in. It injects
-    // its own DOM and needs nothing from this page. On success it reloads, and the boot decision
-    // then answers `named` — so there is no second code path for "signed in from the lock screen".
-    signIn.addEventListener('click', async () => {
-        const { initLoginOverlay } = await import('./login-overlay.js');
-        initLoginOverlay({ pageLabel: 'the Calendar', onSuccess: () => window.location.reload() });
-    });
+    // Back to the front door — the sign-in card, in place. Before v23.19 this opened the fixed
+    // login overlay OVER the PIN card; now the two cards are alternatives for one slot.
+    signIn.addEventListener('click', () => { showSignInPanel().catch(() => {}); });
 
     // Focus the field, but only on a device with a real keyboard. Autofocusing on a phone throws up
     // the on-screen keyboard over the explanation the member has not read yet.
     if (window.matchMedia && window.matchMedia('(pointer: fine)').matches) {
         try { input.focus(); } catch { /* noop */ }
     }
+}
+
+/**
+ * The FRONT DOOR (v23.19): the member sign-in card, for a browser that holds nothing.
+ *
+ * It is the shared `login-overlay.js` card mounted INLINE in the lock slot — the same grade / name /
+ * password form, the same sign-in core, the same lockout and reset request as the five sub-pages —
+ * with the modal behaviours left out (no scroll lock, no focus trap, no Escape-to-roster: the roster
+ * is this page, and the drawer beside the card must stay reachable). One sign-in mounted two ways,
+ * rather than a second card written for the Calendar that would drift from the first.
+ *
+ * On success it RELOADS, and the boot decision then answers `named` — so there is no second code
+ * path for "signed in from the front door", exactly as there was none for "signed in from the PIN
+ * card's link". `#loginCard`'s recipe is shared with `.cal-lock-card` in shared.css, so the two
+ * cards this slot can show are the same size, in the same place, in the same family.
+ *
+ * @param {string} [notice]  One line under the subtitle saying why the card is up, when the reason
+ *   is not "you have not signed in" — an expired session, say.
+ */
+async function showSignInPanel(notice = '') {
+    hideLockPanel();
+    document.body.classList.add('calendar-locked');
+    setWorkspaceHidden(true);
+    const panel = mountLockCard({ labelledBy: 'loginSubtitle' });
+    if (!panel) return;
+    /** @type {typeof import('./login-overlay.js')} */ let mod;
+    // If the module cannot be had (a first visit on a connection that drops mid-boot), the front
+    // door must still be a DOOR: the PIN card needs nothing fetched, so fall back to it rather than
+    // leave an empty section where the card should be.
+    try { mod = await import('./login-overlay.js'); }
+    catch { if (panel.isConnected) showLockPanel(); return; }
+    // The slot may have moved on while the module loaded (a late identity granted; the PIN hash
+    // path). A card mounted into a section no longer on the page would be invisible and harmless,
+    // but "invisible and harmless" is not a property to rely on.
+    if (!panel.isConnected) return;
+    const { initLoginOverlay } = mod;
+    initLoginOverlay({
+        pageLabel: 'Calendar',
+        onSuccess: () => window.location.reload(),
+        host: panel,
+        notice,
+        alternative: {
+            label: 'Use the staff PIN instead',
+            // Who the PIN is FOR, said on the card that leads with the alternative to it — otherwise
+            // a visiting colleague with no account reads a sign-in form and reasonably concludes the
+            // app is not for them. "Visiting or agency staff": the audience the owner named.
+            hint: 'Visiting or agency staff, or no password yet? The staff PIN opens the roster, the Daily Huddle and the guides.',
+            onSelect: () => showLockPanel(),
+        },
+    });
 }
 
 /**
@@ -712,35 +730,30 @@ function showLockPanel() {
  * be worse than an unnecessary link.
  *
  * @param {string} name
+ * @param {string} [why]  The explanation line. Defaults to the evicted-identity case; `handleAccessLost`
+ *   passes the expired-session one.
  */
-function showMemberPanel(name) {
-    // REPLACE, never early-return. The two cards are alternatives for the same slot, and "a panel is
+function showMemberPanel(name, why = 'This device needs to sign you in again before it can show your roster. Enter your password to see it.') {
+    // REPLACE, never early-return. The cards are alternatives for the same slot, and "a panel is
     // already up" is not a reason to leave the WRONG one there — the PIN → member direction is
     // exactly what a re-lock followed by a fresh decision produces.
     hideLockPanel();
     document.body.classList.add('calendar-locked');
     setWorkspaceHidden(true);
 
-    const host = document.querySelector('.container') || document.body;
-    if (!host) return;
-
-    const panel = document.createElement('section');
-    panel.id = 'calendarLock';
-    panel.className = 'cal-lock';
     // Same card, same ids for the button and the message channel, so both wear the styling the PIN
     // card already established — including `#calLockSubmit:disabled`, which is exactly the resting
     // look wanted while the silent attempt is in flight.
-    panel.innerHTML = `
+    const panel = mountLockCard({ labelledBy: 'calLockWho', html: `
         <div class="cal-lock-card">
             <img src="./icon-192.png" alt="" loading="eager">
             <div class="login-app-name">Marylebone Roster</div>
             <div class="login-subtitle" id="calLockWho">Calendar</div>
-            <p class="login-hint" id="calLockWhy" role="status" aria-live="polite">This device needs to sign you in again before it can show your roster. Enter your password to see it.</p>
+            <p class="login-hint" id="calLockWhy" role="status" aria-live="polite"></p>
             <button id="calLockSubmit" type="button">Sign in →</button>
-            <button class="login-back cal-lock-alt" id="calLockPinInstead" type="button">Use the staff PIN instead</button>
-        </div>`;
-    host.appendChild(panel);
-    _panel = panel;
+            <button class="login-back" id="calLockPinInstead" type="button">Use the staff PIN instead</button>
+        </div>` });
+    if (!panel) return;
 
     // NOTE: the explanation keeps its `role="status"` live region even though the card now renders
     // in its final state (v21.62 — the waiting the two-state version represented happens behind the
@@ -755,6 +768,8 @@ function showMemberPanel(name) {
     // remote source, so this is not a live injection route — but a panel built by string
     // concatenation on the app's front door is not the place to rely on where a value came from.
     who.textContent = `Calendar · ${name}`;
+    const whyEl = /** @type {HTMLElement|null} */ (panel.querySelector('#calLockWhy'));
+    if (whyEl) whyEl.textContent = why;
 
     submit.addEventListener('click', async () => {
         const { initLoginOverlay } = await import('./login-overlay.js');
@@ -778,10 +793,12 @@ function showMemberPanel(name) {
     // The remedy is the one the app already uses for exactly this transition, one line away in
     // `onSignOut`: drop the local session and reload. The reload is doing the work — every consumer
     // seeded from `getSession()` at module scope is rebuilt from nothing, which no in-place repaint
-    // of this panel could achieve. `decideAccess` then sees no session and no identity and lands on
-    // the PIN card, which is where the tap was going anyway.
+    // of this panel could achieve. `decideAccess` then sees no session and no identity. Since
+    // v23.19 that lands on the SIGN-IN card, so the reload carries `#staff-pin` — the one hash the
+    // boot reads — and the tap still lands where it was going.
     pinAlt.addEventListener('click', () => {
         clearSession();
+        window.location.hash = PIN_FIRST_HASH;
         window.location.reload();
     });
 }
@@ -834,8 +851,19 @@ export function handleAccessLost() {
     // not import calendar-overrides.js — the gate must not depend on the access layer it protects
     // against — but it MUST happen, or a re-lock would leave the local-cache read open and the next
     // month navigation could paint yesterday's roster behind the unlock card.
+    const wasNamed = _accessType === 'named';
     _accessType = 'none';
     document.body.classList.remove('calendar-unlocked');
+    // The way back in is the way they came in. A MEMBER whose session has gone gets their own
+    // card, never the PIN (CALENDAR_DATA.md 11 — this path sent everyone to the PIN card until
+    // v23.19); a viewer gets the PIN card with the reason written into its message channel.
+    if (wasNamed) {
+        const why = 'Calendar access has expired. Sign in again to carry on.';
+        const held = getSession();
+        if (held?.name) showMemberPanel(held.name, why);
+        else showSignInPanel(why).catch(() => {});   // the session itself has gone: the front door, with the reason on it
+        return;
+    }
     showLockPanel();
     const msg = document.getElementById('calLockMsg');
     if (msg) {
@@ -870,7 +898,7 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null }) {
 
     // Say something if the decision is slow (v20.80). Scheduled BEFORE the await, cleared by every
     // path out of it — `grant()` and both cards call `hideLockPanel()`, which owns the timer.
-    _skeletonTimer = setTimeout(() => { _skeletonTimer = null; showBootSkeleton(); }, SKELETON_AFTER_MS);
+    armSkeleton(SKELETON_AFTER_MS);
 
     // ── THE FAST PATH (v22.97) ──────────────────────────────────────────────────────────────────
     //
@@ -958,7 +986,18 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null }) {
     //     a shared code. See `showMemberPanel`.
     watchForLateNamedIdentity();
     const held = getSession();
-    if (!held?.name) { showLockPanel(); return 'none'; }
+    if (!held?.name) {
+        // Nothing held: the front door. Sign-in first (owner decision, v23.19); the PIN card first
+        // ONLY when asked for by the hash — a "Use the staff PIN instead" sign-out, or a station
+        // PC's bookmark. The hash is consumed here so it is not carried forward.
+        if (window.location.hash === PIN_FIRST_HASH) {
+            try { history.replaceState(history.state, '', window.location.pathname + window.location.search); } catch { /* noop */ }
+            showLockPanel();
+        } else {
+            await showSignInPanel();
+        }
+        return 'none';
+    }
 
     // ── THE SILENT ATTEMPT RUNS BEHIND THE SKELETON, NOT BEHIND A SIGN-IN CARD (v21.62) ────────
     //
@@ -976,9 +1015,9 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null }) {
     // the attempt is merely hanging — whichever is first. And when it appears it is immediately
     // actionable, because the waiting it used to represent has already happened.
     // Put the skeleton up NOW unless it already is — the timer may not have fired when the decision
-    // was quick, and whatever else `_panel` might hold is stale for this boot. `showBootSkeleton`
+    // was quick, and whatever else the slot might hold is stale for this boot. `showBootSkeleton`
     // replaces rather than stacks, and its `hideLockPanel` disarms the pending timer.
-    if (_panel?.id !== 'calendarBooting') showBootSkeleton();
+    if (lockCardId() !== 'calendarBooting') showBootSkeleton();
     const silent = trySilentReauth(held.name);
     /** @type {any} */ let deferTimer = null;
     // ── THE WAIT MAY NOT BE ABLE TO STRAND THE MEMBER (v21.63, self-review) ─────────────────────

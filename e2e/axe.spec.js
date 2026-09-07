@@ -13,7 +13,7 @@
 // installed — otherwise the SDK-dependent pages never render and the scan can't reach them.
 import { test, expect, enableCalendarPin } from './fixtures.js';
 import AxeBuilder from '@axe-core/playwright';
-import { seedSession, seedMember, seedMemberSession, seedViewerAccess, stubPinExchange, enterPin } from './helpers.js';
+import { seedSession, seedMember, seedMemberSession, seedViewerAccess, stubPinExchange, enterPin, openPinCard } from './helpers.js';
 
 // ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
 // Since v20.12 the Calendar opens only for a member session or the shared staff PIN, so a spec that
@@ -123,11 +123,25 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     // and it would be invisible to every other scan in this file — they all establish access first.
     // It is also the app's front door for anyone who has never used it, which is exactly the
     // audience least able to work around an accessibility fault.
+    test('calendar — the front door: the sign-in card, inline (v23.19)', async ({ page }) => {
+        // The first thing a browser holding nothing sees. The same form as the five sub-pages'
+        // modal, but mounted in the page with no dialog role, so the drawer and the page around it
+        // are in the tree beside it — a different scan from the modal's.
+        await page.addInitScript(() => {
+            try { sessionStorage.removeItem('__e2e_viewer'); } catch (_) { /* noop */ }
+        });
+        await page.goto('/');
+        await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
     test('calendar — staff PIN unlock card', async ({ page }) => {
         await page.addInitScript(() => {
             try { sessionStorage.removeItem('__e2e_viewer'); } catch (_) { /* noop */ }
         });
         await page.goto('/');
+        await openPinCard(page);
         await expect(page.locator('#calLockPin')).toBeVisible();
         const v = await scan(page);
         expect(v.length, report(v)).toBe(0);
