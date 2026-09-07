@@ -1181,6 +1181,23 @@
       .result-net { background: white !important; }
       .net-label, .net-amount, .net-period { color: var(--primary-blue) !important; }
       .bd-body { max-height: none !important; overflow: visible !important; }
+      /* The Settings card prints its VALUES, whatever it was doing on screen (v23.20).
+         `.collapsible-body` rests at `max-height: 0; overflow: hidden` with its padding forced to
+         zero, and the print block above lifts that for `.bd-body` only — so a collapsed Settings
+         card printed the heading "⚙ Your Settings" and its hint, and then nothing. Not merely
+         incomplete: a heading that ASSERTS the provenance is below it, over a blank space. The
+         estimate on that sheet is a take-home figure with no grade, rate, tax code, pension or
+         student-loan assumption to check it against later, which is most of what makes a printed
+         estimate worth keeping.
+         And collapsed is the NORMAL state, not an edge case — `paycalc-settings.js` opens the card
+         only for first-time users, and CLOSES it 2.5s after a successful save. Every established
+         member prints from the collapsed state. It is the one collapsible body that survives into
+         print (the other five cards are `display: none` in the list above), so this is the whole
+         fix, not the first of several. */
+      #settingsBody {
+        max-height: none !important; overflow: visible !important;
+        padding-top: 8px !important; padding-bottom: 16px !important;
+      }
       .content-card {
         box-shadow: none !important;
         border: 1.5px solid var(--border-light) !important;
