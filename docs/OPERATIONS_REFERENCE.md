@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: September 2026 — v23.10 · Updated every 0.10 version*
+*Last updated: September 2026 — v23.20 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -205,6 +205,13 @@ Storage rule (`storage.rules`) also requires the admin claim for huddle file wri
 ### Huddle notification tap behaviour (v10.71)
 
 When a push notification is tapped, the service worker (`notificationclick` handler) **re-bases the payload's route onto its OWN scope** (`registration.scope`) and opens it via `focusedClient.navigate()` or `clients.openWindow()` — e.g. `https://myb-roster.web.app/#huddle` on a Firebase Hosting install (or `https://garethdavidmiller.github.io/roster-app/#huddle` on the GitHub Pages mirror). It deliberately ignores the payload's origin: the Cloud Function sets one `STAFF_SITE_URL` (now the canonical `https://myb-roster.web.app` since v14.29), but installs live on different origins/paths, so only the payload's trailing page + hash are used and the origin is taken from the SW's own scope. A bare-origin fallback was the cause of the 16 Jun 2026 notification 404 (fixed v14.26). On load — or via the `hashchange` listener if the page is already open — `calendar-huddle-viewer.js` fires `_triggerAutoOpen(huddle)`. The nav-panel **Daily Huddle** link points at the same `#huddle` hash, so it runs the identical path; there is no separate button trigger (the old `#huddleBtn` was removed at v12.57).
+
+**The Huddle is not printed (owner decision, 7 Sep 2026).** Printing while the viewer is open
+gives a short notice, not the day plan — the Huddle is read in the app and replaced daily. Before
+this it printed, badly and quietly: the viewer is `position: fixed` over a scrolling body, so a
+40-row plan reached paper as 30 rows with nothing saying the rest existed. Closing the viewer prints
+the calendar as normal. This governs what the APP puts on paper — a PDF Huddle opens in the
+browser's own PDF viewer and can be printed from there like any file.
 
 **Two render paths inside `_triggerAutoOpen` — do not unify:**
 

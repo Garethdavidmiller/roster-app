@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: September 2026 — v23.10 · Updated every 0.10 version*
+*Last updated: September 2026 — v23.20 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -406,6 +406,37 @@ reason this section exists — so the next review's re-raises cost a link rather
 architecture, the responsive CSS, the committed baselines, the print rules, both engines' test
 configuration and the accessibility protections, and produced one code defect — in the test estate,
 not the app.
+
+### The print review — what shipped, and the four it leaves open (7 Sep 2026)
+
+An external review treated print as a separate product surface and went deep. Everything below was
+then re-checked by RENDERING PDFs and reading the page box and the text back, which changed three of
+its conclusions. **Shipped at v23.20:** the pay estimate keeps its settings on paper (a collapsed
+card printed a heading over nothing); five surfaces stop composing for US Letter; the railcard guide
+stops printing a website link; FIP and Links no longer depend on `beforeprint` firing (measured: 8
+printed pages instead of 24 when it does not); Team View's landscape follows the VIEW rather than
+which button reached the printer; and the Daily Huddle is not printed at all (owner, 7 Sep — it had
+been silently clipping a 40-row day plan to 30). `e2e/print.spec.js` holds all of it.
+
+**Corrections worth keeping, because the review is otherwise reliable and these are the rows not to
+act on twice.** Team View names are NOT truncated in portrait — all 44 active names measured in the
+real table, no cell over its box, no ellipsis in either orientation; an auto-layout table treats a
+cell `max-width` as a hint. And its `beforeprint` prescription, taken literally, introduces a bug:
+prepare then runs twice on every desktop browser, and the second snapshot leaves the page
+permanently expanded. Both fixes are idempotent for that reason.
+
+**Four items are owner decisions, not work waiting to start:**
+
+| Item | The decision |
+|---|---|
+| FIP's 27-page print | Offer *Print this country* beside *Print full guide*? Most readers want France, not the book. Nothing is wrong today; it is long |
+| FIP's page count | Large country blocks carry `break-inside: avoid`, which pushes whole sections to fresh sheets. Letting a big block SPLIT while small warnings stay protected would cut pages and whitespace |
+| Print provenance | Calendar, Team View, Overtime and Links each state what/whose/when differently. A shared vocabulary is tidy; whether it is worth a pass is a judgement |
+| Continuation identity | A page 12 of a 27-page FIP guide, detached, says nothing about what it is. A running footer would fix that and costs vertical space on every sheet |
+
+**Not done and not recommended:** printing the whole Operations or Admin page, and a print-provenance
+version stamp on the Calendar — its header already carries the app name, the member and the date,
+which is the part that matters on a detached sheet.
 
 ---
 
