@@ -1515,25 +1515,69 @@
             padding: 12px 14px;
         }
         .al-booked-body.open { display: block; }
-        .al-period-month { margin-bottom: 12px; }
+        /* YEAR CHIPS (v23.09). The list ran Jan 2026 → Jun 2027 in one scroll, and every month
+           header repeated the year because nothing else on the card said which one a row was in.
+           The chips own the year now, so the headers below are the month alone. Rendered even for
+           a single year — that is what makes the months underneath unambiguous. */
+        .al-year-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 14px;   /* the same step the month groups use below, so the bar is the first of them */
+        }
+        .al-year-chip {
+            padding: 6px 14px;
+            min-height: 36px;
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-pill);
+            background: var(--surface);
+            color: var(--text-mid);
+            font-family: inherit;
+            font-size: var(--type-small);
+            font-weight: 700;
+            letter-spacing: .02em;
+            cursor: pointer;
+            font-variant-numeric: tabular-nums;
+            transition: background var(--dur-fast) var(--ease-standard),
+                        color var(--dur-fast) var(--ease-standard),
+                        border-color var(--dur-fast) var(--ease-standard);
+        }
+        /* `--primary-blue` is the app's navy — NOT `--navy`, which does not exist. An undefined
+           custom property is silently dropped, so the first cut of this rule left the selected
+           chip identical to the others and only a screenshot could see it. Same idiom as
+           `.type-pill-btn.active`: a filled ground and white text, no category colour, because
+           this component serves the absence card too. */
+        .al-year-chip.is-active {
+            background: var(--primary-blue);
+            border-color: var(--primary-blue);
+            color: white;
+        }
+        .al-year-chip:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+        @media (hover: hover) and (pointer: fine) {
+            .al-year-chip:not(.is-active):hover { border-color: var(--primary-blue); color: var(--text-dark); }
+        }
+
+        .al-period-month { margin-bottom: 14px; }
         .al-period-month:last-child { margin-bottom: 0; }
         .al-period-month-hdr {
             font-size: var(--type-badge);
             font-weight: 700;
             color: var(--text-light);
             text-transform: uppercase;
-            letter-spacing: .04em;
-            margin-bottom: 4px;
+            letter-spacing: .06em;
+            margin-bottom: 6px;
         }
-        /* Discrete cards (matches the day-card treatment): each booked-AL / recorded-absence
-           record is its own flat --surface card, hairline border, 12px radius, in a gapped
-           stack under its month header — no divider lines. */
+        /* ONE LINE PER BOOKING (v23.09). This was a two-row stacked card — dates above, then a
+           meta row carrying the pill and a text "Delete" — at ~96px each, so fifteen bookings ran
+           to fourteen hundred pixels of scroll. Dropping "AL" from the pill and the word from the
+           delete control is what buys the horizontal room; `flex-wrap` is the fallback rather than
+           the layout, for a 320px screen or a large text scale. */
         .al-period-row {
             display: flex;
-            flex-direction: column;
-            align-items: stretch;
-            padding: 10px 12px;
-            gap: 5px;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 4px 8px;
+            padding: 6px 6px 6px 12px;
             background: var(--surface);
             border: 1px solid var(--border-light);
             border-radius: var(--radius);
@@ -1541,51 +1585,71 @@
         }
         .al-period-month > .al-period-row:last-child { margin-bottom: 0; }
         .al-period-dates {
+            flex: 1 1 auto;
+            /* `min-width: 0` so a long range ellipsises instead of forcing the row wider than the
+               card — the confirm state widens the button under it, and this is what absorbs that. */
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
             font-size: var(--type-label);
             font-weight: 500;
             color: var(--text-dark);
         }
-        .al-period-row-meta {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 8px;
-        }
-        .al-period-count {
-            font-size: var(--type-badge);
-            font-weight: 700;
-            color: var(--al-deep);
-            background: var(--al-light);
-            padding: 2px 8px;
-            border-radius: 10px;
-            white-space: nowrap;
-        }
+        /* A COLUMN, NOT A RAGGED EDGE. "1 day" and "12 days" are different widths, and with the pill
+           packed against the delete control the counts zig-zagged down the list. A minimum width
+           sized to the widest plausible label makes them a column the eye can run down. */
+        .al-period-count,
         .sick-period-count {
+            flex: 0 0 auto;
+            min-width: 5em;
+            text-align: center;
             font-size: var(--type-badge);
             font-weight: 700;
-            color: var(--absence);
-            background: var(--absence-light);
-            padding: 2px 8px;
-            border-radius: 10px;
+            padding: 3px 9px;
+            border-radius: var(--radius-pill);
             white-space: nowrap;
+            font-variant-numeric: tabular-nums;
         }
+        .al-period-count   { color: var(--al-deep);  background: var(--al-light); }
+        .sick-period-count { color: var(--absence);  background: var(--absence-light); }
+        /* A 44px SQUARE, not a text link. The glyph is named by `aria-label` (the dates it would
+           delete), so nothing is lost by dropping the word — fifteen buttons all announcing
+           "Delete" told a screen-reader user nothing about which row they were on. */
         .btn-period-delete {
-            padding: 8px 10px;
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 44px;
             min-height: 44px;
+            padding: 0 8px;
             border: none;
             border-radius: var(--radius-xs);
             background: transparent;
-            color: var(--text-light);
-            font-size: var(--type-badge);
+            color: var(--text-mid);
+            font-size: var(--type-medium);   /* a 13px ✕ read as a speck; 16px reads as a control */
             font-family: inherit;
+            line-height: 1;
             cursor: pointer;
             white-space: nowrap;
+            transition: color var(--dur-fast) var(--ease-standard),
+                        background var(--dur-fast) var(--ease-standard);
         }
-        @media (hover: hover) and (pointer: fine) { .btn-period-delete:hover { color: var(--absence); } }
+        /* DESTRUCTIVE READS AS DESTRUCTIVE. This was `--absence`, which on this app is a deliberate
+           neutral GREY (the 🪑 rule — absence must not read as illness), so the "Confirm?" state
+           rendered as a dark grey pill: the one moment the control most needs to look dangerous,
+           it looked like a disabled button. The error palette is the danger palette here. */
+        @media (hover: hover) and (pointer: fine) {
+            .btn-period-delete:hover { color: var(--error-text); background: var(--error-bg); }
+        }
         .btn-period-delete:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
         .btn-period-delete.confirming {
-            background: var(--absence);
+            background: var(--error-red);
             color: white;
+            font-size: var(--type-badge);
+            font-weight: 700;
+            padding: 0 12px;
         }
 
         /* A SENTENCE, NOT A ROW (v21.40). This was `display: flex; gap: 8px`, which turns each

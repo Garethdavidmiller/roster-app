@@ -33,6 +33,7 @@ import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { isRestShift, computePeriodDeleteIds, mergeBookedPeriods, composeOtherValue } from './override-utils.js';
 import { alPosition, countedAlDates, consumesEntitlement, dispatcherBreakdown } from './al-entitlement.js';
+import { createBookedPeriods } from './admin-booked-periods.js';
 import { alFigureYear } from './admin-al-year.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
@@ -923,6 +924,7 @@ export function init() {
             _setSelectValue(sickMember, chosen);
             syncMemberDisplay();
             syncSickMemberDisplay();
+            _bookedPeriods.resetPinned();   // a year chosen for the last member is not a choice about this one
             updateALBanner();
             updateALBookedBox();
             updateSickBookedBox();
@@ -1086,13 +1088,22 @@ export function init() {
         if (!lines?.length) _feedbackTimer = setTimeout(hideFeedback, 7000);
 
         // Also show a bottom-anchored toast so confirmation is visible regardless of scroll position
+        showToast('✓ ' + msg);
+    }
+
+    /**
+     * The bottom-anchored confirmation — visible whatever the scroll position, which is the point:
+     * the inline feedback lines sit at the TOP of their cards, and the control that was just used
+     * can be a screen's height below them. Shared by Save and by a recorded-dates delete (v23.09).
+     * @param {string} msg
+     */
+    function showToast(msg) {
         const toast = document.getElementById('saveToast');
-        if (toast) {
-            clearTimeout(_toastTimer);
-            setStatus(toast, '✓ ' + msg);
-            toast.classList.add('visible');
-            _toastTimer = setTimeout(() => toast.classList.remove('visible'), 4000);
-        }
+        if (!toast) return;
+        clearTimeout(_toastTimer);
+        setStatus(toast, msg);
+        toast.classList.add('visible');
+        _toastTimer = setTimeout(() => toast.classList.remove('visible'), 4000);
     }
 
     /** Shows an error message in the week editor feedback area.  @param {string} msg */
@@ -1220,7 +1231,10 @@ export function init() {
         // keeps a Sunday correction whenever a remaining AL/sick override is adjacent to it.
         const allForDelete = getAllOverrides();
         const deleteIds = computePeriodDeleteIds(allForDelete, { type, memberName, start, end });
-        if (!deleteIds.length) { btn.classList.remove('confirming'); btn.textContent = 'Delete'; return; }
+        // THE BUTTON'S STATES ARE NOT THIS FUNCTION'S TO SET — admin-booked-periods.js owns them and
+        // restores idle when the promise this returns settles. It used to write the word "Delete"
+        // back into what is now a glyph control, on exactly the paths where the row stays on screen.
+        if (!deleteIds.length) return;
         const idSet = new Set(deleteIds);
         // User-facing count = leave days only (exclude the Sunday RD corrections from the tally).
         const leaveCount = allForDelete.filter(o => idSet.has(o.id) && o.type === type).length;
@@ -1235,9 +1249,7 @@ export function init() {
                 setStatus(feedbackEl, "⚠ You've been signed out — please sign in again.");
                 feedbackEl.className = 'feedback error';
             }
-            // Reset the button off its "⚠ Confirm?" state (these early returns skip the try/finally) (v16.22).
-            btn.classList.remove('confirming');
-            btn.textContent = 'Delete';
+            feedbackEl?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
             return;
         }
         btn.disabled    = true;
@@ -1257,12 +1269,17 @@ export function init() {
             updateSickBookedBox();
             // Preserve unsaved staged week-grid edits across an AL/absence range delete (v16.82).
             if (fieldMember.value && fieldDate.value && !_hasStagedEdits()) renderWeekGrid();
+            const noun = type === 'annual_leave' ? 'AL day' : 'absence day';
+            const said = `✓ Deleted ${leaveCount} ${noun}${leaveCount !== 1 ? 's' : ''} for ${memberName}`;
             if (feedbackEl) {
-                const noun = type === 'annual_leave' ? 'AL day' : 'absence day';
-                setStatus(feedbackEl, `✓ Deleted ${leaveCount} ${noun}${leaveCount !== 1 ? 's' : ''} for ${memberName}`);
+                setStatus(feedbackEl, said);
                 feedbackEl.className = 'feedback success';
                 setTimeout(() => { feedbackEl.className = 'feedback'; }, 6000);
             }
+            // The inline line above sits at the top of the card; the row that was just deleted can
+            // be a screen below it. A destructive action whose confirmation lands off-screen is one
+            // the admin repeats — so it gets the same toast Save does (v23.09).
+            showToast(said);
         } catch (err) {
             console.error('[Admin] Period delete failed:', err);
             if (feedbackEl) {
@@ -1271,11 +1288,12 @@ export function init() {
                     : '⚠ Delete failed — check your connection and try again.';
                 feedbackEl.textContent = msg;
                 feedbackEl.className = 'feedback error';
+                // An error has to be READ, so it stays inline rather than in a 4s toast — and is
+                // brought into view, because the control that failed can be a screen below it.
+                feedbackEl.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
             }
         } finally {
             btn.disabled = false;
-            btn.classList.remove('confirming');
-            btn.textContent = 'Delete';
         }
     }
 
@@ -1326,81 +1344,29 @@ export function init() {
      * @param {{ type: string, memberName: string, boxId: string, bodyId: string,
      *           countFn: (n: number) => string, countClass: string, feedbackId: string }} cfg
      */
-    function _renderBookedPeriods({ type, memberName, boxId, bodyId, countFn, countClass, feedbackId }) {
-        const box  = document.getElementById(boxId);
-        const body = document.getElementById(bodyId);
-        if (!box || !body) return;
+    // THE RECORDED-DATES LIST lives in admin-booked-periods.js (v23.09) — it grew a year selector,
+    // and choosing a year is precedence, which belongs somewhere it can be tested with no DOM.
+    // Every handle it needs is passed in here; nothing about the list is decided in this file.
+    const _bookedPeriods = createBookedPeriods({
+        doc: document,
+        getEntries: (memberName, type) => getAllOverrides()
+            .filter(o => o.memberName === memberName && o.type === type && o.date)
+            .sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0),
+        hasAuthority: hasOverrideAuthorityFor,
+        memberFor:    name => teamMembers.find(m => m.name === name),
+        isSunday,
+        mergePeriods: mergeBookedPeriods,
+        isRestGap:    _isRestGap,
+        addDays:      _addDays,
+        monthAbb:     MONTH_ABB,
+        fmtDate:      _fmtPeriodDate,
+        fmtRange:     _fmtPeriodRange,
+        onDelete:     deletePeriodOverrides,
+        onRendered:   boxId => _landing.settle(boxId),
+    });
 
-        if (!memberName) { box.hidden = true; return; }
-        // NOT READ IS NOT NOTHING BOOKED (v23.08). No pixel changes on the reported path — an
-        // unread member already fell through to the `!entries.length` exit — but a CAPPED all-staff
-        // read would present a partial history as the whole of it. Reasoning: as above.
-        if (!hasOverrideAuthorityFor(memberName)) { box.hidden = true; return; }
-
-        const entries = getAllOverrides().filter(o =>
-            o.memberName === memberName &&
-            o.type       === type &&
-            o.date
-        ).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
-
-        if (!entries.length) { box.hidden = true; return; }
-
-        const memberObj = teamMembers.find(m => m.name === memberName);
-        const dateList  = [...new Set(entries.map(e => e.date))].filter(d => !isSunday(d)).sort();
-        if (!dateList.length) { box.hidden = true; return; }
-        // Gap-merge is the pure, unit-tested override-utils helper; the day-of-week / base-roster
-        // knowledge stays here via the two injected closures (v16.42).
-        const periods = mergeBookedPeriods(dateList, d => _isRestGap(d, memberObj), d => _addDays(d, 1));
-
-        const byMonth = /** @type {Record<string, any[]>} */ ({});
-        for (const p of periods) {
-            const key = p.start.slice(0, 7);
-            (byMonth[key] = byMonth[key] || []).push(p);
-        }
-
-        body.innerHTML = '';
-        const feedbackEl = document.getElementById(feedbackId);
-        for (const key of Object.keys(byMonth).sort()) {
-            const [yr, mo] = key.split('-');
-            const monthDiv = document.createElement('div');
-            monthDiv.className = 'al-period-month';
-            monthDiv.innerHTML = `<div class="al-period-month-hdr">${MONTH_ABB[parseInt(mo, 10) - 1]} ${yr}</div>`;
-            for (const p of byMonth[key]) {
-                const dateStr = p.start === p.end ? _fmtPeriodDate(p.start) : _fmtPeriodRange(p.start, p.end);
-                const row     = document.createElement('div');
-                row.className = 'al-period-row';
-                row.innerHTML = `<span class="al-period-dates">${dateStr}</span>`;
-                const meta    = document.createElement('div');
-                meta.className = 'al-period-row-meta';
-                meta.innerHTML = `<span class="${countClass}">${countFn(p.count)}</span>`;
-                const btn     = document.createElement('button');
-                btn.className   = 'btn-period-delete';
-                btn.textContent = 'Delete';
-                btn.addEventListener('click', () => {
-                    if (!btn.classList.contains('confirming')) {
-                        btn.classList.add('confirming');
-                        btn.textContent = '⚠ Confirm?';
-                        setTimeout(() => {
-                            if (btn.classList.contains('confirming')) {
-                                btn.classList.remove('confirming');
-                                btn.textContent = 'Delete';
-                            }
-                        }, 5000);
-                        return;
-                    }
-                    deletePeriodOverrides(type, memberName, p.start, p.end, /** @type {HTMLElement} */ (feedbackEl), btn);
-                });
-                meta.appendChild(btn);
-                row.appendChild(meta);
-                monthDiv.appendChild(row);
-            }
-            body.appendChild(monthDiv);
-        }
-        box.hidden = false;
-        // The box now has a height for the first time, which is the one moment a deep link can
-        // land on it. No-op unless somebody arrived by one.
-        _landing.settle(boxId);
-    }
+    /** @param {Parameters<ReturnType<typeof createBookedPeriods>['render']>[0]} cfg */
+    function _renderBookedPeriods(cfg) { _bookedPeriods.render(cfg); }
 
     /**
      * Refreshes the collapsible list of recorded sick days for the selected member.
@@ -1413,7 +1379,7 @@ export function init() {
             memberName: sickMember.value,
             boxId:      'sickBookedBox',
             bodyId:     'sickBookedBody',
-            countFn:    n => `${n} absence day${n !== 1 ? 's' : ''}`,
+            countFn:    n => `${n} day${n !== 1 ? 's' : ''}`,
             countClass: 'sick-period-count',
             feedbackId: 'sickFeedback',
         });
@@ -1486,14 +1452,23 @@ export function init() {
     // ANNUAL LEAVE — booked dates collapsible box
     // ============================================
     function updateALBookedBox() {
+        const alFrom = /** @type {HTMLInputElement|null} */ (document.getElementById('alFrom'));
         _renderBookedPeriods({
             type:       'annual_leave',
             memberName: alMember.value,
             boxId:      'alBookedBox',
             bodyId:     'alBookedBody',
-            countFn:    n => `${n} day${n !== 1 ? 's' : ''} AL`,
+            // "3 days", not "3 days AL" — the card is titled Recorded Annual Leave dates and the
+            // pill is AL-green. The two dropped words are what let the date, the count and the
+            // delete control share ONE line at 375px instead of stacking into two.
+            countFn:    n => `${n} day${n !== 1 ? 's' : ''}`,
             countClass: 'al-period-count',
             feedbackId: 'alFeedback',
+            // THE SAME YEAR THE BANNER IS TALKING ABOUT, by the same rule (admin-al-year.js) — so
+            // opening the list lands on the year you are already working in rather than wherever
+            // the data happens to end. A tapped chip outranks it; see pickBookedYear.
+            preferredYear: alFigureYear({ pickedFrom: alFrom?.value, pickerViewYear: alPickerViewYear,
+                                          shiftDate: fieldDate.value, today: new Date() }),
         });
     }
 

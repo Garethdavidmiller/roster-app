@@ -133,15 +133,16 @@ const CAPS = {
     // 1,638 — taking a pointer state machine with no business rule in it. What a week change MEANS
     // to Admin stayed here, as two callbacks. The e2e covering it was written BEFORE the move and
     // mutation-verified, because the gesture had no behavioural coverage at all.
-    // 1700 → 1710 at v23.08. NOT an extraction — the opposite: this file had spent its room (1,698
-    // of 1,700), so a two-line bug fix could not land. The fix is the AL banner and the booked-dates
-    // box asking whether a member's overrides were actually READ before stating a balance about
-    // them; the argument for it lives in admin-override-coverage.js's header, which is why only a
-    // pointer sits at each call site. Headroom is TWO lines, deliberately: the next change here has
-    // to extract something, and the candidate is `_renderBookedPeriods` — a ~65-line renderer with
-    // two consumers and no coordinator state beyond the ids it is handed, which is the same shape
-    // as every split above it in this table.
-    'admin-app.js':            1710,
+    // 1710 → 1720 at v23.09, and this one IS the extraction the v23.08 entry said was due. That
+    // entry raised the cap by ten for a two-line bug fix, left two lines of headroom, and named
+    // `_renderBookedPeriods` as the candidate — so the very next change to this file had to take
+    // it out, and did. The recorded-dates list is now admin-booked-periods.js, 1,708 measured lines
+    // down to 1,667, and it went because it grew a RULE: which year of somebody's leave you are
+    // looking at is precedence, and precedence has to be testable with no DOM. What stayed here is
+    // the wiring — the handles the renderer is given, and clearing a pinned year when the member
+    // changes. Re-set to the new size plus the usual room rather than left at 1710, which would
+    // have been a cap tuned to the fix before it rather than the file after it.
+    'admin-app.js':            1720,
     'links-design.js':         1500,   // a DOMAIN module: large is less alarming here, but still capped
     // 1350 → 1100 at v21.90. The three date-keyed document collections left for
     // documents-client.js — 1,308 measured lines down to 1,033 — taking the upload SEQUENCE with
