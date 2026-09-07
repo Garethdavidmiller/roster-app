@@ -3386,46 +3386,49 @@
         /* Nothing here belongs on paper — and a printed page cannot finish loading. */
         @media print { .cal-boot { display: none !important; } }
 
-        /* ── THE HUDDLE VIEWER, ON PAPER (v23.20) ──────────────────────────────────────────
-           The viewer had no print rules at all, and the consequence was not an ugly sheet — it
-           was a SILENT LOSS. `#huddleViewer` is `position: fixed; inset: 0` and `#huddleViewerBody`
-           is the scroll container, so printing it clipped the day plan to one viewport and stopped.
-           Measured with a 40-row plan: 30 rows reached the paper and rows 31–40 simply were not
-           there, with nothing on the sheet to say so. A supervisor carrying that to the platform
-           has a document that looks complete and is not.
+        /* ── THE DAILY HUDDLE IS NOT A PRINTABLE DOCUMENT (owner decision, 7 Sep 2026) ───────
+           The viewer had no print rules at all, and the consequence was not an ugly sheet — it was
+           a SILENT LOSS. `#huddleViewer` is `position: fixed; inset: 0` over a scrolling body, so
+           printing clipped the day plan to one viewport and stopped: measured with a 40-row plan,
+           30 rows reached the paper and rows 31–40 simply were not there, with nothing on the sheet
+           to say so. The ✕ printed too.
 
-           So the viewer prints as a DOCUMENT: it leaves the fixed layer, both scroll containers
-           become visible, and the ✕ — which printed, measured — goes. Table headers repeat on each
-           page and rows stop splitting mid-height, because a day plan read across a page break is
-           the normal case once it is longer than a sheet.
+           The owner's answer is that the Huddle should not be printed at all, which makes this the
+           same shape as admin.css / operations.css / settings.css: say so, rather than leaving it
+           accidental. It is NOT the same scope, though — those three replace a whole page that has
+           nothing worth printing, whereas the Calendar underneath is this app's primary printable
+           artefact. So the notice appears ONLY while the viewer is open.
 
-           This is the mechanical half only. WHETHER a Daily Huddle should be printable at all, and
-           whether it wants landscape and its own "Print Daily Huddle" control with a header naming
-           the day, are decisions for the owner — see ROADMAP. What is not a decision is that if a
-           browser prints it today, the sheet must not quietly end at row 30. */
+           Saying it matters more than it might look. Silently printing the month grid because the
+           Huddle was on screen would hand the reader a sheet that is not the document they asked
+           for, with nothing explaining the substitution — the same silent-surprise failure as the
+           truncation this replaces, just tidier.
+
+           `:has()` DEGRADES SAFELY AND THAT IS THE POINT: where it is unsupported the notice does
+           not appear, the plain `#huddleViewer` rule below still fires, and the reader gets the
+           calendar rather than a Huddle. The decision holds either way; only the explanation is
+           progressive.
+
+           NOTE what this cannot control: a PDF Huddle opens as a real PDF in the browser's own
+           viewer, and that can be printed from there like any other file. This is a rule about
+           what the APP produces on paper, not a claim that a Huddle is unprintable. */
         @media print {
-            #huddleViewer {
-                position: static !important;
-                display: block !important;
-                opacity: 1 !important;
-                transform: none !important;
-                inset: auto !important;
-                z-index: auto !important;
+            #huddleViewer { display: none !important; }
+
+            body:has(#huddleViewer.visible) .container,
+            body:has(#huddleViewer.visible) .header { display: none !important; }
+            body:has(#huddleViewer.visible)::before {
+                content: "📋 Daily Huddle\A\A The Huddle is read in the app, not on paper — it is "
+                         "replaced every day. Close it to print the calendar.";
+                white-space: pre-line;
+                display: block;
+                max-width: 16cm;
+                margin: 4cm auto;
+                text-align: center;
+                font-size: var(--type-body);
+                line-height: 1.7;
+                color: var(--text-dark);
             }
-            #huddleViewerBody,
-            #huddleViewerBody .huddle-table-wrap {
-                overflow: visible !important;
-                max-height: none !important;
-                /* The wrap's scroll-shadow gradients are a screen affordance for a table that
-                   continues past the edge; on paper nothing continues, and they print as grey
-                   smears down both margins. */
-                background: none !important;
-            }
-            #huddleViewerBody { flex: none !important; }
-            #huddleViewerClose { display: none !important; }
-            #huddleViewerHeader { position: static !important; }
-            #huddleViewerBody thead { display: table-header-group; }
-            #huddleViewerBody tr { break-inside: avoid; }
         }
 
 

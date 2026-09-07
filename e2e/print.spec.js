@@ -181,40 +181,47 @@ test('the FIP print button prepares without beforeprint @print', async ({ page }
         'a second prepare must not destroy the restore snapshot').toBe(closedBefore);
 });
 
-// ── AN OPERATIONAL DOCUMENT PRINTS WHOLE ────────────────────────────────────────────────────────
-// The Huddle viewer is `position: fixed; inset: 0` over a scrolling body, so it printed one
-// viewport and stopped: 30 rows of a 40-row day plan, with nothing on the sheet to say the rest
-// existed. The assertion is on the LAST row rather than a count, because that is the one a
-// truncated sheet loses first and a reader can never miss.
-test('an open Daily Huddle prints every row @print', async ({ page }) => {
+// ── THE DAILY HUDDLE IS NOT PRINTED ─────────────────────────────────────────────────────────────
+// Owner decision (7 Sep 2026): the Huddle is read in the app, not on paper. Before this, the viewer
+// had no print rules at all and clipped a 40-row day plan to 30 rows with nothing saying so — the
+// hazard was never the styling, it was a sheet that looks complete and is not. The replacement has
+// to be checked from BOTH sides: the Huddle must not reach the paper, AND the reader must not be
+// silently handed the calendar instead, which would be the same surprise with a tidier finish.
+test('an open Daily Huddle is not printed, and says so @print', async ({ page }) => {
     await seedSession(page);
     await page.goto('/index.html');
     await expect(page.locator('#huddleViewer')).toBeAttached();
 
-    const res = await page.evaluate(() => {
+    const opened = await page.evaluate(() => {
         const v = document.getElementById('huddleViewer');
         const body = v?.querySelector('#huddleViewerBody');
-        if (!v || !body) return null;
+        if (!v || !body) return false;
         v.classList.add('visible', 'open');
         body.innerHTML = '<table>' + Array.from({ length: 40 },
             (_, i) => `<tr><td>Job ${i + 1}</td><td>Duty ${i + 1}</td></tr>`).join('') + '</table>';
         return true;
     });
-    expect(res, 'the Huddle viewer and its body must exist to test this').toBe(true);
+    expect(opened, 'the Huddle viewer and its body must exist to test this').toBe(true);
 
     const seen = await inPrint(page, () => {
         const v = document.getElementById('huddleViewer');
-        const last = [...document.querySelectorAll('#huddleViewerBody tr')].pop();
-        const close = document.getElementById('huddleViewerClose');
-        const vb = v.getBoundingClientRect();
-        const lb = last.getBoundingClientRect();
-        return { viewerH: Math.round(vb.height),
-                 lastRowBottom: Math.round(lb.bottom),
-                 lastRowHasHeight: lb.height > 0,
-                 closePrints: !!(close && close.getBoundingClientRect().height > 0) };
+        const rows = [...document.querySelectorAll('#huddleViewerBody tr')];
+        const cal = document.querySelector('.container');
+        // ::before carries the notice, so it is read from the computed style rather than the DOM.
+        const notice = getComputedStyle(document.body, '::before').content || '';
+        return {
+            viewerH: Math.round(v.getBoundingClientRect().height),
+            anyRowVisible: rows.some(r => r.getBoundingClientRect().height > 0),
+            calendarVisible: !!cal && cal.getBoundingClientRect().height > 0,
+            noticeMentionsHuddle: /Huddle/.test(notice),
+        };
     });
-    expect(seen.lastRowHasHeight, 'the 40th row is laid out at all').toBe(true);
-    expect(seen.lastRowBottom, 'the last row sits inside the printed flow, not past a clip')
-        .toBeLessThanOrEqual(seen.viewerH + 1);
-    expect(seen.closePrints, 'the ✕ close control must not print').toBe(false);
+    expect(seen.viewerH, 'the Huddle viewer has no height on paper').toBe(0);
+    expect(seen.anyRowVisible, 'no row of the day plan reaches the paper').toBe(false);
+    // The other half: the reader asked to print the Huddle, so they must not just get the month
+    // grid with no explanation. Where `:has()` is unsupported this degrades to the calendar, which
+    // is why the notice is asserted but the calendar being hidden is asserted alongside it.
+    expect(seen.noticeMentionsHuddle, 'the sheet explains what happened').toBe(true);
+    expect(seen.calendarVisible, 'the calendar is not silently substituted').toBe(false);
 });
+
