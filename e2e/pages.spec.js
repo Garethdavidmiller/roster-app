@@ -1974,6 +1974,89 @@ test('admin: a member whose leave could not be read gets no balance, not a full 
     expect(visible, 'no readable balance over a read that failed').not.toMatch(/AL left:/i);
 });
 
+// ── THE RECORDED-DATES LIST IS PER YEAR (v23.09, owner report) ──────────────────────────────────
+//
+// The owner's own card ran January 2026 to June 2027 in one scroll — fifteen bookings, every month
+// header repeating the year because nothing else on the card said which one a row was in. The rules
+// are unit-tested in admin-booked-periods.test.mjs; this is the WIRING, which is the half that
+// fails in practice: a chip that renders but filters nothing, or a chip offered for a year with no
+// bookings, which shows an empty list and reads as "nothing recorded for this member".
+
+test('admin: the recorded-dates list shows one year at a time, and only years that have leave',
+    async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.addInitScript(() => {
+            /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+                docs: [
+                    // Two years apart, so a list that ignored the year would show all three rows.
+                    { id: 'a1', memberName: 'G. Miller', date: '2026-03-02', type: 'annual_leave', value: 'AL', note: '' },
+                    { id: 'a2', memberName: 'G. Miller', date: '2026-03-03', type: 'annual_leave', value: 'AL', note: '' },
+                    // A GAP YEAR IS THE POINT: 2026 and 2028, nothing in 2027. Adjacent years would
+                    // make the "no empty chip" assertion below unfalsifiable — a chip row built
+                    // from a min→max range would produce exactly the right answer by accident.
+                    { id: 'b1', memberName: 'G. Miller', date: '2028-06-22', type: 'annual_leave', value: 'AL', note: '' },
+                ],
+            });
+        });
+        await page.goto('/admin.html');
+        await page.waitForSelector('.day-row', { timeout: 10000 });
+        await page.locator('#fieldMember').selectOption('G. Miller');
+        await page.locator('#alToggleHeader').click();
+        await expect(page.locator('#alBookedBox')).toBeVisible();
+        // The dates box is a collapsible INSIDE the card and ships closed, so its body is
+        // `display: none` until this. Without it every assertion below still passes — `toHaveText`
+        // and `evaluateAll` both read hidden nodes — and the test would prove nothing about a list
+        // anybody can see.
+        await page.locator('#alBookedToggle').click();
+        await expect(page.locator('#alBookedBody')).toBeVisible();
+
+        const chips = page.locator('#alBookedBody .al-year-chip');
+        await expect(chips).toHaveText(['2026', '2028']);
+        // A YEAR WITH NO BOOKINGS MUST NEVER GET A CHIP. 2027 sits between the two that have one,
+        // so it is exactly what a chip row built from a min→max range would invent — and its empty
+        // list would read as "no leave recorded", about a member who has plenty.
+        await expect(chips.filter({ hasText: '2027' })).toHaveCount(0);
+
+        // One year at a time: the 2027 booking is not on screen while 2026 is selected.
+        const rows = page.locator('#alBookedBody .al-period-dates');
+        await expect(rows).toHaveCount(1);
+        await expect(rows.first()).toContainText('Mar');
+
+        // And the month header no longer repeats the year — the chip owns it.
+        await expect(page.locator('#alBookedBody .al-period-month-hdr').first()).toHaveText('Mar');
+
+        await chips.filter({ hasText: '2028' }).click();
+        await expect(rows).toHaveCount(1);
+        await expect(rows.first()).toContainText('Jun');
+        await expect(chips.filter({ hasText: '2028' })).toHaveAttribute('aria-pressed', 'true');
+    });
+
+test('admin: each delete control is named by the dates it would remove', async ({ page }) => {
+    // Fifteen buttons all announcing "Delete" told a screen-reader user nothing about which row
+    // they were on, and the compact ✕ that replaced the word has no name of its own at all.
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            docs: [
+                { id: 'a1', memberName: 'G. Miller', date: '2026-03-02', type: 'annual_leave', value: 'AL', note: '' },
+                { id: 'b1', memberName: 'G. Miller', date: '2026-05-12', type: 'annual_leave', value: 'AL', note: '' },
+            ],
+        });
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#alBookedToggle').click();
+    await expect(page.locator('#alBookedBody')).toBeVisible();
+
+    const names = await page.locator('#alBookedBody .btn-period-delete')
+        .evaluateAll(els => els.map(e => e.getAttribute('aria-label')));
+    expect(names.length, 'the fixture should produce two separate bookings').toBe(2);
+    expect(new Set(names).size, 'two rows must not share one name').toBe(2);
+    for (const n of names) expect(n).toMatch(/^Delete \w{3} \d+/);
+});
+
 test('admin: "All staff" fetches everyone rather than listing whoever happened to be loaded',
     async ({ page }) => {
         // A short list that looks complete is the failure the query-cap banner exists to prevent one
