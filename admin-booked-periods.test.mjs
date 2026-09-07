@@ -19,7 +19,7 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { bookedYears, pickBookedYear } from './admin-booked-periods.js';
+import { bookedYears, pickBookedYear, splitAtYearEnd } from './admin-booked-periods.js';
 
 /** @param {string[]} starts */
 const periods = starts => starts.map(s => ({ start: s, end: s, count: 1 }));
@@ -84,5 +84,56 @@ describe('pickBookedYear — showing a year that is not there is the expensive a
     it('ignores a non-string pin rather than treating it as a choice', () => {
         assert.equal(pickBookedYear({ pinned: /** @type {any} */ (2027), preferred: '2026', years: ['2026', '2027'] }),
             '2026');
+    });
+});
+
+describe('splitAtYearEnd — every date in the year it falls in, exactly once', () => {
+    // The owner's own case: Mon 28 Dec 2026 → Fri 1 Jan 2027, a working week with no Sunday in it.
+    const XMAS = ['2026-12-28', '2026-12-29', '2026-12-30', '2026-12-31', '2027-01-01'];
+    const merged = [{ start: '2026-12-28', end: '2027-01-01', count: 5 }];
+
+    it('puts the January day under January\'s year — the shipped defect', () => {
+        // Filed under 2026, a member opening 2027 to see their leave found no 1 January.
+        const segs = splitAtYearEnd(merged, XMAS);
+        assert.deepEqual(segs.map(s => [s.start, s.end, s.count]), [
+            ['2026-12-28', '2026-12-31', 4],
+            ['2027-01-01', '2027-01-01', 1],
+        ]);
+        assert.deepEqual(bookedYears(segs), ['2026', '2027']);
+    });
+
+    it('never shows a date twice, and never loses one at the boundary', () => {
+        const segs = splitAtYearEnd(merged, XMAS);
+        const total = segs.reduce((n, s) => n + s.count, 0);
+        assert.equal(total, XMAS.length, 'the segments must account for every booked date once');
+    });
+
+    it('counts booked DATES per segment, not calendar days — a bridged rest day is not leave', () => {
+        // Thu 31 Dec and Sat 2 Jan booked, Fri 1 Jan a rest day the merge bridged. Dividing the
+        // parent count would be wrong in both segments; recounting from the dates is right.
+        const dates = ['2026-12-30', '2026-12-31', '2027-01-02'];
+        const segs = splitAtYearEnd([{ start: '2026-12-30', end: '2027-01-02', count: 3 }], dates);
+        assert.deepEqual(segs.map(s => [s.start, s.end, s.count]), [
+            ['2026-12-30', '2026-12-31', 2],
+            ['2027-01-02', '2027-01-02', 1],
+        ]);
+    });
+
+    it('marks both halves as pieces of one booking, so a lone 1 Jan can say where it came from', () => {
+        const segs = splitAtYearEnd(merged, XMAS);
+        assert.ok(segs.every(s => s.splitFrom === '2026-12-28' && s.splitTo === '2027-01-01'));
+    });
+
+    it('leaves a booking inside one year exactly as it came — no marker, no recount', () => {
+        const p = { start: '2026-06-30', end: '2026-07-04', count: 5 };
+        const [seg] = splitAtYearEnd([p], ['2026-06-30', '2026-07-01', '2026-07-02', '2026-07-03', '2026-07-04']);
+        assert.equal(seg, p);
+        assert.equal(seg.splitFrom, undefined);
+    });
+
+    it('cuts a booking that crosses two year ends into three', () => {
+        const dates = ['2026-12-31', '2027-01-01', '2027-12-31', '2028-01-01'];
+        const segs = splitAtYearEnd([{ start: '2026-12-31', end: '2028-01-01', count: 4 }], dates);
+        assert.deepEqual(segs.map(s => s.start.slice(0, 4)), ['2026', '2027', '2028']);
     });
 });

@@ -2031,6 +2031,47 @@ test('admin: the recorded-dates list shows one year at a time, and only years th
         await expect(chips.filter({ hasText: '2028' })).toHaveAttribute('aria-pressed', 'true');
     });
 
+test('admin: a booking that crosses the year end appears in BOTH years, cut at the boundary', async ({ page }) => {
+    // The owner's own leave: Mon 28 Dec → Fri 1 Jan. Filed under the year it started, the January
+    // day vanished from 2027 — the year a member opens to see what leave they have in it.
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            docs: ['2026-12-28', '2026-12-29', '2026-12-30', '2026-12-31', '2027-01-01'].map((date, i) =>
+                ({ id: 'x' + i, memberName: 'G. Miller', date, type: 'annual_leave', value: 'AL', note: '' })),
+        });
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#alBookedToggle').click();
+    await expect(page.locator('#alBookedBody')).toBeVisible();
+
+    const chips = page.locator('#alBookedBody .al-year-chip');
+    await expect(chips, 'both years must get a chip').toHaveText(['2026', '2027']);
+
+    const rows = page.locator('#alBookedBody .al-period-row');
+    // The banner's year is 2026 in this fixture's clock, so the list opens there.
+    await chips.filter({ hasText: '2026' }).click();
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText('Mon 28 – Thu 31 Dec');
+    await expect(rows.first().locator('.al-period-count')).toHaveText('4 days');
+    await expect(rows.first().locator('.al-period-cont')).toContainText(/continues to Fri 1 Jan/);
+
+    await chips.filter({ hasText: '2027' }).click();
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText('Fri 1 Jan');
+    await expect(rows.first().locator('.al-period-count')).toHaveText('1 day');
+    await expect(rows.first().locator('.al-period-cont')).toContainText(/continued from Mon 28 Dec/);
+    // And it stays ONE line — the sentence version wrapped the pill and the ✕ under the date.
+    const h = await rows.first().evaluate(el => el.getBoundingClientRect().height);
+    expect(h, 'a continued row must not wrap to two lines at 375px').toBeLessThan(56);
+    // And the delete control names ONLY its own piece — removing 1 Jan must not offer to take
+    // December with it.
+    await expect(rows.first().locator('.btn-period-delete')).toHaveAttribute('aria-label', /^Delete Fri 1 Jan$/);
+});
+
 test('admin: each delete control is named by the dates it would remove', async ({ page }) => {
     // Fifteen buttons all announcing "Delete" told a screen-reader user nothing about which row
     // they were on, and the compact ✕ that replaced the word has no name of its own at all.

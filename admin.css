@@ -1605,6 +1605,17 @@
             color: var(--text-dark);
             font-variant-numeric: tabular-nums;
         }
+        /* The tail or head of a booking that crossed the year end (v23.11). Inline after the
+           dates, muted and small, so the row still reads as one line at 375px; the dates span
+           ellipsises as one unit if the two together outgrow the column. */
+        .al-period-cont {
+            margin: 0 8px;
+            font-size: var(--type-label);
+            font-weight: 500;
+            color: var(--text-light);
+        }
+        .al-period-dates > .al-period-cont:first-child { margin-left: 0; }
+        .al-period-dates > .al-period-cont:last-child  { margin-right: 0; }
         /* THE SAME PILL VOCABULARY AS SAVED CHANGES. These take the `.list-type-pill` recipe —
            micro, uppercase, tracked — and its two colour pairs (`.lpill-annual_leave`,
            `.lpill-sick`), so one page does not carry two different "annual leave" chips. A
