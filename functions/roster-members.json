@@ -29,7 +29,6 @@
         "F. Mohamed",
         "P. Lloyd",
         "P. Prashanthan",
-        "B. Khalil",
         "G. Rotaru",
         "L. Webster",
         "Z. Lewis",
@@ -78,7 +77,6 @@
         "F. Mohamed",
         "P. Lloyd",
         "P. Prashanthan",
-        "B. Khalil",
         "G. Rotaru",
         "L. Webster",
         "Z. Lewis",
@@ -441,7 +439,7 @@
             "grade": "CES",
             "startDate": "2026-06-09",
             "rosterOrder": 39,
-            "hidden": false,
+            "hidden": true,
             "managerOnly": false
         },
         {
