@@ -104,6 +104,12 @@ export function renderTable() {
     // asking "has anyone else booked that week?" would get no, and act on it. `coversAllStaff()` is
     // the LIST's question — distinct from `hasOverrideAuthorityFor`, which is every WRITE's.
     const showAll            = _tableShowAllOverrides && coversAllStaff();
+    // One member on screen → their name is stated once, at the top, not on every row (v23.12).
+    // add/remove rather than toggle(force): the unit suite's fake DOM has no `toggle`, and a throw
+    // here aborted the whole render — the empty-list message never appeared and the bulk-delete
+    // test caught it. A real browser has both; the fake is the reason to prefer the pair.
+    const tbody = document.getElementById('overrideTableBody');
+    if (tbody) { if (showAll) tbody.classList.remove('oc-single-member'); else tbody.classList.add('oc-single-member'); }
     const memberFilter       = showAll ? '' : (selectedMember || '');
     const memberRows         = memberFilter
         ? getAllOverrides().filter(o => o.memberName === memberFilter)
@@ -195,8 +201,8 @@ export function renderTable() {
                 <div class="oc-detail"><span class="list-type-pill lpill-${etype}">${typeMeta ? typeMeta.label : etype}</span>${isLegacyType ? '<span class="legacy-pill">old format</span>' : ''}${o.source === 'roster_import' ? '<span class="source-pill">PDF upload</span>' : ''}<span class="oc-value">${escapeHtml(o.value)}</span></div>
             </div>
             <div class="oc-actions">
-                <button class="btn-edit" data-member="${ename}" data-date="${edate}" aria-label="Edit ${ename} ${edate}">Edit</button>
-                <button class="btn-delete" data-id="${eid}" aria-label="Delete ${ename} ${edate}">Delete</button>
+                <button type="button" class="btn-edit" data-member="${ename}" data-date="${edate}" aria-label="Edit ${ename} ${edate}" title="Edit">✎</button>
+                <button type="button" class="btn-delete" data-id="${eid}" aria-label="Delete ${ename} ${edate}" title="Delete">✕</button>
             </div>`;
         if (tableBody) tableBody.appendChild(card);
     });
@@ -242,7 +248,7 @@ async function _handleDelete(e) {
     const fieldMember  = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
     const fieldDate    = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
     if (!btn.classList.contains('confirming')) {
-        _armConfirmButton(btn, '⚠ Delete?', 'Delete');
+        _armConfirmButton(btn, 'Delete?', '✕');
         return;
     }
     const deleted = getAllOverrides().find(o => o.id === btn.dataset.id);
@@ -270,7 +276,7 @@ async function _handleDelete(e) {
         console.error('[Admin] Delete failed:', err);
         btn.disabled = false;
         btn.classList.remove('confirming');
-        btn.textContent = 'Delete';
+        btn.textContent = '✕';
         if (listFeedback) {
             setStatus(listFeedback, (/** @type {any} */ (err))?.code === 'unavailable'
                 ? '⚠ You appear to be offline — reconnect and try again.'
