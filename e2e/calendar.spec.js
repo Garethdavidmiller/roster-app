@@ -1631,6 +1631,35 @@ test('day detail: an annual-leave day offers the leave dates, and no other day d
 // that is never reloaded), or handing it the session name as both arguments, which makes it
 // tautologically true. Each of those leaves the unit suite green.
 
+test('day detail: YOUR OWN pay-marked day still offers the pay estimate', async ({ page }, info) => {
+    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
+    // THE DIRECTION THE GATE CAN BREAK SILENTLY, and until now the only one nothing watched. Every
+    // other assertion on this button in this file expects it HIDDEN, so `personal` returning false
+    // in the ordinary signed-in case — one wrong argument, one stale read of the member selector —
+    // would take the pay route away from every member on every payday and leave the suite green.
+    // Measured, not assumed: hardcoding the panel's pay branch to refuse passed all twelve
+    // day-detail tests. A refusal test can only ever prove the gate CLOSES.
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+
+    const payIdx = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
+        .findIndex(c => c.dataset.paydayIso || c.dataset.cutoffIso));
+    expect(payIdx, 'the month has no pay-marked day to check').toBeGreaterThan(-1);
+    await page.locator('.calendar-day:not(.other-month)').nth(payIdx).click();
+
+    const pay = page.locator('#dayDetailPayBtn');
+    await expect(pay).toBeVisible();
+    // AND IT MUST ARRIVE. Visible is half the promise — the click closes the panel and calls
+    // `navigateToPaycalc`, which is the same gate again and can refuse a second time with nothing
+    // on screen to say so, so the button would simply shut the panel and do nothing.
+    const target = await page.locator('.calendar-day:not(.other-month)').nth(payIdx)
+        .evaluate(el => el.dataset.paydayIso || el.dataset.cutoffIso);
+    expect(target, 'the cell carries no pay date to land on').toBeTruthy();
+    await pay.click();
+    await page.waitForURL(/paycalc\.html\?payday=\d{4}-\d{2}-\d{2}/);
+});
+
 test('day detail: a COLLEAGUE’s day offers neither personal action', async ({ page }, info) => {
     test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
     // Signed in as one member, looking at another — what the member selector is FOR, and the
