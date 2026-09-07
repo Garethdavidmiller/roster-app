@@ -1523,21 +1523,24 @@
             display: flex;
             flex-wrap: wrap;
             gap: 6px;
-            margin-bottom: 12px;
+            margin-bottom: 14px;   /* the same step the month groups use below, so the bar is the first of them */
         }
         .al-year-chip {
             padding: 6px 14px;
             min-height: 36px;
             border: 1px solid var(--border-light);
-            border-radius: 999px;
+            border-radius: var(--radius-pill);
             background: var(--surface);
-            color: var(--text-light);
+            color: var(--text-mid);
             font-family: inherit;
-            font-size: var(--type-badge);
+            font-size: var(--type-small);
             font-weight: 700;
             letter-spacing: .02em;
             cursor: pointer;
             font-variant-numeric: tabular-nums;
+            transition: background var(--dur-fast) var(--ease-standard),
+                        color var(--dur-fast) var(--ease-standard),
+                        border-color var(--dur-fast) var(--ease-standard);
         }
         /* `--primary-blue` is the app's navy — NOT `--navy`, which does not exist. An undefined
            custom property is silently dropped, so the first cut of this rule left the selected
@@ -1593,13 +1596,18 @@
             font-weight: 500;
             color: var(--text-dark);
         }
+        /* A COLUMN, NOT A RAGGED EDGE. "1 day" and "12 days" are different widths, and with the pill
+           packed against the delete control the counts zig-zagged down the list. A minimum width
+           sized to the widest plausible label makes them a column the eye can run down. */
         .al-period-count,
         .sick-period-count {
             flex: 0 0 auto;
+            min-width: 5em;
+            text-align: center;
             font-size: var(--type-badge);
             font-weight: 700;
             padding: 3px 9px;
-            border-radius: 999px;
+            border-radius: var(--radius-pill);
             white-space: nowrap;
             font-variant-numeric: tabular-nums;
         }
@@ -1619,19 +1627,25 @@
             border: none;
             border-radius: var(--radius-xs);
             background: transparent;
-            color: var(--text-light);
-            font-size: var(--type-label);
+            color: var(--text-mid);
+            font-size: var(--type-medium);   /* a 13px ✕ read as a speck; 16px reads as a control */
             font-family: inherit;
             line-height: 1;
             cursor: pointer;
             white-space: nowrap;
+            transition: color var(--dur-fast) var(--ease-standard),
+                        background var(--dur-fast) var(--ease-standard);
         }
+        /* DESTRUCTIVE READS AS DESTRUCTIVE. This was `--absence`, which on this app is a deliberate
+           neutral GREY (the 🪑 rule — absence must not read as illness), so the "Confirm?" state
+           rendered as a dark grey pill: the one moment the control most needs to look dangerous,
+           it looked like a disabled button. The error palette is the danger palette here. */
         @media (hover: hover) and (pointer: fine) {
-            .btn-period-delete:hover { color: var(--absence); background: var(--absence-light); }
+            .btn-period-delete:hover { color: var(--error-text); background: var(--error-bg); }
         }
         .btn-period-delete:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
         .btn-period-delete.confirming {
-            background: var(--absence);
+            background: var(--error-red);
             color: white;
             font-size: var(--type-badge);
             font-weight: 700;

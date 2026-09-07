@@ -96,7 +96,7 @@ export function pickBookedYear({ pinned, preferred, years }) {
  *   monthAbb: string[],
  *   fmtDate: (iso: string) => string,
  *   fmtRange: (start: string, end: string) => string,
- *   onDelete: (type: string, memberName: string, start: string, end: string, feedbackEl: any, btn: any) => void,
+ *   onDelete: (type: string, memberName: string, start: string, end: string, feedbackEl: any, btn: any) => (void | Promise<void>),
  *   onRendered?: (boxId: string) => void,
  * }} deps
  */
@@ -142,6 +142,13 @@ export function createBookedPeriods(deps) {
         const shown = periods.filter(p => p.start.slice(0, 4) === year);
         /** @type {Record<string, any[]>} */ const byMonth = {};
         for (const p of shown) (byMonth[p.start.slice(0, 7)] = byMonth[p.start.slice(0, 7)] || []).push(p);
+
+        // A CHIP ACTIVATED FROM THE KEYBOARD MUST STILL BE FOCUSED AFTERWARDS. The re-render below
+        // destroys every node, and a focused element that is removed hands focus to <body> — so
+        // Enter on a chip would land a keyboard user back at the top of the page with no way to
+        // tell which year they had just chosen. Remembered here, restored at the end.
+        const active = deps.doc.activeElement;
+        const refocusChip = !!(active && body.contains(active) && active.classList?.contains('al-year-chip'));
 
         body.innerHTML = '';
 
@@ -192,33 +199,44 @@ export function createBookedPeriods(deps) {
                 const btn = deps.doc.createElement('button');
                 btn.type      = 'button';
                 btn.className = 'btn-period-delete';
-                btn.textContent = '✕';
+                btn.title     = `Delete ${dateStr}`;
+                // THIS MODULE OWNS EVERY STATE OF THE CONTROL — idle, confirming, and back again
+                // after the delete has run, whatever it did. The first cut left the "back again" to
+                // the coordinator, which restored the label it remembered: the WORD "Delete", into
+                // a 44px square built for a glyph, with the aria-label still saying "Confirm". On
+                // a successful delete the row is gone before anyone can see it; on a refused or
+                // failed one it stays, and that is the row the admin is looking at.
+                //
                 // NAMED BY WHAT IT DELETES. Fifteen buttons all called "Delete" are fifteen
                 // identical announcements with nothing to choose between them, and the glyph alone
                 // has no name at all.
-                btn.setAttribute('aria-label', `Delete ${dateStr}`);
-                btn.title = `Delete ${dateStr}`;
+                const idle = () => {
+                    btn.classList.remove('confirming');
+                    btn.textContent = '✕';
+                    btn.setAttribute('aria-label', `Delete ${dateStr}`);
+                };
+                idle();
                 btn.addEventListener('click', () => {
                     if (!btn.classList.contains('confirming')) {
                         btn.classList.add('confirming');
                         btn.textContent = 'Confirm?';
                         btn.setAttribute('aria-label', `Confirm delete ${dateStr}`);
-                        setTimeout(() => {
-                            if (btn.classList.contains('confirming')) {
-                                btn.classList.remove('confirming');
-                                btn.textContent = '✕';
-                                btn.setAttribute('aria-label', `Delete ${dateStr}`);
-                            }
-                        }, 5000);
+                        setTimeout(() => { if (btn.classList.contains('confirming')) idle(); }, 5000);
                         return;
                     }
-                    deps.onDelete(type, memberName, p.start, p.end, feedbackEl, btn);
+                    // Whatever the delete does — succeeds, is refused, throws — the control comes
+                    // back to idle. On success the box has already re-rendered and this node is
+                    // detached, which is harmless; on every other path it is the node on screen.
+                    Promise.resolve(deps.onDelete(type, memberName, p.start, p.end, feedbackEl, btn))
+                        .catch(() => {})
+                        .finally(idle);
                 });
                 row.appendChild(btn);
                 monthDiv.appendChild(row);
             }
             body.appendChild(monthDiv);
         }
+        if (refocusChip) /** @type {any} */ (bar.querySelector('.al-year-chip.is-active'))?.focus();
         /** @type {any} */ (box).hidden = false;
         // The box now has a height for the first time, which is the one moment a deep link can
         // land on it. No-op unless somebody arrived by one.

@@ -2057,6 +2057,74 @@ test('admin: each delete control is named by the dates it would remove', async (
     for (const n of names) expect(n).toMatch(/^Delete \w{3} \d+/);
 });
 
+test('admin: a refused delete leaves the ✕ as a ✕, not the word it used to be', async ({ page }) => {
+    // THE REGRESSION THE FIRST CUT SHIPPED WITH. The coordinator restored the delete control to the
+    // label it remembered — the word "Delete" — into a 44px square built for a glyph, with the
+    // aria-label still reading "Confirm". Invisible on a SUCCESSFUL delete (the row is gone before
+    // anyone sees it), so it is pinned on a path where the row stays: a session the app believes
+    // in but Firebase does not, which `seedSession` alone produces — there is no restored user.
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            docs: [{ id: 'a1', memberName: 'G. Miller', date: '2026-03-02', type: 'annual_leave', value: 'AL', note: '' }],
+        });
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#alBookedToggle').click();
+
+    const btn = page.locator('#alBookedBody .btn-period-delete').first();
+    await expect(btn).toHaveText('✕');
+    await btn.click();
+    await expect(btn, 'first tap asks').toHaveText('Confirm?');
+    await btn.click();
+    // The refusal is what proves the path was the refused one and not a silent success.
+    await expect(page.locator('#alFeedback')).toContainText(/signed out/i);
+    // ONE SECOND, NOT THE DEFAULT FIVE. The confirm state also expires on its own after 5s, and
+    // the first cut of this assertion waited that long — so a build that never restored the
+    // control at all passed, with the auto-expiry doing the restoring just inside the window.
+    // Measured by mutation. A restore driven by the delete SETTLING is immediate; anything that
+    // takes longer than a second here is the timer, and the timer is not what is under test.
+    await expect(btn, 'the row is still here, so the control must be idle again — at once')
+        .toHaveText('✕', { timeout: 1000 });
+    await expect(btn).toHaveAttribute('aria-label', /^Delete /);
+    await expect(btn).not.toHaveClass(/confirming/);
+});
+
+test('admin: choosing a year from the keyboard keeps focus on the year you chose', async ({ page }) => {
+    // Activating a chip re-renders the whole list, and a focused node that is removed hands focus
+    // to <body> — so Enter would drop a keyboard user at the top of the page with nothing to say
+    // which year they had just picked. Pointer users never see this: nothing they are touching is
+    // the thing that disappears.
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            docs: [
+                { id: 'a1', memberName: 'G. Miller', date: '2026-03-02', type: 'annual_leave', value: 'AL', note: '' },
+                { id: 'b1', memberName: 'G. Miller', date: '2028-06-22', type: 'annual_leave', value: 'AL', note: '' },
+            ],
+        });
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#alBookedToggle').click();
+
+    const later = page.locator('#alBookedBody .al-year-chip').filter({ hasText: '2028' });
+    await later.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#alBookedBody .al-year-chip.is-active')).toHaveText('2028');
+    const focused = await page.evaluate(() => {
+        const a = /** @type {any} */ (document.activeElement);
+        return a ? { cls: a.className, text: a.textContent } : null;
+    });
+    expect(focused?.cls, 'focus must still be on a year chip').toMatch(/al-year-chip/);
+    expect(focused?.text, 'and on the one that was chosen').toBe('2028');
+});
+
 test('admin: "All staff" fetches everyone rather than listing whoever happened to be loaded',
     async ({ page }) => {
         // A short list that looks complete is the failure the query-cap banner exists to prevent one

@@ -1088,13 +1088,22 @@ export function init() {
         if (!lines?.length) _feedbackTimer = setTimeout(hideFeedback, 7000);
 
         // Also show a bottom-anchored toast so confirmation is visible regardless of scroll position
+        showToast('✓ ' + msg);
+    }
+
+    /**
+     * The bottom-anchored confirmation — visible whatever the scroll position, which is the point:
+     * the inline feedback lines sit at the TOP of their cards, and the control that was just used
+     * can be a screen's height below them. Shared by Save and by a recorded-dates delete (v23.09).
+     * @param {string} msg
+     */
+    function showToast(msg) {
         const toast = document.getElementById('saveToast');
-        if (toast) {
-            clearTimeout(_toastTimer);
-            setStatus(toast, '✓ ' + msg);
-            toast.classList.add('visible');
-            _toastTimer = setTimeout(() => toast.classList.remove('visible'), 4000);
-        }
+        if (!toast) return;
+        clearTimeout(_toastTimer);
+        setStatus(toast, msg);
+        toast.classList.add('visible');
+        _toastTimer = setTimeout(() => toast.classList.remove('visible'), 4000);
     }
 
     /** Shows an error message in the week editor feedback area.  @param {string} msg */
@@ -1222,7 +1231,10 @@ export function init() {
         // keeps a Sunday correction whenever a remaining AL/sick override is adjacent to it.
         const allForDelete = getAllOverrides();
         const deleteIds = computePeriodDeleteIds(allForDelete, { type, memberName, start, end });
-        if (!deleteIds.length) { btn.classList.remove('confirming'); btn.textContent = 'Delete'; return; }
+        // THE BUTTON'S STATES ARE NOT THIS FUNCTION'S TO SET — admin-booked-periods.js owns them and
+        // restores idle when the promise this returns settles. It used to write the word "Delete"
+        // back into what is now a glyph control, on exactly the paths where the row stays on screen.
+        if (!deleteIds.length) return;
         const idSet = new Set(deleteIds);
         // User-facing count = leave days only (exclude the Sunday RD corrections from the tally).
         const leaveCount = allForDelete.filter(o => idSet.has(o.id) && o.type === type).length;
@@ -1237,9 +1249,7 @@ export function init() {
                 setStatus(feedbackEl, "⚠ You've been signed out — please sign in again.");
                 feedbackEl.className = 'feedback error';
             }
-            // Reset the button off its "⚠ Confirm?" state (these early returns skip the try/finally) (v16.22).
-            btn.classList.remove('confirming');
-            btn.textContent = 'Delete';
+            feedbackEl?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
             return;
         }
         btn.disabled    = true;
@@ -1259,12 +1269,17 @@ export function init() {
             updateSickBookedBox();
             // Preserve unsaved staged week-grid edits across an AL/absence range delete (v16.82).
             if (fieldMember.value && fieldDate.value && !_hasStagedEdits()) renderWeekGrid();
+            const noun = type === 'annual_leave' ? 'AL day' : 'absence day';
+            const said = `✓ Deleted ${leaveCount} ${noun}${leaveCount !== 1 ? 's' : ''} for ${memberName}`;
             if (feedbackEl) {
-                const noun = type === 'annual_leave' ? 'AL day' : 'absence day';
-                setStatus(feedbackEl, `✓ Deleted ${leaveCount} ${noun}${leaveCount !== 1 ? 's' : ''} for ${memberName}`);
+                setStatus(feedbackEl, said);
                 feedbackEl.className = 'feedback success';
                 setTimeout(() => { feedbackEl.className = 'feedback'; }, 6000);
             }
+            // The inline line above sits at the top of the card; the row that was just deleted can
+            // be a screen below it. A destructive action whose confirmation lands off-screen is one
+            // the admin repeats — so it gets the same toast Save does (v23.09).
+            showToast(said);
         } catch (err) {
             console.error('[Admin] Period delete failed:', err);
             if (feedbackEl) {
@@ -1273,11 +1288,12 @@ export function init() {
                     : '⚠ Delete failed — check your connection and try again.';
                 feedbackEl.textContent = msg;
                 feedbackEl.className = 'feedback error';
+                // An error has to be READ, so it stays inline rather than in a 4s toast — and is
+                // brought into view, because the control that failed can be a screen below it.
+                feedbackEl.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
             }
         } finally {
             btn.disabled = false;
-            btn.classList.remove('confirming');
-            btn.textContent = 'Delete';
         }
     }
 
