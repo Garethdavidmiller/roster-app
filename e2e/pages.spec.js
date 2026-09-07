@@ -2057,13 +2057,13 @@ test('admin: a booking that crosses the year end appears in BOTH years, cut at t
     await expect(rows).toHaveCount(1);
     await expect(rows.first()).toContainText('Mon 28 – Thu 31 Dec');
     await expect(rows.first().locator('.al-period-count')).toHaveText('4 days');
-    await expect(rows.first().locator('.al-period-cont')).toContainText(/continues to Fri 1 Jan/);
+    await expect(rows.first().locator('.al-period-cont')).toContainText(/continues to Fri 1 Jan 2027/);
 
     await chips.filter({ hasText: '2027' }).click();
     await expect(rows).toHaveCount(1);
     await expect(rows.first()).toContainText('Fri 1 Jan');
     await expect(rows.first().locator('.al-period-count')).toHaveText('1 day');
-    await expect(rows.first().locator('.al-period-cont')).toContainText(/continued from Mon 28 Dec/);
+    await expect(rows.first().locator('.al-period-cont')).toContainText(/continued from Mon 28 Dec 2026/);
     // And it stays ONE line — the sentence version wrapped the pill and the ✕ under the date.
     const h = await rows.first().evaluate(el => el.getBoundingClientRect().height);
     expect(h, 'a continued row must not wrap to two lines at 375px').toBeLessThan(56);
@@ -2285,6 +2285,34 @@ test('admin: deleting a recorded booking confirms in the toast, not only at the 
     await expect(toast).toHaveText(/Deleted 1 AL day for G\. Miller/);
     // And the row is gone: with no leave left the box hides rather than showing an empty year.
     await expect(page.locator('#alBookedBox')).toBeHidden();
+});
+
+test('admin: an armed Saved Changes delete says so in its accessible name, and says it only while armed', async ({ page }) => {
+    // The recorded-dates ✕ already renames itself "Confirm delete …" while armed; this control kept
+    // announcing "Delete G. Miller 2026-09-01" under a button reading "Delete?" (external review,
+    // v23.16). A destructive two-step control has to communicate that its meaning changed — and
+    // change back, on every exit. The exit a browser can SEE is the confirm lapsing: a successful
+    // delete removes the row (unlike the recorded-dates control, this one does not refuse without
+    // a Firebase user), and the failure exit is pinned in admin-saved-changes.test.mjs.
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            docs: [{ id: 'o1', memberName: 'G. Miller', date: '2026-09-01', type: 'annual_leave', value: 'AL', note: '' }],
+        });
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#overridesToggleHeader').click();
+    const btn = page.locator('.override-card .btn-delete').first();
+    await expect(btn).toHaveAttribute('aria-label', 'Delete G. Miller 2026-09-01');
+    await btn.click();
+    await expect(btn).toHaveText('Delete?');
+    await expect(btn, 'armed: the name says so').toHaveAttribute('aria-label', 'Confirm delete G. Miller 2026-09-01');
+    // Let the confirm lapse (5s) rather than pressing again: the name has to come back WITH the glyph.
+    await expect(btn, 'idle again: the name comes back with the glyph').toHaveAttribute('aria-label', 'Delete G. Miller 2026-09-01', { timeout: 7000 });
+    await expect(btn).toHaveText('✕');
+    await expect(btn).not.toHaveClass(/confirming/);
 });
 
 test('admin: a Saved Changes row is one row — controls side by side, under 64px', async ({ page }) => {

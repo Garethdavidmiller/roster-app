@@ -234,12 +234,28 @@ function _updateBulkDeleteVisibility() {
 function _armConfirmButton(btn, confirmLabel, resetLabel) {
     btn.classList.add('confirming');
     btn.textContent = confirmLabel;
-    setTimeout(() => {
-        if (btn.classList.contains('confirming')) {
-            btn.classList.remove('confirming');
-            btn.textContent = resetLabel;
-        }
-    }, 5000);
+    // A DESTRUCTIVE TWO-STEP CONTROL MUST SAY ITS MEANING CHANGED (v23.16, external review). The
+    // recorded-dates ✕ renames itself "Confirm delete …" while armed; this one kept announcing
+    // "Delete G. Miller 2026-09-01" under a button that now read "Delete?". The idle name is kept
+    // on the element so `_disarmConfirmButton` can put it back from any of the three exits (timer,
+    // failure, success) without each of them having to know what it was.
+    const idle = btn.getAttribute('aria-label');
+    if (idle) {
+        if (!btn.dataset.idleLabel) btn.dataset.idleLabel = idle;
+        btn.setAttribute('aria-label', `Confirm ${idle.charAt(0).toLowerCase()}${idle.slice(1)}`);
+    }
+    setTimeout(() => { if (btn.classList.contains('confirming')) _disarmConfirmButton(btn, resetLabel); }, 5000);
+}
+
+/**
+ * The armed control back to idle — label, class and accessible name together, so no exit can
+ * restore two of the three (the shipped shape: the glyph came back and the name stayed "Confirm").
+ * @param {HTMLButtonElement} btn @param {string} resetLabel
+ */
+function _disarmConfirmButton(btn, resetLabel) {
+    btn.classList.remove('confirming');
+    btn.textContent = resetLabel;
+    if (btn.dataset.idleLabel) btn.setAttribute('aria-label', btn.dataset.idleLabel);
 }
 
 /** @param {MouseEvent} e */
@@ -278,8 +294,7 @@ async function _handleDelete(e) {
     } catch (err) {
         console.error('[Admin] Delete failed:', err);
         btn.disabled = false;
-        btn.classList.remove('confirming');
-        btn.textContent = '✕';
+        _disarmConfirmButton(btn, '✕');
         if (listFeedback) {
             setStatus(listFeedback, (/** @type {any} */ (err))?.code === 'unavailable'
                 ? '⚠ You appear to be offline — reconnect and try again.'
@@ -330,7 +345,7 @@ function _initOverridesTable() {
                 _armConfirmButton(bulkDeleteBtn, `⚠ Delete ${ids.length}?`, 'Delete selected');
                 return;
             }
-            bulkDeleteBtn.classList.remove('confirming');
+            _disarmConfirmButton(bulkDeleteBtn, 'Delete selected');   // name and class back before "Deleting…"
 
             bulkDeleteBtn.disabled = true;
             bulkDeleteBtn.textContent = `Deleting ${ids.length}…`;
@@ -379,7 +394,7 @@ function _initOverridesTable() {
                 // Label only; VISIBILITY stays with `_updateBulkDeleteVisibility`, which is the
                 // pattern `executeSave` and `createRangeBookingSection` already follow.
                 bulkDeleteBtn.disabled = false;
-                bulkDeleteBtn.textContent = 'Delete selected';
+                _disarmConfirmButton(bulkDeleteBtn, 'Delete selected');
             }
         });
     }

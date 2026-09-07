@@ -156,7 +156,12 @@ const CAPS = {
     // ("is a roster on screen?") went to calendar-data-state.js as `showsRoster`, beside the four
     // states it reads. What is left is coordination and the argument for it, which is what this
     // file is for. The guard did its job: it made the extraction happen before the raise.
-    'calendar-app.js':         1350,
+    // 1350 → 1320 at v23.16. The file stood at 1,346 — four lines of room — and an external review
+    // said the next Calendar concern should extract rather than raise. It did, BEFORE the concern:
+    // the notification prompt strip and silent renewal (an IIFE that closed over nothing the
+    // coordinator owns) left for calendar-notif-prompt.js, 1,346 down to 1,267. The ceiling comes
+    // down with it rather than banking eighty lines as headroom, per the header's rule.
+    'calendar-app.js':         1320,
     'roster-data.js':          1350,   // mostly data, not logic
     // 1300 → 1350 at v22.50, and the extraction was CHECKED FOR FIRST rather than waved away. The
     // change underneath is a leave-entitlement correction — a Dispatcher's earned lieu days were
