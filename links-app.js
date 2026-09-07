@@ -2056,12 +2056,19 @@ export function init() {
             `<span class="print-design-meta">Staffed window: ${escapeHtml(win + moved)}</span>`;
     }
     // Re-stamp on the way to the printer so the "Printed" date is the real one.
+    // Kept ALONGSIDE the `_preparePrint` registration below, deliberately: that one is idempotent,
+    // so if a print dialog is cancelled on an engine that never fires `afterprint`, the next print
+    // would re-use the first run's stamp. This listener re-stamps the "Printed" date every time.
     window.addEventListener('beforeprint', _renderPrintMasthead);
 
-    // The print button (v19.62). `window.print()` fires `beforeprint`, so it goes through exactly the
-    // same path as the browser's own menu item — the masthead stamp and the open-every-`details`
-    // handler above are shared, not duplicated here.
-    document.getElementById('linksPrintBtn')?.addEventListener('click', () => window.print());
+    // The print button (v19.62; prepares synchronously since v23.20). It no longer RELIES on
+    // `window.print()` firing `beforeprint` — see `_preparePrint` below for why that assumption was
+    // not safe on the engine half this station reads on. The preparation is still shared, not
+    // duplicated: both routes call the one function, and it is idempotent.
+    document.getElementById('linksPrintBtn')?.addEventListener('click', () => {
+        _preparePrint();
+        window.print();
+    });
 
     /**
      * Open every `<details>` before printing, and put them back afterwards (v19.57).
@@ -2080,12 +2087,29 @@ export function init() {
      * something the designer had deliberately collapsed.
      */
     let _reopenAfterPrint = /** @type {HTMLDetailsElement[]} */ ([]);
-    window.addEventListener('beforeprint', () => {
+    let _printPrepared = false;
+    /**
+     * Prepare the page for paper — from the Print button BEFORE `window.print()`, and from
+     * `beforeprint` for the browser's own menu (v23.20). It used to live only in `beforeprint`;
+     * `fip-guide.js` carries the argument for why that was not safe, and the measurement.
+     * What is specific HERE: the fatigue panel's collapsed disclosure is the record of checks that
+     * WERE run, so losing it hands an assessing manager a sheet showing fewer factors assessed than
+     * actually were — the false-assurance failure that panel exists to prevent.
+     * IDEMPOTENT ON PURPOSE: where both routes fire, a second snapshot would record every `details`
+     * as already open and `afterprint` would leave the workspace permanently expanded.
+     */
+    function _preparePrint() {
+        if (_printPrepared) return;
+        _printPrepared = true;
+        _renderPrintMasthead();
         _reopenAfterPrint = /** @type {HTMLDetailsElement[]} */ (
             [...document.querySelectorAll('details:not([open])')]);
         for (const d of _reopenAfterPrint) d.open = true;
-    });
+    }
+    window.addEventListener('beforeprint', _preparePrint);
     window.addEventListener('afterprint', () => {
+        if (!_printPrepared) return;   // afterprint can fire twice, or not at all
+        _printPrepared = false;
         for (const d of _reopenAfterPrint) d.open = false;
         _reopenAfterPrint = [];
     });
