@@ -374,11 +374,24 @@ a { color: var(--navy); text-underline-offset: 2px; }
 
 /* ── Print (shell handles .page-header + button hiding) ───────── */
 @media print {
+    /* A4 PORTRAIT, stated (v23.20). Without an `@page size` the browser uses its own default,
+       which on a Chromium build configured for US locales is LETTER (216×279mm) — measured, by
+       rendering this page and reading the MediaBox back. Letter is 6mm wider and 18mm shorter
+       than A4, so on the A4 stock every printer at this station holds, the layout is composed for
+       a page that is not the sheet: every break lands in the wrong place and the foot can clip.
+       The two document guides (guide-doc.css) and the Calendar, Links and Pay Calculator have
+       always stated it; these had not. */
+    @page { size: A4 portrait; margin: 13mm 12mm; }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     body { background: white; }
     /* .chip-bar print-hide is in guide-shell.css (shared) */
     .content { max-width: none; padding: 0 6px; }
     .rc, .gotcha, .check-item, .digital, .weekend-note { break-inside: avoid; }
+    /* The footer's back link is website navigation and is useless on paper (v23.20) — measured
+       printing at 38px tall while `rangers-guide.css` had always hidden its identical control.
+       `guide-shell.css` hides the HEADER back arrow (`.btn-back`) for every guide; this footer
+       link is a per-guide element and was simply missed. */
+    .guide-back-link { display: none !important; }
     .rc, .gotchas, .check, .digital { box-shadow: none; }
     .section { break-after: avoid; }
 }

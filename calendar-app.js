@@ -900,25 +900,14 @@ try {
                     if (printBtn)  printBtn.textContent  = inTeam ? '🖨️ Print this week\'s roster' : '🖨️ Print this calendar';
                     if (printHint) printHint.textContent = inTeam ? 'Prints in A4 landscape — select landscape in your print settings if needed' : 'Prints the current month\'s calendar';
                 },
-                // Team view prints in landscape; calendar uses the stylesheet's portrait @page.
-                printFn() {
-                    // Always clear a leaked team-view @page from a PRIOR print first. afterprint is
-                    // unreliable on iOS Safari and when the dialog is cancelled, so the landscape rule
-                    // could linger and flip the NEXT (portrait) calendar print to landscape. Clearing
-                    // at the top of BOTH branches, plus a single reused id (never stack orphans),
-                    // guarantees each print starts from the right page orientation (v16.21).
-                    document.getElementById('tvPrintPage')?.remove();
-                    if (teamView.isTeamViewMode()) {
-                        const ls = document.createElement('style');
-                        ls.id = 'tvPrintPage';
-                        ls.textContent = '@page { size: A4 landscape; margin: 1cm; }';
-                        document.head.appendChild(ls);
-                        window.print();
-                        window.addEventListener('afterprint', () => document.getElementById('tvPrintPage')?.remove(), { once: true });
-                    } else {
-                        window.print();
-                    }
-                },
+                // Just print. The paper is decided by which VIEW is open, not by which control
+                // reached the printer — `calendar-team-view.js`'s `applyTeamPrintPage` installs the
+                // landscape @page while team view is active and removes it on the way out (v23.20).
+                // Before that this function owned the rule, so Ctrl+P, File → Print, the `p`
+                // shortcut and AirPrint all printed the week grid portrait while this button
+                // printed it landscape; and the v16.21 leak-clearing dance here existed only
+                // because removal depended on an `afterprint` iOS may never fire.
+                printFn() { window.print(); },
             });
             if (!about) return;
 

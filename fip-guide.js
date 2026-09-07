@@ -257,12 +257,37 @@ openHashTarget();   // first load: honour a deep link (defer → the DOM is alre
 // cannot reach — so a printed FIP guide showed each country as an empty bordered strip. Force every
 // <details> OPEN (and un-hide any card the finder filtered out) for the print run, then restore the
 // on-screen state afterwards, so the printout is the full country reference the fip-guide.css @media print
-// block already intends. beforeprint/afterprint fire for Ctrl+P and the ⤓ PDF button on every browser.
+// block already intends.
+//
+// PREPARE ON THE BUTTON, NOT ONLY ON `beforeprint` (v23.20). This block used to assert that
+// "beforeprint/afterprint fire for Ctrl+P and the ⤓ PDF button on every browser" — while
+// `calendar-app.js` records the opposite about the engine most of this station reads on:
+// "iOS Safari does not fire beforeprint when AirPrint is invoked", which is why the Calendar and
+// the Pay Calculator stamp their print headers eagerly. Two surfaces defended against it; two
+// asserted it could not happen.
+//
+// What that costs here was MEASURED rather than reasoned about: rendering this page to PDF with
+// `fip-guide.js` served as an empty file gives 8 pages against 24. Sixteen pages — two thirds of
+// the guide — exist only because the handler ran. A traveller checking whether a coupon is valid
+// in Belgium would get a sheet of country headings with the answers gone, and nothing on the paper
+// would say it was incomplete.
+//
+// So the ⤓ PDF button prepares SYNCHRONOUSLY, in the capture phase, before `guide-print.js`'s own
+// click handler reaches `window.print()`. `beforeprint` stays as the fallback for somebody using
+// the browser's own menu.
+//
+// BOTH HALVES MUST BE IDEMPOTENT, and that is not a nicety. On a browser where both routes fire,
+// prepare runs twice; a second snapshot would record every <details> as ALREADY open, and restore
+// would then leave the whole guide expanded for good — printing would become a way to permanently
+// change the page. `_fipPrepared` is what stops that.
 /** @type {Array<[HTMLDetailsElement, boolean]>} */
 var _fipOpenRestore = [];
 /** @type {Element[]} */
 var _fipHiddenRestore = [];
+var _fipPrepared = false;
 function expandAllForPrint() {
+    if (_fipPrepared) return;          // second route through — the snapshot below is already true
+    _fipPrepared = true;
     _fipOpenRestore = [];
     _fipHiddenRestore = [];
     document.querySelectorAll('details').forEach(function (d) {
@@ -278,6 +303,8 @@ function expandAllForPrint() {
     });
 }
 function restoreAfterPrint() {
+    if (!_fipPrepared) return;         // afterprint can fire twice, or without a prepare at all
+    _fipPrepared = false;
     _fipOpenRestore.forEach(function (p) { p[0].open = p[1]; });
     _fipHiddenRestore.forEach(function (c) { /** @type {HTMLElement} */ (c).hidden = true; });
     _fipOpenRestore = [];
@@ -285,3 +312,7 @@ function restoreAfterPrint() {
 }
 window.addEventListener('beforeprint', expandAllForPrint);
 window.addEventListener('afterprint', restoreAfterPrint);
+// Capture phase, so this runs before guide-print.js's own bubble-phase handler calls window.print()
+// — registration order would give the same result today, but only because of the <script> order in
+// fip-guide.html, which is not a thing this file should depend on.
+document.querySelector('.btn-print')?.addEventListener('click', expandAllForPrint, true);
