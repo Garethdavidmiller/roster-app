@@ -70,6 +70,68 @@ test('the nav drawer and the guides stay reachable while locked', async ({ page 
     await expect(page.locator('#navPanel')).toContainText('Railcard');
 });
 
+// ── THE DOCUMENTS ARE BEHIND THE PIN TOO (v23.17, owner decision 7 Sep 2026) ────────────────────
+//
+// The rules close the reads on the server; these prove the CLIENT refuses them at source, which is
+// the half a rules test cannot see — the local Firestore cache answers without consulting a rule.
+// `__E2E.docReads` counts every collection read the fixture receives, so "no read" is asserted,
+// not inferred from a blank screen.
+
+const docReads = (/** @type {import('@playwright/test').Page} */ page) =>
+    page.evaluate(() => { const e = /** @type {any} */ (window).__E2E || {}; return (e.docReads || 0) + (e.snapshotSubs || 0); });
+
+test('locked: a Daily Huddle tap says what to do, and issues NO read', async ({ page }) => {
+    // '/', not '/index.html': the drawer link is `./#huddle`, which from '/' is a HASH CHANGE (the
+    // route a notification tap and a real staff tap both take) and from '/index.html' would be a
+    // full navigation to a different path.
+    await page.goto('/');
+    await expect(page.locator('#calLockPin')).toBeVisible();
+    const before = await docReads(page);
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanel a[href="./#huddle"]').click();
+    await expect(page.locator('#huddleViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Daily Huddle');
+    await expect(page.locator('#huddleViewer')).toHaveClass(/open/);
+    expect(await docReads(page), 'the tap itself issued nothing').toBe(before);
+    // ABSOLUTE, not a delta: the first cut compared before/after the tap, and a listener attached
+    // at page LOAD sat inside the baseline — the mutation that removed the guard passed. A locked
+    // Calendar attaches no Huddle listener at any point, because the local cache would answer it.
+    expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E || {}).snapshotSubs || 0),
+        'no Huddle listener may ever attach on a locked Calendar').toBe(0);
+});
+
+test('locked: a Circular deep link says what to do, issues NO read, and is FINISHED by the PIN', async ({ page }) => {
+    await stubPinExchange(page);
+    await page.goto('/index.html#circular');
+    await expect(page.locator('#calLockPin')).toBeVisible();
+    await expect(page.locator('#docViewer')).toBeVisible();
+    await expect(page.locator('#docViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Weekly Retail Circular');
+    const before = await docReads(page);
+    // The message sits over the PIN card, so the reader closes it to type — and the held tap has to
+    // survive that close, or a notification tap could never be finished by a PIN.
+    await page.locator('#docViewerClose').click();
+    await expect(page.locator('#docViewer')).toBeHidden();
+    await enterPin(page, '1234');
+    // The deep link survived the unlock: the read the lock held back now runs, and its result —
+    // the fixture has no circular — is what replaces the message.
+    await expect(page.locator('#docViewerBody')).toContainText('No Weekly Retail Circular has been uploaded yet', { timeout: 10000 });
+    expect(await docReads(page), 'the held read ran once the PIN was in').toBeGreaterThan(before);
+});
+
+test('locked: the drawer refuses a Circular tap without opening a tab', async ({ page }) => {
+    await page.goto('/index.html');
+    await expect(page.locator('#calLockPin')).toBeVisible();
+    const before = await docReads(page);
+    const popups = [];
+    page.on('popup', p => popups.push(p));
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanel .nav-panel-link--circular').click();
+    await expect(page.locator('#navComingSoonLightbox')).toBeVisible();
+    await expect(page.locator('#navComingSoonLightbox')).toContainText('Enter the staff PIN on the Calendar, or sign in, to open this');
+    await expect(page.locator('#navComingSoonLightbox')).toContainText('Weekly Retail Circular');
+    expect(await docReads(page)).toBe(before);
+    expect(popups.length, 'no blank tab is opened for a read that will not happen').toBe(0);
+});
+
 test('a public guide loads with no PIN and no member sign-in', async ({ page }) => {
     await page.goto('/railcard-guide.html');
     await expect(page.locator('h1')).toBeVisible();

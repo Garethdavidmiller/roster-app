@@ -283,10 +283,11 @@ export function resetNavPanel() {
 
 /**
  * Initialise the navigation panel for the current page.
- * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links'|'overtime', memberName?: string|null, onSignOut?: (() => void)|null, isAdmin?: boolean, isLinksDesigner?: boolean, canOpenOvertime?: boolean, onLogoClick?: (() => void)|null, usageIdentity?: string|null, authReady?: Promise<any>, onLockCalendar?: { isViewer: () => boolean, lock: () => void }|null }} opts
+ * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links'|'overtime', memberName?: string|null, onSignOut?: (() => void)|null, isAdmin?: boolean, isLinksDesigner?: boolean, canOpenOvertime?: boolean, onLogoClick?: (() => void)|null, usageIdentity?: string|null, authReady?: Promise<any>, canReadDocuments?: () => boolean, onLockCalendar?: { isViewer: () => boolean, lock: () => void }|null }} opts
  *   onLockCalendar (v20.12, calendar only) — the shared-PIN viewer's way to lock the roster before
  *   walking away from a shared office PC. `isViewer` is a THUNK read at drawer-open time, never at
  *   init: Calendar access resolves asynchronously and is still `none` when this function runs.
+ *   canReadDocuments (v23.17, calendar only) — a THUNK: may the drawer's two document links read?
  *   authReady — resolves once a Firebase session exists; awaited before the Circular/Newsletter
  *   read (AUTH_PLAN.md → E1). Each page passes its own (calendar: `calendarAuthReady`; the five
  *   authenticated pages: `sessionReady`). Defaults to already-resolved.
@@ -294,7 +295,7 @@ export function resetNavPanel() {
  *   drawer logo is tapped. The header logo on sub-pages is now a back button,
  *   so About lives on the drawer logo instead.
  */
-export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, isAdmin = false, isLinksDesigner = false, canOpenOvertime = false, onLogoClick = null, usageIdentity = null, authReady = Promise.resolve(), onLockCalendar = null } = {}) {
+export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, isAdmin = false, isLinksDesigner = false, canOpenOvertime = false, onLogoClick = null, usageIdentity = null, authReady = Promise.resolve(), onLockCalendar = null, canReadDocuments = () => true } = {}) {
     // Identity for the anonymous open-counters' admin-exclusion (v18.20): the signed-in name by
     // default; the calendar passes its SELECTED member (its session is optional — same precedent
     // as recordUsage's identity there). Never stored — only compared against CONFIG.ADMIN_NAMES.
@@ -428,6 +429,13 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
      */
     function _openLatestDoc(triggerEl, fetchFn, docId) {
         if (_docFetching) return;
+        // THE DOCUMENT GATE (v23.17, calendar-doc-access.js): refused HERE, before the blank tab is
+        // opened — a tab that closes a second later reads as a fault. Only the Calendar passes this;
+        // its header has the argument. The lightbox names the document; the message names the fix.
+        if (!canReadDocuments()) {
+            _docFailureFallback(triggerEl, 'Enter the staff PIN on the Calendar, or sign in, to open this.');
+            return;
+        }
         _docFetching = true;
         // Visible in-flight state — the fetch races an 8s timeout, and on weak signal the tapped
         // link otherwise just sat there (a blank tab open in the background) reading as "broken".

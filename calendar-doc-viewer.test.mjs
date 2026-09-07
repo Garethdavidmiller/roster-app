@@ -78,6 +78,53 @@ const bodyText = () => _els.docViewerBody._children.map(c => c.textContent).join
 
 beforeEach(() => { _circularImpl = () => Promise.resolve(null); setupDOM(); });
 
+describe('doc viewer — THE DOCUMENT GATE (v23.17): a locked tap reads nothing, and the unlock finishes it', () => {
+    test('while locked: the message, and NO fetch — cached or live', async () => {
+        let fetched = 0;
+        _circularImpl = () => { fetched++; return Promise.resolve(null); };
+        global.window.location.hash = '#circular';
+        const subs = [];
+        initDocViewer({ authReady: Promise.resolve(), docAccess: { has: () => false, onChange: fn => { subs.push(fn); return () => {}; } } });
+        await flush();
+        assert.equal(fetched, 0, 'a locked viewer must not issue the read — the local cache would answer it');
+        assert.match(bodyText(), /Enter the staff PIN, or sign in, to read the Weekly Retail Circular/);
+        assert.equal(subs.length, 1, 'it subscribes to the gate so the unlock can finish the tap');
+    });
+
+    test('the grant finishes the held tap — the deep link survives the unlock', async () => {
+        let fetched = 0;
+        _circularImpl = () => { fetched++; return Promise.resolve(null); };
+        let open = false;
+        const subs = [];
+        global.window.location.hash = '#circular';
+        initDocViewer({ authReady: Promise.resolve(), docAccess: { has: () => open, onChange: fn => { subs.push(fn); return () => {}; } } });
+        await flush();
+        assert.equal(fetched, 0);
+        open = true; subs.forEach(fn => fn(true));   // the PIN goes in
+        await flush();
+        assert.equal(fetched, 1, 'the read the lock held back runs exactly once');
+        assert.match(bodyText(), /No Weekly Retail Circular has been uploaded yet/, 'and its result is on screen');
+    });
+
+    test('a tap the reader CLOSED while locked is STILL finished by the PIN — closing was the only way to reach the form', async () => {
+        // The locked message sits over the PIN card. The first cut dropped the held tap on close,
+        // which meant: notification tap → message → close it to type → PIN → nothing. Found by the
+        // e2e, where Playwright could not even reach the PIN field through the overlay.
+        let fetched = 0;
+        _circularImpl = () => { fetched++; return Promise.resolve(null); };
+        let open = false;
+        const subs = [];
+        global.window.location.hash = '#circular';
+        initDocViewer({ authReady: Promise.resolve(), docAccess: { has: () => open, onChange: fn => { subs.push(fn); return () => {}; } } });
+        await flush();
+        _lbClose();   // the reader closes the message to get at the PIN form beneath it
+        await flush();
+        open = true; subs.forEach(fn => fn(true));
+        await flush();
+        assert.equal(fetched, 1, 'the document they came for opens once the PIN is in');
+    });
+});
+
 describe('doc viewer — the open must always reach a terminal state', () => {
     test('a never-resolving authReady still ends in a failure state, not "Loading…" forever', async (t) => {
         t.mock.timers.enable({ apis: ['setTimeout'] });

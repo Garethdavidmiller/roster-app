@@ -383,7 +383,7 @@ REST). Staged:
   point `signInAnonymously` is dead and the **Anonymous provider can be disabled project-wide** —
   which settles the "retire the anonymous fallback" residual below (decide them together).
 
-- **E6 (independent of all the above): put the document FILES behind auth.** E1–E5 tighten Firestore
+- **E6 — the READS are decided and closing (7 Sep 2026): the client refuses document reads without access at v23.17, the rules follow next release; the FILES half below is unchanged.** Put the document FILES behind auth. E1–E5 tighten Firestore
   *reads*; the Huddle/Circular/Newsletter files themselves ride permanent tokenised bearer URLs that
   bypass `storage.rules` entirely, so **no rules change in this track touches them** (see
   KNOWN_LIMITATIONS → "The document FILES are protected by a bearer URL, not by auth"). Needs a

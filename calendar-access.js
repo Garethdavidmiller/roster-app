@@ -437,8 +437,11 @@ export async function lockCalendar() {
 // ── The workspace gate ──────────────────────────────────────────────────────────────────────────
 
 /** The Calendar workspace: everything that implies usable roster data. The header and the nav
- *  drawer are deliberately NOT in this list — the guides, the Huddle and the documents are reachable
- *  without Calendar access, and locking the whole app to read the Railcard guide would be absurd. */
+ *  drawer are deliberately NOT in this list — the guides are reachable without Calendar access, and
+ *  locking the whole app to read the Railcard guide would be absurd. The Huddle and the documents
+ *  used to be reachable too; since v23.17 their reads sit behind `calendar-doc-access.js`, which
+ *  `calendar-app.js` opens on the full grant — so the drawer still SHOWS them, and a tap while
+ *  locked is answered with what to do rather than with the document. */
 const WORKSPACE_IDS = ['calendarControls', 'installPrompt', 'notifPrompt', 'payPeriodStrip', 'swipeHint', 'calendarDisplay', 'calendarLegend'];
 
 /** @param {boolean} hidden */

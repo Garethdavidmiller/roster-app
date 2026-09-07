@@ -46,7 +46,7 @@ import { firstColumnMask } from './huddle-table-grid.js';
 // Module-level state — set once at startup and survives the page lifetime.
 /** @type {any} */
 let _huddleData  = null;
-let _huddleState = 'loading'; // 'loading' | 'ready' | 'none' | 'error'
+let _huddleState = 'loading'; // 'loading' | 'ready' | 'none' | 'error' | 'locked'
 
 /**
  * Sanitise HTML from a Huddle document before rendering it in the viewer.
@@ -144,10 +144,16 @@ export function wrapTables(root) {
 
 /** Wire up the Huddle viewer overlay and start the Firestore subscription. Call once on page load. */
 /**
- * @param {{ authReady?: Promise<any> }} [deps] authReady — resolves once a Firebase session exists.
- *   Awaited before the snapshot listener attaches (AUTH_PLAN.md → E1). Defaults to already-resolved.
+ * @param {{ authReady?: Promise<any>, docAccess?: { has: () => boolean, onChange: (fn: (open: boolean) => void) => (() => void) } }} [deps]
+ *   authReady — resolves once a Firebase session exists. Awaited before the snapshot listener
+ *   attaches (AUTH_PLAN.md → E1). Defaults to already-resolved.
+ *   docAccess — THE DOCUMENT GATE (v23.17, calendar-doc-access.js). The subscription attaches only
+ *   while it is open and is torn down when it shuts; a `#huddle` tap while shut shows a message
+ *   rather than doing nothing, and is FINISHED when access arrives — a notification tap that landed
+ *   on the PIN card opens the Huddle once the PIN is entered. Defaults to always-open, which is
+ *   what every page other than the Calendar means.
  */
-export function initHuddleViewer({ authReady = Promise.resolve() } = {}) {
+export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { has: () => true, onChange: () => () => {} } } = {}) {
     const viewer = /** @type {HTMLElement} */ (document.getElementById('huddleViewer'));
     const body   = /** @type {HTMLElement} */ (document.getElementById('huddleViewerBody'));
     const close  = document.getElementById('huddleViewerClose');
@@ -277,6 +283,18 @@ export function initHuddleViewer({ authReady = Promise.resolve() } = {}) {
         close.addEventListener('click', closeViewer);
     }
 
+    // NOT A DEAD TAP (v23.17). Before the gate, a `#huddle` tap with nothing loaded did nothing — the
+    // hashchange handler only opens on `ready`. Silence is the wrong answer for a locked visitor:
+    // the drawer link was there, they pressed it, and the reason nothing came is one they can act
+    // on. Neutral prompt styling, not the error class — this is not a fault.
+    function showLockedMessage() {
+        body.innerHTML = '<div class="huddle-open-prompt">'
+            + '<p>Enter the staff PIN, or sign in, to read the Daily Huddle.</p>'
+            + '</div>';
+        openViewer();
+        close?.focus();
+    }
+
     /** @param {any} huddle */
     function _triggerAutoOpen(huddle) {
         _autoOpened = true;
@@ -312,6 +330,8 @@ export function initHuddleViewer({ authReady = Promise.resolve() } = {}) {
         _autoOpen   = true;
         _autoOpened = false;
         _openCountPending = true;   // a fresh user gesture — arm one open count (v18.22)
+        // Locked: say so, and keep `_autoOpen` armed so the grant that follows finishes the tap.
+        if (!docAccess.has()) { showLockedMessage(); return; }
         if (_huddleState === 'ready' && _huddleData) _triggerAutoOpen(_huddleData);
     });
 
@@ -334,6 +354,10 @@ export function initHuddleViewer({ authReady = Promise.resolve() } = {}) {
     async function startHuddleSubscription() {
         const _gen = ++_subGen;
         if (_unsubHuddle) { _unsubHuddle(); _unsubHuddle = null; }
+        // REFUSED AT SOURCE while the gate is shut (v23.17): no query is issued, cached or live. The
+        // `onChange(true)` below is what starts it when access arrives. Checked BEFORE the await so
+        // a lock that lands during the wait is caught by the generation guard as before.
+        if (!docAccess.has()) { _huddleState = 'locked'; return; }
         // Attach only once a session exists (AUTH_PLAN.md → E1). Attaching too early is worse than
         // attaching late: an onSnapshot that hits permission-denied is TERMINATED, not retried, and
         // today only recovers on the next visibilitychange — useless to someone who just tapped a
@@ -369,12 +393,26 @@ export function initHuddleViewer({ authReady = Promise.resolve() } = {}) {
     }
     _startHuddleSubscriptionSafe();
 
+    // THE GATE MOVES; THE SUBSCRIPTION FOLLOWS (v23.17). Opening starts the listener — for a
+    // notification tap that landed on the PIN card, `_autoOpen` is still armed, so the first
+    // snapshot opens the Huddle: the deep link survives the unlock. Shutting tears the listener
+    // down and DROPS what it delivered, so a re-locked screen holds nothing a later tap could show;
+    // if the viewer is open at that moment it says so rather than sitting on a document its reader
+    // is no longer entitled to.
+    docAccess.onChange((open) => {
+        if (open) { _startHuddleSubscriptionSafe(); return; }
+        if (_unsubHuddle) { _unsubHuddle(); _unsubHuddle = null; }
+        _huddleData = null; _sanitisedHtml = null; _sanitisedUrl = null;
+        _huddleState = 'locked';
+        if (_viewerOpen) showLockedMessage();
+    });
+
     // If the tab was discarded while still loading — OR the subscription errored (an onSnapshot
     // error terminates the listener; the 8s timeout also flips 'loading'→'error') — re-subscribe on
     // return so the Huddle doesn't stay permanently broken until a full reload. startHuddleSubscription
     // unsubscribes any prior listener first, so this can't stack listeners (v16.19).
     document.addEventListener('visibilitychange', () => {
-        if (!document.hidden && (_huddleState === 'loading' || _huddleState === 'error')) {
+        if (!document.hidden && docAccess.has() && (_huddleState === 'loading' || _huddleState === 'error')) {
             _startHuddleSubscriptionSafe();
         }
     });

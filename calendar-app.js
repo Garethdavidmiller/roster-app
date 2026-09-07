@@ -40,6 +40,7 @@ import { initCalendarLightboxes } from './calendar-al-lightbox.js';
 import { initInitialFetch } from './calendar-initial-fetch.js';
 import { initInstallPrompt } from './install-prompt.js';
 import { initNotifPrompt } from './calendar-notif-prompt.js';
+import { setDocumentAccess, hasDocumentAccess, documentAccess } from './calendar-doc-access.js';
 import { applyTextScale } from './text-scale.js';
 import { initCalendarTooltip, initCalendarKeyboard } from './calendar-keyboard.js';
 
@@ -780,7 +781,7 @@ try {
             // the sync chip's retry, which an expired session can never satisfy (v20.12). The gate
             // is CLOSED first: re-locking the UI while override reads stayed permitted would leave
             // the local-cache path open behind the card.
-            onAccessLost: () => { setOverrideAccess(false); handleAccessLost(); },
+            onAccessLost: () => { setOverrideAccess(false); setDocumentAccess(false); handleAccessLost(); },
         });
 
         // ── LET THE LOCAL CACHE WIN THE FIRST PAINT (v21.29, external latency review) ────────────
@@ -1091,18 +1092,20 @@ registerServiceWorker({
 // ============================================
 // HUDDLE VIEWER — initialised via calendar-huddle-viewer.js
 // ============================================
-// `authReady` (persistence configured), NOT `calendarAccessReady`. The Huddle, Circular and
-// Newsletter collections are openly readable by design (OPERATIONS_REFERENCE.md → "Huddle
-// notification tap behaviour"), so these viewers need no Calendar access — and gating them on it
-// would strand a locked visitor: this subscription does a plain `await`, so a promise that never
-// resolves would leave a nav-drawer tap loading for ever. What they DO need is persistence to be
-// configured before any token work, which is exactly what `authReady` is.
-initHuddleViewer({ authReady });
+// `authReady` (persistence configured) is what the READ needs; `documentAccess` is what PERMITS it
+// (v23.17, owner decision: the Huddle, Circular and Newsletter are not visible without the staff
+// PIN or a password). The two are separate on purpose. `authReady` is a promise the viewers can
+// await with a bound; access is a GATE they consult and subscribe to, opened by the full grant in
+// `initCalendarAccess` below and shut when access is lost — so a locked visitor's tap is answered
+// with a message rather than a read, and a notification tap that landed on the PIN card is finished
+// the moment the PIN is entered. calendar-doc-access.js carries the argument, including why the
+// local Firestore cache is the reason a rules change alone could not do this.
+initHuddleViewer({ authReady, docAccess: documentAccess });
 
 // ============================================
 // CIRCULAR / NEWSLETTER VIEWER — opened from a #circular/#newsletter notification deep link
 // ============================================
-initDocViewer({ authReady });   // same reasoning as the Huddle viewer above
+initDocViewer({ authReady, docAccess: documentAccess });   // same gate, same reasoning
 
 
 // `calendarAccessReady` is imported at the top of the module — it is consumed by initInitialFetch
@@ -1187,6 +1190,8 @@ initNavPanel({
     // member a button they can never use. `isViewerMode()` is read at DRAWER-OPEN time (the thunk),
     // not at init, because access is resolved asynchronously and this call runs before it settles.
     onLockCalendar: { isViewer: isViewerMode, lock: lockCalendar },
+    // The drawer's two document links are refused at the tap while the Calendar is locked (v23.17).
+    canReadDocuments: hasDocumentAccess,
 });
 
 // ── Start the Calendar, or ask for the staff PIN ─────────────────────────────────────────────────
@@ -1216,7 +1221,7 @@ initCalendarAccess({
     // out of the local cache, nothing from the server"; `null` is the ordinary full grant; `false`
     // means the provisional paint is being withdrawn because the identity did not confirm.
     onEveryGrant: (/** @type {string|null|false} */ scope = null) => {
-        if (scope === false) { setOverrideAccess(false); _crossMemberControls(true); return; }
+        if (scope === false) { setOverrideAccess(false); setDocumentAccess(false); _crossMemberControls(true); return; }
         // Open the override reads BEFORE building the workspace. The reverse order would let the
         // first render's `ensureOverridesCached` run against a closed gate, silently claim nothing,
         // and leave the month unfetched for the session.
@@ -1230,7 +1235,12 @@ initCalendarAccess({
         // Month navigation and Team View reach Firestore through `ensureOverridesCached`, not
         // through the initial fetch — so they need the same access-lost recovery, and they are the
         // likelier path once a session has been open for a while (v20.15).
-        setOverrideAccessLostHandler(handleAccessLost);
+        setOverrideAccessLostHandler(() => { setDocumentAccess(false); handleAccessLost(); });
+        // THE DOCUMENTS OPEN ON A FULL GRANT ONLY (v23.17). A provisional scope is one member's own
+        // cached roster while their identity is checked — not access, and not a licence to read the
+        // Huddle. `null` is the ordinary grant; this is where the Huddle subscription starts and a
+        // Circular tap held back by the lock is finished.
+        setDocumentAccess(scope === null);
         // A RE-grant also repaints (v20.45). `grant()` un-hides the workspace exactly as the
         // re-lock left it, and nothing else asks for a render — every fetch in this app is pulled
         // by one — so without this the member who just entered the rotated PIN looked at the grid
