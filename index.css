@@ -3386,6 +3386,49 @@
         /* Nothing here belongs on paper — and a printed page cannot finish loading. */
         @media print { .cal-boot { display: none !important; } }
 
+        /* ── THE HUDDLE VIEWER, ON PAPER (v23.20) ──────────────────────────────────────────
+           The viewer had no print rules at all, and the consequence was not an ugly sheet — it
+           was a SILENT LOSS. `#huddleViewer` is `position: fixed; inset: 0` and `#huddleViewerBody`
+           is the scroll container, so printing it clipped the day plan to one viewport and stopped.
+           Measured with a 40-row plan: 30 rows reached the paper and rows 31–40 simply were not
+           there, with nothing on the sheet to say so. A supervisor carrying that to the platform
+           has a document that looks complete and is not.
+
+           So the viewer prints as a DOCUMENT: it leaves the fixed layer, both scroll containers
+           become visible, and the ✕ — which printed, measured — goes. Table headers repeat on each
+           page and rows stop splitting mid-height, because a day plan read across a page break is
+           the normal case once it is longer than a sheet.
+
+           This is the mechanical half only. WHETHER a Daily Huddle should be printable at all, and
+           whether it wants landscape and its own "Print Daily Huddle" control with a header naming
+           the day, are decisions for the owner — see ROADMAP. What is not a decision is that if a
+           browser prints it today, the sheet must not quietly end at row 30. */
+        @media print {
+            #huddleViewer {
+                position: static !important;
+                display: block !important;
+                opacity: 1 !important;
+                transform: none !important;
+                inset: auto !important;
+                z-index: auto !important;
+            }
+            #huddleViewerBody,
+            #huddleViewerBody .huddle-table-wrap {
+                overflow: visible !important;
+                max-height: none !important;
+                /* The wrap's scroll-shadow gradients are a screen affordance for a table that
+                   continues past the edge; on paper nothing continues, and they print as grey
+                   smears down both margins. */
+                background: none !important;
+            }
+            #huddleViewerBody { flex: none !important; }
+            #huddleViewerClose { display: none !important; }
+            #huddleViewerHeader { position: static !important; }
+            #huddleViewerBody thead { display: table-header-group; }
+            #huddleViewerBody tr { break-inside: avoid; }
+        }
+
+
         /* The MEMBER variant's explanation (v20.79). It stands alone rather than sitting under a
            field, so it has to carry the breathing room `.login-field`'s own margin would otherwise
            have given it — without this the sentence sits ~10px off the button, where every other
