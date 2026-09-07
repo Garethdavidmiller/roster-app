@@ -291,9 +291,22 @@ service cloud.firestore {
     }
 
     match /huddles/{date} {
-      // Open read: index.html reads huddles without a Firebase Auth session —
-      // required for Huddle button and notification auto-open on fresh visits.
-      allow read;
+      // ── READ REQUIRES ACCESS (v23.18 — was `allow read;` from v10.76; owner decision 7 Sep 2026:
+      // the Huddle, the Circular and the Newsletter are not visible without the staff PIN or a
+      // password). The same three doors as `overrides`: a member's `name` claim, `admin`, or the
+      // shared `calendarViewer` capability the PIN mints. The reason it was open — a notification
+      // tap on a fresh visit carried no session — is answered on the client since v23.17: the tap
+      // is HELD behind the PIN card and finished by the PIN (calendar-doc-access.js). The client
+      // shipped FIRST, so no device relies on this read being open by the time it closes; and the
+      // client refuses the read at source, which this rule cannot do for the local cache.
+      // A DOCX Huddle's converted TEXT lives in this document (`htmlContent`), so this rule is what
+      // closes the words as well as the link. The FILE behind `storageUrl` is a bearer URL and is
+      // NOT protected here — ARCHITECTURE.md EXC-007.
+      allow read: if request.auth != null && (
+        'name' in request.auth.token ||
+        request.auth.token.admin == true ||
+        request.auth.token.calendarViewer == true
+      );
       // Cloud Function writes use Admin SDK — bypasses these rules entirely.
       // Browser writes (manual admin upload in operations.html) require admin claim.
       // Non-admin staff cannot alter huddle metadata even if authenticated.
@@ -579,15 +592,16 @@ service cloud.firestore {
     }
 
     match /circulars/{date} {
-      // Open read: calendar-app.js reads Circular metadata without a Firebase Auth
-      // session (the Calendar deliberately supports anonymous use, matching Huddles).
-      // The stored URL is a BEARER download URL (a permanent tokenised Storage link):
-      // anyone who obtains it can fetch the file while the token is valid — it is NOT
-      // re-checked against Storage rules at click time. Don't store confidential documents
-      // here unless the delivery model changes. (Metadata read being open is acceptable
-      // because the bearer URL is the real access control, not the Firestore doc.)
+      // ── READ REQUIRES ACCESS (v23.18) — same rule and same reasoning as `huddles` above; the
+      // read was open from v13.58 because the Calendar had no session. The stored URL is still a
+      // BEARER download URL: anyone who already holds one can fetch the file (EXC-007). This rule
+      // stops new readers DISCOVERING one without the PIN or a password.
       // Only admin may write; hasOnly (not hasAll) prevents extra fields.
-      allow read;
+      allow read: if request.auth != null && (
+        'name' in request.auth.token ||
+        request.auth.token.admin == true ||
+        request.auth.token.calendarViewer == true
+      );
       allow create, update: if
         request.auth != null &&
         request.auth.token.admin == true &&
@@ -605,8 +619,12 @@ service cloud.firestore {
     }
 
     match /newsletters/{date} {
-      // Open read — same rationale as circulars above.
-      allow read;
+      // ── READ REQUIRES ACCESS (v23.18) — same rule as circulars above.
+      allow read: if request.auth != null && (
+        'name' in request.auth.token ||
+        request.auth.token.admin == true ||
+        request.auth.token.calendarViewer == true
+      );
       allow create, update: if
         request.auth != null &&
         request.auth.token.admin == true &&
