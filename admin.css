@@ -1557,33 +1557,41 @@
             .al-year-chip:not(.is-active):hover { border-color: var(--primary-blue); color: var(--text-dark); }
         }
 
-        .al-period-month { margin-bottom: 14px; }
+        /* A LEDGER, NOT A STACK OF CARDS (v23.10, owner review). This list is READ-ONLY, one line
+           per booking — where the day grid and Saved Changes beside it are EDITORS, and cards suit
+           an editor. As card-per-row it measured 58px a booking for one 13px line of text (the row
+           was sized by its 44px delete target, not its content), with a hairline border around each
+           of fifteen. Now each MONTH is one bordered box and the bookings inside it are divided
+           rows: the same tap target, ~46px a row, one border per month. The horizontal padding
+           matches the neighbours (12px) so the text column lines up with theirs. */
+        .al-period-month {
+            margin-bottom: 14px;
+            background: var(--surface);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius);
+            overflow: hidden;   /* the first/last row's hover fill clips to the corner */
+        }
         .al-period-month:last-child { margin-bottom: 0; }
         .al-period-month-hdr {
+            padding: 8px 12px 6px;
             font-size: var(--type-badge);
             font-weight: 700;
             color: var(--text-light);
             text-transform: uppercase;
             letter-spacing: .06em;
-            margin-bottom: 6px;
+            background: var(--bg-faint);
+            border-bottom: 1px solid var(--border-light);
         }
-        /* ONE LINE PER BOOKING (v23.09). This was a two-row stacked card — dates above, then a
-           meta row carrying the pill and a text "Delete" — at ~96px each, so fifteen bookings ran
-           to fourteen hundred pixels of scroll. Dropping "AL" from the pill and the word from the
-           delete control is what buys the horizontal room; `flex-wrap` is the fallback rather than
-           the layout, for a 320px screen or a large text scale. */
         .al-period-row {
             display: flex;
             flex-wrap: wrap;
             align-items: center;
             gap: 4px 8px;
-            padding: 6px 6px 6px 12px;
-            background: var(--surface);
-            border: 1px solid var(--border-light);
-            border-radius: var(--radius);
-            margin-bottom: 6px;
+            min-height: 46px;
+            padding: 1px 6px 1px 12px;
+            border-top: 1px solid var(--border-light);
         }
-        .al-period-month > .al-period-row:last-child { margin-bottom: 0; }
+        .al-period-month-hdr + .al-period-row { border-top: none; }
         .al-period-dates {
             flex: 1 1 auto;
             /* `min-width: 0` so a long range ellipsises instead of forcing the row wider than the
@@ -1593,21 +1601,27 @@
             text-overflow: ellipsis;
             white-space: nowrap;
             font-size: var(--type-label);
-            font-weight: 500;
+            font-weight: 700;            /* the same weight as Saved Changes' date (.oc-date) */
             color: var(--text-dark);
+            font-variant-numeric: tabular-nums;
         }
-        /* A COLUMN, NOT A RAGGED EDGE. "1 day" and "12 days" are different widths, and with the pill
-           packed against the delete control the counts zig-zagged down the list. A minimum width
-           sized to the widest plausible label makes them a column the eye can run down. */
+        /* THE SAME PILL VOCABULARY AS SAVED CHANGES. These take the `.list-type-pill` recipe —
+           micro, uppercase, tracked — and its two colour pairs (`.lpill-annual_leave`,
+           `.lpill-sick`), so one page does not carry two different "annual leave" chips. A
+           minimum width makes the counts a column the eye can run down: "1 DAY" and "12 DAYS"
+           packed against the delete control zig-zagged. */
         .al-period-count,
         .sick-period-count {
             flex: 0 0 auto;
-            min-width: 5em;
+            display: inline-block;
+            min-width: 5.5em;
             text-align: center;
-            font-size: var(--type-badge);
+            font-size: var(--type-micro);
             font-weight: 700;
-            padding: 3px 9px;
-            border-radius: var(--radius-pill);
+            padding: 3px 8px;
+            border-radius: var(--radius);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
             white-space: nowrap;
             font-variant-numeric: tabular-nums;
         }
