@@ -80,6 +80,13 @@ function makeEl(/** @type {string} */ id) {
             remove: (/** @type {string} */ c) => { const i = classes.indexOf(c); if (i >= 0) classes.splice(i, 1); },
             contains: (/** @type {string} */ c) => classes.includes(c),
         },
+        // ATTRIBUTES, because the two-tap confirm now renames the control while armed (v23.16) and
+        // a fake with no `getAttribute` would throw inside the handler — aborting the bulk delete
+        // this whole suite exists to exercise, in exactly the way the fake DOM's missing `toggle`
+        // did to the renderer at v23.12. Kept as a plain map so a test can seed and read one.
+        /** @type {Record<string, string>} */ _attrs: {},
+        getAttribute(/** @type {string} */ k) { return k in this._attrs ? this._attrs[k] : null; },
+        setAttribute(/** @type {string} */ k, /** @type {string} */ v) { this._attrs[k] = String(v); },
         /** @type {Record<string, Function[]>} */ _on: {},
         addEventListener(/** @type {string} */ t, /** @type {Function} */ fn) { (this._on[t] ??= []).push(fn); },
         appendChild(/** @type {any} */ child) { if (child) kids.push(child); return child; },
@@ -171,8 +178,11 @@ function setup() {
         e.className = '';
         e.style = {};
         for (const k of Object.keys(e.dataset)) delete e.dataset[k];
+        for (const k of Object.keys(e._attrs)) delete e._attrs[k];
         e.classList.remove('confirming');
     }
+    // The bulk button's idle accessible name, as admin.html gives it.
+    el('bulkDeleteBtn').setAttribute('aria-label', 'Delete selected changes');
     if (!_wiredOnce) {
         _wiredOnce = true;
         initSavedChanges({
@@ -223,6 +233,24 @@ describe('1. stuck after SUCCESS — the shipped defect', () => {
             'this test is not exercising the empty-list branch it was written for');
         assert.equal(el('bulkDeleteBtn').disabled, false);
         assert.equal(el('bulkDeleteBtn').textContent, 'Delete selected');
+    });
+});
+
+describe('1b. the accessible NAME travels with the label (v23.16, external review)', () => {
+    test('while armed it says so, and after the delete it says what it said before', async () => {
+        _checked = ['a'].map(row);
+        await fire('bulkDeleteBtn', 'click');   // arms
+        assert.equal(el('bulkDeleteBtn').getAttribute('aria-label'), 'Confirm delete selected changes',
+            'a destructive two-step control has to announce that its meaning changed');
+        await fire('bulkDeleteBtn', 'click');   // deletes
+        assert.equal(el('bulkDeleteBtn').getAttribute('aria-label'), 'Delete selected changes',
+            'and change back — the glyph returning with the name still saying Confirm is the shipped shape');
+    });
+
+    test('a FAILED delete puts the name back too', async () => {
+        _commit = async () => { throw Object.assign(new Error('nope'), { code: 'unavailable' }); };
+        await bulkDelete(['a']);
+        assert.equal(el('bulkDeleteBtn').getAttribute('aria-label'), 'Delete selected changes');
     });
 });
 

@@ -259,8 +259,13 @@ export function createBookedPeriods(deps) {
                         cont.append(glyph, said);
                         if (where === 'before') dates.prepend(cont); else dates.appendChild(cont);
                     };
-                    if (!isHead) mark('before', '←', `continued from ${deps.fmtDate(p.splitFrom)}`);
-                    if (!isTail) mark('after',  '→', `continues to ${deps.fmtDate(p.splitTo)}`);
+                    // WITH THE YEAR (v23.16, external review): the active chip gives a sighted
+                    // reader the year, but a screen-reader user tabbing straight to the row's ✕
+                    // hears "continued from Mon 28 Dec" with no year in earshot. `fmtDate` omits it
+                    // on purpose for the visible column; the hidden phrase is the one place it costs
+                    // nothing to say.
+                    if (!isHead) mark('before', '←', `continued from ${deps.fmtDate(p.splitFrom)} ${p.splitFrom.slice(0, 4)}`);
+                    if (!isTail) mark('after',  '→', `continues to ${deps.fmtDate(p.splitTo)} ${p.splitTo.slice(0, 4)}`);
                 }
                 row.appendChild(dates);
 
