@@ -30,11 +30,16 @@ describe('bookedYears — the years a chip may exist for', () => {
             ['2026', '2027']);
     });
 
-    it('keys a YEAR-SPANNING booking to the year it STARTS in, and lists it once', () => {
-        // 28 Dec 2026 → 1 Jan 2027 is one booking a person made once. Two chips would present it as
-        // two, and filing it under 2027 would hide it from the year they booked it in.
-        assert.deepEqual(bookedYears([{ start: '2026-12-28', end: '2027-01-01', count: 5 }]),
-            ['2026']);
+    it('lists BOTH years of a booking cut at the year end — it is only ever fed split segments', () => {
+        // 28 Dec 2026 → 1 Jan 2027 reaches this function as two segments, because the renderer runs
+        // `splitAtYearEnd` first (v23.11, owner decision: a date appears in the year it FALLS in).
+        // This case used to hand it the unsplit booking and assert `['2026']`, with a comment
+        // defending the start-year rule the owner had overturned — it passed only because the
+        // function is naive about input it no longer receives. Pinned the right way round.
+        assert.deepEqual(bookedYears(splitAtYearEnd(
+            [{ start: '2026-12-28', end: '2027-01-01', count: 5 }],
+            ['2026-12-28', '2026-12-29', '2026-12-30', '2026-12-31', '2027-01-01'])),
+            ['2026', '2027']);
     });
 
     it('survives the shapes a cache can actually hand it', () => {

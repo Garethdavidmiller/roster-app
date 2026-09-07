@@ -1540,7 +1540,10 @@
         }
         .al-year-chip {
             padding: 6px 14px;
-            min-height: 36px;
+            /* 44px, the same target as every other control on this card (v23.15 review). It shipped
+               at 36px — the only new control on the page under the touch standard its neighbours
+               (the ✕ deletes, Saved Changes' ✎ · ✕) all meet. */
+            min-height: 44px;
             border: 1px solid var(--border-light);
             border-radius: var(--radius-pill);
             background: var(--surface);

@@ -2175,6 +2175,118 @@ test('admin: choosing a year from the keyboard keeps focus on the year you chose
 // side at 44px, the row no taller than the pair of them plus its padding, and the member's name
 // stated once at the top rather than on every row of a single-member list.
 
+// ── THE WIRING AROUND THE YEAR SELECTOR (v23.15 review) ──────────────────────────────────────────
+//
+// The three rungs of `pickBookedYear` are unit-tested; these are the three places the coordinator
+// has to FEED it, none of which had a test — and one of which was wrong: scrolling the range picker
+// into another year moved the banner and left the list on the old year, because `onViewYearChange`
+// re-ran the banner and not the list. The rule tested, the wiring not.
+
+/** Two members, each with leave in 2026 and 2028, so a pinned 2028 is a year the SECOND member also
+ *  has — the only shape that can tell "the pin was cleared" from "the pin fell off a year that was
+ *  not there". @param {import('@playwright/test').Page} page */
+async function seedTwoMembersTwoYears(page) {
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            docs: [
+                { id: 'g1', memberName: 'G. Miller', date: '2026-03-02', type: 'annual_leave', value: 'AL', note: '' },
+                { id: 'g2', memberName: 'G. Miller', date: '2028-06-22', type: 'annual_leave', value: 'AL', note: '' },
+                { id: 's1', memberName: 'S. Silva',  date: '2026-04-06', type: 'annual_leave', value: 'AL', note: '' },
+                { id: 's2', memberName: 'S. Silva',  date: '2028-07-13', type: 'annual_leave', value: 'AL', note: '' },
+            ],
+        });
+    });
+}
+
+test('admin: a year chosen for one member is not carried over to the next', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await seedTwoMembersTwoYears(page);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#alBookedToggle').click();
+    await expect(page.locator('#alBookedBody')).toBeVisible();
+
+    const active = page.locator('#alBookedBody .al-year-chip.is-active');
+    await expect(active, 'opens on the year the banner describes').toHaveText('2026');
+    // The chips meet the same 44px target as every other control on the card (v23.15) — they
+    // shipped at 36px, the only new control under the standard its neighbours meet.
+    expect((await active.boundingBox())?.height ?? 0, 'a year chip is a 44px target').toBeGreaterThanOrEqual(44);
+    await page.locator('#alBookedBody .al-year-chip', { hasText: '2028' }).click();
+    await expect(active, 'the tap pins 2028').toHaveText('2028');
+
+    // Switch member. S. Silva HAS 2028 leave, so if the pin survived the switch the list would open
+    // on 2028 — a year the reader chose about somebody else.
+    await page.locator('#fieldMember').selectOption('S. Silva');
+    await expect(page.locator('#alBookedBody .al-year-chip')).toHaveText(['2026', '2028']);
+    await expect(active, 'a new member starts from the banner year, not the last pin').toHaveText('2026');
+    await expect(page.locator('#alBookedBody .al-period-dates').first()).toContainText('Apr');
+});
+
+test('admin: scrolling the date picker into another year moves the list with the banner', async ({ page }) => {
+    // The banner follows the picker's displayed year (v22.82); the list is meant to follow the
+    // banner (pickBookedYear's `preferred` rung). Until v23.15 only the banner was re-run.
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            docs: [
+                { id: 'a1', memberName: 'G. Miller', date: '2026-03-02', type: 'annual_leave', value: 'AL', note: '' },
+                { id: 'a2', memberName: 'G. Miller', date: '2027-06-22', type: 'annual_leave', value: 'AL', note: '' },
+            ],
+        });
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#alBookedToggle').click();
+    await expect(page.locator('#alBookedBody')).toBeVisible();
+
+    const active = page.locator('#alBookedBody .al-year-chip.is-active');
+    await expect(active).toHaveText(String(new Date().getFullYear()));
+
+    // Page the range picker forward until it is showing a month of NEXT year.
+    const next = page.locator('#alRpNext');
+    const label = page.locator('#alRpLabel');
+    const target = String(new Date().getFullYear() + 1);
+    for (let i = 0; i < 14 && !(await label.textContent() || '').includes(target); i++) await next.click();
+    await expect(label, 'the picker must actually be showing next year').toContainText(target);
+
+    // The banner carries its year only in its FIGURES (which year the 32 is counted against), so
+    // the list's chip is the one visible statement of the year on this card — and it must agree
+    // with what the figures now describe.
+    await expect(active, 'the list follows the picker, as the banner does').toHaveText(target);
+    await expect(page.locator('#alBookedBody .al-period-dates').first()).toContainText('Jun');
+});
+
+test('admin: deleting a recorded booking confirms in the toast, not only at the top of the card', async ({ page }) => {
+    // The inline feedback sits at the top of the card; the row that was deleted can be a screen
+    // below it. A destructive action whose confirmation lands off-screen is one the admin repeats.
+    await seedMemberSession(page, 'G. Miller');   // a real user, so the delete is not refused
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            docs: [{ id: 'a1', memberName: 'G. Miller', date: '2026-03-02', type: 'annual_leave', value: 'AL', note: '' }],
+        });
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#alBookedToggle').click();
+
+    const btn = page.locator('#alBookedBody .btn-period-delete').first();
+    await btn.click();
+    await expect(btn).toHaveText('Confirm?');
+    await btn.click();
+
+    const toast = page.locator('#saveToast');
+    await expect(toast).toHaveClass(/visible/);
+    await expect(toast).toHaveText(/Deleted 1 AL day for G\. Miller/);
+    // And the row is gone: with no leave left the box hides rather than showing an empty year.
+    await expect(page.locator('#alBookedBox')).toBeHidden();
+});
+
 test('admin: a Saved Changes row is one row — controls side by side, under 64px', async ({ page }) => {
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => {

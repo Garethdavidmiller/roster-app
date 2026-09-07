@@ -144,7 +144,10 @@ export function initALSection({
         afterDateChange: () => { updateALBanner(); updateALBookedBox(); },
         // The picker crossing into another year is a change of SUBJECT, not of selection: the
         // figures above it describe a year, and the reader is now looking at a different one.
-        onViewYearChange: (/** @type {number} */ y) => { setALPickerYear(y); updateALBanner(); },
+        // THE LIST TOO (v23.15): it opens on the banner's year (`pickBookedYear`'s preferred rung),
+        // so re-running only the banner left the two naming different years — the figures for 2027
+        // above a list still showing 2026. Found by the review; pinned by e2e.
+        onViewYearChange: (/** @type {number} */ y) => { setALPickerYear(y); updateALBanner(); updateALBookedBox(); },
         afterSave: () => { updateALBanner(); updateALBookedBox(); updateSickBookedBox(); },
         onClick: () => { confirmedOverLimit = _alBookingConfirmed; _alBookingConfirmed = false; },
         preSave: checkEntitlement,
