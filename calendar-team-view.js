@@ -483,8 +483,36 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         }
     }
 
+    /**
+     * The landscape paper rule, owned by the MODE (v23.20).
+     *
+     * It used to be installed by the About lightbox's own print button, which meant the paper the
+     * roster landed on depended on WHICH ROUTE you printed by: the button gave A4 landscape, while
+     * Ctrl+P, the browser's File → Print, the `p` keyboard shortcut in `calendar-app.js` and
+     * AirPrint all fell through to the stylesheet's portrait — measured, by rendering the same page
+     * both ways (297×210 against 210×297). A seven-column grid of shift times is a landscape
+     * document whichever control the reader happened to use.
+     *
+     * Owning it here also retires the leak it used to guard against. The rule is present exactly
+     * while team view is, so it cannot linger into a later portrait calendar print; the old
+     * "clear a leaked @page from a PRIOR print first" dance existed only because an `afterprint`
+     * that iOS may never fire was the thing removing it.
+     */
+    /** @param {boolean} on */
+    function applyTeamPrintPage(on) {
+        const ID = 'tvPrintPage';
+        const existing = document.getElementById(ID);
+        if (!on) { existing?.remove(); return; }
+        if (existing) return;
+        const st = document.createElement('style');
+        st.id = ID;
+        st.textContent = '@page { size: A4 landscape; margin: 1cm; }';
+        document.head.appendChild(st);
+    }
+
     /** Applies/removes all non-content DOM changes for team view mode. */
     function applyTeamViewChrome() {
+        applyTeamPrintPage(teamViewMode);
         const teamBtn = document.getElementById('teamViewBtn');
         const navRow  = document.getElementById('navRow');
         const legend  = document.querySelector('.legend');

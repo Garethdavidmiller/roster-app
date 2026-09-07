@@ -1410,6 +1410,14 @@ body {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 @media print {
+    /* A4 PORTRAIT, stated (v23.20). Without an `@page size` the browser uses its own default,
+       which on a Chromium build configured for US locales is LETTER (216×279mm) — measured, by
+       rendering this page and reading the MediaBox back. Letter is 6mm wider and 18mm shorter
+       than A4, so on the A4 stock every printer at this station holds, the layout is composed for
+       a page that is not the sheet: every break lands in the wrong place and the foot can clip.
+       The two document guides (guide-doc.css) and the Calendar, Links and Pay Calculator have
+       always stated it; these had not. */
+    @page { size: A4 portrait; margin: 13mm 12mm; }
     html, body { background: white !important; }
 
     /* Chrome that never prints, on either view. */
