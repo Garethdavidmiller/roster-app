@@ -560,6 +560,11 @@ export function init() {
         const member      = teamMembers.find(m => m.name === memberName);
         if (!member)      { showNothing(); return; }
 
+        // A FOURTH WAY TO HAVE NOTHING TRUTHFUL TO SAY: this member's overrides were never read
+        // (v23.08). Every figure below comes from `getAllOverrides()`, where an unread member and a
+        // member with no leave are the same empty slice — see admin-override-coverage.js's header.
+        if (!hasOverrideAuthorityFor(memberName)) { showNothing(); return; }
+
         // WHICH YEAR THESE FOUR FIGURES DESCRIBE — the precedence between the four places this page
         // implies one is `admin-al-year.js`, where the ordering that broke is tested with no DOM.
         const alFrom  = /** @type {HTMLInputElement|null} */ (document.getElementById('alFrom'));
@@ -1327,6 +1332,10 @@ export function init() {
         if (!box || !body) return;
 
         if (!memberName) { box.hidden = true; return; }
+        // NOT READ IS NOT NOTHING BOOKED (v23.08). No pixel changes on the reported path — an
+        // unread member already fell through to the `!entries.length` exit — but a CAPPED all-staff
+        // read would present a partial history as the whole of it. Reasoning: as above.
+        if (!hasOverrideAuthorityFor(memberName)) { box.hidden = true; return; }
 
         const entries = getAllOverrides().filter(o =>
             o.memberName === memberName &&

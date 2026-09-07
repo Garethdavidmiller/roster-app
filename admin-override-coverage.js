@@ -18,6 +18,15 @@
  *     two overrides for one day
  *   · a worked Sunday erased by an RD correction, because the cache did not know it was worked
  *   · a real sub-12-hour rest gap missed, because the neighbouring day looked empty
+ *   · (v23.08, owner report) "AL left: 32" stated over a member who had taken twenty-six days —
+ *     the AL banner, its collapsed header chip and the Recorded Annual Leave dates box all read
+ *     the empty slice as fact. WHAT MAKES THIS ONE WORTH ADDING is that the first three are
+ *     WRITES and this is a DISPLAY, so the write gates that already ask `hasAuthorityFor` could
+ *     not catch it: the save path refused correctly the whole time, and the screen went on lying.
+ *     Nor was it a flash — a member switch paints those figures BEFORE starting the fetch, and
+ *     only a SUCCESSFUL load repaints them, so a failed read left the number standing beside a
+ *     week grid that was correctly reporting it could not load. A surface that states a figure is
+ *     making the same claim about the cache as a surface that writes one, and owes the same ask.
  *
  * None of those throw. Each produces a page that looks right and a roster that is wrong, which is
  * why the answer is a COVERAGE record rather than a flag, and why the write gates ask about a
