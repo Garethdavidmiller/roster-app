@@ -17,15 +17,19 @@
  * that must be testable without a DOM. `coordinator-ratchet.test.mjs` had named this function as
  * the next extraction candidate; the feature is what made it due.
  *
- * ── THE BOX HOLDS NO FIGURES, AND THAT IS DELIBERATE ────────────────────────────────────────────
+ * ── EVERY DATE APPEARS IN THE YEAR IT FALLS IN, EXACTLY ONCE (v23.11, owner decision) ────────────
  *
- * There is no "31 days in 2026" total here, and it is not an oversight — it was drafted and cut.
- * The AL banner directly above already states entitlement, taken, booked and remaining, and it
- * counts by the year each DATE falls in. This list groups a period under the year it STARTS in,
- * because a booking is one thing a person made and splitting "Mon 28 Dec – Fri 1 Jan" across two
- * chips would misrepresent it. Those two rules disagree by exactly the days in a year-spanning
- * booking — so a total here would sit inches under the banner's total, differ from it by one or
- * two, and be right. The banner owns the figures; this owns the dates. One fact, one home.
+ * A booking that runs Mon 28 Dec → Fri 1 Jan is SPLIT at the year end: 28–31 Dec under 2026,
+ * 1 Jan under 2027. The first cut filed the whole booking under the year it started in, on the
+ * reasoning that it is one booking made once — and the owner's own leave showed why that is the
+ * wrong axis: a member opening 2027 to see what leave they have in it found no 1 January, because
+ * the day was filed under a year they had no reason to open. Leave is counted, capped and asked
+ * about PER YEAR; the list has to be cut the way the question is asked.
+ *
+ * The consequence worth stating: each year's list now adds up to exactly the dates the AL banner
+ * counts for that year, because both cut on the DATE. There is still no total printed here —
+ * the banner directly above owns the figures and this owns the dates, one fact one home — but the
+ * two can no longer disagree, which the start-year rule could not promise.
  *
  * ── WHAT THE PURE HALF IS FOR ───────────────────────────────────────────────────────────────────
  *
@@ -37,13 +41,53 @@
  */
 
 /**
+ * Split merged booking periods at every year end, so no segment crosses 31 Dec → 1 Jan.
+ *
+ * Each segment carries its own `count` — the number of booked DATES inside it — recomputed from
+ * `dateList` rather than divided out of the parent's, because a period bridges rest days that are
+ * not booked dates and a naive split would count them. A segment's `start` and `end` are always
+ * booked dates: the last booked date on or before 31 Dec closes the old year's segment, the first
+ * booked date on or after 1 Jan opens the new one. A period that does not span a year end is
+ * returned as it came.
+ *
+ * @param {{ start: string, end: string, count: number }[]} periods
+ * @param {string[]} dateList  the sorted booked ISO dates the periods were merged from
+ * @returns {{ start: string, end: string, count: number, splitFrom?: string, splitTo?: string }[]}
+ *   `splitFrom`/`splitTo` carry the parent booking's start and end on every segment that is NOT the
+ *   whole booking, so a renderer can say a lone 1 Jan continues from 28 Dec.
+ */
+export function splitAtYearEnd(periods, dateList) {
+    const dates = Array.isArray(dateList) ? dateList : [];
+    /** @type {{ start: string, end: string, count: number, splitFrom?: string, splitTo?: string }[]} */
+    const out = [];
+    for (const p of periods || []) {
+        if (!p || typeof p.start !== 'string' || typeof p.end !== 'string') continue;
+        const inRange = dates.filter(d => d >= p.start && d <= p.end);
+        if (p.start.slice(0, 4) === p.end.slice(0, 4) || inRange.length === 0) { out.push(p); continue; }
+        // Walk the booked dates and cut wherever the year changes.
+        let segStart = inRange[0];
+        let prev = inRange[0];
+        let n = 1;
+        for (let i = 1; i < inRange.length; i++) {
+            const d = inRange[i];
+            if (d.slice(0, 4) !== prev.slice(0, 4)) {
+                out.push({ start: segStart, end: prev, count: n, splitFrom: p.start, splitTo: p.end });
+                segStart = d; n = 0;
+            }
+            prev = d; n++;
+        }
+        out.push({ start: segStart, end: prev, count: n, splitFrom: p.start, splitTo: p.end });
+    }
+    return out;
+}
+
+/**
  * The years this member has bookings in, ascending.
  *
- * Keyed on each period's START. A booking that runs 28 Dec → 1 Jan is one booking, made once, and
- * it belongs under the year the person started it — listing it twice, or under the year it happens
- * to finish in, would both be worse.
+ * Keyed on each segment's START — which, after `splitAtYearEnd`, is also every date's own year:
+ * no segment crosses a year end, so the set of start years IS the set of years with leave in them.
  *
- * @param {{ start: string }[]} periods  merged booking periods, each with an ISO `start`
+ * @param {{ start: string }[]} periods  year-bounded segments, each with an ISO `start`
  * @returns {string[]} four-digit years, ascending, no duplicates
  */
 export function bookedYears(periods) {
@@ -135,11 +179,14 @@ export function createBookedPeriods(deps) {
         const periods = deps.mergePeriods(dateList,
             d => deps.isRestGap(d, memberObj), d => deps.addDays(d, 1));
 
-        const years = bookedYears(periods);
+        // Cut at every year end FIRST, so a 28 Dec → 1 Jan booking puts its January day under
+        // January's year — the owner's decision at v23.11, argued in the header.
+        const segments = splitAtYearEnd(periods, dateList);
+        const years = bookedYears(segments);
         const year  = pickBookedYear({ pinned: pinned[boxId], preferred: cfg.preferredYear, years });
         if (!year) return hide();
 
-        const shown = periods.filter(p => p.start.slice(0, 4) === year);
+        const shown = segments.filter(p => p.start.slice(0, 4) === year);
         /** @type {Record<string, any[]>} */ const byMonth = {};
         for (const p of shown) (byMonth[p.start.slice(0, 7)] = byMonth[p.start.slice(0, 7)] || []).push(p);
 
@@ -189,6 +236,32 @@ export function createBookedPeriods(deps) {
                 const dates = deps.doc.createElement('span');
                 dates.className = 'al-period-dates';
                 dates.textContent = dateStr;
+                // A segment of a booking that crossed the year end says so — a lone "Fri 1 Jan"
+                // otherwise reads as a one-day booking somebody made, rather than the tail of the
+                // Christmas week. The VISIBLE marker is an arrow — leading for a segment continued
+                // from the previous year, trailing for one that continues into the next — because
+                // the sentence ("continued from previous year") measured 66px against a 46px row
+                // at 375px: it wrapped the pill and the delete control onto a second line. The
+                // sentence, with the actual date, is kept for screen readers.
+                if (p.splitFrom && p.splitTo) {
+                    const isHead = p.start === p.splitFrom;
+                    const isTail = p.end === p.splitTo;
+                    /** @param {'before'|'after'} where @param {string} arrow @param {string} phrase */
+                    const mark = (where, arrow, phrase) => {
+                        const cont = deps.doc.createElement('span');
+                        cont.className = 'al-period-cont';
+                        const glyph = deps.doc.createElement('span');
+                        glyph.setAttribute('aria-hidden', 'true');
+                        glyph.textContent = arrow;
+                        const said = deps.doc.createElement('span');
+                        said.className = 'visually-hidden';
+                        said.textContent = ` ${phrase}`;
+                        cont.append(glyph, said);
+                        if (where === 'before') dates.prepend(cont); else dates.appendChild(cont);
+                    };
+                    if (!isHead) mark('before', '←', `continued from ${deps.fmtDate(p.splitFrom)}`);
+                    if (!isTail) mark('after',  '→', `continues to ${deps.fmtDate(p.splitTo)}`);
+                }
                 row.appendChild(dates);
 
                 const count = deps.doc.createElement('span');
