@@ -1242,13 +1242,15 @@ select:focus-visible, input:focus-visible {
     /* ── Password Reset Requests ─────────────────────────────────────────────
        Deliberately reuses the Error Log row vocabulary (same type sizes, same faint timestamp) so the
        two queues on this page read as one system rather than two designs. */
-    .rr-list { display: flex; flex-direction: column; gap: 8px; }
+    .rr-list { display: flex; flex-direction: column; gap: 6px; }
+    /* 96px a row at 375px for a name, a time and a one-line remedy (v23.12 sweep): the row wraps
+       to two lines by design, so the vertical gap between them is what it costs. 6px, not 10px. */
     .rr-row {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 6px 10px;
         flex-wrap: wrap;
-        padding: 10px 12px;
+        padding: 8px 12px;
         background: var(--surface-sunken);
         border-radius: var(--radius);
         border-left: 3px solid var(--accent-gold);

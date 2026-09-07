@@ -2166,6 +2166,58 @@ test('admin: choosing a year from the keyboard keeps focus on the year you chose
     expect(focused?.text, 'and on the one that was chosen').toBe('2028');
 });
 
+// ── SAVED CHANGES ROWS ARE ROWS (v23.12, owner review) ──────────────────────────────────────────
+//
+// Measured before the change at 375px: 76px on a desktop pointer and ~110px on a phone, for two
+// lines of 13px text — because Edit and Delete were stacked in a column and the touch block raised
+// each to 36px, so the actions cluster set the height of every row. The recorded-dates list beside
+// it had just been brought to 46px. This pins the shape that fixed it: the two controls side by
+// side at 44px, the row no taller than the pair of them plus its padding, and the member's name
+// stated once at the top rather than on every row of a single-member list.
+
+test('admin: a Saved Changes row is one row — controls side by side, under 64px', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            docs: [
+                { id: 'a', memberName: 'G. Miller', date: '2026-09-01', type: 'sick',  value: 'SICK', note: '' },
+                { id: 'b', memberName: 'G. Miller', date: '2026-09-08', type: 'shift', value: '15:15-23:55', note: '' },
+            ],
+        });
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#overridesToggleHeader').click();
+    const card = page.locator('.override-card').first();
+    await expect(card).toBeVisible();
+
+    const g = await card.evaluate(el => {
+        const r = sel => /** @type {HTMLElement} */ (el.querySelector(sel)).getBoundingClientRect();
+        return {
+            row:   Math.round(el.getBoundingClientRect().height),
+            dir:   getComputedStyle(/** @type {HTMLElement} */ (el.querySelector('.oc-actions'))).flexDirection,
+            edit:  r('.btn-edit'), del: r('.btn-delete'),
+        };
+    });
+    expect(g.dir, 'Edit and Delete sit side by side').toBe('row');
+    expect(g.edit.height, 'Edit keeps its 44px target').toBeGreaterThanOrEqual(44);
+    expect(g.del.height,  'Delete keeps its 44px target').toBeGreaterThanOrEqual(44);
+    expect(Math.abs(g.edit.top - g.del.top), 'and they share a line').toBeLessThan(2);
+    expect(g.row, 'the row is sized by its content, not a stacked control cluster').toBeLessThan(64);
+
+    // The controls kept their names — the glyph alone has none.
+    await expect(card.locator('.btn-edit')).toHaveAttribute('aria-label', /^Edit G\. Miller 2026-09-01$/);
+    await expect(card.locator('.btn-delete')).toHaveAttribute('aria-label', /^Delete G\. Miller 2026-09-01$/);
+
+    // One member on screen: the name is not repeated on every row…
+    await expect(card.locator('.oc-member')).toBeHidden();
+    // …and returns for All staff, where it is what tells the rows apart.
+    await page.locator('#showAllOverridesBtn').click();
+    await expect(page.locator('#showAllOverridesBtn')).toHaveText('This member only');
+    await expect(page.locator('.override-card').first().locator('.oc-member')).toBeVisible();
+});
+
 test('admin: "All staff" fetches everyone rather than listing whoever happened to be loaded',
     async ({ page }) => {
         // A short list that looks complete is the failure the query-cap banner exists to prevent one

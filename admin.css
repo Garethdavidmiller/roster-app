@@ -1187,15 +1187,25 @@
            375px. Interactive class names (.row-select/.btn-edit/.btn-delete/.list-type-pill)
            are unchanged, so the delegated listeners keep working. */
         .override-cards { display: flex; flex-direction: column; gap: 8px; }
+        /* ONE ROW, TWO LINES OF TEXT, TWO 44px CONTROLS SIDE BY SIDE (v23.12, owner review). This
+           card measured 76px on a desktop and ~110px on a phone: Edit and Delete were STACKED in a
+           column, and the touch block below raised each to 36px, so the actions cluster — not the
+           two lines of text it sits beside — set the height of every row. The controls are now a
+           horizontal pair of 44px glyph squares (✎ · ✕), the same recipe as the recorded-dates
+           list's ✕, and the row is as tall as the taller of its text and one control: ~60px. */
         .override-card {
             display: flex;
             align-items: center;
             gap: 10px;
-            padding: 10px 12px;
+            padding: 8px 8px 8px 12px;
             background: var(--surface);
             border: 1px solid var(--border-light);
             border-radius: var(--radius);
         }
+        /* THE MEMBER'S NAME IS NOT REPEATED ON EVERY ROW when the list is already filtered to one
+           member — the STAFF MEMBER control at the top of the page states it once. It returns for
+           the All-staff view, where it is the thing that distinguishes one row from the next. */
+        .oc-single-member .oc-member { display: none; }
         .override-card .row-select { flex-shrink: 0; width: 18px; height: 18px; margin: 0; }
         .oc-body { flex: 1; min-width: 0; }
         .oc-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
@@ -1203,13 +1213,13 @@
         .oc-member { font-size: var(--type-label); color: var(--text-mid); }
         .oc-detail { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
         .oc-value  { font-family: ui-monospace, monospace; font-size: var(--type-small); color: var(--text-mid); }
-        .oc-actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+        .oc-actions { display: flex; flex-direction: row; align-items: center; gap: 2px; flex-shrink: 0; }
         .override-state { padding: 16px 4px; text-align: center; color: var(--text-light); font-size: var(--type-label); line-height: 1.5; }
 
         /* Loading skeleton (v16.73): three shimmer rows shaped like the override cards they
            stand in for — replaces the bare "Loading…" text. Reduced-motion: static tint. */
         .skeleton-row {
-            height: 52px;
+            height: 60px;
             border-radius: 8px;
             background: linear-gradient(90deg,
                 var(--surface-sunken) 30%,
@@ -1279,40 +1289,43 @@
             white-space: nowrap;
         }
 
-        .btn-edit {
-            background: transparent;
-            color: var(--primary-blue);
-            border: 1px solid var(--border-light);
-            font-size: var(--type-badge);
-            font-weight: 700;
-            padding: 4px 9px;
-            border-radius: var(--radius-xs);
-            cursor: pointer;
-            transition: background 0.12s;
-            font-family: inherit;
-            white-space: nowrap;
-        }
-        @media (hover: hover) and (pointer: fine) { .btn-edit:hover { background: var(--bg-faint); border-color: var(--primary-blue); } }
-
+        /* EDIT AND DELETE: two 44px glyph squares, named by aria-label (which already carried the
+           member and the date). The word versions needed 58px each and, stacked, set the row's
+           height; the glyphs are the recorded-dates list's idiom, so the two lists on this page
+           now share one vocabulary for "act on this row". */
+        .btn-edit,
         .btn-delete {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 44px;
+            min-height: 44px;
+            padding: 0 8px;
             background: transparent;
-            color: var(--error-red);
-            border: 1px solid currentColor;
-            font-size: var(--type-badge);
-            font-weight: 700;
-            padding: 4px 10px;
+            border: none;
             border-radius: var(--radius-xs);
+            font-family: inherit;
+            font-size: var(--type-medium);
+            line-height: 1;
             cursor: pointer;
             white-space: nowrap;
-            transition: background 0.12s;
-            font-family: inherit;
+            transition: color var(--dur-fast) var(--ease-standard),
+                        background var(--dur-fast) var(--ease-standard);
         }
-
-        @media (hover: hover) and (pointer: fine) { .btn-delete:hover { background: var(--error-bg); } }
+        .btn-edit   { color: var(--primary-blue); }
+        .btn-delete { color: var(--text-mid); }
+        @media (hover: hover) and (pointer: fine) {
+            .btn-edit:hover   { background: var(--bg-faint); }
+            .btn-delete:hover { color: var(--error-text); background: var(--error-bg); }
+        }
+        .btn-edit:focus-visible,
+        .btn-delete:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
         .btn-delete.confirming {
             background: var(--error-red);
             color: white;
-            border-color: var(--error-red);
+            font-size: var(--type-badge);
+            font-weight: 700;
+            padding: 0 12px;
             animation: pulse-confirm 0.35s ease-out;
         }
         @keyframes pulse-confirm {
@@ -1740,10 +1753,8 @@
                buttons stacked in the same corner of every saved-change row at 36px and 24px — a
                mismatch you can see, over a tap target you can miss. The same omission caught the
                row checkbox, whose twin in the week grid (`.day-cb`) is enlarged three rules below. */
-            .btn-delete, .btn-edit {
-                padding: 8px 12px;
-                min-height: 36px;
-            }
+            /* .btn-delete / .btn-edit are 44px squares at every pointer size since v23.12, so the
+               touch enlargement this block used to give them is no longer needed here. */
             .override-card .row-select { width: 22px; height: 22px; }
             /* The over-entitlement decision — the one confirm on this page a manager can get wrong
                in a way that costs somebody leave. It was the smallest pair of buttons on it. */
