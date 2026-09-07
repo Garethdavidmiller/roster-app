@@ -67,7 +67,9 @@ Two consequences follow, and both are easy to get wrong:
 
 Open reads (`allow read;` in `firestore.rules`): **`huddles`, `circulars`, `newsletters`** — the three
 document collections, deliberately, because a notification tap carries no session. Everything else
-requires auth, and most requires a claim.
+requires auth, and most requires a claim. **CLOSING (owner decision, 7 Sep 2026):** the client stopped
+reading them without access at v23.17 (`calendar-doc-access.js` — §5 below), and the rules follow in the
+release after, mirroring `overrides`. The bearer-URL exposure in §5 is unchanged by either.
 
 - **`overrides` is NO LONGER open** (closed 26 Aug 2026, v21.78). It carries `memberName` + `date` +
   `type` + `value` — AL, absence and shift changes for every member — and was readable by anyone with
@@ -423,7 +425,21 @@ Whichever is chosen, **existing tokens must be rotated** — old URLs stay live 
 rewritten. **Cost this properly before scheduling E6**; the estimate implied by "swap the delivery model"
 was written before the Office-viewer dependency was noticed.
 
-### E6 vs the notifications — POSSIBLE, not planned (recorded 10 Aug 2026)
+### E6 vs the notifications — DECIDED 7 Sep 2026; the gate half is BUILT (recorded 10 Aug 2026 as a possibility)
+
+*Owner decision, 7 Sep 2026: the Huddle, the Weekly Retail Circular and the Marylebone Newsletter
+must not be visible without the PIN or a password. What was built (v23.17 client, rules the release
+after) is exactly the two things the paragraph below said would need designing: the viewers moved
+behind the access gate (`calendar-doc-access.js`, opened on the full grant only, refusing the read at
+source so the local cache cannot answer it) and the deep link survives the unlock (a tap made while
+locked is HELD and finished when access arrives — no `_entryHash` was ever needed; the viewers keep
+their intent in memory). The judgement call below was taken as "accept the friction and state it":
+a notification still arrives, and a locked device's tap lands on the PIN card with the Huddle one
+PIN away. What this does NOT do is the rest of E6 — bearer URLs already in circulation stay live
+until the objects are rotated, and Microsoft still fetches Word documents server-side. That remains
+open, costed in the table above, and is now `ARCHITECTURE.md` EXC-007.*
+
+*The original record follows unchanged.*
 
 *Owner-raised while the PIN was soaking: "the documents should not be visible until the PIN or a
 password is entered — but how does that interfere with notifications?" Recorded here as a
@@ -458,8 +474,9 @@ nothing.** Delivery model first (the table above), rules last.
   it is the change.
 - **The deep link has to survive the unlock.** Tap → PIN or sign-in → *continue to the document*, not
   arrive at the calendar having lost the reason for coming. Note `initHuddleViewer` and `initDocViewer`
-  strip their own hash **synchronously** via `history.replaceState` (which is why `_entryHash` exists at
-  all), so capture has to happen before the gate, not after it.
+  strip their own hash **synchronously** via `history.replaceState`, so the intent has to be kept in
+  memory before the gate, not re-read from the URL after it. (This used to name an `_entryHash`
+  that never existed; the viewers hold `_autoOpen` / a pending key instead — built v23.17.)
 
 **And one judgement call that is not a technical one:** a notification for something the recipient then
 cannot open is worse than no notification. Either the send becomes conditional on being able to action

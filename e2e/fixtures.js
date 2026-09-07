@@ -267,7 +267,13 @@ export const deleteDoc = (ref) => {
 export const increment = () => marker('increment');   // FieldValue sentinel (usage counters)
 export const deleteField = () => marker('deleteField'); // FieldValue sentinel (usage prune)
 export class FieldPath {}                               // literal field path (usage daily-bucket prune)
-export const onSnapshot = () => noop; // returns the unsubscribe fn; never fires in tests
+// COUNTED (v23.17), like getDocs: the Huddle viewer reads by onSnapshot, and a locked Calendar must
+// attach no listener at all — the local cache would answer one. Never fires in tests.
+export const onSnapshot = () => {
+  const e2e = globalThis.__E2E || (globalThis.__E2E = {});
+  e2e.snapshotSubs = (e2e.snapshotSubs || 0) + 1;
+  return noop;
+};
 
 // ---- auth ----
 // Sign-in normally resolves. Two test hooks (set via addInitScript before page scripts, read at

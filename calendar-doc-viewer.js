@@ -35,11 +35,6 @@ const DOCS = {
                   empty: 'No Marylebone Newsletter has been uploaded yet.' },
 };
 
-/** Wire up the document viewer and open it if the page loaded on a #circular/#newsletter deep link. */
-/**
- * @param {{ authReady?: Promise<any> }} [deps] authReady — resolves once a Firebase session exists.
- *   Awaited before the document read (AUTH_PLAN.md → E1). Defaults to already-resolved.
- */
 /** Wait a moment for a session before reading, then read regardless — the user just tapped a
  *  notification and is watching a "Loading…" panel. */
 const DOC_AUTH_WAIT_MS = 2000;
@@ -49,7 +44,16 @@ const DOC_FETCH_TIMEOUT_MS = 8000;
 /** @param {number} ms */
 const _delay = (ms) => new Promise(r => setTimeout(r, ms));
 
-export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise.resolve()) } = {}) {
+/**
+ * Wire up the document viewer and open it if the page loaded on a #circular/#newsletter deep link.
+ * @param {{ authReady?: Promise<any>, docAccess?: { has: () => boolean, onChange: (fn: (open: boolean) => void) => (() => void) } }} [deps]
+ *   docAccess — THE DOCUMENT GATE (v23.17, calendar-doc-access.js). A tap while it is shut shows
+ *   what to do and issues NO read, cached or live; the tap is remembered and finished when access
+ *   arrives, so a notification deep link that landed on the PIN card still opens the document once
+ *   the PIN is in. Defaults to always-open. authReady — resolves once a Firebase session exists.
+ *   Awaited before the document read (AUTH_PLAN.md → E1). Defaults to already-resolved.
+ */
+export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise.resolve()), docAccess = { has: () => true, onChange: () => () => {} } } = {}) {
     const overlay  = /** @type {HTMLElement|null} */ (document.getElementById('docViewer'));
     const content  = /** @type {HTMLElement|null} */ (document.getElementById('docViewerContent'));
     if (!overlay || !content) return;
@@ -71,12 +75,26 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
     // into content that is not on screen, then announces an action belonging to a dialog they
     // already dismissed. Declared ABOVE createLightbox so onClose can reach it.
     let _openSeq = 0;
+    /** The document a locked tap asked for — finished by the grant. It SURVIVES a close on purpose:
+     *  the locked message sits over the PIN card, so closing it is the only way to reach the form,
+     *  and the reader who then enters the PIN is asking for exactly the document they tapped.
+     *  @type {string|null} */
+    let _pendingKey = null;
 
     const lb = createLightbox({
         overlay, content, closeBtn,
         // Invalidate whatever is in flight. The existing `seq !== _openSeq` guards on BOTH the
-        // success and failure paths then suppress every late DOM write and focus move.
+        // success and failure paths then suppress every late DOM write and focus move. A held
+        // locked tap is NOT dropped here — see `_pendingKey`.
         onClose: () => { _openSeq++; },
+    });
+
+    // THE GRANT FINISHES A TAP THE LOCK HELD BACK (v23.17) — whoever entered the PIN is entitled to
+    // the document, and it is the one they came for. A later tap on another document replaces it.
+    docAccess.onChange((open) => {
+        if (!open || !_pendingKey) return;
+        const key = _pendingKey; _pendingKey = null;
+        openDoc(key);
     });
 
     /** Render a short message (no markup) into the viewer body. @param {string} text @param {string} cls */
@@ -94,6 +112,15 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
         if (!d) return;
         const seq = ++_openSeq;
         titleEl.textContent = `${d.emoji} ${d.label}`;
+        // LOCKED: no read is attempted — not from the server, not from the cache the rules cannot
+        // see — and the message says what unlocks it. The key is kept so the unlock can finish this.
+        if (!docAccess.has()) {
+            _pendingKey = key;
+            showMessage(`Enter the staff PIN, or sign in, to read the ${d.label}.`, 'doc-viewer-empty');
+            lb.open();
+            return;
+        }
+        _pendingKey = null;   // an unlocked open supersedes anything a lock held back
         showMessage('Loading…', 'doc-viewer-loading');
         lb.open();
         try {
