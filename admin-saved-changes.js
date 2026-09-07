@@ -108,9 +108,12 @@ export function renderTable() {
     // add/remove rather than toggle(force): the unit suite's fake DOM has no `toggle`, and a throw
     // here aborted the whole render — the empty-list message never appeared and the bulk-delete
     // test caught it. A real browser has both; the fake is the reason to prefer the pair.
-    const tbody = document.getElementById('overrideTableBody');
-    if (tbody) { if (showAll) tbody.classList.remove('oc-single-member'); else tbody.classList.add('oc-single-member'); }
     const memberFilter       = showAll ? '' : (selectedMember || '');
+    // Keyed on the FILTER, not on the toggle (v23.15 review): with no member selected and the
+    // All-staff view off, the rows below are everyone's, and hiding the names on that list would
+    // leave nothing to tell one row from the next.
+    const tbody = document.getElementById('overrideTableBody');
+    if (tbody) { if (memberFilter) tbody.classList.add('oc-single-member'); else tbody.classList.remove('oc-single-member'); }
     const memberRows         = memberFilter
         ? getAllOverrides().filter(o => o.memberName === memberFilter)
         : getAllOverrides();

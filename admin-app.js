@@ -1339,11 +1339,6 @@ export function init() {
         return `${_fmtPeriodDate(start)} – ${_fmtPeriodDate(end)}`;
     }
 
-    /**
-     * Shared renderer for AL and sick booked-dates boxes.
-     * @param {{ type: string, memberName: string, boxId: string, bodyId: string,
-     *           countFn: (n: number) => string, countClass: string, feedbackId: string }} cfg
-     */
     // THE RECORDED-DATES LIST lives in admin-booked-periods.js (v23.09) — it grew a year selector,
     // and choosing a year is precedence, which belongs somewhere it can be tested with no DOM.
     // Every handle it needs is passed in here; nothing about the list is decided in this file.
