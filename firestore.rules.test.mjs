@@ -470,8 +470,22 @@ describe('overrides — per-member isolation (STRICT, B3)', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('huddles', () => {
-    test('anon can read', async () => {
-        await assertSucceeds(getDocs(collection(anonDb(), 'huddles')));
+    // READ REQUIRES ACCESS (v23.18 — was `anon can read`). The same three doors as `overrides`;
+    // an anonymous session holds no claim and is refused, which is the substance of the change.
+    test('UNAUTHENTICATED cannot read', async () => {
+        await assertFails(getDocs(collection(anonDb(), 'huddles')));
+    });
+    test('ANONYMOUS auth cannot read — a session with no claims grants nothing', async () => {
+        await assertFails(getDocs(collection(staffDb(), 'huddles')));
+    });
+    test('a NAMED member can read', async () => {
+        await assertSucceeds(getDocs(collection(namedDb('G. Miller'), 'huddles')));
+    });
+    test('the CALENDAR VIEWER can read', async () => {
+        await assertSucceeds(getDocs(collection(viewerDb(), 'huddles')));
+    });
+    test('an ADMIN can read', async () => {
+        await assertSucceeds(getDocs(collection(adminDb(), 'huddles')));
     });
 
     test('anon cannot create', async () => {
@@ -1037,8 +1051,22 @@ describe('clientErrors', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('circulars', () => {
-    test('anon can read', async () => {
-        await assertSucceeds(getDocs(collection(anonDb(), 'circulars')));
+    // READ REQUIRES ACCESS (v23.18 — was `anon can read`). The same three doors as `overrides`;
+    // an anonymous session holds no claim and is refused, which is the substance of the change.
+    test('UNAUTHENTICATED cannot read', async () => {
+        await assertFails(getDocs(collection(anonDb(), 'circulars')));
+    });
+    test('ANONYMOUS auth cannot read — a session with no claims grants nothing', async () => {
+        await assertFails(getDocs(collection(staffDb(), 'circulars')));
+    });
+    test('a NAMED member can read', async () => {
+        await assertSucceeds(getDocs(collection(namedDb('G. Miller'), 'circulars')));
+    });
+    test('the CALENDAR VIEWER can read', async () => {
+        await assertSucceeds(getDocs(collection(viewerDb(), 'circulars')));
+    });
+    test('an ADMIN can read', async () => {
+        await assertSucceeds(getDocs(collection(adminDb(), 'circulars')));
     });
 
     test('anon cannot create', async () => {
@@ -1204,8 +1232,22 @@ describe('linkTargetSets — saved generator target sets, per-creator write (v21
 });
 
 describe('newsletters', () => {
-    test('anon can read', async () => {
-        await assertSucceeds(getDocs(collection(anonDb(), 'newsletters')));
+    // READ REQUIRES ACCESS (v23.18 — was `anon can read`). The same three doors as `overrides`;
+    // an anonymous session holds no claim and is refused, which is the substance of the change.
+    test('UNAUTHENTICATED cannot read', async () => {
+        await assertFails(getDocs(collection(anonDb(), 'newsletters')));
+    });
+    test('ANONYMOUS auth cannot read — a session with no claims grants nothing', async () => {
+        await assertFails(getDocs(collection(staffDb(), 'newsletters')));
+    });
+    test('a NAMED member can read', async () => {
+        await assertSucceeds(getDocs(collection(namedDb('G. Miller'), 'newsletters')));
+    });
+    test('the CALENDAR VIEWER can read', async () => {
+        await assertSucceeds(getDocs(collection(viewerDb(), 'newsletters')));
+    });
+    test('an ADMIN can read', async () => {
+        await assertSucceeds(getDocs(collection(adminDb(), 'newsletters')));
     });
 
     test('anon cannot create', async () => {

@@ -68,8 +68,8 @@ Two consequences follow, and both are easy to get wrong:
 Open reads (`allow read;` in `firestore.rules`): **`huddles`, `circulars`, `newsletters`** — the three
 document collections, deliberately, because a notification tap carries no session. Everything else
 requires auth, and most requires a claim. **CLOSING (owner decision, 7 Sep 2026):** the client stopped
-reading them without access at v23.17 (`calendar-doc-access.js` — §5 below), and the rules follow in the
-release after, mirroring `overrides`. The bearer-URL exposure in §5 is unchanged by either.
+reading them without access at v23.17 (`calendar-doc-access.js` — §5 below), and the rules closed them at
+v23.18, mirroring `overrides`. The bearer-URL exposure in §5 is unchanged by either.
 
 - **`overrides` is NO LONGER open** (closed 26 Aug 2026, v21.78). It carries `memberName` + `date` +
   `type` + `value` — AL, absence and shift changes for every member — and was readable by anyone with
@@ -428,8 +428,7 @@ was written before the Office-viewer dependency was noticed.
 ### E6 vs the notifications — DECIDED 7 Sep 2026; the gate half is BUILT (recorded 10 Aug 2026 as a possibility)
 
 *Owner decision, 7 Sep 2026: the Huddle, the Weekly Retail Circular and the Marylebone Newsletter
-must not be visible without the PIN or a password. What was built (v23.17 client, rules the release
-after) is exactly the two things the paragraph below said would need designing: the viewers moved
+must not be visible without the PIN or a password. What was built (v23.17 client, v23.18 rules) is exactly the two things the paragraph below said would need designing: the viewers moved
 behind the access gate (`calendar-doc-access.js`, opened on the full grant only, refusing the read at
 source so the local cache cannot answer it) and the deep link survives the unlock (a tap made while
 locked is HELD and finished when access arrives — no `_entryHash` was ever needed; the viewers keep
