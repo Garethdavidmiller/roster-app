@@ -46,8 +46,20 @@
  * expired session forces a real typed login (`reconcileExpiredIdentity`), so the rollout completes
  * itself within 60 days and staggers naturally by each member's own expiry. That window is a
  * CONSEQUENCE of the session length, not a policy of this module — it doubled when the session did.
- * A member who only ever views the roster never signs in anywhere and is never compelled — accepted;
- * reaching them means putting the calendar behind a login (SECURITY_RELEASE_PLAN.md → Track E).
+ * A member who only ever views the roster with the staff PIN never signs in anywhere and is never
+ * compelled — accepted; reaching them means putting the calendar behind a login (Track E).
+ *
+ * ── THE CALENDAR RUNS IT TOO (v23.21) ─────────────────────────────────────────────────────────────
+ * Since v23.19 the Calendar's front door IS a sign-in (calendar-access.js → `showSignInPanel`), and
+ * from then on most members sign in there rather than on a sub-page — so the marker set by that
+ * sign-in was being consumed nowhere until they happened to open Admin or Settings. calendar-app.js
+ * now runs this after a `named` grant when the marker is present. Property 1 above changes shape and
+ * keeps its force: the overlay CAN now stand in front of the roster, and what stops that being a
+ * lockout is property 3 — the "Continue for now" escape after any failure the member cannot type
+ * their way out of. The calendar first runs `ensureNamedSession` and passes it as `ready`, because
+ * its own boot confirms an identity WITHOUT feeding the auth store: `authStatus` would otherwise
+ * read as unresolved, the gate would refuse, and the marker — consumed before the gate on purpose —
+ * would be gone for good, so the member would never be asked anywhere.
  */
 
 import { lsGet, lsDel } from './ls.js';

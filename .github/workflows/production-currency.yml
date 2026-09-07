@@ -28,11 +28,21 @@ name: Is production current?
 # served origin and comparing is the whole check — no API tokens, no Firebase credentials, no
 # deploy permissions. It reads what a member's browser would read.
 #
-# ── AND WHY IT TOLERATES A LAG ─────────────────────────────────────────────────────────────────
+# ── AND WHY IT TOLERATES A LAG — A LONG ONE ─────────────────────────────────────────────────────
 #
-# A deploy takes a few minutes and the schedule is hourly, so a run can legitimately catch a deploy
-# in flight. It therefore re-checks after a pause before saying anything: a canary that cries on
-# every deploy is one that gets muted, which would leave things exactly where they were on 14 Aug.
+# A deploy takes MINUTES and the schedule is hourly, so a run can legitimately catch a deploy in
+# flight. It therefore keeps re-reading before saying anything: a canary that cries on every deploy
+# is one that gets muted, which would leave things exactly where they were on 14 Aug.
+#
+# How long it waits is MEASURED, not guessed. The first version re-checked once after 180 seconds,
+# on the belief that a deploy took "a few minutes" — but deploy-hosting.yml runs the test gate
+# before it deploys, and the run takes ~13 minutes end to end (run #979: 20:28 → 20:41). So on
+# 7 Sep 2026 the 20:17 tick (running at 20:34) read v23.17 while v23.18 was six minutes from
+# landing, re-read it three minutes later, and raised the alarm: an email, a comment on the standing
+# issue, and nothing wrong. Any merge whose next hourly tick falls inside the deploy window would
+# have done the same. The wait now covers the whole window with margin: up to DEPLOY_WINDOW_S,
+# polled once a minute, and it stops the moment both origins agree. A genuinely stale production
+# still costs at most fifteen extra minutes to report; a routine release costs no alarm at all.
 
 on:
   schedule:
@@ -50,7 +60,9 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # The poll below may run for DEPLOY_WINDOW_S; this must exceed it, or a slow-but-successful
+    # deploy turns into a cancelled run that reports nothing either way.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -74,14 +86,20 @@ jobs:
           LIVE_WEB=$(version_of "$WEB")
           LIVE_PAGES=$(version_of "$PAGES")
 
-          # A deploy may be in flight. Re-check once after a pause before accusing anything —
-          # a canary that fires on every release is a canary that gets switched off.
-          if [ "$LIVE_WEB" != "$EXPECTED" ] || [ "$LIVE_PAGES" != "$EXPECTED" ]; then
-            echo "First read disagreed (web=$LIVE_WEB pages=$LIVE_PAGES, expected=$EXPECTED) — re-checking in 180s."
-            sleep 180
+          # A deploy may be in flight. Keep re-reading for as long as a Hosting deploy can take
+          # (see the header — ~13 minutes measured, 15 here) before accusing anything, and stop
+          # the moment both origins agree. A canary that fires on every release is a canary that
+          # gets switched off.
+          DEPLOY_WINDOW_S=900
+          POLL_S=60
+          waited=0
+          while { [ "$LIVE_WEB" != "$EXPECTED" ] || [ "$LIVE_PAGES" != "$EXPECTED" ]; } && [ "$waited" -lt "$DEPLOY_WINDOW_S" ]; do
+            echo "Read disagreed after ${waited}s (web=$LIVE_WEB pages=$LIVE_PAGES, expected=$EXPECTED) — a deploy may be in flight; re-checking in ${POLL_S}s."
+            sleep "$POLL_S"
+            waited=$((waited + POLL_S))
             LIVE_WEB=$(version_of "$WEB")
             LIVE_PAGES=$(version_of "$PAGES")
-          fi
+          done
 
           echo "web=$LIVE_WEB"     >> "$GITHUB_OUTPUT"
           echo "pages=$LIVE_PAGES" >> "$GITHUB_OUTPUT"
@@ -130,8 +148,8 @@ jobs:
           "| Checked | ${RUN_URL} |" \
           "" \
           "This was read from the served \`roster-data.js\` on each origin — the same file a" \
-          "member's browser fetches — and re-checked after three minutes, so it is not a deploy in" \
-          "flight." \
+          "member's browser fetches — and re-read every minute for fifteen, so it is not a deploy" \
+          "in flight." \
           "" \
           "### Checking your own phone will not show this" \
           "" \

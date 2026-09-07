@@ -48,14 +48,26 @@ import { noticeAudienceAllows } from './calendar-access-core.js';
  * @param {'members'|'signed-out'|'everyone'} audience
  */
 function _openWhenAudienceAllows(lb, audience) {
-    calendarAccessReady.then(() => {
+    // Access first, then whatever the coordinator asked us to queue behind (v23.21: the forced
+    // set-password overlay a front-door sign-in may put up — see calendar-app.js). `_after` never
+    // rejects and never hangs (the coordinator bounds it), so this cannot silence a notice.
+    calendarAccessReady.then(() => _after).then(() => {
         if (!noticeAudienceAllows(audience, getAccessType())) return;
         setTimeout(() => openNoticeIfClear(lb), 1500);
     });
 }
 
-/** Wire every one-time notice this page carries. Called once from calendar-app.js. */
-export function initCalendarNotices() {
+/** What every notice waits for after access — set once by `initCalendarNotices`. @type {Promise<any>} */
+let _after = Promise.resolve();
+
+/**
+ * Wire every one-time notice this page carries. Called once from calendar-app.js.
+ * @param {{ after?: Promise<any> }} [opts]  `after` — settle before any notice opens. The coordinator
+ *   passes the forced set-password step's promise, so a notice can never race a mandatory overlay
+ *   the way the paycalc YTD notice once did (paycalc-notice-order.test.mjs).
+ */
+export function initCalendarNotices({ after } = {}) {
+    if (after) _after = Promise.resolve(after).catch(() => {});
     // Each notice keeps its own IIFE ON PURPOSE: their bodies bail with early `return`s (done,
     // snoozed, expired), and as plain blocks those returns leave THIS function — so the first
     // notice already dismissed silenced every notice after it. Caught by a render check the same
