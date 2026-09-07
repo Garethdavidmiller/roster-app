@@ -1914,6 +1914,66 @@ test('admin: switching member fetches THAT member, and their week is not drawn a
         await expect(page.locator('.day-row').first()).toBeVisible({ timeout: 10000 });
     });
 
+// ── A BALANCE IS A CLAIM ABOUT DATA THAT WAS READ (v23.08, owner report) ────────────────────────
+//
+// The sibling of the test above, and the half it did not cover. `renderWeekGrid` was taught at
+// v21.38 that an unfetched member and a member with a clear week produce the SAME empty slice — so
+// it paints a loading state rather than seven base-roster days. Everything ABOVE it on that card
+// went on reading the same empty slice as fact: the AL banner stated a full entitlement, `taken 0`
+// and `booked 0`, the collapsed header chip said "AL left: 32", and the Recorded Annual Leave dates
+// box hid itself, which reads as "nothing booked".
+//
+// IT IS NOT A FLASH, which is what makes it worth a test. The member switch paints those figures
+// BEFORE it starts the fetch, and only a SUCCESSFUL load repaints them — so a failed read leaves
+// the wrong number standing indefinitely, two inches above a week grid correctly saying it could
+// not load. The write path was never at risk (`recordRangeOverrides` refuses an unread cache), so
+// nothing here could be caught by a save test.
+//
+// The OPPOSITE direction — the guard hiding a banner that should be there — is covered by "the AL
+// banner counts leave that is already on record" above and by the two `#alBookedBox` deep-link
+// tests below, all of which read the real figures off a successful load.
+
+test('admin: a member whose leave could not be read gets no balance, not a full one', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    // Open the card so the banner and the dates box are on screen for the whole test.
+    await page.locator('#alToggleHeader').click();
+
+    const other = await page.locator('#fieldMember').evaluate((el) => {
+        const sel = /** @type {HTMLSelectElement} */ (el);
+        const opt = [...sel.options].find(o => o.value && o.value !== sel.value);
+        return opt ? opt.value : '';
+    });
+    expect(other, 'the roster needs a second selectable member for this test').not.toBe('');
+
+    // Fail every read from HERE — the first member loaded fine, so this is a switch that fails,
+    // which is the reported path. Setting it before `goto` would test a page that never loaded.
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.failGetDocs = true; });
+    await page.locator('#fieldMember').selectOption(other);
+
+    // The week grid is the PROOF THE READ ACTUALLY FAILED. Without it a hidden banner would also be
+    // satisfied by a page that simply never got that far, and the test would pass on nothing.
+    await expect(page.locator('#weekGrid'), 'the read must genuinely have failed')
+        .toContainText(/Couldn't load/i, { timeout: 10000 });
+
+    // Nothing on the card may state a figure derived from the read that failed.
+    await expect(page.locator('#alBanner'), 'no balance over a read that failed').toBeHidden();
+    await expect(page.locator('#alHeaderBalance'), 'and no "AL left" chip on the collapsed header')
+        .toBeHidden();
+    await expect(page.locator('#alBookedBox'), 'and no dates list implying nothing is booked')
+        .toBeHidden();
+    // Asserted as TEXT as well, because `hidden` on a banner that also sets `display` renders a
+    // live element while every check believes it is gone — the page-visibility-parity trap.
+    await expect(page.locator('#alBanner')).toHaveCSS('display', 'none');
+    // And no balance is READABLE anywhere on the card, however it got there. `innerText`, not
+    // `textContent`: the chip keeps its last value in the DOM while hidden, so textContent finds
+    // "AL left: 32" on a perfectly correct page and the assertion would fail for the wrong reason.
+    // This is the one that would catch a THIRD surface printing the figure.
+    const visible = await page.locator('#book-annual-leave').innerText();
+    expect(visible, 'no readable balance over a read that failed').not.toMatch(/AL left:/i);
+});
+
 test('admin: "All staff" fetches everyone rather than listing whoever happened to be loaded',
     async ({ page }) => {
         // A short list that looks complete is the failure the query-cap banner exists to prevent one
