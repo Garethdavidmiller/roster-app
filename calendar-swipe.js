@@ -45,7 +45,7 @@ export function isSwipeGestureActive() { return _gestureActive || _swipeCooldown
  *   renderCalendar: () => void,
  *   updateLegend: () => void,
  *   updateNavButtonState: () => void,
- *   navigateToPaycalc: (str: string) => void,
+ *   navigateToPaycalc: (str: string) => boolean,
  *   openDayDetail: ((cell: Element) => void) | null,
  *   onRetryMonth?: (year: number, month: number) => void,
  * }} deps
