@@ -526,6 +526,9 @@ export function init() {
             status: $('designStatus'), statusLong: $('designStatusLong'), statusShort: $('designStatusShort'),
             saveButtons: _saveBtns(),
             renameButtons: /** @type {HTMLButtonElement[]} */ ([$('designRenameBtn')].filter(Boolean)),
+            // Disabled state ONLY (v23.33) — click is wired via `sheetActions`; listing it in
+            // `renameButtons` would fire it twice. Same split as `deleteButton`.
+            renameMenuButton: /** @type {HTMLButtonElement|null} */ ($('designRenameMenuBtn')),
             deleteButton: /** @type {HTMLButtonElement|null} */ ($('designDeleteBtn')),
             sheetAvatar: $('designSheetAvatar'), sheetName: $('designSheetName'), sheetSub: $('designSheetSub'),
         }, { onSelect: selectDesign, onRename }, {
@@ -1154,9 +1157,11 @@ export function init() {
      */
     async function selectDesign(id) {
         if (id === activeDesignId) return;
-        if (dirty && !await confirmDialog({ message: 'You have unsaved changes. Switch to another design? Changes will be lost.', confirmLabel: 'Switch' })) return;
+        // A switch that does NOT happen must put the picker back — `change` has already moved the
+        // select. Argued in links-design-header.js's render (v23.33).
+        if (dirty && !await confirmDialog({ message: 'You have unsaved changes. Switch to another design? Changes will be lost.', confirmLabel: 'Switch' })) { renderDesignPicker(); return; }
         const d = designs.find(x => x.id === id);
-        if (!d) return;
+        if (!d) { renderDesignPicker(); return; }
         // If selecting the current compare target, exit compare mode first
         if (id === compare.getCompareId()) compare.resetCompare();
         _activateDesign(d);

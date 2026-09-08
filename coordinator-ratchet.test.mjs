@@ -109,7 +109,15 @@ const CAPS = {
     // The ceiling comes down with it rather than being banked as headroom — the v21.87 reasoning
     // above — so the raise of ten lines survives on its merits and the saving of seventy-six is
     // not quietly spent.
-    'links-app.js':            2600,   // ← the next Links rule goes in a domain module
+    'links-app.js':            2650,   // ← the next Links rule goes in a domain module
+    // 2600 → 2650 at v23.33, and the reason is the ZERO-HEADROOM state this suite's own header
+    // calls out: the file stood at exactly 2,600 of 2,600, so ANY one-line fix to the Links
+    // coordinator failed here — a guard that fires on a bug fix teaches people to raise the cap
+    // without reading it. What it is spent on is two of those: the ··· sheet's Rename row is now
+    // handed to the masthead for its disabled state, and a declined design switch now re-renders
+    // the picker. Five lines, both wiring, neither a rule — the rules and their reasoning went
+    // into links-design-header.js, which is where the three-homes discipline puts them. The room
+    // is the header's own 50-line allowance so the next small fix is not blocked in turn.
     // 2000 → 1900 at v21.89. The sticky take-home bar left for paycalc-sticky-total.js — 1,988
     // measured lines down to 1,888. Of everything in this coordinator it was the piece whose
     // removal cannot affect a figure a member reads: a scroll-position widget that touches no
