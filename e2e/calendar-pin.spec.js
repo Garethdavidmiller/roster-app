@@ -743,7 +743,7 @@ test('switched OFF: a signed-in member is unaffected', async ({ page }) => {
 // only a browser can answer it: whether a real page open on a viewer session actually withholds a
 // notice it is not addressed by, and whether the same notice reaches the member it IS for.
 //
-// ── ONE DIRECTION LOST ITS SUBJECT AT v23.22, AND SAYING SO IS THE POINT ────────────────────────
+// ── ONE DIRECTION LOST ITS SUBJECT AT v23.23, AND SAYING SO IS THE POINT ────────────────────────
 // The other half — a `'signed-out'` notice REACHING a PIN unlock — was carried by `sign-in-2026`,
 // which was retired by owner decision (the Calendar's front door became a sign-in at v23.19, so the
 // notice re-offered a choice its reader had just declined). No live notice declares that audience

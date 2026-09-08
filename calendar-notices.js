@@ -24,7 +24,7 @@
  * not signed in. Open through `_openWhenAudienceAllows` rather than wiring the check per notice, so
  * a notice added later cannot quietly skip it.
  *
- * ── ONE NOTICE LIVE, AND WHAT THAT COSTS THE GUARD (v23.22) ─────────────────────────────────────
+ * ── ONE NOTICE LIVE, AND WHAT THAT COSTS THE GUARD (v23.23) ─────────────────────────────────────
  *
  * `sign-in-2026` was retired here by owner decision, not by its expiry. v23.19 made the Calendar's
  * front door a sign-in card, so its whole audience — somebody reading the roster on the staff PIN —
@@ -44,7 +44,7 @@
  */
 
 // NOTE for the next notice: `CONFIG` (for a `*_NOTICE_DAYS` expiry) and `isNoticeExpired` were
-// imported here until v23.22 and went with `sign-in-2026` — the day-count expiry was its, and the
+// imported here until v23.23 and went with `sign-in-2026` — the day-count expiry was its, and the
 // one notice left uses a hard clock cutoff instead. A notice using the ordinary expiry brings both
 // back; `.claude/skills/new-notice/` has the template.
 import { lsGet, lsSet } from './ls.js';

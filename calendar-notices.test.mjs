@@ -140,7 +140,7 @@ const { noticeAudienceAllows } = await import('./calendar-access-core.js');
  *
  * Block 2 below is about WHEN a notice opens, not who for, so it needs an access type that shows
  * something — and which one that is depends on the notices that happen to be live. It was `'none'`
- * while `sign-in-2026` was `'signed-out'`; retiring it at v23.22 left only a `'members'` notice and
+ * while `sign-in-2026` was `'signed-out'`; retiring it at v23.23 left only a `'members'` notice and
  * turned three timing tests into assertions that nothing opens, which they would have passed
  * whatever the timing did. Deriving it means the next notice cannot repeat that.
  */
@@ -166,7 +166,7 @@ describe('1 · a notice reaching somebody it is not addressed to', () => {
 
     test('the matrix has notices to be about, and says what it can prove with them', () => {
         // WHAT THE ROWS BELOW PROVE DEPENDS ON HOW MANY AUDIENCES ARE LIVE, and that changed at
-        // v23.22 when `sign-in-2026` was retired, leaving one notice and one audience.
+        // v23.23 when `sign-in-2026` was retired, leaving one notice and one audience.
         //
         // With one audience the rows still catch a module that never checks at all: a `'members'`
         // notice must be shown to `named` and withheld from `viewer`/`none`, so an ungated module
@@ -230,7 +230,7 @@ describe('2 · a notice arriving at the wrong moment', () => {
 
 
 describe('3 · one notice silencing another', () => {
-    // THE BEHAVIOURAL FORM OF THIS NEEDS TWO NOTICES, and since v23.22 there is one. It is kept as
+    // THE BEHAVIOURAL FORM OF THIS NEEDS TWO NOTICES, and since v23.23 there is one. It is kept as
     // a contract on the STRUCTURE that makes it true, which is the same move the module header's
     // own promise takes: each notice bails with `return`, so as plain blocks those returns would
     // leave `initCalendarNotices` and the first dismissed notice would silence every later one —
@@ -290,7 +290,7 @@ describe('4 · a notice added later skipping the check', () => {
     });
 
     test('the gate FORWARDS each notice\'s declared audience rather than hardcoding one', () => {
-        // THE CONTRACT THE ONE-AUDIENCE MATRIX LEANS ON (v23.22 — see block 1). While every live
+        // THE CONTRACT THE ONE-AUDIENCE MATRIX LEANS ON (v23.23 — see block 1). While every live
         // notice is `'members'`, a module that ignored the declaration and demanded a named session
         // would behave identically and pass every behavioural row. What distinguishes them is that
         // the parameter reaches the rule, so that is asserted directly: `noticeAudienceAllows` must
