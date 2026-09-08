@@ -615,7 +615,7 @@ roster-app/
 ├── playwright.csp.mjs      ← Playwright config for the deployed-CSP proof (e2e/csp.spec.js): baseURL → the Firebase Hosting emulator (127.0.0.1:5000), NO webServer (started by `npm run test:csp` = firebase emulators:exec --only hosting). Same chromium + mobile-chrome projects
 ├── playwright.visual.mjs   ← Playwright config for the visual-regression baselines (e2e/visual.spec.js, `npm run test:visual`): one desktop project, http-server webServer, tolerant-but-teethed `toHaveScreenshot` defaults (threshold 0.15, maxDiffPixelRatio 0.001), flat baseline dir `e2e/visual-baselines/`. Opt-in (NOT in `npm test`/CI) because pixel diffs are environment-sensitive
 ├── playwright.offline.mjs  ← Playwright config for the offline-behaviour proof (e2e/offline.spec.js, `npm run test:offline`). Opt-in (NOT in `npm test`/CI)
-├── playwright.webkit.mjs   ← the smoke suite under SAFARI'S ENGINE — desktop + Mobile Safari over the same specs (`npm run test:webkit`; add `-- --project=webkit` or `mobile-safari` for one). Runs in branch CI (`e2e.yml`) as one job per engine, each SHARDED TWO WAYS — four jobs, because one engine alone was still the thing every merge waited on. Deliberately NOT the deploy gate, which is why speeding it up does not move time-to-live. It is the ENGINE, not an iPhone. Why it exists and what it cannot see: the module header
+├── playwright.webkit.mjs   ← the smoke suite under SAFARI'S ENGINE — desktop + Mobile Safari over the same specs (`npm run test:webkit`; add `-- --project=webkit` or `mobile-safari` for one). Runs in branch CI (`e2e.yml`) as one job per engine, each SHARDED TWO WAYS — four jobs, because one engine alone was still the thing every merge waited on. Deliberately NOT the deploy gate, which is why speeding it up does not move time-to-live — **a call worth revisiting**, since it was made while this file said every member was on Android, and the installed app in fact runs mostly on this engine. It is the ENGINE, not an iPhone. Why it exists and what it cannot see: the module header
 ├── package.json            ← dev dependencies only
 ├── eslint.config.js        ← flat ESLint config (browser globals); run on staged JS by the pre-commit hook and `npm run check`
 ├── scripts/
@@ -1001,7 +1001,25 @@ Override cache key: `"memberName|YYYY-MM-DD"`
 ## Key rules
 
 - **Offline first** — Firestore is an enhancement. Every Firestore call needs a silent fallback. Never block rendering waiting for Firestore.
-- **Mobile is primary** — all staff use Android phones. Test every change at 375px.
+- **Mobile is primary, and it is TWO populations on two engines** (corrected 8 Sep 2026 — this line
+  said "all staff use Android phones", which is wrong in the direction that matters). Test every
+  change at 375px, on both of:
+  - **The Android WORK phone — IN A BROWSER, never installed.** The company does not currently permit
+    the install. So on the device staff carry on shift there is no home-screen icon, no standalone
+    window, and nothing that only an installed PWA gets. A feature that assumes the install is
+    invisible to somebody at work.
+  - **The PERSONAL phone — mainly iPHONE — and this is where the app is actually INSTALLED.** So every
+    installed-PWA path is **iOS-first**: offline launch, the service-worker update lifecycle, Web Push
+    (which iOS grants only to an installed PWA), the missing system Back button, `localStorage`
+    throwing in private mode, ITP eviction, and the events Safari does not fire (`beforeprint` for
+    AirPrint, `transitionend` on a backgrounded tab). Those are not edge cases to defend against —
+    they are the majority path.
+  **Two consequences to hold on to.** Safari's engine is what the installed app mostly runs on, so
+  `npm run test:webkit` is closer to production than its "branch CI, not the deploy gate" status
+  suggests — weigh a WebKit failure accordingly. And the two populations have **different
+  capabilities, not different preferences**: notifications and offline reach the personal iPhone and
+  not the work phone, which is why `install-prompt.js` treats the install as the thing that unlocks
+  the rest, and why its iOS branch is the one that matters rather than a fallback.
 - **Print CSS** — any new shift type, cell class, or badge needs `@media print` rules.
 - **No `alert()`** — `console.error()` for developer errors. No visible error text for recoverable failures.
 - **Code quality** — pure functions where possible, JSDoc on all functions, meaningful variable names, error handling on all async operations.
