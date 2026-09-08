@@ -64,7 +64,6 @@ let _accessType = 'none';
 let _directOpens = 0;
 let _expired = false;
 
-mock.module('./roster-data.js', { namedExports: { CONFIG: { SIGN_IN_NOTICE_DAYS: 90 } } });
 mock.module('./ls.js', {
     namedExports: {
         lsGet: (/** @type {string} */ k) => { _reads.push(k); return _store[k] ?? null; },
@@ -133,6 +132,22 @@ const PINNED_NOW = new Date(2026, 7, 25, 9, 0);
 const NOTICES = [...SOURCE.matchAll(/getElementById\('(\w+NoticeLb)'\)[\s\S]*?_openWhenAudienceAllows\(lb, '([a-z-]+)'\)/g)]
     .map(m => ({ overlay: m[1], audience: m[2] }));
 
+/** The real rule — pure, so mocking it would only test the mock. */
+const { noticeAudienceAllows } = await import('./calendar-access-core.js');
+
+/**
+ * An access type at least one live notice is addressed to, DERIVED rather than written down.
+ *
+ * Block 2 below is about WHEN a notice opens, not who for, so it needs an access type that shows
+ * something — and which one that is depends on the notices that happen to be live. It was `'none'`
+ * while `sign-in-2026` was `'signed-out'`; retiring it at v23.22 left only a `'members'` notice and
+ * turned three timing tests into assertions that nothing opens, which they would have passed
+ * whatever the timing did. Deriving it means the next notice cannot repeat that.
+ */
+const SHOWING_ACCESS = /** @type {const} */ (['named', 'viewer', 'none'])
+    .find(t => NOTICES.some(n => noticeAudienceAllows(n.audience, t)));
+assert.ok(SHOWING_ACCESS, 'no live notice is addressed to any access type — block 2 would prove nothing');
+
 beforeEach(() => { mock.timers.enable({ apis: ['setTimeout', 'Date'], now: PINNED_NOW }); });
 afterEach(() => { mock.timers.reset(); });
 
@@ -145,20 +160,28 @@ describe('1 · a notice reaching somebody it is not addressed to', () => {
         return _openedViaHelper.map(lb => lb._cfg.overlay.id).sort();
     }
     /** @param {'named'|'viewer'|'none'} accessType */
-    async function expectedFor(accessType) {
-        const { noticeAudienceAllows } = await import('./calendar-access-core.js');
+    function expectedFor(accessType) {
         return NOTICES.filter(n => noticeAudienceAllows(n.audience, accessType)).map(n => n.overlay).sort();
     }
 
-    test('the module carries more than one audience, or this matrix proves nothing', () => {
-        assert.equal(NOTICES.length >= 2, true, `found ${NOTICES.length} notices`);
-        assert.equal(new Set(NOTICES.map(n => n.audience)).size >= 2, true,
-            'with one audience every row below would pass on a module that never checks');
+    test('the matrix has notices to be about, and says what it can prove with them', () => {
+        // WHAT THE ROWS BELOW PROVE DEPENDS ON HOW MANY AUDIENCES ARE LIVE, and that changed at
+        // v23.22 when `sign-in-2026` was retired, leaving one notice and one audience.
+        //
+        // With one audience the rows still catch a module that never checks at all: a `'members'`
+        // notice must be shown to `named` and withheld from `viewer`/`none`, so an ungated module
+        // fails three rows. What they can no longer distinguish is a module that HARDCODES
+        // members-only from one that reads each notice's declared audience — the two behave
+        // identically until a second audience exists. That gap is closed statically instead, by
+        // the forwarding contract in block 4, and it closes itself the moment a `'signed-out'`
+        // notice returns, because this matrix is derived from the source rather than hand-kept.
+        assert.equal(NOTICES.length >= 1, true, `found ${NOTICES.length} notices`);
+        assert.deepEqual(NOTICES.filter(n => !n.audience), [], 'every notice declares an audience');
     });
 
     for (const accessType of /** @type {const} */ (['named', 'viewer', 'none'])) {
         test(`${accessType}: exactly the notices addressed to it`, async () => {
-            assert.deepEqual(await shownTo(accessType), await expectedFor(accessType));
+            assert.deepEqual(await shownTo(accessType), expectedFor(accessType));
         });
     }
 
@@ -176,7 +199,7 @@ describe('1 · a notice reaching somebody it is not addressed to', () => {
 
 describe('2 · a notice arriving at the wrong moment', () => {
     test('nothing opens before the access decision lands', async () => {
-        await wire({ accessType: 'none' });
+        await wire({ accessType: SHOWING_ACCESS });
         mock.timers.tick(10_000);                          // all the defer in the world
         await Promise.resolve();
         assert.equal(_openedViaHelper.length, 0, 'at wiring time every device looks the same');
@@ -185,7 +208,7 @@ describe('2 · a notice arriving at the wrong moment', () => {
     });
 
     test('nothing opens before the 1500ms defer, which keeps it off the Huddle auto-open', async () => {
-        await wire({ accessType: 'none' });
+        await wire({ accessType: SHOWING_ACCESS });
         _access.decide();
         await _access.promise;
         await drain();
@@ -198,7 +221,7 @@ describe('2 · a notice arriving at the wrong moment', () => {
     test('a notice opens through openNoticeIfClear, never lightbox.open()', async () => {
         // v19.53: with two overlays up, one Escape ran BOTH onClose callbacks — the buried notice was
         // archived and flagged seen by somebody who never saw it.
-        await wire({ accessType: 'none' });
+        await wire({ accessType: SHOWING_ACCESS });
         await settleAccess();
         assert.equal(_directOpens, 0);
         assert.equal(_openedViaHelper.length > 0, true);
@@ -207,25 +230,43 @@ describe('2 · a notice arriving at the wrong moment', () => {
 
 
 describe('3 · one notice silencing another', () => {
-    test('a dismissed notice does not stop the ones after it being considered', async () => {
-        // Each notice is its own IIFE because their bodies bail with `return`. As plain blocks those
-        // returns left initCalendarNotices, so the first dismissed notice silenced every later one —
-        // silently, and only for the devices that had dismissed it.
-        const first = 'myb_notice_sign_in_2026_done';
-        await wire({ accessType: 'none', store: { [first]: '1' } });
+    // THE BEHAVIOURAL FORM OF THIS NEEDS TWO NOTICES, and since v23.22 there is one. It is kept as
+    // a contract on the STRUCTURE that makes it true, which is the same move the module header's
+    // own promise takes: each notice bails with `return`, so as plain blocks those returns would
+    // leave `initCalendarNotices` and the first dismissed notice would silence every later one —
+    // silently, and only on the devices that had dismissed it. The IIFE is the scope those returns
+    // need, and it is checkable with any number of notices, including the next one added.
+    test('each notice is its own IIFE, so a `return` cannot leave initCalendarNotices', () => {
+        const ids   = SOURCE.match(/const NOTICE_ID\s*=/g) ?? [];
+        const iifes = SOURCE.match(/\(function \(\) \{/g) ?? [];
+        assert.equal(ids.length > 0, true, 'the fixture must not pass by finding no notices');
+        assert.equal(iifes.length, ids.length,
+            'one IIFE per notice — a notice written as a plain block silences every one after it');
+    });
+
+    test('a dismissed notice is not re-read, and does not stop the wiring', async () => {
+        // The behavioural half that survives one notice: a device that has dismissed it is left
+        // alone, nothing opens, and `initCalendarNotices` still completes rather than throwing.
+        const done = `myb_notice_${NOTICES[0].overlay.replace(/NoticeLb$/, '')}_done`;
+        await wire({ accessType: 'named', store: { [done]: '1' } });
         await settleAccess();
-        const later = _reads.filter(k => k !== first);
-        assert.equal(later.length > 0, true, 'a later notice still reads its own key');
+        assert.equal(_writes.length, 0, 'a dismissed notice writes nothing further');
     });
 
     test('a missing overlay element skips only its own notice', async () => {
+        // With one notice this proves the skip is clean — no open, no write, no throw. With two or
+        // more it proves the stronger thing: the notice whose markup IS present still runs.
         const [first, ...rest] = NOTICES;
-        assert.equal(rest.length > 0, true, 'needs a second notice to be about anything');
-        await wire({ accessType: 'none', present: [first.overlay] });   // the rest's markup absent
+        await wire({ accessType: SHOWING_ACCESS, present: [first.overlay] });   // any rest's markup absent
         await settleAccess();
-        const { noticeAudienceAllows } = await import('./calendar-access-core.js');
-        assert.equal(_openedViaHelper.length, noticeAudienceAllows(first.audience, 'none') ? 1 : 0,
+        assert.equal(_openedViaHelper.length, noticeAudienceAllows(first.audience, SHOWING_ACCESS) ? 1 : 0,
             'the notice whose markup IS present is unaffected by the ones that are not');
+
+        await wire({ accessType: SHOWING_ACCESS, present: [] });        // every notice's markup absent
+        await settleAccess();
+        assert.equal(_openedViaHelper.length, 0, 'no markup, no notice — and no throw');
+        assert.deepEqual(_writes, [], 'a notice with no markup must not flag the device seen');
+        assert.equal(rest.length >= 0, true);
     });
 });
 
@@ -248,10 +289,22 @@ describe('4 · a notice added later skipping the check', () => {
             'calling it per notice would let the next one be wired without the audience check');
     });
 
+    test('the gate FORWARDS each notice\'s declared audience rather than hardcoding one', () => {
+        // THE CONTRACT THE ONE-AUDIENCE MATRIX LEANS ON (v23.22 — see block 1). While every live
+        // notice is `'members'`, a module that ignored the declaration and demanded a named session
+        // would behave identically and pass every behavioural row. What distinguishes them is that
+        // the parameter reaches the rule, so that is asserted directly: `noticeAudienceAllows` must
+        // be called with the `audience` ARGUMENT, never with a literal.
+        const body = SOURCE.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '');
+        assert.match(body, /noticeAudienceAllows\(\s*audience\s*,/,
+            'the declared audience must reach the rule — a literal here silently pins every notice to one audience');
+        assert.equal((body.match(/noticeAudienceAllows\(/g) ?? []).length, 1,
+            'one call, inside _openWhenAudienceAllows — a second is a second policy');
+    });
+
     test('every audience named is one the rule understands', async () => {
         const named = [...SOURCE.matchAll(/_openWhenAudienceAllows\(lb, '([a-z-]+)'\)/g)].map(m => m[1]);
         assert.equal(named.length > 0, true);
-        const { noticeAudienceAllows } = await import('./calendar-access-core.js');
         for (const a of named) {
             // An unrecognised audience must not silently behave like 'everyone'.
             const seenBySomebody = ['named', 'viewer', 'none'].some(t => noticeAudienceAllows(a, /** @type {any} */ (t)));

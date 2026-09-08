@@ -738,56 +738,6 @@ test('nav: each guide records its OWN open id', async ({ page }) => {
     }
 });
 
-// ── THE SIGN-IN NOTICE, AND WHO IT IS FOR (v21.84) ──────────────────────────────────────────────
-//
-// Replaces the two `pw-own-2026` tests. That notice asked a member to set their own password;
-// `password-force.js` now compels exactly that at the next sign-in, so what was left unsaid was the
-// thing the staff PIN introduced: on a personal phone the code is re-entered every browser session,
-// and signing in once ends it for 60 days.
-//
-// The audience is the whole design and both halves need a test. It must reach somebody with NO
-// session — the skill template's `if (!getSession()) return` would hide it from everybody it is
-// written for, which is the trap the old notice's tests existed to catch and which survives the
-// rewrite. And it must NOT reach a signed-in member, who has already done the thing it asks; that
-// half is new, and it is what removed the retirement write from settings-app.js.
-test('calendar: the sign-in notice shows to somebody with no session', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await seedMember(page, 'S. Silva');                 // a chosen member, deliberately NO session
-    await page.addInitScript(() => localStorage.removeItem('myb_notice_sign_in_2026_done'));
-    await page.goto('/');
-    await expect(page.locator('#signInNoticeLb.visible')).toBeVisible({ timeout: 8000 });
-
-    // Archived on OPEN, not on close: the CTA navigates away, so `onClose` may never fire.
-    const archived = await page.evaluate(() => localStorage.getItem('myb_app_notices') || '');
-    expect(archived, 'must be in App Notices before the reader can navigate away').toContain('sign-in-2026');
-
-    await page.locator('#signInNoticeLater').click();
-    await expect(page.locator('#signInNoticeLb.visible')).toBeHidden();
-    expect(await page.evaluate(() => localStorage.getItem('myb_notice_sign_in_2026_snooze')),
-        'closing snoozes rather than dismissing for good').toBeTruthy();
-});
-
-test('calendar: the sign-in notice stays away from a member who has signed in', async ({ page }) => {
-    // No done-flag involved: the audience check answers this on every load, which is why signing in
-    // needs no write anywhere to silence it.
-    //
-    // `seedMemberSession` as WELL as `seedSession`, and that is not belt-and-braces: `decideAccess`
-    // requires a local session AND a restored named Firebase identity, so a session alone leaves
-    // this file's viewer seed in charge and the notice correctly shows. The distinction is the same
-    // one the iOS-ITP case turns on, so it is worth a test getting it right rather than around.
-    await page.setViewportSize({ width: 390, height: 844 });
-    await seedSession(page, 'S. Silva');
-    await seedMemberSession(page, 'S. Silva');
-    await seedMember(page, 'S. Silva');
-    await page.addInitScript(() => localStorage.removeItem('myb_notice_sign_in_2026_done'));
-    await page.goto('/');
-    await expect(page.locator('#calendarDisplay')).toBeVisible();
-    await page.waitForTimeout(2200);                    // past the 1500ms deferred open
-    await expect(page.locator('#signInNoticeLb.visible')).toBeHidden();
-    expect(await page.evaluate(() => localStorage.getItem('myb_notice_sign_in_2026_done')),
-        'a notice refused by audience is left unflagged, not marked seen').toBeNull();
-});
-
 test('nav drawer: every pill label starts on the same x, including the current page', async ({ page }) => {
     /*
      * The pill rule's own comment states the intent: "left alignment puts every pill's text on the

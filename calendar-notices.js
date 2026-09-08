@@ -20,14 +20,35 @@
  * is granted and says nothing about WHOSE it is, so both notices were opening on a PIN-unlocked
  * station PC — one asking the reader to check their own payslips. The rule is
  * `noticeAudienceAllows` in calendar-access-core.js, where it is pure and tested; the default is
- * `'members'`, and `'everyone'` is for a notice whose audience is specifically people who have not
- * signed in. Open through `_openWhenAudienceAllows` rather than wiring the check per notice, so a
- * notice added later cannot quietly skip it.
+ * `'members'`, and `'signed-out'` is for a notice whose audience is specifically people who have
+ * not signed in. Open through `_openWhenAudienceAllows` rather than wiring the check per notice, so
+ * a notice added later cannot quietly skip it.
+ *
+ * ── ONE NOTICE LIVE, AND WHAT THAT COSTS THE GUARD (v23.22) ─────────────────────────────────────
+ *
+ * `sign-in-2026` was retired here by owner decision, not by its expiry. v23.19 made the Calendar's
+ * front door a sign-in card, so its whole audience — somebody reading the roster on the staff PIN —
+ * has now SEEN that card and chosen the PIN instead, and the notice spent its life re-offering a
+ * choice the reader had just declined a moment earlier. The PIN card itself also states the code
+ * lasts only "as long as this browser stays open", which was half of what the notice existed to
+ * say, and its CTA pointed at Settings for a sign-in that is now on the page underneath it.
+ *
+ * That leaves `backpay-2026` alone, and it is `'members'` — so **no live notice addresses the
+ * signed-out audience**, and the positive direction of the audience gate has nothing to exercise
+ * it. `calendar-notices.test.mjs` can still prove a notice is REFUSED to the wrong audience and
+ * that every notice is gated at all; what it can no longer prove behaviourally is that a
+ * `'signed-out'` notice REACHES a PIN unlock. The next such notice restores it automatically —
+ * both suites derive their matrix from this source rather than from a hand-kept list. Until then
+ * a static contract carries the weight: `_openWhenAudienceAllows` must FORWARD its declared
+ * audience to the rule rather than hardcode one, which is the shape the gap would otherwise hide.
  */
 
-import { CONFIG } from './roster-data.js';
+// NOTE for the next notice: `CONFIG` (for a `*_NOTICE_DAYS` expiry) and `isNoticeExpired` were
+// imported here until v23.22 and went with `sign-in-2026` — the day-count expiry was its, and the
+// one notice left uses a hard clock cutoff instead. A notice using the ordinary expiry brings both
+// back; `.claude/skills/new-notice/` has the template.
 import { lsGet, lsSet } from './ls.js';
-import { archiveNotice, isNoticeExpired } from './nav-panel.js';
+import { archiveNotice } from './nav-panel.js';
 import { createLightbox, openNoticeIfClear } from './overlay.js';
 import { calendarAccessReady, getAccessType } from './calendar-access.js';
 import { noticeAudienceAllows } from './calendar-access-core.js';
@@ -72,70 +93,6 @@ export function initCalendarNotices({ after } = {}) {
     // snoozed, expired), and as plain blocks those returns leave THIS function — so the first
     // notice already dismissed silenced every notice after it. Caught by a render check the same
     // hour it was written; the wrapper is the scope those returns need.
-    // ── One-time notice: sign in once and skip the station code (v21.84) ────────────────────────
-    //
-    // REPLACES `pw-own-2026`, which asked the same people to do the same thing for a reason that has
-    // since been handled elsewhere. `password-force.js` compels a chosen password at the next
-    // sign-in of anybody still on the surname default, so for a member who signs in the old notice
-    // was telling them about a step the app was about to make them take anyway. What is NOT handled
-    // elsewhere is the thing the staff PIN introduced on 26 Aug: a member reading the roster on
-    // their own phone now re-enters the code every browser session, and nothing told them that
-    // signing in once ends that. KNOWN_LIMITATIONS.md named the old notice as the nudge for exactly
-    // this group; this is that nudge, saying what it actually means.
-    //
-    // The password ask has not been lost, it has moved down the funnel: sign in → forced password
-    // set. That is a better order than the notice ever managed, because it ends in the app doing it
-    // rather than the member remembering to.
-    //
-    // AUDIENCE 'signed-out', which is the whole design. Telling somebody who has signed in to sign
-    // in is noise, and because the audience is re-checked on every load the notice retires ITSELF
-    // the moment they do — no done-flag, and no retirement write in settings-app.js to keep in step
-    // (the old notice needed one, and it was a real coupling between two pages).
-    //
-    // A NEW ID and a NEW key, deliberately: every member who dismissed `pw-own-2026` would
-    // otherwise never see this, and they are its audience. Same reasoning as the v19.51
-    // links-beta → links-workspace replacement.
-    (function () {
-        const NOTICE_ID   = 'sign-in-2026';
-        const NOTICE_DATE = '27 Aug 2026';
-        const DONE_KEY    = 'myb_notice_sign_in_2026_done';
-        const SNOOZE_KEY  = 'myb_notice_sign_in_2026_snooze';
-
-        const overlay = document.getElementById('signInNoticeLb');
-        if (!overlay) return;
-        if (lsGet(DONE_KEY)) return;
-        const snooze = lsGet(SNOOZE_KEY);
-        if (snooze && Date.now() < new Date(snooze).getTime()) return;
-        // The same long window the password notice used, and for the same reason: this is a standing
-        // situation rather than an announcement whose news value decays. See CONFIG.SIGN_IN_NOTICE_DAYS.
-        if (isNoticeExpired(NOTICE_DATE, CONFIG.SIGN_IN_NOTICE_DAYS)) { lsSet(DONE_KEY, '1'); return; }
-
-        const _snoozeFor = (/** @type {number} */ days) =>
-            lsSet(SNOOZE_KEY, new Date(Date.now() + days * 86_400_000).toISOString());
-
-        const lb = createLightbox({
-            overlay,
-            content:  /** @type {HTMLElement} */ (document.getElementById('signInNoticeContent')),
-            closeBtn: /** @type {HTMLElement} */ (document.getElementById('signInNoticeClose')),
-            // Archive on OPEN, not on close: there is a CTA, so the reader may navigate away to sign
-            // in and never fire `onClose`. `archiveNotice` is idempotent.
-            onOpen() {
-                archiveNotice({
-                    id: NOTICE_ID, title: 'Sign in once and skip the code', section: 'Calendar',
-                    date: NOTICE_DATE,
-                    body: 'Viewing the roster with the station code means entering it again every time the browser closes. '
-                        + 'Signing in with your own name lasts 60 days on that device, and sets your own password at the same time.',
-                });
-            },
-            onClose() { _snoozeFor(7); },
-        });
-
-        document.getElementById('signInNoticeGo')?.addEventListener('click', () => _snoozeFor(1));
-        document.getElementById('signInNoticeLater')?.addEventListener('click', () => lb.close());
-
-        _openWhenAudienceAllows(lb, 'signed-out');
-    }());
-
     // ── One-shot notice: back pay arrives on the 28 Aug 2026 payslip (v21.61) ───────────────────────
     //
     // The 3.6% award steps on that payslip together with the arrears to April, so the week before it

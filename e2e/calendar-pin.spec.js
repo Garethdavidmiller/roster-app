@@ -740,9 +740,18 @@ test('switched OFF: a signed-in member is unaffected', async ({ page }) => {
 // correctly appeared on a machine that is deliberately unattributable and holds nobody's payslips.
 //
 // The rule is unit-tested in calendar-access-core.test.mjs. What is tested HERE is the wiring, and
-// only a browser can answer it: whether a real page open on a viewer session actually withholds the
-// notice, and — the half that is easy to get backwards — whether the notice written FOR people who
-// have not signed in still opens on exactly that session.
+// only a browser can answer it: whether a real page open on a viewer session actually withholds a
+// notice it is not addressed by, and whether the same notice reaches the member it IS for.
+//
+// ── ONE DIRECTION LOST ITS SUBJECT AT v23.22, AND SAYING SO IS THE POINT ────────────────────────
+// The other half — a `'signed-out'` notice REACHING a PIN unlock — was carried by `sign-in-2026`,
+// which was retired by owner decision (the Calendar's front door became a sign-in at v23.19, so the
+// notice re-offered a choice its reader had just declined). No live notice declares that audience
+// now, so that direction has nothing to exercise it and the test went with the notice rather than
+// being faked against one that cannot open. What still holds the line meanwhile is static, in
+// calendar-notices.test.mjs: `_openWhenAudienceAllows` must FORWARD its declared audience to the
+// rule rather than hardcode one, which is the shape a members-only regression would take.
+// **The next `'signed-out'` notice restores this test** — `.claude/skills/new-notice/` says so.
 test.describe('one-time notices and the PIN unlock', () => {
     // Before the back-pay notice's hard 27 Aug 23:00 cutoff, or it silently retires and these would
     // pass by testing nothing. Pinned rather than removed with the notice: what is under test is the
@@ -753,28 +762,12 @@ test.describe('one-time notices and the PIN unlock', () => {
     // permitted notice is already on screen by then, on the same session, through the same path.
     const PAST_THE_DEFER = 2500;
 
-    // ONE flag per test, deliberately. With both notices live only one can be on screen —
-    // `openNoticeIfClear`, v19.53 — so a test that clears both and asserts the members-only notice
-    // is absent passes whether the gate refused it or it merely lost the race to the other one.
-    // That is not a hypothetical: it is what the first version of this block did, and a mutation
-    // declaring the back-pay notice `'everyone'` — the exact reported bug — sailed through it.
-    test('a PIN unlock still gets the notice written FOR people who have not signed in', async ({ page }) => {
-        const errors = collectFatalErrors(page);
-        await page.clock.setFixedTime(BEFORE_CUTOFF);
-        await seedViewerAccess(page);
-        await seedMember(page);            // a chosen member is a DISPLAY choice, not a session
-        await clearNoticeFlags(page, ['myb_notice_sign_in_2026_done']);
-        await page.goto('/');
-        await expect(page.locator('.month-year')).toBeVisible();
-        await expect(page.locator('#signInNoticeLb'), "'everyone' must survive the audience default").toHaveClass(/open/);
-        // ...and it reaches the drawer's App Notices list, which is where a member who closed it
-        // goes to read it again. The audience decides BOTH surfaces, not just the lightbox.
-        await expect.poll(async () => page.evaluate(() =>
-            JSON.parse(localStorage.getItem('myb_app_notices') || '[]').map(n => n.id)))
-            .toContain('sign-in-2026');
-        expect(errors, 'Uncaught JS exceptions on a viewer calendar').toHaveLength(0);
-    });
-
+    // ONE flag per test, deliberately, and keep it that way as notices come and go. Only one notice
+    // can be on screen at a time — `openNoticeIfClear`, v19.53 — so a test that clears every flag
+    // and asserts the members-only notice is absent passes whether the gate refused it or it merely
+    // lost the race to another one. That is not a hypothetical: it is what the first version of
+    // this block did, and a mutation declaring the back-pay notice `'everyone'` — the exact
+    // reported bug — sailed through it.
     test('...and NOT the one that asks about your own payslips', async ({ page }) => {
         const errors = collectFatalErrors(page);
         await page.clock.setFixedTime(BEFORE_CUTOFF);

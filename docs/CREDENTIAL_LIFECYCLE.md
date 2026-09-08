@@ -180,12 +180,17 @@ status table, `neverSignedIn` from `getSignInStats`, and (v22.37) a Settings pag
 `✓ Password set` or `Using surname` without being opened.
 
 The one addition worth making is a **restrained, one-time invitation on a PIN-unlocked personal
-device**, in the shape the `sign-in-2026` notice already has:
+device**, in the shape the retired `sign-in-2026` notice had:
 
 > Using this on your phone? Sign in once and you won't need the staff PIN again for 60 days.
 
-That notice exists and is live to ~25 Nov 2026. Its audience rule (`'signed-out'`, retiring itself
-the moment the reader signs in) is the correct mechanism and needs no change. What is missing is
+**That notice was retired at v23.22, and the reason changes this proposal rather than merely dating
+it.** v23.19 made the Calendar's front door a sign-in card with the staff PIN one tap behind it, so
+the invitation is now the first thing a PIN user sees — a notice repeating it argues with the screen
+underneath. The audience rule (`'signed-out'`, retiring itself the moment the reader signs in) is
+still the correct mechanism for anything of this shape; what no longer needs a notice is this
+particular ask. The 60-day fact is the one part the front door does not state, and it belongs on the
+card if anywhere. What is missing is
 that **Operations does not state the campaign's position as a number** — the Account status table
 holds it per member, but "Passwords: 43 / 48 set" appears nowhere, and a migration nobody can see
 the size of is one nobody finishes.

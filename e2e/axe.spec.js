@@ -13,7 +13,7 @@
 // installed — otherwise the SDK-dependent pages never render and the scan can't reach them.
 import { test, expect, enableCalendarPin } from './fixtures.js';
 import AxeBuilder from '@axe-core/playwright';
-import { seedSession, seedMember, seedMemberSession, seedViewerAccess, stubPinExchange, enterPin, openPinCard } from './helpers.js';
+import { seedSession, seedMember, seedMemberSession, seedViewerAccess, stubPinExchange, enterPin, openPinCard, clearNoticeFlags } from './helpers.js';
 
 // ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
 // Since v20.12 the Calendar opens only for a member session or the shared staff PIN, so a spec that
@@ -33,22 +33,16 @@ import { seedSession, seedMember, seedMemberSession, seedViewerAccess, stubPinEx
 // untested.
 test.beforeEach(async ({ page }) => { await enableCalendarPin(page); await seedViewerAccess(page); });
 
-// ── The one-time notice is suppressed by default, and scanned deliberately instead ───────────────
-// `sign-in-2026` opens on the Calendar 1,500ms after load, on a fade transition, for exactly the
-// audience these scans seed (a member with no session). Every scan of `/` therefore raced it, and
-// under full-suite load the race was sometimes lost: axe caught the overlay PART-WAY THROUGH its
+// ── A one-time notice is suppressed by default, and scanned deliberately instead ────────────────
+// A notice opens on the Calendar 1,500ms after load, on a fade transition, and every scan of `/`
+// therefore raced it: under full-suite load axe sometimes caught the overlay PART-WAY THROUGH its
 // fade and reported four SERIOUS colour-contrast failures against a background that only exists for
-// a few hundred milliseconds. The card is clean once settled — verified, and now asserted below.
+// a few hundred milliseconds. The card is clean once settled — verified, and asserted below.
 //
-// So the notice is turned off for the scans that are about something else, and gets one scan of its
-// own that waits for it. That is strictly more coverage than before: an intermittent failure nobody
-// could reproduce becomes a deterministic assertion of the state it was accidentally sampling.
-// If a later notice appears on another page, suppress it here the same way.
-test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
-        try { localStorage.setItem('myb_notice_sign_in_2026_done', '1'); } catch (_) { /* noop */ }
-    });
-});
+// The suppression now lives in the SEEDERS (`seedMember`/`seedSession`/`seedMemberSession` all set
+// the done-flags), so this file no longer needs its own beforeEach; the deliberate scan below
+// re-enables one notice and waits for it. If a later notice appears on another page, suppress it
+// in that page's seeder the same way.
 
 
 // WCAG 2.0 + 2.1, levels A and AA — the standard staff-facing target.
@@ -472,24 +466,33 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     });
 
     test('one-time notice open (calendar) — the state the other scans used to sample by accident', async ({ page }) => {
-        // The re-enable must be registered AFTER every suppression — the file-level beforeEach AND
-        // `seedMember`, which sets the same key itself (the calendar specs had this race too, so
-        // the suppression moved into the helper). Init scripts run in registration order and last
-        // write wins, which is the whole mechanism here; putting the remove before seedMember is
-        // how this test silently reverted to scanning a notice that never opens.
-        //
-        // A notice is the app's only overlay that opens on a timer rather than on a tap, which is
+        // A notice is the app's only overlay that opens on a TIMER rather than on a tap, which is
         // what made it a race for everything else and why it needs its own scan: dark glass over a
         // translucent card, every text colour an rgba white, so contrast here is decided by what is
         // composited BEHIND it — the one arrangement in the app where a scan of some other page
         // proves nothing at all.
+        //
+        // THE SUBJECT MOVED AT v23.22, and the coverage is what matters rather than which notice
+        // carries it. `sign-in-2026` was retired, leaving `backpay-2026` — same `.notice-lb-content`
+        // shell, same rgba-white text over the same glass, so it scans the identical arrangement.
+        // Two consequences of that swap, both deliberate:
+        //   · Its audience is `'members'`, not `'signed-out'`, so this needs a NAMED identity
+        //     (a session AND a restored Firebase user) rather than the file's viewer seed.
+        //   · It self-retires at a hard clock time, so the clock is pinned before that cutoff. Move
+        //     this to the next notice when back-pay is deleted (~17 Feb 2027, the 180-day sweep)
+        //     rather than deleting the scan — it is the only one that sees a notice overlay.
+        //
+        // The re-enable is registered AFTER the seeders, which set the same key themselves: init
+        // scripts run in registration order and last write wins. Putting it first is how this test
+        // silently reverts to scanning a notice that never opens.
+        await page.clock.setFixedTime(new Date('2026-08-24T09:00:00Z'));   // before the 27 Aug 23:00 cutoff
+        await seedSession(page, 'G. Miller');
+        await seedMemberSession(page, 'G. Miller');
         await seedMember(page);
-        await page.addInitScript(() => {
-            try { localStorage.removeItem('myb_notice_sign_in_2026_done'); } catch (_) { /* noop */ }
-        });
+        await clearNoticeFlags(page, ['myb_notice_backpay_2026_done']);
         await page.goto('/');
         await expect(page.locator('.calendar-day').first()).toBeVisible();
-        await expect(page.locator('#signInNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+        await expect(page.locator('#bpNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
         await page.waitForTimeout(600);      // let the fade finish — mid-transition is the bug
         const v = await scan(page, { exclude: ['.other-month'] });
         expect(v.length, report(v)).toBe(0);
