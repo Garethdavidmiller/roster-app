@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '23.25';
+export const APP_VERSION = '23.26';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -264,6 +264,21 @@ export const teamMembers = [
     { name: 'K. Jedlinski',            currentWeek: 2,  rosterType: 'fixed',      role: 'CEA',
       startDate: new Date(2026, 5, 3), proRatedAL: { 2026: 18 },
       rosterChanges: [{ from: new Date(2026, 5, 28), rosterType: 'main', currentWeek: 10 }] },
+
+    // I. Melikian — started Mon 10 Aug 2026, in two phases. Phase 1 (to 12 Sep): initial training,
+    // which is `fixedRoster[2]` (Mon–Fri 09:00–16:00) as the BASE roster rather than overrides — the
+    // B. Toth pattern, and the 7-hour day is what makes the 35 hours the pay calculator reads.
+    // Phase 2 (from Sun 13 Sep): the BILINGUAL link on line 3, one above T. Gherbi.
+    // Two things here are easy to "correct" and must not be:
+    //   · `currentWeek: 5` is REFERENCE-ANCHORED, not a line number — BL week 5 at the 15 Feb 2026
+    //     bilingual reference Sunday is what resolves to line 3 on 13 Sep. Writing 3 shifts him two.
+    //   · NO `bilingualContract` flag, deliberately: a CEA CONTRACT on a bilingual LINE is 32 days,
+    //     not 34. That is the case the field's own comment describes.
+    // `proRatedAL: 13` is TRANSCRIBED from the clerk's workbook (`New Marylebone Totals` → `AL
+    // allowance`, read 8 Sep 2026). A day-count agrees here by luck; re-read the book, never recompute.
+    { name: 'I. Melikian',             currentWeek: 2,  rosterType: 'fixed',      role: 'CEA',
+      startDate: new Date(2026, 7, 10), proRatedAL: { 2026: 13 },
+      rosterChanges: [{ from: new Date(2026, 8, 13), rosterType: 'bilingual', currentWeek: 5 }] },
 
     // Dispatchers — 10-week rotating cycle, reference week starting 01/02/26
     // currentWeek reflects each person's row in the base roster on that date

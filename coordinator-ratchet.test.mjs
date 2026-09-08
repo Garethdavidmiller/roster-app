@@ -162,7 +162,17 @@ const CAPS = {
     // coordinator owns) left for calendar-notif-prompt.js, 1,346 down to 1,267. The ceiling comes
     // down with it rather than banking eighty lines as headroom, per the header's rule.
     'calendar-app.js':         1320,
-    'roster-data.js':          1350,   // mostly data, not logic
+    'roster-data.js':          1360,   // mostly data, not logic
+    // 1350 → 1360 at v23.26, and this raise is a DIFFERENT KIND from the two below it. Those were
+    // rules that had grown into a data file, and each was answered by asking whether the rule could
+    // leave first. This one is a PERSON: a new starter (I. Melikian) is one `teamMembers` entry plus
+    // the traps specific to it, and there is nowhere else a roster row can live. The file's length
+    // tracks HEADCOUNT, so it will cross again on a future starter, and that is not drift.
+    // Ten lines, not fifty — enough for the entry that caused it and no bank of headroom. The
+    // comment was cut to what is unique to that entry first (nine lines of it restated the shared
+    // fixedRoster warning and the AL history, both of which already live elsewhere), which is the
+    // three-homes rule doing the work the ratchet usually gets credit for.
+    // This argument licenses DATA only. A business rule arriving here still has to leave.
     // 1300 → 1350 at v22.50, and the extraction was CHECKED FOR FIRST rather than waved away. The
     // change underneath is a leave-entitlement correction — a Dispatcher's earned lieu days were
     // being discarded by their joining year's pro-rata — which is a business rule, exactly the kind
