@@ -18,6 +18,10 @@ on:
       # and delays it by the length of a full run. `paths-ignore` only skips when EVERY changed
       # path matches, so a commit touching both this and a served file still deploys.
       - '.claude/**'
+      # Documentation and the link proposals under it (PDFs, paste-ready rotations, the search
+      # tooling). Excluded from the bundle by firebase.json's `docs/**` since 8 Sep 2026, for the
+      # same reason as `.claude/**` above: a change here cannot reach the served app.
+      - 'docs/**'
   workflow_dispatch:
 
 # ── ONE DEPLOY AT A TIME, AND THE NEWEST ONE LAST (1 Sep 2026) ─────────────────────────────────

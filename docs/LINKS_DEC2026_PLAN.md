@@ -735,6 +735,21 @@ Ordered by how much they change if the answer is unexpected.
 5. **Should Saturday's window ever differ from Mon–Fri?** Currently identical; the setting can split
    them if the answer changes.
 
+## Proposals drawn (8 Sep 2026)
+
+Two, in `docs/proposals/` (its README is the index), each with an identity that survives a meeting
+— a name, a code for how it was built, and a fingerprint of the cells. Both were built and judged
+by the app's own modules, and every figure in a PDF is computed from the cells it shows.
+
+| Proposal | Code · fingerprint | Built from | Factors present | Longest run | Weekends off |
+|---|---|---|---|---|---|
+| **Same Turns** | `ST-24-B7 · d15e1b74` | today's 20-line link in its own turns and week shapes, widened | 1 | 6 | 6 in 24 |
+| **By the Book** | `BB-24-D7 · 0f14abce` | the workspace's December default table, the rotation searched fatigue-first | 0 | 6 | 6 in 24 |
+
+They bracket the one decision left: *Same Turns* keeps 15 turns people work today and does not
+meet the late-shorter lever; *By the Book* meets every rule and none of its turns is familiar. Both
+inherit today's Sunday window (open question 3) and carry the class-C caveats above.
+
 ## The four decisions, as they would be put in the room
 
 A draft, written v21.97 so the questions exist in a form somebody can answer rather than only as
