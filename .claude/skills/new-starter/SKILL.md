@@ -47,6 +47,30 @@ That file carries **two** unrelated things, which is why this step is unconditio
 - [ ] Joining period = the pay period whose cutoff is on or after the start date
 - [ ] Expected pro-rated hours = `Math.round(140 × daysEmployed / totalDays)` where totalDays = cutoff − prevCutoff and daysEmployed = `Math.round((cutoff − startDate) / msPerDay) + 1`
 
+## Step 3b — tell them it exists (optional, but nothing else does)
+
+- [ ] Send the welcome email — **`welcome-email.html`**, in this folder.
+
+Nothing in the app introduces itself. A new starter is provisioned, appears on every screen, and
+has no idea any of it is there; the only thing that closes that gap is somebody telling them.
+
+Copy the file into the email body as HTML and work through the checklist in its opening comment.
+It carries the placeholders (preferred name, roster name, grade, surname password, PIN) and two
+either/or blocks — a new-starter vs existing-staff opening, and a Pay Calculator section that
+differs by grade. **That second one is the one that goes out wrong**: the calculator is built on the
+CEA and CES hourly rates, so the positive version promises a Dispatcher something that cannot work.
+
+Two things to get right before sending:
+
+- **Send it AFTER step 2**, not before. An email that arrives ahead of the account tells somebody to
+  try a password that does not exist yet.
+- **Ask what they are called**, and put the roster name in as well. The sign-in list shows the
+  published-roster form (`I. Melikian`), so somebody looking for "Alex" does not find themselves.
+
+⚠️ **The real PIN is never written into that file.** It lives only in the `CALENDAR_VIEWER_PIN`
+secret, and `calendar-viewer-parity.test.mjs` fails if it appears anywhere in the repository. Fill
+`{{STAFF_PIN}}` in the mail client.
+
 ## Step 4 — verify it actually took (v22.53)
 
 - [ ] Operations → Staff Login Accounts → read the block above the button
