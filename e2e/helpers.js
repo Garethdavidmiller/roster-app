@@ -687,5 +687,7 @@ export async function switchToDesign(page, name) {
     await openDesignPicker(page);
     await designOptions(page).filter({ hasText: name }).first().click();
     await expect(page.locator('#designPickerLb.visible')).toHaveCount(0);
-    await expect(activeDesignName(page)).toContainText(name);
+    // It does NOT assert the switch happened. Picking a row asks the coordinator to switch, and the
+    // coordinator may refuse — the unsaved-changes confirm is a test in its own right, and asserting
+    // the outcome here made that test fail on the helper's line instead of its own.
 }

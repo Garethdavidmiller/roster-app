@@ -5346,6 +5346,11 @@ test('no select option is cut off at 360px', async ({ page }) => {
             document.querySelectorAll('select').forEach(el => {
                 const box = el.getBoundingClientRect();
                 if (!box.width || /** @type {HTMLElement} */ (el).offsetParent === null) return;
+                // An ENHANCED select has no native popup to cut anything off (v23.35): it is the
+                // 1px value holder behind a `select-sheet.js` trigger, and its options are rendered
+                // as `.picker-opt` rows that WRAP. Measuring option text against a 1px box reports
+                // every option as clipped, which is the opposite of what this guard is about.
+                if (el.classList.contains('fieldpick-native')) return;
                 const cs = getComputedStyle(el);
                 const usable = box.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
                 const probe = document.createElement('span');

@@ -987,17 +987,27 @@ button.lightbox-bug-link {
    `pointer-events: none` under a trigger that covers the slot means nothing can reach it by
    touch. */
 .fieldpick-native {
+    /* EVERY declaration here is `!important`, and that is not laziness — it is the only thing that
+       makes this rule win (v23.35). The pages style their fields by ID and by class:
+       `#periodSelect { width: 100% }` is (1,0,0) and `.gen-select { width: 100% }` is (0,1,0) and
+       later in source order, so a plain `.fieldpick-native { width: 1px }` LOSES to both. The
+       select then kept `width: 100%` while being `position: absolute` — 100% of the initial
+       containing block, laid out from its static position — and the document grew to roughly twice
+       the viewport. Chromium happened to clip it and stayed green; WebKit reported 977px of
+       overflow at 1024 and 1254px at 1440, on four paycalc widths and the Links generator.
+       Caught by the branch's WebKit lane, which is the only one that sees Safari before release. */
     position: absolute !important;
-    width: 1px;
-    height: 1px;
+    width: 1px !important;
+    height: 1px !important;
     min-width: 0 !important;
     max-width: none !important;
+    min-height: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
     border: 0 !important;
-    opacity: 0;
-    pointer-events: none;
-    overflow: hidden;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    overflow: hidden !important;
 }
 
 .fieldpick {
