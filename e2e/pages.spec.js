@@ -6082,3 +6082,71 @@ test('admin: the existing card deep link still opens that card', async ({ page }
     await page.waitForTimeout(400);
     expect(await page.evaluate(() => document.getElementById('alBody')?.classList.contains('open'))).toBe(true);
 });
+
+// ── THE PAGE MAY NOT BE SHAVED DOWN ITS RIGHT EDGE (v23.28, owner report) ───────────────────────
+//
+// Reported as: switch staff member on Admin and the whole screen loses its right edge — the ADMIN
+// badge, the week-nav ›, the "All 7" button, the Base roster column. Correct on the first name you
+// arrive with; only managers and admin can see it, because only they can change the select.
+//
+// The cause is one level above where it looks. `.container` is a grid, and a track with no declared
+// size takes an automatic minimum of MIN-CONTENT — so one child that refuses to shrink widens the
+// TRACK, every sibling in it (header, member bar, every card) stretches to that width, and
+// `overflow-x: clip` on the container then cuts them all off at the viewport. The page never
+// scrolls, which is why it reads as a shave rather than as overflow.
+//
+// TWO THINGS MADE IT INVISIBLE HERE for as long as it shipped:
+//   · At the default text size everything fits, so the track's minimum never bites.
+//   · Android's font/display scaling multiplies the USED font-size of every element and leaves the
+//     viewport ALONE — so no width query, and no narrower Playwright viewport, can reach the state.
+//     (That is the same blind spot `text-scale.js` exists for on the Calendar; Admin has no such
+//     handling, so this test has to create the condition itself.) Shrinking the viewport instead
+//     would be a different layout, because media queries would fire that do not fire on the phone.
+// `scaleText` therefore does what the platform does: freeze each element's computed size and
+// multiply it. 1.3 is one notch above the ~1.11 measured off the owner's screenshot.
+//
+// It only appears AFTER a member is picked because that is when the week grid first paints real
+// shifts, and "14:30-23:25" at scaled text is the child that will not shrink.
+/** @param {import('@playwright/test').Page} page @param {number} k */
+async function scaleText(page, k) {
+    await page.evaluate((mult) => {
+        document.querySelectorAll('*').forEach((el) => {
+            const px = parseFloat(getComputedStyle(el).fontSize);
+            if (px) /** @type {HTMLElement} */ (el).style.fontSize = (px * mult) + 'px';
+        });
+    }, k);
+}
+/** Container items + cards whose right edge is past the viewport. Content INSIDE a card may
+ *  overflow — `.card { overflow: hidden }` contains it, which is the design. What must never
+ *  overflow is the card itself, or anything else the container lays out. */
+function tooWide(page) {
+    return page.evaluate(() => {
+        const vw = document.documentElement.clientWidth;
+        return [...document.querySelectorAll('.container > *, .card')]
+            .filter(el => { const r = el.getBoundingClientRect();
+                            return r.width > 0 && Math.round(r.right) > vw + 1; })
+            .map(el => `${el.tagName}${el.id ? '#' + el.id : ''}.${(typeof el.className === 'string' ? el.className : '').split(' ')[0]}`);
+    });
+}
+
+test('admin: switching member at large text does not shave the page @layout', async ({ page }) => {
+    await seedSession(page, 'G. Miller');          // admin — the only identities that can switch
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/admin.html');
+    await expect(page.locator('#fieldMember')).toBeEnabled();
+
+    // PREMISE: at the default text size this page fits, before and after the switch. Without it a
+    // green result would not distinguish "the fix works" from "the fixture never overflowed".
+    expect(await tooWide(page), 'premise: admin fits at default text size').toEqual([]);
+
+    await scaleText(page, 1.3);
+    expect(await tooWide(page), 'premise: it still fits at large text BEFORE a member is chosen')
+        .toEqual([]);
+
+    await page.locator('#fieldMember').selectOption('M. Robson');
+    await expect(page.locator('.day-row')).toHaveCount(7);     // the week grid has really painted
+    await scaleText(page, 1.3);                                // the switch re-rendered it
+
+    expect(await tooWide(page),
+        'the container track must not be widened past the viewport by the week grid').toEqual([]);
+});

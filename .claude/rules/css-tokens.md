@@ -502,6 +502,30 @@ is the other half — without it `1` is narrower than `4` and the times jitter 2
 from the widest MEASURED variant, not the widest you can think of: 🦉 has a wider advance than
 ☀️ or 🌙, which is why a width taken from a Late badge still left two edges.
 
+## A grid track is only as narrow as its widest child ALLOWS (v23.28)
+
+**Every grid that lays out page-level content declares `minmax(0, …)` tracks, and its items get
+`min-width: 0`.** A track with no declared size — including the implicit single column a
+`display: grid` with no `grid-template-columns` gets — takes an automatic minimum of **min-content**.
+One child that will not shrink then widens the *track*, and every sibling sharing it stretches to
+match.
+
+Where that goes wrong is not where you look. On `admin.html` the page's outer `.container` is such a
+grid, so a wide week-grid cell widened the header, the member bar and every card at once, and the
+`overflow-x: clip` above them cut the lot off at the viewport. **The page never scrolls, so the
+symptom is the whole screen shaved down its right edge** — it does not read as overflow at all.
+
+Two reasons it survives review:
+
+- **At the default text size everything fits**, so the minimum never binds and the bug is not there.
+- **Android's font/display scaling multiplies used font-sizes and leaves the viewport alone**, so no
+  width query and no narrower test viewport can reach the state. Shrinking the viewport instead
+  fires media queries that do not fire on the phone, which is a different layout, not a smaller one.
+
+It has now been found twice — `.selectors` (v12-era, its comment carries the reasoning) and
+`.container` (v23.28, reported by the owner from a phone). Pinned by the `@layout` test in
+`e2e/pages.spec.js`, which creates the scaled-text condition because nothing else can see it.
+
 ## Prose is left-aligned once it passes ~2 lines (v18.89)
 
 Overlay body copy (`.notice-body`, `.lightbox-privacy`, paycalc's `.welcome-desc`) used to be
