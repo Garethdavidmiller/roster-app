@@ -15,25 +15,43 @@ Add the notice lightbox in the page's HTML, grouped with the other `.lb-overlay`
 <div id="[Name]NoticeLb" class="lb-overlay" role="dialog" aria-label="[Title]" aria-modal="true">
     <div id="[Name]NoticeContent" class="lb-content notice-lb-content">
         <button id="[Name]NoticeClose" class="lb-close" type="button" aria-label="Close">✕</button>
-        <div class="notice-badge notice-badge--[page]">[Emoji] [Section]</div>
-        <div class="lightbox-app-name">[Title]</div>
-        <div class="notice-date">Posted [D Mon YYYY]</div>
-        <p class="notice-body">[Body text. Use <strong> for emphasis.]</p>
+        <div class="notice-head">
+            <div class="notice-badge notice-badge--[page]">[Emoji] [Section]</div>
+            <div class="lightbox-app-name">[Title]</div>
+            <div class="notice-date">Posted [D Mon YYYY]</div>
+        </div>
+        <div class="notice-main">
+            <p class="notice-body">[Body text. Use <strong> for emphasis.]</p>
+        </div>
         <!-- OPTIONAL — only when the notice drives a page visit: -->
-        <a href="[url]" id="[Name]NoticeGo" class="notice-cta">[CTA label] →</a>
-        <button id="[Name]NoticeLater" class="notice-later" type="button">Not now</button>
+        <div class="notice-actions">
+            <a href="[url]" id="[Name]NoticeGo" class="notice-cta">[CTA label] →</a>
+            <button id="[Name]NoticeLater" class="notice-later" type="button">Not now</button>
+        </div>
     </div>
 </div>
 ```
 
+**THE THREE ZONES ARE THE STRUCTURE, and a flat card is the thing they replaced (v23.32).** The
+card carries no padding and no gap of its own; each zone owns its spacing, which is what makes the
+header separate from the prose and the prose from the buttons. Before this the six children sat as
+flat siblings at a uniform 6px gap, so nothing grouped and the card read as unstyled text on a
+dimmed page — reported by the owner from a phone. **Do not put a child directly in
+`.notice-lb-content`**: it will sit hard against the card's edge with no padding at all, because
+there is none to inherit. `.notice-actions` is omitted entirely on a notice with no buttons; so is
+`.notice-date` on one that is not dated.
+
 **Element order is mandatory:**
 1. `.lb-close` ✕ button — always first, absolutely positioned, does not affect flex flow
-2. `.notice-badge notice-badge--[page]` — section pill coloured to match the page's nav pill (see table below). Do not use `.lightbox-badge` on notices.
-3. `.lightbox-app-name` — notice title (white, 17px bold — scoped smaller than the About lightbox title by `.notice-lb-content .lightbox-app-name` in `shared.css`)
-4. `.notice-date` — `Posted D Mon YYYY` — **hardcoded** to the date the notice was published
-5. `.notice-body` — body copy paragraph (soft white, 13px, **left-aligned** — v18.89: it was centred, which reads fine for a line or two but works against the reader over the 3–5 lines a notice body usually runs to. The badge/title/date above stay centred, so the card keeps a centred masthead over left-aligned prose)
-6. `.notice-cta` — gold action `<a>` — only if the notice links to another page
-7. `.notice-later` — muted dismiss `<button>` — only when `.notice-cta` is present
+2. `.notice-head` — the masthead block. Its 28px top padding clears the ✕'s 44px touch target; do not reduce it, or the title lands under the button.
+   - `.notice-badge notice-badge--[page]` — section pill coloured to match the page's nav pill (see table below). Do not use `.lightbox-badge` on notices.
+   - `.lightbox-app-name` — notice title (white, scoped smaller than the About lightbox title by `.notice-lb-content .lightbox-app-name` in `shared.css`; `text-wrap: balance` handles a wrap)
+   - `.notice-date` — `Posted D Mon YYYY` — **hardcoded** to the date the notice was published. OPTIONAL.
+3. `.notice-main` — one or more `.notice-body` paragraphs (soft white, left-aligned — v18.89: centred reads fine for a line or two and works against the reader over the 3–5 lines a notice body usually runs to). The whole card is left-aligned since v23.32; it used to centre the header over left-aligned prose, which changed alignment twice on the way down.
+4. `.notice-actions` — OPTIONAL, and only when there is something to press:
+   - `.notice-cta` — gold action `<a>` — only if the notice links to another page
+   - `.notice-later` — muted dismiss `<button>` — only when `.notice-cta` is present
+   - two `.btn-action` buttons instead, where the notice asks a question rather than pointing somewhere (the pay-data ownership prompt)
 
 **No per-notice CSS.** All visual needs are met by the shared classes above (defined in `shared.css`).
 

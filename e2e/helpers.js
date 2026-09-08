@@ -645,14 +645,18 @@ export { TOUCH_PROJECTS };
 export const isTouchProject = (info) => TOUCH_PROJECTS.includes(info.project.name);
 
 /**
- * THE DESIGN MASTHEAD (v23.30, links-design-header.js). The picker is a native <select> under a
- * heading face, and every verb but Save lives in the ··· More sheet — so "how many designs" is the
- * option count, "which is open" is the face, and Delete/Duplicate/Import/Compare/Recently deleted
- * are reached by opening the sheet first. The sheet closes itself and the action's own dialog
- * appears 500ms later; every caller's next `expect` auto-waits, so no sleep is needed here.
+ * THE DESIGN MASTHEAD (v23.30; the picker became a sheet at v23.32 — links-design-header.js). Two
+ * sheets hang off it: the PICKER, opened by the heading face, and the ··· More sheet holding every
+ * verb but Save. So "how many designs" is the picker's row count, "which is open" is the face, and
+ * Delete/Duplicate/Import/Compare/Recently deleted are reached by opening More first. Both sheets
+ * close themselves and run their action 500ms later; every caller's next `expect` auto-waits, so no
+ * sleep is needed here.
+ *
+ * The rows exist in the DOM whether or not the picker is open (the list is built on render, not on
+ * open), so a COUNT needs no click — same as the <select>'s options before it. A CLICK does.
  * @param {import('@playwright/test').Page} page
  */
-export function designOptions(page) { return page.locator('#designSelect option[data-id]'); }
+export function designOptions(page) { return page.locator('#designPickList .picker-opt[data-id]'); }
 /** @param {import('@playwright/test').Page} page */
 export function activeDesignName(page) { return page.locator('#designFaceName'); }
 /** @param {import('@playwright/test').Page} page */
@@ -671,12 +675,19 @@ export async function sheetAction(page, id) {
     await page.locator('.dialog-overlay, .lb-overlay.visible').first()
         .waitFor({ state: 'attached', timeout: 1500 }).catch(() => {});
 }
-/** Switch to the design whose name contains `name`, through the real <select>. @param {import('@playwright/test').Page} page @param {string} name */
+/** @param {import('@playwright/test').Page} page */
+export async function openDesignPicker(page) {
+    await page.locator('#designPickerBtn').click();
+    await expect(page.locator('#designPickerLb.visible')).toBeVisible();
+}
+/** Switch to the design whose name contains `name`, by pressing its row. Drives the REAL control —
+ *  open the sheet, tap the row — rather than dispatching an event at it, so a picker that renders
+ *  its rows unreachably still fails here. @param {import('@playwright/test').Page} page @param {string} name */
 export async function switchToDesign(page, name) {
-    await page.locator('#designSelect').evaluate((/** @type {HTMLSelectElement} */ sel, /** @type {string} */ n) => {
-        const opt = [...sel.options].find(o => o.textContent?.includes(n));
-        if (!opt) throw new Error(`no design option containing "${n}"`);
-        sel.value = opt.value;
-        sel.dispatchEvent(new Event('change', { bubbles: true }));
-    }, name);
+    await openDesignPicker(page);
+    await designOptions(page).filter({ hasText: name }).first().click();
+    await expect(page.locator('#designPickerLb.visible')).toHaveCount(0);
+    // It does NOT assert the switch happened. Picking a row asks the coordinator to switch, and the
+    // coordinator may refuse — the unsaved-changes confirm is a test in its own right, and asserting
+    // the outcome here made that test fail on the helper's line instead of its own.
 }

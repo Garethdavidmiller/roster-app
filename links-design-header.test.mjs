@@ -11,7 +11,7 @@
  * what the markup SAYS and whether the select was rebuilt when it need not have been (rule 4 in the
  * module header — a rebuild mid-paint on Android closes an open picker).
  */
-import { test, describe } from 'node:test';
+import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     groupDesigns, saveButtonLabel, statusCopy, whoCopy, proposeNewDesignName, toDate, createDesignHeader,
@@ -135,21 +135,50 @@ function el(tag = 'div') {
             toggle(/** @type {string} */ c, /** @type {boolean} */ on) { on ? e._classes.add(c) : e._classes.delete(c); },
             contains(/** @type {string} */ c) { return e._classes.has(c); },
         },
+        attrs: /** @type {Record<string, string>} */ ({}),
+        parent: /** @type {any} */ (null),
         listeners: /** @type {Record<string, Function[]>} */ ({}),
         addEventListener(/** @type {string} */ t, /** @type {Function} */ f) { (e.listeners[t] ||= []).push(f); },
-        appendChild(/** @type {any} */ c) { e.children.push(c); return c; },
+        appendChild(/** @type {any} */ c) { c.parent = e; e.children.push(c); return c; },
+        append(/** @type {any[]} */ ...cs) { for (const c of cs) e.appendChild(c); },
+        setAttribute(/** @type {string} */ k, /** @type {string} */ v) { e.attrs[k] = String(v); },
+        getAttribute(/** @type {string} */ k) { return e.attrs[k] ?? null; },
+        /** Only the one selector the delegated handler uses — enough, and it fails loudly on any other. */
+        closest(/** @type {string} */ sel) {
+            assert.equal(sel, '.picker-opt[data-id]', 'the harness models only the picker row selector');
+            for (let n = e; n; n = n.parent) if (String(n.className).includes('picker-opt') && n.dataset?.id) return n;
+            return null;
+        },
         rebuilds: 0,
     };
     Object.defineProperty(e, 'textContent', {
         get() { return e._text ?? ''; },
-        set(v) { e._text = String(v); if (tag === 'select') { e.children = []; e.rebuilds += 1; } },
+        // Clearing textContent removes children, as it does in a real DOM — which is exactly how
+        // both the select (before v23.32) and the picker list are emptied before a rebuild.
+        set(v) { e._text = String(v); if (e.children.length || v === '') { e.children = []; e.rebuilds += 1; } },
     });
     return e;
 }
 
+/** The visible name of a built picker row, and its meta line. */
+const rowName = (/** @type {any} */ row) => row.children[0].children[0].textContent;
+/** Every built row in the picker list, group headings and the inert unsaved row included. */
+const allRows = (/** @type {any} */ list) => {
+    const out = /** @type {any[]} */ ([]);
+    const walk = (/** @type {any} */ n) => {
+        if (String(n.className).split(' ').includes('picker-opt')) { out.push(n); return; }
+        for (const c of n.children || []) walk(c);
+    };
+    for (const c of list.children) walk(c);
+    return out;
+};
+const tickedRows = (/** @type {any} */ list) => allRows(list).filter(r => r.attrs?.['aria-current'] === 'true');
+const rowMeta = (/** @type {any} */ row) => row.children[0].children[1].textContent;
+
 function harness() {
     const els = {
-        select: el('select'), faceName: el(), eyebrow: el(), count: el(), masthead: el(),
+        pickList: el(), pickerSub: el(), pickerButton: el('button'),
+        faceName: el(), eyebrow: el(), count: el(), masthead: el(),
         avatar: el(), whoName: el(), whoRole: el(), status: el(), statusLong: el(), statusShort: el(),
         saveButtons: [el('button'), el('button')], renameButtons: [el('button')],
         renameMenuButton: el('button'), deleteButton: el('button'),
@@ -157,8 +186,19 @@ function harness() {
     };
     const calls = /** @type {string[]} */ ([]);
     globalThis.document = /** @type {any} */ ({ createElement: (/** @type {string} */ t) => el(t) });
-    const h = createDesignHeader(/** @type {any} */ (els), { onSelect: id => calls.push(`select:${id}`), onRename: () => calls.push('rename') });
-    return { els, h, calls };
+    // Two fake lightboxes, injected exactly as the coordinator injects createLightbox. Without them
+    // the module's OWN wiring — which control opens which sheet — is untestable, and that is not a
+    // hypothetical gap: `pickerButton` was read from the wrong argument when the sheet first shipped
+    // and every unit test here still passed, because none of them pressed the face.
+    const opened = /** @type {string[]} */ ([]);
+    const lb = (/** @type {string} */ tag) => ({ open: () => opened.push(`open:${tag}`), close: () => opened.push(`close:${tag}`) });
+    const extra = {
+        moreButton: el('button'),
+        sheet:  { overlay: el(), content: el(), create: () => lb('more') },
+        picker: { overlay: el(), content: el(), create: () => lb('picker') },
+    };
+    const h = createDesignHeader(/** @type {any} */ (els), { onSelect: id => calls.push(`select:${id}`), onRename: () => calls.push('rename') }, /** @type {any} */ (extra));
+    return { els, h, calls, extra, opened };
 }
 const DESIGNS = [
     { id: 'a', name: 'Option A', updatedBy: ME, updatedAt: at(NOW.getTime()) },
@@ -177,6 +217,8 @@ describe('render — what the masthead SAYS', () => {
         for (const b of els.saveButtons) { assert.equal(b.textContent, 'Saved'); assert.equal(b.disabled, true); }
         assert.equal(els.deleteButton.disabled, false);
         assert.equal(els.count.textContent, '2 saved');
+        // The face is aria-hidden, so the BUTTON has to carry the name a <select> announced for free.
+        assert.match(els.pickerButton.attrs['aria-label'], /Option A/);
     });
     test('a design fresh from the generator: Untitled, Not saved yet, Save as… ENABLED, rename and delete disabled', () => {
         const { els, h } = harness();
@@ -188,7 +230,9 @@ describe('render — what the masthead SAYS', () => {
         for (const b of els.saveButtons) { assert.equal(b.textContent, 'Save as…'); assert.equal(b.disabled, false); }
         assert.equal(els.renameButtons[0].disabled, true);
         assert.equal(els.deleteButton.disabled, true);
-        assert.equal(els.select.children[0]?.value, '', 'a placeholder option stands for the unsaved design');
+        assert.equal(els.pickList.children[0].className, 'picker-opt is-current');
+        assert.equal(els.pickList.children[0].disabled, true, 'the unsaved row has no id to select by, so it is inert');
+        assert.equal(rowName(els.pickList.children[0]), 'Untitled design');
     });
     test('the last design cannot be deleted while the bin rule says so, and the row states why through disabled', () => {
         const { els, h } = harness();
@@ -203,25 +247,32 @@ describe('render — what the masthead SAYS', () => {
         for (const b of els.saveButtons) assert.equal(b.disabled, true);
         assert.ok(els.masthead.classList.contains('is-empty'));
     });
-    test('the select is grouped by designer and the active design is the selected option', () => {
+    test('the picker list is grouped by designer, and the open design is the one marked current', () => {
         const { els, h } = harness();
         h.render({ designs: DESIGNS, activeId: 'c', design: { name: 'Proposal' }, dirty: false, currentUser: ME, now: NOW });
-        assert.deepEqual(els.select.children.map((/** @type {any} */ g) => g.label), ['Your designs', "S. Silva's designs"]);
-        assert.equal(els.select.value, 'c');
-        const opt = els.select.children[1].children[0];
-        assert.equal(opt.dataset.id, 'c');
-        assert.match(opt.textContent, /^Proposal · 7 Sept$/);
+        assert.deepEqual(els.pickList.children.map((/** @type {any} */ g) => g.attrs['aria-label']), ['Your designs', "S. Silva's designs"]);
+        const row = els.pickList.children[1].children[1];   // [0] is the group's own label
+        assert.equal(row.dataset.id, 'c');
+        assert.equal(rowName(row), 'Proposal');
+        assert.equal(rowMeta(row), 'Saved 7 Sept');
+        assert.equal(row.attrs['aria-current'], 'true');
+        assert.equal(row.children[1].textContent, '✓', 'the tick is a second signal beside the tint — never colour alone');
+        // and the one that is NOT open carries neither marker
+        const other = els.pickList.children[0].children[1];
+        assert.equal(other.attrs['aria-current'], undefined);
+        assert.equal(other.children[1].textContent, '');
+        assert.equal(els.pickerSub.textContent, '2 saved designs');
     });
-    test('RULE 4: a dirty flip does not rebuild the select; a new design does', () => {
+    test('RULE 4: a dirty flip does not rebuild the picker list; a new design does', () => {
         const { els, h } = harness();
         const base = { designs: DESIGNS, activeId: 'a', design: { name: 'Option A' }, currentUser: ME, now: NOW };
         h.render({ ...base, dirty: false });
-        const after1 = els.select.rebuilds;
+        const after1 = els.pickList.rebuilds;
         h.render({ ...base, dirty: true });
         h.render({ ...base, dirty: true });
-        assert.equal(els.select.rebuilds, after1, 'painting cells must not tear the option list down');
+        assert.equal(els.pickList.rebuilds, after1, 'painting cells must not tear the rows out from under a reader');
         h.render({ ...base, dirty: true, designs: [...DESIGNS, { id: 'z', name: 'New', updatedBy: ME, updatedAt: at(1) }] });
-        assert.equal(els.select.rebuilds, after1 + 1);
+        assert.equal(els.pickList.rebuilds, after1 + 1);
     });
     test('a saving render freezes the button label rather than flipping it back to Save mid-write', () => {
         const { els, h } = harness();
@@ -230,13 +281,48 @@ describe('render — what the masthead SAYS', () => {
         for (const b of els.saveButtons) assert.equal(b.textContent, 'Saving…');
         assert.equal(els.status.className, 'dm-status dm-status--saving');
     });
-    test('the wiring: choosing an option reports its id; the pencil reports a rename', () => {
+    test('the wiring: a tap anywhere inside a row reports THAT row\'s id; the pencil reports a rename', () => {
         const { els, h, calls } = harness();
         h.render({ designs: DESIGNS, activeId: 'a', design: { name: 'Option A' }, dirty: false, currentUser: ME, now: NOW });
-        els.select.value = 'c';
-        for (const f of els.select.listeners.change) f();
+        // The handler is delegated to the list, so the event target is whatever was under the
+        // finger — here the name INSIDE the row, which is what a real tap almost always hits.
+        const row = els.pickList.children[1].children[1];
+        // The selection waits out the sheet's fade, so the clock has to move for it to land.
+        mock.timers.enable({ apis: ['setTimeout'] });
+        try {
+            for (const f of els.pickList.listeners.click) f({ target: row.children[0].children[0] });
+            assert.deepEqual(calls, [], 'nothing is selected until the sheet has gone');
+            mock.timers.tick(600);
+        } finally { mock.timers.reset(); }
         for (const f of els.renameButtons[0].listeners.click) f();
         assert.deepEqual(calls, ['select:c', 'rename']);
+    });
+    test('the wiring: the FACE opens the picker and ··· opens the More sheet — each its own', () => {
+        const { els, extra, opened } = harness();
+        for (const f of els.pickerButton.listeners.click || []) f();
+        assert.deepEqual(opened, ['open:picker'], 'the heading face is the picker\'s only trigger');
+        for (const f of extra.moreButton.listeners.click || []) f();
+        assert.deepEqual(opened, ['open:picker', 'open:more']);
+    });
+    test('choosing a row closes the picker BEFORE the coordinator loads the design', () => {
+        const { els, h, opened } = harness();
+        h.render({ designs: DESIGNS, activeId: 'a', design: { name: 'Option A' }, dirty: false, currentUser: ME, now: NOW });
+        const row = els.pickList.children[1].children[1];
+        for (const f of els.pickList.listeners.click) f({ target: row });
+        // A dialog opened during the close races overlay.js's own history.back(), so the close comes
+        // first and the selection follows it — never the other way round.
+        assert.deepEqual(opened, ['close:picker']);
+    });
+    test('a tap on a group heading, or on the inert unsaved row, selects nothing', () => {
+        const { els, h, calls } = harness();
+        h.render({ designs: DESIGNS, activeId: null, design: { name: '' }, dirty: true, currentUser: ME, now: NOW });
+        mock.timers.enable({ apis: ['setTimeout'] });
+        try {
+            for (const f of els.pickList.listeners.click) f({ target: els.pickList.children[1].children[0] });
+            for (const f of els.pickList.listeners.click) f({ target: els.pickList.children[0] });
+            mock.timers.tick(600);
+        } finally { mock.timers.reset(); }
+        assert.deepEqual(calls, []);
     });
 });
 
@@ -261,23 +347,34 @@ describe('a control offered twice is disabled in both places', () => {
     });
 });
 
-describe('the select always names the design that is actually OPEN', () => {
-    // `change` fires the instant a reader picks, so the value has moved before the coordinator asks
-    // "discard unsaved changes?". When they answer no, the ONLY thing that puts the picker back is
-    // this render — so it must re-point unconditionally, not just on the saved path.
-    test('a render after a declined switch re-points the select at the open design', () => {
+describe('the picker always names the design that is actually OPEN', () => {
+    // THE v23.33 DEFECT, AND WHY ITS TEST CHANGED SHAPE AT v23.35. A `<select>` HOLDS a value, and
+    // `change` moved it the instant a reader picked — so when the coordinator then asked "discard
+    // unsaved changes?" and they answered no, the picker was left naming a design nobody had
+    // opened. The fix was to re-point the select on every render, and these two cases pinned it.
+    //
+    // The sheet holds no value at all: it reports an id, closes, and every visible thing — the
+    // face, the ticked row — is rendered from `design`/`activeId`. So the assertion is no longer
+    // "the control was put back" but "the control never left", which is the stronger property and
+    // the reason the whole class is gone. Kept because a future picker that caches a selection
+    // would reintroduce it, and this is where that would be caught.
+    test('a render after a declined switch still names the OPEN design, not the picked one', () => {
         const { els, h } = harness();
         h.render({ designs: DESIGNS, activeId: 'a', design: { name: 'Option A' }, dirty: false, currentUser: ME, now: NOW });
-        els.select.value = 'c';                       // the reader picked Proposal; the switch was declined
+        // The reader picked Proposal and the switch was declined: the coordinator re-renders with
+        // the design that is still open, and nothing anywhere holds the id they touched.
         h.render({ designs: DESIGNS, activeId: 'a', design: { name: 'Option A' }, dirty: true, currentUser: ME, now: NOW });
-        assert.equal(els.select.value, 'a', 'the picker may never name a design nobody opened');
+        assert.equal(els.faceName.textContent, 'Option A', 'the face may never name a design nobody opened');
+        const ticked = tickedRows(els.pickList);
+        assert.equal(ticked.length, 1, 'exactly one row is ever marked current');
+        assert.equal(ticked[0].dataset.id, 'a');
     });
-    test('with an UNSAVED design open the select falls back to the placeholder, not a stale id', () => {
+    test('with an UNSAVED design open, the current row is the inert one — never a saved id', () => {
         const { els, h } = harness();
         h.render({ designs: DESIGNS, activeId: null, design: { name: '' }, dirty: true, currentUser: ME, now: NOW });
-        els.select.value = 'c';
-        h.render({ designs: DESIGNS, activeId: null, design: { name: '' }, dirty: true, currentUser: ME, now: NOW });
-        assert.equal(els.select.value, '', 'an unsaved design is the placeholder option, never a saved id');
+        const ticked = tickedRows(els.pickList);
+        assert.equal(ticked.length, 1);
+        assert.equal(ticked[0].dataset.id, undefined, 'an unsaved design has no id, so no saved row may wear the tick');
     });
 });
 

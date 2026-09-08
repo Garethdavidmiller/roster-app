@@ -230,7 +230,13 @@ export const addDoc = (/** @type {any} */ ref, /** @type {any} */ data) => {
   const e2e = globalThis.__E2E || (globalThis.__E2E = {});
   e2e.setWrites = e2e.setWrites || [];
   e2e.setWrites.push({ path: (ref && ref.path) || '', data, merge: false, added: true });
-  return Promise.resolve(marker('docRef'));
+  // The ref CARRIES AN ID, because the real one does (v23.32). Every create path reads it back and
+  // uses it as the new design's identity, so a ref without one left a design in the list that could
+  // not be selected. Nothing failed: the old picker was a <select> and wrote dataset.id = undefined,
+  // which stringifies to "undefined" and still matches an [data-id] locator, so the spec counted a
+  // design that was not choosable. Whatever a create returns here must look like Firestore's.
+  e2e.addDocSeq = (e2e.addDocSeq || 0) + 1;
+  return Promise.resolve({ ...marker('docRef'), id: 'e2e-added-' + e2e.addDocSeq });
 };
 // setDoc RECORDS its payload (v19.41), for the same reason writeBatch does: a test that can only
 // see the UI is checking the SUMMARY of a write, not the write. The Links soft delete is exactly

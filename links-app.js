@@ -514,12 +514,12 @@ export function init() {
         canDelete: canSoftDelete(designs.length),
     });
 
-    /** Wire the masthead + its ··· More sheet, once. The sheet's rows keep their long-standing ids. */
+    /** Wire the masthead + its two sheets (picker, ··· More), once. The More rows keep their ids. */
     function initDesignPicker() {
         const $ = (/** @type {string} */ id) => document.getElementById(id);
         const onRename = () => { if (activeDesignId) renameDesign(activeDesignId); };
         header = createDesignHeader({
-            select: /** @type {HTMLSelectElement|null} */ ($('designSelect')),
+            pickList: $('designPickList'), pickerSub: $('designPickerSub'), pickerButton: /** @type {HTMLButtonElement|null} */ ($('designPickerBtn')),
             faceName: $('designFaceName'), eyebrow: $('designEyebrow'), count: $('designCount'),
             masthead: $('designMasthead'), avatar: $('designAvatar'),
             whoName: $('designWhoName'), whoRole: $('designWhoRole'),
@@ -533,11 +533,11 @@ export function init() {
             sheetAvatar: $('designSheetAvatar'), sheetName: $('designSheetName'), sheetSub: $('designSheetSub'),
         }, { onSelect: selectDesign, onRename }, {
             moreButton: /** @type {HTMLButtonElement|null} */ ($('designMoreBtn')),
-            sheet: { overlay: $('designMoreLb'), content: $('designMoreContent'), closeBtn: $('designMoreClose'), initialFocus: $('dupDesignBtn'), create: createLightbox },
+            sheet:  { overlay: $('designMoreLb'),   content: $('designMoreContent'),   closeBtn: $('designMoreClose'),   initialFocus: $('dupDesignBtn'), create: createLightbox },
+            picker: { overlay: $('designPickerLb'), content: $('designPickerContent'), closeBtn: $('designPickerClose'), create: createLightbox },
             sheetActions: [
                 [$('dupDesignBtn'), duplicateDesign], [$('designRenameMenuBtn'), onRename], [$('compareBtn'), compare.toggleCompareMode],
-                [$('newDesignBtn'), createDesign], [$('importDesignBtn'), openImport],
-                [$('designDeleteBtn'), () => { if (activeDesignId) deleteDesign(activeDesignId); }],
+                [$('newDesignBtn'), createDesign], [$('importDesignBtn'), openImport], [$('designDeleteBtn'), () => { if (activeDesignId) deleteDesign(activeDesignId); }],
             ],
         });
         $('compareChips')?.addEventListener('click', e => {

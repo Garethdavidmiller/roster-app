@@ -23,11 +23,12 @@ import { getAuthSnapshot } from './auth-state.js';
 import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, whenOverridesReady, isOverrideCacheLoaded, hasOverrideAuthorityFor, ensureMemberLoaded } from './admin-overrides.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
+import { initSelectSheets } from './select-sheet.js';
 
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { SELECTED_MEMBER, SELECTED_MEMBER_LEGACY, VIEWED_MONTH, VIEWED_YEAR } from './storage-keys.js';
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
-import { initCardCollapse } from './overlay.js';
+import { initCardCollapse, createLightbox } from './overlay.js';
 import { initPasswordForce } from './password-force.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -1190,6 +1191,16 @@ export function init() {
     // ============================================
     // ANNUAL LEAVE BOOKING  (logic in admin-al.js)
     // ============================================
+    // The four dropdowns on this page open the app's own sheet, not the OS one (v23.33). The three
+    // member selects are the same ~50-name list the Calendar's was; the month filter joins them so
+    // the page has one kind of dropdown rather than two.
+    initSelectSheets([
+        { id: 'fieldMember',          title: 'Which member are you working on?' },
+        { id: 'alMember',             title: 'Book annual leave for' },
+        { id: 'sickMember',           title: 'Record an absence for' },
+        { id: 'overridesMonthFilter', title: 'Show which month?' },
+    ], { createLightbox });
+
     _refreshAlPreview = initALSection({
         alMember,
         syncMemberDisplay,

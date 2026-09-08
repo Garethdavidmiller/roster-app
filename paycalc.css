@@ -96,8 +96,10 @@
       display: flex; flex-direction: column; gap: 8px; align-items: center;
     }
 
-    /* Period selector: full-width select on top, Prev/Next pair below */
-    #periodSelect {
+    /* Period selector: full-width select on top, Prev/Next pair below.
+       `.fieldpick` is select-sheet.js's trigger button — a class cannot inherit an element or id
+       selector, so every rule the control relies on has to name it too. */
+    #periodSelect, #periodSelectTrigger {
       width: 100%; padding: 10px 30px 10px 14px;
       border: 2px solid var(--border-mid); border-radius: var(--radius-sm);
       font-family: inherit; font-size: var(--type-medium); font-weight: 700;
@@ -109,7 +111,8 @@
       cursor: pointer; touch-action: manipulation;
       transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
     }
-    #periodSelect:focus-visible { border-color: var(--primary-blue); box-shadow: var(--focus-ring); background-color: white; }
+    #periodSelect:focus-visible,
+    #periodSelectTrigger:focus-visible { border-color: var(--primary-blue); box-shadow: var(--focus-ring); background-color: white; }
     .period-nav { display: flex; gap: 8px; width: 100%; }
     .nav-pill {
       flex: 1;
@@ -592,7 +595,7 @@
     /* Longer notes sit on their own line — inline they wrapped mid-phrase against the
        uppercase label (the HPP "enter when payslip arrives" note). */
     .field > label .note-block { display: block; margin-left: 0; margin-top: 2px; }
-    .field input, .field select {
+    .field input, .field select, .field .fieldpick {
       width: 100%; padding: 9px 14px;
       border: 2px solid var(--border-mid); border-radius: var(--radius-sm);
       font-family: inherit; font-size: var(--type-medium); font-weight: 600;
@@ -600,11 +603,11 @@
       touch-action: manipulation; transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
     }
     /* Brighten to white when active — the field 'fills in' on focus */
-    .field input:focus-visible, .field select:focus-visible {
+    .field input:focus-visible, .field select:focus-visible, .field .fieldpick:focus-visible {
       border-color: var(--primary-blue); box-shadow: var(--focus-ring);
       background-color: white;
     }
-    .field select {
+    .field select, .field .fieldpick {
       -webkit-appearance: none; appearance: none;
       background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23001e3c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
       background-repeat: no-repeat; background-position: right 10px center;
@@ -981,7 +984,8 @@
         align-items: center;
       }
       .ty-tabs        { grid-area: tabs; }
-      #periodSelect   { grid-area: select; }
+      #periodSelect,
+      #periodSelectTrigger { grid-area: select; }
       .period-nav     { grid-area: nav; width: auto; flex-wrap: nowrap; }
       .nav-pill       { flex: none; padding: 10px 18px; }
       .period-meta    { grid-area: meta; }
@@ -1235,21 +1239,14 @@
     /* ── YTD NOTICE LIGHTBOX ─────────────────────────────────────────── */
     /* emoji → app name → badge → desc (the shape the retired welcome lightbox set) */
     #noticeYtdLightbox { z-index: var(--z-notice); }
-    #noticeYtdContent {
-      display: flex; flex-direction: column; align-items: center; gap: 8px;
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: var(--radius-xl); padding: 36px 40px 32px;
-      width: min(300px, 85vw); text-align: center;
-      max-height: 80vh;
-      max-height: 80dvh;
-    }
-    #noticeYtdLightbox.open #noticeYtdContent { transform: scale(1); }
-    #noticeYtdClose { color: rgba(255,255,255,0.45); }
-    #noticeYtdClose:active { color: white; }
-    @media (hover: hover) and (pointer: fine) {
-      #noticeYtdClose:hover { color: white; }
-    }
+    /* THE CARD ITSELF IS `.notice-lb-content` IN shared.css AND ALWAYS SHOULD HAVE BEEN (v23.33).
+       An id-level block here restated the whole card — the old translucent glass, centred layout,
+       36/40px padding, a 300px width — so this one notice was silently exempt from the shared
+       component while shared.css's own comment said "do NOT add page-specific overrides". It was
+       found when the v23.32 redesign reached four notices out of five. The `.open` transform went
+       with it: `.lb-overlay.open .lb-content` already does that for every panel, and an id-level
+       transform on a lightbox panel is the exact shape lightbox-transform-parity.test.mjs exists
+       to catch. Close-button colour is now `.notice-lb-content .lb-close`, shared with the rest. */
     #noticeYtdContent strong { color: rgba(255,255,255,0.9); }
 
     /* ── REDUCED MOTION ──────────────────────────────────────────────── */

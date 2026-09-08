@@ -98,7 +98,8 @@
             user-select: none;
             -webkit-touch-callout: none;
         }
-        .member-context-bar select {
+        .member-context-bar select,
+        .member-context-bar .fieldpick {
             flex: 1;
             min-width: 0; /* allow shrink so a long name (e.g. "C. Francisco-Charles") can't push the bar past the canvas edge */
             /* White field (dark text) on the navy bar — matches the desktop col-side variant
@@ -122,7 +123,8 @@
             font-size: var(--type-medium);
             font-weight: 600;
         }
-        .member-context-bar select:focus-visible { border-color: var(--accent-gold); }
+        .member-context-bar select:focus-visible,
+        .member-context-bar .fieldpick:focus-visible { border-color: var(--accent-gold); }
         .member-context-bar select option { background: white; color: var(--text-dark); }
 
         /* Sticky member bar on the single-column (mobile/tablet) layout — but ONLY when
@@ -293,7 +295,10 @@
             margin-bottom: 5px;
         }
 
-        select, input[type="text"], input[type="date"], input[type="time"], input[type="password"] {
+        /* `.fieldpick` is select-sheet.js's trigger button. A class cannot inherit an element
+           selector, so every rule a <select> relies on has to name it too, or an enhanced control
+           renders as a bare button. */
+        select, .fieldpick, input[type="text"], input[type="date"], input[type="time"], input[type="password"] {
             width: 100%;
             padding: 8px 10px;
             border: 2px solid var(--border-mid);
@@ -314,7 +319,7 @@
         }
 
         /* Restore dropdown arrow removed by appearance: none */
-        select {
+        select, .fieldpick {
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' viewBox='0 0 12 7'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23001e3c' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
             background-repeat: no-repeat;
             background-position: right 10px center;
@@ -323,7 +328,7 @@
             text-align-last: center;
         }
 
-        select:focus-visible, input:focus-visible {
+        select:focus-visible, .fieldpick:focus-visible, input:focus-visible {
             border-color: var(--primary-blue);
             outline: var(--focus-outline);
             outline-offset: 2px;
@@ -332,7 +337,7 @@
             background-color: white;
         }
 
-        select:disabled, input:disabled {
+        select:disabled, .fieldpick:disabled, input:disabled {
             /* Flatter, darker neutral grey — distinct from the cool enabled
                tint so a disabled control still reads as inert. */
             background-color: var(--field-bg-disabled);
@@ -1787,7 +1792,8 @@
             .al-confirm-bar .btn-confirm-cancel { min-height: 36px; }
             /* The page's primary control. 4px of vertical padding around 16px text is 30px, which
                is smaller than the month filter inside the card below it. */
-            .member-context-bar select { padding-top: 7px; padding-bottom: 7px; }
+            .member-context-bar select,
+            .member-context-bar .fieldpick { padding-top: 7px; padding-bottom: 7px; }
 
             .week-nav-btn {
                 width: 44px;
@@ -1962,7 +1968,8 @@
                 box-shadow: var(--shadow-1);
             }
             .col-side .member-context-bar label { color: var(--text-light); }
-            .col-side .member-context-bar select {
+            .col-side .member-context-bar select,
+            .col-side .member-context-bar .fieldpick {
                 /* background-color (longhand) not `background` — the shorthand would wipe
                    the inherited chevron background-image. Dark chevron because this desktop
                    variant is a white field (the base white arrow would be invisible). */

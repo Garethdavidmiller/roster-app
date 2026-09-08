@@ -947,9 +947,34 @@ The **SHAPE of a link design** — in memory and in Firestore — and every conv
 - **The Save-as-new handler reads the user ONCE** into `author`. The naming dialog between the two reads is human think-time, and only an owner can overwrite a set — so a sign-out straddling them would write a set its author could never maintain.
 - **What it does NOT own.** `links-target-sets.js` (what a set is, who may overwrite), `links-target-sets-store.js` (the Firestore half and its conflict window), `links-target-hours.js` (the verdict), `links-default-targets.js` and `links-seed.js` (the two tables the reset buttons offer). The GENERATE button stays in the coordinator — pressing it writes patterns, re-renders the grid and marks the design dirty, which is coordination; it reads the table through `getTable()`.
 
+### `select-sheet.js`
+
+**The app's own dropdown** (v23.33). A native `<select>`'s popup is drawn by the OS, so no page CSS
+reaches it — on Android it is a full-bleed Material radio list, which is how a ~50-name roster
+arrived as fifty oversized ungrouped rows. `date-picker.js` had already made this exact argument
+about `<input type="date">` ("the one off-brand spot in an app that custom-styles every other
+field"); the decision simply never got carried to selects.
+
+- `enhanceSelect(select, { title, placeholder })` → a `refresh()`. Inserts a trigger button before
+  the select, hides the select (`.fieldpick-native`, `aria-hidden`, `tabindex=-1`) but KEEPS it as
+  the value holder, and opens one shared `createLightbox` sheet of `.picker-opt` rows.
+- `initSelectSheets(specs)` — several by id; a missing id is skipped, not an error.
+- `readGroups(select)` / `triggerLabel(select)` — the pure-ish readers, driven by a fake DOM in Node.
+
+**Three things an edit can silently break.** The options are read on every OPEN, never cached — a
+snapshot would be the wrong names and would be wrong quietly. The trigger repaints on `change` AND
+on a MutationObserver for childList/`disabled`, because a rebuild or a disable fires no event and
+the face would keep a name that is no longer in the list. And the trigger copies the select's own
+class list, so a page that styles fields by ELEMENT must add `.fieldpick` to those rules — a class
+cannot inherit an element selector, and a trigger that misses one renders as a bare button.
+
+Tested by `select-sheet.test.mjs`.
+
 ### `links-design-header.js`
 
 **The design MASTHEAD on links.html** (v23.30, owner request): which design is open, whose it is, whether it is saved, the one Save button, and the ··· More sheet behind which every other verb now lives. Replaced the picker STRIP — grey pills with ✎/✕ glyphs inside the active one and five buttons at equal weight — which three designers found unreadable. Every handle is injected, so it loads in Node. Tested by `links-design-header.test.mjs`.
+
+**TWO SHEETS hang off it since v23.32** — the PICKER, opened by the heading face, and ··· More. The picker was a native `<select>` for two releases and the reason it is not any more is rule 1 in the module header: a select's popup is drawn by the OS, so on Android the app's own design disappeared at the moment a designer was choosing between designs and a real name wrapped to three lines per row. Both are `createLightbox` dialogs of plain `<button>`s, which is what keeps Tab/Escape/focus-trap without any listbox ARIA. **`els.pickerButton` is read from the ELS argument, not `extra`** — it was read from `extra` on the first cut, so the face had no listener at all and every unit test still passed; the two wiring tests added with the fix are what now sees that.
 
 - `createDesignHeader(els, { onSelect, onRename }, { moreButton, sheet, sheetActions })` → `{ render(state) }`. `render` takes `{ designs, activeId, design, dirty, saving?, canDelete?, currentUser, now? }` and paints the select, the face, the badge, the status, both Save buttons and the sheet's header. **`sheet.create` is the coordinator's `createLightbox`, INJECTED** — overlay.js touches `window` at import. Every sheet action closes the sheet first and runs 500ms later (the `#linksHowBtn` pattern).
 - `groupDesigns(designs, currentUser)` — "Your designs" first, then other designers alphabetically, newest save first within a group; a design with no saver lands under "Other designs" rather than being dropped. Groups by `updatedBy` (LAST SAVED BY, not creator — an owner-accepted wobble; a `createdBy` field would be a rules change).

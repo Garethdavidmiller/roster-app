@@ -46,9 +46,10 @@
  * marks the design dirty, which is coordination. It reads the table through `getTable()`.
  */
 
+import { enhanceSelect } from './select-sheet.js';
 import { APP_VERSION, escapeHtml } from './roster-data.js';
 import { db, doc, addDoc, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
-import { confirmDialog, promptDialog } from './overlay.js';
+import { confirmDialog, promptDialog, createLightbox } from './overlay.js';
 import { lsGet, lsSet } from './ls.js';
 import { ROTATING_LINES, normaliseCustomShift } from './links-design.js';
 import { buildRosterTargets } from './links-seed.js';
@@ -464,6 +465,9 @@ export function createTargetPanel(deps) {
         /** @type {'loading'|'ready'|'error'} */
         let setsStatus = 'loading';
         const _setSelect = /** @type {HTMLSelectElement|null} */ (document.getElementById('genSetSelect'));
+        // The app's own sheet, not the OS dropdown (v23.33). These are shared between designers and
+        // carry a state line each, so the list is read rather than merely set.
+        enhanceSelect(_setSelect, { title: 'Saved staffing setups', placeholder: 'Choose a setup', createLightbox });
         const _setHint = document.getElementById('genSetHint');
         const _selectedSet = () => targetSets.find(t => t.id === _setSelect?.value) ?? null;
 

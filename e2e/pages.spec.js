@@ -1,5 +1,5 @@
 import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, designOptions, activeDesignName, openDesignSheet, sheetAction, switchToDesign, seedMemberSession, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, designOptions, activeDesignName, openDesignSheet, openDesignPicker, sheetAction, switchToDesign, seedMemberSession, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the literal 22 — and `links: the rotation
 // length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
@@ -1429,11 +1429,16 @@ test('links: declining an unsaved-changes switch leaves the picker on the design
     await dialog.locator('.dialog-btn-cancel').click();
     await expect(page.locator('.dialog-overlay')).toHaveCount(0);
 
-    // The heading was always right; the SELECT is what pointed at a design nobody opened.
+    // The heading was always right; the SELECT is what pointed at a design nobody opened (v23.33).
+    // At v23.35 the select is gone — the picker is a sheet that holds no value — so the assertion
+    // moved to the two things a reader can actually see: the face, and which row wears the tick.
+    // Re-opening the sheet is the point: a cached selection would show up here and nowhere else.
     await expect(activeDesignName(page)).toHaveText('Design A');
-    const selected = await page.locator('#designSelect').evaluate(
-        (/** @type {HTMLSelectElement} */ s) => s.selectedOptions[0]?.textContent || '');
-    expect(selected, 'the picker must name the design that is actually open').toContain('Design A');
+    await openDesignPicker(page);
+    const current = page.locator('#designPickList .picker-opt[aria-current="true"]');
+    await expect(current).toHaveCount(1);
+    await expect(current, 'the picker must name the design that is actually open').toContainText('Design A');
+    await page.locator('#designPickerClose').click();
 });
 
 test('links: deleting a design writes a SOFT delete and leaves the document in place', async ({ page }) => {
@@ -4180,6 +4185,19 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
                 const r = el.getBoundingClientRect();
                 if (!r.width || !r.height) return;
                 if (getComputedStyle(el).visibility === 'hidden') return;
+                // A CONTROL THAT CANNOT RECEIVE A POINTER IS NOT A TAP TARGET (v23.36). The
+                // enhanced selects behind `select-sheet.js` are 1x1, `opacity: 0`,
+                // `pointer-events: none` value holders sitting under a real trigger — the reader
+                // taps the trigger, which IS measured here. They are not `visibility: hidden`
+                // (Playwright's `selectOption` needs a rendered box), so the check above cannot
+                // see them, and the guard reported `select#fieldMember = 1x1` on admin.html.
+                //
+                // Tested by `pointer-events` rather than by the class, deliberately: the property
+                // IS the definition of "cannot be tapped", so this skips exactly the elements the
+                // guard has nothing to say about, and a control that acquires
+                // `pointer-events: none` by accident is a different and worse bug than a small
+                // one — this guard was never the thing that would catch it.
+                if (getComputedStyle(el).pointerEvents === 'none') return;
                 // Must be fully on screen to probe outward from, or the walk stops at the edge and
                 // reports a false failure for a control that is merely scrolled out of view.
                 if (r.top < 26 || r.top > innerHeight - 26) return;
@@ -5341,6 +5359,11 @@ test('no select option is cut off at 360px', async ({ page }) => {
             document.querySelectorAll('select').forEach(el => {
                 const box = el.getBoundingClientRect();
                 if (!box.width || /** @type {HTMLElement} */ (el).offsetParent === null) return;
+                // An ENHANCED select has no native popup to cut anything off (v23.35): it is the
+                // 1px value holder behind a `select-sheet.js` trigger, and its options are rendered
+                // as `.picker-opt` rows that WRAP. Measuring option text against a 1px box reports
+                // every option as clipped, which is the opposite of what this guard is about.
+                if (el.classList.contains('fieldpick-native')) return;
                 const cs = getComputedStyle(el);
                 const usable = box.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
                 const probe = document.createElement('span');
