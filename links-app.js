@@ -757,7 +757,7 @@ export function init() {
             _sortDesigns();
             _importLb?.close();
             _activateDesign(d);
-            _designActionStatus(`Imported “${name}”. Check it against the sheet it came from.`);
+            _designActionStatus(`Imported “${name}”. Check it against the sheet it came from.`, 'ok');   // a success, not an error (it rendered RED until v23.30)
         } catch (err) {
             console.error('[Links] Import failed:', err);
             _importStatus('Couldn’t save the design — check your connection and try again.', 'bad');

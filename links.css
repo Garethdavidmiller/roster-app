@@ -1397,12 +1397,15 @@ body.auth-ready .container { display: grid; }
     grid-template-columns: minmax(0, 1fr);
     overflow: clip;
 }
-.dm-title { padding: 9px 10px 8px 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; }
+.dm-title { padding: 4px 10px 3px 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; }
 .dm-eyebrow { display: none; font-size: var(--type-micro); font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--text-light); margin-bottom: 3px; align-items: center; gap: 8px; }
 .dm-count { font-weight: 600; letter-spacing: 0.2px; text-transform: none; }
 .dm-count::before { content: '·'; margin-right: 8px; }
 /* The native <select> is laid invisibly OVER the face (rule 1) so the phone's own picker opens. */
-.dm-picker { position: relative; min-width: 0; }
+/* The picker is the whole title block, and the invisible select fills it — so the block itself
+   has to be a tap target: 40px on a phone. The face sat at 22px and the tap-target guard caught the
+   select at 22px on mobile-chrome; the title row's padding gives back most of the difference. */
+.dm-picker { position: relative; min-width: 0; min-height: 40px; display: flex; flex-direction: column; justify-content: center; }
 .dm-picker select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: var(--type-medium); }
 .dm-picker select:focus-visible + .dm-face .dm-face-name,
 .dm-picker:focus-within .dm-face-name { text-decoration: underline; text-decoration-color: var(--accent-gold-dark); text-decoration-thickness: 2px; text-underline-offset: 4px; }
