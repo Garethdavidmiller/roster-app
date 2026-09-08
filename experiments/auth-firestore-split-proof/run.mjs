@@ -1,6 +1,6 @@
 // Does taking Firestore off the auth path make a saved sign-in arrive sooner?
 //
-// LATENCY_PLAN Phase 3's trigger has fired twice: `page start → Recognised` is 52% over one second
+// LATENCY Phase 3's trigger has fired twice: `page start → Recognised` is 52% over one second
 // and three times its nearest rival. Phase 3 proposes splitting Firebase Auth from Firestore. This
 // prices that split BEFORE doing it, which is the plan's own "prove it on ONE page" step — the
 // caution attached to the verdict is that Phase 3 "may not buy the whole 52 points".

@@ -169,7 +169,7 @@ export function init() {
     markPageReady();
     registerServiceWorker();
     sessionReady.then(() => { initErrorReporter(); recordUsage('settings', currentUser); recordPageLatency('settings', currentUser); });
-    // Forced set-password overlay (PASSWORD_PLAN.md Phase 2) — fire-and-forget, never on the login
+    // Forced set-password overlay (PASSWORD_DESIGN.md Phase 2) — fire-and-forget, never on the login
     // critical path. Inside the sessionReady callback so `currentUser` is read LATE: on the in-place
     // sign-in path the module loaded signed-out and the identity is only refreshed inside
     // initAuthorised(), so passing it eagerly here would pass null and silently never compel anyone.
@@ -215,7 +215,7 @@ export function init() {
         // Work Email card
         initContactCard();
 
-        // Password card (PASSWORD_PLAN.md — chosen password + migration status)
+        // Password card (PASSWORD_DESIGN.md — chosen password + migration status)
         initPasswordCard();
 
         // Notifications card. It reports its own state — the words in huddle.js are already the
@@ -518,7 +518,7 @@ export function init() {
     };
     initTipsLightbox(CARD_TIPS);
 
-    // ── Password card (PASSWORD_PLAN.md — self-service chosen password + migration status) ────────
+    // ── Password card (PASSWORD_DESIGN.md — self-service chosen password + migration status) ────────
     /** Ceiling on each password network call. Same 8s budget as sign-in and the forced overlay. */
     const SAVE_TIMEOUT_MS = 8000;
 

@@ -1609,7 +1609,7 @@ describe('buildResetRequestNotice', () => {
         assert.ok(!/\p{Extended_Pictographic}/u.test(n.headline + n.body),
                   'the emoji is added by buildPushPayload, never baked into the text');
         assert.ok(!/urgent|immediately|locked out/i.test(n.headline + n.body),
-                  'a request is not proof of urgency — the admin decides (PASSWORD_PLAN §13)');
+                  'a request is not proof of urgency — the admin decides (PASSWORD_DESIGN §13)');
     });
 });
 

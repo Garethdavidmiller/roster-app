@@ -274,7 +274,7 @@ export function init() {
     // + Account status cards, which duplicated the email column). Joins getAllStaffContacts +
     // getAllPasswordStatus (both admin-only reads) and renders, per member: the work email (address +
     // Set/Edit/Remove) and the password posture (own password vs surname default + a break-glass
-    // Reset). Grade filter + two count summaries. PASSWORD_PLAN.md §6.
+    // Reset). Grade filter + two count summaries. PASSWORD_DESIGN.md §6.
     async function initAccountStatus() {
         const contentEl = document.getElementById('accountStatusContent');
         if (!contentEl) return;
@@ -921,7 +921,7 @@ export function init() {
     // ============================================
     // registerServiceWorker() moved to the top of init() (runs before the access gate) — v16.21.
     sessionReady.then(() => { initErrorReporter(); recordUsage('operations', currentUser); recordPageLatency('operations', currentUser); });
-    // Forced set-password overlay (PASSWORD_PLAN.md Phase 2) — fire-and-forget, never on the login
+    // Forced set-password overlay (PASSWORD_DESIGN.md Phase 2) — fire-and-forget, never on the login
     // critical path. Inside the sessionReady callback so `currentUser` is read LATE: on the in-place
     // sign-in path the module loaded signed-out and the identity is only refreshed inside
     // initAuthorised(), so passing it eagerly here would pass null and silently never compel anyone.

@@ -27,7 +27,7 @@ type         "spare_shift" | "shift" | "rdw" | "annual_leave" | "correction" | "
              Legacy (still in data, not creatable): "allocated" | "overtime" | "swap"
 value        "HH:MM-HH:MM" for shift/rdw; "SPARE" for spare_shift; "AL" for annual_leave; "RD" for correction; "SICK" for sick;
              training uses the grammar FLAVOUR[" RDW"][" HH:MM-HH:MM"] — flavour "TRG"|"IND"|"ASSESS"|"TEAM", optional rest-day
-             marker, optional actual times (see OTHER_PLAN.md; grammar single-source: override-utils.js)
+             marker, optional actual times (see OTHER_DAYS.md; grammar single-source: override-utils.js)
 note         WRITE-ONLY, and always `""` (v22.69). The rules require the field present and a string,
              so every write still sends it — but nothing in the app can produce a value for it and
              nothing displays one. The three read paths (the calendar hover tooltip, the day-detail
@@ -83,7 +83,7 @@ Write requires the `name` JWT claim (set by setupRosterAuth) — anonymous fallb
 Purpose: Stage 1 of password security improvements. Email will enable future account recovery (Stage 4).
 Read/written/deleted by: `getStaffContact` / `saveStaffContact` / `deleteStaffContact` in `firebase-client.js`, called from `settings-app.js` (own email) and from `operations-app.js`'s merged **Account status** card (`saveStaffContact`/`deleteStaffContact` for admin set/edit/remove on a member's behalf). `getAllStaffContacts` (reads all docs) is also called from `operations-app.js` (Account status card).
 
-**passwordStatus** (v18.63 — PASSWORD_PLAN.md Track C)
+**passwordStatus** (v18.63 — PASSWORD_DESIGN.md Track C)
 ```
 memberName   Must match teamMembers[n].name exactly — used as the document ID
 passwordSetAt  Firestore server timestamp — the LAST time the member set their own password (Settings → Password). Written by the client (owner only).
@@ -93,7 +93,7 @@ resetAt        Firestore server timestamp — the last time an admin RESET this 
 Read: owner or admin. Create/update (client): only the owner, only the `passwordSetAt` key, and it must equal `request.time` (so a client can only stamp "I just set my password now" on its own doc). `resetAt` is un-writable by any client (only the Admin SDK sets it). Delete: denied for everyone.
 Written/read by: `savePasswordSetAt` / `getPasswordStatus` (owner) in `firebase-client.js` (called from `settings-app.js` after a successful password change), `getAllPasswordStatus` (admin, reads all) called from `operations-app.js` (Account status card), and the `resetMemberPassword` Cloud Function (writes `resetAt`).
 
-**resetRequests** (v18.93 — PASSWORD_PLAN.md, the request queue)
+**resetRequests** (v18.93 — PASSWORD_DESIGN.md, the request queue)
 ```
 memberName   Must match teamMembers[n].name exactly — used as the document ID
 requestedAt  Firestore server timestamp — when they last asked
@@ -340,11 +340,11 @@ Override cache key: `"memberName|YYYY-MM-DD"`
 
 ### Authentication
 
-Staff log in with name (dropdown) + password. The **default** password is their surname (lowercase, no spaces/special chars); since v18.63 (PASSWORD_PLAN.md Track C) a member can **set their own password** in Settings → Password, and sign-in accepts either the typed password or — for anyone still on the default — the surname (`credentialCandidatesFor` in `auth-identity.js` builds the ordered candidate list, `ensureFirebaseSession` tries each). If a member forgets a self-set password, the **admin resets it** back to the surname default (Operations → Account status → Reset, backed by the `resetMemberPassword` Cloud Function). Sessions expire **60 days after sign-in**, full stop (60 days since v20.47, owner decision — 30 until then; the 7-day inactivity cutoff went at v20.41 with its timestamp machinery). Inactivity alone never ends a session; nothing extends one either, so `expiry` is set once at sign-in and `getSession()` is a pure read. Everything that genuinely REVOKES access is unchanged and still immediate: an explicit sign-out (which signs Firebase out too), a disabled or deleted account, revoked Firebase credentials, and the claim-epoch sweep. The Calendar **viewer** is a different thing entirely and is untouched — it holds no `name` claim and its persistence is session-only, so it ends when the browser session does. `CONFIG.ADMIN_NAMES = ['G. Miller']` — elevated access. `CONFIG.LINKS_DESIGNERS = ['G. Miller', 'S. Silva', 'M. Robson']` — access to the Links design workspace.
+Staff log in with name (dropdown) + password. The **default** password is their surname (lowercase, no spaces/special chars); since v18.63 (PASSWORD_DESIGN.md Track C) a member can **set their own password** in Settings → Password, and sign-in accepts either the typed password or — for anyone still on the default — the surname (`credentialCandidatesFor` in `auth-identity.js` builds the ordered candidate list, `ensureFirebaseSession` tries each). If a member forgets a self-set password, the **admin resets it** back to the surname default (Operations → Account status → Reset, backed by the `resetMemberPassword` Cloud Function). Sessions expire **60 days after sign-in**, full stop (60 days since v20.47, owner decision — 30 until then; the 7-day inactivity cutoff went at v20.41 with its timestamp machinery). Inactivity alone never ends a session; nothing extends one either, so `expiry` is set once at sign-in and `getSession()` is a pure read. Everything that genuinely REVOKES access is unchanged and still immediate: an explicit sign-out (which signs Firebase out too), a disabled or deleted account, revoked Firebase credentials, and the claim-epoch sweep. The Calendar **viewer** is a different thing entirely and is untouched — it holds no `name` claim and its persistence is session-only, so it ends when the browser session does. `CONFIG.ADMIN_NAMES = ['G. Miller']` — elevated access. `CONFIG.LINKS_DESIGNERS = ['G. Miller', 'S. Silva', 'M. Robson']` — access to the Links design workspace.
 
 The login dropdown groups members by grade (CEA · CES · Dispatcher · Management, in that order). `managerOnly: true` members (managers/clerks) appear **only** in the Management group and are hidden from the calendar's member selector — they have login access but no roster of their own. Their grade dropdown filtering lives in `admin-app.js` (`GRADE_ORDER`).
 
-**Forced migration (v18.92 — PASSWORD_PLAN.md Phase 2).** `CONFIG.FORCE_PASSWORD_SET` (a kill switch,
+**Forced migration (v18.92 — PASSWORD_DESIGN.md Phase 2).** `CONFIG.FORCE_PASSWORD_SET` (a kill switch,
 currently `true`) makes `password-force.js` compel any member still on the surname default to choose
 their own password **at their next sign-in** — nobody is signed out to accelerate it. No forced sign-out
 is needed: sessions cap at 60 days absolute and an expired session forces a real typed
@@ -359,7 +359,7 @@ the precedence rule and its marker-deletion with it. If a second post-login over
 read the note above `_show` in `password-force.js` first — anything that must happen when an overlay
 OPENS has to fire before the await, never after it (the v18.94 bug).
 
-**Password security note:** The *default* password is surname-derived and not a secret — protection relies on Firebase Auth rate-limiting (v9.53) and Firestore rules (`request.auth != null`). A member who sets their own password (v18.63) does get a real secret; the surname default remains valid **only until** they do (the sign-in candidate ladder tries the typed value first, then falls back to the surname). An admin reset returns the account to the surname default. Full design + phasing: `PASSWORD_PLAN.md`.
+**Password security note:** The *default* password is surname-derived and not a secret — protection relies on Firebase Auth rate-limiting (v9.53) and Firestore rules (`request.auth != null`). A member who sets their own password (v18.63) does get a real secret; the surname default remains valid **only until** they do (the sign-in candidate ladder tries the typed value first, then falls back to the surname). An admin reset returns the account to the surname default. Full design + phasing: `PASSWORD_DESIGN.md`.
 
 **Calendar access — the staff PIN (v20.12).** The Calendar opens for a named member session OR the shared staff PIN, and for nothing else. A signed-in member is never interrupted. A shared office PC enters four digits and gets the full Calendar including overrides, in a session that lives exactly as long as the browser session. Everything privileged still requires a real member sign-in — the viewer has no `name`, `admin`, `manager` or `linksDesigner` claim and cannot write anywhere. The PIN value lives only in the `CALENDAR_VIEWER_PIN` secret. Design: `calendar-access.js` / `calendar-access-core.js`; operations + rotation: OPERATIONS_REFERENCE.md; the closed limitation: KNOWN_LIMITATIONS.md.
 

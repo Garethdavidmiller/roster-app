@@ -283,7 +283,7 @@ describe('getRosterSuggestion — spare weeks (RDW vs contracted Saturday)', () 
 
 });
 
-// ── Training / Induction / Assessment (OTHER_PLAN.md) ─────────────────────
+// ── Training / Induction / Assessment (OTHER_DAYS.md) ─────────────────────
 // Training pays as the day underneath (resolveOtherPay): weekday → contracted
 // basic (nothing to suggest), BH → bh bucket, actual times → base-cap + excess→OT,
 // TRG RDW → rdw bucket (8h default, member-adjusted). Sundays can never be training.

@@ -2583,7 +2583,7 @@ export function init() {
     // ============================================
     // registerServiceWorker moved to the top of init() (before the access gate) — v16.23.
     sessionReady.then(() => { initErrorReporter(); recordUsage('links', currentUser); recordPageLatency('links', currentUser); });
-    // Forced set-password overlay (PASSWORD_PLAN.md Phase 2) — fire-and-forget, never on the login
+    // Forced set-password overlay (PASSWORD_DESIGN.md Phase 2) — fire-and-forget, never on the login
     // critical path. Inside the sessionReady callback so `currentUser` is read LATE: on the in-place
     // sign-in path the module loaded signed-out and the identity is only refreshed inside
     // initAuthorised(), so passing it eagerly here would pass null and silently never compel anyone.

@@ -287,7 +287,7 @@ const setupRosterAuth = onRequest(
 );
 
 /**
- * resetMemberPassword — admin break-glass (PASSWORD_PLAN.md §5). Resets ONE member's Firebase Auth
+ * resetMemberPassword — admin break-glass (PASSWORD_DESIGN.md §5). Resets ONE member's Firebase Auth
  * password back to their surname default and stamps `passwordStatus/{member}.resetAt` (Admin SDK,
  * bypassing Firestore rules) so the account is flagged as surname-default again (the Settings nudge
  * then prompts them to choose a new one — there is no forced overlay yet; that is Phase 2). This is

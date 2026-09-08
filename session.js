@@ -27,7 +27,7 @@ import { CONFIG } from './roster-data.js';
 /** Auth error codes that mean the credential was DEFINITIVELY rejected — a wrong password, or no
  *  such account — as opposed to a transient/config failure (network, provider-disabled). On these
  *  the sign-in must resolve to 'none' + a re-sign-in prompt REGARDLESS of ENFORCE_NAMED_SESSION,
- *  NEVER an anonymous fallback (PASSWORD_PLAN.md §3.3 — the critical fix: once anyone has a custom
+ *  NEVER an anonymous fallback (PASSWORD_DESIGN.md §3.3 — the critical fix: once anyone has a custom
  *  password, an anonymous fallback here would be silently denied every write by the strict B3 rules,
  *  reproducing the v10.94 outage class). `invalid-credential` is the modern email-enumeration-safe
  *  code; `wrong-password`/`invalid-login-credentials`/`user-not-found` cover older SDK phrasings.
@@ -313,7 +313,7 @@ const _noDefaultKey = (name) => _NO_DEFAULT_PREFIX + name;
  *   the derived surname ONLY if the typed value normalises to the surname. When ABSENT (a page-load
  *   re-establishment with no typed value), only the derived surname is tried — auto-reauth of an
  *   un-migrated member; a MIGRATED member fails cleanly and the page re-shows the login overlay
- *   (PASSWORD_PLAN.md §3.4).
+ *   (PASSWORD_DESIGN.md §3.4).
  * @returns {Promise<boolean>} true if a Firebase Auth session is active afterwards
  */
 export async function ensureFirebaseSession(name, _gen, password) {
@@ -404,7 +404,7 @@ export async function ensureFirebaseSession(name, _gen, password) {
     }
 
     const email = nameToEmail(name);
-    // The ordered password candidates to try (PASSWORD_PLAN.md §3.2–3.4). WITH a typed password
+    // The ordered password candidates to try (PASSWORD_DESIGN.md §3.2–3.4). WITH a typed password
     // (login overlay): raw typed → derived surname (gated on the typed value normalising to the
     // surname). WITHOUT one (page-load re-establishment): the derived surname only (auto-reauth of
     // an un-migrated member; a migrated member fails cleanly here → 'none' → overlay re-shown).
@@ -461,7 +461,7 @@ export async function ensureFirebaseSession(name, _gen, password) {
     recordError(lastError);   // diagnostics (current attempt only)
 
     // Every candidate was DEFINITIVELY rejected (wrong password / no account). Resolve to 'none' +
-    // a re-sign-in prompt — NEVER anonymous, REGARDLESS of ENFORCE_NAMED_SESSION (PASSWORD_PLAN.md
+    // a re-sign-in prompt — NEVER anonymous, REGARDLESS of ENFORCE_NAMED_SESSION (PASSWORD_DESIGN.md
     // §3.3, the critical fix: a migrated member whose surname no longer works, or a mistyped
     // password, must not land on a nameless anonymous session the strict rules then silently deny).
     if (!nonCredentialStop) {

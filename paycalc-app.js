@@ -1733,7 +1733,7 @@ export function init() {
       const name = getSession()?.name;
       const afterAuth = () => {
         initErrorReporter(); recordUsage('paycalc', name ?? null); recordPageLatency('paycalc', name ?? null);
-        // Forced set-password overlay (PASSWORD_PLAN.md Phase 2). No `ready` barrier is passed: this
+        // Forced set-password overlay (PASSWORD_DESIGN.md Phase 2). No `ready` barrier is passed: this
         // callback ALREADY runs after ensureNamedSession has settled, so getAuthSnapshot() reflects the
         // terminal identity. That matters most here — paycalc is the one `soft` page, so a member can
         // reach this line locally signed in with a FAILED Firebase session, and the overlay's

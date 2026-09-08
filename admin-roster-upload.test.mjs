@@ -108,7 +108,7 @@ describe('shiftValueToOverrideType — existing vocabulary (regression)', () => 
     });
 });
 
-describe('shiftValueToOverrideType — training (OTHER_PLAN.md)', () => {
+describe('shiftValueToOverrideType — training (OTHER_DAYS.md)', () => {
     test('every training grammar form → training', () => {
         for (const v of ['TRG', 'IND', 'ASSESS', 'MEET', 'TRG RDW', 'IND RDW', 'ASSESS RDW', 'MEET RDW',
                          'TRG 08:00-16:00', 'TRG RDW 08:00-16:00']) {

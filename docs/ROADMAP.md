@@ -7,12 +7,22 @@ question this file answers. Everything that has already been built, removed, tri
 audited and closed lives in **`ROADMAP_HISTORY.md`** — it is not gone, and several entries there are
 the only record of why something was removed, but it is not roadmap.
 
+Decisions that are already CLOSED — features declined, and choices recorded so they are not
+re-argued — live in **`DECISIONS.md`**. Open decisions stay here, in `NOW`: "you need to decide X"
+is roadmap, "we decided X" is not.
+
 Dated obligations — the work that has a deadline whether or not anyone plans it — live in
 **`MAINTENANCE_CALENDAR.md`**. Implementation specs live in CLAUDE.md and `.claude/rules/*`.
 
 > **Split at v19.97** (external review). This file was 924 lines, about two-thirds of it the past.
 > The history moved out verbatim. If something below has become history, **move it — do not copy
 > it**; two live copies of a plan is the drift that made the split necessary.
+>
+> **Split again on 8 Sep 2026**, on the same rule and for the same reason. It had grown back to 994
+> lines and about a sixth of that was closed decisions — a "Decisions taken" section and two
+> DECLINED features. Those answer *what did we already decide*, which is a different question with a
+> different reader, and they moved to `DECISIONS.md` verbatim. What stayed is everything still OPEN,
+> including the governance gate and the owner decisions in `NOW`.
 
 ---
 
@@ -346,11 +356,11 @@ invariant 1's failure reached from a new direction. Those members boot exactly a
 not be needed: phase 1 already notes the months `cached`, so the grid is drawn as a cached grid by
 machinery staff have read for months, and phase 2 confirms it. Whether that is enough, or whether
 the paint deserves to say so in its own words, is a question to answer from use rather than from
-first principles. **Read `LATENCY_PLAN.md` for what the change is worth before revisiting it** — the
+first principles. **Read `LATENCY.md` for what the change is worth before revisiting it** — the
 next App Speed read is the first evidence either way.
 
 ### Track C5 — retire the surname default
-**Status:** Blocked · **Owner:** Gareth · **Plan:** `PASSWORD_PLAN.md` · **Gate:** ≥90% migrated
+**Status:** Blocked · **Owner:** Gareth · **Plan:** `PASSWORD_DESIGN.md` · **Gate:** ≥90% migrated
 
 Irreversible. Blocked on the migration percentage, which is in turn blocked on Track E (above).
 Read both before assuming it is close.
@@ -694,82 +704,6 @@ A single-day column showing who is working, spare or on AL, with a cover-status 
 addressed already:** Team Week View (v8.22) shows the whole team by week, and in practice that may be
 enough — supervisors can see the full week at a glance and identify gaps. No new data needed.
 
-### Today / Next calendar strip — DECLINED
-**Status:** Declined (owner decision, Sep 2026) · **Trigger to revisit:** staff actually asking "what am I doing today/next" faster than the grid answers it · **No work before the trigger**
-
-Proposed by the v22 external review (its "best everyday-staff improvement"): a compact line above
-the month grid — *Today · Late · 14:00–22:30 / Tomorrow: Rest* — tapping through to the day detail.
-
-**Declined because the month view is the product.** Staff read this grid every day and are fluent
-in it; today's cell is already highlighted, and a fluent reader gets "what am I doing today?" in
-one glance at the thing they were already looking at. The strip would spend the app's most valuable
-pixels permanently — pushing the grid down on a 375px phone — to save a glance nobody has reported
-needing. No staff request exists, and the calendar's own surface should not be EASIER to add to
-than WebCal or dark mode below, which both correctly wait for evidence; it is the screen with the
-most to lose. The additions this app has reverted (beta chip, labelled bell row, display typeface)
-were all "helpful" things nobody asked for.
-
-A quieter cost, recorded so a revisit prices it in: the strip would be a second consumer of the
-Calendar's knowledge-state decision (`CALENDAR_DATA.md` — never present the base roster as though
-it were current), which is the invariant class behind previously shipped bugs. It must wait on the
-same display gate as the grid or show its own skeleton — the feature is not even cheap.
-
-### Pay Calculator — "More pay tools" grouping on phones — DECLINED
-**Status:** Declined (owner decision, 3 Sep 2026) · **Trigger to revisit:** a staff report about the
-tail of the Pay Calculator page — or, should card opens ever be counted for some other reason,
-counts showing the HPP and back-pay cards are never opened. **Do not add that instrumentation to
-test this idea**; a measurement system built around a problem nobody has reported is the same
-speculation in a lab coat · **No work before the trigger**
-
-Proposed by an external review and taken through four drafts and a measured prototype (Sep 2026):
-below 1024px, hide the Holiday Pay Premium, Pay Rise Back Pay, Decimal Hours Converter and Move Your
-Pay Data cards behind one quiet "More pay tools" line in the `.guide-footer-link` idiom, the cards
-staying in the DOM with their own collapse state. Measured at 390×844 for a returning member: the
-page goes from 3,484px to 3,189px (−8.5%) and desktop is byte-identical. The same measurement is
-why it was declined: the four cards are **8.6%** of the page and the Hours card is **49.5%**, and the
-saving sits below the take-home figure — past the answer the member came for.
-
-**Declined because it hides two money features from the members who most need to find them.** The
-HPP and back-pay card subtitles — *"Paid once a year on a January payslip — look for the green note
-on that payslip"* — are the app teaching an entitlement, and for a member with no hours
-entered yet they are the only route that asks nothing of them first: the result banners that would
-promote HPP and back pay are gated on a stored estimate, which needs prior-year hours, so that
-member gets no banner today and would get no card tomorrow. The Pay Calculator Guide explains both
-in full — but a guide has to be OPENED, and somebody who has never heard of HPP has no reason to go
-looking for it. (This said "the ONLY route" until 3 Sep 2026; an external review pointed out the guide
-makes that literally untrue, and the precise version is the stronger argument.) That is the `paycalc-year-card.js` lesson — a control vanishing from the people who
-need it, when they need it — repeated. It would also be unmeasurable, because card opens are not
-counted. No staff request exists.
-
-Two findings from the work stay true, recorded so a revisit does not pay for them twice. **Any
-grouping must reveal before the `#payTransferCard` deep link scrolls**: with the cards hidden, the
-transfer card's entire landing correction runs against `display: none` and the member lands at the
-top of the page with nothing to explain why (the real e2e fails with a `TypeError` on a null box —
-assert visibility before position). And `paycalc-app.js` sits at **1,900 of a 1,900-line ratchet** — the
-room a cap carries for a fix is already spent, so the next change to that file, however small, must
-move something out first. **Do not make that move speculatively.** The seam should be drawn by the
-change that needs it; a module carved today to hold three click handlers is a guess at where that
-change will want its boundary, and the ratchet is doing exactly its job by waiting. When it comes,
-the ready candidate is the cross-card navigation block (`_bannerViewCard` and the three link
-wirings, ~20 lines, no calculations), named for what it is — `paycalc-card-navigation.js`, never for
-the grouping that was not built. The transfer card's hash branch stays where it is; its
-ResizeObserver landing correction is its own concern. If the tail is ever
-revisited, start from grouping only the two gadgets (Decimal Hours Converter, Move Your Pay Data) —
-nothing taught is lost, ~95px saved — and expect that not to be worth a module either. Better
-still, ask a different question than "what can we hide?": **can the two utilities be made to look
-less like major calculator sections — lighter headers, no chevron-card chrome — while HPP and back
-pay keep their educational prominence?** Visual weight is the lever that costs no discovery.
-
-The four cards were never one category, which is why the grouping felt logical and was
-semantically wrong: the HPP and back-pay headers **teach an entitlement** all year, while the
-converter's and the transfer card's headers only **identify a tool**. The principle to carry
-forward is worth more than the 295px this set out to save: **a collapsed section is not unused
-vertical space — ask what its collapsed state is communicating before hiding it.** It applies to
-the Hours card too, which is 49.5% of the page and is NOT therefore a target: most of that height
-is copy mapping each category to the words on a real payslip, and "where are the most pixels?" is
-the wrong question. The right one is where staff spend effort for little value, and nothing has
-shown that yet.
-
 ### Dark mode (toggleable)
 **Status:** Idea · **Trigger:** repeated staff request, or evidence of a real low-light usability problem · **Review:** January 2027 · **No work before the trigger**
 
@@ -833,7 +767,7 @@ reached** — a 2026 implementation preference must not become a 2028 architectu
 Distribution costs an Apple Developer account ($99/year) and Google Play ($25) whatever is chosen.
 
 ### Sign-in and Calendar start latency
-**Status:** Phase 1 shipped (v21.29–30) · **PHASE 3'S TRIGGER HAS FIRED** (confirmed 30 Aug 2026) · **Owner:** Gareth · **Plan:** `LATENCY_PLAN.md`
+**Status:** Phase 1 shipped (v21.29–30) · **PHASE 3'S TRIGGER HAS FIRED** (confirmed 30 Aug 2026) · **Owner:** Gareth · **Plan:** `LATENCY.md`
 
 The measurement landed before the work, deliberately, and it has now answered. **This entry belongs
 under NOW rather than LATER the moment the work is scheduled** — it is left here only because
@@ -932,61 +866,15 @@ both would need the governance gate answered before that changed.
 
 ---
 
-## Decisions taken — recorded so they are not re-raised
-
-- **Pay-data transfer notice — DISMISSED as drafted** (owner, 31 Jul 2026). A one-time notice
-  pointing staff at the "💾 Move Your Pay Data" card was drafted and rejected in that form. **Do not
-  simply re-raise it**: the deferral reason that used to sit here (the `password-2026` campaign) is
-  gone, so "the blocker has cleared" is not a reason to write it. If it returns it needs a different
-  shape, not a rescheduled one. Nobody loses pay data by there being no notice — the card exists with
-  a working deep link (`paycalc.html#payTransferCard`), and figures are lost only by switching
-  address and expecting them to follow. There is no deadline.
-- **Admin task navigator — BUILT, THEN REMOVED** (owner, Aug 2026). A chip row under the member bar
-  (Change a Shift · Annual leave · Absence · Saved changes) shipped at v21.38 and came out at v21.40:
-  *"Feels like clutter."* It has since been re-recommended by an external review, so the decision is
-  written down here rather than re-argued: **the owner has seen it working and does not want it.**
-  The cost it was meant to remove is real and is accepted — a self-service member opening Admin
-  scrolls past the whole Change-a-Shift card to reach Record Annual Leave, because the default card
-  is Change a Shift for everyone (also an owner decision, v21.38). If that reach is ever reopened,
-  the cheaper move is the auto-open that predates the row (see `applyPermissions` in `admin-app.js`),
-  not a second navigation idiom — but it needs the owner to ask, not a reviewer to suggest.
-  **The row left a hole behind it** (v21.43): with the chips gone the member bar's own 6px of
-  padding and the container's 12px gap read as one 18px band of navy — the widest gap on the page,
-  and reported as having "grown", though nothing about it had changed since v21.37. Removing a
-  thing is not finished until the space it occupied is closed.
-- **Links compare on a phone — self-labelling cells: DECLINED** (v22.77, external review). The
-  proposal was to give each compare cell its own day label so the grid survives a narrow screen.
-  It is the wrong device for the job rather than a layout to fix: a 24x7 grid of two designs is a
-  desk task, three named designers do it, and there is no reported use of compare mode on a phone.
-  Buying it would cost the coordinator complexity and every compare cell a second label to keep in
-  step. The narrow case is already served — the columns stack below 1024px and each scrolls — and
-  what the review was reaching for (finding the changed lines quickly) is answered instead by the
-  **only-the-lines-that-differ** view shipped in the same release, which helps on every width.
-  Reopen only if somebody reports actually using it on a phone.
-- **Links sticky save bar — density pass: DECLINED** (v22.77, external review). Nothing is reported
-  wrong with it, it has already had a tuning pass, and "denser" is not a defect. This is recorded
-  rather than left on a list because it has now been deferred twice; a third deferral would be a
-  decision nobody is making.
-- **Profile photo / avatar — removed** at v12.22; the nav footer shows initials on a stable per-name
-  colour. Full restoration spec: `ROADMAP_HISTORY.md`.
-- **Cultural calendar — removed** at v13.23 (annual maintenance burden + GDPR Article 9 exposure +
-  no observed usage). Full restoration spec and the erasure requirement: `ROADMAP_HISTORY.md`.
-- **Password security — the original five-stage plan is superseded** by the "C-lite" design in
-  `PASSWORD_PLAN.md`, which did not wait on email verification. The original staged text is kept in
-  `ROADMAP_HISTORY.md` because its reasoning is still sound; do not plan from it.
-- **GDPR:** staff shift data is personal data. If the governance gate is answered "official", data
-  controller status and retention policies need documenting — see that gate.
-
----
-
 ## Where everything else lives
 
 | Looking for | File |
 |---|---|
 | What shipped, what was removed, what was tried and reverted | `ROADMAP_HISTORY.md` |
+| Decisions already taken, and features declined | `DECISIONS.md` — **do not re-argue one without reading it** |
 | Dated obligations and their warning points | `MAINTENANCE_CALENDAR.md` |
 | Current status of every security/auth track | `SECURITY_RELEASE_PLAN.md` — **the single source** |
-| Password design and its implementation record | `PASSWORD_PLAN.md` |
+| Password design and its implementation record | `PASSWORD_DESIGN.md` |
 | Full-app authentication design | `AUTH_PLAN.md` |
 | December 2026 Links delivery | `LINKS_DEC2026_PLAN.md` |
 | Active constraints and accepted limitations | `KNOWN_LIMITATIONS.md` |

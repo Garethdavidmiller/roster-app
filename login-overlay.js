@@ -12,7 +12,7 @@
  * It injects its own markup (like nav-panel.js), so a consuming page needs NO login HTML.
  *
  * Owns: the overlay UI, grade/name dropdowns, passing the TYPED password to Firebase (the authority
- *   — no local surname pre-check since PASSWORD_PLAN.md §3.2), the client-side wrong-password
+ *   — no local surname pre-check since PASSWORD_DESIGN.md §3.2), the client-side wrong-password
  *   lockout, and the Firebase named-session establishment (B1: ensureNamedSession + the
  *   enforce-failure messaging).
  * Does NOT own: what happens AFTER a confirmed sign-in — the caller passes onSuccess (typically a
@@ -91,7 +91,7 @@ export async function runNamedSignIn({ enforce, ensureNamedSession, saveSession,
     if (!authResolved || (enforce && !named)) {
         clearSession();         // never leave a stale/legacy session behind a failed sign-in
         // `kind` lets the caller act on the CAUSE (only a genuine wrong-password drives the client
-        // lockout; a network/rate-limit failure must not). Messages follow PASSWORD_PLAN.md §3.5 +
+        // lockout; a network/rate-limit failure must not). Messages follow PASSWORD_DESIGN.md §3.5 +
         // the house wording rule (an account matter → "the admin").
         if (!authResolved) return { ok: false, kind: 'timeout', error: 'Couldn’t complete sign-in — check your connection and try again.' };
         const code = getAuthError();
@@ -162,7 +162,7 @@ function overlayHtml(pageLabel, alternative, notice) {
         <div id="loginError" class="login-error" aria-live="polite"></div>
         <button type="button" id="loginSubmit">Sign in →</button>
         <div id="loginStatus" class="login-status" aria-live="polite"></div>
-        <!-- Reset request (PASSWORD_PLAN.md — the request queue). ALWAYS VISIBLE since v20.48, and
+        <!-- Reset request (PASSWORD_DESIGN.md — the request queue). ALWAYS VISIBLE since v20.48, and
              BELOW the primary action where a "forgot password" is looked for. It was revealed only
              after two credential failures (v18.93–94), which had the shape of a good idea — don't
              offer a reset to someone who merely mistyped — but got the user wrong: the member who
@@ -438,7 +438,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             // The RAW typed password — NOT normalised. A chosen password keeps its case/digits/
             // symbols; the surname fallback is applied (gated) inside ensureFirebaseSession via
             // credentialCandidatesFor. Firebase is now the authority — there is no local surname
-            // pre-check (PASSWORD_PLAN.md §3.2). Whitespace-trim only for the empty-field guard.
+            // pre-check (PASSWORD_DESIGN.md §3.2). Whitespace-trim only for the empty-field guard.
             const typedPw = passwordInput.value;
             errorEl.classList.remove('visible');
 
@@ -516,7 +516,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             // flagging failures that have since been resolved.
             resetResetRequest();
             // One-shot "a real sign-in just happened" marker for the forced set-password overlay
-            // (password-force.js, PASSWORD_PLAN.md Phase 2). Written HERE — the one place every
+            // (password-force.js, PASSWORD_DESIGN.md Phase 2). Written HERE — the one place every
             // protected page's sign-in passes through — rather than in each coordinator's onSuccess,
             // so the five pages can't drift on it. Consumed by initPasswordForce on the authorised
             // path (both the reload and the in-place branch run it). Deliberately set BEFORE

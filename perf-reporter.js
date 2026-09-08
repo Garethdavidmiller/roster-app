@@ -194,7 +194,7 @@ export function markMilestone(id) {
  * ── WHAT SERVED THE FIRST GRID (v21.99) ─────────────────────────────────────────────────────────
  *
  * `source` says whether the grid the member is now looking at came from the LOCAL CACHE or from the
- * authoritative server read. It exists to make one decision decidable and no other: `LATENCY_PLAN.md`
+ * authoritative server read. It exists to make one decision decidable and no other: `LATENCY.md`
  * Phase 2 proposes narrowing that server read, and its entire value rests on how many loads reach a
  * grid THROUGH it. A cache-served load never touches the network on this path, so narrowing the read
  * cannot move it by a millisecond — while a cache MISS waits for the whole three-month, whole-team

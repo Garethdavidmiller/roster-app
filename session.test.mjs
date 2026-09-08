@@ -554,7 +554,7 @@ describe('ensureFirebaseSession identity tracking', () => {
         assert.equal(getFirebaseAuthError(), 'auth/operation-not-allowed');
     });
 
-    test("PASSWORD_PLAN §3.3: a CREDENTIAL rejection does NOT fall back to anonymous even flag-off → 'none'", async () => {
+    test("PASSWORD_DESIGN §3.3: a CREDENTIAL rejection does NOT fall back to anonymous even flag-off → 'none'", async () => {
         _signInBehavior = 'auth/invalid-credential';
         _anonBehavior   = 'ok';   // available, but must NOT be used
         const ok = await ensureFirebaseSession('G. Miller');

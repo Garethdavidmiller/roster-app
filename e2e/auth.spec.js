@@ -239,7 +239,7 @@ test('in-place sign-in: settings initialises (work-email card + nav identity) wi
     expect(await page.evaluate(() => window.__noReload), 'page must not have reloaded').toBe(1);
 });
 
-// ── FORCED SET-PASSWORD OVERLAY (PASSWORD_PLAN.md Phase 2, v18.92) ────────────────────────────
+// ── FORCED SET-PASSWORD OVERLAY (PASSWORD_DESIGN.md Phase 2, v18.92) ────────────────────────────
 // The compel is a HARD BLOCK, so the tests that matter most are the ones proving it cannot become a
 // lockout: it must not appear unless it can actually be satisfied, and it must not appear at all when
 // the kill switch is off. `forcePasswordSet` opts in — the suite default is OFF (see fixtures.js).
@@ -345,7 +345,7 @@ test('forced password overlay: never appears while the kill switch is off', asyn
     await expect(page.locator('#pwForceOverlay')).toHaveCount(0);
 });
 
-// ── RESET REQUEST LINK (PASSWORD_PLAN.md — the request queue) ─────────────────────────────────
+// ── RESET REQUEST LINK (PASSWORD_DESIGN.md — the request queue) ─────────────────────────────────
 // ALWAYS ON SCREEN since v20.48. It was revealed only after two credential failures, on the
 // reasoning that the remedy for a mistype is to try again — true, but it made the member who KNOWS
 // they have forgotten fail twice on purpose before the app would tell them how to ask. The gate is

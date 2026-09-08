@@ -153,7 +153,7 @@ unadvertised URL + small known team**, matching the existing surname-password po
 surname-derived and not secrets; protection relies on Firebase Auth rate-limiting + Firestore rules").
 The full staff-wide replacement is the planned **Track C** in SECURITY_RELEASE_PLAN.md.
 
-**Partial remediation SHIPPED (v18.63) — PASSWORD_PLAN.md Phase 0+1.** Every account (admin/manager
+**Partial remediation SHIPPED (v18.63) — PASSWORD_DESIGN.md Phase 0+1.** Every account (admin/manager
 included) can now **set its own real secret** in Settings → Password; sign-in accepts the typed
 password and only falls back to the surname while the account is still on the default. So the specific
 "guessable admin/manager password" exposure is **closable today by the owner simply setting their own
@@ -296,7 +296,7 @@ So the change arrives gradually, per member, which is also how it should be revi
 **What it makes worse, and what reads FROM this number.** Two things downstream are derived from the
 session length rather than owning their own clock, and both get further away as it grows:
 
-- **The forced password migration** (`CONFIG.FORCE_PASSWORD_SET`, PASSWORD_PLAN Track C) is driven by
+- **The forced password migration** (`CONFIG.FORCE_PASSWORD_SET`, PASSWORD_DESIGN Track C) is driven by
   sign-ins, so full coverage now takes up to 60 days instead of 30 — the C5 exit metric converges
   half as fast.
 - **Operations → Usage, "Accounts that have signed in — last 30 days"** used to be a slight

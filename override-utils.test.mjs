@@ -532,7 +532,7 @@ describe('computePeriodDeleteIds', () => {
     });
 });
 
-// ── Training grammar + pay resolution (OTHER_PLAN.md) ─────────────────────
+// ── Training grammar + pay resolution (OTHER_DAYS.md) ─────────────────────
 
 describe('isOtherValue / parseOtherValue — value grammar', () => {
     it('accepts every flavour, bare', () => {

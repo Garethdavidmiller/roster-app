@@ -5770,7 +5770,7 @@ test('huddle: a table too wide to fit scrolls itself, not the page', async ({ pa
         + 'without it the tables render unwrapped and the page scrolls sideways again').toBe(true);
 });
 
-// ── The one comparison LATENCY_PLAN.md's open decision is gated on (v22.28) ──────────────────────
+// ── The one comparison LATENCY.md's open decision is gated on (v22.28) ──────────────────────
 //
 // The plan called it "a reading, not a build", and it was not readable: every dimensional split on
 // this card ran against `domReady`, so the milestone the plan's own evidence names as the wall

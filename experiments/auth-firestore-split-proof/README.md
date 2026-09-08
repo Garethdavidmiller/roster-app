@@ -1,7 +1,7 @@
 # Would splitting Firebase Auth from Firestore make a saved sign-in arrive sooner?
 
 **No — and the measurement says what the real cause is instead.** Run before doing the work, which is
-the point: `LATENCY_PLAN.md` Phase 3 proposed the split, its trigger had fired on two independent
+the point: `LATENCY.md` Phase 3 proposed the split, its trigger had fired on two independent
 readings, and its own caution said the split "may not buy the whole 52 points; the prove-it-on-one-page
 step exists precisely to find out". This is that step, done as an experiment rather than as a
 refactor of `firebase-client.js` — the module every page in the app imports.
@@ -12,7 +12,7 @@ real Chromium; that is not a signal this repo's build should fail on.
 ## The claim under test
 
 The Calendar's start ladder puts 52% of `page start → Recognised` over one second — three times its
-nearest rival, on 1,072 opens (`LATENCY_PLAN.md`, confirmation read 30 Aug 2026). `Recognised` is
+nearest rival, on 1,072 opens (`LATENCY.md`, confirmation read 30 Aug 2026). `Recognised` is
 `authBootstrap` resolving: Firebase Auth restoring a saved session, no typing.
 
 Phase 3's reasoning was that `firebase-client.js` statically imports app, auth **and** Firestore, so

@@ -36,7 +36,7 @@ beside the code, where it cannot drift from the thing it describes. Every row po
 **The decision that hung over invariant 3 was ANSWERED on 5 Sep 2026, and invariant 13 is the
 answer.** The Calendar's access decision waited on the network round trip Firebase makes to validate
 a stored user, and that round trip is the measured cause of the start-latency wall
-(`LATENCY_PLAN.md`) — over a second on roughly 60% of opens. The owner's ruling: a returning member
+(`LATENCY.md`) — over a second on roughly 60% of opens. The owner's ruling: a returning member
 may see **their own already authorised cached roster** while it completes.
 
 Invariant 3 is unchanged and still means what it said. What changed is the size of the thing a grant

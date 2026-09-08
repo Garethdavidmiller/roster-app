@@ -374,7 +374,7 @@ export const START_MILESTONES = /** @type {const} */ ([
     // derived by subtracting another and every figure below stays true — but a returning member now
     // takes the PROVISIONAL PAINT, which puts `rosterCached` and `ready` on screen BEFORE this rung
     // resolves. So `Shifts shown` reading faster than `Unlocked` is not a broken card: it is the
-    // fast path working, and it is exactly the signature `LATENCY_PLAN.md` says to look for.
+    // fast path working, and it is exactly the signature `LATENCY.md` says to look for.
     // Do not "fix" it by marking access at the paint — a paint is not a grant.
     { metric: 'access',     label: 'Unlocked',     sub: 'the Calendar deciding you may see it' },
     // THE RUNG THAT SPLITS THE GAP NOBODY COULD SEE (v22.95). The field read of 5 Sep 2026 put
@@ -406,7 +406,7 @@ export function summariseStartMilestones(samples, { page }) {
 }
 
 /**
- * WHAT SERVED THE FIRST GRID — the split that decides `LATENCY_PLAN.md` Phase 2 (v21.99).
+ * WHAT SERVED THE FIRST GRID — the split that decides `LATENCY.md` Phase 2 (v21.99).
  *
  * Phase 2 narrows the Calendar's authoritative Firestore read, and its whole value rests on how many
  * loads reach a grid THROUGH that read rather than from the local cache. A cache-served load never
@@ -475,7 +475,7 @@ export function summariseUpdateOpens(samples, { page }) {
 //   · `readyHeavySwr` is a SUBSET OF `ready`, banded by DURATION exactly like `readyUpdate` — so it
 //     uses the shared body and is directly comparable with the ladder's own `Shifts shown` row.
 //
-// Together they answer the demoted-but-open hypothesis in LATENCY_PLAN.md: does a boot carrying a
+// Together they answer the demoted-but-open hypothesis in LATENCY.md: does a boot carrying a
 // full revalidation sweep reach the roster more slowly than one that does not?
 export const HEAVY_SWR_OPENS = /** @type {const} */ ([
     { metric: 'readyHeavySwr', label: 'Worker busy', sub: 'the open where the worker was rechecking 31+ files' },

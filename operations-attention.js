@@ -56,7 +56,7 @@ export const ATTENTION_CATALOGUE = /** @type {const} */ ({
     // NOT HERE, deliberately: members with no work email. It looks like the same kind of omission
     // and it is not. A missing login is a mistake — somebody cannot do their job and nobody meant
     // that. A missing work email may be a CHOICE: members add their own in Settings, and it buys
-    // nothing today beyond a future self-service recovery route (PASSWORD_PLAN Stage 4). An item
+    // nothing today beyond a future self-service recovery route (PASSWORD_DESIGN Stage 4). An item
     // here would nag the admin about somebody else's decision, and it is a COVERAGE figure, which
     // is a different shape from an exception — a count that is normally non-zero becomes furniture,
     // and furniture in an exceptions index is how the index stops being read. Its home is the

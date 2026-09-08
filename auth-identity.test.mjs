@@ -65,7 +65,7 @@ describe('surnamePassword — the padded surname credential', () => {
     });
 });
 
-describe('credentialCandidatesFor — gated dual-attempt (PASSWORD_PLAN §3.2)', () => {
+describe('credentialCandidatesFor — gated dual-attempt (PASSWORD_DESIGN §3.2)', () => {
     test('a custom password is the sole candidate (does NOT normalise to the surname)', () => {
         assert.deepEqual(credentialCandidatesFor('G. Miller', 'Str0ng!pass'), ['Str0ng!pass']);
     });
@@ -93,7 +93,7 @@ describe('credentialCandidatesFor — gated dual-attempt (PASSWORD_PLAN §3.2)',
     });
 });
 
-describe('isPasswordMigrated — the Operations/Settings status predicate (PASSWORD_PLAN §6)', () => {
+describe('isPasswordMigrated — the Operations/Settings status predicate (PASSWORD_DESIGN §6)', () => {
     test('no status doc / null / undefined → not migrated', () => {
         assert.equal(isPasswordMigrated(null), false);
         assert.equal(isPasswordMigrated(undefined), false);
@@ -123,7 +123,7 @@ describe('isPasswordMigrated — the Operations/Settings status predicate (PASSW
     });
 });
 
-describe('isCredentialRejection — the shared candidate-ladder stop predicate (PASSWORD_PLAN §3.2)', () => {
+describe('isCredentialRejection — the shared candidate-ladder stop predicate (PASSWORD_DESIGN §3.2)', () => {
     test('definitive credential-rejection codes → true (try the next candidate)', () => {
         for (const code of ['auth/wrong-password', 'auth/invalid-credential', 'auth/invalid-login-credentials', 'auth/user-not-found']) {
             assert.equal(isCredentialRejection(code), true, code);
@@ -143,7 +143,7 @@ describe('isCredentialRejection — the shared candidate-ladder stop predicate (
     });
 });
 
-// ── validateNewPassword — the SHARED chosen-password rules (PASSWORD_PLAN §4) ──────────────────
+// ── validateNewPassword — the SHARED chosen-password rules (PASSWORD_DESIGN §4) ──────────────────
 // Shared by the Settings card and the forced overlay (password-force.js). It exists BECAUSE two
 // copies of a validation rule is how the Other-day grammar drifted (v18.91): if these surfaces
 // disagreed, a member could set a password through one that the other rejects — or set their surname

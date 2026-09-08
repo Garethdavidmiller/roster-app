@@ -5,7 +5,7 @@ authoritative for how the workspace is built.*
 
 > **"Dec 26" means the DECEMBER 2026 TIMETABLE CHANGE.** It is industry shorthand for a timetable
 > change date, not for 26 December. This matters in this repo specifically: `roster-data.js` and
-> `OTHER_PLAN.md` carry a separate rule about **Boxing Day (26 Dec)** never being a training day, and
+> `OTHER_DAYS.md` carry a separate rule about **Boxing Day (26 Dec)** never being a training day, and
 > `isChristmasRD()` forces 25/26 December to rest days. The two are unrelated. Anywhere this document
 > says Dec 2026 it means the timetable change; anywhere the code says 26 Dec it means Boxing Day.
 

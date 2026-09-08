@@ -203,7 +203,7 @@ body {
     }
 }
 
-/* Password card (PASSWORD_PLAN.md) */
+/* Password card (PASSWORD_DESIGN.md) */
 .pw-req { font-weight: 400; color: var(--text-mid); }
 .pw-nudge {
     background: color-mix(in oklch, var(--accent-gold) 16%, white);

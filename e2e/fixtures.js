@@ -461,7 +461,7 @@ export const test = base.extend({
         await page.route('**/roster-data.js', async route => {
             const res = await route.fetch();
             let body  = await res.text();
-            // DEFAULT OFF for the whole suite: the forced set-password overlay (PASSWORD_PLAN Phase 2)
+            // DEFAULT OFF for the whole suite: the forced set-password overlay (PASSWORD_DESIGN Phase 2)
             // fires after any confirmed sign-in for a member the stubbed Firestore reports as
             // un-migrated — which, since `getDoc` resolves `exists: () => false`, is EVERY member. It
             // would therefore cover the page in every test that signs in through the overlay and break
@@ -532,7 +532,7 @@ export async function enableInplaceLogin(page) {
 }
 
 /**
- * Turn the forced set-password overlay ON for one test (PASSWORD_PLAN.md Phase 2). The suite-wide
+ * Turn the forced set-password overlay ON for one test (PASSWORD_DESIGN.md Phase 2). The suite-wide
  * default is OFF — see the `page` fixture — because the stubbed Firestore reports every member as
  * un-migrated, so leaving it on would put the overlay over every sign-in test. Call BEFORE page.goto().
  * @param {import('@playwright/test').Page} page

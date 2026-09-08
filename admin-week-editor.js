@@ -551,7 +551,7 @@ function _activateRow(row, checkbox, pills, startEl, endEl, type) {
     row.classList.remove('other-spare');   // clear any stale Spare-mode when (re)activating a type
     row.dataset.type = type;
     // Other-family options strip: visible only while the Other pill is active. The RDW tick
-    // pre-ticks itself when the day's base roster is a rest day (OTHER_PLAN.md decision 8)
+    // pre-ticks itself when the day's base roster is a rest day (OTHER_DAYS.md decision 8)
     // — smart default, still adjustable. Runs on BOTH the pill and bulk-apply paths.
     const otherOpts = /** @type {HTMLElement|null} */ (row.querySelector('.other-opts'));
     if (otherOpts) {

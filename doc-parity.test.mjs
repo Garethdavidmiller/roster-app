@@ -305,7 +305,12 @@ const LIVE_DOCS = ['./CLAUDE.md', './docs/AI_MAP.md', './docs/ROADMAP.md', './do
     // believed". They passed on the day they were added, which is the moment to adopt a guard
     // rather than after it has drifted. `ARCHITECTURE.md` joins for the same reason: it is the
     // index, so a name it gets wrong misroutes every reader who starts there.
-    './docs/CALENDAR_DATA.md', './docs/AUTH_AND_SESSIONS.md', './docs/ARCHITECTURE.md'];
+    './docs/CALENDAR_DATA.md', './docs/AUTH_AND_SESSIONS.md', './docs/ARCHITECTURE.md',
+    // DECISIONS.md joined on the day it was split out of ROADMAP.md (8 Sep 2026), for the reason
+    // DATA_MODEL.md did: material does not stop being live because it moved to a quieter file, and
+    // every line in it was under this guard yesterday as part of ROADMAP.md. A split that silently
+    // drops a guard is how the estate loses coverage without anything failing.
+    './docs/DECISIONS.md'];
 
 // ── CONTRACT 1c: AI_MAP KNOWS every export — the other direction of 1b ─────────────────────────
 //
@@ -888,7 +893,7 @@ test('no doc writes down the size of a roster-owned list', () => {
     const WORD = { ten: 10, eleven: 11, twelve: 12 };
     const wrong = [];
     for (const doc of ['./CLAUDE.md', './docs/AI_MAP.md', './docs/KNOWN_LIMITATIONS.md', './docs/OPERATIONS_REFERENCE.md',
-                       './docs/SECURITY_RELEASE_PLAN.md', './docs/AUTH_PLAN.md', './docs/PASSWORD_PLAN.md',
+                       './docs/SECURITY_RELEASE_PLAN.md', './docs/AUTH_PLAN.md', './docs/PASSWORD_DESIGN.md',
                        './docs/ARCHITECTURE.md', './.claude/rules/paycalc.md']) {
         const lines = read(doc).split('\n');
         lines.forEach((line, i) => {

@@ -1,4 +1,9 @@
-# LATENCY_PLAN.md — sign-in and Calendar start
+# LATENCY.md — sign-in and Calendar start
+
+*Renamed from `LATENCY_PLAN.md` (8 Sep 2026). Its own summary says it best: "This is no longer a
+programme of engineering. It is TWO OPEN ITEMS and a close-out rule." Phase 1 shipped, Phase 3 was
+priced and declined, Phase 4's trigger never fired. It holds the measurements and the decision rule.*
+
 
 *Created August 2026 (at v21.30), external review. Not version-stamped; not a runtime asset.*
 

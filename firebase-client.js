@@ -547,7 +547,7 @@ export async function getAllStaffContacts() {
     return snap.docs.map(/** @param {any} d */ d => d.data());
 }
 
-// ---- Password migration status (PASSWORD_PLAN.md §6) ----
+// ---- Password migration status (PASSWORD_DESIGN.md §6) ----
 // `passwordStatus/{memberName}` (doc id = display name). `resetAt` is written ONLY by the
 // resetMemberPassword Cloud Function (Admin SDK, bypasses rules); `passwordSetAt` is written by the
 // member's own client after a successful updatePassword. Migrated ⇔ passwordSetAt newer than any
@@ -611,7 +611,7 @@ export async function reauthenticateWithPassword(memberName, typed) {
             // sign-in ladder, session.js). A transient failure — network / rate-limit / provider outage /
             // requires-recent-login — must stop immediately: retrying the surname candidate would
             // duplicate traffic, worsen rate-limiting, and return a misleading final error
-            // (PASSWORD_PLAN.md §3.2). The one shared classifier keeps the two ladders in step.
+            // (PASSWORD_DESIGN.md §3.2). The one shared classifier keeps the two ladders in step.
             if (!isCredentialRejection(/** @type {any} */ (e)?.code)) break;
         }
     }
@@ -742,7 +742,7 @@ export async function getAccountSetupGaps() {
     return r.json();
 }
 
-/** The public `requestPasswordReset` endpoint (PASSWORD_PLAN.md — the request queue). */
+/** The public `requestPasswordReset` endpoint (PASSWORD_DESIGN.md — the request queue). */
 const REQUEST_RESET_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/requestPasswordReset';
 
 /**

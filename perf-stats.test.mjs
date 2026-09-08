@@ -534,7 +534,7 @@ describe('summariseStartMilestones', () => {
 
 // ── summariseReadySource — what put the shifts on screen ────────────────────────────────────────
 //
-// This block exists to decide ONE thing: `LATENCY_PLAN.md` Phase 2 narrows the Calendar's
+// This block exists to decide ONE thing: `LATENCY.md` Phase 2 narrows the Calendar's
 // authoritative Firestore read, and a load the local cache already served never touches the network
 // on that path. So "how many loads waited for the read?" is the whole question, and the card could
 // not answer it.

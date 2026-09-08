@@ -806,7 +806,7 @@ function showMemberPanel(name, why = 'This device needs to sign you in again bef
 /**
  * Re-establish the member's own Firebase identity with nothing typed, if that is possible.
  *
- * `ensureNamedSession` with no password tries ONLY the derived surname (PASSWORD_PLAN.md §3.4), which
+ * `ensureNamedSession` with no password tries ONLY the derived surname (PASSWORD_DESIGN.md §3.4), which
  * is what makes this safe to fire unprompted: for a member still on the default it restores the exact
  * identity they already had, and for a migrated member it fails cleanly against a password nobody
  * chose. It is the same page-load re-establishment every other coordinator already performs — the
@@ -1008,7 +1008,7 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null }) {
     // It used to run behind the member card's disabled "Signing you in…" state — so every member
     // whose identity restore merely missed the boot budget SAW A SIGN-IN SCREEN, even on the loads
     // that recovered themselves moments later. The first live month of the start ladder showed 56%
-    // of Calendar opens taking over a second just to restore the identity (LATENCY_PLAN.md → First
+    // of Calendar opens taking over a second just to restore the identity (LATENCY.md → First
     // reading), which made that flash a routine experience rather than an edge case — and it is
     // what staff meant by "the app keeps asking for my password". Behind the skeleton, the loads
     // that recover (a slow restore, a surname-default member) never show a sign-in surface at all.

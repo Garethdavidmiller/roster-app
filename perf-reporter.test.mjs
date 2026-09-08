@@ -280,7 +280,7 @@ describe('the `usable` milestone survives losing the race (v21.16)', async () =>
 
 // ── WHAT SERVED THE FIRST GRID (v21.99) ─────────────────────────────────────────────────────────
 //
-// This split exists to make ONE decision decidable: `LATENCY_PLAN.md` Phase 2 narrows the Calendar's
+// This split exists to make ONE decision decidable: `LATENCY.md` Phase 2 narrows the Calendar's
 // authoritative Firestore read, and its whole value rests on how many loads reach a grid THROUGH
 // that read rather than from the local cache. A cache-served load never touches the network on this
 // path, so narrowing the read cannot move it at all.

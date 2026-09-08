@@ -120,7 +120,7 @@ export function registerServiceWorker({ beforeReload, bfcache = false, deferWhil
                     // 62 releases in the 14 days to 5 Sep 2026 — 17 on one day — and each one claims
                     // the moment it installs, so a member with the Calendar open watched their
                     // roster vanish and rebuild, paying a second full boot INCLUDING the auth round
-                    // trip that `LATENCY_PLAN.md` measures as the wall. It reads as "the calendar is
+                    // trip that `LATENCY.md` measures as the wall. It reads as "the calendar is
                     // slow", and the latency instrumentation cannot see it: a reload is recorded as
                     // one more page-load sample, so the ladder shows two ordinary loads rather than
                     // one member interrupted.

@@ -25,7 +25,7 @@ description: >
 # ── WHY AN ISSUE, RATHER THAN EMAIL OR PUSH ───────────────────────────────────────────────────
 #
 # An issue needs no new secret and no new infrastructure. Email would need a mail relay the project
-# does not have (the same blocker that has PASSWORD_PLAN Track C2 parked). A Web Push would mean
+# does not have (the same blocker that has PASSWORD_DESIGN Track C2 parked). A Web Push would mean
 # handing CI a credential for the app's own notification endpoint — a wider surface than the
 # problem justifies, and `.claude/rules/notifications.md` is a design language for STAFF
 # notifications, whereas this is developer-facing.
