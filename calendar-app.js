@@ -107,7 +107,7 @@ function _markReadyIfGridShown() {
             // here, so a launch that restored straight into Team View was counted at "Shifts shown"
             // and never at "Confirmed" — the surface simply dropped out of the ladder at the far
             // end. Harmless for the roster (the grid was right either way) and NOT harmless for the
-            // decision the ladder exists to inform: LATENCY_PLAN.md reads the gap between those two
+            // decision the ladder exists to inform: LATENCY.md reads the gap between those two
             // rungs to decide whether narrower Firestore reads are worth doing, and a whole surface
             // missing from one end widens that gap for free.
             if (_teamView.isGridConfirmed()) markMilestone('rosterLive');
@@ -117,7 +117,7 @@ function _markReadyIfGridShown() {
         // WHAT SERVED IT, not merely that something did (v21.99). The two display states that count
         // as a roster already carry the answer — `render` means the authoritative read landed,
         // `stale` means the local cache did and phase 2 has not returned. That distinction is the
-        // whole of `LATENCY_PLAN.md` Phase 2's value: narrowing the server read cannot move a load
+        // whole of `LATENCY.md` Phase 2's value: narrowing the server read cannot move a load
         // the cache already served. Derived here rather than tracked separately, so it can never
         // disagree with the grid it describes.
         if (showsRoster(display)) markPageReady(display === 'render' ? 'fetched' : 'cached');

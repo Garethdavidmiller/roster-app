@@ -981,7 +981,7 @@ select:focus-visible, input:focus-visible {
     min-height: 1em;
 }
 
-/* ---- Account status table (PASSWORD_PLAN.md — one per-member block: work email + password) ---- */
+/* ---- Account status table (PASSWORD_DESIGN.md — one per-member block: work email + password) ---- */
 /* Two count chips above the list — a compact "dashboard" read of coverage. */
 .acct-summary {
     display: flex;

@@ -131,7 +131,7 @@
     --al-deep:  color-mix(in oklch, var(--al) 66%, black);
 
     /* "Other" family — Training / Induction / Assessment, later Meetings / Union duties
-       (OTHER_PLAN.md). LEAF GREEN, hue 136° — the only empty band on the calendar wheel:
+       (OTHER_DAYS.md). LEAF GREEN, hue 136° — the only empty band on the calendar wheel:
        46° from AL's teal (183°) with a darker border, and NOT the bronze 65° originally
        chosen, which was hue-identical to the Early orange (64°) — indistinguishable at
        tint level and literally the same colour for red-green colour-blind staff. The
@@ -868,7 +868,7 @@ button.lightbox-bug-link {
     text-wrap: pretty;
 }
 
-/* Forced set-password overlay (password-force.js, PASSWORD_PLAN.md Phase 2). It reuses the whole
+/* Forced set-password overlay (password-force.js, PASSWORD_DESIGN.md Phase 2). It reuses the whole
    login-overlay visual family above — only two elements are its own. */
 /* This overlay's subtitle is four lines of PROSE, not the login overlay's one-line "Settings · Sign
    in" — so it follows the v18.89 rule and left-aligns. The title above it stays centred (masthead). */
@@ -904,7 +904,7 @@ button.lightbox-bug-link {
    i.e. the compel had no teeth at all. Caught by the e2e; it is invisible to code reading. */
 .pwf-escape[hidden] { display: none; }
 
-/* Login overlay's "ask the admin to reset your password" route (PASSWORD_PLAN.md request queue).
+/* Login overlay's "ask the admin to reset your password" route (PASSWORD_DESIGN.md request queue).
    ALWAYS PRESENT since v20.48, sitting BELOW the Sign in button — the place a reader looks for a
    forgotten-password link, and the placement that lets it be permanent without competing with the
    primary action. Quiet by default (small, `--text-light`, underlined); `--prompted` raises it once

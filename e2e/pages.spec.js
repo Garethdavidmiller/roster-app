@@ -2770,7 +2770,7 @@ test('operations #reset-requests deep link opens and scrolls to the queue card',
     const body = page.locator('#resetRequestsBody');
     await expect(body).toHaveClass(/\bopen\b/);
     // The chevron must AGREE with the class — opening by class alone leaves a screen reader told the
-    // card is still collapsed (A11Y_FINDINGS.md v18.68).
+    // card is still collapsed (A11Y_BASELINE.md v18.68).
     await expect(page.locator('#resetRequestsChevron')).toHaveAttribute('aria-expanded', 'true');
     await expect(page.locator('#resetRequestsCard')).toBeInViewport();
 });
@@ -5770,7 +5770,7 @@ test('huddle: a table too wide to fit scrolls itself, not the page', async ({ pa
         + 'without it the tables render unwrapped and the page scrolls sideways again').toBe(true);
 });
 
-// ── The one comparison LATENCY_PLAN.md's open decision is gated on (v22.28) ──────────────────────
+// ── The one comparison LATENCY.md's open decision is gated on (v22.28) ──────────────────────
 //
 // The plan called it "a reading, not a build", and it was not readable: every dimensional split on
 // this card ran against `domReady`, so the milestone the plan's own evidence names as the wall

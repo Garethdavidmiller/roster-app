@@ -264,7 +264,7 @@ async function initPageSpeedCard() {
     /**
      * ── DOES THE START TRACK THE NETWORK? (v22.28) ──────────────────────────────────────────────
      *
-     * `LATENCY_PLAN.md` has one open owner decision — whether the Calendar may paint before the
+     * `LATENCY.md` has one open owner decision — whether the Calendar may paint before the
      * `accounts:lookup` round trip returns — and one check gating it: **if the wall is that round
      * trip, `Recognised` should track connection quality far more strongly than `Getting ready`
      * does.** A slow network moves a network wall and barely moves a code-parse one.
@@ -419,7 +419,7 @@ async function initPageSpeedCard() {
         return frag;
     };
 
-    /** WHAT SERVED THE FIRST GRID (v21.99) — the reading `LATENCY_PLAN.md` Phase 2 turns on.
+    /** WHAT SERVED THE FIRST GRID (v21.99) — the reading `LATENCY.md` Phase 2 turns on.
      *
      *  Phase 2 narrows the Calendar's authoritative Firestore read. A load the local cache already
      *  served never touches the network on that path, so narrowing it cannot move that load by a
@@ -657,7 +657,7 @@ async function initPageSpeedCard() {
         const swr = swrRows(samples, busiest.page);
         if (swr) { frag.appendChild(swr); any = true; }
         // Then the ladder's FIRST rung against the network, beside the stage that does not touch it
-        // — the comparison `LATENCY_PLAN.md` gates its open decision on. It sits here because both
+        // — the comparison `LATENCY.md` gates its open decision on. It sits here because both
         // halves are milestones the two blocks above have just named.
         const signal = startSignalRows(samples, busiest.page);
         if (signal) { frag.appendChild(signal); any = true; }

@@ -15,7 +15,7 @@ rules written out somewhere else, that copy is the defect.
 the code, where it cannot drift from the thing it describes. Every row points at its home.
 
 For the plan-level view — what is shipped, what is sequenced, what is still undecided — the canonical
-track status is `SECURITY_RELEASE_PLAN.md`. Design lives in `PASSWORD_PLAN.md` (credentials as
+track status is `SECURITY_RELEASE_PLAN.md`. Design lives in `PASSWORD_DESIGN.md` (credentials as
 built), `AUTH_PLAN.md` (Track E, the app-wide read question) and `CREDENTIAL_LIFECYCLE.md` (how a
 credential is issued, recovered and eventually retired — the ORDER those changes go in, and the one
 open decision about what retiring the surname should mean).
@@ -61,7 +61,7 @@ member may be re-shown **their own already authorised cached roster** while it c
 **It was this contract's question, not the performance plan's**, and the answer is a statement about
 how much a local session is allowed to mean: exactly one thing, scoped to one member, for the length
 of one revalidation. Never for the shared PIN viewer, which holds no identity to re-show. The whole
-pre-decision write-up is preserved in `ROADMAP_HISTORY.md`; the measurement is in `LATENCY_PLAN.md`;
+pre-decision write-up is preserved in `ROADMAP_HISTORY.md`; the measurement is in `LATENCY.md`;
 what shipped is `calendar-access-core.js` → `decideProvisionalAccess`.
 
 ---

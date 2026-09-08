@@ -2170,7 +2170,7 @@
 
         /* Checkbox column in the override table */
 
-/* ── Training sub-controls (OTHER_PLAN.md) — flavour + RDW tick, shown while the
+/* ── Training sub-controls (OTHER_DAYS.md) — flavour + RDW tick, shown while the
    Training pill is active. Composed into FLAVOUR[" RDW"][" HH:MM-HH:MM"] on save. ── */
 .other-opts {
     grid-column: 1 / -1;

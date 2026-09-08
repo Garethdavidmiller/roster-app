@@ -33,7 +33,7 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
 
 /**
- * Phase 4a.2 (ARCHITECTURE_PLAN.md): the coordinator body is an exported init() invoked by
+ * Phase 4a.2 (AUTH_ARCHITECTURE.md): the coordinator body is an exported init() invoked by
  * settings-boot.js (a 2-line bootstrap — CSP `script-src 'self'` blocks inline module scripts).
  * Wrapping it means a test can `import { init }` WITHOUT the coordinator auto-running (the last
  * of the five write coordinators to get this seam, v17.09). Body unchanged — same statements,
@@ -108,7 +108,7 @@ export function init() {
     reconcileExpiredIdentity().catch(() => {});
 
     // ── Check session ─────────────────────────────────────────────────────────────
-    // `let` (not const): on the in-place sign-in path (CONFIG.INPLACE_LOGIN.settings, ARCHITECTURE_PLAN.md Phase 9)
+    // `let` (not const): on the in-place sign-in path (CONFIG.INPLACE_LOGIN.settings, AUTH_ARCHITECTURE.md Phase 9)
     // these are refreshed inside initAuthorised() from the just-saved session — the module loaded while
     // signed out, so the load-time values are null. With the flag off they are assigned once and never
     // change, identical to before.
@@ -137,7 +137,7 @@ export function init() {
         });
     }
 
-    // Page-access via the Phase-3 policy (auth-policy.js → ARCHITECTURE_PLAN.md Phase 7). Settings'
+    // Page-access via the Phase-3 policy (auth-policy.js → AUTH_ARCHITECTURE.md Phase 7). Settings'
     // policy is "any named user" (role null) — no 'forbidden' path. The snapshot maps the LOCAL
     // session-existence flag (isAuthenticated = !!currentSession) to an optimistic 'named' status —
     // preserving the exact prior trigger — so requirePage returns 'login' iff there is no local session
@@ -169,7 +169,7 @@ export function init() {
     markPageReady();
     registerServiceWorker();
     sessionReady.then(() => { initErrorReporter(); recordUsage('settings', currentUser); recordPageLatency('settings', currentUser); });
-    // Forced set-password overlay (PASSWORD_PLAN.md Phase 2) — fire-and-forget, never on the login
+    // Forced set-password overlay (PASSWORD_DESIGN.md Phase 2) — fire-and-forget, never on the login
     // critical path. Inside the sessionReady callback so `currentUser` is read LATE: on the in-place
     // sign-in path the module loaded signed-out and the identity is only refreshed inside
     // initAuthorised(), so passing it eagerly here would pass null and silently never compel anyone.
@@ -215,7 +215,7 @@ export function init() {
         // Work Email card
         initContactCard();
 
-        // Password card (PASSWORD_PLAN.md — chosen password + migration status)
+        // Password card (PASSWORD_DESIGN.md — chosen password + migration status)
         initPasswordCard();
 
         // Notifications card. It reports its own state — the words in huddle.js are already the
@@ -518,7 +518,7 @@ export function init() {
     };
     initTipsLightbox(CARD_TIPS);
 
-    // ── Password card (PASSWORD_PLAN.md — self-service chosen password + migration status) ────────
+    // ── Password card (PASSWORD_DESIGN.md — self-service chosen password + migration status) ────────
     /** Ceiling on each password network call. Same 8s budget as sign-in and the forced overlay. */
     const SAVE_TIMEOUT_MS = 8000;
 

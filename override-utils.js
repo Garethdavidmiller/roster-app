@@ -504,7 +504,7 @@ export function computePeriodDeleteIds(allOverrides, { type, memberName, start, 
     return [...leaveIds, ...correctionIds];
 }
 
-// ── TRAINING / INDUCTION / ASSESSMENT (OTHER_PLAN.md) ──────────────────────
+// ── TRAINING / INDUCTION / ASSESSMENT (OTHER_DAYS.md) ──────────────────────
 // One override type ('other') whose value uses a human-readable grammar that
 // mirrors the roster's own language:
 //
@@ -650,7 +650,7 @@ function _shiftMins(time) {
 }
 
 /**
- * Resolve how an Other-family day PAYS (OTHER_PLAN.md — the pay mapping, in one place).
+ * Resolve how an Other-family day PAYS (OTHER_DAYS.md — the pay mapping, in one place).
  * Display deliberately does NOT use this — it shows the 🏷️ badge; only pay consumers
  * (paycalc-roster-suggestions.js) resolve an Other day to the day underneath it.
  *

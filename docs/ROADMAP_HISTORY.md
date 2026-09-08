@@ -25,7 +25,7 @@ than duplicating it — two copies of a plan is the failure mode this split exis
 | Re-propose lazy-loading modules for load speed | *Performance* — measured and rejected, with figures |
 | Re-add the cultural calendar or profile avatar | *Removed features* — both carry full restoration specs |
 | Re-propose FIP faceted filtering, a bottom nav bar, or a summary strip | *Tried and held back* |
-| Design a password stage | *The original five-stage design* — superseded by PASSWORD_PLAN.md, but the reasoning survives |
+| Design a password stage | *The original five-stage design* — superseded by PASSWORD_DESIGN.md, but the reasoning survives |
 | Touch the override write-isolation rules | *Per-member override write isolation* — and SECURITY_RELEASE_PLAN.md → B2/B3 |
 
 ---
@@ -1478,7 +1478,7 @@ loads from the SW cache and hides the cold-load cost real first-time staff pay (
   (in-place login). **ROLLOUT COMPLETE — all five coordinators enabled: paycalc (v15.07), operations
   (v15.08), links (v15.09), admin (v15.16), settings (v15.17).** The per-page kill-switch in
   `CONFIG.INPLACE_LOGIN` still stands (set any key back to `false` to revert that page). Full plan:
-  **ARCHITECTURE_PLAN.md → Phase 9**.
+  **AUTH_ARCHITECTURE.md → Phase 9**.
 
 ### Shipped
 
@@ -1688,13 +1688,13 @@ two couplings that stop either decision being taken as if the other did not exis
 to WIDEN the boundary needs all of it, and none of it is reconstructable from the code.
 
 ### Calendar start — the identity round trip
-**Status:** Blocked on an owner decision · **Owner:** Gareth · **Measured:** `LATENCY_PLAN.md` · **Would change:** `CALENDAR_DATA.md` invariant 3
+**Status:** Blocked on an owner decision · **Owner:** Gareth · **Measured:** `LATENCY.md` · **Would change:** `CALENDAR_DATA.md` invariant 3
 
 **FIELD-CONFIRMED ON LIVE DEVICES, 5 Sep 2026.** This was "extremely strong controlled experiment
 plus historical field localisation" until the September App Speed read supplied the predicted
 signature: `Recognised` moves with the connection grouping while `Getting ready` is 0% over half a
 second in every group. Same populations, large difference at the network rung, none at the
-code-loading one. `LATENCY_PLAN.md` → "THE FIELD READ" carries the table and the one confound.
+code-loading one. `LATENCY.md` → "THE FIELD READ" carries the table and the one confound.
 
 **And the number that makes this the decision rather than an option:** 454 of 462 attributed starts
 were served from the device's OWN saved copy, and **78% of those still took over a second to put
@@ -1756,7 +1756,7 @@ changes, so the existing quiet `Updating…` carries this with no new language a
 **Three answers are all reasonable**, and the engineering differs completely:
 1. **No** — the gate holds; accept the round trip and close this. Then the ladder's `Recognised`
    row should be re-labelled as a floor rather than a target, so nobody re-opens it every quarter —
-   and `LATENCY_PLAN.md` closes, recording the second as the price of the security model.
+   and `LATENCY.md` closes, recording the second as the price of the security model.
 2. **Yes, for a named member with a live local session only** — never for the shared PIN viewer,
    whose whole security model is that it holds no identity. The narrowest useful form.
 3. **Yes, with a visible tell** — paint, and mark the grid as unconfirmed until the lookup lands.
@@ -1772,6 +1772,6 @@ before. What it does NOT change: the security question itself is identical in op
 the choice between them is about honesty on screen, not about safety.
 
 **Do not start building any of them before the answer** — and before the answer, run the
-field-confirmation check in `LATENCY_PLAN.md` (does `Recognised` track connection quality the way a
+field-confirmation check in `LATENCY.md` (does `Recognised` track connection quality the way a
 network wall must?). The measurement is done; what is left is not a performance question.
 

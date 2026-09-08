@@ -1,4 +1,11 @@
-# ARCHITECTURE_PLAN.md — Auth/session consolidation (Track 1) and supporting refactors
+# AUTH_ARCHITECTURE.md — how the client reasons about identity
+
+*Renamed from `ARCHITECTURE_PLAN.md` (8 Sep 2026). The old name was wrong twice over: it sat beside
+`ARCHITECTURE.md` and implied it was the plan FOR that file — they are unrelated, one being the
+two-page routing index added at v21.38 — and Track 1 has been COMPLETE since before B3, with the
+planning narrative pruned at v17.79. What is here is the live architecture, so a reader looking for
+how identity works no longer skips a file marked "plan".*
+
 
 *Track 1 (the identity state machine + page-auth policy) is **COMPLETE** and behaviour-preserving; it
 landed **before** B3 (the strict override-isolation cutover, which then shipped v16.29 —
@@ -142,7 +149,7 @@ everything-trusts-local = fake security):
 Formalised as a load-bearing comment so it can't be quietly weakened:
 
 ```js
-// Design rule (ARCHITECTURE_PLAN.md):
+// Design rule (AUTH_ARCHITECTURE.md):
 // Reads may hydrate optimistically once a Firebase user and the required claim are present.
 // Privileged writes must wait for a confirmed named identity and fresh-enough claims.
 // Local session alone is NEVER sufficient for a privileged cloud write.

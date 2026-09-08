@@ -226,7 +226,7 @@ describe('overrides', () => {
         );
     });
 
-    // ── training value grammar (OTHER_PLAN.md): FLAVOUR [" RDW"] [" HH:MM-HH:MM"] ──
+    // ── training value grammar (OTHER_DAYS.md): FLAVOUR [" RDW"] [" HH:MM-HH:MM"] ──
 
     test('training accepts every grammar form (flavours, RDW marker, actual times)', async () => {
         for (const value of ['TRG', 'IND', 'ASSESS', 'TEAM', 'UNION', 'MEET', 'TRG RDW', 'ASSESS RDW', 'TEAM RDW',
@@ -863,7 +863,7 @@ describe('staffContact', () => {
     });
 });
 
-// ── resetRequests — the reset-request queue (PASSWORD_PLAN.md, the request work) ─────────────────
+// ── resetRequests — the reset-request queue (PASSWORD_DESIGN.md, the request work) ─────────────────
 // This collection is written ONLY by the requestPasswordReset Cloud Function via the Admin SDK, which
 // bypasses rules — so the interesting assertions are that EVERY client write fails, including the
 // admin's. The reason is worth restating here because it looks over-tight: the member who needs this
@@ -906,7 +906,7 @@ describe('resetRequests (the reset-request queue)', () => {
     });
 });
 
-describe('passwordStatus (PASSWORD_PLAN §6)', () => {
+describe('passwordStatus (PASSWORD_DESIGN §6)', () => {
     const NAME = 'G. Miller';
     test('anon cannot read', async () => {
         await assertFails(getDoc(doc(anonDb(), 'passwordStatus', NAME)));

@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * admin-boot.js — 2-line bootstrap for admin.html (ARCHITECTURE_PLAN.md Phase 4a.2).
+ * admin-boot.js — 2-line bootstrap for admin.html (AUTH_ARCHITECTURE.md Phase 4a.2).
  *
  * CSP `script-src 'self'` blocks inline module scripts, so the page cannot call
  * `init()` inline — it loads this tiny module instead. Keeping the call OUT of

@@ -170,7 +170,7 @@ test('admin week label fits at 375px for every week across 13 months', async ({ 
 });
 
 // ── Team View must reach BOTH ends of the boot ladder (v21.37, external review) ────────────────
-// "Shifts shown" and "Confirmed" are the ladder's two far rungs, and LATENCY_PLAN.md decides
+// "Shifts shown" and "Confirmed" are the ladder's two far rungs, and LATENCY.md decides
 // whether narrower Firestore reads are worth doing from the GAP between them. Team View recorded
 // the first and never the second, so every launch spent there widened that gap for free.
 //

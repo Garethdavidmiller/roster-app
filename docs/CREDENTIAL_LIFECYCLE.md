@@ -6,7 +6,7 @@ when they lose it, and how the surname stops being either.*
 **Status lives in `SECURITY_RELEASE_PLAN.md`'s canonical track table** — this file owns DESIGN and
 ORDER, and states no stage. **The invariants live in `AUTH_AND_SESSIONS.md`** — this file argues
 for them; that file is what an edit must not break. Password mechanics (the dual-attempt sign-in,
-the forced overlay, the reset queue, the passkey survey) are `PASSWORD_PLAN.md`'s and are pointed
+the forced overlay, the reset queue, the passkey survey) are `PASSWORD_DESIGN.md`'s and are pointed
 at here, never restated.
 
 ---
@@ -19,9 +19,9 @@ staff PIN that keeps the roster off the open internet without pretending to be i
 authentication. None of that needs redesigning.
 
 What is left is the **credential lifecycle**, and it was scattered — the reset mechanism in
-`PASSWORD_PLAN.md` §5, the email half as a deferred row in the status table, passkeys in a survey
+`PASSWORD_DESIGN.md` §5, the email half as a deferred row in the status table, passkeys in a survey
 section that deliberately carries no schedule, the read question in `AUTH_PLAN.md`, and the
-identity round trip in `LATENCY_PLAN.md`. Each is described well where it sits. **The order was
+identity round trip in `LATENCY.md`. Each is described well where it sits. **The order was
 written down nowhere**, and the order is the whole argument: several of these unblock each other,
 and one of them changes what a different track is waiting for.
 
@@ -267,7 +267,7 @@ can do, and §1 is the thing that would need rolling back.
 ## 6 · The Calendar start round trip
 
 Already instrumented, already priced, and deliberately not yet acted on — the reading that would
-justify it is named in `LATENCY_PLAN.md` → Phase 2, and the trade in `ROADMAP.md`.
+justify it is named in `LATENCY.md` → Phase 2, and the trade in `ROADMAP.md`.
 
 **If the field data confirms the predicted signature**, the preferred answer is the repository's
 Option 3: for a named member holding an otherwise-valid 60-day local session, paint their cached
@@ -368,7 +368,7 @@ the admin code path becomes true break-glass rather than the only recovery.
 
 ## 9 · Passkeys
 
-`PASSWORD_PLAN.md` → *Passkeys — POSSIBLE, not planned* holds the survey, the domain-binding
+`PASSWORD_DESIGN.md` → *Passkeys — POSSIBLE, not planned* holds the survey, the domain-binding
 blocker and the four options. Not restated here. What that section does not carry is the **order**,
 which is the only thing this file adds:
 

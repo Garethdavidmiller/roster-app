@@ -7,7 +7,7 @@
  * every other kind of test in the repo by construction: rendering is unchanged so the visual
  * baselines are identical, `textContent` reads back the original string so the e2e assertions are
  * identical, and axe has no rule for "a decorative glyph that was not hidden" — that is a judgement
- * about meaning, which is exactly why the finding sat open in A11Y_FINDINGS.md rather than being
+ * about meaning, which is exactly why the finding sat open in A11Y_BASELINE.md rather than being
  * caught by the gate.
  *
  * Organised by the two ways it can be wrong, which cost different things:

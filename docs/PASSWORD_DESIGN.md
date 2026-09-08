@@ -1,4 +1,10 @@
-# PASSWORD_PLAN.md — chosen passwords + admin reset (Track C-lite)
+# PASSWORD_DESIGN.md — chosen passwords + admin reset (Track C-lite)
+
+*Renamed from `PASSWORD_PLAN.md` (8 Sep 2026). Every phase in the status table below is shipped, so
+this is the design of what runs, not a plan for what to build. Status still lives in
+`SECURITY_RELEASE_PLAN.md`'s canonical track table; the forward-looking credential work — recovery
+codes, step-up, passkeys, SSO — is `CREDENTIAL_LIFECYCLE.md`.*
+
 
 ## Current state
 

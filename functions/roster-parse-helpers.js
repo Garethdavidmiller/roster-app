@@ -92,7 +92,7 @@ function normaliseShift(raw) {
     // Sunday and base-rest-day normalisation happen client-side in computeCellStates.
     if (['HA', 'OD', 'SC', 'ML'].includes(_code)) return 'SICK';
 
-    // Training / Induction / Assessment / Team Day / Union course (OTHER_PLAN.md). Roster words
+    // Training / Induction / Assessment / Team Day / Union course (OTHER_DAYS.md). Roster words
     // collapse to the canonical flavour sentinels; an RDW marker (either side: "TRG RDW" or "RDW TRG")
     // marks a rest-day and is preserved as the canonical " RDW" suffix. These cells never
     // carry times (the trainer/manager sets them later) — a timed variant falls through to
@@ -1202,7 +1202,7 @@ function shouldDeleteSubscription(statusCode) {
 
 
 /**
- * Throttle decision for a password-reset REQUEST (PASSWORD_PLAN.md — the request queue).
+ * Throttle decision for a password-reset REQUEST (PASSWORD_DESIGN.md — the request queue).
  *
  * PURE so the one piece of judgement in an otherwise mechanical public endpoint is unit-testable.
  * Returns true when the request should be RECORDED (write the doc + count it), false when it should be
@@ -1280,7 +1280,7 @@ function shouldNotifyAdmin(otherNotifiedAtMs, nowMs, windowMs) {
 
 /**
  * The headline + body for the admin's "someone asked for a password reset" push
- * (PASSWORD_PLAN.md — the request queue, Phase 2).
+ * (PASSWORD_DESIGN.md — the request queue, Phase 2).
  *
  * PURE so the wording — the whole user-visible product of this feature — is unit-testable without a
  * push service, and so the design language's truncation budgets are verifiable rather than assumed.

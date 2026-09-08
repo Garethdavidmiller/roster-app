@@ -69,7 +69,7 @@ export function surnamePassword(fullName) {
 
 /**
  * The ordered Firebase Auth password candidates to try for a member who typed `typed` at the login
- * (or Settings reauth) field. PASSWORD_PLAN.md §3.2:
+ * (or Settings reauth) field. PASSWORD_DESIGN.md §3.2:
  *   1. the RAW typed value (leading/trailing whitespace trimmed, otherwise untouched — a chosen
  *      password keeps its case / digits / symbols); and
  *   2. the derived surname password — appended ONLY when the typed value NORMALISES to the member's
@@ -96,7 +96,7 @@ export function credentialCandidatesFor(fullName, typed) {
 }
 
 /**
- * Whether a member has MIGRATED to their own chosen password (PASSWORD_PLAN.md §6).
+ * Whether a member has MIGRATED to their own chosen password (PASSWORD_DESIGN.md §6).
  *
  * Migrated ⇔ they have set a password (`passwordSetAt` present) AND it is at least as new as the
  * most recent admin reset (`resetAt`) — a later admin reset returns the account to the surname
@@ -115,13 +115,13 @@ export function isPasswordMigrated(status) {
     return setAt > 0 && setAt >= resetAt;
 }
 
-/** The minimum length of a chosen password (PASSWORD_PLAN.md §4 — Firebase's own floor is 6). */
+/** The minimum length of a chosen password (PASSWORD_DESIGN.md §4 — Firebase's own floor is 6). */
 export const MIN_PASSWORD_LENGTH = 8;
 
 /**
  * Validate a member's CHOSEN password. Returns a staff-facing error sentence, or `null` when valid.
  *
- * The SINGLE source for the rules in PASSWORD_PLAN.md §4, shared by the Settings Password card and the
+ * The SINGLE source for the rules in PASSWORD_DESIGN.md §4, shared by the Settings Password card and the
  * forced overlay (`password-force.js`, v18.92). It was inline in settings-app.js until the overlay
  * needed the same rules — and two copies of a validation rule is how the Other-day grammar drifted
  * (v18.91). If these two ever disagreed, a member could set a password through one surface that the
@@ -159,7 +159,7 @@ export function validateNewPassword(fullName, next, confirm) {
  * email-enumeration-safe code; the others cover older SDK phrasings.
  *
  * Single source shared by the sign-in candidate ladder (session.js) AND the Settings reauth
- * (firebase-client.js `reauthenticateWithPassword`) so the two can't drift (PASSWORD_PLAN.md §3.2).
+ * (firebase-client.js `reauthenticateWithPassword`) so the two can't drift (PASSWORD_DESIGN.md §3.2).
  * @type {Set<string>}
  */
 export const CREDENTIAL_REJECTION_CODES = new Set([

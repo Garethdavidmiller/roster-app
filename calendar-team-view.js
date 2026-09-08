@@ -593,7 +593,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         // The boot ladder's last rung. Team View could reach "Shifts shown" and never "Confirmed",
         // because the metric returned as soon as it had answered the first question — so a launch
         // that restores straight into Team View was counted in one stage and not the other. That is
-        // not a roster fault (the grid was correct either way), but LATENCY_PLAN.md decides whether
+        // not a roster fault (the grid was correct either way), but LATENCY.md decides whether
         // Phase 2 is worth doing from the GAP between those two rungs, and a whole surface missing
         // from the far end inflates it. A measurement that is about to inform an architectural
         // decision has to count the same loads at both ends.

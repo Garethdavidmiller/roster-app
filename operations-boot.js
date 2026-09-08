@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * operations-boot.js — 2-line bootstrap for operations.html (ARCHITECTURE_PLAN.md Phase 4a.2).
+ * operations-boot.js — 2-line bootstrap for operations.html (AUTH_ARCHITECTURE.md Phase 4a.2).
  *
  * CSP `script-src 'self'` blocks inline module scripts, so the page cannot call
  * `init()` inline — it loads this tiny module instead. Keeping the call OUT of

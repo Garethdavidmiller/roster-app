@@ -559,7 +559,7 @@ stop condition: it means the experiment has no failure criterion, so it can only
 | Member selector vs identity | E3 | Default to your own roster, or keep a free selector with login as a pure gate? UX, not security. |
 | Analytics identity guarantee | E3 | Keep the calendar identity-free, or make it an active-account surface? |
 | Anonymous provider fate | E5 | Disable project-wide, or keep as a Level-1 tier? |
-| Retire the GitHub Pages mirror? | asserting "behind auth" — **and passkeys outright** | See §8. Passkeys make this binding rather than presentational: a WebAuthn credential is bound to one RP ID, and the two origins share no parent domain, so a passkey registered on one can never work on the other. `PASSWORD_PLAN.md` → "Passkeys — POSSIBLE, not planned". |
+| Retire the GitHub Pages mirror? | asserting "behind auth" — **and passkeys outright** | See §8. Passkeys make this binding rather than presentational: a WebAuthn credential is bound to one RP ID, and the two origins share no parent domain, so a passkey registered on one can never work on the other. `PASSWORD_DESIGN.md` → "Passkeys — POSSIBLE, not planned". |
 | Do E6 at all, and which delivery model? | E6 | Independent of everything above. |
 | ~~**The identity round trip**~~ — may the Calendar paint before `accounts:lookup` confirms the stored account? **ANSWERED yes, narrowly, 5 Sep 2026 (v22.97)** — `CALENDAR_DATA.md` 13 | nothing here — it was `ROADMAP.md`'s *Calendar start* entry, now in `ROADMAP_HISTORY.md` | **NOT the E3 gate, though both read as "the calendar auth decision"**: E3 adds friction for security, this removes a wait at security's expense, and conflating them decides one by answering the other. Coupled to E3 (which scales its cost to every load) and to §4's grace mode (the same trust question at greater severity — and the measured offline behaviour, `experiments/auth-firestore-split-proof/`, shows the check is only enforced when the network is up). |
 
@@ -568,7 +568,7 @@ stop condition: it means the experiment has no failure criterion, so it can only
 ## 8. Dependencies and anti-goals
 
 **Track E is the missing precondition for Track C5.** The forced password-set (v18.92) only reaches people
-who sign in somewhere; `PASSWORD_PLAN.md` records that a pure roster-viewer is never compelled. So the
+who sign in somewhere; `PASSWORD_DESIGN.md` records that a pure roster-viewer is never compelled. So the
 ≥90% migration metric gating retirement of the surname default **cannot converge** without E3/E5. If
 finishing the password work matters, that is an argument for Track E with nothing to do with IT.
 
@@ -582,7 +582,7 @@ someone can argue about; a WebAuthn RP ID is not. A passkey is bound to one orig
 domain, and `web.app` and `github.io` are both public suffixes with no shared parent — so the mirror
 does not weaken passkeys, it **excludes** them for everyone still on it. That turns this row from a
 presentational decision into a technical precondition. Design, options and costs:
-`PASSWORD_PLAN.md` → "Passkeys — POSSIBLE, not planned" (credential METHOD is that file's subject;
+`PASSWORD_DESIGN.md` → "Passkeys — POSSIBLE, not planned" (credential METHOD is that file's subject;
 this file's subject is what sits behind the boundary, which passkeys do not change).
 
 **Anti-goals — do not:**

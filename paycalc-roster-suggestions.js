@@ -192,7 +192,7 @@ export function getRosterSuggestion(p, member) {
     let effValue  = ov ? ov.value : baseValue;
     let effType   = ov ? ov.type  : null;
 
-    // Training / Induction / Assessment (OTHER_PLAN.md) — the ONLY override that means
+    // Training / Induction / Assessment (OTHER_DAYS.md) — the ONLY override that means
     // "fall back to the day underneath" (every other override REPLACES the base). The pay
     // mapping lives in ONE place: resolveOtherPay (override-utils.js).
     //   rdw     → an Other-family rest-day: credit the RDW bucket (actual times, or the 8h
@@ -271,7 +271,7 @@ export function getRosterSuggestion(p, member) {
         baseMins = (beh * 60 + bem) - (bsh * 60 + bsm);
         if (baseMins <= 0) baseMins += 24 * 60;
       }
-      // NEVER-LESS floor (OTHER_PLAN.md decision 5): a timed Other day that ran SHORT of the
+      // NEVER-LESS floor (OTHER_DAYS.md decision 5): a timed Other day that ran SHORT of the
       // rostered shift still pays the FULL shift. Without this, the shift-override split below
       // (Math.min(mins, baseMins) on the Sat/BH branches) credited only the Other-day duration —
       // e.g. training 12:00-16:00 on a base Saturday 13:30-21:00 suggested 4h sat instead of 7.5h.

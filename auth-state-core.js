@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * auth-state-core.js — the PURE identity state machine (ARCHITECTURE_PLAN.md, Phase 1).
+ * auth-state-core.js — the PURE identity state machine (AUTH_ARCHITECTURE.md, Phase 1).
  *
  * No DOM, no Firebase, no localStorage, no redirects, no overlays — only
  * `reduceAuthState(prevState, event) → nextState`. The imperative shell

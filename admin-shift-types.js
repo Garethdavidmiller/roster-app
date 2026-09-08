@@ -27,7 +27,7 @@ export const TYPES = {
     annual_leave: { label: 'Annual Leave',     pill: 'AL',       fixed: true,  fixedValue: 'AL' },
     correction:   { label: 'Set as Rest Day',  pill: 'Rest Day', fixed: true,  fixedValue: 'RD' },
     sick:         { label: 'Absent',           pill: 'Absent',   fixed: true,  fixedValue: 'SICK' },
-    // Training / Induction / Assessment (OTHER_PLAN.md). NOT fixed — the time inputs show —
+    // Training / Induction / Assessment (OTHER_DAYS.md). NOT fixed — the time inputs show —
     // but times are OPTIONAL: blank is VALID (pay defaults apply: base shift on a rostered
     // day, 8h RDW on an Other rest-day). Value is composed at save time from the row's
     // flavour buttons + RDW tick + optional times: FLAVOUR[" RDW"][" HH:MM-HH:MM"].

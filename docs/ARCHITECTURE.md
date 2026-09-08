@@ -65,16 +65,17 @@ live anchors:
 |---|---|---|
 | `SECURITY_RELEASE_PLAN.md` | **Live** | Carries the canonical track-status table for every security track |
 | `AUTH_PLAN.md` | **Live** (Track E undecided) | Owns the design; status lives in the plan above |
-| `PASSWORD_PLAN.md` | **Live** (C2, C5 pending) | Same split. §5's admin reset is INTERIM — superseded in design by C6 |
+| `PASSWORD_DESIGN.md` | **Live** (C2, C5 pending) | Same split. §5's admin reset is INTERIM — superseded in design by C6 |
 | `CREDENTIAL_LIFECYCLE.md` | **Proposed** — nothing in it is started | Design + sequencing only; status stays in the canonical table. §7 is an OPEN owner decision and must not be actioned as though it were settled |
-| `ARCHITECTURE_PLAN.md` | Track 1 complete | Code comments cite it by phase number |
-| `OTHER_PLAN.md` | Shipped | Code comments cite "OTHER_PLAN.md decision N" |
+| `AUTH_ARCHITECTURE.md` | Track 1 complete | Code comments cite it by phase number |
+| `OTHER_DAYS.md` | Shipped | Code comments cite "OTHER_DAYS.md decision N" |
 | `LOGIN_INCIDENT.md` | Resolved | `CLAUDE.md` sends you here before touching login |
-| `LATENCY_PLAN.md` | **Two open items and a close-out rule** — the identity decision (owner) and the Phase 2 reading (~end Sept); Phase 3 measured and declined, Phase 4's trigger unfired | Holds the readings, the field-confirmation check gating the identity decision, and the terms on which it closes |
+| `LATENCY.md` | **Two open items and a close-out rule** — the identity decision (owner) and the Phase 2 reading (~end Sept); Phase 3 measured and declined, Phase 4's trigger unfired | Holds the readings, the field-confirmation check gating the identity decision, and the terms on which it closes |
 | `LINKS_DEC2026_PLAN.md` | Live | Holds the links modules' release history |
 | `BRASS_PLAN.md` | **Gated on owner answers** | The Part 2 payslip questions decide the design; nothing ships before them |
 | `ROADMAP_HISTORY.md` | Historical | **The archive.** Everything `ROADMAP.md` used to say about the past |
-| `A11Y_FINDINGS.md` | Live baseline | The axe triage the gate is measured against |
+| `DECISIONS.md` | Historical | **The closed decisions.** Features declined, and choices recorded so they are not re-argued |
+| `A11Y_BASELINE.md` | Live baseline | The axe triage the gate is measured against |
 
 **So the archive already exists and is called `ROADMAP_HISTORY.md`.** If a plan above genuinely dies,
 move its content there — do not create a second archive.

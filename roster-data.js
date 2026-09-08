@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '23.23';
+export const APP_VERSION = '23.24';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -76,7 +76,7 @@ export const CONFIG = {
     //   in session.js, so no no-name session ever reaches an override write. If you flip this back to
     //   `false`, anonymous-fallback sessions would be silently DENIED override writes by the strict rule.
     ENFORCE_NAMED_SESSION:            true,
-    // Phase 2 of PASSWORD_PLAN.md — compel un-migrated members to set their own password at their
+    // Phase 2 of PASSWORD_DESIGN.md — compel un-migrated members to set their own password at their
     // NEXT SIGN-IN (password-force.js). This is the KILL SWITCH: set to `false` to stop compelling
     // instantly, with no other change. Everything else the feature needs (the Settings card, the
     // admin reset, `passwordStatus`) shipped at v18.63 and is unaffected by this flag.
@@ -157,7 +157,7 @@ export const CONFIG = {
     //
     // Rolling back is still this one line while the `overrides` hold line stands.
     CALENDAR_PIN_ACCESS:              true,
-    // The "ask the admin to reset my password" request queue (PASSWORD_PLAN.md — Phase 1 of the request
+    // The "ask the admin to reset my password" request queue (PASSWORD_DESIGN.md — Phase 1 of the request
     // work). Kill switch for the LINK only: setting this to `false` hides it on the login overlay and
     // nobody can file a new request. It does NOT disable the endpoint (that is a functions deploy) or
     // hide the Operations card, so any requests already filed remain visible and actionable.
@@ -178,7 +178,7 @@ export const CONFIG = {
     //   no-name/legacy escape is gone and overrides now require a matching `name`/admin/manager claim.
     //   See SECURITY_RELEASE_PLAN.md → B3.
     CLAIM_EPOCH:                      2,
-    // In-place sign-in (ARCHITECTURE_PLAN.md → "Phase 9 — Remove the post-login reload"). When a
+    // In-place sign-in (AUTH_ARCHITECTURE.md → "Phase 9 — Remove the post-login reload"). When a
     // protected page's login overlay confirms a sign-in, OFF (false) = today's behaviour: the
     // overlay's onSuccess does `window.location.reload()` and the reloaded page re-runs init. ON
     // (true) = the page initialises in place — the coordinator's authorised body runs directly and
@@ -915,7 +915,7 @@ export function getShiftClass(timeStr) {
     if (timeStr === 'RDW')   return 'rdw-day';
     if (timeStr === 'AL')    return 'al-day';
     if (timeStr === 'SICK')  return 'sick-day';
-    // The Other family — Training / Induction / Assessment (OTHER_PLAN.md) — one leaf-green class
+    // The Other family — Training / Induction / Assessment (OTHER_DAYS.md) — one leaf-green class
     // for every grammar form ('TRG', 'IND RDW', 'ASSESS 08:00-16:00', ...).
     if (isOtherValue(timeStr)) return 'other-day';
     if (!SHIFT_TIME_REGEX.test(timeStr)) {

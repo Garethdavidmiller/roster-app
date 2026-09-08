@@ -100,7 +100,7 @@ function report(violations) {
 
 // Tagged @a11y. GREEN + BLOCKING since v17.52 — part of `npm run test:e2e` (a new WCAG A/AA
 // violation fails the suite); `npm run test:a11y` runs it standalone on chromium. Baseline + the one
-// documented exclusion (calendar `.other-month`) are in A11Y_FINDINGS.md.
+// documented exclusion (calendar `.other-month`) are in A11Y_BASELINE.md.
 test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     test('calendar (index.html)', async ({ page }) => {
         await seedMember(page);
@@ -108,7 +108,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         await expect(page.locator('.calendar-day').first()).toBeVisible();
         // Exclude the adjacent-month day numbers: they are deliberately very faint (the "not this
         // month" cue) AND `aria-hidden` (never announced), so darkening them to meet AA would defeat
-        // the design for zero screen-reader benefit. Documented in A11Y_FINDINGS.md.
+        // the design for zero screen-reader benefit. Documented in A11Y_BASELINE.md.
         const v = await scan(page, { exclude: ['.other-month'] });
         expect(v.length, report(v)).toBe(0);
     });
@@ -431,7 +431,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     });
 
     // ── Open-overlay states (H2, v17.75) — the settled-page scans above never OPEN these
-    // surfaces. A11Y_FINDINGS.md's promotion path calls for scanning more rendered states
+    // surfaces. A11Y_BASELINE.md's promotion path calls for scanning more rendered states
     // ("an open lightbox, an error state") per page; each of these is a full interactive
     // surface (focus trap, buttons, headings) a one-settled-state gate can't reach.
 

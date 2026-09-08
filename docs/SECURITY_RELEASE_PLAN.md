@@ -16,7 +16,7 @@ lessons**, everything still **open**, and the sections code points at.*
 
 **Every other document owns DESIGN; this table owns STATUS.** Added at v19.97 after an external
 review pointed out that the current stage of Tracks C/D/E had to be reconciled across five files —
-ROADMAP.md, PASSWORD_PLAN.md, AUTH_PLAN.md, KNOWN_LIMITATIONS.md and this one — and that
+ROADMAP.md, PASSWORD_DESIGN.md, AUTH_PLAN.md, KNOWN_LIMITATIONS.md and this one — and that
 `auth-plan-parity.test.mjs` exists because two of them had already drifted.
 
 **If you are updating a status, update it HERE and nowhere else.** A detailed plan may say "see
@@ -87,7 +87,7 @@ rule text and gate cases:
 
 **Open** — *stages are in the canonical table above; these bullets carry only what the table cannot:*
 
-- **Track C — password release.** The shipped shape is the "C-lite" plan in `PASSWORD_PLAN.md`
+- **Track C — password release.** The shipped shape is the "C-lite" plan in `PASSWORD_DESIGN.md`
   (gated dual-attempt sign-in, Settings Password card, `resetMemberPassword` break-glass,
   `passwordStatus` migration flags, forced overlay, reset-request queue). What remains is **C2**
   (email verification — deferred until an email relay exists) and **C5** (retire the surname default
@@ -168,13 +168,13 @@ Three design points that flow from this and still govern any future rule change:
 
 ### Track C — password release (C2 → C4 → C3 → C5)
 - **Goal & detail:** the 5-stage plan in ROADMAP_HISTORY.md → "Password security — the original five-stage design".
-- **Agreed interim shape (Jul 2026) — `PASSWORD_PLAN.md` ("C-lite"):** chosen passwords + the admin
+- **Agreed interim shape (Jul 2026) — `PASSWORD_DESIGN.md` ("C-lite"):** chosen passwords + the admin
   reset as the recovery channel, deferring C2 (email) until a relay exists. It honours this track's
   ordering (reset path ships before/with the change flow) and carries the two deep-review-critical
   design rules: the surname fallback is **gated** on the typed value normalising to the surname, and
   a definitive credential rejection resolves to `'none'` (never anonymous) **regardless of
   `ENFORCE_NAMED_SESSION`** — see that doc before building anything password-related.
-- **SHIPPED — PASSWORD_PLAN.md Phase 2 (v18.92):** `password-force.js` compels any member still on the
+- **SHIPPED — PASSWORD_DESIGN.md Phase 2 (v18.92):** `password-force.js` compels any member still on the
   surname default to set their own password at their NEXT SIGN-IN, on all five authenticated pages,
   behind the `CONFIG.FORCE_PASSWORD_SET` kill switch. No forced sign-out — sessions cap at 60 days (30 until v20.47)
   absolute (the 7-day idle cutoff was removed at v20.41) and an expired session forces a real typed login, so coverage completes itself
@@ -184,7 +184,7 @@ Three design points that flow from this and still govern any future rule change:
   failure it cannot recover from: a mandatory overlay that cannot be satisfied is a lockout, not a
   control. Pure roster-viewers who never sign in anywhere are NOT reached — that needs Track E. This
   makes the C5 ≥90% gate reachable for the first time.
-- **SHIPPED — PASSWORD_PLAN.md Phase 0 + Phase 1 (v18.63):** the capability is live. Sign-in accepts a
+- **SHIPPED — PASSWORD_DESIGN.md Phase 0 + Phase 1 (v18.63):** the capability is live. Sign-in accepts a
   typed password with the gated surname fallback (`credentialCandidatesFor` / `ensureFirebaseSession`);
   staff set their own password in **Settings → Password**; the admin resets anyone to their surname
   default via **Operations → Account status → Reset** (the admin-only `resetMemberPassword` Cloud
@@ -279,7 +279,7 @@ Three design points that flow from this and still govern any future rule change:
 > **📄 `AUTH_PLAN.md` is the authoritative DESIGN doc for this track** (what "behind authentication" can
 > and cannot mean here, the per-phase build detail, the offline grace-mode answer, what to measure, the
 > owner decisions). This section stays authoritative for **sequencing and risk**, consistent with how
-> `PASSWORD_PLAN.md` relates to Track C. Keep each to its half — the v19.00 sweep found these two files
+> `PASSWORD_DESIGN.md` relates to Track C. Keep each to its half — the v19.00 sweep found these two files
 > already contradicting each other once (the "≈ zero cost" claim below, since corrected).
 
 > **Status: the read closure is BUILT and SOAKING, and is NOT yet in force; INDIVIDUAL

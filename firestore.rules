@@ -212,7 +212,7 @@ service cloud.firestore {
         // (spare_shift→SPARE, annual_leave→AL, correction→RD, sick→SICK); only the
         // timed types (shift, rdw) carry an HH:MM-HH:MM range. The importer normalises
         // every correction (RD/OFF/Sunday AL/SICK) to 'RD' before writing.
-        // 'other' (OTHER_PLAN.md) uses the grammar FLAVOUR[" RDW"][" HH:MM-HH:MM"]
+        // 'other' (OTHER_DAYS.md) uses the grammar FLAVOUR[" RDW"][" HH:MM-HH:MM"]
         // — flavour TRG/IND/ASSESS/TEAM/UNION/MEET, optional rest-day marker, optional actual times
         // (bounded, so an impossible time can never ride in on a training value).
         // Keep this alternation in sync with _OTHER_RE in override-utils.js.
@@ -509,7 +509,7 @@ service cloud.firestore {
         (request.auth.token.name == memberName || request.auth.token.admin == true);
     }
 
-    // passwordStatus/{memberName} — the per-member password-migration record (PASSWORD_PLAN.md §6).
+    // passwordStatus/{memberName} — the per-member password-migration record (PASSWORD_DESIGN.md §6).
     //   resetAt       : written ONLY by the resetMemberPassword Cloud Function (Admin SDK bypasses
     //                   these rules) — no client path can set or change it.
     //   passwordSetAt : the member stamps their OWN record after a successful updatePassword.

@@ -33,7 +33,7 @@
  *
  * `actual` is non-null only for a device that has imported payslip figures into localStorage, for
  * the one member gated by `isActualsDev`. The data is never served and never leaves the device
- * (ARCHITECTURE_PLAN.md → MILLER_ACTUALS). This module takes the resolved value as an argument and
+ * (AUTH_ARCHITECTURE.md → MILLER_ACTUALS). This module takes the resolved value as an argument and
  * makes no decision about who may see it — the gate stays with the caller, where the identity is.
  */
 

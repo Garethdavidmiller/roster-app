@@ -1,10 +1,16 @@
-# OTHER_PLAN.md — the "Other" day family (Training / Induction / Assessment / Team Day / Union / Meeting)
+# OTHER_DAYS.md — the "Other" day family (Training / Induction / Assessment / Team Day / Union / Meeting)
+
+*Renamed from `OTHER_PLAN.md` (8 Sep 2026): BUILT + SHIPPED at v15.34–v15.57, build spec pruned Jul
+2026. What remains is the design decisions, the evolution record and the recipe for adding a flavour
+— a record and a how-to, not a plan. **Code cites decisions by number and those citations now read
+"OTHER_DAYS.md decision N"** — they were updated with the rename, so the anchors still resolve.*
+
 
 *Status: **BUILT + SHIPPED** (v15.34–v15.57). The full build spec has been pruned (Jul 2026) now
 that the feature is live — the shipped behaviour is documented in CLAUDE.md, AI_MAP.md,
 OPERATIONS_REFERENCE.md and .claude/rules/paycalc.md, and the pay/grammar single source is
 `override-utils.js`. What remains here: the **design decisions** (still cited from code as
-"OTHER_PLAN.md decision N"), the **Evolution** record of the v15.40 rename, and the forward-looking
+"OTHER_DAYS.md decision N"), the **Evolution** record of the v15.40 rename, and the forward-looking
 **Phase B** checklist for adding a new Other flavour (all currently-planned flavours are now shipped — Union v18.56, Meeting v18.61). Not version-stamped; not a runtime asset.*
 
 ## Evolution (v15.40) — decisions confirmed by Gareth, Jul 2026
@@ -73,7 +79,7 @@ shared-code comments that used "training" to mean the whole family were reworded
 
 ## Locked decisions (the record of the design conversation)
 
-*Cited from code as "OTHER_PLAN.md decision N" (currently decisions 5 and 8). Identifiers below
+*Cited from code as "OTHER_DAYS.md decision N" (currently decisions 5 and 8). Identifiers below
 predate the v15.40 rename — read `training` as the `other` family, 🎓 as 🏷️, and bronze as leaf
 green (see Evolution above for the final values).*
 

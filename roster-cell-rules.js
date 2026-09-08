@@ -92,7 +92,7 @@ export function shiftValueToOverrideType(value, baseShift, date = null) {
     if (value === 'AL')    return 'annual_leave';
     if (value === 'SICK')  return 'sick';
     if (value === 'SPARE') return 'spare_shift';
-    // Training / Induction / Assessment (OTHER_PLAN.md) — flavour sentinel, optional
+    // Training / Induction / Assessment (OTHER_DAYS.md) — flavour sentinel, optional
     // " RDW" marker, optional actual times. Checked before RD/RDW: a 'TRG RDW' value must
     // classify as an Other day, not fall through on its RDW substring (no clash today — the
     // bare-'RDW' and pipe checks are exact/prefix — but the ordering makes that explicit).

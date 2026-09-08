@@ -11,7 +11,7 @@
  * follow the member between `garethdavidmiller.github.io` and `myb-roster.web.app`, and it does not
  * survive a new phone or cleared browser data. Everything else the app holds is in Firestore and
  * moves with the account; this is the one thing that does not, deliberately (pay data is kept off
- * the server — see the MILLER_ACTUALS decision in ARCHITECTURE_PLAN.md).
+ * the server — see the MILLER_ACTUALS decision in AUTH_ARCHITECTURE.md).
  *
  * Every function here is PURE. That is the point: the import path decides whether to overwrite a
  * member's entire pay history, so its rules have to be testable without a browser, a file picker,
