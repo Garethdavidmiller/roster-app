@@ -225,6 +225,68 @@ test('settings: Show passwords reveals all THREE fields, not two', async ({ page
     expect(await types()).toEqual(['password', 'password', 'password']);
 });
 
+test('settings: a saved email does not push the card\'s own chevron off it (v23.35)', async ({ page }) => {
+    // A flex item's automatic minimum is its MIN-CONTENT, so the hint's 31-character address —
+    // one unbreakable token — pinned the header's left block at that width and pushed
+    // `.card-header-actions` (which is `flex-shrink: 0`) past the card's right edge, where
+    // `.card { overflow: hidden }` deleted it. Measured at 320px: the chevron sat at x=317
+    // against a card ending at 310, `elementFromPoint` returned `<body>`, and the Work Email card
+    // rendered with NO chevron while its three neighbours kept theirs.
+    //
+    // Nothing else could see it. The card still opens — the whole header is the click target — so
+    // every behavioural assertion passed; the visual baselines run at one desktop width; and the
+    // tap-target sweep skips a control it cannot probe outward from. Only geometry at a narrow
+    // width, in the state where an address IS saved, shows it.
+    //
+    // 320px is a device state rather than a museum piece: Android's Display-size setting narrows
+    // the CSS viewport, which is why the v23.32 containment fix was measured at 1.6x.
+    await page.setViewportSize({ width: 320, height: 844 });
+    await seedMemberSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        (globalThis.__E2E || (globalThis.__E2E = {})).getDocData = {
+            workEmail: 'g.miller@chilternrailways.co.uk',
+            passwordSetAt: { toMillis: () => Date.parse('2026-08-01') },
+        };
+    });
+    await page.goto('/settings.html');
+    await expect(page.locator('#settingsSummary')).toBeVisible();
+    await expect(page.locator('#contactHint')).toHaveText('g.miller@chilternrailways.co.uk');
+
+    const m = await page.evaluate(() => {
+        const card = document.getElementById('contactCard');
+        const chev = document.getElementById('contactChevron');
+        const cr = card.getBoundingClientRect(), r = chev.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return {
+            over: Math.round(r.right - cr.right),
+            hittable: !!(hit && (hit === chev || chev.contains(hit))),
+        };
+    });
+    expect(m.over, 'the chevron must stay inside its own card').toBeLessThanOrEqual(0);
+    expect(m.hittable, 'and it must be the thing under its own centre').toBe(true);
+    // Teeth: removing `overflow-wrap: anywhere` from `.card-header .hint` fails both of the above.
+    // Removing `min-width: 0` does NOT — the wrap shrinks min-content by itself, so it is the half
+    // that fixes this. That is recorded in shared.css beside the rule rather than papered over.
+
+    // The other half of the fix, and it is not cosmetic: the collapsed card's job is to answer
+    // "which address is saved?" without being opened, so freeing the chevron by letting the hint
+    // be clipped mid-token would trade one defect for another. It WRAPS.
+    // Measured against the hint's OWN one-line height rather than a `line-height` computation:
+    // `.card-header .hint` sets none, so that resolves to `normal` and parses to NaN — which is
+    // how the first cut of this assertion failed against a fix that was working.
+    const wrapped = await page.evaluate(() => {
+        const h = /** @type {HTMLElement} */ (document.getElementById('contactHint'));
+        const tall = h.getBoundingClientRect().height;
+        const was = h.textContent;
+        h.textContent = 'x';
+        const one = h.getBoundingClientRect().height;
+        h.textContent = was;
+        return { tall: Math.round(tall), one: Math.round(one) };
+    });
+    expect(wrapped.tall, `the address wraps rather than being cut off (${JSON.stringify(wrapped)})`)
+        .toBeGreaterThan(wrapped.one);
+});
+
 test('settings: the pay data card counts what is actually on the device', async ({ page }) => {
     // "Saved on this device only" is a warning about nothing until it says how much.
     await openSettings(page, { configured: true, payKeys: 3, noPush: true });
@@ -3955,6 +4017,44 @@ test('no focusable field falls below 16px on a touch device @a11y', async ({ pag
     }
 });
 
+/**
+ * THE PRE-EXISTING FAILURES THE v23.35 WIDENING FOUND, RECORDED RATHER THAN HIDDEN.
+ *
+ * Widening a guard finds things. Two of the eight were on Settings and are fixed in the same
+ * commit; the other six are on three pages this pass did not review, and guessing at a CSS fix for
+ * a control whose layout nobody has looked at is how a regression ships. So they are a BASELINE,
+ * in the shape `coordinator-ratchet.test.mjs` already uses: a debt that is visible in code, that
+ * cannot grow, and that has to be deleted the moment it is paid.
+ *
+ * It is NOT an exemption list. The list may not gain an entry — anything new fails — and an entry
+ * that stops firing fails too, so a fix cannot be made and left unrecorded. Two entries are worth
+ * naming because they are the ones to pay first: `#clearBtn` is "Clear all entries", a destructive
+ * control at 16px tall, and the two paycalc checkboxes decide money (pension membership, a
+ * postgraduate loan).
+ *
+ * `.disclaimer-toggle` is the one that may turn out not to be a defect at all: "More ▼" sits
+ * INLINE at the end of a sentence, which is the case WCAG 2.2 SC 2.5.8 exempts. That is a judgement
+ * about its context rather than its size, and it belongs with whoever reviews that card.
+ *
+ * @type {Record<string, Record<string, string>>}
+ */
+const KNOWN_SMALL = {
+    '/admin.html': {
+        'input.day-cb[]': '22x22 — the per-day tick in the week grid; its 44px cell is not a target (no label)',
+    },
+    '/paycalc.html': {
+        'input#pensionOptOutCheck[]': '18x18 — decides pension membership; its label is a sibling, not a wrapper',
+        'input#pgLoanCheck[]': '18x18 — decides a postgraduate loan deduction; same shape',
+        'button#actualsImportBtn.actuals-import-link[Import paysl]': '53x22',
+        'button#clearBtn.clear-btn[Clear all en]': '53x16 — DESTRUCTIVE, and the smallest on the page',
+        'button#rosterDaysToggle.roster-days-toggle[Show days ▼]': '53x14',
+        'button#disclaimerToggle.disclaimer-toggle[More ▼]': '46x16 — may be a genuine inline-in-a-sentence exemption',
+    },
+    '/operations.html': {
+        'button.auth-gap-retry[Retry]': '34x18 — the retry on a failed account-status read',
+    },
+};
+
 // ── Every control has a tap target, and the DRAWN box is not it (v21.53) ────────────────────────
 // The sibling of the sweep above, and found the same way: by measuring rather than reading.
 //
@@ -3969,6 +4069,29 @@ test('no focusable field falls below 16px on a touch device @a11y', async ({ pag
 //
 // 24px is WCAG 2.2 SC 2.5.8 (Target Size Minimum, AA). Genuinely inline links inside a sentence are
 // exempt under that rule and are excluded here; a standalone control in an empty state is not one.
+//
+// ── WIDENED THREE WAYS AT v23.35, AFTER IT MISSED TWO CONTROLS ON SETTINGS ─────────────────────
+//
+// Each miss had its own cause, and none of them was the rule being wrong:
+//
+//   1. IT ONLY EVER SAW THE FIRST SCREENFUL. The probe skips anything outside the viewport, for a
+//      good reason (the outward walk stops at the screen edge and reports a false 1x1) — but the
+//      sweep never SCROLLED, so on a page taller than 900px everything below the fold was simply
+//      unmeasured. Settings is 1,672px with its cards open and the "Show passwords" checkbox sits
+//      at y=990. Half of most pages in this list was outside this guard.
+//   2. IT NEVER LOOKED AT A CHECKBOX. The selector was `button, select, [role=button]`. A checkbox
+//      is a control with a tap target like any other, and the app has several.
+//   3. IT WALKED A PAGE STATE WHERE ONE OF THE CONTROLS DOES NOT EXIST. "Remove saved email"
+//      renders only once an email IS saved, and this seeded no `getDocData` — so the button was
+//      `display: none` every time. Exactly the Links empty-state lesson of v22.61, arriving on a
+//      different page: a guard that walks every page has to reach each page's real working state.
+//
+// A CHECKBOX IS MEASURED AT ITS LABEL, when a label wraps it. That is not a softening — it is what
+// the app has already decided, in `links.css`: the `.gen-obj` boxes are 20px "because the ROW is
+// the touch target: clicking a label toggles it, and the row clears 44px". Measuring the 20px box
+// would fail a control that is comfortably operable. What that bargain requires is that the row
+// ACTUALLY clears 44px, which is the half Settings was missing — its `.pw-show-row` had no height
+// of its own, so the label rescued nothing.
 test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
     test.skip(info.project.name !== 'mobile-chrome', 'a thumb, not a mouse');
     await page.setViewportSize({ width: 390, height: 900 });
@@ -3990,6 +4113,12 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
         w.__E2E = w.__E2E || {};
         w.__E2E.docs = [{ id: 'd1', name: 'Design A', patterns: p,
             updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' }];
+        // A SAVED WORK EMAIL, and deliberately no `passwordSetAt` beside it. Settings' single-doc
+        // read serves both cards, so this one seed puts the page in the state where BOTH of the
+        // controls this guard used to miss are on screen: "Remove saved email" exists only once an
+        // address is saved, and the password form (which holds "Show passwords") is open only while
+        // the account is still on the surname default.
+        w.__E2E.getDocData = { workEmail: 'g.miller@chilternrailways.co.uk' };
     });
 
     for (const url of APP_URLS) {
@@ -3998,7 +4127,7 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
         await page.evaluate(() => document.querySelectorAll('.card-collapsible-body')
             .forEach(el => el.classList.add('open')));
         await page.waitForTimeout(250);
-        const bad = await page.evaluate(() => {
+        const scan = () => page.evaluate(() => {
             const reach = (el, dx, dy) => {
                 const r = el.getBoundingClientRect();
                 const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
@@ -4038,7 +4167,16 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
                 return false;
             };
             const out = [];
-            document.querySelectorAll('button, select, [role=button]').forEach(el => {
+            // A checkbox/radio wrapped in a LABEL is measured at the label: clicking the label
+            // toggles the box, so the label IS the target. `.gen-obj` on links.html is the app's
+            // decided case (20px boxes in a 44px row) and this is what makes that bargain legible
+            // to the guard rather than an exemption from it. An UNWRAPPED box is measured itself.
+            const target = (el) => (/^(checkbox|radio)$/.test(el.type)
+                && el.closest('label')) || el;
+            document.querySelectorAll(
+                'button, select, [role=button], input[type=checkbox], input[type=radio]'
+            ).forEach(node => {
+                const el = target(node);
                 const r = el.getBoundingClientRect();
                 if (!r.width || !r.height) return;
                 if (getComputedStyle(el).visibility === 'hidden') return;
@@ -4081,7 +4219,39 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
             });
             return [...new Set(out)];
         });
+
+        // WALK THE WHOLE PAGE, not the first screenful. A control is only measurable while it is
+        // on screen — the outward probe stops at the viewport edge — so the sweep has to bring
+        // each one into view rather than skip it. Everything under y=900 was unmeasured before
+        // this, which on Settings is more than half the page.
+        //
+        // A control seen at several scroll positions keeps its BEST reading: near a screen edge
+        // the walk is cut short by the edge itself, and reporting that as the target would be
+        // measuring the scroll position rather than the control — the same mistake the sticky-bar
+        // exemption above exists to avoid.
+        const best = new Map();
+        const height = await page.evaluate(() => document.documentElement.scrollHeight);
+        for (let y = 0; y < height; y += 400) {
+            await page.evaluate((y) => window.scrollTo(0, y), y);
+            await page.waitForTimeout(120);
+            for (const line of await scan()) {
+                const key = line.split(' = ')[0];
+                const [w, h] = line.split(' = ')[1].split('x').map(Number);
+                const prev = best.get(key);
+                if (!prev || w * h > prev.w * prev.h) best.set(key, { w, h, line });
+            }
+        }
+        await page.evaluate(() => window.scrollTo(0, 0));
+        const small = [...best.values()].filter(v => v.w < 24 || v.h < 24).map(v => v.line);
+        const known = KNOWN_SMALL[url] || {};
+        const bad = small.filter(line => !(line.split(' = ')[0] in known));
         expect(bad, `${url} has controls too small to tap reliably`).toEqual([]);
+        // THE RATCHET'S TEETH: a baseline entry that no longer fires has been fixed, and must be
+        // deleted here in the same commit. Without this the list would quietly become a permanent
+        // exemption rather than a debt — which is the failure mode the whole guard is about.
+        const seen = new Set(small.map(l => l.split(' = ')[0]));
+        expect(Object.keys(known).filter(k => !seen.has(k)),
+            `${url}: these are no longer small — remove them from KNOWN_SMALL`).toEqual([]);
     }
 });
 
