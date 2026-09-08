@@ -1002,25 +1002,28 @@ Override cache key: `"memberName|YYYY-MM-DD"`
 ## Key rules
 
 - **Offline first** — Firestore is an enhancement. Every Firestore call needs a silent fallback. Never block rendering waiting for Firestore.
-- **Mobile is primary, and it is TWO populations on two engines** (corrected 8 Sep 2026 — this line
-  said "all staff use Android phones", which is wrong in the direction that matters). Test every
-  change at 375px, on both of:
-  - **The Android WORK phone — IN A BROWSER, never installed.** The company does not currently permit
-    the install. So on the device staff carry on shift there is no home-screen icon, no standalone
-    window, and nothing that only an installed PWA gets. A feature that assumes the install is
-    invisible to somebody at work.
-  - **The PERSONAL phone — mainly iPHONE — and this is where the app is actually INSTALLED.** So every
-    installed-PWA path is **iOS-first**: offline launch, the service-worker update lifecycle, Web Push
-    (which iOS grants only to an installed PWA), the missing system Back button, `localStorage`
-    throwing in private mode, ITP eviction, and the events Safari does not fire (`beforeprint` for
-    AirPrint, `transitionend` on a backgrounded tab). Those are not edge cases to defend against —
-    they are the majority path.
-  **Two consequences to hold on to.** Safari's engine is what the installed app mostly runs on, so
-  `npm run test:webkit` is closer to production than its "branch CI, not the deploy gate" status
-  suggests — weigh a WebKit failure accordingly. And the two populations have **different
-  capabilities, not different preferences**: notifications and offline reach the personal iPhone and
-  not the work phone, which is why `install-prompt.js` treats the install as the thing that unlocks
-  the rest, and why its iOS branch is the one that matters rather than a fallback.
+- **Mobile is primary — TWO platforms, served EQUALLY** (owner, 8 Sep 2026). Test every change at
+  375px, on both engines. **This line has now been wrong twice in one day, in opposite directions**
+  — it said "all staff use Android phones", was corrected to "the installed app is mainly iPhone",
+  and neither was right. The lesson is the one to keep: **who runs what is an OWNER FACT. Do not
+  infer it from a screenshot, a bug report or one device.**
+  - **Android and iOS are both first class. Neither is the default and neither is the edge case.**
+    The owner's own phone is Android (Galaxy S26) and the personal-phone population is mixed, so
+    there is no majority path to design toward.
+  - **The work phone is Android, and getting the app INSTALLED on it is the GOAL.** The company does
+    not permit the install today, so on the device staff carry on shift there is no home-screen
+    icon, no standalone window, and nothing that only an installed PWA gets — a feature that assumes
+    the install is invisible to somebody at work. Treat that as a **current restriction with a
+    direction of travel**, not a permanent property: the Android install path
+    (`beforeinstallprompt`) is as load-bearing as the iOS one, not a fallback behind it.
+  - **The iOS hazards stay defended — they are PLATFORM FACTS, not a claim about numbers.** Web Push
+    exists only inside an installed PWA, there is no system Back, `localStorage` throws in private
+    mode, ITP evicts, and Safari fires neither `beforeprint` for AirPrint nor `transitionend` on a
+    backgrounded tab. `install-prompt.js` and `notif.js` already branch correctly for both engines;
+    that code was right through both wrong versions of this line.
+  **The open consequence:** Chromium gates every deploy and WebKit does not (`npm run test:webkit`
+  is branch CI only). Equal service against an unequal gate is the question — ROADMAP.md → "WebKit
+  in the deploy gate". An owner decision about CI cost, not a change to make quietly.
 - **Print CSS** — any new shift type, cell class, or badge needs `@media print` rules.
 - **No `alert()`** — `console.error()` for developer errors. No visible error text for recoverable failures.
 - **Code quality** — pure functions where possible, JSDoc on all functions, meaningful variable names, error handling on all async operations.

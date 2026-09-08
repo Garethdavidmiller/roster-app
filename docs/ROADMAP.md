@@ -448,6 +448,39 @@ permanently expanded. Both fixes are idempotent for that reason.
 version stamp on the Calendar — its header already carries the app name, the member and the date,
 which is the part that matters on a detached sheet.
 
+### WebKit in the deploy gate — equal service against an unequal gate (OWNER DECISION, 8 Sep 2026)
+
+**The premise changed, so the old answer needs re-asking.** `playwright.webkit.mjs` runs in branch
+CI and is deliberately NOT the deploy gate — a call made when the platform assumption in CLAUDE.md
+said "all staff use Android phones". That line is now **two platforms served equally** (owner,
+8 Sep 2026): the work phone is Android and installing on it is the goal, personal phones are mixed,
+and the owner's own is a Galaxy S26. So Safari is not a minority engine to defend against, and it is
+not the majority path either — it is one of two the app must serve.
+
+**What is actually unequal.** `deploy-hosting.yml` gates every release on Chromium: `npm run check`,
+the Chromium smoke suite and the deployed-CSP proof. WebKit runs only on a branch. A CSS or layout
+regression that breaks only in Safari therefore reaches production with every gate green, and the
+app is offline-first, so an installed phone keeps serving the last good version while a fresh
+visitor gets the broken one. That is the same shape as the outage KNOWN_LIMITATIONS records.
+
+**The cost, measured, not estimated.** A full WebKit run took 13.2 minutes when it was last timed;
+branch CI already shards it two ways. The deploy workflow is ~11.5 minutes today and takes 20 minutes of
+`timeout-minutes`. Adding the engine to the gate roughly doubles time-to-live for every release,
+including an emergency one — which is the real argument against, and why this is a decision about
+CI cost rather than about correctness.
+
+**Three options, and none is obviously right:**
+
+| Option | What it buys | What it costs |
+|---|---|---|
+| Leave it | Fast releases; WebKit still runs on every branch, so a regression is caught before merge in the normal flow | A direct-to-main push or a manual dispatch ships un-gated on Safari |
+| Add WebKit to the deploy gate | Both engines equal, matching the stated premise | ~11 min added to every release, emergency fixes included |
+| Gate on a WebKit SUBSET | Most of the protection at a fraction of the time | Somebody has to choose the subset, and a hand-picked list is the thing this repo keeps finding stale |
+
+**No work should start before the owner picks.** If the answer is the third, the subset belongs in
+`playwright.webkit.mjs` with its reasoning in the header, not in a workflow file.
+
+
 ---
 
 ## NEXT — likely, but a trigger is required
