@@ -151,7 +151,8 @@ function harness() {
     const els = {
         select: el('select'), faceName: el(), eyebrow: el(), count: el(), masthead: el(),
         avatar: el(), whoName: el(), whoRole: el(), status: el(), statusLong: el(), statusShort: el(),
-        saveButtons: [el('button'), el('button')], renameButtons: [el('button')], deleteButton: el('button'),
+        saveButtons: [el('button'), el('button')], renameButtons: [el('button')],
+        renameMenuButton: el('button'), deleteButton: el('button'),
         sheetAvatar: el(), sheetName: el(), sheetSub: el(),
     };
     const calls = /** @type {string[]} */ ([]);
@@ -236,5 +237,61 @@ describe('render — what the masthead SAYS', () => {
         for (const f of els.select.listeners.change) f();
         for (const f of els.renameButtons[0].listeners.click) f();
         assert.deepEqual(calls, ['select:c', 'rename']);
+    });
+});
+
+// ─── v23.33: TWO WAYS TO SAY NO, AND BOTH WERE WRONG ───────────────────────────────────────────
+//
+// Both defects below were found in a browser, not by reading, and both are the same shape: a
+// control that CONTRADICTS the one beside it. Neither throws, neither shows in a screenshot, and
+// the reader's conclusion in each case is that the app is broken.
+describe('a control offered twice is disabled in both places', () => {
+    test('an unsaved design disables the pencil AND the sheet Rename row', () => {
+        const { els, h } = harness();
+        h.render({ designs: DESIGNS, activeId: null, design: { name: '' }, dirty: true, currentUser: ME, now: NOW });
+        assert.equal(els.renameButtons[0].disabled, true, 'the pencil (always was)');
+        assert.equal(els.renameMenuButton.disabled, true,
+            'the sheet row too — it shipped live from v23.30, and pressing it closed the sheet and did nothing');
+    });
+    test('a saved design enables both', () => {
+        const { els, h } = harness();
+        h.render({ designs: DESIGNS, activeId: 'a', design: { name: 'Option A' }, dirty: false, currentUser: ME, now: NOW });
+        assert.equal(els.renameButtons[0].disabled, false);
+        assert.equal(els.renameMenuButton.disabled, false);
+    });
+});
+
+describe('the select always names the design that is actually OPEN', () => {
+    // `change` fires the instant a reader picks, so the value has moved before the coordinator asks
+    // "discard unsaved changes?". When they answer no, the ONLY thing that puts the picker back is
+    // this render — so it must re-point unconditionally, not just on the saved path.
+    test('a render after a declined switch re-points the select at the open design', () => {
+        const { els, h } = harness();
+        h.render({ designs: DESIGNS, activeId: 'a', design: { name: 'Option A' }, dirty: false, currentUser: ME, now: NOW });
+        els.select.value = 'c';                       // the reader picked Proposal; the switch was declined
+        h.render({ designs: DESIGNS, activeId: 'a', design: { name: 'Option A' }, dirty: true, currentUser: ME, now: NOW });
+        assert.equal(els.select.value, 'a', 'the picker may never name a design nobody opened');
+    });
+    test('with an UNSAVED design open the select falls back to the placeholder, not a stale id', () => {
+        const { els, h } = harness();
+        h.render({ designs: DESIGNS, activeId: null, design: { name: '' }, dirty: true, currentUser: ME, now: NOW });
+        els.select.value = 'c';
+        h.render({ designs: DESIGNS, activeId: null, design: { name: '' }, dirty: true, currentUser: ME, now: NOW });
+        assert.equal(els.select.value, '', 'an unsaved design is the placeholder option, never a saved id');
+    });
+});
+
+describe('the source stays TEXT', () => {
+    // v23.30 wrote the no-designer sentinel as a literal NUL byte. It worked — and made the file
+    // BINARY to git, so the module landed showing `Bin 0 -> 17180 bytes` and every later change to
+    // it would have shown no diff at all on a pull request. A module whose diffs cannot be read is
+    // where a silent change lives.
+    test('no control character is written literally into the module', async () => {
+        const src = await (await import('node:fs/promises')).readFile('./links-design-header.js', 'utf8');
+        const bad = [...src].filter(c => c.charCodeAt(0) < 9 || (c.charCodeAt(0) > 13 && c.charCodeAt(0) < 32));
+        assert.deepEqual(bad, [], 'write it as an escape (\\u0000), never as the byte');
+    });
+    test('…and the sentinel still groups a design with no updatedBy under "Other designs"', () => {
+        assert.equal(groupDesigns([{ id: 'x', name: 'N' }], ME)[0].label, 'Other designs');
     });
 });

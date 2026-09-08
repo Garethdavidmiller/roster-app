@@ -1327,6 +1327,53 @@ test('links: every line-order switch OFF leaves the generated order untouched', 
     await expect(page.locator('#linksSaveStatus')).not.toContainText('week-to-week');
 });
 
+// ── TWO WAYS TO SAY NO (v23.33) ────────────────────────────────────────────────────────────────
+// The masthead's own suite pins both rules against a fake DOM. What only a browser answers is the
+// WIRING, and in both cases the wiring was the defect: the module could disable the sheet's Rename
+// row for a year and never be handed it, and `render` could re-point the select perfectly while
+// nothing called it on the path that needed it. Both shipped at v23.30 and both are silent.
+test('links: an unsaved design disables Rename in BOTH places it is offered', async ({ page }) => {
+    // A design straight out of the generator has no Firestore document yet, so it cannot be
+    // renamed — that is the state, and it is where a designer meets this card most often.
+    await seedContractTargets(page);
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => localStorage.setItem('myb_links_welcome_seen', '1'));
+    await page.goto('/links.html');
+    await expect(page.locator('#generatorToggleHeader')).toBeVisible();
+    await page.locator('#genApplyBtn').click();
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(page.locator('#designStatusLong')).toHaveText(/Not saved/);
+    await expect(page.locator('#designRenameBtn')).toBeDisabled();          // the pencil
+    await openDesignSheet(page);
+    await expect(page.locator('#designRenameMenuBtn')).toBeDisabled();      // and the sheet's row
+});
+
+test('links: declining an unsaved-changes switch leaves the picker on the design still open', async ({ page }) => {
+    await openLinksWithDesigns(page);
+    await switchToDesign(page, 'Design A');
+    await expect(activeDesignName(page)).toHaveText('Design A');
+
+    // Make it dirty through the generator, the one route that reliably edits an open design.
+    await page.locator('#generatorToggleHeader').click();
+    await page.locator('#genApplyBtn').click({ force: true });
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(page.locator('#designStatusLong')).toHaveText(/Unsaved/);
+
+    // Pick the other design, then decline the warning.
+    await switchToDesign(page, 'Design B');
+    const dialog = page.locator('.dialog-overlay').last();
+    await expect(dialog).toContainText('unsaved changes');
+    await dialog.locator('.dialog-btn-cancel').click();
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+
+    // The heading was always right; the SELECT is what pointed at a design nobody opened.
+    await expect(activeDesignName(page)).toHaveText('Design A');
+    const selected = await page.locator('#designSelect').evaluate(
+        (/** @type {HTMLSelectElement} */ s) => s.selectedOptions[0]?.textContent || '');
+    expect(selected, 'the picker must name the design that is actually open').toContain('Design A');
+});
+
 test('links: deleting a design writes a SOFT delete and leaves the document in place', async ({ page }) => {
     await openLinksWithDesigns(page);
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.setWrites = []; });
