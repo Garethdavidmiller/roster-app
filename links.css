@@ -3,6 +3,7 @@
 :root {
     /* Coverage palette — links-workspace-specific; no shared.css token exists for these,
        so hex values are defined here rather than forwarding from :root in shared.css. */
+    --gold-text: oklch(46% 0.11 85deg);   /* gold as TEXT — the brand gold itself fails contrast on white */
     --cov-early: #1a7fc1;
     --cov-late:  #e6700a;
     --cov-night: #6b3fa0;
@@ -1338,33 +1339,15 @@ body.auth-ready .container { display: grid; }
 .design-picker-wrap {
     margin-bottom: 12px;
 }
-.design-picker-main {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
-}
+/* Compare-with picker chips (the only chips left after v23.30 — the main design picker is the
+   masthead below). A chip is a <div> wrapping a name <button>; buttons must not nest. */
 .design-chips {
     display: flex;
     gap: 5px;
     flex-wrap: wrap;
     flex: 1;
-    /* min-content, NOT 0 (v19.43). `min-width: 0` lets a flex item shrink below the size of its
-       own contents — and the chips inside are `white-space: nowrap`, so at 390px this box
-       collapsed to 50px while the active chip stayed ~120px wide and its ✎ ✕ buttons painted on
-       top of "+ New". min-content is the widest single chip, so the chips wrap INSIDE the
-       container (and the action buttons wrap to their own row) instead of spilling over them.
-       Long names are still bounded — .design-chip-name caps at 180px with an ellipsis. */
     min-width: min-content;
 }
-/* On a phone the chips and the four action buttons interleave into a ragged two-and-a-bit rows.
-   Giving the chips their own full row separates the two jobs — "which design am I on" above,
-   "what can I do to it" below — and costs nothing on desktop, where they share a row comfortably. */
-@media (max-width: 560px) {
-    .design-chips { flex-basis: 100%; }
-}
-/* A chip is a <div> wrapping a name <button> (+ rename/delete when active) —
-   buttons can't nest, so the pill itself is not a button. */
 .design-chip {
     display: inline-flex;
     align-items: center;
@@ -1400,141 +1383,148 @@ body.auth-ready .container { display: grid; }
     color: white;
     border-color: var(--primary-blue);
 }
-/* Room for the ✎ ✕ action buttons inside the active chip (main picker only) */
-#designChips .design-chip--active { padding-right: 4px; }
-/* Rename / delete buttons inside the active chip.
-   Sized 24x24 (v19.57) — they were 15x13, which made ✕ the DESTRUCTIVE control on this page and also
-   the smallest target on it, at about a third of everything else. Still under the 44px touch floor:
-   the workspace is desktop/tablet by its own first-visit notice, and a 44px control inside a 25px
-   chip is not expressible. The padding grows the hit area without moving a pixel of the glyph. */
-.design-chip-rename,
-.design-chip-delete {
-    background: none;
-    border: none;
-    padding: 0;
-    min-width: 24px;
-    height: 24px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: var(--type-badge);
-    font-family: inherit;
-    color: rgba(255, 255, 255, 0.6);
-    cursor: pointer;
-    line-height: 1;
-    flex-shrink: 0;
+
+/* =====================================================================================
+   THE DESIGN MASTHEAD (v23.30) — which design, whose, saved? — then Save and ··· More.
+   Reasoning and the four rules: links-design-header.js. Phone first: two tight rows;
+   ≥760px opens out to one line with the eyebrow and the long status wording.
+   ===================================================================================== */
+.design-masthead {
+    background: white;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    overflow: clip;
+}
+.dm-title { padding: 9px 10px 8px 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; }
+.dm-eyebrow { display: none; font-size: var(--type-micro); font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--text-light); margin-bottom: 3px; align-items: center; gap: 8px; }
+.dm-count { font-weight: 600; letter-spacing: 0.2px; text-transform: none; }
+.dm-count::before { content: '·'; margin-right: 8px; }
+/* The native <select> is laid invisibly OVER the face (rule 1) so the phone's own picker opens. */
+.dm-picker { position: relative; min-width: 0; }
+.dm-picker select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: var(--type-medium); }
+.dm-picker select:focus-visible + .dm-face .dm-face-name,
+.dm-picker:focus-within .dm-face-name { text-decoration: underline; text-decoration-color: var(--accent-gold-dark); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.dm-face { display: flex; align-items: center; gap: 10px; min-width: 0; pointer-events: none; }
+.dm-face-name { flex: 1; min-width: 0; font-size: var(--type-medium); font-weight: 800; letter-spacing: -0.15px; color: var(--primary-blue); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dm-chev { width: 22px; height: 22px; flex: none; border-radius: 50%; background: color-mix(in oklch, var(--accent-gold) 22%, white); display: grid; place-items: center; transition: background var(--dur-fast) var(--ease-standard); }
+.dm-chev::after { content: ''; width: 6px; height: 6px; border-right: 2px solid var(--gold-text); border-bottom: 2px solid var(--gold-text); transform: translateY(-2px) rotate(45deg); }
+@media (hover: hover) and (pointer: fine) {
+    .dm-picker:hover .dm-chev { background: color-mix(in oklch, var(--accent-gold) 36%, white); }
+}
+.design-masthead.is-unnamed .dm-face-name { color: var(--text-mid); font-weight: 700; font-style: italic; }
+.design-masthead.is-empty .dm-face-name { color: var(--text-light); font-weight: 700; }
+.dm-icon-btn {
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 1px solid var(--border-light); background: white; color: var(--text-mid);
+    font-size: var(--type-label); font-family: inherit; cursor: pointer;
+    display: grid; place-items: center;
+    transition: background var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
 }
 @media (hover: hover) and (pointer: fine) {
-    .design-chip-rename:hover { color: white; }
-    .design-chip-delete:hover { color: var(--accent-gold); }
+    .dm-icon-btn:hover:not(:disabled) { background: var(--surface-sunken); color: var(--text-dark); }
 }
-.design-chip-rename:active,
-.design-chip-delete:active { opacity: 0.6; }
-.design-chip-rename:focus-visible,
-/* 0.6 → 0.85 alpha (v18.87): the app's other white-on-dark focus rings (guide-shell's back/PDF
-   buttons) are 0.85, and this one being dimmer made the weakest ring sit on the darkest surface —
-   the reverse of what contrast wants. */
-.design-chip-delete:focus-visible { outline: var(--focus-outline-light); outline-offset: 2px; border-radius: 2px; }
-.design-chip-delete:disabled { opacity: 0.35; cursor: default; }
+.dm-icon-btn:active:not(:disabled) { transform: scale(var(--press-scale)); }
+.dm-icon-btn:disabled { opacity: 0.35; cursor: default; }
+.dm-icon-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+/* The gold brand rule. It underlines the NAME, not the whole band, so it reads as a title rule. */
+.dm-rule { height: 2px; margin: 0 12px; border-radius: 2px; background: linear-gradient(90deg, var(--accent-gold) 0 64px, var(--border-light) 64px); }
+.design-masthead.is-unnamed .dm-rule { background: repeating-linear-gradient(90deg, var(--accent-gold-dark) 0 6px, transparent 6px 11px); }
 
-.btn-design-new,
-.btn-design-import,
-.btn-design-dup {
-    background: none;
-    border: 1px solid var(--border-light);
+.dm-bottom { display: flex; align-items: center; gap: 8px; padding: 8px 10px 10px 12px; }
+.dm-meta { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.dm-who { display: inline-flex; align-items: center; gap: 8px; flex: none; }
+.dm-avatar { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: white; font-size: var(--type-micro); font-weight: 800; letter-spacing: 0.3px; flex: none; outline: 2px solid rgba(255, 255, 255, 0.55); outline-offset: -2px; }
+.dm-avatar--lg { width: 38px; height: 38px; font-size: var(--type-small); }
+.dm-who-text { display: grid; line-height: 1.2; min-width: 0; }
+.dm-who-name { font-weight: 700; color: var(--text-dark); font-size: var(--type-small); white-space: nowrap; }
+.dm-who-role { display: none; font-size: var(--type-badge); color: var(--text-light); white-space: nowrap; }
+/* The status: a dot and two words on a phone; a tinted pill with the full sentence on desktop. */
+.dm-status { display: inline-flex; align-items: center; gap: 6px; font-size: var(--type-badge); font-weight: 600; color: var(--text-mid); min-width: 0; overflow: hidden; white-space: nowrap; border-radius: var(--radius-pill); transition: background var(--dur-base) var(--ease-standard), color var(--dur-base) var(--ease-standard); }
+.dm-status[hidden] { display: none !important; }
+.dm-status::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--text-light); flex: none; transition: background var(--dur-base) var(--ease-standard); }
+.dm-status--saved  { color: var(--success-green); } .dm-status--saved::before  { background: var(--success-green); }
+.dm-status--dirty  { color: var(--warning-amber); } .dm-status--dirty::before  { background: var(--warning-amber); }
+.dm-status--new    { color: var(--gold-text); }     .dm-status--new::before    { background: var(--accent-gold-dark); }
+.dm-status--saving::before { animation: dm-pulse 1s infinite; }
+@keyframes dm-pulse { 50% { opacity: 0.3; } }
+.dm-status-long, .dm-status-short { overflow: hidden; text-overflow: ellipsis; }
+.dm-status-long { display: none; }
+
+.dm-actions { display: flex; gap: 6px; flex: none; }
+/* `.btn-save` is width:100% by default; in the masthead it is a compact primary. */
+.design-masthead .btn-save.dm-save { width: auto; flex: none; padding: 0 14px; min-height: 36px; font-size: var(--type-body); }
+.design-masthead .btn-save.dm-save:disabled { background: var(--surface-sunken); color: var(--text-light); cursor: default; }
+.design-masthead .btn-save.dm-save.is-new { box-shadow: var(--focus-ring); }
+.dm-more {
+    width: 36px; min-height: 36px; border: 1px solid var(--border-light); border-radius: var(--radius-button);
+    background: white; color: var(--text-dark); font-size: var(--type-large); letter-spacing: 1px; line-height: 1;
+    font-weight: 700; font-family: inherit; cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+}
+@media (hover: hover) and (pointer: fine) { .dm-more:hover { background: var(--surface-sunken); } }
+.dm-more:active { transform: scale(var(--press-scale)); }
+.dm-more:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+
+@media (min-width: 760px) {
+    .design-masthead { border-radius: var(--radius-md); box-shadow: var(--shadow-1); grid-template-columns: minmax(280px, 1.3fr) auto auto; grid-template-areas: 'title bottom bottom' 'rule rule rule'; align-items: center; }
+    .dm-title { grid-area: title; padding: 14px 8px 14px 18px; }
+    .dm-eyebrow { display: flex; }
+    .dm-face-name { font-size: var(--type-large); letter-spacing: -0.25px; }
+    .dm-chev { width: 26px; height: 26px; } .dm-chev::after { width: 7px; height: 7px; }
+    .dm-icon-btn { width: 40px; height: 40px; font-size: var(--type-button); }
+    .dm-rule { grid-area: rule; height: 3px; margin: 0 18px; background: linear-gradient(90deg, var(--accent-gold) 0 88px, var(--border-light) 88px); }
+    .dm-bottom { grid-area: bottom; padding: 0 14px 0 6px; gap: 14px; }
+    .dm-meta { gap: 12px; }
+    .dm-avatar { width: 30px; height: 30px; font-size: var(--type-badge); }
+    .dm-who-role { display: block; }
+    .dm-who-name { font-size: var(--type-label); }
+    .dm-status { font-size: var(--type-small); padding: 5px 11px 5px 9px; background: var(--surface-sunken); }
+    .dm-status::before { width: 8px; height: 8px; }
+    .dm-status--saved { background: var(--success-green-bg); }
+    .dm-status--dirty { background: color-mix(in oklch, var(--warning-amber) 12%, white); }
+    .dm-status--new   { background: color-mix(in oklch, var(--accent-gold) 22%, white); }
+    .dm-status-long { display: inline; } .dm-status-short { display: none; }
+    .dm-actions { gap: 8px; }
+    .design-masthead .btn-save.dm-save { min-width: 128px; padding: 0 20px; min-height: 44px; font-size: var(--type-button); }
+    .dm-more { width: 52px; min-height: 44px; }
+}
+
+/* ---- The ··· More sheet ---- */
+#designMoreContent {
+    background: white;
     border-radius: var(--radius-xl);
-    padding: 4px 10px;
-    font-size: var(--type-small);
-    font-family: inherit;
-    color: var(--text-mid);
-    cursor: pointer;
-    white-space: nowrap;
-    flex-shrink: 0;
+    padding: 8px;
+    width: min(var(--modal-wide), var(--modal-cap));
+    max-height: 85vh;
+    max-height: 85dvh;
+    box-shadow: var(--shadow-3);
+    text-align: left;
+    overflow-y: auto;
+}
+.dm-sheet-head { display: flex; align-items: center; gap: 12px; padding: 12px 40px 12px 12px; border-bottom: 1px solid var(--border-light); }
+.dm-sheet-title { min-width: 0; }
+.dm-sheet-title b { display: block; font-size: var(--type-medium); font-weight: 800; color: var(--primary-blue); letter-spacing: -0.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dm-sheet-title span { display: block; font-size: var(--type-small); color: var(--text-mid); margin-top: 2px; }
+.dm-menu { display: grid; gap: 2px; padding: 4px 0; }
+.dm-menu-btn {
+    display: grid; grid-template-columns: 34px 1fr; align-items: center; gap: 12px; text-align: left;
+    padding: 10px 12px; min-height: 52px; border: none; background: none; border-radius: var(--radius);
+    font-size: var(--type-body); font-weight: 600; color: var(--text-dark); font-family: inherit; cursor: pointer;
     transition: background var(--dur-fast) var(--ease-standard);
 }
-@media (hover: hover) and (pointer: fine) {
-    .btn-design-new:hover,
-    .btn-design-import:hover,
-    .btn-design-dup:hover { background: var(--surface-sunken); color: var(--text-dark); }
-}
-.btn-design-new:focus-visible,
-.btn-design-import:focus-visible,
-.btn-design-dup:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
-.btn-design-import:disabled,
-.btn-design-dup:disabled { opacity: 0.4; cursor: default; }
-
-.btn-design-compare {
-    background: none;
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius-xl);
-    padding: 4px 10px;
-    font-size: var(--type-small);
-    font-family: inherit;
-    color: var(--text-mid);
-    cursor: pointer;
-    white-space: nowrap;
-    flex-shrink: 0;
-    margin-left: auto;
-    transition: background var(--dur-fast) var(--ease-standard),
-                color var(--dur-fast) var(--ease-standard);
-}
-@media (hover: hover) and (pointer: fine) {
-    .btn-design-compare:hover:not(:disabled) { background: var(--surface-sunken); color: var(--text-dark); }
-}
-.btn-design-compare:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
-.btn-design-compare.compare-active {
-    background: var(--primary-blue);
-    color: white;
-    border-color: var(--primary-blue);
-}
-/* HOVER MUST NOT OUT-SPECIFY THE ACTIVE STATE (v22.81). The hover rule above is
-   `.btn-design-compare:hover:not(:disabled)` — (0,3,0), because `:not(:disabled)` contributes its
-   argument — while `.btn-design-compare.compare-active` is only (0,2,0). So pointing at the button
-   that is CURRENTLY IN compare mode dropped it out of its blue state and painted it as though it
-   were idle: the one control whose whole job is to show which mode you are in stopped showing it,
-   on every engine, for as long as the pointer rested there.
-   It also had a second cost nobody could see from the page. `.btn-design-compare` carries a 0.12s
-   transition on background and colour, so leaving the button animated white text back over a
-   near-white ground — and axe, scanning the compare surface right after the pointer moved to the
-   filter, sampled that frame and reported a SERIOUS contrast failure. Measured mid-flight:
-   oklab(0.394) text on oklab(0.884); settled, it is white on --primary-blue at 16.78:1. The check
-   failed on roughly two runs in five under desktop WebKit — including on a pull request whose only
-   change was two lines of Markdown — which is what makes this a merge blocker rather than a
-   cosmetic slip. Fixing the specificity removes the animation the scan was catching, so the flake
-   goes with the bug rather than being waited out. */
-.btn-design-compare.compare-active:hover:not(:disabled) {
-    background: var(--primary-blue);
-    color: white;
-}
-.btn-design-compare:disabled { opacity: 0.4; cursor: default; }
-/* Compare's `margin-left: auto` (above) separates the mode toggle from the create actions on one
-   wide row. Once the row wraps it stops separating anything and just punches a hole mid-row, so it
-   is dropped at the width where wrapping starts. Declared AFTER the rule it overrides — a media
-   query adds no specificity, so an earlier copy of this simply lost. */
-@media (max-width: 560px) {
-    .btn-design-compare { margin-left: 0; }
-}
-
-/* Recently-deleted button — same secondary shape as Compare, but it does NOT take the
-   `margin-left: auto` (Compare owns that; two auto margins would split the row). */
-.btn-design-bin {
-    background: none;
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius-xl);
-    padding: 4px 10px;
-    font-size: var(--type-small);
-    font-family: inherit;
-    color: var(--text-mid);
-    cursor: pointer;
-    white-space: nowrap;
-    flex-shrink: 0;
-    transition: background var(--dur-fast) var(--ease-standard),
-                color var(--dur-fast) var(--ease-standard);
-}
-@media (hover: hover) and (pointer: fine) {
-    .btn-design-bin:hover { background: var(--surface-sunken); color: var(--text-dark); }
-}
-.btn-design-bin:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .dm-menu-btn:hover:not(:disabled) { background: var(--surface-sunken); } }
+.dm-menu-btn:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
+.dm-menu-btn:disabled { opacity: 0.4; cursor: default; }
+.dm-menu-ic { width: 34px; height: 34px; border-radius: var(--radius-button); background: var(--surface-sunken); display: grid; place-items: center; font-size: var(--type-medium); color: var(--text-mid); }
+.dm-menu-btn--primary .dm-menu-ic { background: color-mix(in oklch, var(--accent-gold) 22%, white); color: var(--gold-text); }
+.dm-menu-btn small { display: block; font-weight: 400; color: var(--text-mid); font-size: var(--type-small); margin-top: 1px; }
+.dm-menu-rule { border: none; border-top: 1px solid var(--border-light); margin: 6px 12px; }
+.dm-menu-btn--danger { color: var(--error-red); }
+.dm-menu-btn--danger .dm-menu-ic { background: color-mix(in oklch, var(--error-red) 9%, white); color: var(--error-red); }
+@media (hover: hover) and (pointer: fine) { .dm-menu-btn--danger:hover:not(:disabled) { background: color-mix(in oklch, var(--error-red) 9%, white); } }
+.dm-menu-btn.compare-active .dm-menu-ic { background: color-mix(in oklch, var(--accent-gold) 22%, white); color: var(--gold-text); }
 
 /* Recently-deleted panel.
    `.lb-content` alone is only the base — transform/scroll/cursor. Every real overlay in the app
@@ -2351,12 +2341,9 @@ body.auth-ready .container { display: grid; }
    either base rule the trap becomes live, and by then nobody will re-derive this.
 
    `min-height` with flex centring rather than more padding: padding would widen them too, and four
-   of these already sit in a row that has to fit 320px. Height is the axis with room. */
+   of these used to sit in a row that had to fit 320px. Height is the axis with room. (The
+   picker-strip buttons left this list at v23.30 — the masthead's controls carry their own floors.) */
 @media (pointer: coarse) {
-    .btn-design-new,
-    .btn-design-import,
-    .btn-design-dup,
-    .btn-design-compare,
     .btn-set {
         display: inline-flex;
         align-items: center;

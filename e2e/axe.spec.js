@@ -13,7 +13,7 @@
 // installed — otherwise the SDK-dependent pages never render and the scan can't reach them.
 import { test, expect, enableCalendarPin } from './fixtures.js';
 import AxeBuilder from '@axe-core/playwright';
-import { seedSession, seedMember, seedMemberSession, seedViewerAccess, stubPinExchange, enterPin, openPinCard, clearNoticeFlags } from './helpers.js';
+import { seedSession, seedMember, seedMemberSession, seedViewerAccess, stubPinExchange, enterPin, openPinCard, clearNoticeFlags, sheetAction } from './helpers.js';
 
 // ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
 // Since v20.12 the Calendar opens only for a member session or the shared staff PIN, so a spec that
@@ -419,7 +419,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
             ];
         });
         await page.goto('/links.html');
-        await page.locator('button:has-text("Compare")').first().click();
+        await sheetAction(page, 'compareBtn');
         await expect(page.locator('#compareGridBodyRowsA tr').first()).toBeVisible();
         const filter = page.locator('#compareDiffOnlyBtn');
         await expect(filter).toBeVisible();

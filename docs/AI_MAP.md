@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: September 2026 — v23.20 · Updated every 0.10 version*
+*Last updated: September 2026 — v23.30 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -945,6 +945,19 @@ The **SHAPE of a link design** — in memory and in Firestore — and every conv
 - **`activeDesignId` arrives as a GETTER (`getActiveDesignId`), never a value; `currentUser` and `isAdmin` arrive as VALUES.** The design changes after the panel is built — when the collection loads, and on every select — so a captured copy makes `describeSetState` answer about nobody: every saved setup would read as somebody else's, and Save changes would be disabled on your own. The identity does not change: `links-app.js` fixes `currentUser` and `isAdmin` as `const` before `init()` reaches the panel (the page has no in-place account switch), which is why they are passed as values. This row said both were getters until v22.88, contradicting both the call site and CLAUDE.md.
 - **The Save-as-new handler reads the user ONCE** into `author`. The naming dialog between the two reads is human think-time, and only an owner can overwrite a set — so a sign-out straddling them would write a set its author could never maintain.
 - **What it does NOT own.** `links-target-sets.js` (what a set is, who may overwrite), `links-target-sets-store.js` (the Firestore half and its conflict window), `links-target-hours.js` (the verdict), `links-default-targets.js` and `links-seed.js` (the two tables the reset buttons offer). The GENERATE button stays in the coordinator — pressing it writes patterns, re-renders the grid and marks the design dirty, which is coordination; it reads the table through `getTable()`.
+
+### `links-design-header.js`
+
+**The design MASTHEAD on links.html** (v23.30, owner request): which design is open, whose it is, whether it is saved, the one Save button, and the ··· More sheet behind which every other verb now lives. Replaced the picker STRIP — grey pills with ✎/✕ glyphs inside the active one and five buttons at equal weight — which three designers found unreadable. Every handle is injected, so it loads in Node. Tested by `links-design-header.test.mjs`.
+
+- `createDesignHeader(els, { onSelect, onRename }, { moreButton, sheet, sheetActions })` → `{ render(state) }`. `render` takes `{ designs, activeId, design, dirty, saving?, canDelete?, currentUser, now? }` and paints the select, the face, the badge, the status, both Save buttons and the sheet's header. **`sheet.create` is the coordinator's `createLightbox`, INJECTED** — overlay.js touches `window` at import. Every sheet action closes the sheet first and runs 500ms later (the `#linksHowBtn` pattern).
+- `groupDesigns(designs, currentUser)` — "Your designs" first, then other designers alphabetically, newest save first within a group; a design with no saver lands under "Other designs" rather than being dropped. Groups by `updatedBy` (LAST SAVED BY, not creator — an owner-accepted wobble; a `createdBy` field would be a rules change).
+- `saveButtonLabel({ saved, dirty })` — `Save as…` (no document yet: the press will ASK for a name) · `Save` · `Saved`. One place; call sites never write these.
+- `statusCopy({ saved, dirty, saving, updatedAt, now })` → `{ tone, long, short }` — the desktop sentence and the phone's two words. Unsaved edits are never reported as saved.
+- `whoCopy({ saved, updatedBy, currentUser })` → `{ name, role }` — "Last saved by you" / "Last saved by" / "Will be saved by you".
+- `proposeNewDesignName(currentUser, existing, now)` — `"G. Miller · 8 Sept"`, stepping past a clash, for the first-save prompt.
+- `toDate(v)` — Timestamp-like, Date or epoch ms → Date, else null.
+- **Four rules** (argued in the header): a NATIVE `<select>` under a custom face, never a hand-rolled list; grouped by designer with no filter step in front; no name until the first save; the select is rebuilt only when its CONTENT changes (a rebuild mid-paint closes an open picker on Android).
 
 ### `links-design-naming.js`
 

@@ -1,5 +1,5 @@
 import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, seedMemberSession, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, designOptions, activeDesignName, openDesignSheet, sheetAction, switchToDesign, seedMemberSession, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the literal 22 — and `links: the rotation
 // length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
@@ -827,7 +827,7 @@ async function openLinksWithDesigns(page) {
         ];
     });
     await page.goto('/links.html');
-    await expect(page.locator('.design-chip')).toHaveCount(2);
+    await expect(designOptions(page)).toHaveCount(2);
 }
 
 /**
@@ -857,7 +857,7 @@ async function openLinksWithDesign(page) {
             updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' }];
     });
     await page.goto('/links.html');
-    await expect(page.locator('.design-chip')).toHaveCount(1);
+    await expect(designOptions(page)).toHaveCount(1);
 }
 
 test('links: deleting the design you are editing does not silently bin your unsaved work', async ({ page }) => {
@@ -868,7 +868,7 @@ test('links: deleting the design you are editing does not silently bin your unsa
     // Every other path that can lose the working copy already asks: New design, switching design,
     // signing out, leaving the page. Delete was the one that did not, and the only one with no undo.
     await openLinksWithDesigns(page);
-    await expect(page.locator('.design-chip')).toHaveCount(2);   // canSoftDelete needs a second design
+    await expect(designOptions(page)).toHaveCount(2);   // canSoftDelete needs a second design
 
     // Paint a real shift over a rest day. RD onto RD is deliberately not a change (v19.38), so the
     // brush has to be one the cell does not already hold or the design never goes dirty.
@@ -876,7 +876,7 @@ test('links: deleting the design you are editing does not silently bin your unsa
     await page.locator('.shift-cell-btn').first().click();
     await expect(page.locator('#linksSaveBtn')).toBeEnabled();
 
-    await page.locator('.design-chip--active .design-chip-delete').click();
+    await sheetAction(page, 'designDeleteBtn');
     const dialog = page.locator('.dialog-overlay');
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText('unsaved changes');
@@ -886,13 +886,13 @@ test('links: deleting the design you are editing does not silently bin your unsa
     // Cancelling is safe: the design and the unsaved work both survive.
     await dialog.locator('.dialog-btn-cancel').click();
     await expect(page.locator('.dialog-overlay')).toHaveCount(0);
-    await expect(page.locator('.design-chip')).toHaveCount(2);
+    await expect(designOptions(page)).toHaveCount(2);
     await expect(page.locator('#linksSaveBtn')).toBeEnabled();          // still dirty
 
     // Confirming saves first, so what lands in the bin is what was on screen.
-    await page.locator('.design-chip--active .design-chip-delete').click();
+    await sheetAction(page, 'designDeleteBtn');
     await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
-    await expect(page.locator('.design-chip')).toHaveCount(1);
+    await expect(designOptions(page)).toHaveCount(1);
     await expect(page.locator('#linksSaveBtn')).toBeDisabled();         // the save happened
 });
 
@@ -910,7 +910,7 @@ test('links: duplicating a design with unsaved changes says where they will end 
     await page.locator('.shift-cell-btn').first().click();
     await expect(page.locator('#linksSaveBtn')).toBeEnabled();          // dirty
 
-    await page.locator('#dupDesignBtn').click();
+    await sheetAction(page, 'dupDesignBtn');
     const dialog = page.locator('.dialog-overlay');
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText('go into the copy');
@@ -920,7 +920,7 @@ test('links: duplicating a design with unsaved changes says where they will end 
     // Cancelling leaves everything alone — no third design, still dirty, still on the original.
     await dialog.locator('.dialog-btn-cancel').click();
     await expect(page.locator('.dialog-overlay')).toHaveCount(0);
-    await expect(page.locator('.design-chip')).toHaveCount(2);
+    await expect(designOptions(page)).toHaveCount(2);
     await expect(page.locator('#linksSaveBtn')).toBeEnabled();
 });
 
@@ -1332,9 +1332,9 @@ test('links: deleting a design writes a SOFT delete and leaves the document in p
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.setWrites = []; });
 
     // ✕ appears on the ACTIVE chip only.
-    await page.locator('.design-chip--active .design-chip-delete').click();
+    await sheetAction(page, 'designDeleteBtn');
     await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
-    await expect(page.locator('.design-chip')).toHaveCount(1);
+    await expect(designOptions(page)).toHaveCount(1);
 
     const { writes, deletes } = await page.evaluate(() => ({
         writes:  /** @type {any} */ (window).__E2E.setWrites || [],
@@ -1347,6 +1347,7 @@ test('links: deleting a design writes a SOFT delete and leaves the document in p
     expect(deletes, 'nothing may be hard-deleted by the ✕ button').toHaveLength(0);
 
     // …and it is now offered back.
+    await openDesignSheet(page);
     await expect(page.locator('#designBinBtn')).toBeVisible();
     await expect(page.locator('#designBinBtn')).toHaveText(/Recently deleted \(1\)/);
 });
@@ -1358,7 +1359,7 @@ test('links: a pasted design is checked before it can be saved, and saved as a N
     // than a summary line claiming it was.
     await openLinksWithDesigns(page);
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.setWrites = []; });
-    await page.locator('#importDesignBtn').click();
+    await sheetAction(page, 'importDesignBtn');
 
     // Save is not offered on an unchecked paste, however good the paste is.
     await expect(page.locator('#linksImportSave')).toBeHidden();
@@ -1411,8 +1412,8 @@ test('links: a pasted design is checked before it can be saved, and saved as a N
     await page.locator('#linksImportSave').click();
 
     // A THIRD design — the import never touches the one that was open.
-    await expect(page.locator('.design-chip')).toHaveCount(3);
-    await expect(page.locator('.design-chip--active')).toContainText('Martine');
+    await expect(designOptions(page)).toHaveCount(3);
+    await expect(activeDesignName(page)).toContainText('Martine');
 
     const writes = await page.evaluate(() => /** @type {any} */ (window).__E2E.setWrites || []);
     const added = writes.find(w => w.data && w.data.name === 'Martine — 2A / 2B');
@@ -1426,9 +1427,9 @@ test('links: a pasted design is checked before it can be saved, and saved as a N
 
 test('links: a deleted design can be restored from the bin', async ({ page }) => {
     await openLinksWithDesigns(page);
-    await page.locator('.design-chip--active .design-chip-delete').click();
+    await sheetAction(page, 'designDeleteBtn');
     await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
-    await expect(page.locator('.design-chip')).toHaveCount(1);
+    await expect(designOptions(page)).toHaveCount(1);
 
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.setWrites = []; });
     // TELL THE STUB THE SERVER NOW AGREES THE DESIGN IS DELETED (v22.32). The fake applies no
@@ -1444,15 +1445,15 @@ test('links: a deleted design can be restored from the bin', async ({ page }) =>
         w.__E2E.txDocs = (w.__E2E.docs || []).map((/** @type {any} */ d) =>
             d.id === 'd1' ? { ...d, deletedAt: { seconds: 1 }, deletedBy: 'G. Miller' } : d);
     });
-    await page.locator('#designBinBtn').click();
+    await sheetAction(page, 'designBinBtn');
     await expect(page.locator('#designBinList .bin-row')).toHaveCount(1);
     await page.locator('.bin-restore').click();
 
-    await expect(page.locator('.design-chip')).toHaveCount(2);
+    await expect(designOptions(page)).toHaveCount(2);
     await expect(page.locator('#designBinList .bin-empty')).toBeVisible();
     // By NAME, not by count: a restore that resurrects an empty document would still make the
     // chip count go back to two.
-    await expect(page.locator('.design-chip-name').filter({ hasText: 'Design A' })).toHaveCount(1);
+    await expect(designOptions(page).filter({ hasText: 'Design A' })).toHaveCount(1);
     // And the document must still have been there to restore. Without this the test passes against
     // a HARD delete — the bin list is rendered from memory, so the row and the Restore button both
     // appear either way, and only the absent document tells them apart. (Found by teeth-checking:
@@ -1469,6 +1470,7 @@ test('links: a deleted design can be restored from the bin', async ({ page }) =>
 
 test('links: the bin button is hidden when nothing has been deleted', async ({ page }) => {
     await openLinksWithDesigns(page);
+    await openDesignSheet(page);
     await expect(page.locator('#designBinBtn')).toBeHidden();
 });
 
@@ -1495,8 +1497,9 @@ test('links: nothing is purged automatically on load, however old the deletion',
         ];
     });
     await page.goto('/links.html');
-    await expect(page.locator('.design-chip')).toHaveCount(1);
+    await expect(designOptions(page)).toHaveCount(1);
     // BOTH deletions survive — the 40-day-old one as much as the 2-day-old one.
+    await openDesignSheet(page);
     await expect(page.locator('#designBinBtn')).toHaveText(/Recently deleted \(2\)/);
 
     // The assertion that matters: load destroyed nothing. It is a negative, so it has to have had
@@ -1504,7 +1507,7 @@ test('links: nothing is purged automatically on load, however old the deletion',
     const deletes = await page.evaluate(() => /** @type {any} */ (window).__E2E.deletedPaths || []);
     expect(deletes, 'load must never permanently delete anything').toEqual([]);
 
-    await page.locator('#designBinBtn').click();
+    await page.locator('#designBinBtn').click();   // the sheet is already open from the count above
     await expect(page.locator('#designBinList .bin-row')).toHaveCount(2);
     // The AGE is still shown — suspending the purge must not also hide how old a deletion is,
     // because that age is now the only prompt to remove it by hand.
@@ -1535,10 +1538,11 @@ test('links: a design restored elsewhere survives a load whose snapshot says exp
         ];
     });
     await page.goto('/links.html');
-    await expect(page.locator('.design-chip')).toHaveCount(1);
+    await expect(designOptions(page)).toHaveCount(1);
     // The stale row still SHOWS in the bin — this device believes it was deleted, and correcting
     // that belief is a refresh problem, not a reason to destroy anything. Waiting on the button
     // also gives any (suspended) purge the chance to have run before the negative below is read.
+    await openDesignSheet(page);
     await expect(page.locator('#designBinBtn')).toHaveText(/Recently deleted \(1\)/);
     const deletes = await page.evaluate(() => /** @type {any} */ (window).__E2E.deletedPaths || []);
     expect(deletes, 'a design the server says is live must never be destroyed by a load').toEqual([]);
@@ -1560,12 +1564,13 @@ test('links: the bin is still reachable when every design has been deleted', asy
         ];
     });
     await page.goto('/links.html');
-    await expect(page.locator('.design-chip')).toHaveCount(0);
+    await expect(designOptions(page)).toHaveCount(0);
+    await openDesignSheet(page);
     await expect(page.locator('#designBinBtn')).toBeVisible();
     await page.locator('#designBinBtn').click();
     await expect(page.locator('.bin-row-name')).toHaveText('Only design');
     await page.locator('.bin-restore').click();
-    await expect(page.locator('.design-chip-name')).toHaveText('Only design');
+    await expect(activeDesignName(page)).toHaveText('Only design');
 });
 
 // Saving a design a colleague deleted while you had it open must NOT put it back. An overwrite
@@ -1591,7 +1596,7 @@ test('links: saving a design deleted by someone else offers a fork, and does not
         ];
     });
     await page.goto('/links.html');
-    await expect(page.locator('.design-chip')).toHaveCount(2);
+    await expect(designOptions(page)).toHaveCount(2);
 
     // Edit the active design, then save. A real SHIFT brush, not the RD chip that leads the bar —
     // painting RD onto a rest day is correctly a no-op since v19.38 and would leave Save disabled.
@@ -4477,7 +4482,7 @@ test('links: Remove for good spares a design another designer has restored', asy
     });
     await page.goto('/links.html');
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
-    await page.locator('#designBinBtn').click();
+    await sheetAction(page, 'designBinBtn');
     await page.locator('#designBinList button:has-text("Remove for good")').first().click();
     await page.locator('.lb-overlay.visible .dialog-btn-confirm').last().click();
 
@@ -4510,7 +4515,7 @@ test('links: Escape closes the confirm on top, not the bin underneath it', async
     });
     await page.goto('/links.html');
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
-    await page.locator('#designBinBtn').click();
+    await sheetAction(page, 'designBinBtn');
     await expect(page.locator('#designBinLightbox.visible')).toBeVisible();
     await page.locator('#designBinList button:has-text("Remove for good")').first().click();
     await expect(page.locator('.lb-overlay.visible')).toHaveCount(2);
@@ -4591,7 +4596,7 @@ test('links window: compare states BOTH windows and flags that they differ', asy
         id: 'b', name: 'Later Sunday', patterns: morningOnlyPatterns(), updatedAt: 1750000000000, updatedBy: 'S. Silva',
         window: { monSat: { start: '06:20', end: '23:55' }, sun: { start: '07:15', end: '23:55' } },
     }]);
-    await page.locator('button:has-text("Compare")').first().click();
+    await sheetAction(page, 'compareBtn');
     await expect(page.locator('.compare-window').first()).toBeVisible();
     // Order-agnostic: designs sort by NAME, so which one lands in column A is not this test's
     // business — that BOTH windows are stated, and that the difference is called out, is.
@@ -4622,7 +4627,7 @@ test('links compare: the filter hides the identical lines, and says so both ways
         id: 'b', name: 'Nearly the same', patterns: partlyDifferentPatterns(3),
         updatedAt: 1750000000000, updatedBy: 'S. Silva',
     }]);
-    await page.locator('button:has-text("Compare")').first().click();
+    await sheetAction(page, 'compareBtn');
     await expect(page.locator('#compareGridBodyRowsA tr')).toHaveCount(ROTATING_LINES);
 
     const btn = page.locator('#compareDiffOnlyBtn');
@@ -4651,7 +4656,7 @@ test('links compare: scrolling one column moves the other to the same day', asyn
         id: 'b', name: 'Nearly the same', patterns: partlyDifferentPatterns(3),
         updatedAt: 1750000000000, updatedBy: 'S. Silva',
     }]);
-    await page.locator('button:has-text("Compare")').first().click();
+    await sheetAction(page, 'compareBtn');
     await expect(page.locator('#compareGridBodyRowsA tr')).toHaveCount(ROTATING_LINES);
 
     const cols = page.locator('.compare-grid-scroll');
@@ -4702,13 +4707,13 @@ test('links: the summary strip names WHICH design it describes, but only in comp
     const who = page.locator('#linksSummary .sum-chip--who');
     await expect(who, 'the ordinary view names no design — there is only one on screen').toHaveCount(0);
 
-    await page.locator('button:has-text("Compare")').first().click();
+    await sheetAction(page, 'compareBtn');
     await expect(page.locator('.compare-window').first()).toBeVisible();
     await expect(who).toHaveCount(1);
     // It must name the ACTIVE design, not just any of them — a chip carrying the wrong name is
     // worse than no chip, because it attributes the figures to the design they do not describe.
-    const active = (await page.locator('.design-chip--active').first().textContent() || '').trim();
-    expect(active.length, 'no active design chip to compare against').toBeGreaterThan(0);
+    const active = (await activeDesignName(page).textContent() || '').trim();
+    expect(active.length, 'no active design name to compare against').toBeGreaterThan(0);
     expect(active).toContain((await who.textContent() || '').trim());
 });
 
@@ -4730,11 +4735,11 @@ test('links window: a RESTORED design keeps the window it was designed to', asyn
         deletedAt: Date.now() - 2 * 86400000, deletedBy: 'S. Silva',
         window: { monSat: { start: '05:00', end: '23:55' }, sun: { start: '07:15', end: '23:55' } },
     }]);
-    await page.locator('#designBinBtn').click();
+    await sheetAction(page, 'designBinBtn');
     await expect(page.locator('#designBinLightbox.visible')).toBeVisible();
     await page.locator('#designBinList button:has-text("Restore")').first().click();
     await page.locator('#designBinClose').click();
-    await page.locator('.design-chip-name:has-text("Binned early start")').click();
+    await switchToDesign(page, 'Binned early start');
     await expect(page.locator('#winMonSatStart')).toHaveValue('05:00');
     await expect(page.locator('#winMoved')).toBeVisible();
 });

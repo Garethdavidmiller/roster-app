@@ -71,7 +71,8 @@ the whole of v20. A number written beside the list it describes is a second copy
 
 | Module | Owns |
 |--------|------|
-| `links-app.js` | coordinator: Firestore, grid, paint, picker, save/dirty state (+ `links-boot.js`, the CSP bootstrap) |
+| `links-app.js` | coordinator: Firestore, grid, paint, save/dirty state (+ `links-boot.js`, the CSP bootstrap) |
+| `links-design-header.js` | the design MASTHEAD — which design, whose, saved? — the Save buttons' label and the ··· More sheet (v23.30) |
 | `links-design.js` | the design maths — classification, coverage, the generator, `runDesignChecks`, `endMinutesAbs` |
 | `links-fatigue.js` | the ORR p3 fatigue factors — ADVISORY, never pass/fail (v19.46) |
 | `links-limits.js` | the HARD limits — meet them or the design cannot be run (v19.80; named `links-legal.js` until v19.91) |
@@ -241,7 +242,7 @@ Three rules the module exists to hold:
 save permission-denies, on every device, until the rules catch up, and hosting and rules ship from
 the same push through separate workflows with no ordering guarantee.
 
-A picker strip switches designs: **+ New** (blank), **⎘ Duplicate** (forks the LIVE in-memory patterns, unsaved edits included), **✎ Rename**, **✕ Delete** (disabled on the last design). Designs sort by name; the active design id persists via `lsGet('myb_links_active_design')`. Picker chips are a `<div>` wrapping separate `<button>`s — **buttons must not nest**.
+**The design MASTHEAD switches designs (v23.30; `links-design-header.js`).** A native `<select>` sits invisibly over a heading-sized face — the phone's own picker opens, the name reads as a title — grouped **Your designs · S. Silva's designs · …**, newest save first within a group. Beside it: the initials badge and "Last saved by", a coloured status dot (green saved · amber unsaved · gold not-saved-yet), ONE primary Save, and **··· More**, which holds Save a copy as… (the old Duplicate), Rename, Compare with…, New blank design, Import, Recently deleted (only when the bin has something) and Delete (disabled on the last design). The sticky save row keeps a second Save so a designer deep in the grid never scrolls to save; both buttons share one label and one state. **A design fresh from the generator has NO NAME until its first save** — the button reads "Save as…" and the save prompt pre-fills `proposeNewDesignName`; "Design 1" is gone. The four rules an edit can break are in the module header. The active design id persists via `lsGet('myb_links_active_design')`. Compare-with still uses chips (`#compareChips`) — `<div>` wrapping separate `<button>`s, **buttons must not nest**.
 
 ### Compare mode (v12.46; a difference SUMMARY added v22.60)
 
@@ -275,15 +276,15 @@ All design maths live in `links-design.js` (no DOM, no Firebase; tested by `link
 **The export list lives in `AI_MAP.md`, not here.** This paragraph used to carry its own copy and it had gone stale — missing `worstCaseWorkedRun`, `SPARE_WORKED_DAYS`, `canonicaliseShift`, `normalisePatterns` and `ROTATING_LINES`, all of which are load-bearing and several of which have their own rules further down this file. CLAUDE.md names AI_MAP as the authoritative export list; a second copy in a second file is a list nobody updates and everybody half-trusts.
 
 ### Save and dirty flag
-Single dirty flag + one `linksSaveBtn` / `saveChanges()`. Grid clicks are **delegated** on `#linksGridBodyRows` — do NOT call `renderGrid()` from inside `saveChanges()`.
+Single dirty flag + `saveChanges()`, reached from TWO buttons (`#linksSaveBtnTop` in the masthead, `#linksSaveBtn` in the sticky row) whose label and state the masthead renders. Grid clicks are **delegated** on `#linksGridBodyRows` — do NOT call `renderGrid()` from inside `saveChanges()`.
 
 **Unsaved-changes guard:** `beforeunload` + explicit `confirm()` on sign-out, logo navigation, and a capture-phase click guard on nav-drawer links (mobile browsers suppress `beforeunload` dialogs).
 
 ### Aesthetic conventions (v19.43 polish pass)
 
 - **A brush chip shows BOTH times, on two lines, exactly like the grid cell it paints.** It showed the start only until v19.43, and the roster has five distinct shifts starting 06:20, three starting 08:00 and so on — so the bar rendered as seven pairs of visually identical chips that paint different shifts, with the start time in `title` and `aria-label` too. Nothing anywhere disambiguated them. Do not "tidy" this back to a single time.
-- **The picker strip is always visible**, even with no designs: the empty state tells you to tap `+ New`, which lives inside it, and the bin button lives there too.
-- **`.design-chips` uses `min-width: min-content`, not `0`.** `0` lets a flex item shrink below its own contents, and the chips are `nowrap` — at 390px the box collapsed to 50px while the active chip stayed ~120px and its ✎ ✕ painted on top of "+ New".
+- **The masthead is always visible**, even with no designs: the empty state points at the ··· More sheet, where New blank design and Recently deleted live.
+- **`.design-chips` (now only the compare-with picker) uses `min-width: min-content`, not `0`.** `0` lets a flex item shrink below its own contents, and the chips are `nowrap`.
 - **Overlay panels take their surface from an id rule or a modifier class** — `.lb-content` alone is only transform/scroll/cursor. The Recently-deleted panel shipped at v19.41 with the bare class and rendered as a transparent box (heading and prose in navy on the dimmed backdrop). It now joins the compact-dialog family, and `e2e/visual.spec.js` has a baseline for it, because behaviour tests cannot see this.
 - **Row actions reuse `.dialog-btn` + `.dialog-btn-confirm`/`-cancel`** from shared.css rather than a page-local recipe — that brings the 44px touch target and press feedback with them.
 - **The Design checks card is a 30-row list, so it needs structure, not just rows** (v19.49). Three things carry it, and each replaced something that read as noise: `.check-section-head` gains a **hairline rule** and its **headline counts** at the far end (`3 present · 2 standing · 3 to confirm`) — a small uppercase label alone was not enough weight to break a ribbon of same-height rows, and the reader should not have to tally 24 icons to get the summary; `.check-code` is a **fixed-width tag** so the FF numbers align down the left edge (they were `.check-note`, the faintest thing in the row, running inline with the title and vanishing into wrapped prose on mobile — cross-referencing the ORR's own p3 list is the panel's whole job); and `.check-family` names the ORR's **families**, without which the code column read as shuffled. The factors are also ordered by number **within** each family. Counts keep `present` and `standing` separate — an unavoidable characteristic of the operation is not a finding about the design, and one combined total would say it was.

@@ -43,7 +43,7 @@
 // e2e responsive/calendar specs; the calendar's pixels are still locked at desktop width below.
 
 import { test, expect, enableCalendarPin } from './fixtures.js';
-import { seedSession, seedMember, openRosterReview, openReference, stubPerfReads, openPinCard } from './helpers.js';
+import { seedSession, seedMember, openRosterReview, openReference, stubPerfReads, openPinCard, sheetAction } from './helpers.js';
 import { ROTATING_LINES } from '../links-design.js';
 
 // A Wednesday inside G. Miller's rendered roster window — gives a stable "Today" cell and a
@@ -654,7 +654,7 @@ test('links — Recently deleted panel (desktop 1280)', async ({ page }) => {
     }, LINKS_DESIGN);
     await prep(page, { width: 1280, height: 900 });
     await page.goto('/links.html');
-    await page.locator('#designBinBtn').click();
+    await sheetAction(page, 'designBinBtn');
     // Sentinel: the row must actually be there, or the baseline locks in an empty panel.
     await expect(page.locator('#designBinList .bin-row')).toHaveCount(1);
     await expect(page.locator('.bin-row-meta')).toContainText('Deleted');

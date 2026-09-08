@@ -68,6 +68,7 @@
     <link rel="modulepreload" href="./links-demand.js">
     <link rel="modulepreload" href="./links-design-doc.js">
     <link rel="modulepreload" href="./links-design-naming.js">
+    <link rel="modulepreload" href="./links-design-header.js">
     <link rel="modulepreload" href="./links-design.js">
     <link rel="modulepreload" href="./links-generator-targets.js">
     <link rel="modulepreload" href="./links-fatigue.js">
@@ -201,6 +202,31 @@
     </div>
 </div>
 
+<!-- The masthead's ··· More sheet (v23.30). The action buttons keep their long-standing ids —
+     dupDesignBtn, importDesignBtn, compareBtn, designBinBtn, newDesignBtn — because the coordinator's
+     handlers and the e2e suite address them by id; only where they live has changed. Built with
+     createLightbox like every other .lb-overlay (overlay-parity.test.mjs). -->
+<div id="designMoreLb" class="lb-overlay" role="dialog" aria-label="More actions for this design" aria-modal="true">
+    <div id="designMoreContent" class="lb-content">
+        <button id="designMoreClose" class="lb-close" type="button" aria-label="Close">✕</button>
+        <div class="dm-sheet-head">
+            <span class="dm-avatar dm-avatar--lg" id="designSheetAvatar" aria-hidden="true"></span>
+            <div class="dm-sheet-title"><b id="designSheetName"></b><span id="designSheetSub"></span></div>
+        </div>
+        <div class="dm-menu">
+            <button class="dm-menu-btn dm-menu-btn--primary" id="dupDesignBtn" type="button"><span class="dm-menu-ic" aria-hidden="true">⎘</span><span>Save a copy as…<small>Keeps this one, carries on in the copy</small></span></button>
+            <button class="dm-menu-btn" id="designRenameMenuBtn" type="button"><span class="dm-menu-ic" aria-hidden="true">✎</span><span>Rename</span></button>
+            <button class="dm-menu-btn" id="compareBtn" type="button" aria-pressed="false" disabled><span class="dm-menu-ic" aria-hidden="true">⇔</span><span><span id="compareBtnLabel">Compare with…</span><small>Two designs side by side</small></span></button>
+            <hr class="dm-menu-rule">
+            <button class="dm-menu-btn" id="newDesignBtn" type="button"><span class="dm-menu-ic" aria-hidden="true">＋</span><span>New blank design</span></button>
+            <button class="dm-menu-btn" id="importDesignBtn" type="button"><span class="dm-menu-ic" aria-hidden="true">⤓</span><span>Import from a spreadsheet</span></button>
+            <button class="dm-menu-btn" id="designBinBtn" type="button" style="display:none"><span class="dm-menu-ic" aria-hidden="true">🗑</span><span>Recently deleted</span></button>
+            <hr class="dm-menu-rule">
+            <button class="dm-menu-btn dm-menu-btn--danger" id="designDeleteBtn" type="button"><span class="dm-menu-ic" aria-hidden="true">✕</span><span>Delete this design<small>Goes to Recently deleted, not gone for good</small></span></button>
+        </div>
+    </div>
+</div>
+
 <!-- Boot placeholder (v20.80). `.container` is `display:none` until `body.auth-ready`, and the
      header lives INSIDE it — so until the module graph has loaded and run, this page is a blank
      navy screen with nothing on it at all, not even the burger. Measured at 622ms locally on a
@@ -251,18 +277,34 @@
                 <!-- Print-only: names the design on the printed sheet -->
                 <div id="printDesignName" class="print-design-name" aria-hidden="true"></div>
 
-                <!-- Design picker — shown once at least one design exists -->
-                <div id="designPickerWrap" class="design-picker-wrap" style="display:none">
-                    <div class="design-picker-main">
-                        <div class="design-chips" id="designChips" role="group" aria-label="Saved designs"></div>
-                        <button class="btn-design-new" id="newDesignBtn" type="button" title="Start a new blank design">+ New</button>
-                        <button class="btn-design-dup" id="dupDesignBtn" type="button" title="Duplicate the current design">⎘ Duplicate</button>
-                        <button class="btn-design-import" id="importDesignBtn" type="button" title="Paste a design from a spreadsheet or a transcribed sheet">⤓ Import</button>
-                        <button class="btn-design-compare" id="compareBtn" type="button"
-                                aria-pressed="false" title="Compare two designs side-by-side" disabled>⇔ Compare</button>
-                        <!-- Shown only when the bin has something in it (v19.41) -->
-                        <button class="btn-design-bin" id="designBinBtn" type="button"
-                                title="Designs you have deleted recently" style="display:none">🗑 Recently deleted</button>
+                <!-- THE DESIGN MASTHEAD (v23.30) — which design is open, whose it is, whether it is
+                     saved, and the one Save button. A native <select> sits invisibly over the heading
+                     so the phone's own picker opens; everything else lives behind ··· More. The
+                     reasoning, and the four rules an edit can break, are in links-design-header.js. -->
+                <div id="designPickerWrap" class="design-picker-wrap">
+                    <div class="design-masthead" id="designMasthead">
+                        <div class="dm-title">
+                            <div class="dm-picker">
+                                <div class="dm-eyebrow" aria-hidden="true"><span id="designEyebrow">Editing</span><span class="dm-count" id="designCount"></span></div>
+                                <div class="dm-face" aria-hidden="true"><span class="dm-face-name" id="designFaceName"></span><span class="dm-chev"></span></div>
+                                <select id="designSelect" aria-label="Which design you are editing"></select>
+                            </div>
+                            <button class="dm-icon-btn" id="designRenameBtn" type="button" title="Rename this design" aria-label="Rename this design">✎</button>
+                        </div>
+                        <div class="dm-rule" aria-hidden="true"></div>
+                        <div class="dm-bottom">
+                            <div class="dm-meta">
+                                <span class="dm-who">
+                                    <span class="dm-avatar" id="designAvatar" aria-hidden="true"></span>
+                                    <span class="dm-who-text"><span class="dm-who-name" id="designWhoName"></span><span class="dm-who-role" id="designWhoRole"></span></span>
+                                </span>
+                                <span class="dm-status" id="designStatus" role="status" aria-live="polite"><span class="dm-status-long" id="designStatusLong"></span><span class="dm-status-short" id="designStatusShort"></span></span>
+                            </div>
+                            <div class="dm-actions">
+                                <button type="button" id="linksSaveBtnTop" class="btn-save dm-save" disabled>Save</button>
+                                <button type="button" id="designMoreBtn" class="dm-more" aria-label="More actions for this design" aria-haspopup="dialog">···</button>
+                            </div>
+                        </div>
                     </div>
                     <!-- Compare picker — shown only in compare mode -->
                     <div class="compare-picker-row" id="comparePickerRow" style="display:none">
@@ -368,7 +410,7 @@
                 </div>
 
                 <div id="linksSaveRow" class="links-save-row" style="display:none">
-                    <button type="button" id="linksSaveBtn" class="btn-save" disabled>Save changes</button>
+                    <button type="button" id="linksSaveBtn" class="btn-save" disabled>Save</button>
                     <!-- Print lives here rather than in the header because this is where you finish
                          with a design, and the row is sticky so it is reachable from any scroll
                          position. The print CSS and the beforeprint/afterprint machinery have
