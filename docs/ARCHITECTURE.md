@@ -39,6 +39,7 @@ changed once.
 | **Roster data shape** | `.claude/rules/roster-data.md` | Member fields, cycles, entitlement |
 | **Operations & ingest** | `OPERATIONS_REFERENCE.md` | Huddle ingest, roster upload, account conventions, PIN rotation |
 | **Disaster recovery** | `RECOVERY_RUNBOOK.md` | Backups, rollback, incident playbooks, standing GCP prerequisites |
+| **The depot AL workbook** | `AL_WORKBOOK.md` | The roster clerks' annual-leave quota spreadsheet — what its sheets are, how a person's figure is built, and where it and the app legitimately disagree. Not an app subject: an EXTERNAL source the owner reconciles against |
 
 ### The registers — three questions, three files
 

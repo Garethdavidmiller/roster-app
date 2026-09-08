@@ -431,6 +431,7 @@ roster-app/
 ├── LATENCY.md ← sign-in and Calendar START latency: what shipped, what was measured, and the DECISION RULE that drove it. The ladder reported and phase 3 was PRICED BEFORE BEING BUILT — worth milliseconds against a wall that turned out to be one unconditional auth round trip, now an owner decision in ROADMAP.md rather than a phase. Phase 2 is instrumented, not started; the card split that decides it names its own reading date. Holds the sequence and the readings; what is measured lives in `perf-reporter.js`/`perf-stats.js`, and the invariants any change must not break in `CALENDAR_DATA.md`. Not version-stamped; not a runtime asset.
 ├── VALIDATION_REGISTER.md ← what the app ALREADY ASSERTS on evidence nobody has checked, each row carrying a **stable `VAL-*` id** cited from elsewhere rather than re-explained — the back-pay accrual, the 28 Aug 2026 award step, the one derived pension figure, the disarmed purge, the two guide conflicts. Its sibling registers answer different questions: MAINTENANCE_CALENDAR is *by when*, ROADMAP is *what to build*, GUIDE_SOURCES is the same discipline for the guides. Not version-stamped; not a runtime asset.
 ├── DATA_MODEL.md ← the FIRESTORE COLLECTIONS: what each one holds and what every field MEANS. Split out of this file on 2 Sep 2026 because it was 14% of a document loaded into every session and nothing here enforced it — a session working on the Huddle was paying for the Overtime window tree. Its access summaries are a CONVENIENCE COPY: `firestore.rules` is the authority, and a disagreement is a bug in the document. Not version-stamped; not a runtime asset.
+├── AL_WORKBOOK.md ← the roster clerks' ANNUAL-LEAVE QUOTA SPREADSHEET, which is not ours and not a schema. **A WORK IN PROGRESS, not a definitive reading** — every claim carries an evidence marker, the owner has confirmed almost none of it, and a session that uses it is expected to ASK, point things out, and write the answers back into it. Its §0 is the one rule that has already been got wrong: a person's `AL over depot quota` days are real leave, invisible in the calendar grid, and belong in any list of their annual leave. Also the sheets (one is a 2021 decoy), how a figure is built, where the over-quota DATES hide (threaded comments, which `openpyxl` does not show), the name mapping, and where the app and the workbook legitimately disagree. Not version-stamped; not a runtime asset.
 ├── CALENDAR_DATA.md ← the Calendar's feature CONTRACT: the invariants about what may be shown and when, each routing to the module header that argues it. **The count is deliberately not written here** — it was "thirteen" while the file carried fourteen, the same way `firestore.rules.test.mjs`'s entry said ten collections against fourteen. A contract grows by one whenever a feature ships; the numeral is the part nobody updates. States WHAT must hold, never why. Not version-stamped; not a runtime asset.
 ├── AUTH_AND_SESSIONS.md ← the authentication feature CONTRACT: the local session / Firebase identity / claim triangle and the invariants across it (no numeral, for the reason CALENDAR_DATA's row gives — this one said fifteen against seventeen). Same routing-not-explaining rule; STATUS still lives in SECURITY_RELEASE_PLAN.md. Not version-stamped; not a runtime asset.
 ├── SECURITY_RELEASE_PLAN.md ← master sequencing/risk plan for the deferred security release (per-member isolation, named sessions, App Check, password retirement, WIF, firebase-admin bump). **Carries the CANONICAL TRACK STATUS table (v19.97) — the single source of truth for what stage every track is at.** Status had to be reconciled across five files, and `auth-plan-parity.test.mjs` exists because two of them had already drifted; every other plan now owns DESIGN and points here for STATUS. If you are updating a stage, update it there and nowhere else. Not version-stamped; not a runtime asset.
@@ -1001,25 +1002,29 @@ Override cache key: `"memberName|YYYY-MM-DD"`
 ## Key rules
 
 - **Offline first** — Firestore is an enhancement. Every Firestore call needs a silent fallback. Never block rendering waiting for Firestore.
-- **Mobile is primary, and it is TWO populations on two engines** (corrected 8 Sep 2026 — this line
-  said "all staff use Android phones", which is wrong in the direction that matters). Test every
-  change at 375px, on both of:
-  - **The Android WORK phone — IN A BROWSER, never installed.** The company does not currently permit
-    the install. So on the device staff carry on shift there is no home-screen icon, no standalone
-    window, and nothing that only an installed PWA gets. A feature that assumes the install is
-    invisible to somebody at work.
-  - **The PERSONAL phone — mainly iPHONE — and this is where the app is actually INSTALLED.** So every
-    installed-PWA path is **iOS-first**: offline launch, the service-worker update lifecycle, Web Push
-    (which iOS grants only to an installed PWA), the missing system Back button, `localStorage`
-    throwing in private mode, ITP eviction, and the events Safari does not fire (`beforeprint` for
-    AirPrint, `transitionend` on a backgrounded tab). Those are not edge cases to defend against —
-    they are the majority path.
-  **Two consequences to hold on to.** Safari's engine is what the installed app mostly runs on, so
-  `npm run test:webkit` is closer to production than its "branch CI, not the deploy gate" status
-  suggests — weigh a WebKit failure accordingly. And the two populations have **different
-  capabilities, not different preferences**: notifications and offline reach the personal iPhone and
-  not the work phone, which is why `install-prompt.js` treats the install as the thing that unlocks
-  the rest, and why its iOS branch is the one that matters rather than a fallback.
+- **Mobile is primary — TWO platforms, served EQUALLY** (owner, 8 Sep 2026). Test every change at
+  375px, on both engines. **This line has now been wrong twice in one day, in opposite directions**
+  — it said "all staff use Android phones", was corrected to "the installed app is mainly iPhone",
+  and neither was right. The lesson is the one to keep: **who runs what is an OWNER FACT. Do not
+  infer it from a screenshot, a bug report or one device.**
+  - **Android and iOS are both first class. Neither is the default and neither is the edge case.**
+    The owner's own phone is Android (Galaxy S26) and the personal-phone population is mixed, so
+    there is no majority path to design toward.
+  - **The work phone is Android, and getting the app INSTALLED on it is the GOAL.** The company does
+    not permit the install today, so on the device staff carry on shift there is no home-screen
+    icon, no standalone window, and nothing that only an installed PWA gets — a feature that assumes
+    the install is invisible to somebody at work. Treat that as a **current restriction with a
+    direction of travel**, not a permanent property: the Android install path
+    (`beforeinstallprompt`) is as load-bearing as the iOS one, not a fallback behind it.
+  - **The iOS hazards stay defended — they are PLATFORM FACTS, not a claim about numbers.** Web Push
+    exists only inside an installed PWA, there is no system Back, `localStorage` throws in private
+    mode, ITP evicts, and Safari fires neither `beforeprint` for AirPrint nor `transitionend` on a
+    backgrounded tab. `install-prompt.js` and `notif.js` already branch correctly for both engines;
+    that code was right through both wrong versions of this line.
+  **One consequence, already decided.** Chromium gates every deploy and WebKit does not
+  (`npm run test:webkit` is branch CI only) — an unequal gate under equal service, weighed and left
+  as it is (owner, 8 Sep 2026; DECISIONS.md, with the trigger that would reopen it). **Weigh a
+  WebKit failure on a branch accordingly**: it is the only lane that sees Safari before release.
 - **Print CSS** — any new shift type, cell class, or badge needs `@media print` rules.
 - **No `alert()`** — `console.error()` for developer errors. No visible error text for recoverable failures.
 - **Code quality** — pure functions where possible, JSDoc on all functions, meaningful variable names, error handling on all async operations.
