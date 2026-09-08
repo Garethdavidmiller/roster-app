@@ -472,27 +472,28 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         // composited BEHIND it — the one arrangement in the app where a scan of some other page
         // proves nothing at all.
         //
-        // THE SUBJECT MOVED AT v23.23, and the coverage is what matters rather than which notice
-        // carries it. `sign-in-2026` was retired, leaving `backpay-2026` — same `.notice-lb-content`
-        // shell, same rgba-white text over the same glass, so it scans the identical arrangement.
-        // Two consequences of that swap, both deliberate:
+        // THE SUBJECT MOVED AT v23.23 AND AGAIN AT v23.31, and the coverage is what matters rather
+        // than which notice carries it. `sign-in-2026` was retired, then `backpay-2026` deleted once
+        // its cutoff passed, leaving `al-booking-2026` — same `.notice-lb-content` shell, same
+        // rgba-white text over the same glass, so it scans the identical arrangement. Two
+        // consequences, both deliberate:
         //   · Its audience is `'members'`, not `'signed-out'`, so this needs a NAMED identity
         //     (a session AND a restored Firebase user) rather than the file's viewer seed.
-        //   · It self-retires at a hard clock time, so the clock is pinned before that cutoff. Move
-        //     this to the next notice when back-pay is deleted (~17 Feb 2027, the 180-day sweep)
-        //     rather than deleting the scan — it is the only one that sees a notice overlay.
+        //   · It expires 90 days after its 8 Sep 2026 posting, so the clock is pinned inside that
+        //     window. Move this to the next notice when it is deleted rather than deleting the scan
+        //     — it is the only one that sees a notice overlay.
         //
         // The re-enable is registered AFTER the seeders, which set the same key themselves: init
         // scripts run in registration order and last write wins. Putting it first is how this test
         // silently reverts to scanning a notice that never opens.
-        await page.clock.setFixedTime(new Date('2026-08-24T09:00:00Z'));   // before the 27 Aug 23:00 cutoff
+        await page.clock.setFixedTime(new Date('2026-09-10T09:00:00Z'));   // inside the notice's 90-day life
         await seedSession(page, 'G. Miller');
         await seedMemberSession(page, 'G. Miller');
         await seedMember(page);
-        await clearNoticeFlags(page, ['myb_notice_backpay_2026_done']);
+        await clearNoticeFlags(page, ['myb_notice_al_booking_2026_done']);
         await page.goto('/');
         await expect(page.locator('.calendar-day').first()).toBeVisible();
-        await expect(page.locator('#bpNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+        await expect(page.locator('#alNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
         await page.waitForTimeout(600);      // let the fade finish — mid-transition is the bug
         const v = await scan(page, { exclude: ['.other-month'] });
         expect(v.length, report(v)).toBe(0);

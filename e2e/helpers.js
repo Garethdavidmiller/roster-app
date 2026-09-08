@@ -57,7 +57,7 @@ export function seedSession(page, name = 'G. Miller') {
             ver: 2,
             expiry: Date.now() + 90 * 24 * 60 * 60 * 1000,   // arbitrary future — NOT SESSION_MS
         }));
-        localStorage.setItem('myb_notice_backpay_2026_done', '1');
+        localStorage.setItem('myb_notice_al_booking_2026_done', '1');
         localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
     }, name);
 }
@@ -75,7 +75,7 @@ export function seedSession(page, name = 'G. Miller') {
  * @param {import('@playwright/test').Page} page
  * @param {string[]} [keys] the done-flags to remove; defaults to every live notice
  */
-export function clearNoticeFlags(page, keys = ['myb_notice_backpay_2026_done']) {
+export function clearNoticeFlags(page, keys = ['myb_notice_al_booking_2026_done']) {
     return page.addInitScript(ks => ks.forEach(k => localStorage.removeItem(k)), keys);
 }
 
@@ -116,7 +116,7 @@ export function seedSessionOnce(page, name = 'G. Miller') {
 export function seedMember(page, name = 'G. Miller') {
     return page.addInitScript((n) => {
         localStorage.setItem('myb_roster_selected_member', n);
-        localStorage.setItem('myb_notice_backpay_2026_done', '1');
+        localStorage.setItem('myb_notice_al_booking_2026_done', '1');
     }, name);
 }
 
@@ -304,7 +304,7 @@ export function seedMemberSession(page, name = 'G. Miller') {
         }));
         localStorage.setItem('myb_roster_selected_member', n);
         // Same notice suppression as seedMember, same reason — see the note there.
-        localStorage.setItem('myb_notice_backpay_2026_done', '1');
+        localStorage.setItem('myb_notice_al_booking_2026_done', '1');
         window.__E2E = Object.assign(window.__E2E || {}, { authUser: true });
     }, name);
 }
