@@ -31,18 +31,17 @@ export function collectFatalErrors(page) {
 // tests only need a session that is unexpired, and mirroring the real term would make every spec
 // a place the policy is restated (it changed 30 → 60 at v20.47 and nothing here needed to move).
 //
-// IT ALSO SUPPRESSES THE `sign-in-2026` NOTICE, and this is the THIRD seeder to need that (v21.34).
-// `seedMember` and `seedMemberSession` both got it; this one was missed, and it is the seeder the
-// authenticated-page specs use. The notice opens 1,500ms after load on `/` and its dialog
+// IT ALSO SUPPRESSES THE CALENDAR'S ONE-TIME NOTICES, and this is the THIRD seeder to need that
+// (v21.34). `seedMember` and `seedMemberSession` both got it; this one was missed, and it is the
+// seeder the authenticated-page specs use. A notice opens 1,500ms after load on `/` and its dialog
 // intercepts pointer events, so any spec that clicks something on the Calendar after ~1.5s is
 // racing it — and loses whenever the machine is slow enough. That is what had `overtime.spec.js`'s
 // "every signed-in page offers the reviewer the pill" failing in CI while passing everywhere else:
 // its sweep starts at `/`, the burger click was still retrying at 1,500ms, and the notice then
 // covered it for the remaining 28 seconds of the timeout.
 //
-// A spec that is ABOUT the notice re-enables it with a later addInitScript removing the key —
-// later init scripts run after this one, so the remove wins (axe.spec.js and calendar.spec.js
-// both do exactly that, and are unaffected).
+// A spec that is ABOUT a notice re-enables it with `clearNoticeFlags`, which runs a later
+// addInitScript — later init scripts run after this one, so the remove wins.
 //
 // THE PAYCALC NOTICE JOINED IT AT v21.91, and how it got here is the useful part. That key was set
 // by FIVE specs individually, each with its own copy of the literal, because the seeder had never
@@ -58,45 +57,25 @@ export function seedSession(page, name = 'G. Miller') {
             ver: 2,
             expiry: Date.now() + 90 * 24 * 60 * 60 * 1000,   // arbitrary future — NOT SESSION_MS
         }));
-        localStorage.setItem('myb_notice_sign_in_2026_done', '1');
         localStorage.setItem('myb_notice_backpay_2026_done', '1');
         localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
     }, name);
 }
 
 /**
- * Undo that suppression, for a spec whose SUBJECT is the notice flag.
+ * Undo the seeders' suppression, for a spec whose subject is which notices open at all (v21.81 —
+ * the audience gate). Call it AFTER the seeders, because later init scripts run last.
  *
- * ── WHY THIS IS A NAMED HELPER AND NOT AN INLINE removeItem (v21.34) ────────────────────────────
- *
- * Three tests in `pages.spec.js` assert on this flag, and all three depended on `seedSession`
- * happening not to set it — a dependency on a SILENCE, which nothing could see. When the
- * suppression was added to `seedSession`, two failed loudly and the third did something worse: it
- * polls for the flag to BECOME '1', so a run that starts at '1' passes without ever exercising the
- * write. Green, and covering nothing — the failure mode its own comment names two lines above.
- *
- * Calling this makes the dependency explicit at the point of use, so the next person to touch a
- * seeder sees it. Later init scripts run after earlier ones, so this must come AFTER the seed.
- *
- * @param {import('@playwright/test').Page} page
- */
-export function clearSignInNoticeFlag(page) {
-    return page.addInitScript(() => localStorage.removeItem('myb_notice_sign_in_2026_done'));
-}
-
-/**
- * Undo the suppression for BOTH live notices, for a spec whose subject is which notices open at all
- * (v21.81 — the audience gate). Same ordering rule as `clearSignInNoticeFlag`: call it AFTER the
- * seeders, because later init scripts run last.
- *
- * PASS THE ONE KEY YOU MEAN unless you want both. With two notices live only one can be on screen:
- * whichever reaches `openNoticeIfClear` first wins, the loser stays closed and unflagged, and a
- * spec asserting on the loser fails for a reason that has nothing to do with what it is testing.
+ * PASS THE ONE KEY YOU MEAN whenever more than one notice is live. Only one can be on screen at a
+ * time: whichever reaches `openNoticeIfClear` first wins, the loser stays closed and unflagged, and
+ * a spec asserting on the loser fails for a reason that has nothing to do with what it is testing.
+ * (`sign-in-2026` was retired at v23.22, so the default names a single key — the plural shape stays
+ * because the next notice restores the hazard.)
  *
  * @param {import('@playwright/test').Page} page
  * @param {string[]} [keys] the done-flags to remove; defaults to every live notice
  */
-export function clearNoticeFlags(page, keys = ['myb_notice_sign_in_2026_done', 'myb_notice_backpay_2026_done']) {
+export function clearNoticeFlags(page, keys = ['myb_notice_backpay_2026_done']) {
     return page.addInitScript(ks => ks.forEach(k => localStorage.removeItem(k)), keys);
 }
 
@@ -129,16 +108,14 @@ export function seedSessionOnce(page, name = 'G. Miller') {
 // Seed a chosen calendar member so index.html renders the grid instead of the first-run
 // "choose your name" prompt (shown only when NO member is saved AND not signed in).
 //
-// ALSO SUPPRESSES THE `sign-in-2026` NOTICE, because a seeded member is exactly its audience: it
-// opens 1,500ms after load on a fade and its dialog intercepts pointer events, so any calendar
-// spec that clicks something after ~1.5s was racing it — two flaked under full-suite load, and the
-// axe suite hit the same race from the other side (see axe.spec.js's file-level beforeEach). A
-// spec that is ABOUT the notice re-enables it with a later addInitScript removing the key — later
-// init scripts run after this one, so the remove wins.
+// ALSO SUPPRESSES THE CALENDAR'S ONE-TIME NOTICES, because a seeded member is exactly the audience
+// for one: it opens 1,500ms after load on a fade and its dialog intercepts pointer events, so any
+// calendar spec that clicks something after ~1.5s was racing it — two flaked under full-suite load,
+// and the axe suite hit the same race from the other side. A spec that is ABOUT a notice re-enables
+// it with `clearNoticeFlags`, which runs later and so wins.
 export function seedMember(page, name = 'G. Miller') {
     return page.addInitScript((n) => {
         localStorage.setItem('myb_roster_selected_member', n);
-        localStorage.setItem('myb_notice_sign_in_2026_done', '1');
         localStorage.setItem('myb_notice_backpay_2026_done', '1');
     }, name);
 }
@@ -326,8 +303,7 @@ export function seedMemberSession(page, name = 'G. Miller') {
             expiry: Date.now() + 90 * 24 * 60 * 60 * 1000,   // arbitrary future — NOT SESSION_MS
         }));
         localStorage.setItem('myb_roster_selected_member', n);
-        // Same pw-notice suppression as seedMember, same reason — see the note there.
-        localStorage.setItem('myb_notice_sign_in_2026_done', '1');
+        // Same notice suppression as seedMember, same reason — see the note there.
         localStorage.setItem('myb_notice_backpay_2026_done', '1');
         window.__E2E = Object.assign(window.__E2E || {}, { authUser: true });
     }, name);

@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '23.21';
+export const APP_VERSION = '23.23';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -157,18 +157,6 @@ export const CONFIG = {
     //
     // Rolling back is still this one line while the `overrides` hold line stands.
     CALENDAR_PIN_ACCESS:              true,
-    // How long the calendar's `sign-in-2026` notice keeps showing on a device that has not yet seen
-    // it (v21.84 — inherited from the `pw-own-2026` notice it replaced, along with the reason).
-    //
-    // A BACKSTOP with a review date, not the plan. `isNoticeExpired` marks a notice seen WITHOUT
-    // showing it, so on the day this lapses the notice becomes dead code on every device that has
-    // not already displayed it — silently, with the table in CLAUDE.md still listing it as live.
-    //
-    // This one is a STANDING situation rather than an announcement: while the staff PIN exists,
-    // somebody reading the roster on their own phone benefits from knowing that signing in ends the
-    // code, and that is as true in six months as today. **Review by 25 Nov 2026**: raise this number
-    // and move the review date, or retire the notice because everyone who was going to sign in has.
-    SIGN_IN_NOTICE_DAYS:              90,
     // The "ask the admin to reset my password" request queue (PASSWORD_PLAN.md — Phase 1 of the request
     // work). Kill switch for the LINK only: setting this to `false` hides it on the login overlay and
     // nobody can file a new request. It does NOT disable the endpoint (that is a functions deploy) or

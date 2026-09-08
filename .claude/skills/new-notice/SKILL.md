@@ -153,11 +153,21 @@ the reader to check their own payslips were entered correctly.
 | Audience | Who sees it | Use for |
 |----------|-------------|---------|
 | `'members'` | a signed-in member on this device (**the default**) | anything about pay, settings, an account, or "your" anything |
-| `'everyone'` | including a PIN-unlocked viewer | a notice whose readers are specifically people who have **not** signed in |
+| `'signed-out'` | only where nobody is signed in — a PIN unlock | a notice whose readers are specifically people who have **not** signed in; it retires ITSELF the moment they do, since the audience is re-checked every load |
+| `'everyone'` | both | rarely right — make it a decision, not a default |
 
 The rule itself is the pure `noticeAudienceAllows(audience, accessType)` in
 `calendar-access-core.js`. An unrecognised audience is treated as `'members'`. A refused notice is
 left **unflagged** — not marked seen — so it arrives when that device is next signed in.
+
+> **⚠️ IF YOU ARE ADDING A `'signed-out'` NOTICE, YOU ALSO RESTORE TWO TESTS (v23.22).**
+> Retiring `sign-in-2026` left no live notice declaring that audience, so the POSITIVE direction of
+> the audience gate — a `'signed-out'` notice actually REACHING a PIN unlock — currently has nothing
+> to exercise it. Both suites derive their notices from `calendar-notices.js`, so yours joins the
+> matrix automatically; what does NOT come back on its own is the browser-level proof. Re-add it:
+> a test in `e2e/calendar-pin.spec.js` → "one-time notices and the PIN unlock", mirroring the
+> members-only one beside it (clear ONE flag, seed a viewer, assert the notice opens AND reaches
+> the drawer's App Notices list). The block comment there says the same thing.
 
 Notices on other pages need no audience: those pages already require a session.
 
@@ -187,8 +197,9 @@ Add a row to the "Current notices" table in `CLAUDE.md`:
 |----|------|-------|-------|--------|--------|-------------------|
 | `[id]` | `[page].html` | [Title] | [Badge] | [D Mon YYYY] | [28/90] days | One-time; `[DONE_KEY]` set on close |
 
-For an `index.html` notice, say which audience it declared — the note above that table lists the
-current `'everyone'` ones, and a second entry there should be a deliberate decision, not a default.
+For an `index.html` notice, say which audience it declared — the note above that table names which
+audiences are currently live, and anything other than `'members'` should read as a deliberate
+decision rather than a default.
 
 ## Monthly cleanup — run on the 1st of each month
 
@@ -202,3 +213,10 @@ current `'everyone'` ones, and a second entry there should be a deliberate decis
 4. Bump the version (HTML and JS files are being modified)
 
 **Do not remove** a notice that is still within its archive window — users who haven't visited yet may still see it on their first visit.
+
+**Retiring one EARLY** (before 180 days, because it has stopped being true rather than stopped being
+new) is the same four steps, plus two: drop any `CONFIG.*_NOTICE_DAYS` constant it owned, and check
+what its tests carried. `sign-in-2026` went this way at v23.22 — the Calendar's front door became a
+sign-in at v23.19, so the notice re-offered a choice its reader had just declined — and it was the
+only `'signed-out'` notice and the only one the axe suite scanned. Say in the release what coverage
+moved or lapsed; a notice deleted quietly takes its guards with it.
