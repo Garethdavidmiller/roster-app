@@ -364,3 +364,47 @@ body {
     margin: 10px 0 12px;
 }
 .pay-data-inventory:empty { display: none; }
+
+/* ═══ TOUCH TARGETS (v23.35) ══════════════════════════════════════════════════════════════════════
+
+   This stylesheet had no `@media (pointer: coarse)` block at all — every other page's got a touch
+   pass and Settings was missed. Two controls were under the app's enforced 24px floor (WCAG 2.2
+   SC 2.5.8 AA), measured by probing `elementFromPoint` outward from each centre rather than by
+   reading the box, because this app expands several targets with a pseudo-element:
+
+     · "Remove saved email"  118x17, reaching 53x18 — and it is the page's one DESTRUCTIVE control,
+       removing the address account recovery is being saved for. It also only exists once an email
+       IS saved, which is why the `@a11y` tap-target gate never saw it: that gate walked the page
+       in a state where this button is `display: none`. Same lesson as the Links empty state at
+       v22.61 — a guard that walks every page has to reach each page's real working state.
+     · "Show passwords"      18x18 — the ONE reveal for all three password fields, which is the
+       control you reach for at the moment you have mistyped one.
+
+   AT THE END OF THE FILE, AND HERE THAT IS NECESSARY RATHER THAN CONVENTIONAL. `.btn-contact-remove`
+   declares `display` and `padding`, and `.pw-show-row input` declares `width`/`height` — so these
+   ARE same-property conflicts at equal specificity, and a block placed above them would read as
+   though it worked and change nothing. That is this repo's twice-recorded trap (links.css records
+   both instances); it is live here, not hypothetical.
+
+   The remove button takes `.btn-text-link`'s recipe from links.css rather than a second one — the
+   same shape (a small standalone underlined button), so the same answer. The checkbox takes the
+   figure the `.gen-obj` boxes settled on, 20px, for the reason recorded there: the ROW is the
+   target, because clicking a label toggles the box it wraps. What Settings was missing is the
+   other half of that bargain — `.pw-show-row` had no height of its own, so unlike `.gen-obj` the
+   row did NOT clear 44px and the label rescued nothing. */
+.btn-contact-remove { position: relative; touch-action: manipulation; }
+/* Expand the REGION, not the glyph — the `.collapse-chevron` / `.btn-card-tips` idiom (v21.53),
+   which is what gives this a real target on a fine pointer too. */
+.btn-contact-remove::after { content: ''; position: absolute; inset: -6px -4px; }
+
+@media (pointer: coarse) {
+    .btn-contact-remove {
+        display: inline-flex;
+        align-items: center;
+        padding: 12px 2px;
+        min-height: 44px;
+    }
+    /* The row IS the control: a 44px floor here is what makes the 20px box below acceptable. */
+    .pw-show-row { min-height: 44px; }
+    .pw-show-row input { width: 20px; height: 20px; }
+}
