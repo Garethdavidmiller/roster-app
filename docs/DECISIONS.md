@@ -101,6 +101,22 @@ shown that yet.
 
 ## Decisions taken — recorded so they are not re-raised
 
+- **WebKit stays OUT of the deploy gate — LEAVE IT** (owner, 8 Sep 2026) · **Trigger to revisit: a
+  Safari-only regression actually reaching production, or the work-phone install being permitted (a
+  second engine running the INSTALLED app changes the exposure, not just the browser mix).** The
+  question was re-opened the same day the platform premise was corrected to *two platforms served
+  equally* — Chromium gates every release (`npm run check`, the Chromium smoke suite, the deployed-CSP
+  proof) and `npm run test:webkit` runs on branches only, so equal service sits behind an unequal
+  gate. The exposure is real but NARROW: every normal change reaches main through a branch, where
+  WebKit does run, so what ships un-gated on Safari is a direct-to-main push or a manual dispatch.
+  Against that, a full WebKit run took 13.2 minutes when last timed, against a deploy of roughly
+  eleven and a half — **so gating on it roughly doubles time-to-live for every release, an emergency
+  fix included**, which is the cost the owner weighed and declined. The subset option (gate on part
+  of the suite) was available and not taken: a hand-picked list is the shape this repo keeps finding
+  stale. **Nothing here says Safari matters less** — the platform rule in CLAUDE.md is unchanged and
+  both engines stay first class; this is a decision about where the check runs, not about whether it
+  matters.
+
 - **The Huddle print notice keeps `:has()` — DECLINED** (external review, 8 Sep 2026). Replacing
   `body:has(#huddleViewer.visible)` with a body-state class was proposed on portability grounds. The
   app already leans on `:has()` in five stylesheets, and the other uses fail *worse*: an unsupported

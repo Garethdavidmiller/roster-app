@@ -1021,9 +1021,10 @@ Override cache key: `"memberName|YYYY-MM-DD"`
     mode, ITP evicts, and Safari fires neither `beforeprint` for AirPrint nor `transitionend` on a
     backgrounded tab. `install-prompt.js` and `notif.js` already branch correctly for both engines;
     that code was right through both wrong versions of this line.
-  **The open consequence:** Chromium gates every deploy and WebKit does not (`npm run test:webkit`
-  is branch CI only). Equal service against an unequal gate is the question — ROADMAP.md → "WebKit
-  in the deploy gate". An owner decision about CI cost, not a change to make quietly.
+  **One consequence, already decided.** Chromium gates every deploy and WebKit does not
+  (`npm run test:webkit` is branch CI only) — an unequal gate under equal service, weighed and left
+  as it is (owner, 8 Sep 2026; DECISIONS.md, with the trigger that would reopen it). **Weigh a
+  WebKit failure on a branch accordingly**: it is the only lane that sees Safari before release.
 - **Print CSS** — any new shift type, cell class, or badge needs `@media print` rules.
 - **No `alert()`** — `console.error()` for developer errors. No visible error text for recoverable failures.
 - **Code quality** — pure functions where possible, JSDoc on all functions, meaningful variable names, error handling on all async operations.
