@@ -255,6 +255,46 @@ test('the file list itself is non-empty — guard the guard', () => {
     assert.ok(CLAUDE.length > 50_000 && AI_MAP.length > 50_000, 'a routing doc came back suspiciously short');
 });
 
+// ── CONTRACT 1d: AI_MAP gives every module its OWN ENTRY, not merely a mention ─────────────────
+//
+// Contract 1 asks whether a module's NAME appears in AI_MAP.md. That is satisfied by a row in the
+// quick-decision table, or by a passing reference inside another module's entry — neither of which
+// is the thing AI_MAP exists to provide. CLAUDE.md's tree says "See AI_MAP.md for full module
+// descriptions and export lists", so a module with no entry is a routing DEAD END reached through a
+// pointer that promised otherwise, and contract 1 goes green over it.
+//
+// Measured 8 Sep 2026, auditing the file: FOUR modules had no entry. `install-prompt.js` and
+// `text-scale.js` appeared only as a quick-table row, though both carry real design reasoning that
+// CLAUDE.md's tree routes to at length. `admin-boot.js` and `settings-boot.js` had nothing at all,
+// while three of their four identical siblings each carried a near-identical paragraph — an
+// incomplete set and a fact written three times, which is the pair of failures this file's own
+// size section keeps arguing against.
+//
+// Headings may GROUP modules (`a.js` / `b.js` / `c.js`), which is how the six boot shims and the
+// Overtime cluster are entried, so the check reads every backticked module name out of every `###`
+// heading rather than expecting one heading per file.
+test('every module has its own AI_MAP entry, not just a mention', () => {
+    const entried = new Set();
+    for (const [, heading] of AI_MAP.matchAll(/\n### (.+)/g)) {
+        for (const [, mod] of heading.matchAll(/`(?:functions\/)?([A-Za-z0-9_.-]+\.m?js)`/g)) entried.add(mod);
+    }
+    assert.ok(entried.size > 100, `only ${entried.size} entried modules — the heading scan is wrong`);
+
+    const modules = [
+        ...readdirSync(new URL('.', import.meta.url)),
+        ...readdirSync(new URL('./functions/', import.meta.url)),
+    ].filter(f => f.endsWith('.js') && !f.endsWith('.test.js') && !NOT_ROUTED.has(f));
+    assert.ok(modules.length > 100, `only ${modules.length} modules found — the scan is wrong`);
+
+    const noEntry = modules.filter(m => !entried.has(m)).sort();
+    assert.deepEqual(noEntry, [],
+        'these modules are NAMED in AI_MAP.md but have no entry of their own, so a reader sent ' +
+        'there for the full description finds a table row or somebody else\'s paragraph:\n  ' +
+        noEntry.join('\n  ') +
+        '\nGive each one a `### ` entry, or add it to an existing grouped heading.');
+});
+
+
 // ── CONTRACT 2: no doc restates a count that a constant owns ───────────────────────────────────
 //
 // `links-rotation-parity.test.mjs` proved this works for ONE number, after the rotation length was

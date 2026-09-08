@@ -643,3 +643,40 @@ export { TOUCH_PROJECTS };
  * @param {{project: {name: string}}} info
  */
 export const isTouchProject = (info) => TOUCH_PROJECTS.includes(info.project.name);
+
+/**
+ * THE DESIGN MASTHEAD (v23.30, links-design-header.js). The picker is a native <select> under a
+ * heading face, and every verb but Save lives in the ··· More sheet — so "how many designs" is the
+ * option count, "which is open" is the face, and Delete/Duplicate/Import/Compare/Recently deleted
+ * are reached by opening the sheet first. The sheet closes itself and the action's own dialog
+ * appears 500ms later; every caller's next `expect` auto-waits, so no sleep is needed here.
+ * @param {import('@playwright/test').Page} page
+ */
+export function designOptions(page) { return page.locator('#designSelect option[data-id]'); }
+/** @param {import('@playwright/test').Page} page */
+export function activeDesignName(page) { return page.locator('#designFaceName'); }
+/** @param {import('@playwright/test').Page} page */
+export async function openDesignSheet(page) {
+    await page.locator('#designMoreBtn').click();
+    await expect(page.locator('#designMoreLb.visible')).toBeVisible();
+}
+/** Open the sheet and press one of its rows (by id). @param {import('@playwright/test').Page} page @param {string} id */
+export async function sheetAction(page, id) {
+    await openDesignSheet(page);
+    await page.locator(`#${id}`).click();
+    // The row closes the sheet and runs its action 500ms later. `clickDialogConfirm` treats "no
+    // dialog yet" as "no dialog", so wait here for the sheet to go and for whatever the action opens
+    // to arrive; an action that opens nothing (Compare) simply lets the short wait lapse.
+    await expect(page.locator('#designMoreLb.visible')).toHaveCount(0);
+    await page.locator('.dialog-overlay, .lb-overlay.visible').first()
+        .waitFor({ state: 'attached', timeout: 1500 }).catch(() => {});
+}
+/** Switch to the design whose name contains `name`, through the real <select>. @param {import('@playwright/test').Page} page @param {string} name */
+export async function switchToDesign(page, name) {
+    await page.locator('#designSelect').evaluate((/** @type {HTMLSelectElement} */ sel, /** @type {string} */ n) => {
+        const opt = [...sel.options].find(o => o.textContent?.includes(n));
+        if (!opt) throw new Error(`no design option containing "${n}"`);
+        sel.value = opt.value;
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+    }, name);
+}

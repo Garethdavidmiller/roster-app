@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: September 2026 — v23.20 · Updated every 0.10 version*
+*Last updated: September 2026 — v23.30 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -840,12 +840,6 @@ The three read-only reporting cards on `operations.html` — **Error Log**, **Us
 
 **SPLIT INTO FOUR at v21.32.** It reached 1,137 lines and was one edit from the coordinator ratchet refusing it. The response was **split, not extract**: no RULE was in there to take out — the maths already lives in `perf-stats.js`, `usage-stats.js` and `client-errors.js` — just three unrelated cards sharing a file. `operations-reports.js` keeps what they SHARE (`_cardLoadError`, `PAGE_META`, `OPEN_META`, `PRIVACY_FOOTER`, `_usageMonthLabel`, `_relativeTime`) and owns no card; `operations-errors.js` (Error Log), `operations-usage.js` (Usage) and `operations-speed.js` (App Speed) own one each and are imported DIRECTLY by `operations-app.js`. **No re-export barrel** — the first cut had one and `import-graph.test.mjs` refused it immediately, because a barrel re-exporting the cards while the cards import the helpers back is a cycle however tidily it reads. Imports only `session.js`, `firebase-client.js`, `perf-stats.js`, `roster-data.js` (escapeHtml).
 
-### `operations-boot.js`
-2-line bootstrap for `operations.html` (Phase 4a.2, v14.65). Imports `init` from `operations-app.js` and calls it. Exists because CSP `script-src 'self'` blocks an inline `init()` call, and because keeping the call out of the coordinator lets a test `import { init }` without auto-running the page. No logic of its own.
-
-### `links-boot.js`
-2-line bootstrap for `links.html` (Phase 4a.2, v14.67). Imports `init` from `links-app.js` and calls it. Same rationale as `operations-boot.js` (CSP + testability). No logic of its own.
-
 ### `links-app.js`
 Coordinator for `links.html` — the link-design workspace (designer-only; see `.claude/rules/links-design.md` for the full architecture: grid/paint/generator/coverage/checks/concurrency/print).
 - Only export is `init()` (Phase 4a.2) — early-return access gate (designer via `requirePage`, else redirect), no top-level throw.
@@ -951,6 +945,19 @@ The **SHAPE of a link design** — in memory and in Firestore — and every conv
 - **`activeDesignId` arrives as a GETTER (`getActiveDesignId`), never a value; `currentUser` and `isAdmin` arrive as VALUES.** The design changes after the panel is built — when the collection loads, and on every select — so a captured copy makes `describeSetState` answer about nobody: every saved setup would read as somebody else's, and Save changes would be disabled on your own. The identity does not change: `links-app.js` fixes `currentUser` and `isAdmin` as `const` before `init()` reaches the panel (the page has no in-place account switch), which is why they are passed as values. This row said both were getters until v22.88, contradicting both the call site and CLAUDE.md.
 - **The Save-as-new handler reads the user ONCE** into `author`. The naming dialog between the two reads is human think-time, and only an owner can overwrite a set — so a sign-out straddling them would write a set its author could never maintain.
 - **What it does NOT own.** `links-target-sets.js` (what a set is, who may overwrite), `links-target-sets-store.js` (the Firestore half and its conflict window), `links-target-hours.js` (the verdict), `links-default-targets.js` and `links-seed.js` (the two tables the reset buttons offer). The GENERATE button stays in the coordinator — pressing it writes patterns, re-renders the grid and marks the design dirty, which is coordination; it reads the table through `getTable()`.
+
+### `links-design-header.js`
+
+**The design MASTHEAD on links.html** (v23.30, owner request): which design is open, whose it is, whether it is saved, the one Save button, and the ··· More sheet behind which every other verb now lives. Replaced the picker STRIP — grey pills with ✎/✕ glyphs inside the active one and five buttons at equal weight — which three designers found unreadable. Every handle is injected, so it loads in Node. Tested by `links-design-header.test.mjs`.
+
+- `createDesignHeader(els, { onSelect, onRename }, { moreButton, sheet, sheetActions })` → `{ render(state) }`. `render` takes `{ designs, activeId, design, dirty, saving?, canDelete?, currentUser, now? }` and paints the select, the face, the badge, the status, both Save buttons and the sheet's header. **`sheet.create` is the coordinator's `createLightbox`, INJECTED** — overlay.js touches `window` at import. Every sheet action closes the sheet first and runs 500ms later (the `#linksHowBtn` pattern).
+- `groupDesigns(designs, currentUser)` — "Your designs" first, then other designers alphabetically, newest save first within a group; a design with no saver lands under "Other designs" rather than being dropped. Groups by `updatedBy` (LAST SAVED BY, not creator — an owner-accepted wobble; a `createdBy` field would be a rules change).
+- `saveButtonLabel({ saved, dirty })` — `Save as…` (no document yet: the press will ASK for a name) · `Save` · `Saved`. One place; call sites never write these.
+- `statusCopy({ saved, dirty, saving, updatedAt, now })` → `{ tone, long, short }` — the desktop sentence and the phone's two words. Unsaved edits are never reported as saved.
+- `whoCopy({ saved, updatedBy, currentUser })` → `{ name, role }` — "Last saved by you" / "Last saved by" / "Will be saved by you".
+- `proposeNewDesignName(currentUser, existing, now)` — `"G. Miller · 8 Sept"`, stepping past a clash, for the first-save prompt.
+- `toDate(v)` — Timestamp-like, Date or epoch ms → Date, else null.
+- **Four rules** (argued in the header): a NATIVE `<select>` under a custom face, never a hand-rolled list; grouped by designer with no filter step in front; no name until the first save; the select is rebuilt only when its CONTENT changes (a rebuild mid-paint closes an open picker on Android).
 
 ### `links-design-naming.js`
 
@@ -1138,8 +1145,10 @@ The PURE co-editing rules for the Links workspace (v19.38) — no DOM, no Fireba
 - `canAdvanceBaseline(preTs, ourBaseline, preReadOk = true)` — a rename may move our baseline only when nothing changed underneath it (v16.19 is the bug from not advancing, v16.23 the bug from advancing blindly). Still the fallback; a rename with a revision on both sides compares those instead.
 - Tested by `links-concurrency.test.mjs`, one case per historical bug; the read-back window itself is driven end to end in `links-design-store.test.mjs`, where a competing writer can be run between the commit and the stamp read.
 
-### `paycalc-boot.js`
-2-line bootstrap for `paycalc.html` (Phase 4a.2, v14.67). Imports `init` from `paycalc-app.js` and calls it. Same rationale as `operations-boot.js` (CSP + testability). No logic of its own.
+### `admin-boot.js` / `links-boot.js` / `operations-boot.js` / `paycalc-boot.js` / `settings-boot.js`
+The **2-line page bootstraps** (Phase 4a.2, v14.65–v14.67). Each imports `init` from its coordinator and calls it. Nothing else — no logic, no state, no exports of their own.
+- **Two reasons, and both are needed.** CSP `script-src 'self'` blocks an inline `init()` call in the page; and keeping the call out of the coordinator lets a test `import { init }` without auto-running the page, which is the seam every coordinator suite uses.
+- `overtime-boot.js` is the sixth and is described with the rest of the Overtime modules. **One entry for all of them on purpose**: three of these carried a near-identical paragraph each ("same rationale as `operations-boot.js`") while `admin-boot.js` and `settings-boot.js` had no entry at all — a fact restated three times over an incomplete set.
 
 ### `admin-range-booking.js`
 Shared skeleton for the two admin.html date-range booking sections (AL + sick), which were near-identical before v16.08.
@@ -2354,6 +2363,19 @@ The Calendar's one-off **notification prompt strip** (`#notifPrompt`) and the **
 - `initNotifPrompt({ authReady, getAccessType })` — permission granted → renew via `getNotifState()` and show nothing; never asked → show the strip once per device (`myb_notif_prompt_done`); denied → nothing. Both halves run for `named`/`open` access and **never for the shared PIN viewer**, whose uid is the same on every office PC — a renewal there would re-stamp a real member's subscription `owner`. Gated on AUTH, not access: re-subscribing is a Firestore write.
 - Two orderings the header pins: `notifSupported()` before any read of `Notification.permission` (a plain iOS Safari tab has no `Notification` global), and `requestPermission()` inside the tap before any `await` (iOS/WebKit refuse a no-gesture request).
 - Wired by `calendar-app.js` BEFORE `initInstallPrompt`, which hides this strip when it shows its own — install first, because on iOS notifications need the installed app.
+
+### `install-prompt.js`
+The one-off **"add the roster to your home screen" strip** on the calendar (`.top-prompt`, the notification prompt's own slot). Shares that strip's markup, styling and slot so the two can never drift apart or, more importantly, **appear together** — and wired straight AFTER `initNotifPrompt`, which it then hides when it shows its own. Install outranks notifications because on iOS `notifSupported()` is FALSE until the app is installed, so the other strip's offer is not available yet.
+- `initInstallPrompt({ accessReady, getAccessType })` — the access promise and the access-type reader are injected, as in `calendar-notif-prompt.js`.
+- **The two platforms are different features, not one with a fallback.** Chromium fires `beforeinstallprompt` (single-use, and `preventDefault()` is required to keep it) → a real button. WebKit fires nothing and the only route is Share → Add to Home Screen → instructions and no button, shown on the app's own judgement rather than the browser's.
+- **Three populations are never asked**, each for its own reason: the shared PIN viewer (a station, not a person), anyone already inside the installed app, and anyone on the Pages mirror — an offer there would create NEW installs on the origin the app is trying to leave.
+- **Mobile-only is a BEHAVIOUR, not a layout.** The width test runs BEFORE the event is captured, because `preventDefault()` suppresses Chrome's own promotion — doing that where the strip is then invisible leaves a desktop member with no offer from anyone. The breakpoint is read off `--prompt-available` in `index.css` rather than copied here. The module header carries the argument, and the deliberate limit it does NOT rescue.
+
+### `text-scale.js`
+**How much larger than the stylesheet's sizes the phone actually draws its text**, and the two-tier stamp the calendar's control rows key on. Exists because Android's font/display scaling multiplies used font-sizes and leaves the viewport ALONE — so no width query and no narrower test viewport can reach the state where five buttons stop fitting, and the owner did not want two rows.
+- `LARGE_FROM` (1.1) / `LARGE_VALUE` (`'large'`) · `COMPACT_FROM` (1.2) / `COMPACT_VALUE` (`'compact'`) · `tierFor(scale)` → `null` · `'large'` · `'compact'` · `isCompact(scale)` · `measureTextScale(doc)` · `applyTextScale(doc)` (stamps `data-text-scale` on `<html>`).
+- **The probe IS the measurement**: a hidden 16px element's rendered height is the scale, whatever the OS calls the setting. **It cannot throw** — `calendar-app.js` calls it at module scope, and every fallback (no document, no body, a zero box, a bad seam) returns a value that is never `'compact'`.
+- `'large'` tightens the month heading row; `'compact'` tightens the action row as well. **Compact is the step BEFORE the wrap, never instead of it.** Tested by `text-scale.test.mjs`; the probe itself in `e2e/calendar.spec.js`.
 
 ### `calendar-doc-access.js`
 **May this Calendar read the documents?** (v23.17 — owner decision 7 Sep 2026: the Daily Huddle, the Weekly Retail Circular and the Marylebone Newsletter are not visible without the staff PIN or a password.) `firestore.rules` enforces that on the server; this is what makes the client honour it, for the reason `calendar-overrides.js` has a gate of its own: rules are evaluated server-side, and a read the local Firestore cache can answer never consults them. No imports.

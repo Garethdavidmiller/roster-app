@@ -18,6 +18,7 @@ import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse, createLightbox, confirmDialog, promptDialog, openNoticeIfClear } from './overlay.js';
 import { MAX_DESIGN_NAME, checkName, proposeCopyName } from './links-design-naming.js';
+import { createDesignHeader, proposeNewDesignName } from './links-design-header.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { CARD_TIPS } from './links-tips.js';
@@ -504,86 +505,71 @@ export function init() {
     // DESIGN MANAGEMENT
     // ============================================
 
-    /** Wire design picker buttons — called once on page load. */
+    /** @type {ReturnType<typeof createDesignHeader>|null} the masthead (links-design-header.js) */
+    let header = null;
+    /** Both Save buttons — the masthead's and the sticky row's. One label, one state. */
+    const _saveBtns = () => /** @type {HTMLButtonElement[]} */ (['linksSaveBtnTop', 'linksSaveBtn'].map(id => document.getElementById(id)).filter(Boolean));
+    const _headerState = (/** @type {boolean} */ saving = false) => ({
+        designs, activeId: activeDesignId, design, dirty, currentUser, saving,
+        canDelete: canSoftDelete(designs.length),
+    });
+
+    /** Wire the masthead + its ··· More sheet, once. The sheet's rows keep their long-standing ids. */
     function initDesignPicker() {
-        // Delegated clicks on the main chips container
-        document.getElementById('designChips')?.addEventListener('click', e => {
-            const t = /** @type {Element} */ (e.target);
-            const renameBtn = /** @type {HTMLElement|null} */ (t.closest('.design-chip-rename'));
-            const deleteBtn = /** @type {HTMLElement|null} */ (t.closest('.design-chip-delete'));
-            const nameBtn   = /** @type {HTMLElement|null} */ (t.closest('.design-chip-name'));
-            if (renameBtn)      renameDesign(renameBtn.dataset.id);
-            else if (deleteBtn) deleteDesign(deleteBtn.dataset.id);
-            else if (nameBtn)   selectDesign(nameBtn.dataset.id);
+        const $ = (/** @type {string} */ id) => document.getElementById(id);
+        const onRename = () => { if (activeDesignId) renameDesign(activeDesignId); };
+        header = createDesignHeader({
+            select: /** @type {HTMLSelectElement|null} */ ($('designSelect')),
+            faceName: $('designFaceName'), eyebrow: $('designEyebrow'), count: $('designCount'),
+            masthead: $('designMasthead'), avatar: $('designAvatar'),
+            whoName: $('designWhoName'), whoRole: $('designWhoRole'),
+            status: $('designStatus'), statusLong: $('designStatusLong'), statusShort: $('designStatusShort'),
+            saveButtons: _saveBtns(),
+            renameButtons: /** @type {HTMLButtonElement[]} */ ([$('designRenameBtn')].filter(Boolean)),
+            deleteButton: /** @type {HTMLButtonElement|null} */ ($('designDeleteBtn')),
+            sheetAvatar: $('designSheetAvatar'), sheetName: $('designSheetName'), sheetSub: $('designSheetSub'),
+        }, { onSelect: selectDesign, onRename }, {
+            moreButton: /** @type {HTMLButtonElement|null} */ ($('designMoreBtn')),
+            sheet: { overlay: $('designMoreLb'), content: $('designMoreContent'), closeBtn: $('designMoreClose'), initialFocus: $('dupDesignBtn'), create: createLightbox },
+            sheetActions: [
+                [$('dupDesignBtn'), duplicateDesign], [$('designRenameMenuBtn'), onRename], [$('compareBtn'), compare.toggleCompareMode],
+                [$('newDesignBtn'), createDesign], [$('importDesignBtn'), openImport],
+                [$('designDeleteBtn'), () => { if (activeDesignId) deleteDesign(activeDesignId); }],
+            ],
         });
-        // Delegated clicks on compare chips
-        document.getElementById('compareChips')?.addEventListener('click', e => {
+        $('compareChips')?.addEventListener('click', e => {
             const nameBtn = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.design-chip-name'));
             if (nameBtn) compare.selectCompareDesign(nameBtn.dataset.id);
         });
-        document.getElementById('newDesignBtn')?.addEventListener('click',     createDesign);
-        document.getElementById('importDesignBtn')?.addEventListener('click',  openImport);
-        // The empty state's two actions (v19.66). They do not duplicate any behaviour — the blank
-        // one calls the SAME `createDesign` the picker's "+ New" does, and the primary one only
-        // scrolls, because generating needs targets the designer has to look at first. Offering
-        // "Generate" straight from an empty card would fire the generator against whatever the
-        // roster seed happened to produce, which is a design nobody chose.
-        document.getElementById('linksEmptyNew')?.addEventListener('click',    createDesign);
-        document.getElementById('linksEmptyGenerate')?.addEventListener('click', () => {
+        // The empty state's two actions (v19.66): blank → the same `createDesign`; the primary one
+        // only SCROLLS — a Generate fired from an empty card builds a design nobody chose.
+        $('linksEmptyNew')?.addEventListener('click',    createDesign);
+        $('linksEmptyGenerate')?.addEventListener('click', () => {
             _openGenerator();
             document.getElementById('generatorCard')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
-        document.getElementById('dupDesignBtn')?.addEventListener('click',     duplicateDesign);
-        document.getElementById('compareBtn')?.addEventListener('click',       compare.toggleCompareMode);
     }
     initDesignPicker();
 
-    /** Rebuild the design picker HTML from the current state. */
+    /** Repaint the masthead, the sheet and the compare picker from the current state. */
     function renderDesignPicker() {
         const wrap           = document.getElementById('designPickerWrap');
-        const chipsEl        = document.getElementById('designChips');
         const compareChipsEl = document.getElementById('compareChips');
         const comparePickerRow = document.getElementById('comparePickerRow');
         const compareBtn     = /** @type {HTMLButtonElement|null} */ (document.getElementById('compareBtn'));
         const dupBtn         = /** @type {HTMLButtonElement|null} */ (document.getElementById('dupDesignBtn'));
         if (!wrap) return;
 
-        // The picker strip is ALWAYS shown (v19.43). It used to appear only once a design existed,
-        // which contradicted the empty state's own instruction — "tap + New for a blank canvas"
-        // pointed at a button inside this very wrapper, so on a first visit the message named a
-        // control that was not on the page. It also hid the bin: "Recently deleted" lives here
-        // too, and zero live designs with a full bin is exactly when restore matters most (v19.41).
-        // Duplicate and Compare disable themselves when they have nothing to act on, so an empty
-        // strip is honest rather than misleading.
-        wrap.style.display = '';
-
-        // Render main design chips. A chip is a <div> wrapping separate <button>s —
-        // buttons must NOT nest (the HTML parser force-closes an open <button> when
-        // another one starts, which silently breaks the markup).
-        // Recently-deleted button: present only when the bin has something in it, so the workspace
-        // gains no permanent extra control for a feature most sessions never touch.
+        wrap.style.display = '';   // ALWAYS shown (v19.43): the empty state points at the sheet
+        // Recently-deleted row: present only when the bin has something in it.
         const binBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('designBinBtn'));
         if (binBtn) {
             binBtn.style.display = deletedDesigns.length > 0 ? '' : 'none';
-            binBtn.textContent   = `🗑 Recently deleted (${deletedDesigns.length})`;
+            const label = binBtn.querySelector('span:last-child');
+            if (label) label.textContent = `Recently deleted (${deletedDesigns.length})`;
         }
 
-        if (chipsEl) {
-            const canDelete = canSoftDelete(designs.length);
-            chipsEl.innerHTML = designs.map(d => {
-                const isActive = d.id === activeDesignId;
-                const actions = isActive
-                    ? `<button class="design-chip-rename" data-id="${escapeHtml(d.id)}" type="button" ` +
-                      `title="Rename" aria-label="Rename ${escapeHtml(d.name)}">✎</button>` +
-                      `<button class="design-chip-delete" data-id="${escapeHtml(d.id)}" type="button" ` +
-                      `title="Delete" aria-label="Delete ${escapeHtml(d.name)}"` +
-                      `${canDelete ? '' : ' disabled'}>✕</button>`
-                    : '';
-                return `<div class="design-chip${isActive ? ' design-chip--active' : ''}">` +
-                    `<button class="design-chip-name" data-id="${escapeHtml(d.id)}" type="button"` +
-                    `${isActive ? ' aria-current="true"' : ''}>${escapeHtml(d.name)}</button>${actions}</div>`;
-            }).join('');
-        }
+        header?.render(_headerState());
 
         // Print-only masthead. It named the design and nothing else, which left a printed sheet
         // with no way to tell WHICH version of that design you were holding (v19.45) — and the
@@ -602,6 +588,8 @@ export function init() {
             compareBtn.disabled = designs.length < 2;
             compareBtn.classList.toggle('compare-active', cmpMode);
             compareBtn.setAttribute('aria-pressed', cmpMode ? 'true' : 'false');
+            const lbl = document.getElementById('compareBtnLabel');
+            if (lbl) lbl.textContent = cmpMode ? 'Stop comparing' : 'Compare with…';
         }
 
         // Compare picker row
@@ -769,7 +757,7 @@ export function init() {
             _sortDesigns();
             _importLb?.close();
             _activateDesign(d);
-            _designActionStatus(`Imported “${name}”. Check it against the sheet it came from.`);
+            _designActionStatus(`Imported “${name}”. Check it against the sheet it came from.`, 'ok');   // a success, not an error (it rendered RED until v23.30)
         } catch (err) {
             console.error('[Links] Import failed:', err);
             _importStatus('Couldn’t save the design — check your connection and try again.', 'bad');
@@ -999,9 +987,11 @@ export function init() {
             // co-editor may still hold, so entering it with no baseline is worse than for a new
             // one: the next save would skip the "someone else saved" confirm entirely. A null
             // stamp reads as an UNKNOWN baseline (guard on), never "nothing to compare".
-            designs.push(restoredEntryFrom(d, { updatedAt: restoredTs, updatedBy: currentUser, revision: restoredRev }));
+            const restored = restoredEntryFrom(d, { updatedAt: restoredTs, updatedBy: currentUser, revision: restoredRev });
+            designs.push(restored);
             _sortDesigns();
-            renderDesignPicker();
+            // Restoring into an EMPTY workspace OPENS the design — the masthead names the open one.
+            if (!design) _activateDesign(restored); else renderDesignPicker();
             renderBinList();
             _binStatus(`“${d.name}” restored.`, 'ok');
         } catch (err) {
@@ -1086,7 +1076,7 @@ export function init() {
             closeBtn: /** @type {HTMLElement} */ (closeBtn),
             onOpen() { _binStatus('', 'ok'); renderBinList(); },
         });
-        document.getElementById('designBinBtn')?.addEventListener('click', () => lb.open());
+        document.getElementById('designBinBtn')?.addEventListener('click', () => header ? header.viaSheet(() => lb.open()) : lb.open());   // via the ··· sheet
         document.getElementById('designBinList')?.addEventListener('click', e => {
             const t = /** @type {Element} */ (e.target);
             const restore = /** @type {HTMLElement|null} */ (t.closest('.bin-restore'));
@@ -1866,7 +1856,7 @@ export function init() {
 
             if (!design) {
                 // No active design yet — load into an unsaved in-memory design
-                design = { id: null, name: 'Design 1', patterns: _final };
+                design = { id: null, name: '', patterns: _final };   // named on its FIRST SAVE (links-design-header.js rule 3)
                 activeDesignId = null;
             } else {
                 design = { ...design, patterns: _final };
@@ -2017,9 +2007,9 @@ export function init() {
     // ============================================
 
     function updateSaveBtn() {
-        const btn    = /** @type {HTMLButtonElement|null} */ (document.getElementById('linksSaveBtn'));
         const status = document.getElementById('linksSaveStatus');
-        if (btn) btn.disabled = !dirty;
+        // Both Save buttons — label AND state — are the masthead's (links-design-header.js).
+        header?.render(_headerState());
         if (status && dirty) status.textContent = '';
     }
 
@@ -2141,10 +2131,24 @@ export function init() {
     }
 
     async function saveChanges() {
-        const btn    = /** @type {HTMLButtonElement|null} */ (document.getElementById('linksSaveBtn'));
+        const btns   = _saveBtns();
         const status = document.getElementById('linksSaveStatus');
         if (!design) return;
-        if (btn) btn.disabled = true;
+        // THE FIRST SAVE IS WHERE A DESIGN GETS ITS NAME (v23.30; links-design-header.js rule 3).
+        // Asked BEFORE the "Saving…" state, because a cancel here is a decision and not a failure.
+        if (!activeDesignId) {
+            const name = (await promptDialog({
+                title: 'Name this design',
+                message: 'Colleagues will see this name in the list. You can rename it later.',
+                defaultValue: proposeNewDesignName(currentUser, designs),
+                maxLength: MAX_DESIGN_NAME, confirmLabel: 'Save',
+            }))?.trim();
+            if (!name) return;
+            if (_designNameRejected(name)) return;
+            design.name = name;
+        }
+        for (const b of btns) { b.disabled = true; b.textContent = 'Saving…'; }
+        header?.render(_headerState(true));
         if (status) { status.textContent = 'Saving…'; status.className = 'links-save-status'; }
 
         try {
@@ -2193,7 +2197,7 @@ export function init() {
                 });
             };
             const markNotSaved = () => {
-                if (btn) btn.disabled = false;
+                updateSaveBtn();
                 if (status) {
                     status.textContent = 'Not saved — your changes are still here. Refreshing the page would discard them.';
                     status.className   = 'links-save-status err';
@@ -2288,7 +2292,7 @@ export function init() {
         } catch (err) {
             console.error('[Links] Save failed:', err);
             dirty = true;
-            if (btn) btn.disabled = false;
+            updateSaveBtn();
             if (status) { status.textContent = 'Save failed — try again'; status.className = 'links-save-status err'; }
         }
     }
@@ -2429,7 +2433,7 @@ export function init() {
     // ============================================
     // BUTTON HANDLERS
     // ============================================
-    document.getElementById('linksSaveBtn')?.addEventListener('click', saveChanges);
+    for (const b of _saveBtns()) b.addEventListener('click', saveChanges);
 
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape' && brush !== null) dearmBrush();
