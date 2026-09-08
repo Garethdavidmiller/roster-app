@@ -1,17 +1,53 @@
 # AL_WORKBOOK.md — the depot annual-leave workbook
 
-*Started 8 Sep 2026. Not version-stamped; not a runtime asset. **A working understanding, not a
-specification** — it records what has been established by reading the file, what is inferred, and
-what is still unknown. Correct it in place rather than arguing with it.*
+*Started 8 Sep 2026. Not version-stamped; not a runtime asset.*
 
-**Why this file exists.** The owner uploads `Customer_Service_Annual_Leave_2026.xlsx` into a session
-and asks questions of it — and intends to use it monthly as an independent accuracy check on the
-app's own annual-leave figures. Without this file every session starts from nothing, re-derives the
-same structure, and re-asks the same questions. Read this first; then read the workbook; then ask
-only what is genuinely still open (§10).
+> ## ⚠️ THIS IS A WORK IN PROGRESS, NOT A SPECIFICATION
+>
+> **Nothing here is a definitive reading of the workbook.** It is what one session worked out by
+> reading the file for an afternoon, and the owner has confirmed almost none of it. Several
+> statements below will turn out to be wrong. Treat every one as a starting point to be checked
+> against the file in front of you, never as a fact you can quote back.
+>
+> **It is meant to get better every time the workbook is uploaded.** The owner uploads it into a
+> session, asks questions of it, and the answers to those questions are what turns an
+> `[inferred]` into a `[measured]` and closes an open question. **That improvement only happens if
+> the session does it** — so:
+>
+> - **Ask.** When something does not add up, or an assumption is load-bearing and unconfirmed,
+>   put the question to the owner rather than picking the likelier reading and moving on.
+> - **Point things out.** A duplicate row, a person in one system and not the other, a figure that
+>   changed since last time — say so, even when it was not what was asked.
+> - **Write it back HERE, in the same session.** An answer that stays in the chat is lost; the
+>   next session re-asks it. Update the section, strike the open question, move the marker.
+> - **Record what changed** in §12, so the owner can see the understanding growing.
 
-**Evidence markers used throughout:** **[measured]** = read out of the file. **[inferred]** = the
-best reading of measured facts, not confirmed by the owner. **[unknown]** = neither.
+**Evidence markers, used on every claim:** **[measured]** = read out of the file this session or a
+previous one. **[inferred]** = the best reading of measured facts, and NOT confirmed by the owner.
+**[unknown]** = neither, and stated as unknown rather than guessed.
+
+---
+
+## 0 · THE RULE THAT MUST NOT BE GOT WRONG
+
+**When asked for a person's annual leave, the over-quota days are part of the answer.**
+
+A day recorded in the `AL over depot quota` column is real annual leave. The person is off work, it
+is deducted from their entitlement, and it is **invisible in the calendar grid** — so any answer
+built only from the grid is short by exactly those days and reads as complete. That has already
+happened once (J. Davies, 8 Sep 2026: nineteen days reported where the true figure was twenty, with
+Christmas Eve missing from the middle of a block).
+
+So, before answering any question about somebody's leave:
+
+1. **Read their column E first**, not last, and read its threaded comment for the dates (§5, §6).
+2. **List the over-quota days alongside the grid days**, in date order, marked as over-quota — never
+   as a footnote, and never merely as a total.
+3. If column E has a value whose comment cannot be read, or does not name dates, **say so in the
+   answer**. An unexplained deduction is a question for the owner, not a rounding error.
+4. **Give the days the person is actually away**, marking which ones cost entitlement — Sundays and
+   Closed days sit inside blocks and cost nothing, but leaving them out hands the reader a gap that
+   does not exist in their life (§4).
 
 ---
 
@@ -107,6 +143,8 @@ repeating.
 ---
 
 ## 5 · "AL over depot quota" — the column that is not in the grid
+
+*These days go in the answer. §0 is the rule; this is the mechanism.*
 
 **What it is [inferred, strongly]:** annual leave that was **granted on a day the quota was already
 full**, so there was no slot to write the name in. It is deducted from Remaining without ever
@@ -245,7 +283,9 @@ difference is.
 
 ## 10 · Open questions for the owner
 
-Answer any of these and strike it from this list rather than answering it again.
+Answer any of these and strike it from this list rather than answering it again — and **ask them**
+when the workbook is next uploaded, rather than waiting to be volunteered an answer. Several of
+them change what a figure MEANS, so an unanswered one is not a tidiness problem.
 
 1. **`Barnard . M`** has 2026 bookings but is not on the app roster. Current staff member missing
    from the app, a leaver whose row was left behind, or somebody at another location?
@@ -279,3 +319,16 @@ none of them is true today:
   allocation, and a day in it is not always a day the app should record.
 
 Until then this is a session-time analysis, and this document is what makes that repeatable.
+
+---
+
+## 12 · What has been learnt, and when
+
+Add a row every time the workbook is uploaded and something is established, corrected or refused.
+This is the record of the file getting better; an upload that taught nothing is worth a row saying so.
+
+| Date | What changed | Prompted by |
+|---|---|---|
+| 8 Sep 2026 | First pass. The quota-grid framing, the 2021 decoy sheet, the Remaining formula, the per-grade COUNTIF ranges, the Sunday free-text tags, the name mapping and the workbook's own defects — all `[measured]`. The meaning of `AL over depot quota` recorded as `[inferred]`. | Owner asked for M. Robson's and then J. Davies's 2026 leave |
+| 8 Sep 2026 | **Correction.** An earlier answer reported J. Davies's leave from the grid alone and omitted his over-quota day. §0 exists because of it. | Owner: "You need to provide the full list of days even if it is out of quota" |
+| 8 Sep 2026 | **Correction.** Column E's dates were reported as living nowhere, on the strength of `openpyxl` returning Excel's placeholder for a threaded comment. They are in `xl/threadedComments/`. | Owner: "I need that J. Davies issue explaining more clearly" |
