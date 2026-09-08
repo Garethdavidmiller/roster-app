@@ -10,9 +10,16 @@
  * ── THREE THINGS HERE ARE EASY TO "TIDY" AND MUST NOT BE ────────────────────────────────────────
  *
  * 1. **An unanswered day is unanswered.** There is no default selection and no pre-fill from last
- *    week. Submit stays disabled until all seven are chosen, and the first unanswered day is what
- *    the error focuses. A default would be an answer this member did not give, about their own
- *    life, submitted under their name.
+ *    week. A default would be an answer this member did not give, about their own life, submitted
+ *    under their name.
+ *
+ *    Submit is NOT disabled while days are outstanding — it reads "N days still to answer", and
+ *    pressing it refuses, says which day, and walks there. A disabled button explains nothing, and
+ *    this one has something specific to say. (This paragraph claimed the opposite until v23.34,
+ *    which is worse than saying nothing: `updateSubmitState` carries the real rule in a comment
+ *    beside `disabled = false`, so an editor trusting the header would have "restored" a disabled
+ *    button and undone the decision. The count and the press-time check must also agree about what
+ *    "answered" means — they did not, at v21.92, and the rule now lives in `unfinishedDates`.)
  *
  * 2. **The client never refuses a submission near the deadline.** `submitDisposition` returns
  *    `check-with-server` for the first fifteen minutes past it, and this module SENDS. A page that
