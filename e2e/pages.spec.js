@@ -4185,6 +4185,19 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
                 const r = el.getBoundingClientRect();
                 if (!r.width || !r.height) return;
                 if (getComputedStyle(el).visibility === 'hidden') return;
+                // A CONTROL THAT CANNOT RECEIVE A POINTER IS NOT A TAP TARGET (v23.36). The
+                // enhanced selects behind `select-sheet.js` are 1x1, `opacity: 0`,
+                // `pointer-events: none` value holders sitting under a real trigger — the reader
+                // taps the trigger, which IS measured here. They are not `visibility: hidden`
+                // (Playwright's `selectOption` needs a rendered box), so the check above cannot
+                // see them, and the guard reported `select#fieldMember = 1x1` on admin.html.
+                //
+                // Tested by `pointer-events` rather than by the class, deliberately: the property
+                // IS the definition of "cannot be tapped", so this skips exactly the elements the
+                // guard has nothing to say about, and a control that acquires
+                // `pointer-events: none` by accident is a different and worse bug than a small
+                // one — this guard was never the thing that would catch it.
+                if (getComputedStyle(el).pointerEvents === 'none') return;
                 // Must be fully on screen to probe outward from, or the walk stops at the edge and
                 // reports a false failure for a control that is merely scrolled out of view.
                 if (r.top < 26 || r.top > innerHeight - 26) return;
