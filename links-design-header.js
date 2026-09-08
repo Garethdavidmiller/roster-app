@@ -17,14 +17,37 @@
  *
  * FOUR RULES AN EDIT CAN SILENTLY BREAK:
  *
- * 1. **The picker is a NATIVE `<select>` under a custom face.** The select sits invisibly over the
- *    heading (`opacity: 0`, full size), so a tap opens the phone's own picker — the one control
- *    every colleague already knows — while the visible face is set as a real title. A custom menu
- *    would look richer and would be a second focus-trap, a second component and a second idiom
- *    beside the generator card's saved-setups select. Do not replace it with a hand-rolled list.
+ * 1. **The picker is a SHEET of buttons, and the `<select>` it replaced is the argument to read
+ *    first (v23.35).** Until now this was a native select sitting invisibly over the heading, and
+ *    the case for it was good: free grouping, free keyboard handling, real screen-reader semantics,
+ *    one focus-trap fewer, and the one control every colleague already knows. This very rule said
+ *    "do not replace it with a hand-rolled list."
+ *
+ *    It was wrong about the only thing that decides a control — what it looks like where it runs.
+ *    A select's popup is drawn by the OS and no page CSS can reach it, so on Android it is a
+ *    full-bleed Material radio list: the app's own design disappears at the exact moment a designer
+ *    is choosing between designs, and a real name ("By the Book — Dec 2026 (BB-24-D7 · 0f14abce)")
+ *    wraps to three lines of oversized type per row. Reported from a phone, which is the only place
+ *    it is visible — the desktop select renders as a tidy grouped dropdown and hides the fault.
+ *
+ *    It is now a `createLightbox` dialog of plain `<button>` rows, the SAME construction as the
+ *    ··· More sheet one button along, and it emits the SHARED `.picker-opt` classes that
+ *    `select-sheet.js` uses for every other dropdown in the app, so there is one dropdown rather
+ *    than several that resemble each other. Buttons in a modal dialog need no `role="listbox"`
+ *    machinery to be operable: createLightbox already supplies Tab, Escape and the focus trap, and
+ *    `aria-current` plus a tick marks the open design without relying on colour. What is given up
+ *    is the OS picker's familiarity and its native type-ahead — and the face, being aria-hidden,
+ *    needs an `aria-label` naming the open design, which the select announced for free.
+ *
+ *    ONE BUG CLASS WENT WITH IT. A `<select>` holds a value, so `change` moved it the instant the
+ *    reader picked and a DECLINED switch left the picker naming a design nobody had opened — fixed
+ *    at v23.33 by re-pointing the select on every render. The sheet holds no value at all: it
+ *    reports an id and closes, and the face is rendered from `design`/`activeId`. The coordinator
+ *    still re-renders on the decline path, which is right for its own reasons, but the desync it
+ *    was patching can no longer happen here.
  *
  * 2. **Grouped by designer, your own designs first, newest first within a group.** `groupDesigns`
- *    is the one ordering; the face, the select and the More sheet read it. It groups by
+ *    is the one ordering; the face, the picker sheet and the More sheet read it. It groups by
  *    `updatedBy`, which is LAST SAVED BY, not creator — a design moves group when a colleague saves
  *    it. That is a known wobble and the owner chose to live with it rather than add a `createdBy`
  *    field (a rules change, backend-first). If that field ever arrives, this is the one function to
@@ -38,11 +61,12 @@
  *    asks for the name at that moment and pre-fills `proposeNewDesignName`, so a blank field never
  *    blocks anyone. `saveButtonLabel` owns the three labels; do not write them at the call sites.
  *
- * 4. **The select is rebuilt only when its CONTENT changes.** `render` runs on every dirty flip and
- *    `applyShift` fires once per cell during a paint drag, so an unconditional rebuild would tear
- *    down and re-create the option list dozens of times a second, and on Android would close an
- *    open picker. The signature compares ids, names, saved-dates and the active id — the same
- *    shape the brush bar uses for the same reason.
+ * 4. **The picker list is rebuilt only when its CONTENT changes.** `render` runs on every dirty flip
+ *    and `applyShift` fires once per cell during a paint drag, so an unconditional rebuild would
+ *    tear down and re-create every row dozens of times a second — and would destroy the row under
+ *    a reader's finger while the sheet is open. The signature compares ids, names, saved-dates and
+ *    the active id — the same shape the brush bar uses for the same reason. The click handler is
+ *    DELEGATED to the list for the same reason: a rebuild can then never orphan a listener.
  *
  * What it deliberately does NOT own: the decision to save, the conflict protocol, naming validation
  * (`links-design-naming.js`), compare mode, the bin. Every handle is injected; the module reaches for
@@ -189,7 +213,9 @@ export function proposeNewDesignName(currentUser, existing = [], now = new Date(
 
 /**
  * @typedef {object} HeaderEls
- * @property {HTMLSelectElement|null} select
+ * @property {HTMLElement|null} pickList        the picker sheet's row container
+ * @property {HTMLElement|null} pickerSub       the "N saved designs" line in its head
+ * @property {HTMLButtonElement|null} pickerButton the masthead face that opens it
  * @property {HTMLElement|null} faceName
  * @property {HTMLElement|null} eyebrow
  * @property {HTMLElement|null} count
@@ -224,41 +250,90 @@ export function proposeNewDesignName(currentUser, existing = [], now = new Date(
  */
 
 /**
+ * One row of the picker sheet. A plain `<button>`, so the sheet needs no listbox ARIA:
+ * `aria-current` marks where you are and the tick shows it without relying on colour alone.
+ * The classes are the SHARED `.picker-opt` set from shared.css, which `select-sheet.js` also
+ * emits — one dropdown in the app, one definition of what its rows look like.
+ * @param {{ id?: string, name: string, meta: string, current: boolean }} row
+ */
+function pickRow({ id, name, meta, current }) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = current ? 'picker-opt is-current' : 'picker-opt';
+    if (id) b.dataset.id = id;
+    if (current) b.setAttribute('aria-current', 'true');
+    if (!id) b.disabled = true;          // the open-but-unsaved row has no id to select by
+    const text = document.createElement('span');
+    text.className = 'picker-opt-text';
+    const n = document.createElement('span');
+    n.className = 'picker-opt-name';
+    n.textContent = (name || '').trim() || 'Untitled design';
+    const m = document.createElement('small');
+    m.textContent = meta;
+    text.append(n, m);
+    const tick = document.createElement('span');
+    tick.className = 'picker-opt-tick';
+    tick.setAttribute('aria-hidden', 'true');
+    tick.textContent = current ? '✓' : '';
+    b.append(text, tick);
+    return b;
+}
+
+/**
  * Wire the masthead once and return its renderer. Every element is injected; a missing one is
  * skipped, so the module cannot throw on a page that lacks part of the markup.
  *
- * The ··· More sheet is built here too, from injected elements, and EVERY sheet action closes the
- * sheet first and runs after its fade — the pattern `#linksHowBtn` established for the About panel.
- * Stacking the action's dialog over the sheet leaves the sheet open behind a finished action, and
- * acting in the same tick as close() races the sheet's history.back() against the dialog's pushState.
- * The 500ms matches `dismissOverlay`'s fallback.
+ * BOTH sheets are built here, from injected elements, and every action closes its sheet first and
+ * runs after the fade — the pattern `#linksHowBtn` established for the About panel. Stacking a
+ * dialog over an open sheet leaves the sheet behind a finished action, and acting in the same tick
+ * as close() races the sheet's history.back() against the dialog's pushState. The 500ms matches
+ * `dismissOverlay`'s fallback; with no sheet injected at all there is no fade to wait out, so the
+ * action runs at once.
+ *
+ * @typedef {{ overlay: HTMLElement|null, content: HTMLElement|null, closeBtn?: HTMLElement|null,
+ *             initialFocus?: HTMLElement|null,
+ *             create: (opts: any) => { open: () => void, close: () => void } }} SheetCfg
  *
  * @param {HeaderEls} els
  * @param {{ onSelect: (id: string) => void, onRename: () => void }} handlers
- * @param {{ moreButton?: HTMLElement|null,
- *           sheet?: { overlay: HTMLElement|null, content: HTMLElement|null, closeBtn: HTMLElement|null, initialFocus?: HTMLElement|null,
- *                     create: (opts: any) => { open: () => void, close: () => void } },
+ * @param {{ moreButton?: HTMLElement|null, sheet?: SheetCfg, picker?: SheetCfg,
  *           sheetActions?: Array<[HTMLElement|null, () => void]> }} [extra]
  */
 export function createDesignHeader(els, handlers, extra = {}) {
-    let optionSignature = '';
+    let pickSignature = '';
 
-    els.select?.addEventListener('change', () => {
-        const id = els.select?.value;
-        if (id) handlers.onSelect(id);
-    });
     for (const b of els.renameButtons || []) b?.addEventListener('click', () => handlers.onRename());
 
-    const sh = extra.sheet;
     // `create` is the coordinator's createLightbox, INJECTED: overlay.js touches `window` at import,
     // and this module has to load in Node for its copy rules to be tested.
-    const sheet = sh?.overlay && sh.content && sh.create
-        ? sh.create({ overlay: sh.overlay, content: sh.content, closeBtn: sh.closeBtn ?? undefined, initialFocus: sh.initialFocus ?? undefined })
+    const build = (/** @type {any} */ cfg) => cfg?.overlay && cfg.content && cfg.create
+        ? cfg.create({ overlay: cfg.overlay, content: cfg.content, closeBtn: cfg.closeBtn ?? undefined, initialFocus: cfg.initialFocus ?? undefined })
         : null;
+    const sheet  = build(extra.sheet);
+    const picker = build(extra.picker);
+
+    /** Close `lb`, then run `fn` after its fade. */
+    const closeThen = (/** @type {any} */ lb, /** @type {() => void} */ fn) => {
+        if (!lb) { fn(); return; }   // nothing to fade, so nothing to wait out
+        lb.close();
+        setTimeout(fn, 500);
+    };
+
     extra.moreButton?.addEventListener('click', () => sheet?.open());
-    /** Close the sheet, then run `fn` after its fade. Exposed for a row wired elsewhere (the bin). */
-    const viaSheet = (/** @type {() => void} */ fn) => { sheet?.close(); setTimeout(fn, 500); };
+    /** Close the ··· More sheet, then run `fn`. Exposed for a row wired elsewhere (the bin). */
+    const viaSheet = (/** @type {() => void} */ fn) => closeThen(sheet, fn);
     for (const [el, run] of extra.sheetActions || []) el?.addEventListener('click', () => viaSheet(run));
+
+    // NOTE the button comes from `els`, not `extra`: `render` has to disable it, so it belongs with
+    // the other rendered handles. Reading it from `extra` here is what shipped first, and the face
+    // then had no listener at all while every unit test still passed.
+    els.pickerButton?.addEventListener('click', () => picker?.open());
+    // ONE delegated handler on the list, so a rebuild never leaves listeners behind or drops them.
+    els.pickList?.addEventListener('click', (/** @type {any} */ ev) => {
+        const row = ev.target?.closest?.('.picker-opt[data-id]');
+        const id  = row?.dataset?.id;
+        if (id) closeThen(picker, () => handlers.onSelect(id));
+    });
 
     /** @param {HeaderState} state */
     function render(state) {
@@ -268,47 +343,57 @@ export function createDesignHeader(els, handlers, extra = {}) {
         const entry = saved ? designs.find(d => d.id === activeId) : null;
         const groups = groupDesigns(designs, currentUser);
 
-        // ── the select (rebuilt only on a content change — rule 4) ──
-        if (els.select) {
+        // ── the picker list (rebuilt only on a content change — rule 4) ──
+        if (els.pickList) {
             const sig = JSON.stringify([saved, activeId, open, groups.map(g => [g.label, g.designs.map(d => [d.id, d.name, toDate(d.updatedAt)?.getTime() ?? 0])])]);
-            if (sig !== optionSignature) {
-                optionSignature = sig;
-                els.select.textContent = '';
-                if (!saved) {
-                    const o = document.createElement('option');
-                    o.value = '';
-                    o.textContent = open ? 'Untitled design (not saved yet)' : 'No design open';
-                    o.selected = true;
-                    els.select.appendChild(o);
+            if (sig !== pickSignature) {
+                pickSignature = sig;
+                els.pickList.textContent = '';
+                // The open-but-unsaved design has no id to select BY, so its row states where you
+                // are and is inert — leaving it out would show the picker with nothing current.
+                if (!saved && open) {
+                    els.pickList.appendChild(pickRow({ name: 'Untitled design', meta: 'Not saved yet', current: true }));
                 }
                 for (const g of groups) {
-                    const og = document.createElement('optgroup');
-                    og.label = g.label;
+                    const wrap = document.createElement('div');
+                    wrap.className = 'picker-group';
+                    wrap.setAttribute('role', 'group');
+                    wrap.setAttribute('aria-label', g.label);
+                    const h = document.createElement('div');
+                    h.className = 'picker-group-label';
+                    h.setAttribute('aria-hidden', 'true');
+                    h.textContent = g.label;
+                    wrap.appendChild(h);
                     for (const d of g.designs) {
-                        const o = document.createElement('option');
-                        o.value = d.id;
-                        o.dataset.id = d.id;
                         const when = toDate(d.updatedAt);
-                        o.textContent = when ? `${d.name} · ${shortDate(when, now)}` : d.name;
-                        if (saved && d.id === activeId) o.selected = true;
-                        og.appendChild(o);
+                        wrap.appendChild(pickRow({
+                            id: d.id,
+                            name: d.name,
+                            meta: when ? `Saved ${shortDate(when, now)}` : 'Not saved yet',
+                            current: saved && d.id === activeId,
+                        }));
                     }
-                    els.select.appendChild(og);
+                    els.pickList.appendChild(wrap);
+                }
+                if (!open && designs.length === 0) {
+                    const empty = document.createElement('p');
+                    empty.className = 'picker-empty';
+                    empty.textContent = 'No designs saved yet.';
+                    els.pickList.appendChild(empty);
                 }
             }
-            // ALWAYS re-point the select at what is actually open, never only on the saved
-            // path (v23.33). `change` fires the instant the reader picks, so the value has
-            // already moved by the time the coordinator asks 'discard unsaved changes?' —
-            // and a declined switch left the picker naming a design nobody had opened.
-            els.select.value = saved && activeId ? activeId : '';
-            els.select.disabled = designs.length === 0 && !open;
         }
+        if (els.pickerSub) els.pickerSub.textContent = designs.length === 1 ? '1 saved design' : `${designs.length} saved designs`;
+        if (els.pickerButton) els.pickerButton.disabled = designs.length === 0 && !open;
 
         // ── the face ──
         const name = open ? (design?.name || '').trim() || 'Untitled design' : 'No design open';
         if (els.faceName) els.faceName.textContent = name;
         if (els.eyebrow)  els.eyebrow.textContent = !open ? 'Designs' : saved ? 'Editing' : 'New design';
         if (els.count)    els.count.textContent = `${designs.length} saved`;
+        // The face's spans are aria-hidden — they are a styled title, not a label — so the button
+        // needs a name that says WHICH design is open. The <select> announced that for free.
+        els.pickerButton?.setAttribute('aria-label', `Design: ${name}. Choose a different design`);
         els.masthead?.classList.toggle('is-unnamed', open && !saved);
         els.masthead?.classList.toggle('is-empty', !open);
 

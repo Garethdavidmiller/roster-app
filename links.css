@@ -3,7 +3,6 @@
 :root {
     /* Coverage palette — links-workspace-specific; no shared.css token exists for these,
        so hex values are defined here rather than forwarding from :root in shared.css. */
-    --gold-text: oklch(46% 0.11 85deg);   /* gold as TEXT — the brand gold itself fails contrast on white */
     --cov-early: #1a7fc1;
     --cov-late:  #e6700a;
     --cov-night: #6b3fa0;
@@ -1423,11 +1422,13 @@ body.auth-ready .container { display: grid; }
 /* The picker is the whole title block, and the invisible select fills it — so the block itself
    has to be a tap target: 40px on a phone. The face sat at 22px and the tap-target guard caught the
    select at 22px on mobile-chrome; the title row's padding gives back most of the difference. */
-.dm-picker { position: relative; min-width: 0; min-height: 40px; display: flex; flex-direction: column; justify-content: center; }
-.dm-picker select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: var(--type-medium); }
-.dm-picker select:focus-visible + .dm-face .dm-face-name,
-.dm-picker:focus-within .dm-face-name { text-decoration: underline; text-decoration-color: var(--accent-gold-dark); text-decoration-thickness: 2px; text-underline-offset: 4px; }
-.dm-face { display: flex; align-items: center; gap: 10px; min-width: 0; pointer-events: none; }
+/* The face IS the control (v23.32 — it used to be a decorative face under an invisible <select>).
+   40px minimum because a masthead heading is ~22px tall and CI's tap-target guard rightly refuses
+   that; the title row's own padding gives most of the difference back. */
+.dm-picker { min-width: 0; min-height: 40px; width: 100%; display: flex; flex-direction: column; justify-content: center; gap: 1px; background: none; border: none; padding: 0; font-family: inherit; text-align: left; cursor: pointer; }
+.dm-picker:disabled { cursor: default; }
+.dm-picker:focus-visible { outline: var(--focus-outline); outline-offset: 3px; border-radius: var(--radius-xs); }
+.dm-face { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .dm-face-name { flex: 1; min-width: 0; font-size: var(--type-medium); font-weight: 800; letter-spacing: -0.15px; color: var(--primary-blue); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dm-chev { width: 22px; height: 22px; flex: none; border-radius: 50%; background: color-mix(in oklch, var(--accent-gold) 22%, white); display: grid; place-items: center; transition: background var(--dur-fast) var(--ease-standard); }
 .dm-chev::after { content: ''; width: 6px; height: 6px; border-right: 2px solid var(--gold-text); border-bottom: 2px solid var(--gold-text); transform: translateY(-2px) rotate(45deg); }
@@ -1524,6 +1525,23 @@ body.auth-ready .container { display: grid; }
     text-align: left;
     overflow-y: auto;
 }
+/* ── The design picker sheet (v23.32; rows moved to the shared classes v23.33) ────────────────
+   The shell only. Its ROWS are `.picker-opt` from shared.css — the same rows `select-sheet.js`
+   renders for every other dropdown in the app, which is the point: one dropdown, one definition.
+   See rule 1 in links-design-header.js for why a native <select> stopped being the right control. */
+#designPickerContent {
+    background: white;
+    border-radius: var(--radius-xl);
+    padding: 8px;
+    width: min(var(--modal-wide), var(--modal-cap));
+    max-height: 85vh;
+    max-height: 85dvh;
+    box-shadow: var(--shadow-3);
+    text-align: left;
+    overflow-y: auto;
+}
+.dm-picklist { display: grid; gap: 2px; padding: 4px 0 0; }
+
 .dm-sheet-head { display: flex; align-items: center; gap: 12px; padding: 12px 40px 12px 12px; border-bottom: 1px solid var(--border-light); }
 .dm-sheet-title { min-width: 0; }
 .dm-sheet-title b { display: block; font-size: var(--type-medium); font-weight: 800; color: var(--primary-blue); letter-spacing: -0.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

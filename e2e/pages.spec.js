@@ -1,5 +1,5 @@
 import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, designOptions, activeDesignName, openDesignSheet, sheetAction, switchToDesign, seedMemberSession, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, designOptions, activeDesignName, openDesignSheet, openDesignPicker, sheetAction, switchToDesign, seedMemberSession, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the literal 22 — and `links: the rotation
 // length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
@@ -1429,11 +1429,16 @@ test('links: declining an unsaved-changes switch leaves the picker on the design
     await dialog.locator('.dialog-btn-cancel').click();
     await expect(page.locator('.dialog-overlay')).toHaveCount(0);
 
-    // The heading was always right; the SELECT is what pointed at a design nobody opened.
+    // The heading was always right; the SELECT is what pointed at a design nobody opened (v23.33).
+    // At v23.35 the select is gone — the picker is a sheet that holds no value — so the assertion
+    // moved to the two things a reader can actually see: the face, and which row wears the tick.
+    // Re-opening the sheet is the point: a cached selection would show up here and nowhere else.
     await expect(activeDesignName(page)).toHaveText('Design A');
-    const selected = await page.locator('#designSelect').evaluate(
-        (/** @type {HTMLSelectElement} */ s) => s.selectedOptions[0]?.textContent || '');
-    expect(selected, 'the picker must name the design that is actually open').toContain('Design A');
+    await openDesignPicker(page);
+    const current = page.locator('#designPickList .picker-opt[aria-current="true"]');
+    await expect(current).toHaveCount(1);
+    await expect(current, 'the picker must name the design that is actually open').toContainText('Design A');
+    await page.locator('#designPickerClose').click();
 });
 
 test('links: deleting a design writes a SOFT delete and leaves the document in place', async ({ page }) => {

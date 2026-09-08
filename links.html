@@ -85,6 +85,7 @@
     <link rel="modulepreload" href="./nav-panel.js">
     <link rel="modulepreload" href="./notif.js">
     <link rel="modulepreload" href="./overlay.js">
+    <link rel="modulepreload" href="./select-sheet.js">
     <link rel="modulepreload" href="./override-utils.js">
     <link rel="modulepreload" href="./password-force.js">
     <link rel="modulepreload" href="./perf-reporter.js">
@@ -184,11 +185,15 @@
 <div id="linksWelcomeLb" class="lb-overlay" role="dialog" aria-label="How Links works" aria-modal="true">
     <div id="linksWelcomeContent" class="lb-content notice-lb-content">
     <button id="linksWelcomeClose" class="lb-close" type="button" aria-label="Close">✕</button>
-        <div class="notice-badge notice-badge--links">🔗 Links</div>
-        <div class="lightbox-app-name">How Links works</div>
-        <p class="notice-body">Changes here only affect the link-design document — never the live roster. Best used on a desktop or tablet; the grid is tight on a phone.</p>
-        <p class="notice-body">Design checks include the ORR's fatigue factors. They report which factors a pattern <strong>features</strong> — they do not pass or fail a design, and no result here approves one.</p>
-        <p class="notice-body">Designs are shared: any designer can edit or delete any of them. A deleted design goes to <strong>Recently deleted</strong> and stays there until someone removes it for good.</p>
+        <div class="notice-head">
+            <div class="notice-badge notice-badge--links">🔗 Links</div>
+            <div class="lightbox-app-name">How Links works</div>
+        </div>
+        <div class="notice-main">
+            <p class="notice-body">Changes here only affect the link-design document — never the live roster. Best used on a desktop or tablet; the grid is tight on a phone.</p>
+            <p class="notice-body">Design checks include the ORR's fatigue factors. They report which factors a pattern <strong>features</strong> — they do not pass or fail a design, and no result here approves one.</p>
+            <p class="notice-body">Designs are shared: any designer can edit or delete any of them. A deleted design goes to <strong>Recently deleted</strong> and stays there until someone removes it for good.</p>
+        </div>
     </div>
 </div>
 
@@ -200,6 +205,25 @@
         <p class="bin-intro">A deleted design is kept here until someone removes it for good. Nothing is deleted automatically.</p>
         <div id="designBinList" class="bin-list"></div>
         <p id="designBinStatus" class="bin-status" role="status" aria-live="polite"></p>
+    </div>
+</div>
+
+<!-- The masthead's DESIGN PICKER sheet (v23.32). This was a native `<select>` until now, chosen
+     for its free grouping, keyboard handling and screen-reader semantics. The cost only shows on a
+     phone: Android renders a select's popup as an unstyleable Material radio list, so the app's own
+     design vanished at exactly the moment the reader is choosing between designs, and a long name
+     ("By the Book — Dec 2026 (BB-24-D7 · 0f14abce)") wrapped to three lines of oversized type.
+     It is now the same construction as the ··· More sheet one button along: a createLightbox
+     dialog of plain buttons, which keeps Tab/Enter/Escape and the focus trap without any ARIA
+     listbox machinery. Rows are BUILT by links-design-header.js — see rule 4 in its header for why
+     the list is only rebuilt when its contents change. -->
+<div id="designPickerLb" class="lb-overlay" role="dialog" aria-label="Choose a design" aria-modal="true">
+    <div id="designPickerContent" class="lb-content">
+        <button id="designPickerClose" class="lb-close" type="button" aria-label="Close">✕</button>
+        <div class="dm-sheet-head">
+            <div class="dm-sheet-title"><b>Open a design</b><span id="designPickerSub"></span></div>
+        </div>
+        <div class="dm-picklist" id="designPickList"></div>
     </div>
 </div>
 
@@ -279,17 +303,17 @@
                 <div id="printDesignName" class="print-design-name" aria-hidden="true"></div>
 
                 <!-- THE DESIGN MASTHEAD (v23.30) — which design is open, whose it is, whether it is
-                     saved, and the one Save button. A native <select> sits invisibly over the heading
-                     so the phone's own picker opens; everything else lives behind ··· More. The
-                     reasoning, and the four rules an edit can break, are in links-design-header.js. -->
+                     saved, and the one Save button. The heading face is a BUTTON opening the picker
+                     sheet above (v23.32; it was a native <select> until then); everything else lives
+                     behind ··· More. The reasoning, and the four rules an edit can break, are in
+                     links-design-header.js. -->
                 <div id="designPickerWrap" class="design-picker-wrap">
                     <div class="design-masthead" id="designMasthead">
                         <div class="dm-title">
-                            <div class="dm-picker">
-                                <div class="dm-eyebrow" aria-hidden="true"><span id="designEyebrow">Editing</span><span class="dm-count" id="designCount"></span></div>
-                                <div class="dm-face" aria-hidden="true"><span class="dm-face-name" id="designFaceName"></span><span class="dm-chev"></span></div>
-                                <select id="designSelect" aria-label="Which design you are editing"></select>
-                            </div>
+                            <button type="button" class="dm-picker" id="designPickerBtn" aria-haspopup="dialog" aria-label="Choose which design to edit">
+                                <span class="dm-eyebrow" aria-hidden="true"><span id="designEyebrow">Editing</span><span class="dm-count" id="designCount"></span></span>
+                                <span class="dm-face" aria-hidden="true"><span class="dm-face-name" id="designFaceName"></span><span class="dm-chev"></span></span>
+                            </button>
                             <button class="dm-icon-btn" id="designRenameBtn" type="button" title="Rename this design" aria-label="Rename this design">✎</button>
                         </div>
                         <div class="dm-rule" aria-hidden="true"></div>

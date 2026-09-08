@@ -171,3 +171,22 @@ shown that yet.
   controller status and retention policies need documenting — see that gate.
 
 ---
+
+## The two dropdowns that stay native (8 Sep 2026, v23.33)
+
+`select-sheet.js` replaced the OS popup everywhere a reader reads a list — the Calendar's member
+picker, Admin's three member selects and its month filter, the pay-period selector and the rest of
+the calculator's fields, and the Links saved-setups picker. Two were left alone on purpose, so that
+"why is this one different?" has an answer:
+
+- **`#otIdentityMember` (Overtime).** It is `disabled` and carries exactly one option — the signed-in
+  member — because, as its own comment says, "there is genuinely nobody else to pick". It never opens
+  a popup at all, so there is no OS surface to replace; enhancing it would swap a disabled field for
+  a disabled button and change nothing a reader sees.
+- **`#monthJumpMonth` / `#monthJumpYear` (Calendar month jump).** These live INSIDE an already-open
+  lightbox. A picker sheet over a dialog is a second modal layer, and the lists are 12 months and a
+  handful of years — short, ordered and familiar, which is the one case a native popup handles well.
+
+**The trigger that would reopen either:** a report that the month-jump selects look wrong on a phone
+(the same report that started this), or the Overtime identity bar becoming a real choice — which it
+would, the moment a manager can answer on somebody else's behalf.

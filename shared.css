@@ -61,6 +61,11 @@
     --primary-blue-dark: color-mix(in oklch, var(--primary-blue) 82%, black);
     --accent-gold:       oklch(84.7% 0.1734 92.3deg);
     --accent-gold-dark:  color-mix(in oklch, var(--accent-gold) 95%, black);
+    /* Gold as TEXT. The brand gold itself fails contrast on white, so anything that has to be
+       READ in gold uses this instead. Declared here since v23.33, when the shared picker sheet
+       started using it — it lived in links.css while only links.html read it, and the moment
+       shared.css referenced it every other page was reading a property nothing declared. */
+    --gold-text: oklch(46% 0.11 85deg);
 
     /* ── Shift type colours ──────────────────────────────────────
        Base colour for badges and borders. Light tints are derived
@@ -958,6 +963,103 @@ button.lightbox-bug-link {
 .login-receipt--ok   { color: var(--success-text); background: var(--success-green-bg); }
 .login-receipt--fail { color: var(--error-text);   background: var(--error-bg); }
 
+/* ── THE PICKER SHEET — the app's own dropdown (v23.33) ────────────────────
+   Shared by `select-sheet.js` (any enhanced `<select>`) and by the Links design masthead,
+   so the two are ONE control with one definition rather than two that merely resemble each
+   other. `select-sheet.js`'s header has the argument for why a native popup was not good
+   enough; the short version is that the OS draws it and the app's design stops at its edge.
+
+   The TRIGGER is deliberately not styled here beyond a sensible default: it copies the
+   page's own field classes, so each page keeps its field design and this file owns only
+   the popup. Where a page styles its fields by element (`.controls select`), that rule
+   needs `.fieldpick` adding beside it — there is no way for a class to inherit an element
+   selector, and a trigger that misses one renders as a bare button. ── */
+
+/* The native select stays in the DOM as the value holder — every consumer still reads `.value`
+   and hears `change` — taken out of the LAYOUT and out of the a11y tree, but deliberately NOT
+   `display: none`.
+
+   That was the first cut and it broke the promise this module makes. "Consumers are unchanged"
+   has to include the ~50 places the e2e suite drives these controls with Playwright's
+   `selectOption`, which requires a rendered box; `display: none` made every one of them
+   unactionable. Anything that focuses or measures the select would have gone the same way.
+   Invisible-but-rendered is the same trick the Links masthead used for two releases, and
+   `pointer-events: none` under a trigger that covers the slot means nothing can reach it by
+   touch. */
+.fieldpick-native {
+    position: absolute !important;
+    width: 1px;
+    height: 1px;
+    min-width: 0 !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    opacity: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.fieldpick {
+    font-family: inherit;
+    font-size: var(--type-medium);   /* 16px — iOS focus-zoom protection, as the fields have */
+    color: var(--text-dark);
+    background-color: var(--field-bg);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-button);
+    padding: 8px 30px 8px 10px;
+    cursor: pointer;
+    text-align: left;
+    min-width: 0;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23001e3c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 1em;
+}
+.fieldpick:disabled { opacity: 0.55; cursor: default; }
+.fieldpick:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+/* The face truncates rather than wrapping: a trigger that grows a line changes the row's
+   height, and these sit in control rows that are already tight at 320px. */
+.fieldpick-face { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.picker-sheet {
+    background: white;
+    border-radius: var(--radius-xl);
+    padding: 8px;
+    width: min(var(--modal-wide), var(--modal-cap));
+    max-height: 85vh;
+    max-height: 85dvh;
+    box-shadow: var(--shadow-3);
+    text-align: left;
+    overflow-y: auto;
+}
+.picker-head { padding: 12px 40px 12px 12px; border-bottom: 1px solid var(--border-light); }
+.picker-head b    { display: block; font-size: var(--type-medium); font-weight: 800; color: var(--primary-blue); letter-spacing: -0.2px; }
+.picker-head span { display: block; font-size: var(--type-small); color: var(--text-mid); margin-top: 2px; }
+.picker-list { display: grid; gap: 2px; padding: 4px 0 0; }
+.picker-group + .picker-group { margin-top: 10px; }
+.picker-group-label { font-size: var(--type-badge); font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-light); padding: 8px 12px 4px; }
+/* A row: the label and its optional second line on the left, a tick on the right for the
+   chosen one. The tick is a SECOND signal beside the tint, so the choice is never carried
+   by colour alone. */
+.picker-opt {
+    display: grid; grid-template-columns: 1fr 24px; align-items: center; gap: 10px; width: 100%;
+    text-align: left; padding: 10px 12px; min-height: 52px; border: none; background: none;
+    border-radius: var(--radius); font-family: inherit; cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-standard);
+}
+@media (hover: hover) and (pointer: fine) { .picker-opt:hover:not(:disabled) { background: var(--surface-sunken); } }
+.picker-opt:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
+.picker-opt:disabled { opacity: 0.45; cursor: default; }
+.picker-opt-text { min-width: 0; }
+.picker-opt-name { display: block; font-size: var(--type-body); font-weight: 700; color: var(--text-dark); line-height: 1.3; overflow-wrap: anywhere; }
+.picker-opt small { display: block; font-size: var(--type-small); font-weight: 400; color: var(--text-mid); margin-top: 2px; }
+.picker-opt-tick { font-size: var(--type-medium); font-weight: 800; color: var(--gold-text); text-align: center; }
+.picker-opt.is-current { background: color-mix(in oklch, var(--accent-gold) 14%, white); }
+.picker-opt.is-current .picker-opt-name { color: var(--primary-blue); font-weight: 800; }
+.picker-empty { padding: 14px 12px 18px; margin: 0; font-size: var(--type-body); color: var(--text-mid); }
+@media (prefers-reduced-motion: reduce) { .picker-opt { transition: none; } }
+
 /* ── One-time notice lightboxes (shared) ─────────────────────────────────
    Card layout: .notice-lb-content (below) — use class="lb-content notice-lb-content".
    Badge uses .notice-badge + page modifier (not .lightbox-badge — which is the About lightbox badge).
@@ -987,48 +1089,108 @@ button.lightbox-bug-link {
 .notice-badge--ops      { background: var(--orange);      color: var(--primary-blue); }
 .notice-badge--calendar { background: var(--accent-gold); color: var(--primary-blue); }
 
-/* Dark glass card — use class="lb-content notice-lb-content" on every
-   notice content div. Provides the flex column, background, border,
-   padding and width that .lb-content (structural-only) deliberately omits. */
+/* THE CARD — three zones, and a surface that reads (v23.32).
+   Use class="lb-content notice-lb-content" on every notice content div, and put the children in
+   .notice-head / .notice-main / .notice-actions. The card itself carries NO padding and NO gap:
+   each zone owns its own, which is the whole point of the change.
+
+   WHAT WAS WRONG, because both faults are easy to reintroduce:
+
+   1. THERE WAS BARELY A CARD. The panel was rgba(255,255,255,0.08) over .lb-overlay's
+      rgba(0,10,20,0.82) backdrop — near enough the same value that the calendar's coloured cells
+      read straight through it and the card's own edges did not. It now sits on an OPAQUE
+      --primary-blue base with a top-lit gradient over it, so it is a sheet rather than a lighter
+      patch of the dimmed page. That makes the notice the one member of the navy-glass family
+      (About, day detail, AL) that is not see-through, and deliberately: those three are a look AT
+      something still on screen behind them, and a notice is an interruption that wants a decision.
+      The blurred backdrop around the card keeps the family resemblance.
+
+   2. NOTHING GROUPED. Six children at a uniform `gap: 6px` — badge, title, date, prose, CTA,
+      dismiss — all equally spaced, so the eye got no structure. Even spacing with no grouping is
+      what "undesigned" looks like. Space is now tight WITHIN a zone and generous BETWEEN zones,
+      with a hairline under the header.
+
+   The card is also LEFT-aligned throughout. It used to centre the badge, title and date over
+   left-aligned body copy (the v18.89 arrangement, borrowed from the About panel) — which changed
+   alignment twice on the way down and orphaned the last word of a wrapping title onto its own
+   centred line. `text-wrap: balance` handles a wrap now; one alignment handles the rest. */
 .notice-lb-content {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+    background-color: var(--primary-blue);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.05));
+    border: 1px solid rgba(255, 255, 255, 0.16);
     border-radius: var(--radius-panel);
-    padding: 28px 28px 22px;
+    box-shadow: var(--shadow-3);
     width: min(var(--modal-standard), var(--modal-cap));
-    text-align: center;
+    text-align: left;
     max-height: 80vh;
     max-height: 80dvh;
 }
+
+/* Header zone — badge, title, optional date. The 28px top padding is load-bearing: .lb-close is a
+   44px target at top:14px, so it occupies y 14–58, and this padding plus the badge's own height
+   puts the title's first line at ~62px, clear of it. Reducing it puts the title under the ✕. */
+.notice-head {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 28px var(--space-5) 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+.notice-head .lightbox-app-name {
+    width: 100%;
+    text-wrap: balance;
+}
+
+/* Body zone — the prose. Paragraphs are their own flex children, so a notice with three of them
+   spaces them evenly without any per-notice margin. */
+.notice-main {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 18px var(--space-5);
+}
+
+/* Action zone — CTA and dismiss. Sits hard against the body zone's padding, so the buttons read as
+   belonging to the card rather than as two more evenly-spaced siblings. */
+.notice-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0 var(--space-5) 22px;
+}
+.notice-actions .btn-action { width: 100%; }
 
 /* Notice titles are informational, not a hero app-name — use a tighter card scale.
    Context rule keeps the About lightbox .lightbox-app-name at its full 22px. */
 .notice-lb-content .lightbox-app-name {
     font-size: var(--type-large);   /* content-panel title role — unified across overlays (v18.29) */
     letter-spacing: -0.2px;
+    line-height: 1.25;
 }
 
-/* "Posted D Mon YYYY" line — sits between the title and the body */
+/* "Posted D Mon YYYY" — a byline under the title, not a centred line of fine print between the
+   title and the body, which is where it used to interrupt the read. */
 .notice-date {
     font-size: var(--type-small);
-    color: rgba(255, 255, 255, 0.65); /* raised from 0.40 (3.77:1) to clear WCAG AA */
+    color: rgba(255, 255, 255, 0.6);
     letter-spacing: 0.2px;
-    text-align: center;
+    text-align: left;
+    margin-top: -4px;   /* pulls it under the title as one block, inside the header's own 12px gap */
 }
 
 /* Body copy — LEFT-ALIGNED, soft white (v18.89). It was centred, which is fine for a line or two
    and works against the reader beyond that: every line starts at a different x, so the eye has to
-   re-find the beginning of each one. Notice bodies routinely run 3–5 lines. The badge, title and
-   date above stay centred, so the card keeps its centred masthead over left-aligned prose — the
-   same arrangement the About panel already uses (centred "TIPS" heading, left-aligned rows). */
+   re-find the beginning of each one. Notice bodies routinely run 3–5 lines. */
 .notice-body {
-    color: rgba(255, 255, 255, 0.75);
+    color: rgba(255, 255, 255, 0.78);
     font-size: var(--type-label);
-    line-height: 1.5;
+    line-height: 1.55;
     text-align: left;
     text-wrap: pretty;
     margin: 0;
@@ -1045,7 +1207,6 @@ button.lightbox-bug-link {
     text-align: center;
     padding: 13px 20px;
     border-radius: var(--radius-button);
-    margin-top: 4px;
     touch-action: manipulation;
     transition: background-color var(--dur-fast) var(--ease-standard),
                 transform      var(--dur-fast) var(--ease-standard);
@@ -1055,7 +1216,8 @@ button.lightbox-bug-link {
 }
 .notice-cta:active { transform: scale(var(--press-scale)); }
 
-/* Secondary dismiss — muted text button */
+/* Secondary dismiss — a muted text button, full width beneath the CTA so the pair reads as one
+   stacked control rather than a button with a stray word under it. */
 .notice-later {
     background: none;
     border: none;
@@ -1063,8 +1225,8 @@ button.lightbox-bug-link {
     font-size: var(--type-body);
     line-height: 1;
     cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 4px;
+    padding: 12px 8px;
+    border-radius: var(--radius-button);
     touch-action: manipulation;
     transition: color var(--dur-fast) var(--ease-standard);
 }
@@ -1074,6 +1236,13 @@ button.lightbox-bug-link {
 @media (prefers-reduced-motion: reduce) {
     .notice-cta,
     .notice-later { transition: none; }
+}
+
+/* The card is opaque now, so an inherited dark ✕ reads as almost black on the navy. Every notice
+   close button gets the same muted white the About panel's has always had. */
+.notice-lb-content .lb-close { color: rgba(255, 255, 255, 0.5); }
+@media (hover: hover) and (pointer: fine) {
+    .notice-lb-content .lb-close:hover { color: white; }
 }
 
 /* Close button — colour only; structural rules from .lb-close */

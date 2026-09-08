@@ -314,9 +314,22 @@
            1280px than it had been. Caught by the visual baseline, not by the phone widths this fix
            is for. Stretching takes the group's used width with no percentage and no cycle, so the
            cap still applies and the desktop row is byte-identical. */
-        .controls .control-group--stacked select { align-self: stretch; }
+        .controls .control-group--stacked select,
+        .controls .control-group--stacked .fieldpick { align-self: stretch; }
+        /* THE ROW IS NARROWER THAN IT WAS, and that is the change not a regression (v23.33). A
+           <select> sizes to its WIDEST option — every name on the roster, so ~189px of the 200px
+           cap whoever was reading it — while the trigger button sizes to the one name it is
+           showing. The control row therefore centres at about 254px instead of filling 334px, and
+           `← Prev` / `Next →` sit ~40px further in on a 360px phone. Do NOT "fix" this with a
+           percentage width: the paragraph above is the record of that being tried, and a
+           percentage against a shrink-to-fit parent is the cyclic case Chromium resolves as
+           `none`, which throws the 200px cap away and made the control WIDER on desktop. */
 
-        .controls button {
+        /* `:not(.fieldpick)` throughout: select-sheet.js's trigger is a <button>, but it stands in
+           for the member SELECT and has to keep the field's light chrome. Without this the navy pill
+           treatment below wins on `color` — (0,1,1) beats `.fieldpick`'s (0,1,0) — and the member's
+           name renders white on a near-white field. Nothing errors; it is simply unreadable. */
+        .controls button:not(.fieldpick) {
             min-width: auto;
             width: auto;            /* Prevents Android flex-stretch making buttons full-width */
             white-space: nowrap;
@@ -337,7 +350,7 @@
             border: 0;
         }
 
-        .controls select, .controls button {
+        .controls select, .controls .fieldpick, .controls button {
             padding: 9px 14px;
             border: 2px solid var(--border-light);
             border-radius: 10px;
@@ -350,7 +363,7 @@
             touch-action: manipulation; /* Removes 300ms tap delay */
         }
 
-        .controls select {
+        .controls select, .controls .fieldpick {
             text-align: center;
             text-align-last: center;
             background-color: var(--field-bg); /* sunken well; brightens to white on focus */
@@ -367,7 +380,7 @@
 
         /* text-align on <option> is not supported cross-browser — omitted */
 
-        .controls button {
+        .controls button:not(.fieldpick) {
             background: var(--primary-blue);
             color: white;
             border-color: var(--primary-blue);
@@ -376,7 +389,7 @@
         }
 
         @media (hover: hover) and (pointer: fine) {
-            .controls button:hover {
+            .controls button:not(.fieldpick):hover {
                 background: var(--primary-blue-dark);
                 border-color: var(--primary-blue-dark);
                 transform: translateY(-1px);
@@ -399,7 +412,7 @@
             }
         }
 
-        .controls button:active {
+        .controls button:not(.fieldpick):active {
             transform: scale(var(--press-scale));
             opacity: 0.8;
             box-shadow: 0 2px 4px rgba(0, 30, 60, 0.2);
@@ -526,13 +539,14 @@
             font-weight: 700;
         }
 
-        .controls select:focus-visible, .controls button:focus-visible {
+        .controls select:focus-visible, .controls .fieldpick:focus-visible, .controls button:focus-visible {
             outline: var(--focus-outline);
             outline-offset: 2px;
             box-shadow: var(--focus-ring);
         }
         /* Brighten the field to white when active (selects only — buttons keep their fill) */
-        .controls select:focus-visible { background-color: white; }
+        .controls select:focus-visible,
+        .controls .fieldpick:focus-visible { background-color: white; }
 
         #calendarDisplay {
             position: relative;
@@ -966,7 +980,7 @@
             .controls-row { width: auto; }
 
             /* Select: no longer needs iOS font-size workaround on desktop */
-            .controls select {
+            .controls select, .controls .fieldpick {
                 font-size: var(--type-body);
                 max-width: 200px;
             }
@@ -1161,7 +1175,7 @@
                 font-size: var(--type-small);
             }
 
-            .controls select {
+            .controls select, .controls .fieldpick {
                 padding: 10px 30px 10px 10px;
                 font-size: var(--type-medium); /* Must stay 16px — iOS Safari zooms viewport if select < 16px */
                 /* PINNED, BECAUSE `normal` IS NOT DETERMINISTIC ON A NATIVE SELECT (v22.93).
@@ -1295,7 +1309,7 @@
             }
             .controls-row { width: auto; }
             .controls button { padding: 7px 10px; font-size: var(--type-badge); }
-            .controls select { padding: 7px 28px 7px 8px; font-size: var(--type-medium); max-width: 180px; } /* 16px preserves iOS auto-zoom protection even in landscape */
+            .controls select, .controls .fieldpick { padding: 7px 28px 7px 8px; font-size: var(--type-medium); max-width: 180px; } /* 16px preserves iOS auto-zoom protection even in landscape */
             .calendar-container { padding: 8px 10px; margin-bottom: 8px; }
             .month-year { font-size: var(--type-medium); }
             .calendar-grid { gap: 4px; }

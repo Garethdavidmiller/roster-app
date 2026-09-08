@@ -12,6 +12,7 @@
  * Do not edit here for: pay maths, admin features, override entry.
  */
 
+import { enhanceSelect } from './select-sheet.js';
 import { CONFIG, MONTH_NAMES, computeEaster, getPaydaysAndCutoffs, formatISO } from './roster-data.js';
 import { authReady, authBootstrap } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
@@ -528,6 +529,10 @@ function renderCalendarWhenIdle() {
 }
 
 const _teamMemberSelect = /** @type {HTMLSelectElement} */ (document.getElementById('teamMemberSelect'));
+// The member picker opens the app's OWN sheet rather than the OS dropdown (v23.33). ~50 names in
+// a Material radio list was the worst instance of the fault select-sheet.js exists for; the select
+// itself is untouched as the value holder, so the change handler below is unchanged.
+enhanceSelect(_teamMemberSelect, { title: 'Whose roster are you reading?', placeholder: 'Choose your name', createLightbox });
 /** @type {ReturnType<typeof setTimeout>|null} */
 let _pendingMemberApply = null;
 /** Apply the dropdown's CURRENT selection (read live so a value change during the wait is honoured). */

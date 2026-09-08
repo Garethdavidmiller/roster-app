@@ -12,6 +12,7 @@
  * Do not edit here for: pay maths, period date maths, HPP formula, back-pay maths.
  */
 
+import { initSelectSheets } from './select-sheet.js';
 import { CONFIG as ROSTER_CONFIG, formatISO, parseSmartFloat, parseSmartFloatOrNull } from './roster-data.js';
 import {
   GRADES, RATE_125, RATE_150, RATE_300,
@@ -48,7 +49,7 @@ import { isDataEmpty, calcHPP, updatePriorHpp, resolveHppForPeriod, applyHppMode
 import { prefillBackPay, calcBackPay, restoreBpState, _bpAwardTaxYear, _backdatedFromPNum, raiseByPercent, applyBpMode } from './paycalc-backpay.js';
 import { hppTaxYearForPayslip } from './paycalc-hpp-schedule.js';
 import { initNavPanel } from './nav-panel.js';
-import { initCardCollapse } from './overlay.js';
+import { initCardCollapse, createLightbox } from './overlay.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
@@ -1768,6 +1769,19 @@ export function init() {
 
     // ── BACK UP YOUR PAY DATA ─────────────────────────────────────────────────────
     // Runs late: it reads the per-member namespace runMigrations() activated above.
+    // Every dropdown on this page opens the app's own sheet rather than the OS one (v23.33).
+    // The period selector is the page's primary control and the one people scan; the rest join it
+    // so the calculator has ONE kind of dropdown rather than two that behave differently.
+    initSelectSheets([
+        { id: 'periodSelect',      title: 'Which pay period?' },
+        { id: 'gradeSelect',       title: 'Your grade' },
+        { id: 'studentLoan',       title: 'Student loan plan' },
+        { id: 'pensionOptOutFrom', title: 'Opted out from which period?' },
+        { id: 'slPaidOffFrom',     title: 'Paid off from which period?' },
+        { id: 'ytdSrcSelect',      title: 'Where are these figures from?' },
+        { id: 'backPayPeriod',     title: 'Paid in which period?' },
+    ], { createLightbox });
+
     initTransferCard();
     // Pay data is localStorage-only and evictable until asked otherwise — see ls.js (v22.13).
     requestPersistentStorage(pcPrefix());

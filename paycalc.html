@@ -72,6 +72,7 @@
   <link rel="modulepreload" href="./nav-panel.js">
   <link rel="modulepreload" href="./notif.js">
   <link rel="modulepreload" href="./overlay.js">
+  <link rel="modulepreload" href="./select-sheet.js">
   <link rel="modulepreload" href="./override-utils.js">
   <link rel="modulepreload" href="./paycalc-app.js">
   <link rel="modulepreload" href="./paycalc-sticky-total.js">
@@ -1076,10 +1077,14 @@
 <div id="noticeYtdLightbox" class="lb-overlay" role="dialog" aria-label="Enter your Year to Date figures" aria-modal="true">
   <div id="noticeYtdContent" class="lb-content notice-lb-content">
     <button id="noticeYtdClose" class="lb-close" type="button" aria-label="Close">✕</button>
-    <div class="notice-badge notice-badge--pay">💷 Pay</div>
-    <div class="lightbox-app-name">Enter your Year to Date figures</div>
-    <div class="notice-date">Posted 28 Aug 2026</div>
-    <p class="notice-body">For accurate tax estimates this year, copy your <strong>Taxable Pay</strong> and <strong>Tax Paid</strong> from the Year to Date box on your latest payslip into the <strong>📊 Year to Date Figures</strong> card.</p>
+    <div class="notice-head">
+      <div class="notice-badge notice-badge--pay">💷 Pay</div>
+      <div class="lightbox-app-name">Enter your Year to Date figures</div>
+      <div class="notice-date">Posted 28 Aug 2026</div>
+    </div>
+    <div class="notice-main">
+      <p class="notice-body">For accurate tax estimates this year, copy your <strong>Taxable Pay</strong> and <strong>Tax Paid</strong> from the Year to Date box on your latest payslip into the <strong>📊 Year to Date Figures</strong> card.</p>
+    </div>
   </div>
 </div>
 
@@ -1087,11 +1092,17 @@
 <div id="dataOwnerLightbox" class="lb-overlay" role="dialog" aria-label="Is this your pay data?" aria-modal="true">
   <div id="dataOwnerContent" class="lb-content notice-lb-content">
     <button id="dataOwnerClose" class="lb-close" type="button" aria-label="Decide later">✕</button>
-    <div class="notice-badge notice-badge--pay">💷 Pay</div>
-    <div class="lightbox-app-name">Is this your pay data?</div>
-    <p class="notice-body">This device already has saved Pay Calculator data (tax code, Year to Date figures, grade). If you share this phone, only choose &ldquo;Yes&rdquo; if it&rsquo;s <strong>yours</strong> &mdash; it will move into your account. Otherwise start fresh. Closing this leaves it untouched and asks again next time.</p>
-    <button id="dataOwnerMine" class="btn-action btn-primary" type="button">Yes, it&rsquo;s mine</button>
-    <button id="dataOwnerFresh" class="btn-action btn-secondary" type="button">No &mdash; start fresh</button>
+    <div class="notice-head">
+      <div class="notice-badge notice-badge--pay">💷 Pay</div>
+      <div class="lightbox-app-name">Is this your pay data?</div>
+    </div>
+    <div class="notice-main">
+      <p class="notice-body">This device already has saved Pay Calculator data (tax code, Year to Date figures, grade). If you share this phone, only choose &ldquo;Yes&rdquo; if it&rsquo;s <strong>yours</strong> &mdash; it will move into your account. Otherwise start fresh. Closing this leaves it untouched and asks again next time.</p>
+    </div>
+    <div class="notice-actions">
+      <button id="dataOwnerMine" class="btn-action btn-primary" type="button">Yes, it&rsquo;s mine</button>
+      <button id="dataOwnerFresh" class="btn-action btn-secondary" type="button">No &mdash; start fresh</button>
+    </div>
   </div>
 </div>
 
@@ -1099,13 +1110,19 @@
 <div id="actualsLightbox" class="lb-overlay" role="dialog" aria-label="Import payslip actuals" aria-modal="true">
   <div id="actualsContent" class="lb-content notice-lb-content">
     <button id="actualsClose" class="lb-close" type="button" aria-label="Close">✕</button>
-    <div class="notice-badge notice-badge--pay">💷 Pay</div>
-    <div class="lightbox-app-name">Payslip actuals (this device)</div>
-    <p class="notice-body">Paste your payslip-actuals JSON (an object keyed by payday, e.g. <code>{"2025-04-11": {"gross": …, "tax": …, "ni": …, "sl": …, "net": …, "varPay": …}}</code>). Stored only in this browser &mdash; never sent anywhere.</p>
-    <textarea id="actualsInput" class="actuals-textarea" rows="6" aria-label="Payslip actuals JSON"></textarea>
-    <div id="actualsStatus" class="actuals-status" role="status" aria-live="polite"></div>
-    <button id="actualsImport" class="btn-action btn-primary" type="button">Import</button>
-    <button id="actualsClear" class="btn-action btn-secondary" type="button">Clear stored data</button>
+    <div class="notice-head">
+      <div class="notice-badge notice-badge--pay">💷 Pay</div>
+      <div class="lightbox-app-name">Payslip actuals (this device)</div>
+    </div>
+    <div class="notice-main">
+      <p class="notice-body">Paste your payslip-actuals JSON (an object keyed by payday, e.g. <code>{"2025-04-11": {"gross": …, "tax": …, "ni": …, "sl": …, "net": …, "varPay": …}}</code>). Stored only in this browser &mdash; never sent anywhere.</p>
+      <textarea id="actualsInput" class="actuals-textarea" rows="6" aria-label="Payslip actuals JSON"></textarea>
+      <div id="actualsStatus" class="actuals-status" role="status" aria-live="polite"></div>
+    </div>
+    <div class="notice-actions">
+      <button id="actualsImport" class="btn-action btn-primary" type="button">Import</button>
+      <button id="actualsClear" class="btn-action btn-secondary" type="button">Clear stored data</button>
+    </div>
   </div>
 </div>
 
