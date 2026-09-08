@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * auth-policy.js — the page-AUTHORISATION layer (ARCHITECTURE_PLAN.md Track 1, Phase 3).
+ * auth-policy.js — the page-AUTHORISATION layer (AUTH_ARCHITECTURE.md Track 1, Phase 3).
  *
  * Authentication ("who are you?") is `auth-state.js` (the store). This module answers the
  * SEPARATE question "is this identity allowed on this page?" via a declarative policy map

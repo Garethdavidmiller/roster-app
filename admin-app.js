@@ -63,7 +63,7 @@ function openCollapsibleCard(body, chevron) {
 
 
 /**
- * Coordinator body as an exported init() (ARCHITECTURE_PLAN.md Phase 4a.2 — admin was the last
+ * Coordinator body as an exported init() (AUTH_ARCHITECTURE.md Phase 4a.2 — admin was the last
  * coordinator still auto-running at module scope). admin-boot.js imports and calls init() once
  * (CSP `script-src 'self'` blocks an inline module call), so importing admin-app.js no longer runs
  * the coordinator — a test can `import { init }` without it wiring listeners / touching the DOM.
@@ -92,7 +92,7 @@ export function init() {
     reconcileExpiredIdentity().catch(() => {});
 
     // ---- Check session immediately ----
-    // `let` (not const): on the in-place sign-in path (CONFIG.INPLACE_LOGIN.admin, ARCHITECTURE_PLAN.md Phase 9)
+    // `let` (not const): on the in-place sign-in path (CONFIG.INPLACE_LOGIN.admin, AUTH_ARCHITECTURE.md Phase 9)
     // these are refreshed inside initAuthorised() from the just-saved session — the module loaded while
     // signed out, so the load-time values are null. With the flag off they are assigned once and never
     // change, identical to before. (The AL/sick sections read currentUser via a live getter so a later
@@ -1484,7 +1484,7 @@ export function init() {
     // ---- One-time work email check (shown once per device after login) ----
 
     /** ~3-monthly work-email re-confirmation cadence (v14.77). */
-    // Page-access decision via the Phase-3 policy (auth-policy.js → ARCHITECTURE_PLAN.md Phase 6).
+    // Page-access decision via the Phase-3 policy (auth-policy.js → AUTH_ARCHITECTURE.md Phase 6).
     // Admin's policy is "any named user" (role null) — staff get self-service; the admin/manager split
     // gates ACTIONS (applyPermissions below), NOT page access, so there is no 'forbidden' path here.
     // The snapshot maps the LOCAL session-existence flag (isAuthenticated = !!currentSession) to an
@@ -1502,7 +1502,7 @@ export function init() {
     }
 
     /**
-     * Authorised (signed-in) init body — ARCHITECTURE_PLAN.md Phase 9. Runs exactly once per page life:
+     * Authorised (signed-in) init body — AUTH_ARCHITECTURE.md Phase 9. Runs exactly once per page life:
      * directly on a normal already-signed-in load, or from showAdminLogin's onSuccess on the in-place path.
      */
     function initAuthorised() {

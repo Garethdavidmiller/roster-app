@@ -68,7 +68,7 @@ import { renderResultHeadline } from './paycalc-result-headline.js';
 import { backPayBannerCopy, hppBannerCopy, paintBanner } from './paycalc-money-banner.js';
 import { initPaycalcStickyTotal } from './paycalc-sticky-total.js';
 /**
- * Phase 4a.2 (ARCHITECTURE_PLAN.md): the coordinator body is an exported init()
+ * Phase 4a.2 (AUTH_ARCHITECTURE.md): the coordinator body is an exported init()
  * called by paycalc-boot.js (a 2-line bootstrap — CSP `script-src 'self'` blocks
  * inline module scripts). The local-identity gate below early-`return`s instead of
  * throwing, and importing this module no longer auto-runs it (testability). Body
@@ -116,7 +116,7 @@ export function init() {
     // idle clock this used to refresh went at v20.41; the read is pure now.) Early-return halts the
     // rest of init() (overlay is shown).
     //
-    // DELIBERATELY NOT routed through requirePage('paycalc') (ARCHITECTURE_PLAN.md Phase 7). The
+    // DELIBERATELY NOT routed through requirePage('paycalc') (AUTH_ARCHITECTURE.md Phase 7). The
     // paycalc policy is `soft`, which by its tested invariant NEVER returns 'login' — a signed-out user
     // would get 'soft-allow'. But the calculator needs a member identity to namespace its per-member
     // localStorage (pcPrefix/SK), so a *local name* is a hard precondition, stricter than the page
@@ -129,7 +129,7 @@ export function init() {
       // re-invoke init() in place — the body below never ran on this pass, so re-entering runs it once
       // with the just-saved session. The per-member namespace is handled for free: runMigrations()
       // (below) calls setPaycalcNamespace(getLoggedMember()) and saveSession already wrote the member
-      // before onSuccess, so loadSettings reads the right namespace. (ARCHITECTURE_PLAN.md Phase 9.)
+      // before onSuccess, so loadSettings reads the right namespace. (AUTH_ARCHITECTURE.md Phase 9.)
       // In-place re-invocation falls back to a reload if init() throws mid-wiring, so the in-place
       // path is never less robust than the reload path (the overlay is already torn down by then).
       const onSuccess = ROSTER_CONFIG.INPLACE_LOGIN.paycalc
@@ -1751,7 +1751,7 @@ export function init() {
         // open by design.
         initPasswordForce(name, {}).catch(() => {}).finally(() => showYtdNotice());
       };
-      // SOFT enforcement (B1.2), now decided via the policy (ARCHITECTURE_PLAN.md Phase 7): the pay
+      // SOFT enforcement (B1.2), now decided via the policy (AUTH_ARCHITECTURE.md Phase 7): the pay
       // calculator is localStorage-based and writes no isolated data, so a degraded/anonymous session
       // must NEVER block it. requirePage('paycalc') honours that — being `soft`, it returns ONLY 'allow'
       // (named confirmed) or 'soft-allow' (Firebase identity unconfirmed), never 'login'/'forbidden'. We

@@ -40,7 +40,7 @@ import { registerServiceWorker } from './sw-register.js';
 
 
 /**
- * Phase 4a.2 (ARCHITECTURE_PLAN.md): the coordinator body is an exported init()
+ * Phase 4a.2 (AUTH_ARCHITECTURE.md): the coordinator body is an exported init()
  * called by operations-boot.js (a 2-line bootstrap — CSP `script-src 'self'`
  * blocks inline module scripts). This replaces the former top-level `throw`s
  * (which aborted module evaluation on the login/forbidden paths) with explicit
@@ -74,7 +74,7 @@ export function init() {
     const currentSession = getSession();
     const currentUser    = currentSession?.name ?? null;
 
-    // Page-access decision via the Phase-3 policy (auth-policy.js → ARCHITECTURE_PLAN.md Phase 4a).
+    // Page-access decision via the Phase-3 policy (auth-policy.js → AUTH_ARCHITECTURE.md Phase 4a).
     // The "local-derived" snapshot maps the localStorage session to an identity status — present →
     // 'named' (today's optimistic fast render from local), absent → 'signedOut' — and requirePage
     // applies the Operations policy (admin-only). Behaviour is identical to the prior two-gate form;
@@ -254,7 +254,7 @@ export function init() {
      *
      * `aria-expanded` is set alongside the class because opening a card by class ALONE leaves the
      * chevron reporting "collapsed" to a screen reader until the first manual toggle
-     * (A11Y_FINDINGS.md, v18.68) — the failure this helper exists to make unrepeatable.
+     * (A11Y_BASELINE.md, v18.68) — the failure this helper exists to make unrepeatable.
      *
      * @param {string} bodyId @param {string} chevronId @returns {void}
      */

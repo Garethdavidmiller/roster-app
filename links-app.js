@@ -59,7 +59,7 @@ import {
 
 
 /**
- * Phase 4a.2 (ARCHITECTURE_PLAN.md): the coordinator body is an exported init()
+ * Phase 4a.2 (AUTH_ARCHITECTURE.md): the coordinator body is an exported init()
  * called by links-boot.js (a 2-line bootstrap — CSP `script-src 'self'` blocks
  * inline module scripts). This replaces the former top-level `throw`s (which
  * aborted module evaluation on the login/forbidden gate) with explicit early
@@ -102,7 +102,7 @@ export function init() {
     const currentUser     = currentSession?.name ?? null;
     const isAdmin         = CONFIG.ADMIN_NAMES.includes(currentUser);
 
-    // Page-access decision via the Phase-3 policy (auth-policy.js → ARCHITECTURE_PLAN.md Phase 5).
+    // Page-access decision via the Phase-3 policy (auth-policy.js → AUTH_ARCHITECTURE.md Phase 5).
     // The "local-derived" snapshot maps the localStorage session to an identity status — present →
     // 'named' (optimistic fast render from local), absent → 'signedOut' — and requirePage applies the
     // Links policy (designer-only). Behaviour is identical to the prior two-gate form; this routes the
@@ -115,7 +115,7 @@ export function init() {
         // init() in place (the authorised body below never ran on this pass, so re-entering runs it
         // exactly once with the just-saved session — no reload, no double-wiring). Do NOT
         // resolveSession(false) when in-place, or the one-shot sessionReady is poisoned before the
-        // in-place pass can resolve it true. (ARCHITECTURE_PLAN.md Phase 9.)
+        // in-place pass can resolve it true. (AUTH_ARCHITECTURE.md Phase 9.)
         // In-place re-invocation falls back to a reload if init() throws mid-wiring, so the in-place
         // path is never less robust than the reload path (the overlay is already torn down by then).
         const onSuccess = CONFIG.INPLACE_LOGIN.links

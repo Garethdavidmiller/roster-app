@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '23.23';
+export const APP_VERSION = '23.24';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -178,7 +178,7 @@ export const CONFIG = {
     //   no-name/legacy escape is gone and overrides now require a matching `name`/admin/manager claim.
     //   See SECURITY_RELEASE_PLAN.md → B3.
     CLAIM_EPOCH:                      2,
-    // In-place sign-in (ARCHITECTURE_PLAN.md → "Phase 9 — Remove the post-login reload"). When a
+    // In-place sign-in (AUTH_ARCHITECTURE.md → "Phase 9 — Remove the post-login reload"). When a
     // protected page's login overlay confirms a sign-in, OFF (false) = today's behaviour: the
     // overlay's onSuccess does `window.location.reload()` and the reloaded page re-runs init. ON
     // (true) = the page initialises in place — the coordinator's authorised body runs directly and

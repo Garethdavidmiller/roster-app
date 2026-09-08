@@ -2,7 +2,7 @@
 /**
  * test-fixtures/miller-actuals.js — G. Miller's real 2025/26 payslip figures.
  *
- * MOVED HERE from roster-data.js at v14.68 (ARCHITECTURE_PLAN.md → "MILLER_ACTUALS",
+ * MOVED HERE from roster-data.js at v14.68 (AUTH_ARCHITECTURE.md → "MILLER_ACTUALS",
  * Option A). In a no-build app every served JS file is publicly fetchable, so keeping
  * real payslip figures in a production module was a (small) privacy exposure. This
  * directory is excluded from Firebase Hosting (see firebase.json `ignore` →
@@ -13,7 +13,7 @@
  * The GitHub Pages mirror publishes the repository root, so this file is live there — measured,
  * HTTP 200, against a 404 on Firebase Hosting. `firebase.json`'s ignore list governs one origin
  * and cannot express a decision for the other, which is the same asymmetry the `<meta>` CSP
- * exists for. The exposure is a recorded owner decision (CLAUDE.md and ARCHITECTURE_PLAN.md both
+ * exists for. The exposure is a recorded owner decision (CLAUDE.md and AUTH_ARCHITECTURE.md both
  * state it correctly); what was wrong was this file telling its next reader the question was
  * already closed.
  *
@@ -21,7 +21,7 @@
  * whole of their value: the suite asserts our tax/NI/SL match figures a payroll system actually
  * produced. Invented numbers would only prove the calculator agrees with itself. Removing the
  * exposure therefore costs a real verification property rather than being free — the trade is
- * ARCHITECTURE_PLAN.md's to record, not this file's to pre-empt.
+ * AUTH_ARCHITECTURE.md's to record, not this file's to pre-empt.
  *
  * Sole consumer is `paycalc.test.mjs`, which asserts the calculator's computed tax/NI
  * stays within payslip tolerance of these actuals (the pay-maths regression net). The

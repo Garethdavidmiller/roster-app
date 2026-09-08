@@ -1,4 +1,9 @@
-# A11Y_FINDINGS.md — accessibility gate baseline
+# A11Y_BASELINE.md — accessibility gate baseline
+
+*Renamed from `A11Y_FINDINGS.md` (8 Sep 2026): every finding recorded here is fixed, so the file is
+the gate's baseline and the archive of what it caught, not a list of open problems. Its own heading
+had said "baseline" for some time.*
+
 
 `e2e/axe.spec.js` runs the [axe-core](https://github.com/dequelabs/axe-core) engine against one
 fully-rendered state of every page (WCAG 2.0/2.1 A + AA). It is the app's first automated

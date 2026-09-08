@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * overtime-boot.js — 2-line bootstrap for overtime.html (ARCHITECTURE_PLAN.md Phase 4a.2).
+ * overtime-boot.js — 2-line bootstrap for overtime.html (AUTH_ARCHITECTURE.md Phase 4a.2).
  *
  * CSP `script-src 'self'` blocks inline module scripts, so the page cannot call
  * `init()` inline — it loads this tiny module instead. Keeping the call OUT of

@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * auth-state.js — the auth STORE (ARCHITECTURE_PLAN.md Track 1, Phase 2).
+ * auth-state.js — the auth STORE (AUTH_ARCHITECTURE.md Track 1, Phase 2).
  *
  * Holds the single identity state (reduced by auth-state-core.js) and lets the rest of the
  * app OBSERVE it (`subscribeAuth` / `getAuthSnapshot`). The "shell adapter" role — the actual

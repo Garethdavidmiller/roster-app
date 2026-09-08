@@ -37,7 +37,7 @@ const _isCredentialRejection = isCredentialRejection;
 import { dispatchAuth } from './auth-state.js';
 
 /**
- * Feed the auth STORE (ARCHITECTURE_PLAN.md Phase 2). This is a pure side-effect, wrapped so
+ * Feed the auth STORE (AUTH_ARCHITECTURE.md Phase 2). This is a pure side-effect, wrapped so
  * a store error can NEVER break the auth path; `sessionReady` and every existing flow are
  * untouched (session.js still owns the Firebase lifecycle). The store IS now consumed: the 5
  * write coordinators read it at init via `getAuthSnapshot()` + `requirePage()` (auth-policy.js),

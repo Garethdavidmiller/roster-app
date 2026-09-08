@@ -2770,7 +2770,7 @@ test('operations #reset-requests deep link opens and scrolls to the queue card',
     const body = page.locator('#resetRequestsBody');
     await expect(body).toHaveClass(/\bopen\b/);
     // The chevron must AGREE with the class — opening by class alone leaves a screen reader told the
-    // card is still collapsed (A11Y_FINDINGS.md v18.68).
+    // card is still collapsed (A11Y_BASELINE.md v18.68).
     await expect(page.locator('#resetRequestsChevron')).toHaveAttribute('aria-expanded', 'true');
     await expect(page.locator('#resetRequestsCard')).toBeInViewport();
 });

@@ -115,7 +115,7 @@ export async function runNamedSignIn({ enforce, ensureNamedSession, saveSession,
 }
 
 /**
- * Tear down the in-place login overlay (in-place sign-in / CONFIG.INPLACE_LOGIN — ARCHITECTURE_PLAN.md
+ * Tear down the in-place login overlay (in-place sign-in / CONFIG.INPLACE_LOGIN — AUTH_ARCHITECTURE.md
  * Phase 9). A coordinator whose `onSuccess` initialises the page in place (rather than reloading) calls
  * this to remove the overlay and reveal the now-rendered page. Safe to call when no overlay is present
  * (a normal already-signed-in load) — it then does nothing, so coordinators can call it unconditionally

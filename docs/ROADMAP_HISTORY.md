@@ -1478,7 +1478,7 @@ loads from the SW cache and hides the cold-load cost real first-time staff pay (
   (in-place login). **ROLLOUT COMPLETE — all five coordinators enabled: paycalc (v15.07), operations
   (v15.08), links (v15.09), admin (v15.16), settings (v15.17).** The per-page kill-switch in
   `CONFIG.INPLACE_LOGIN` still stands (set any key back to `false` to revert that page). Full plan:
-  **ARCHITECTURE_PLAN.md → Phase 9**.
+  **AUTH_ARCHITECTURE.md → Phase 9**.
 
 ### Shipped
 

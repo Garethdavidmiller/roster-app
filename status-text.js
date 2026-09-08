@@ -15,7 +15,7 @@
  * different machines, and on the noisier settings every save is prefixed with a word that is not
  * part of the sentence. The glyph is decoration: the text beside it already says what happened.
  *
- * This was logged as the last open item in A11Y_FINDINGS.md and deferred with a reason — "hiding it
+ * This was logged as the last open item in A11Y_BASELINE.md and deferred with a reason — "hiding it
  * needs a span restructure at each site; best done later via one shared helper". This is that
  * helper. It was deferred rather than dropped because axe cannot see this: `aria-hidden` on a
  * decorative glyph is a judgement about MEANING, and there is no rule that fires on its absence.
