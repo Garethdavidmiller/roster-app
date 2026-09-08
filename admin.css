@@ -31,6 +31,28 @@
            admin consistent with the other tool pages. The calendar is now the only page that keeps
            the wide cap (its 7-column month grid + Team Week View genuinely earn it). */
         .container { max-width: var(--content-max-width); width: 100%; margin: 0 auto; display: none; gap: 12px; box-sizing: border-box; overflow-x: hidden; overflow-x: clip; }
+        /* ── THE TRACK MUST BE ALLOWED TO SHRINK (v23.28) ──────────────────────────────────────
+           Same trap `.selectors` documents below, one level up and far more visible. With no
+           `grid-template-columns`, this grid gets ONE `auto` track, whose automatic minimum is
+           min-content — so a single child that refuses to shrink drags the TRACK wider than the
+           container, and every sibling in it (the header, the member bar, every card) stretches
+           to that width and is then cut off by the `overflow-x: clip` above. The page does not
+           scroll; it is simply clipped, which is why the symptom is the whole screen shaved down
+           its right edge rather than a scrollbar.
+           What made it reachable: at the default text size everything fits, so the track's minimum
+           never bites. Turn Android's font or display size up and the week grid's shift chip
+           ("14:30-23:25") needs ~121px, the grid's min-content passes the viewport, and the whole
+           page goes with it. It appears only AFTER a manager picks a staff member, because that is
+           when the week grid first paints real shifts — which is exactly how it was reported.
+           `minmax(0, …)` lets the track shrink; each card then clips its own overflow, as
+           `.card { overflow: hidden }` already intends, instead of the page doing it for them. */
+        .container { grid-template-columns: minmax(0, 1fr); }
+        /* The items get it too — the pair is the documented idiom (a grid item's own `min-width:
+           auto` is min-content, so a track allowed to shrink can still be held open by its item).
+           Measured honestly: against TODAY's content either line alone is enough, so neither is
+           individually load-bearing and the e2e test's teeth are against removing both. They are
+           kept as a pair because which one binds depends on the content, and the content changes. */
+        .container > *, .col-main > *, .col-side > * { min-width: 0; }
         /* Pull the header closer to the first card — net gap = 12px - 8px = 4px */
         .app-header { margin-bottom: -8px; }
         body.auth-ready .container { display: grid; }
