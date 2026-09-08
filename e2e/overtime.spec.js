@@ -2108,3 +2108,149 @@ test.describe('an invitation that lands after the week was made', () => {
         await expect(page.locator('[data-topup]')).toHaveCount(0);
     });
 });
+
+/**
+ * The three rules `overtime-form.js`'s header says must not be "tidied" — driven through the real
+ * production path, because each one is a piece of WIRING and the repo's own named risk is a rule
+ * that is perfectly tested and never reached. `overtime-format.js` already pins the decisions;
+ * nothing pinned that `onSubmit` asks them, or acts on the answers.
+ *
+ * Each is organised by what the wrong behaviour COSTS, and in every case the cost falls on the
+ * member rather than on the page: a day answered on their behalf, an answer refused by their own
+ * phone's clock, or a submission that saved being reported as one that did not.
+ */
+test.describe('the form\'s three named rules, wired (v23.34)', () => {
+    const D = ['2026-08-30', '2026-08-31', '2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04', '2026-09-05'];
+    const win = (over = {}) => ({ ...W, phase: 'FINAL_OPEN',
+        participant: { grade: 'CEA', rosterOrder: 2 }, submission: null, ...over });
+
+    test('rule 1: an incomplete submit sends NOTHING, and walks to the day it names', async ({ page }) => {
+        // The existing incomplete-submit test asserts the words. It cannot see the half that
+        // matters: whether anything was SENT. A submission carrying six answers and a silent
+        // default for the seventh is the failure this rule exists to prevent — it succeeds, the
+        // form goes green, and the member has told the roster office something about their own life
+        // that they never said. Nothing anywhere would report it.
+        //
+        // So this leaves ONE day unanswered, in the middle rather than at either end (an
+        // off-by-one that took the first or last outstanding date would pass on a fixture with a
+        // single gap at the edge), and asserts three things together: no request, the message names
+        // that day, and focus is inside it. The message and the walk agreeing is the same contract
+        // the server-side `bad-time` refusal is held to.
+        let submitCalls = 0;
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [win()] });
+        await page.route('**/submitOvertimeAvailability', r => {
+            submitCalls += 1;
+            return r.fulfill({ status: 200, contentType: 'application/json',
+                body: JSON.stringify({ ok: true, revision: 1, created: true, phase: 'FINAL_OPEN', serverNow: NOW }) });
+        });
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day').first().waitFor();
+        for (let i = 0; i < 7; i++) {
+            if (i === 3) continue;
+            await page.locator('.ot-day').nth(i).getByRole('radio', { name: 'Not available' }).click();
+        }
+        await expect(page.locator('.ot-submit')).toContainText('1 day still to answer');
+
+        await page.locator('.ot-submit').click();
+        await expect(page.locator('.ot-feedback')).toContainText('Answer Wed 2 Sep');
+        expect(submitCalls, 'an unanswered day must not be sent as anything at all').toBe(0);
+        // Focus landed IN the day the message named — not merely somewhere on the form.
+        const focusedDay = await page.evaluate(() =>
+            document.activeElement?.closest('.ot-day')?.getAttribute('data-day') ?? null);
+        expect(focusedDay).toBe('2026-09-02');
+        // And the six real answers survive the refusal. A refusal that cleared the form would
+        // satisfy every assertion above and be the worst outcome on this page.
+        await expect(page.locator('.ot-day--set')).toHaveCount(6);
+    });
+
+    test('rule 2: past the deadline AND past the grace, it still sends — and the late answer saves', async ({ page }) => {
+        // The client's clock decides what the page SAYS, never whether to send. This is the state
+        // the rule is for: the form was open when it loaded, the member filled it in, and the
+        // deadline passed under them. A phone twenty minutes fast reaches it without any time
+        // passing at all, which is why the refusal can never be the client's to make — the answer
+        // it would throw away is a real one the server would have taken.
+        //
+        // `page.clock` because `SUBMIT_GRACE_MS` is fifteen minutes and no lever shortens it. The
+        // fast-forward lands well past the grace, so `submitDisposition` returns `closed` — the
+        // strongest case, where the client is as sure as it can be that the window has gone.
+        await page.clock.install({ time: new Date(NOW) });
+        let sent = 0;
+        /** @type {(v: unknown) => void} */
+        let release = () => {};
+        const held = new Promise(res => { release = res; });
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [win({ finalDeadlineAt: NOW + 60_000 })] });
+        await page.route('**/submitOvertimeAvailability', async r => {
+            sent += 1;
+            await held;      // hold it open so the in-flight wording can be read, not raced
+            return r.fulfill({ status: 200, contentType: 'application/json',
+                body: JSON.stringify({ ok: true, revision: 1, created: true, phase: 'FINAL_OPEN', serverNow: NOW }) });
+        });
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day').first().waitFor();
+        for (let i = 0; i < 7; i++) {
+            await page.locator('.ot-day').nth(i).getByRole('radio', { name: 'Not available' }).click();
+        }
+        await expect(page.locator('.ot-submit')).toContainText('Submit availability');
+
+        await page.clock.fastForward(20 * 60_000);       // 19 min past the deadline: past the grace
+        await page.locator('.ot-submit').click();
+
+        // It went. And while it is in flight the page says the deadline MAY have passed — a
+        // statement about the client's clock — rather than announcing it has.
+        await expect.poll(() => sent, { message: 'a late answer must reach the server' }).toBe(1);
+        await expect(page.locator('.ot-feedback')).toContainText('checking with the server');
+        release(null);
+        await expect(page.locator('.ot-feedback')).toContainText('submitted');
+        await expect(page.locator('.ot-day--saved')).toHaveCount(7);
+    });
+
+    test('rule 3: a timeout whose re-read ALSO fails says so — never "it didn\'t reach the server"', async ({ page }) => {
+        // The reconcile branch with the most riding on it and no browser cover: `unknown`. A
+        // timeout stops us waiting; it does not stop the server writing, so when the re-read fails
+        // too there is no honest answer available. Announcing failure is not a cautious guess — it
+        // invites a second submission which, if the first did land, conflicts against the member's
+        // own earlier answer and hands them a dialog about their own work.
+        //
+        // The `saved` branch is pinned above ('a timed-out submission that DID save'). This is the
+        // one where the app has to admit it does not know.
+        await page.clock.install({ time: new Date(NOW) });
+        let reads = 0;
+        await seedSession(page, 'G. Miller');
+        await page.addInitScript(() => {
+            window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: [] };
+        });
+        await page.route('**/getMyOvertimeState', r => {
+            reads += 1;
+            // The first read builds the form; the re-read after the timeout fails, which is the
+            // realistic shape — the connection that swallowed the submission is still down.
+            return reads === 1
+                ? r.fulfill({ status: 200, contentType: 'application/json',
+                    body: JSON.stringify({ ok: true, serverNow: NOW, windows: [win()] }) })
+                : r.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"boom"}' });
+        });
+        await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [], retained: [] }) }));
+        // Accepted and never answered — a request that reached a working server on a dying link.
+        await page.route('**/submitOvertimeAvailability', () => {});
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day').first().waitFor();
+        for (let i = 0; i < 7; i++) {
+            await page.locator('.ot-day').nth(i).getByRole('radio', { name: 'Not available' }).click();
+        }
+        await page.locator('.ot-submit').click();
+        await page.clock.fastForward(70_000);            // past the client's 65s budget
+
+        const feedback = page.locator('.ot-feedback');
+        await expect(feedback).toContainText("couldn't confirm whether your form was saved");
+        await expect(feedback, 'a claim the app cannot support')
+            .not.toContainText("didn't reach the server");
+        expect(reads, 'a timeout must go into reconciliation, not straight to a verdict')
+            .toBeGreaterThanOrEqual(2);
+        // The answers are still on screen, and the button is live again — the member can act.
+        await expect(page.locator('.ot-day--set')).toHaveCount(7);
+        await expect(page.locator('.ot-submit')).toBeEnabled();
+    });
+});
