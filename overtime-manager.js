@@ -247,6 +247,13 @@ function build(win, data, { dates, now, grade, day = 'ALL', canRefresh = false }
             <div class="ot-print-head" aria-hidden="true">
                 <div class="ot-print-title">Overtime availability — ${esc(weekLabel(win.weekEnding))}</div>
                 <div class="ot-print-asat">${esc(asAtLine(now))}</div>
+                <!-- TWO DIFFERENT FACTS, and a printed sheet needs both (v23.27, external review).
+                     the as-at line above says how fresh the DATA is — answers keep arriving until the
+                     deadline, so a sheet carrying only that is undated as a physical object. This
+                     says when the PAPER was produced. A reviewer holding two printouts of the same
+                     week cannot tell which is the later one from the as-at line, because both were
+                     taken from snapshots that may share it; the printed-at line is what orders them. -->
+                <div class="ot-print-printed">Printed ${esc(deadlineLabel(Date.now()))}</div>
                 <!-- The grade filter IS carried into print, unlike the day filter — printing one
                      grade's availability is a real thing to want. That makes stating it mandatory:
                      a sheet showing four CEAs with no scope line reads as the whole team. -->

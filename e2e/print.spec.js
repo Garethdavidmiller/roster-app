@@ -181,6 +181,64 @@ test('the FIP print button prepares without beforeprint @print', async ({ page }
         'a second prepare must not destroy the restore snapshot').toBe(closedBefore);
 });
 
+// ── THE PRINT BUTTON PRINTS WHAT IS ON SCREEN (v23.27) ──────────────────────────────────────────
+// The prepare used to un-hide every card the finder had filtered out, so a traveller looking at one
+// country got the whole guide — 25 pages, at a station, before a trip. Opening a collapsed card is
+// a rendering repair (the print engine drops a closed `details`); un-hiding a filtered one overrides
+// a choice the reader made. The two are now separated, and this is the half that had no test.
+test('the FIP print button prints the countries on screen, not all of them @print', async ({ page }) => {
+    await page.goto('/fip-guide.html');
+    await page.locator('#countrySearch').fill('Belgium');
+    const hiddenBefore = await page.evaluate(() =>
+        [...document.querySelectorAll('[id^="country-"]')].filter(c => c.hidden).length);
+    expect(hiddenBefore, 'the filter has to have hidden something for this to mean anything')
+        .toBeGreaterThan(10);
+
+    await page.evaluate(() => { window.print = () => {}; });
+    await page.locator('.btn-print').click();
+    expect(await page.evaluate(() =>
+        [...document.querySelectorAll('[id^="country-"]')].filter(c => c.hidden).length),
+        'a filtered guide prints the filter').toBe(hiddenBefore);
+    // …and what IS shown still reaches the paper opened, which is the repair this handler exists
+    // for: a closed `details` prints as an empty bordered strip.
+    expect(await page.evaluate(() => [...document.querySelectorAll('[id^="country-"]')]
+        .filter(c => !c.hidden)
+        .every(c => c.tagName !== 'DETAILS' || /** @type {HTMLDetailsElement} */ (c).open)),
+        'every country still on screen is open for the printer').toBe(true);
+
+    // And the button says which of the two it will do — the visible label cannot change (shared
+    // header geometry), so the accessible name is where the scope has to live.
+    // Derived from the DOM, not written down: the query matches whichever cards mention Belgium,
+    // and a hardcoded number here would be a claim about the guide's prose.
+    const shown = await page.evaluate(() =>
+        [...document.querySelectorAll('[id^="country-"]')].filter(c => !c.hidden).length);
+    await expect(page.locator('.btn-print'))
+        .toHaveAttribute('aria-label', new RegExp(`the ${shown} countr(y|ies) shown`));
+    await page.locator('#countryClear').click();
+    await expect(page.locator('.btn-print')).toHaveAttribute('aria-label', /whole FIP guide/);
+});
+
+// ── AND THE RESTORE MAY NOT DEPEND ON `afterprint` EITHER (v23.27) ──────────────────────────────
+// The prepare stopped trusting `beforeprint`; the restore was left trusting `afterprint`, which is
+// the same event from the same engine. On the AirPrint route neither fires, so the guide stays
+// expanded — printing becomes a way to permanently change the page. `visibilitychange` is the one
+// signal every engine sends when the print sheet is dismissed.
+test('the FIP guide is put back after a print that never fires afterprint @print', async ({ page }) => {
+    await page.goto('/fip-guide.html');
+    const closedBefore = await page.evaluate(() => document.querySelectorAll('details:not([open])').length);
+    expect(closedBefore, 'the fixture needs collapsed countries').toBeGreaterThan(10);
+
+    await page.evaluate(() => { window.print = () => {}; });
+    await page.locator('.btn-print').click();
+    expect(await page.evaluate(() => document.querySelectorAll('details:not([open])').length))
+        .toBe(0);
+
+    // No `afterprint` — that is the case under test. Only the visibility signal.
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    expect(await page.evaluate(() => document.querySelectorAll('details:not([open])').length),
+        'the countries the reader had collapsed must come back collapsed').toBe(closedBefore);
+});
+
 // ── THE DAILY HUDDLE IS NOT PRINTED ─────────────────────────────────────────────────────────────
 // Owner decision (7 Sep 2026): the Huddle is read in the app, not on paper. Before this, the viewer
 // had no print rules at all and clipped a 40-row day plan to 30 rows with nothing saying so — the

@@ -101,6 +101,15 @@ shown that yet.
 
 ## Decisions taken — recorded so they are not re-raised
 
+- **The Huddle print notice keeps `:has()` — DECLINED** (external review, 8 Sep 2026). Replacing
+  `body:has(#huddleViewer.visible)` with a body-state class was proposed on portability grounds. The
+  app already leans on `:has()` in five stylesheets, and the other uses fail *worse*: an unsupported
+  engine would leave a selected back-pay/HPP mode option and a ticked Links objective looking
+  unselected, which is a wrong answer on screen, against one missing explanatory sentence here — the
+  print protection itself is a plain `#huddleViewer { display: none }` and needs no `:has()` at all.
+  A class would also add a third piece of open/closed state to the app's one hand-rolled overlay
+  lifecycle, which has already shipped two bugs caused by exactly that duplication. The reasoning
+  lives beside the rule in `index.css`; this row exists so the proposal is not re-made.
 
 - **Pay-data transfer notice — DISMISSED as drafted** (owner, 31 Jul 2026). A one-time notice
   pointing staff at the "💾 Move Your Pay Data" card was drafted and rejected in that form. **Do not

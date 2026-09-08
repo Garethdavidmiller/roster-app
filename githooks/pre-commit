@@ -248,7 +248,7 @@ const milestone = Math.floor(toHundredths(app) / 10) * 10;
 const milestoneStr = `v${(milestone / 100).toFixed(2)}`;
 
 const DOCS = [
-    { file: process.env.DOC_CLAUDE,            re: /Current app version[^`]*`(\d+\.\d+)`/ },
+    { file: process.env.DOC_CLAUDE,            re: /Documentation milestone[^`]*`(\d+\.\d+)`/ },
     { file: process.env.DOC_AI_MAP,            re: /Last updated:[^\n]*?v(\d+\.\d+)/ },
     { file: process.env.DOC_OPERATIONS,        re: /Last updated:[^\n]*?v(\d+\.\d+)/ },
     { file: process.env.DOC_KNOWN_LIMITATIONS, re: /Last updated:[^\n]*?v(\d+\.\d+)/ },

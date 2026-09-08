@@ -589,8 +589,23 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     /* Ensure expanded details don't clip content in print engines */
     details { overflow: visible; }
 
-    /* Keep country cards together where possible */
-    details, .card { break-inside: avoid; }
+    /* ── WHAT MAY BREAK ACROSS A PAGE, AND WHAT MAY NOT (v23.27) ────────────────────────────
+       This was `details, .card { break-inside: avoid }` — applied to everything, including the one
+       thing on the page that cannot honour it. Switzerland's card is 1,210px against a 1,024px A4
+       column, so the rule is unsatisfiable there and Chromium breaks the card anyway.
+       What it cost was MEASURED, not reasoned about: three full renders, text-extracted and
+       compared word for word. Nothing was ever clipped — the price was blank-bottomed pages, 27
+       against the 24 the same content takes with no avoid at all, on a guide a traveller prints at
+       a station before a trip. This lands at 25: two pages back, and the third deliberately spent
+       on the orphan rules below.
+       So a COUNTRY may break (a reference entry running over a page is how every reference book
+       works), while the small blocks that read as one unit — a callout, a summary card, a table
+       row — still may not. `break-after: avoid` on the summary is what keeps that honest: a country
+       heading may never be the last thing on a page with its answer overleaf. */
+    .card, .box, tr { break-inside: avoid; }
+    details { break-inside: auto; }
+    details > summary { break-after: avoid; }
+    p, li { orphans: 2; widows: 2; }
 
     /* Section headings start a new block but don't orphan */
     .section-label { break-after: avoid; margin-top: 16px; }

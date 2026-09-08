@@ -2070,33 +2070,23 @@ export function init() {
         window.print();
     });
 
-    /**
-     * Open every `<details>` before printing, and put them back afterwards (v19.57).
-     *
-     * The fatigue panel's "N factors with nothing to report" disclosure is collapsed by default on
-     * screen, and CSS **cannot** open it: Chromium hides a closed `details`'s content through its own
-     * internal slot, which no author `display` rule reaches. Measured — a `@media print` override
-     * still printed 13 of 24 rows.
-     *
-     * That is not a cosmetic loss. The printed sheet is what gets circulated to the assessing
-     * manager, so a silent drop of 17 completed checks would be precisely the false-assurance failure
-     * this panel was built to prevent: a design that looks like it was assessed against fewer factors
-     * than it actually was. On paper the panel is a record, so it prints whole.
-     *
-     * `afterprint` restores the on-screen state — printing must not be a way to permanently expand
-     * something the designer had deliberately collapsed.
-     */
     let _reopenAfterPrint = /** @type {HTMLDetailsElement[]} */ ([]);
     let _printPrepared = false;
     /**
-     * Prepare the page for paper — from the Print button BEFORE `window.print()`, and from
-     * `beforeprint` for the browser's own menu (v23.20). It used to live only in `beforeprint`;
-     * `fip-guide.js` carries the argument for why that was not safe, and the measurement.
-     * What is specific HERE: the fatigue panel's collapsed disclosure is the record of checks that
-     * WERE run, so losing it hands an assessing manager a sheet showing fewer factors assessed than
-     * actually were — the false-assurance failure that panel exists to prevent.
-     * IDEMPOTENT ON PURPOSE: where both routes fire, a second snapshot would record every `details`
-     * as already open and `afterprint` would leave the workspace permanently expanded.
+     * Open every `<details>` for paper, and put them back afterwards (v19.57).
+     *
+     * CSS **cannot** do the opening: Chromium hides a closed `details`'s content through its own
+     * internal slot, which no author `display` rule reaches — measured, a `@media print` override
+     * still printed 13 of the fatigue panel's 24 rows. And that is not cosmetic. The sheet is what
+     * gets circulated to the assessing manager, so dropping 17 completed checks is precisely the
+     * false-assurance failure that panel exists to prevent: a design that looks assessed against
+     * fewer factors than it actually was. Restoring afterwards matters for the mirror-image reason
+     * — printing must not permanently expand what the designer deliberately collapsed.
+     *
+     * Called from the Print button BEFORE `window.print()` as well as from `beforeprint` (v23.20);
+     * `fip-guide.js` carries the argument for why the event alone was not safe, and the
+     * measurement. IDEMPOTENT ON PURPOSE: where both routes fire, a second snapshot would record
+     * every `details` as already open and the restore would leave the workspace expanded.
      */
     function _preparePrint() {
         if (_printPrepared) return;
@@ -2106,12 +2096,21 @@ export function init() {
             [...document.querySelectorAll('details:not([open])')]);
         for (const d of _reopenAfterPrint) d.open = true;
     }
-    window.addEventListener('beforeprint', _preparePrint);
-    window.addEventListener('afterprint', () => {
+    function _restoreAfterPrint() {
         if (!_printPrepared) return;   // afterprint can fire twice, or not at all
         _printPrepared = false;
         for (const d of _reopenAfterPrint) d.open = false;
         _reopenAfterPrint = [];
+    }
+    window.addEventListener('beforeprint', _preparePrint);
+    window.addEventListener('afterprint', _restoreAfterPrint);
+    // The restore needs the same defence the prepare got (v23.27): `afterprint` is the same event
+    // from the same engine that does not fire `beforeprint` for AirPrint, so on the route this
+    // station prints from the workspace was left permanently expanded. Becoming visible again is
+    // the signal every engine sends; where `afterprint` fires this is a no-op. The full argument
+    // and its measurement are in `fip-guide.js`, beside the identical net.
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') _restoreAfterPrint();
     });
 
     /**

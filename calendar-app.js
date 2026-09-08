@@ -1292,7 +1292,8 @@ initCalendarAccess({
     },
 });
 
-// The page's one-time notices (sign-in-2026, backpay-2026, and whatever /new-notice adds next).
+// The page's one-time notices (backpay-2026, and whatever /new-notice adds next). `sign-in-2026`
+// was retired at v23.23 — see calendar-notices.js for why it went by decision, not by expiry.
 // Their wiring lives in calendar-notices.js — see its header for why they left this file. They
 // queue behind the forced set-password step (below), the way the paycalc YTD notice does.
 initCalendarNotices({ after: _passwordForceSettled });

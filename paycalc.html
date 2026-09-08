@@ -1058,8 +1058,13 @@
     <a href="./paycalc-guide.html" class="lightbox-bug-link"><span aria-hidden="true">📖</span> View pay guide</a>
     <a id="bugReportLink" class="lightbox-bug-link" href="#"><span aria-hidden="true">🐛</span> Report a bug</a>
     <div class="lightbox-print-wrap">
-      <button type="button" id="lightboxPrintBtn" class="lightbox-print-btn"><span aria-hidden="true">🖨️</span> Print this page</button>
-      <span id="lightboxPrintHint" class="lightbox-print-hint">Prints the current pay calculator view</span>
+      <!-- "Print pay estimate", not "Print this page" (v23.27, external review). The print
+           stylesheet builds a CURATED artefact — result first, then the hours entered, then the
+           settings used — and drops the occasional cards, the period controls and every overlay.
+           "This page" promised the screen and delivered something else; the reader only found out
+           after the paper came out. The hint now names the three things that DO print. -->
+      <button type="button" id="lightboxPrintBtn" class="lightbox-print-btn"><span aria-hidden="true">🖨️</span> Print pay estimate</button>
+      <span id="lightboxPrintHint" class="lightbox-print-hint">Prints the estimate, hours entered and settings used</span>
     </div>
   </div>
 </div>

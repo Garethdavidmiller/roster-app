@@ -275,7 +275,11 @@ test('service-worker.js cross-version fallback uses matchNewestManagedCache, not
 // "Last updated: … vX.YZ" header. The policy (CLAUDE.md) is that ALL the docs are
 // swept every 0.10 version — this test enforces that for all of them, not just one.
 const DOC_STAMPS = [
-    { file: 'CLAUDE.md',               re: /Current app version[^`]*`(\d+\.\d+)`/, label: '"Current app version" line' },
+    // CLAUDE.md states the MILESTONE, not the current version — its row is labelled
+    // "Documentation milestone" for that reason. It used to say "Current app version" and carry the
+    // exact figure, which rotted on every release (23.23 while the app shipped 23.24, 23.25, 23.26)
+    // because bumping a doc row is not part of shipping. The guard only ever required the milestone.
+    { file: 'CLAUDE.md',               re: /Documentation milestone[^`]*`(\d+\.\d+)`/, label: '"Documentation milestone" line' },
     { file: 'docs/AI_MAP.md',               re: /Last updated:[^\n]*?v(\d+\.\d+)/,       label: '"Last updated" header' },
     { file: 'docs/OPERATIONS_REFERENCE.md', re: /Last updated:[^\n]*?v(\d+\.\d+)/,       label: '"Last updated" header' },
     { file: 'docs/KNOWN_LIMITATIONS.md',    re: /Last updated:[^\n]*?v(\d+\.\d+)/,       label: '"Last updated" header' },

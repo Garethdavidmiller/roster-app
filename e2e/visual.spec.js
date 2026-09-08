@@ -1207,3 +1207,54 @@ test('overtime — the planning horizon, every row state (desktop 1280)', async 
     await expect(page.locator('.ot-week-row')).toHaveCount(5);
     await expect(page).toHaveScreenshot('overtime-horizon-desktop-1280.png');
 });
+
+test('overtime — the reviewer\'s by-day workspace (mobile 390)', async ({ page }) => {
+    // The reviewer's own surface had NO baseline at all, on any width — every overtime picture above
+    // is the member's form. That is the half a manager works from, it is denser than the form (name,
+    // grade, roster chip, answer chip, age, flags on one row), and its longest state is a sentence
+    // in a pill: a before-and-after window plus the willingness suffix. That sentence shipped
+    // `nowrap` and ran off the right edge of the card, which no behavioural assertion could see —
+    // the text was all present, correctly styled and readable to `textContent`.
+    //
+    // Seeded with the LONGEST copy the row can hold and the longest name on the roster, so the
+    // frame is the worst case rather than a comfortable one. The geometry itself is asserted in
+    // e2e/overtime.spec.js — a baseline says the picture changed, a measurement says it is clipped.
+    await prep(page, { width: 390, height: 1400 });
+    await seedSession(page, 'H. Croft');       // a MANAGER — the member form is not this surface
+    const dates = Array.from({ length: 7 }, (_, i) =>
+        new Date(Date.UTC(2026, 6, 26 + i)).toISOString().slice(0, 10));
+    const at = FIXED_TIME.getTime() - 36 * 3_600_000;   // "Said yesterday", a stable age line
+    await page.addInitScript(([rows]) => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = Object.assign(w.__E2E || {}, { authUser: true, docs: rows });
+    }, [[
+        { id: 'G. Miller', memberName: 'G. Miller', grade: 'CEA', rosterOrder: 1,
+          currentRevision: 1, firstAcceptedAt: at, updatedAt: at,
+          days: Object.fromEntries(dates.map(d => [d, {
+              mode: 'before_after', until: '09:00', from: '17:00', fullTwelve: true }])) },
+        { id: 'R. Forrester-Blackstock', memberName: 'R. Forrester-Blackstock', grade: 'CEA',
+          rosterOrder: 2, currentRevision: 1, firstAcceptedAt: at, updatedAt: at,
+          days: Object.fromEntries(dates.map(d => [d, { mode: 'unavailable' }])) },
+        // No `days` at all: a participant this fixture cannot give a submission to, which is what
+        // "No response" is. The empty-section heading is the other thing worth a picture — hiding
+        // it would make "nobody outstanding" look like a section that failed to draw.
+        { id: 'A. Hared', memberName: 'A. Hared', grade: 'CEA', rosterOrder: 3 },
+    ]]);
+    // The horizon row above says "2 of 3 forms received" and the detail card below says "3 of 3".
+    // That is the FIXTURE, not a defect: `docs` seeds one array for every collection read, so the
+    // third row is a participant AND a (dayless) submission head, and only the horizon's counts
+    // come from the stubbed overview. Said here so the next reader of this picture does not go
+    // hunting for a counting bug that is not in the app.
+    await stubOvertime(page, {
+        weeks: [{ ...OT_WINDOW, exists: true, state: 'created', canCreate: false,
+            expected: 3, received: 2, noResponse: 1 }],
+    });
+    await page.goto('/overtime.html');
+    await settle(page, '.ot-day-panel');
+    // Sentinels, so a regenerated baseline cannot quietly bless a row that stopped rendering: all
+    // three tones are on screen, and the long chip is the full sentence rather than a truncation.
+    await expect(page.locator('.ot-day-panel').first().locator('.ot-section')).toHaveCount(3);
+    await expect(page.locator('.ot-answer--yes').first())
+        .toHaveText('Available before 09:00 and after 17:00 · would work up to 12 hours');
+    await expect(page).toHaveScreenshot('overtime-reviewer-mobile-390.png');
+});

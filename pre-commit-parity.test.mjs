@@ -115,6 +115,36 @@ describe('the hook and CI check the same documents', () => {
         }
     });
 
+    // ── AND THE SAME PATTERN, NOT MERELY THE SAME FILES (v23.27) ────────────────────────────────
+    //
+    // The two lists agreed on WHICH documents carry a stamp and nothing compared HOW each one is
+    // found. That gap cost a commit: CLAUDE.md's row was renamed from "Current app version" to
+    // "Documentation milestone", `sw-asset-check.test.mjs` was updated in the same change, and the
+    // hook — the one lane neither CI nor a fresh container runs — kept the old pattern and refused
+    // every commit with "no version stamp found". The failure direction is the merciful one here
+    // (a refusal, loudly, at the moment you type `git commit`), but the opposite rename would be
+    // silent: a hook regex matching something CI's does not means the local gate is passing on a
+    // line nobody else reads.
+    test('and looks for the stamp the same WAY', () => {
+        const rx = /\{ file: ([^,]+),\s*re: (\/[^\n]*?\/)[,\s]/g;
+        /** @param {string} text @param {(k:string)=>string} resolve */
+        const patterns = (text, resolve) => {
+            /** @type {Record<string,string>} */ const out = {};
+            for (const m of text.matchAll(rx)) out[resolve(m[1].trim())] = m[2];
+            return out;
+        };
+        const byEnv = Object.fromEntries(declared.map(d => [`process.env.${d.name}`, d.path]));
+        const hookRes = patterns(src, k => byEnv[k] ?? k);
+        const ciRes = patterns(swSrc, k => k.replace(/^'|'$/g, ''));
+
+        for (const [file, re] of Object.entries(ciRes)) {
+            assert.equal(hookRes[file], re,
+                `githooks/pre-commit looks for ${file}'s version stamp with ${hookRes[file]} while `
+                + `sw-asset-check.test.mjs uses ${re}. One of them is reading a line the other is `
+                + 'not — rename the row in both, in the same commit.');
+        }
+    });
+
     test('and the reverse — the hook stamps nothing CI leaves unchecked', () => {
         // A document only the hook knows about is checked for whoever installed the hook and for
         // nobody else, so it looks enforced and is not.
