@@ -214,8 +214,18 @@ test('the FIP print button prints the countries on screen, not all of them @prin
         [...document.querySelectorAll('[id^="country-"]')].filter(c => !c.hidden).length);
     await expect(page.locator('.btn-print'))
         .toHaveAttribute('aria-label', new RegExp(`the ${shown} countr(y|ies) shown`));
+
+    // …and a SIGHTED reader is told too (v23.31). The accessible name above is announced on focus;
+    // a traveller filtering to one country never focuses the button before pressing it, so until
+    // now nothing on screen said the ⤓ PDF would follow the filter — which is the entire point of
+    // the behaviour this test pins. The cue lives on the finder's own count line.
+    await expect(page.locator('#countryCount')).toContainText('the PDF saves what is shown');
+
     await page.locator('#countryClear').click();
     await expect(page.locator('.btn-print')).toHaveAttribute('aria-label', /whole FIP guide/);
+    // Unfiltered, the whole guide prints, which is what a PDF button is assumed to do — so the cue
+    // goes away with the filter rather than stating the obvious.
+    await expect(page.locator('#countryCount')).toBeHidden();
 });
 
 // ── AND THE RESTORE MAY NOT DEPEND ON `afterprint` EITHER (v23.27) ──────────────────────────────

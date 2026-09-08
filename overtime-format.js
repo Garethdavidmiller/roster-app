@@ -302,6 +302,34 @@ export function deadlineLabel(ms) {
 }
 
 /**
+ * When a printed sheet came out of the tray: "Tue 8 Sep 2026 · 14:07".
+ *
+ * Its own formatter rather than a `deadlineLabel` with a flag, because the two answer opposite
+ * questions and the YEAR is the difference. A deadline is always within days of being read, so a
+ * year on it is noise — that shape is argued above and should stay. A printout is a physical object
+ * that outlives the screen: it goes in a folder, and next August a sheet stamped "Tue 8 Sep" cannot
+ * be told from one printed a year earlier. That is the same failure the printed-at line was added
+ * to prevent (two sheets of the same week, no way to order them), reached across years instead of
+ * across hours.
+ *
+ * London wall-clock for the same reason `deadlineLabel` is: the sheet is a roster-office document.
+ * @param {number} ms
+ */
+export function printedLabel(ms) {
+    if (!ms) return '';
+    const d = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Europe/London', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+    }).format(new Date(ms)).replace(/,/g, '')
+        // Same four-letter September trim as deadlineLabel — a printed sheet sits beside the
+        // deadline lines on the page, so the two must abbreviate identically.
+        .replace(/\bSept\b/, 'Sep');
+    const t = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    }).format(new Date(ms));
+    return `${d} · ${t}`;
+}
+
+/**
  * The line that makes a PRINTED availability sheet honest about its own age.
  *
  * "As at", not "printed at", and the difference is the whole point. What matters to somebody
