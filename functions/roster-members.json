@@ -23,7 +23,8 @@
         "D. Irvine",
         "T. Gherbi",
         "C. Reen",
-        "K. Jedlinski"
+        "K. Jedlinski",
+        "I. Melikian"
     ],
     "ces": [
         "F. Mohamed",
@@ -74,6 +75,7 @@
         "T. Gherbi",
         "C. Reen",
         "K. Jedlinski",
+        "I. Melikian",
         "F. Mohamed",
         "P. Lloyd",
         "P. Prashanthan",
@@ -323,15 +325,15 @@
             "managerOnly": false
         },
         {
-            "name": "D. Minto",
-            "grade": "Dispatcher",
-            "startDate": null,
+            "name": "I. Melikian",
+            "grade": "CEA",
+            "startDate": "2026-08-10",
             "rosterOrder": 25,
             "hidden": false,
             "managerOnly": false
         },
         {
-            "name": "A. Targanov",
+            "name": "D. Minto",
             "grade": "Dispatcher",
             "startDate": null,
             "rosterOrder": 26,
@@ -339,7 +341,7 @@
             "managerOnly": false
         },
         {
-            "name": "S. Warman",
+            "name": "A. Targanov",
             "grade": "Dispatcher",
             "startDate": null,
             "rosterOrder": 27,
@@ -347,7 +349,7 @@
             "managerOnly": false
         },
         {
-            "name": "S. Faure",
+            "name": "S. Warman",
             "grade": "Dispatcher",
             "startDate": null,
             "rosterOrder": 28,
@@ -355,7 +357,7 @@
             "managerOnly": false
         },
         {
-            "name": "L. Szpejer",
+            "name": "S. Faure",
             "grade": "Dispatcher",
             "startDate": null,
             "rosterOrder": 29,
@@ -363,7 +365,7 @@
             "managerOnly": false
         },
         {
-            "name": "K. Porter",
+            "name": "L. Szpejer",
             "grade": "Dispatcher",
             "startDate": null,
             "rosterOrder": 30,
@@ -371,7 +373,7 @@
             "managerOnly": false
         },
         {
-            "name": "A. Murray",
+            "name": "K. Porter",
             "grade": "Dispatcher",
             "startDate": null,
             "rosterOrder": 31,
@@ -379,7 +381,7 @@
             "managerOnly": false
         },
         {
-            "name": "S. Clarke",
+            "name": "A. Murray",
             "grade": "Dispatcher",
             "startDate": null,
             "rosterOrder": 32,
@@ -387,7 +389,7 @@
             "managerOnly": false
         },
         {
-            "name": "A. Atkins",
+            "name": "S. Clarke",
             "grade": "Dispatcher",
             "startDate": null,
             "rosterOrder": 33,
@@ -395,7 +397,7 @@
             "managerOnly": false
         },
         {
-            "name": "K. Yeboah",
+            "name": "A. Atkins",
             "grade": "Dispatcher",
             "startDate": null,
             "rosterOrder": 34,
@@ -403,10 +405,18 @@
             "managerOnly": false
         },
         {
+            "name": "K. Yeboah",
+            "grade": "Dispatcher",
+            "startDate": null,
+            "rosterOrder": 35,
+            "hidden": false,
+            "managerOnly": false
+        },
+        {
             "name": "B. Toth",
             "grade": "Dispatcher",
             "startDate": "2026-06-29",
-            "rosterOrder": 35,
+            "rosterOrder": 36,
             "hidden": false,
             "managerOnly": false
         },
@@ -414,7 +424,7 @@
             "name": "F. Mohamed",
             "grade": "CES",
             "startDate": null,
-            "rosterOrder": 36,
+            "rosterOrder": 37,
             "hidden": false,
             "managerOnly": false
         },
@@ -422,7 +432,7 @@
             "name": "P. Lloyd",
             "grade": "CES",
             "startDate": null,
-            "rosterOrder": 37,
+            "rosterOrder": 38,
             "hidden": false,
             "managerOnly": false
         },
@@ -430,7 +440,7 @@
             "name": "P. Prashanthan",
             "grade": "CES",
             "startDate": null,
-            "rosterOrder": 38,
+            "rosterOrder": 39,
             "hidden": false,
             "managerOnly": false
         },
@@ -438,7 +448,7 @@
             "name": "B. Khalil",
             "grade": "CES",
             "startDate": "2026-06-09",
-            "rosterOrder": 39,
+            "rosterOrder": 40,
             "hidden": true,
             "managerOnly": false
         },
@@ -446,7 +456,7 @@
             "name": "G. Rotaru",
             "grade": "CES",
             "startDate": null,
-            "rosterOrder": 40,
+            "rosterOrder": 41,
             "hidden": false,
             "managerOnly": false
         },
@@ -454,7 +464,7 @@
             "name": "L. Webster",
             "grade": "CES",
             "startDate": null,
-            "rosterOrder": 41,
+            "rosterOrder": 42,
             "hidden": false,
             "managerOnly": false
         },
@@ -462,7 +472,7 @@
             "name": "Z. Lewis",
             "grade": "CES",
             "startDate": null,
-            "rosterOrder": 42,
+            "rosterOrder": 43,
             "hidden": false,
             "managerOnly": false
         },
@@ -470,7 +480,7 @@
             "name": "M. Bowler",
             "grade": "CES",
             "startDate": null,
-            "rosterOrder": 43,
+            "rosterOrder": 44,
             "hidden": false,
             "managerOnly": false
         },
@@ -478,7 +488,7 @@
             "name": "W. Cummings",
             "grade": "CES",
             "startDate": null,
-            "rosterOrder": 44,
+            "rosterOrder": 45,
             "hidden": false,
             "managerOnly": false
         },
@@ -486,7 +496,7 @@
             "name": "S. Horsman",
             "grade": "CES",
             "startDate": null,
-            "rosterOrder": 45,
+            "rosterOrder": 46,
             "hidden": false,
             "managerOnly": false
         },
@@ -494,7 +504,7 @@
             "name": "S. Stewart",
             "grade": "Management",
             "startDate": null,
-            "rosterOrder": 46,
+            "rosterOrder": 47,
             "hidden": true,
             "managerOnly": true
         },
@@ -502,7 +512,7 @@
             "name": "D. Watts",
             "grade": "Management",
             "startDate": null,
-            "rosterOrder": 47,
+            "rosterOrder": 48,
             "hidden": true,
             "managerOnly": true
         },
@@ -510,7 +520,7 @@
             "name": "D. Harris",
             "grade": "Management",
             "startDate": null,
-            "rosterOrder": 48,
+            "rosterOrder": 49,
             "hidden": true,
             "managerOnly": true
         },
@@ -518,7 +528,7 @@
             "name": "S. Gumbo",
             "grade": "Management",
             "startDate": null,
-            "rosterOrder": 49,
+            "rosterOrder": 50,
             "hidden": true,
             "managerOnly": true
         },
@@ -526,7 +536,7 @@
             "name": "N. Bedingfield",
             "grade": "Management",
             "startDate": null,
-            "rosterOrder": 50,
+            "rosterOrder": 51,
             "hidden": true,
             "managerOnly": true
         },
@@ -534,7 +544,7 @@
             "name": "H. Croft",
             "grade": "Management",
             "startDate": null,
-            "rosterOrder": 51,
+            "rosterOrder": 52,
             "hidden": true,
             "managerOnly": true
         },
@@ -542,7 +552,7 @@
             "name": "N. Sobers",
             "grade": "Management",
             "startDate": null,
-            "rosterOrder": 52,
+            "rosterOrder": 53,
             "hidden": true,
             "managerOnly": true
         }
