@@ -86,6 +86,12 @@ breakage".
 > merging**, and re-bump if somebody got there first. The remedy afterwards is a fresh bump and a
 > redeploy; there is no way to make the duplicated version reach those devices.
 >
+> **The rule WORKING leaves a gap in the version space, and that is the cheaper outcome.** There is
+> no v23.22: two branches held it at once on 8 Sep 2026, both re-checked main before merging, and
+> both re-bumped (to 23.23 and 23.24). A skipped number is not a mistake to hunt for — it is what a
+> caught collision looks like from afterwards. Do not reuse one to close it up; the version only
+> ever increases, and a number that briefly named two different trees should never name a third.
+>
 > **⚠️ A RED `version` JOB ON A RELEASE THAT SHIPPED FINE IS PROBABLY THE TWO-RUNS TRAP.** Every PR
 > gets **two** CI runs — one for `push`, one for `pull_request` — and the second fires when the PR is
 > OPENED. Merge promptly and that run's `version` job compares the branch against a main which by
@@ -847,7 +853,7 @@ Full HTML template, JS patterns (close-only and CTA+snooze), rules table, and mo
 > `'everyone'` (both; rarely right). The rule is `noticeAudienceAllows` in `calendar-access-core.js`;
 > a refused notice is left unflagged, so it arrives when that device's position changes. Below,
 > every live notice is `'members'`: `sign-in-2026` was the only `'signed-out'` one and was retired at
-> v23.22, so **the positive direction of the gate has nothing exercising it** until the next such
+> v23.23, so **the positive direction of the gate has nothing exercising it** until the next such
 > notice — `.claude/skills/new-notice/` names the two tests that come back with it.
 
 > **The Status column is load-bearing — keep it accurate** (added v19.51). A notice goes INERT the
@@ -874,7 +880,7 @@ that was still true survived, joined by the fatigue-checks framing and the share
 meant every current designer, all of whom closed the beta notice months ago, never saw the
 replacement.
 
-The retired `sign-in-2026` (posted 27 Aug 2026, `'signed-out'`) was deleted at **v23.22 by owner
+The retired `sign-in-2026` (posted 27 Aug 2026, `'signed-out'`) was deleted at **v23.23 by owner
 decision, seven weeks before its 90-day expiry** — the one notice here retired for being WRONG
 rather than old, and the reason is worth keeping because it is a shape that recurs. v23.19 made the
 Calendar's front door a sign-in card; from that release its entire audience — somebody reading the

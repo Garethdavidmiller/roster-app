@@ -184,7 +184,7 @@ device**, in the shape the retired `sign-in-2026` notice had:
 
 > Using this on your phone? Sign in once and you won't need the staff PIN again for 60 days.
 
-**That notice was retired at v23.22, and the reason changes this proposal rather than merely dating
+**That notice was retired at v23.23, and the reason changes this proposal rather than merely dating
 it.** v23.19 made the Calendar's front door a sign-in card with the staff PIN one tap behind it, so
 the invitation is now the first thing a PIN user sees — a notice repeating it argues with the screen
 underneath. The audience rule (`'signed-out'`, retiring itself the moment the reader signs in) is

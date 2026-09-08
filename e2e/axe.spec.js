@@ -472,7 +472,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         // composited BEHIND it — the one arrangement in the app where a scan of some other page
         // proves nothing at all.
         //
-        // THE SUBJECT MOVED AT v23.22, and the coverage is what matters rather than which notice
+        // THE SUBJECT MOVED AT v23.23, and the coverage is what matters rather than which notice
         // carries it. `sign-in-2026` was retired, leaving `backpay-2026` — same `.notice-lb-content`
         // shell, same rgba-white text over the same glass, so it scans the identical arrangement.
         // Two consequences of that swap, both deliberate:

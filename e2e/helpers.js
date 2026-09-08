@@ -69,7 +69,7 @@ export function seedSession(page, name = 'G. Miller') {
  * PASS THE ONE KEY YOU MEAN whenever more than one notice is live. Only one can be on screen at a
  * time: whichever reaches `openNoticeIfClear` first wins, the loser stays closed and unflagged, and
  * a spec asserting on the loser fails for a reason that has nothing to do with what it is testing.
- * (`sign-in-2026` was retired at v23.22, so the default names a single key — the plural shape stays
+ * (`sign-in-2026` was retired at v23.23, so the default names a single key — the plural shape stays
  * because the next notice restores the hazard.)
  *
  * @param {import('@playwright/test').Page} page

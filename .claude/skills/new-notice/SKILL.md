@@ -160,7 +160,7 @@ The rule itself is the pure `noticeAudienceAllows(audience, accessType)` in
 `calendar-access-core.js`. An unrecognised audience is treated as `'members'`. A refused notice is
 left **unflagged** — not marked seen — so it arrives when that device is next signed in.
 
-> **⚠️ IF YOU ARE ADDING A `'signed-out'` NOTICE, YOU ALSO RESTORE TWO TESTS (v23.22).**
+> **⚠️ IF YOU ARE ADDING A `'signed-out'` NOTICE, YOU ALSO RESTORE TWO TESTS (v23.23).**
 > Retiring `sign-in-2026` left no live notice declaring that audience, so the POSITIVE direction of
 > the audience gate — a `'signed-out'` notice actually REACHING a PIN unlock — currently has nothing
 > to exercise it. Both suites derive their notices from `calendar-notices.js`, so yours joins the
@@ -216,7 +216,7 @@ decision rather than a default.
 
 **Retiring one EARLY** (before 180 days, because it has stopped being true rather than stopped being
 new) is the same four steps, plus two: drop any `CONFIG.*_NOTICE_DAYS` constant it owned, and check
-what its tests carried. `sign-in-2026` went this way at v23.22 — the Calendar's front door became a
+what its tests carried. `sign-in-2026` went this way at v23.23 — the Calendar's front door became a
 sign-in at v23.19, so the notice re-offered a choice its reader had just declined — and it was the
 only `'signed-out'` notice and the only one the axe suite scanned. Say in the release what coverage
 moved or lapsed; a notice deleted quietly takes its guards with it.
