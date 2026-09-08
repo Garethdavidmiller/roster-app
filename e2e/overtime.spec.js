@@ -1938,23 +1938,110 @@ test.describe('the v21.15 review fixes, each pinned in a browser', () => {
     });
 });
 
-test('the availability options meet the app\'s touch target', async ({ page }) => {
-    // These are the most-tapped controls in the app — seven days, up to six options each, and
-    // answering one week means hitting them seven times on a phone. They are a deliberate copy of
-    // admin's `.type-pill-btn` (same border, radius, weight and --type-badge), and that rule
-    // carries `min-height: 44px`; this one shipped at 36px, so the single page built entirely out
-    // of these pills was the one page below the standard. Measured in a browser rather than read
-    // off the CSS: a min-height is only the floor, and padding or line-height could undercut it.
+test('every control on the member form meets the app\'s touch target', async ({ page }) => {
+    // The availability options are the most-tapped controls in the app — seven days, up to six
+    // options each, and answering one week means hitting them seven times on a phone. They are a
+    // deliberate copy of admin's `.type-pill-btn` (same border, radius, weight and --type-badge),
+    // and that rule carries `min-height: 44px`; they shipped at 36px, so the single page built
+    // entirely out of these pills was the one page below the standard.
+    //
+    // WIDENED TO EVERY CONTROL (v23.27). Scoped to `.ot-mode`, this passed for three releases while
+    // the all-week shortcut sat beside them as a ~26px underlined string — a test that guards one
+    // family of controls says nothing about the control added next to it, and reads in CI exactly
+    // like a test that guards the page. It now enumerates what is actually tappable and lets the
+    // exceptions name themselves, so the next control added here either meets the standard or has
+    // to be argued for in this list.
+    //
+    // Measured in a browser rather than read off the CSS: a min-height is only the floor, and
+    // padding or line-height could undercut it.
     await page.setViewportSize({ width: 390, height: 844 });
     await seedSession(page, 'G. Miller');
     await stubOvertime(page, { windows: [openWindow()] });
     await page.goto('/overtime.html');
     await page.locator('.ot-day').first().waitFor();
 
-    const short = await page.locator('.ot-mode').evaluateAll(els => els
-        .map(el => ({ t: el.textContent.trim(), h: Math.round(el.getBoundingClientRect().height) }))
-        .filter(x => x.h < 44));
-    expect(short, 'every availability option must be at least 44px tall').toEqual([]);
+    // The measurement has to be the TARGET, not the paint. `.btn-card-tips` is a 20px circle whose
+    // hit area is a 44px absolutely-positioned `::before` with negative insets — deliberate, argued
+    // in shared.css, and a border box is blind to it. Measuring the box alone would have reported
+    // that shared control as failing on every page in the app, and the natural response to a
+    // false failure is to widen the exemption list until the test guards nothing.
+    const targets = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), label';
+    const short = await page.locator('#otMinePanel').locator(targets).evaluateAll(els => {
+        const grown = (/** @type {Element} */ el, /** @type {string} */ pseudo) => {
+            const cs = getComputedStyle(el, pseudo);
+            if (!cs.content || cs.content === 'none' || cs.position !== 'absolute') return 0;
+            // Negative insets push the region outside the box; that is the extra target.
+            const out = (/** @type {string} */ v) => Math.max(0, -parseFloat(v) || 0);
+            return out(cs.top) + out(cs.bottom);
+        };
+        // A LABEL is only a target when pressing it does something — that is, when it actually
+        // owns an enabled control. The identity bar's "Staff member" caption labels a disabled
+        // select (a display box wearing a select's clothes, so the two pages answer the same
+        // question the same way), and it is not tappable by anybody.
+        const activates = (/** @type {Element} */ el) => {
+            if (el.tagName !== 'LABEL') return true;
+            const l = /** @type {HTMLLabelElement} */ (el);
+            const c = l.control || l.querySelector('input, select, textarea, button');
+            return !!c && !(/** @type {any} */ (c).disabled);
+        };
+        return els
+            .filter(activates)
+            // A control with no box has nothing to measure. The visually-hidden checkbox behind
+            // the willingness tick is one — its LABEL is the target, and `.ot-longday` carries the
+            // 44px, so measuring the input itself would be a false 0-height failure.
+            .filter(el => el.getBoundingClientRect().height > 0)
+            .map(el => ({
+                what: (el.className || el.tagName) + ' · ' + (el.textContent || '').trim().slice(0, 40),
+                h: Math.round(el.getBoundingClientRect().height
+                    + Math.max(grown(el, '::before'), grown(el, '::after'))),
+            }))
+            .filter(x => x.h < 44);
+    });
+    expect(short, 'every tappable control on the member form must be at least 44px tall').toEqual([]);
+});
+
+test('a long answer chip stays inside its row, on every width', async ({ page }) => {
+    // The reviewer's chip is the ONE place a day's answer is stated in full, and the longest one it
+    // can hold is a sentence: a before-and-after window plus the willingness suffix. It shipped with
+    // `white-space: nowrap`, so on a phone that sentence ran off the right edge of the card and the
+    // reviewer read half of it — "Available before 09:00 and after 17:00 · would work up to 12" is
+    // a different declaration from the one the member made.
+    //
+    // Measured rather than screenshotted, because a baseline can only say the picture changed. A
+    // clipped chip is present, readable and correctly styled; only its right edge is wrong, and only
+    // against the box it sits in.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedSession(page, 'H. Croft');
+    const dates = weekDates(W.weekStart);
+    await page.addInitScript((rows) => {
+        window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: rows };
+    }, [{
+        id: 'G. Miller', memberName: 'G. Miller', grade: 'CEA', rosterOrder: 1,
+        currentRevision: 1, firstAcceptedAt: NOW - 3_600_000, updatedAt: NOW - 3_600_000,
+        // The longest copy `answerCopy` can produce, on every day of the week — so the assertion
+        // does not depend on which panel happens to be open.
+        days: Object.fromEntries(dates.map(d => [d, {
+            mode: 'before_after', until: '09:00', from: '17:00', fullTwelve: true }])),
+    }]);
+    await stubOvertime(page, { weeks: [{ ...W, exists: true, state: 'created', canCreate: false,
+        expected: 1, received: 1, noResponse: 0 }] });
+    await page.goto('/overtime.html');
+    await page.locator('.ot-day-panel').first().waitFor();
+
+    const chips = page.locator('.ot-answer');
+    expect(await chips.count(), 'no chip at all means the fixture never reached the panel')
+        .toBeGreaterThan(0);
+    // The whole sentence, not a truncation of it — `textContent` would read back the full string
+    // even from a clipped element, so this pins the COPY and the geometry below pins the box.
+    await expect(chips.first()).toHaveText('Available before 09:00 and after 17:00 · would work up to 12 hours');
+    const overflowing = await chips.evaluateAll(els => els.map((el) => {
+        const chip = el.getBoundingClientRect();
+        const row  = /** @type {HTMLElement} */ (el.closest('.ot-person')).getBoundingClientRect();
+        return { t: el.textContent.trim(), over: Math.round(chip.right - row.right) };
+    // 1px of tolerance: sub-pixel layout can put a right edge a fraction past its container's
+    // without a single glyph being lost. Anything beyond that is a chip wider than its row.
+    }).filter(x => x.over > 1));
+    expect(overflowing, 'a chip wider than the row it sits in is a truncated answer').toEqual([]);
 });
 
 test.describe('an invitation that lands after the week was made', () => {

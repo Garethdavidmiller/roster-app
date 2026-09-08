@@ -40,6 +40,29 @@ var jumpChips = Array.prototype.slice.call(document.querySelectorAll('.country-j
 
 function norm(/** @type {string} */ s) { return (s || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
 
+var printBtn = document.querySelector('.btn-print');
+/**
+ * Say what the ⤓ PDF button will actually print, now that it prints what is on screen.
+ *
+ * The VISIBLE label stays "⤓ PDF": it is the shared `.btn-print` every guide carries, sitting in a
+ * header with a back arrow beside it, and a label that changes length would move the header about
+ * as the reader types. The accessible name is where the scope belongs — it is what a screen reader
+ * announces and what a long-press or hover surfaces, and it costs the layout nothing.
+ *
+ * No page count is written here. The guide's length is measured elsewhere and would rot in a string.
+ * @param {number|null} shown — how many countries the filter is showing, or null when unfiltered.
+ */
+function describePrintScope(shown) {
+    if (!printBtn) return;
+    var label = shown === null ? 'Save or print the whole FIP guide'
+        : shown === 0          ? 'Save or print \u2014 no countries match your search'
+        : shown === 1          ? 'Save or print the 1 country shown'
+        :                        'Save or print the ' + shown + ' countries shown';
+    printBtn.setAttribute('aria-label', label);
+    printBtn.setAttribute('title', label);
+}
+describePrintScope(null);
+
 /** Filter the country cards + jump chips to the query (matched against each card's full text, so an
  *  operator/train name like "ÖBB" or "Railjet" finds its country too). Empty query resets. */
 function applyCountryFilter(/** @type {string} */ raw) {
@@ -55,6 +78,7 @@ function applyCountryFilter(/** @type {string} */ raw) {
         chip.hidden = !!(target && target.hidden);
     });
     if (clearBtn) clearBtn.hidden = !q;
+    describePrintScope(q ? shown : null);
     if (countEl) {
         // Show the count only while filtering AND something matched — on zero matches the no-match
         // message is the sole live-region announcement (avoids a double aria-live read).
@@ -255,9 +279,16 @@ openHashTarget();   // first load: honour a deep link (defer → the DOM is alre
 // The country cards are native <details>. Modern Chromium collapses a closed <details>'s body via
 // the ::details-content pseudo (content-visibility), which the print CSS `.detail-body{display:block}`
 // cannot reach — so a printed FIP guide showed each country as an empty bordered strip. Force every
-// <details> OPEN (and un-hide any card the finder filtered out) for the print run, then restore the
-// on-screen state afterwards, so the printout is the full country reference the fip-guide.css @media print
-// block already intends.
+// <details> OPEN for the print run, then restore the on-screen state afterwards, so the printout is
+// the country reference the fip-guide.css @media print block already intends.
+//
+// IT PRINTS WHAT IS ON SCREEN (v23.27). Until now the prepare also UN-HID every card the finder had
+// filtered out, on the reasoning that paper should carry the whole reference. That reasoning ignores
+// why anybody presses this button: a traveller has searched "Belgium", is looking at one country,
+// and gets 25 pages. Opening a collapsed card is a RENDERING repair — the content is on screen and
+// the print engine would drop it. Un-hiding a filtered one is not; it overrides a choice the reader
+// made deliberately, in the one direction that costs them a stack of paper at a station.
+// The button now SAYS which it will do, from the same count the finder already computes.
 //
 // PREPARE ON THE BUTTON, NOT ONLY ON `beforeprint` (v23.20). This block used to assert that
 // "beforeprint/afterprint fire for Ctrl+P and the ⤓ PDF button on every browser" — while
@@ -282,36 +313,37 @@ openHashTarget();   // first load: honour a deep link (defer → the DOM is alre
 // change the page. `_fipPrepared` is what stops that.
 /** @type {Array<[HTMLDetailsElement, boolean]>} */
 var _fipOpenRestore = [];
-/** @type {Element[]} */
-var _fipHiddenRestore = [];
 var _fipPrepared = false;
 function expandAllForPrint() {
     if (_fipPrepared) return;          // second route through — the snapshot below is already true
     _fipPrepared = true;
     _fipOpenRestore = [];
-    _fipHiddenRestore = [];
+    // A HIDDEN card's <details> is opened too, deliberately: `hidden` is what keeps it off the
+    // paper, and leaving it closed as well would mean the filter and the disclosure state had to
+    // be restored in the right order to end up where we started.
     document.querySelectorAll('details').forEach(function (d) {
         var det = /** @type {HTMLDetailsElement} */ (d);
         _fipOpenRestore.push([det, det.open]);
         det.open = true;
-    });
-    countryCards.forEach(function (card) {
-        if (/** @type {HTMLElement} */ (card).hidden) {
-            _fipHiddenRestore.push(card);
-            /** @type {HTMLElement} */ (card).hidden = false;
-        }
     });
 }
 function restoreAfterPrint() {
     if (!_fipPrepared) return;         // afterprint can fire twice, or without a prepare at all
     _fipPrepared = false;
     _fipOpenRestore.forEach(function (p) { p[0].open = p[1]; });
-    _fipHiddenRestore.forEach(function (c) { /** @type {HTMLElement} */ (c).hidden = true; });
     _fipOpenRestore = [];
-    _fipHiddenRestore = [];
 }
 window.addEventListener('beforeprint', expandAllForPrint);
 window.addEventListener('afterprint', restoreAfterPrint);
+// The restore needs the same defence the prepare got (v23.27). `afterprint` is the same event from
+// the same engine that does not fire `beforeprint` for AirPrint — and here the un-restored state is
+// worse than an expanded page: every country card is un-hidden, so a traveller who had filtered to
+// "Belgium" comes back from the print sheet to what looks like a search box that has stopped
+// working. Becoming visible again is the signal every engine sends. Where `afterprint` fires it has
+// already cleared the flag, so this is a no-op.
+document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') restoreAfterPrint();
+});
 // Capture phase, so this runs before guide-print.js's own bubble-phase handler calls window.print()
 // — registration order would give the same result today, but only because of the <script> order in
 // fip-guide.html, which is not a thing this file should depend on.

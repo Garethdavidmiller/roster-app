@@ -826,6 +826,16 @@ body {
 /* A recorded answer, as a chip — the reviewer's list and a member's closed form share it.
    THREE tones, matching the three sections of a day panel: said yes, said no, said nothing. The
    third is deliberately unfilled — an absent answer is not a quieter answer. */
+/* THIS CHIP CARRIES A SENTENCE, NOT A BADGE — so it must wrap (v23.27).
+   It holds `answerCopy(day)`, which ranges from "Available all day" to
+   "Available before 14:00 and after 22:30 · would work up to 12 hours". With `white-space: nowrap`
+   the long form could not wrap or shrink, so on a 390px phone it ran off the right edge of the
+   person row and the tail was unreadable — reported from the reviewer's By day view, where the
+   longest copy lives. The suffix that tips it over is added by `answerCopy` in overtime-format.js.
+
+   The nowrap was inherited from the short status badges it sits beside (EARLY, REST, RDW), which
+   genuinely must not break mid-label. Those are a different thing: a fixed vocabulary of one or two
+   words. This one is prose about a person's availability, and losing its tail loses the answer. */
 .ot-answer {
     display: inline-flex;
     align-items: center;
@@ -833,7 +843,7 @@ body {
     border-radius: var(--radius-pill);
     font-size: var(--type-badge);
     font-weight: 700;
-    white-space: nowrap;
+    max-width: 100%;
 }
 
 .ot-answer--yes  { background: var(--success-green); color: white; }
@@ -1198,14 +1208,23 @@ body {
     white-space: nowrap;
 }
 
-.ot-person .ot-answer { margin-left: auto; }
+/* Left-aligned on its own line, NOT pushed right (v23.27). `margin-left: auto` was right when this
+   was a short chip on the same line as the name; once it wraps to its own row the auto margin
+   right-aligns a full sentence against nothing, which is why the short answers looked arbitrarily
+   indented while the long ones started at the left edge — the same declaration producing two
+   different-looking bugs. It now sits under the person, flush with the
+   "Added after this week opened" flag directly beneath it. */
+.ot-person .ot-answer { margin-left: 0; }
 
 /* HOW OLD the declaration is (v20.93). Quiet, and deliberately AFTER the answer rather than in the
    name column: it qualifies what was said, so it should be read second. `--type-badge`/600 is the
-   quiet-status tier (css-tokens.md) — a receipt about an answer, not a label to scan. */
+   quiet-status tier (css-tokens.md) — a receipt about an answer, not a label to scan.
+
+   Left-aligned since v23.27, with the answer it qualifies. It was `text-align: right` to sit under
+   a right-aligned chip; once the chip moved left the two lines zig-zagged across the row, and a
+   caption that does not begin where its subject begins reads as belonging to something else. */
 .ot-person-age {
     flex-basis: 100%;
-    text-align: right;
     margin-top: -2px;
     font-size: var(--type-badge);
     font-weight: 600;
@@ -1473,6 +1492,14 @@ body {
         font-size: var(--type-small);
         color: var(--text-mid);
     }
+    /* When the PAPER was produced, as against how fresh the DATA is (the as-at line above). Quieter
+       than the as-at line on purpose: freshness is what a reviewer acts on, provenance is what they
+       need when two printouts of the same week are on the desk. */
+    .ot-print-printed {
+        margin-top: 1px;
+        font-size: var(--type-badge);
+        color: var(--text-light);
+    }
     /* The grade filter IS honoured on paper — printing one grade's availability is a real thing to
        want — so the sheet has to say which. Emphasised, not muted: four CEAs on a page with no
        scope line reads as the whole team, and that misreading costs somebody a shift. */
@@ -1525,20 +1552,40 @@ body {
 
 /* ── The all-week shortcut (v22.05) — a quiet text control, deliberately NOT a pill: it must not
    compete with the seven day rows it fills. ─────────────────────────────────────────────────── */
-.ot-bulk-row { margin: 2px 0 0; }
+/* The all-week shortcut (v22.05; re-shaped v23.27). It was ONE underlined muted string carrying a
+   question and an action together, at --type-small with 4px of padding — so it overflowed the row
+   on a phone, read as a link to somewhere else, and was a ~26px target on the page whose every
+   other control is 44px. Now the question is text and the action is a button, which is what each
+   of them is. `white-space: normal` is load-bearing: this label is a sentence, and a pill that
+   cannot wrap clips it rather than growing. */
+.ot-bulk-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    margin: 6px 0 0;
+}
+.ot-bulk-q {
+    font-size: var(--type-small);
+    color: var(--text-mid);
+}
 .ot-bulk-unavailable {
-    background: none;
-    border: none;
-    padding: 4px 2px;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 6px 14px;
     font-family: var(--font-sans);
     font-size: var(--type-small);
     font-weight: 600;
-    color: var(--text-light);
-    text-decoration: underline;
-    text-underline-offset: 2px;
+    color: var(--primary-blue);
+    background: var(--field-bg);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-pill);
+    white-space: normal;
+    text-align: left;
     cursor: pointer;
 }
-.ot-bulk-unavailable:hover { color: var(--primary-blue); }
+.ot-bulk-unavailable:hover { background: white; border-color: var(--primary-blue); }
 
 /* ── Copy summary + reminder audit (v22.05) ─────────────────────────────────────────────────── */
 .ot-copy-btn {

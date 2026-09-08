@@ -181,9 +181,19 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
                      filled days and presses Submit themselves, so the all-seven-answered principle
                      survives with six taps removed. There is deliberately no "copy last week":
                      "after my duty" is relative to THAT week's duty, and copying it forward
-                     silently changes its meaning under a different roster. -->
+                     silently changes its meaning under a different roster.
+
+                     THE QUESTION IS NOT PART OF THE BUTTON (v23.27, owner report). It shipped as one
+                     underlined muted string — "Can't do overtime this week? Mark all seven days…" —
+                     which failed three ways at once on a phone: it ran off the edge, it read as a
+                     link into somewhere rather than a control that acts here, and the trailing
+                     ellipsis suggested more choices were coming when what follows is a confirm.
+                     Splitting them lets the button say what pressing it DOES, first word first,
+                     which is the same rule every other action on this page follows. The question
+                     stays because it is what a member is thinking; it is just not clickable. -->
                 <div class="ot-bulk-row">
-                    <button type="button" class="ot-bulk-unavailable">Can't do overtime this week? Mark all seven days…</button>
+                    <span class="ot-bulk-q">Not available at all this week?</span>
+                    <button type="button" class="ot-bulk-unavailable">Mark all seven days Not available</button>
                 </div>`}
             <div class="ot-days"></div>
             ${closed ? `

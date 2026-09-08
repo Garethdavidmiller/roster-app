@@ -3409,6 +3409,16 @@
            calendar rather than a Huddle. The decision holds either way; only the explanation is
            progressive.
 
+           REPLACING IT WITH A BODY-STATE CLASS WAS PROPOSED AND DECLINED (v23.27, external review).
+           Two reasons, and the second is the stronger. It would single out the one `:has()` in the
+           tree whose failure mode is already the safest: the app leans on the selector in five
+           stylesheets, including for the SELECTED state of the back-pay/HPP mode options and the
+           Links generator objectives, where an unsupported engine would leave a chosen radio
+           looking unchosen — a live wrong answer, against a missing sentence here. And a body class
+           would put a third piece of open/closed state into a hand-rolled lifecycle that has
+           already produced two shipped bugs from exactly that duplication (the double-close and
+           the duplicated history entry, both recorded in `calendar-huddle-viewer.js`).
+
            NOTE what this cannot control: a PDF Huddle opens as a real PDF in the browser's own
            viewer, and that can be printed from there like any other file. This is a rule about
            what the APP produces on paper, not a claim that a Huddle is unprintable. */
