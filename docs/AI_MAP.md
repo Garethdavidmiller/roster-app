@@ -61,6 +61,7 @@ before deleting anything, because the number alone has now been wrong once.
 |------|----------------|
 | Roster logic, team members, bank holidays, pay periods | `roster-data.js` |
 | Raw roster cycle patterns (weeklyRoster, cesRoster, etc.) | `roster-cycle-data.js` |
+| The roster's people (`teamMembers`) | `roster-member-data.js` (re-exported by `roster-data.js`) |
 | Calendar UI coordinator — event wiring, month navigation, Team Week View, notifications | `calendar-app.js` |
 | Calendar display state — getDisplayMonth/Year, setDisplayMonth/Year, changeDisplay, persistViewedMonth | `calendar-state.js` |
 | Calendar swipe carousel — initSwipeHandler, isSwipeCooldown | `calendar-swipe.js` |
@@ -334,7 +335,7 @@ The Overtime availability page. `overtime-app.js` is the coordinator (body expor
 
 
 **`overtime-format.js` — the pure exports** (words, and the clock they are worded against). Added to this map at v21.63; the section had run on prose alone, so eleven of its exports were unroutable:
-- **Dates and labels:** `shortDate` / `longDate` (an ISO day, two lengths) · `weekLabel(weekEnding)` · `weekSpan(weekStart)` · `deadlineLabel` — all formatted through `Intl` in **Europe/London**, never the device's zone, so a phone left on holiday time still shows the deadline staff are held to.
+- **Dates and labels:** `shortDate` / `longDate` (an ISO day, two lengths) · `weekLabel(weekEnding)` · `weekSpan(weekStart)` · `deadlineLabel` · `printedLabel` — all formatted through `Intl` in **Europe/London**, never the device's zone, so a phone left on holiday time still shows the deadline staff are held to. The last two differ by the **year**, and deliberately: a deadline is days away, so a year on it is noise, while `printedLabel` stamps a PRINTED sheet — a physical object that goes in a folder and must still be orderable against one printed a year earlier.
 - **The copy layer:** `phaseCopy` (where the week stands, in the MEMBER's terms — see the naming rule below) · `rowStateCopy(state)` · `countsCopy(expected, …)` — **the one line where "no response" could collapse into "not available", which is why `overtime-format.test.mjs` pins it** · `weekSummary` (counts rather than enumerates: seven answers do not fit a phone row). · `weekAvailabilitySummary({weekEnding, dates, participants, submissions, day})` (v22.05 — the reviewer's CLIPBOARD text: a formatter over the exact grade-filtered, withdrawn-excluded inputs the By-day panels render, one day or the week; the three sections are ALWAYS NAMED and an empty one says "nobody", because a summary missing "No response" answers "anyone outstanding?" with silence) · `reminderLine(phase, initialDeadlineAt, reminderSentAt)` (v22.05 — the reminder-audit line's four states: sent → stated with when; INITIAL_OPEN unsent → expectation; FINAL_OPEN unsent → warning; CLOSED unsent → deliberately nothing, so pre-feature windows never wear a permanent false alarm).
 - **The form's own rules** (moved out of the closure at v21.93, which is what made them testable at all): `dayUnfinished(answer)` / `unfinishedDates(answers, dates)` — a picked mode with nothing behind it is STARTED, not answered, and one traversal answers both "how many are left?" and "which one does the error walk to?" (they were separate, and disagreed) · `reconcileVerdict(stateOk, freshSubmission, pendingMutationId)` — the three-way verdict on a timed-out submission, where `unknown` is the load-bearing one · `conflictIsOurs(pendingMutationId, lastMutationId)` — whose write the server is refusing, the only thing that picks between two opposite messages.
 - **Clock and lifecycle:** `DEADLINE_SYNC_WINDOW_MS` — how near a deadline the page re-syncs against the server rather than trusting its own clock (`shouldResyncClock`) · `canRestoreNow(withdrawnAtMs)` — whether a withdrawn participant may still be restored, cited by `OVERTIME_AVAILABILITY.md`.
@@ -2261,6 +2262,25 @@ All CSS shared across all seven app pages (index, admin, paycalc, operations, se
 
 ### `roster-cycle-data.js`
 Raw roster cycle arrays only — `weeklyRoster`, `bilingualRoster`, `fixedRoster`, `cesRoster`, `dispatcherRoster`. Imported by `roster-data.js` only. Edit here when the actual cycle patterns change (very rare). Do not import this file directly from app code — always go through `roster-data.js`.
+
+### `roster-member-data.js`
+The roster's PEOPLE and nothing else — `teamMembers`, one entry per member, no logic and no imports.
+**Re-exported by `roster-data.js`**, which is where every consumer still reads it from: the app, the
+`scripts/generate-roster-members.mjs` generator and `public-data-classification.test.mjs` all import
+it from there unchanged.
+
+Split out at v23.31 for the reason `roster-cycle-data.js` was: it is pure data, and its size guard
+was measuring the wrong thing. This is the one table in the app whose length tracks **headcount** —
+a new starter is a row here, a leaver is a flag here, and neither is a change to how anything works.
+The ratchet cap on `roster-data.js` was last raised for a new starter (v23.26), whose own note said
+it "will cross again on a future starter, and that is not drift"; a guard that fails on hiring
+cannot also be watching for complexity.
+
+**It is world-readable.** Both origins serve it with no session, no PIN and no token, so a field
+added here is published the moment it ships — the classification argument, and what belongs in
+Firestore behind a claim instead, is on `teamMembers` in CLAUDE.md. `public-data-classification.test.mjs`
+fails on an unclassified field. Field-shape reference (`rosterChanges`, `proRatedAL`,
+`bilingualContract`, …) lives in the comment block at the top of the file.
 
 ### `functions/index.js`
 **Since v22.31 `parseRosterPDF` runs the PDF-grid witness** (`functions/roster-geometry.js`) in parallel with the model call and applies it LAST, after every model-side repair; the response gains `geometry` and `geometryRefused`.

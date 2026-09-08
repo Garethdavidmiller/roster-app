@@ -6134,6 +6134,46 @@ function tooWide(page) {
     });
 }
 
+// ── AND THE SAME GRID SITS UNDER TWO MORE PAGES (v23.31) ───────────────────────────────────────
+// `links.css` and `operations.css` declared `.container` exactly as `admin.css` did before the fix:
+// a grid with no `grid-template-columns` and no `min-width: 0` on its children, plus the same
+// `overflow-x: clip`. The mechanism is a property of THAT CSS, not of Admin — so both pages carry
+// the same fix, and these two tests are what established they needed it.
+//
+// THE SCALE IS 1.6, NOT THE 1.3 ABOVE, AND THAT IS THE MEASUREMENT. Both pages fit at 1.3 — which
+// is why the shipped Admin report did not obviously extend to them, and why a test written at 1.3
+// would pass with the fix reverted and guard nothing. At 1.6 both go, header and every card shaved
+// by an identical amount: the track-widening signature, not a single wide child.
+//
+// 1.6 is a device state, not a stress test. Android's **Font size** and **Display size** are two
+// separate settings and they MULTIPLY — 1.3 × 1.3 = 1.69 — so a phone set large on both is past
+// this. Admin needs less because its week grid holds a chip that cannot shrink at all; these two
+// pages are dense tables that can, so they take a harder push to reach the same state.
+test('operations: large text does not shave the page @layout', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/operations.html');
+    await expect(page.locator('#pageSpeedCard')).toBeVisible();   // the page has really painted
+
+    expect(await tooWide(page), 'premise: operations fits at default text size').toEqual([]);
+    await scaleText(page, 1.6);
+    expect(await tooWide(page),
+        'no card may widen the container track past the viewport').toEqual([]);
+});
+
+test('links: large text does not shave the page @layout', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => localStorage.setItem('myb_links_welcome_seen', '1'));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/links.html');
+    await expect(page.locator('#generatorToggleHeader')).toBeVisible();
+
+    expect(await tooWide(page), 'premise: links fits at default text size').toEqual([]);
+    await scaleText(page, 1.6);
+    expect(await tooWide(page),
+        'no card may widen the container track past the viewport').toEqual([]);
+});
+
 test('admin: switching member at large text does not shave the page @layout', async ({ page }) => {
     await seedSession(page, 'G. Miller');          // admin — the only identities that can switch
     await page.setViewportSize({ width: 390, height: 844 });

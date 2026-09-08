@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
     clockOffset, submitDisposition, shouldResyncClock, SUBMIT_GRACE_MS, DEADLINE_SYNC_WINDOW_MS,
-    shortDate, longDate, weekLabel, weekSpan, deadlineLabel, phaseCopy, rowStateCopy,
+    shortDate, longDate, weekLabel, weekSpan, deadlineLabel, printedLabel, phaseCopy, rowStateCopy,
     countsCopy, answerCopy, answerTone, answerAnchorStale, isUnavailable, isAvailableAnswer,
     weekSummary, asAtLine,
     modesFor, offersFullTwelve, submitFailureCopy, shiftSpanMinutes, sameAnswer, deadlineLines, receiptLine,
@@ -477,6 +477,31 @@ describe('dates and deadlines', () => {
     test('a missing deadline renders as nothing rather than as 1970', () => {
         assert.equal(deadlineLabel(0), '');
         assert.equal(deadlineLabel(undefined), '');
+    });
+
+    // A PRINTED sheet is a physical object that outlives the screen — it goes in a folder, and the
+    // printed-at line exists so two sheets of the same week can be told apart. Across a year
+    // boundary a stamp with no year cannot do that, which is the same failure it was added to
+    // prevent. The pairing is what matters: printedLabel carries the year, deadlineLabel must not.
+    test('a printed sheet is stamped with its YEAR, and a deadline still is not', () => {
+        const ms = Date.parse('2026-09-08T13:07:00Z');   // 14:07 BST
+        assert.equal(printedLabel(ms), 'Tue 8 Sep 2026 · 14:07');
+        assert.equal(deadlineLabel(ms), 'Tue 8 Sep · 14:07');
+        // Same words, a year apart — which is exactly what the deadline line may not distinguish
+        // and the printed line must.
+        assert.equal(printedLabel(Date.parse('2027-09-07T13:07:00Z')), 'Tue 7 Sep 2027 · 14:07');
+    });
+
+    test('a printed sheet is in LONDON time and abbreviates September like everything else', () => {
+        // 12:00Z in December is 12:00 GMT; en-GB's four-letter "Sept" is trimmed on both lines so a
+        // printout does not abbreviate one month differently from the deadlines beside it.
+        assert.equal(printedLabel(Date.parse('2026-12-22T12:00:00Z')), 'Tue 22 Dec 2026 · 12:00');
+        assert.ok(!printedLabel(Date.parse('2026-09-08T13:07:00Z')).includes('Sept'));
+    });
+
+    test('a missing print stamp renders as nothing rather than as 1970', () => {
+        assert.equal(printedLabel(0), '');
+        assert.equal(printedLabel(undefined), '');
     });
 
     test('month and year boundaries do not shift the day name', () => {

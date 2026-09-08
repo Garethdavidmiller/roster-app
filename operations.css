@@ -32,6 +32,24 @@ body {
     box-sizing: border-box;
     overflow-x: hidden; overflow-x: clip;
 }
+/* ── THE TRACK MUST BE ALLOWED TO SHRINK (v23.31) ──────────────────────────────────────────
+   The same defect `admin.css` documents at length, in the same words, because it is the same
+   CSS: a grid with no `grid-template-columns` gets ONE `auto` track whose automatic minimum is
+   MIN-CONTENT, so a single child that refuses to shrink drags the TRACK wider than the
+   container — and every sibling in it, header and all, stretches to that width and is then cut
+   off by the `overflow-x: clip` above. The page never scrolls; it is simply shaved down its
+   right edge, which is why it does not read as overflow.
+   MEASURED HERE, not assumed: at the default text size Operations fits, and at Android's 1.3x
+   font scale it still does — which is why the Admin fix did not obviously extend to it. At
+   1.6x it goes, and 1.6x is a real device state rather than a stress test: Font size and
+   Display size are two separate Android settings and they MULTIPLY (1.3 x 1.3 = 1.69).
+   `minmax(0, 1fr)` lets the track shrink; each card then clips its own overflow, as
+   `.card { overflow: hidden }` already intends, instead of the page doing it for them. */
+.container { grid-template-columns: minmax(0, 1fr); }
+/* The items get it too — a grid item's own `min-width: auto` is min-content, so a track allowed
+   to shrink can still be held open by its item. Kept as a pair for the reason admin.css gives:
+   which of the two binds depends on the content, and the content changes. */
+.container > * { min-width: 0; }
 body.auth-ready .container { display: grid; }
 /* ── Needs attention strip (v22.03; group-label redesign same release) ──────────────────────
    The page organises itself with group labels on the navy canvas (PUBLISH · ROSTER & ACCOUNTS ·

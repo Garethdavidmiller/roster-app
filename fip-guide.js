@@ -84,7 +84,14 @@ function applyCountryFilter(/** @type {string} */ raw) {
         // message is the sole live-region announcement (avoids a double aria-live read).
         var showCount = !!q && shown > 0;
         countEl.hidden = !showCount;
-        countEl.textContent = showCount ? ('Showing ' + shown + ' of ' + countryCards.length + ' countries') : '';
+        // The second clause is the VISIBLE half of describePrintScope. The accessible name carries
+        // the scope for a screen reader, but a sighted reader filtering to one country has nothing
+        // on screen saying the ⤓ PDF button will follow their filter — and the whole reason that
+        // behaviour exists is a traveller who wants one country, not 25 pages. It states the RULE
+        // rather than repeating the number, so it reads correctly at one country and at twelve.
+        countEl.textContent = showCount
+            ? ('Showing ' + shown + ' of ' + countryCards.length + ' countries · the PDF saves what is shown')
+            : '';
     }
     if (noMatchEl) {
         var none = !!q && shown === 0;

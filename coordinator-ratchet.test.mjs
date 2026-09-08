@@ -162,7 +162,16 @@ const CAPS = {
     // coordinator owns) left for calendar-notif-prompt.js, 1,346 down to 1,267. The ceiling comes
     // down with it rather than banking eighty lines as headroom, per the header's rule.
     'calendar-app.js':         1320,
-    'roster-data.js':          1360,   // mostly data, not logic
+    'roster-data.js':          1250,   // mostly data, not logic
+    // 1360 → 1250 at v23.31, and this is the entry below FINISHING rather than another raise. That
+    // note said the file's length "tracks HEADCOUNT, so it will cross again on a future starter,
+    // and that is not drift" — a correct diagnosis that leaves the guard unable to do its job: a
+    // cap that has to be raised on hiring cannot also be watching for complexity, and each raise
+    // makes the next one obviously fine. So the rows left, to `roster-member-data.js`, exactly as
+    // the week patterns did to `roster-cycle-data.js`; `teamMembers` is re-exported from here so
+    // no consumer moved. The ceiling comes down with the 123 lines rather than banking them as
+    // headroom, per the header's rule, and what it now measures is the BEHAVIOUR around the table.
+    // A new starter no longer touches this file at all.
     // 1350 → 1360 at v23.26, and this raise is a DIFFERENT KIND from the two below it. Those were
     // rules that had grown into a data file, and each was answered by asking whether the rule could
     // leave first. This one is a PERSON: a new starter (I. Melikian) is one `teamMembers` entry plus
@@ -232,7 +241,11 @@ const CAPS = {
     // The cap is 1050 against 955 measured. If this file needs raising again, the seam to take
     // first is the WORDS — `phaseCopy`, `rowStateCopy`, `countsCopy`, `submitFailureCopy` and the
     // rest are a coherent subject and the largest single one in here.
-    'overtime-format.js':      1050,   // ← the words are the seam if this ever needs raising
+    // +20 at v23.31 for `printedLabel`. The note below said the WORDS are the seam if this ever
+    // needs raising, and this raise is the words: a printed availability sheet needed its own
+    // timestamp shape (with a year, which a deadline must not carry), and a module whose whole job
+    // is putting Overtime into words is where that belongs. Twelve lines of room, no bank.
+    'overtime-format.js':      1070,   // ← the words are the seam if this ever needs raising
     // 1200 → 1250 at v21.54, and this one is a RAISE rather than an extraction, which the note
     // above says must be argued rather than assumed. The growth is the same-week read guard from
     // the external review — a generation ticket around one `await`, so that a slow earlier read

@@ -45,7 +45,7 @@
 
 import { setStatus } from './status-text.js';
 import {
-    shortDate, deadlineLabel, weekSpan, weekLabel, countsCopy, answerCopy, answerTone,
+    shortDate, deadlineLabel, printedLabel, weekSpan, weekLabel, countsCopy, answerCopy, answerTone,
     isUnavailable, isAvailableAnswer, asAtLine, rosterBadge, sameAnswer, answerAnchorStale,
     declaredAgo, isWithdrawn, withdrawnLine, canRestoreNow, weekAvailabilitySummary, reminderLine,
 } from './overtime-format.js';
@@ -252,8 +252,10 @@ function build(win, data, { dates, now, grade, day = 'ALL', canRefresh = false }
                      deadline, so a sheet carrying only that is undated as a physical object. This
                      says when the PAPER was produced. A reviewer holding two printouts of the same
                      week cannot tell which is the later one from the as-at line, because both were
-                     taken from snapshots that may share it; the printed-at line is what orders them. -->
-                <div class="ot-print-printed">Printed ${esc(deadlineLabel(Date.now()))}</div>
+                     taken from snapshots that may share it; the printed-at line is what orders them.
+                     The stamp carries the YEAR, which the deadline lines deliberately do not — a
+                     deadline is days away, a printout goes in a folder. -->
+                <div class="ot-print-printed">Printed ${esc(printedLabel(Date.now()))}</div>
                 <!-- The grade filter IS carried into print, unlike the day filter — printing one
                      grade's availability is a real thing to want. That makes stating it mandatory:
                      a sheet showing four CEAs with no scope line reads as the whole team. -->
