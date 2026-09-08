@@ -119,13 +119,13 @@ async function settleAccess() {
 async function drain() { for (let i = 0; i < 8; i++) await Promise.resolve(); }
 
 // THE CLOCK IS PINNED, and to a date rather than to "today", because a notice has a life: the
-// members-audience one carries a hard cutoff and the audience matrix below can only be exercised
+// members-audience one expires 90 days after posting and the audience matrix below can only be exercised
 // while more than one audience is live. Pinning it also removes the class of bug this repo has
 // already had twice — an assertion that is true on the day it is written.
 //
 // A notice posted AFTER this date fails these tests loudly rather than quietly dropping out of the
 // matrix. That is the intended behaviour: move the date, do not delete the case.
-const PINNED_NOW = new Date(2026, 7, 25, 9, 0);
+const PINNED_NOW = new Date(2026, 8, 10, 9, 0);   // after al-booking-2026's 8 Sep 2026 posting
 
 /** Every notice this module carries, as the pairing that decides who sees it. Read from the source
  *  so a notice added later joins the matrix instead of being missed by it. */

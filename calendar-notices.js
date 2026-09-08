@@ -24,16 +24,15 @@
  * not signed in. Open through `_openWhenAudienceAllows` rather than wiring the check per notice, so
  * a notice added later cannot quietly skip it.
  *
- * ── ONE NOTICE LIVE, AND WHAT THAT COSTS THE GUARD (v23.23) ─────────────────────────────────────
+ * ── ONE NOTICE LIVE, AND WHAT THAT COSTS THE GUARD (v23.23; the notice changed at v23.31) ────────
  *
  * `sign-in-2026` was retired here by owner decision, not by its expiry. v23.19 made the Calendar's
  * front door a sign-in card, so its whole audience — somebody reading the roster on the staff PIN —
  * has now SEEN that card and chosen the PIN instead, and the notice spent its life re-offering a
- * choice the reader had just declined a moment earlier. The PIN card itself also states the code
- * lasts only "as long as this browser stays open", which was half of what the notice existed to
- * say, and its CTA pointed at Settings for a sign-in that is now on the page underneath it.
+ * choice the reader had just declined a moment earlier. `backpay-2026` followed at v23.31, deleted
+ * once its hard cutoff had passed rather than left inert until the 180-day sweep.
  *
- * That leaves `backpay-2026` alone, and it is `'members'` — so **no live notice addresses the
+ * That leaves `al-booking-2026` alone, and it is `'members'` — so **no live notice addresses the
  * signed-out audience**, and the positive direction of the audience gate has nothing to exercise
  * it. `calendar-notices.test.mjs` can still prove a notice is REFUSED to the wrong audience and
  * that every notice is gated at all; what it can no longer prove behaviourally is that a
@@ -43,12 +42,8 @@
  * audience to the rule rather than hardcode one, which is the shape the gap would otherwise hide.
  */
 
-// NOTE for the next notice: `CONFIG` (for a `*_NOTICE_DAYS` expiry) and `isNoticeExpired` were
-// imported here until v23.23 and went with `sign-in-2026` — the day-count expiry was its, and the
-// one notice left uses a hard clock cutoff instead. A notice using the ordinary expiry brings both
-// back; `.claude/skills/new-notice/` has the template.
 import { lsGet, lsSet } from './ls.js';
-import { archiveNotice } from './nav-panel.js';
+import { archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { createLightbox, openNoticeIfClear } from './overlay.js';
 import { calendarAccessReady, getAccessType } from './calendar-access.js';
 import { noticeAudienceAllows } from './calendar-access-core.js';
@@ -93,58 +88,55 @@ export function initCalendarNotices({ after } = {}) {
     // snoozed, expired), and as plain blocks those returns leave THIS function — so the first
     // notice already dismissed silenced every notice after it. Caught by a render check the same
     // hour it was written; the wrapper is the scope those returns need.
-    // ── One-shot notice: back pay arrives on the 28 Aug 2026 payslip (v21.61) ───────────────────────
+    // ── Reminder: book the rest of your 2026 annual leave (v23.31, owner request) ──────────────────
     //
-    // The 3.6% award steps on that payslip together with the arrears to April, so the week before it
-    // is the one window where preparing the Pay Calculator pays off: either every period since April
-    // entered correctly, or the Year to Date Figures + Pay Rise Back Pay cards estimating from less —
-    // and this month's hours entered either way, or the current-month figure is a guess.
-    //
-    // A HARD cutoff rather than the day-count expiry the other notices use: at 23:00 on the eve of the
-    // payslip the notice stops being a reminder and becomes noise about a document that arrives in the
-    // morning, so it dies at a clock time, not after N days. Past the cutoff a device that never saw
-    // it marks it done silently — same silent-retire shape as isNoticeExpired, sharper deadline.
+    // The leave year is the calendar year, and leave still unbooked late in it can have dates
+    // allocated for the member. The reminder therefore has to REACH people, so it follows the
+    // skill's actionable pattern rather than the back-pay notice's one-shot: any dismissal snoozes
+    // it 7 days, taking the CTA snoozes it 1 day, and it retires 90 days after posting (~7 Dec
+    // 2026), by which point the year's leave is settled one way or the other. There is no permanent
+    // "done": one booking does not mean the remaining days are booked, and the Admin page would have
+    // to reach across into a Calendar notice's key to say so — the coupling `storage-keys.js`
+    // records ending at v21.84. Archived on OPEN because there is a CTA (the member may leave before
+    // onClose fires).
     (function () {
-        const NOTICE_ID   = 'backpay-2026';
-        const NOTICE_DATE = '21 Aug 2026';
-        const DONE_KEY    = 'myb_notice_backpay_2026_done';
-        // Thu 27 Aug 2026 23:00 LOCAL — the eve of the payslip (owner-specified).
-        const CUTOFF_MS   = new Date(2026, 7, 27, 23, 0).getTime();
+        const NOTICE_ID   = 'al-booking-2026';
+        const NOTICE_DATE = '8 Sep 2026';
+        const DONE_KEY    = 'myb_notice_al_booking_2026_done';
+        const SNOOZE_KEY  = 'myb_notice_al_booking_2026_snooze';
 
-        const overlay = document.getElementById('bpNoticeLb');
+        const overlay = document.getElementById('alNoticeLb');
         if (!overlay) return;
         if (lsGet(DONE_KEY)) return;
-        if (Date.now() > CUTOFF_MS) { lsSet(DONE_KEY, '1'); return; }
+        const snooze = lsGet(SNOOZE_KEY);
+        if (snooze && Date.now() < new Date(snooze).getTime()) return;
+        // Long expiry — a seasonal reminder that stays relevant for months, not a launch nudge.
+        if (isNoticeExpired(NOTICE_DATE, 90)) { lsSet(DONE_KEY, '1'); return; }
+
+        /** @param {number} days */
+        const _snooze = days => lsSet(SNOOZE_KEY, new Date(Date.now() + days * 86_400_000).toISOString());
 
         const lb = createLightbox({
             overlay,
-            content:  /** @type {HTMLElement} */ (document.getElementById('bpNoticeContent')),
-            closeBtn: /** @type {HTMLElement} */ (document.getElementById('bpNoticeClose')),
-            // Archive on OPEN — there is a CTA, so the member may leave for the calculator and never
-            // fire onClose. archiveNotice is idempotent.
+            content:  /** @type {HTMLElement} */ (document.getElementById('alNoticeContent')),
+            closeBtn: /** @type {HTMLElement} */ (document.getElementById('alNoticeClose')),
             onOpen() {
                 archiveNotice({
-                    id: NOTICE_ID, title: 'Back pay arrives 28 August', section: 'Pay',
+                    id: NOTICE_ID, title: 'Book your remaining 2026 leave', section: 'Calendar',
                     date: NOTICE_DATE,
-                    body: 'The 28 August payslip brings the new pay rates plus back pay to April. Check your '
-                        + 'payslips since April are entered correctly, or use the Year to Date Figures and '
-                        + 'Pay Rise Back Pay cards for an estimate — and enter this month\'s hours for a '
-                        + 'reliable picture of this month\'s pay.',
+                    body: 'Only a few months of the 2026 leave year are left. Book any annual leave you still '
+                        + 'have soon — leave left unbooked later in the year may have dates allocated for you.',
                 });
             },
-            // ONE-SHOT (owner-specified): any dismissal is final. No snooze — the notice's whole life
-            // is six days, so a 7-day snooze would be a wordier way of writing "never".
-            onClose() { lsSet(DONE_KEY, '1'); },
+            onClose() { _snooze(7); },
         });
 
-        document.getElementById('bpNoticeGo')?.addEventListener('click', () => lsSet(DONE_KEY, '1'));
-        document.getElementById('bpNoticeLater')?.addEventListener('click', () => lb.close());
+        document.getElementById('alNoticeGo')?.addEventListener('click', () => _snooze(1));
+        document.getElementById('alNoticeLater')?.addEventListener('click', () => lb.close());
 
-        // 'members' — the default, and this notice is why it is the default (v21.81). It asks the
-        // reader to check their own payslips are entered and to open the Pay Calculator, which is
-        // per-device, per-member data: on the shared station PC it addresses nobody and offers a
-        // calculator holding somebody else's figures. A signed-in member gets it; a PIN unlock does
-        // not, and is not flagged seen, so it still arrives when that device signs in.
+        // 'members' — it is about YOUR remaining leave and it opens the Admin page's booking card
+        // for you; on the PIN-unlocked station PC it addresses nobody. A PIN unlock is not flagged
+        // seen, so the notice still arrives when that device is next signed in.
         _openWhenAudienceAllows(lb, 'members');
     }());
 }

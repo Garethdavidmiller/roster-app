@@ -753,10 +753,10 @@ test('switched OFF: a signed-in member is unaffected', async ({ page }) => {
 // rule rather than hardcode one, which is the shape a members-only regression would take.
 // **The next `'signed-out'` notice restores this test** — `.claude/skills/new-notice/` says so.
 test.describe('one-time notices and the PIN unlock', () => {
-    // Before the back-pay notice's hard 27 Aug 23:00 cutoff, or it silently retires and these would
-    // pass by testing nothing. Pinned rather than removed with the notice: what is under test is the
-    // audience gate, and the next members-only notice inherits it.
-    const BEFORE_CUTOFF = new Date('2026-08-24T09:00:00Z');
+    // Inside the leave-reminder notice's life (posted 8 Sep 2026, 90-day expiry), or it silently
+    // retires and these would pass by testing nothing. Pinned rather than removed with the notice:
+    // what is under test is the audience gate, and the next members-only notice inherits it.
+    const BEFORE_CUTOFF = new Date('2026-09-10T09:00:00Z');
     // The notices open 1500ms after access is granted. Proving an ABSENCE means waiting past that,
     // and the first test below is what makes this number credible rather than hopeful: it shows a
     // permitted notice is already on screen by then, on the same session, through the same path.
@@ -766,20 +766,20 @@ test.describe('one-time notices and the PIN unlock', () => {
     // can be on screen at a time — `openNoticeIfClear`, v19.53 — so a test that clears every flag
     // and asserts the members-only notice is absent passes whether the gate refused it or it merely
     // lost the race to another one. That is not a hypothetical: it is what the first version of
-    // this block did, and a mutation declaring the back-pay notice `'everyone'` — the exact
+    // this block did, and a mutation declaring the members-only notice `'everyone'` — the exact
     // reported bug — sailed through it.
-    test('...and NOT the one that asks about your own payslips', async ({ page }) => {
+    test('...and NOT the one about your own annual leave', async ({ page }) => {
         const errors = collectFatalErrors(page);
         await page.clock.setFixedTime(BEFORE_CUTOFF);
         await seedViewerAccess(page);
         await seedMember(page);
-        await clearNoticeFlags(page, ['myb_notice_backpay_2026_done']);
+        await clearNoticeFlags(page, ['myb_notice_al_booking_2026_done']);
         await page.goto('/');
         await expect(page.locator('.month-year')).toBeVisible();
         await page.waitForTimeout(PAST_THE_DEFER);
-        await expect(page.locator('#bpNoticeLb')).not.toHaveClass(/open/);
+        await expect(page.locator('#alNoticeLb')).not.toHaveClass(/open/);
         // ...and NOT flagged seen, or it would never arrive on the day that device signs in.
-        const flagged = await page.evaluate(() => localStorage.getItem('myb_notice_backpay_2026_done'));
+        const flagged = await page.evaluate(() => localStorage.getItem('myb_notice_al_booking_2026_done'));
         expect(flagged, 'a suppressed notice must be left untouched, not marked seen').toBeNull();
 
         // ...and NOT in the ARCHIVE either, which is the half the report was actually about: the
@@ -790,7 +790,7 @@ test.describe('one-time notices and the PIN unlock', () => {
         const archived = await page.evaluate(() =>
             JSON.parse(localStorage.getItem('myb_app_notices') || '[]').map(n => n.id));
         expect(archived, 'a notice the station was not addressed by must not reach its drawer')
-            .not.toContain('backpay-2026');
+            .not.toContain('al-booking-2026');
         expect(errors, 'Uncaught JS exceptions on a viewer calendar').toHaveLength(0);
     });
 
@@ -800,10 +800,10 @@ test.describe('one-time notices and the PIN unlock', () => {
         await seedSession(page);
         await seedMemberSession(page);
         await seedMember(page);
-        await clearNoticeFlags(page, ['myb_notice_backpay_2026_done']);
+        await clearNoticeFlags(page, ['myb_notice_al_booking_2026_done']);
         await page.goto('/');
         await expect(page.locator('.month-year')).toBeVisible();
-        await expect(page.locator('#bpNoticeLb'), 'the same notice the station PC was refused').toHaveClass(/open/);
+        await expect(page.locator('#alNoticeLb'), 'the same notice the station PC was refused').toHaveClass(/open/);
         expect(errors, 'Uncaught JS exceptions on a member calendar').toHaveLength(0);
     });
 });
