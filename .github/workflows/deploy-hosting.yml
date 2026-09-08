@@ -11,6 +11,13 @@ on:
       - 'firestore.indexes.json'
       - '**/*.md'
       - '.github/**'
+      # Session tooling — skills, rules, hooks. It cannot reach the served app, and since 8 Sep
+      # 2026 firebase.json excludes it from the bundle too, so a deploy triggered by a change in
+      # here would republish an identical tree. That is not merely wasted: the concurrency group
+      # below QUEUES rather than cancels, so a no-op deploy lands IN FRONT of the next real one
+      # and delays it by the length of a full run. `paths-ignore` only skips when EVERY changed
+      # path matches, so a commit touching both this and a served file still deploys.
+      - '.claude/**'
   workflow_dispatch:
 
 # ── ONE DEPLOY AT A TIME, AND THE NEWEST ONE LAST (1 Sep 2026) ─────────────────────────────────
