@@ -31,7 +31,6 @@
       "**/.*",
       ".claude/**",
       ".github/**",
-      "docs/**",
       "**/node_modules/**",
       "functions/**",
       "**/*.md",
