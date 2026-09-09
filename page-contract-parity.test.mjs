@@ -74,11 +74,20 @@ test('the page list itself is not empty or accidentally filtered to nothing', ()
     assert.ok(APP_PAGES.includes('index.html'), 'the calendar must be in the list');
 });
 
-test('every app page is checked by csp-meta-parity', () => {
+test('every SERVED page is checked by csp-meta-parity', () => {
     // The meta CSP is the ONLY policy the GitHub Pages mirror gets — it cannot serve headers — so a
     // page missing from this list has no CSP there at all, and nothing would say so.
+    //
+    // EVERY SERVED PAGE, not APP_PAGES. This ran over APP_PAGES until 9 Sep 2026 and therefore inherited
+    // the guide and redirect-stub exclusions — which are right for the app contract (no nav, no auth,
+    // no analytics id) and wrong for this one, because the sentence above is about being FETCHABLE
+    // and a guide is fetched from the mirror exactly like the calendar. The cost was real if latent:
+    // `rangers-guide.html` shipped at v20.05 and was never added to that list, and neither stub ever
+    // was. All three happened to carry the correct meta, so the gap was invisible from both ends —
+    // the pages looked fine and the suite looked complete.
     const suite = read('./csp-meta-parity.test.mjs');
-    const missing = APP_PAGES.filter(p => !suite.includes(`'${p}'`));
+    const served = [...APP_PAGES, ...GUIDES, ...LEGACY_REDIRECTS].sort();
+    const missing = served.filter(p => !suite.includes(`'${p}'`));
     assert.deepEqual(missing, [], 'pages absent from csp-meta-parity\'s SERVED_HTML list');
 });
 
