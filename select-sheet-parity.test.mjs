@@ -376,3 +376,92 @@ test('no module calls .focus() on a select that is enhanced', () => {
     }
     assert.deepEqual([...new Set(offenders)].sort(), []);
 });
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// CONTRACT 8 — A PROGRAMMATIC SELECTION SAYS SO
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// `option.selected = true` and `selectedIndex = n` change what a select HOLDS while mutating no
+// attribute (`selected` is not reflected to the content attribute) and firing no event. Nothing can
+// observe them — not the `change`/`input` listeners, not the MutationObserver — so the enhanced
+// trigger, which is the only thing a reader sees, keeps whatever it last painted.
+//
+// That is not a theoretical shape. Both pages carrying an optgroup'd select have a helper built on
+// it, because iOS Safari ignores `.value` there: `_setSelectPeriod` (paycalc-periods.js) and
+// `_setSelectValue` (admin-app.js). Measured at v23.41, before the fix: ←/→/a tax-year jump left
+// the pay-period picker naming "25 Sept 2026" over a page computing 11 Apr 2025, and switching
+// member on Change a Shift left the AL and Absence pickers naming the previous person.
+//
+// The three ACCEPTED signals, in the order they actually occur:
+//   · a `dispatchEvent` — the helper saying so, which is the fix;
+//   · an option REBUILD in the same function (`createElement('option')` / `new Option` /
+//     `innerHTML`) — the childList mutation the observer already watches;
+//   · a `disabled` write — an observed attribute, and the reason admin's self-service lock
+//     survived this by accident rather than by design.
+test('a selection changed in code announces itself, or rebuilds, or disables', () => {
+    /** Every id the app enhances — reuses the resolver the contracts above are built on. */
+    const ids = findEnhanced().ids;
+    const offenders = [];
+    for (const f of MODULES) {
+        const src = strip(read(f));
+        if (!/\.selected\s*=|\.selectedIndex\s*=/.test(src)) continue;
+        // Only modules that can reach an enhanced select at all. A module with none of these ids is
+        // out of scope — this guards the enhancement, not every select in the world.
+        if (![...ids].some(id => src.includes(id)) && !/enhanceSelect|initSelectSheets/.test(src)) continue;
+
+        // Split on function boundaries and judge each body on its own. Crude, and deliberately so:
+        // the alternative is a parser, and what this needs to know is only "is the announcement
+        // anywhere near the assignment".
+        const bodies = src.split(/\n(?=\s*(?:export\s+)?(?:async\s+)?function\s|\s*[A-Za-z_$][\w$]*\s*[:=]\s*(?:async\s*)?\()/);
+        for (const body of bodies) {
+            if (!/\.selected\s*=\s*(?!false)|\.selectedIndex\s*=/.test(body)) continue;
+            const announced = /dispatchEvent\s*\(/.test(body);
+            const rebuilds  = /createElement\(\s*['"]option['"]|new Option\(|\.innerHTML\s*=/.test(body);
+            const disables  = /\.disabled\s*=/.test(body);
+            if (!announced && !rebuilds && !disables) {
+                const line = body.split('\n').find(l => /\.selected\s*=|\.selectedIndex\s*=/.test(l)) || '';
+                offenders.push(`${f}: ${line.trim().slice(0, 90)} — changes the selection with no signal the trigger can hear`);
+            }
+        }
+    }
+    assert.deepEqual(offenders.sort(), [],
+        'dispatch an `input` event after setting the selection (see `_setSelectPeriod`)');
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// CONTRACT 9 — A TEST READS THE FACE, NOT THE BUTTON
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// The trigger holds TWO spans: `.fieldpick-face` (what is shown) and `.fieldpick-sizer` (a hidden
+// copy of the widest option, added at v23.39 so the control does not resize when its value
+// changes). A `toHaveText` on the button therefore sees the label TWICE — "CEA / BilingualCEA /
+// Bilingual". Four tests written against the trigger passed before the sizer landed and failed on
+// CI after it, which is a whole CI round-trip to learn something a grep can say in a second.
+test('no spec asserts text on a trigger button instead of its face', () => {
+    const offenders = [];
+    for (const f of readdirSync(new URL('e2e/', ROOT)).filter(n => n.endsWith('.spec.js'))) {
+        // Per TEST, not per file. `trigger` is the obvious name for this variable and several tests
+        // in one spec use it, so a file-wide search paired one test's locator with another test's
+        // assertion — contract 6's lesson (resolve from the declaration, never from the name)
+        // arriving a second time by a different route.
+        for (const block of strip(read(`e2e/${f}`)).split(/\n(?=test(?:\.\w+)?\s*\()/)) {
+            for (const m of block.matchAll(/locator\(\s*['"`]([^'"`]*Trigger)['"`]\s*\)/g)) {
+                const sel = m[1];
+                if (sel.includes('fieldpick-face')) continue;
+                const varName = (block.slice(Math.max(0, m.index - 80), m.index)
+                    .match(/(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:[A-Za-z_$][\w$]*\s*\.\s*)?$/) || [])[1];
+                const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                // The assertion must be ON the locator, not merely NEAR it. A `{0,40}` window read
+                // `expect(trigger).toBeVisible(); await expect(face).toHaveText(…)` as a hit — the
+                // same proximity trap paycalc-notice-order.test.mjs records, and it fires on the
+                // FIXED code, which is the worst direction for a guard to be wrong in.
+                const textAssert = varName
+                    ? new RegExp(`expect\\(\\s*${varName}\\s*\\)\\s*(?:\\.not)?\\s*\\.toHaveText`)
+                    // `\\)?` for the inline shape's OWN closing paren: `expect(page.locator('#x')).toHaveText`
+                    // puts a second `)` between the locator and the assertion, and without it the
+                    // whole no-variable branch was unreachable — it passed a reintroduced defect.
+                    : new RegExp(`locator\\(\\s*['"\`]${esc}['"\`]\\s*\\)\\s*\\)?\\s*(?:\\.not)?\\s*\\.toHaveText`);
+                if (textAssert.test(block)) offenders.push(`e2e/${f}: '${sel}' asserted with toHaveText — read '${sel} .fieldpick-face' (the button also carries the hidden sizer)`);
+            }
+        }
+    }
+    assert.deepEqual([...new Set(offenders)].sort(), []);
+});

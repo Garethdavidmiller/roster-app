@@ -964,11 +964,24 @@ field"); the decision simply never got carried to selects.
 - `readGroups(select)` / `triggerLabel(select)` — the pure-ish readers, driven by a fake DOM in Node. `readGroups` also serves as the OPTIONS PARSER for `openOptionSheet`: a caller with an options string builds a detached `<select>` and hands it over, so one producer feeds both routes and `<optgroup>` labels become sheet headings for free.
 
 **Three things an edit can silently break.** The options are read on every OPEN, never cached — a
-snapshot would be the wrong names and would be wrong quietly. The trigger repaints on `change` AND
-on a MutationObserver for childList/`disabled`, because a rebuild or a disable fires no event and
-the face would keep a name that is no longer in the list. And the trigger copies the select's own
+snapshot would be the wrong names and would be wrong quietly. The trigger repaints on `change`, on
+`input`, AND on a MutationObserver for childList/`disabled`, because a rebuild or a disable fires no
+event and the face would keep a name that is no longer in the list. And the trigger copies the select's own
 class list, so a page that styles fields by ELEMENT must add `.fieldpick` to those rules — a class
 cannot inherit an element selector, and a trigger that misses one renders as a bare button.
+
+**A fifth, added v23.42: `input` is the ear for a selection changed IN CODE.** `option.selected =
+true` and `selectedIndex = n` change what the select holds while mutating no attribute (`selected`
+is not reflected to the content attribute) and firing no event — so neither the `change` listener
+nor the observer can see them, and no observer in the platform could. Both pages carrying an
+optgroup'd select have a helper built on exactly that shape, because iOS Safari ignores `.value`
+there: `_setSelectPeriod` (paycalc-periods.js) and `_setSelectValue` (admin-app.js). Measured before
+the fix: ←/→/a tax-year jump left the pay-period picker naming *25 Sept 2026* over a page computing
+*11 Apr 2025* — a take-home figure under the wrong tax year — and switching member on Change a Shift
+left the AL and Absence pickers naming the previous person. Both helpers now dispatch `input`,
+NON-BUBBLING: a user's own pick does bubble, but these also fire on the initial load, and paycalc
+delegates `input` on `#hoursCard` to mark the hours touched. Contract 8 of the parity suite fails a
+selection changed with no signal, no rebuild and no `disable`.
 
 **A fourth, added v23.40: nothing may `.focus()` an enhanced select.** It is 1px, transparent,
 `pointer-events: none`, `tabindex="-1"` and `aria-hidden` — focusing it takes a keyboard or

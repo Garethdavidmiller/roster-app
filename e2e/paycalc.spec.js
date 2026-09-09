@@ -1002,3 +1002,61 @@ test('paycalc: Replace never clears hours the calendar only learns about second-
     await expect(page.locator('#rosterHintText')).not.toContainText(/cleared Overtime|cleared RDW/);
     expect(errors, 'Uncaught JS exceptions').toHaveLength(0);
 });
+
+// ── THE PERIOD PICKER NAMES THE PERIOD THE PAGE IS COMPUTING (v23.42) ────────────────────────────
+// From v23.36 the closed control a member reads is the ENHANCED TRIGGER, not the `<select>`. The
+// select is 1px and `aria-hidden`, so its own `selectedOptions` is invisible to everybody — which
+// is why this asserts the trigger's FACE and not the select's value.
+//
+// The three navigation paths all move the period through `_setSelectPeriod`, which sets
+// `option.selected` — a change that mutates no attribute and fires no event, so nothing repainted
+// the face. Measured before the fix: ←, →→ and a tax-year jump each left "● Paid 25 Sept 2026 ·
+// P28" standing over a page computing 28 Aug 2026, 23 Oct 2026 and then 11 Apr **2025** — a take-
+// home figure under a label naming the wrong tax year, with nothing on screen to say so.
+//
+// The tax-year jump is the case worth keeping even if the other two are ever refactored away: it
+// is the only one that crosses a year, and the year is what makes a wrong label expensive rather
+// than merely untidy.
+test('paycalc: the period picker names the period the page is computing', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#settingsCard')).toBeVisible();
+
+    // The face and the select must agree at every step. Read both in one evaluate so a re-render
+    // between two locator reads cannot produce a false pass.
+    const agree = async (what) => {
+        const { label, face } = await page.evaluate(() => {
+            const sel = /** @type {HTMLSelectElement} */ (document.getElementById('periodSelect'));
+            return {
+                label: sel.selectedOptions[0]?.textContent?.trim() ?? '',
+                face: document.querySelector('#periodSelectTrigger .fieldpick-face')?.textContent?.trim() ?? '',
+            };
+        });
+        expect(label, `${what}: the select should hold a period`).not.toBe('');
+        expect(face, `${what}: the picker face must name the selected period`).toBe(label);
+        return label;
+    };
+
+    const start = await agree('on load');
+
+    await page.locator('#prevBtn').click();
+    const prev = await agree('after ←');
+    expect(prev, '← should have moved the period').not.toBe(start);
+
+    await page.locator('#nextBtn').click();
+    await page.locator('#nextBtn').click();
+    const next = await agree('after → →');
+    expect(next, '→ → should have moved the period').not.toBe(prev);
+
+    // Crossing a tax year — the expensive case.
+    await page.locator('.ty-tabs button').first().click();
+    const jumped = await agree('after a tax-year jump');
+    expect(jumped, 'the tax-year jump should have moved the period').not.toBe(next);
+
+    expect(errors, 'Uncaught JS exceptions').toHaveLength(0);
+});

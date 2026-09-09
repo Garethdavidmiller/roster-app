@@ -3245,8 +3245,13 @@ test('operations: the roster type is picked from the app\'s own sheet, and the p
     await page.evaluate(() => document.getElementById('rosterUploadBody')?.classList.add('open'));
 
     const trigger = page.locator('#rosterTypeTrigger');
+    // The FACE, not the button. Since v23.39 the trigger also carries `.fieldpick-sizer`, a hidden
+    // copy of the widest option that stops the control resizing when its value changes — so the
+    // button's own text is the label TWICE ("CEA / BilingualCEA / Bilingual"). Reading the face is
+    // also the honest assertion: it is the span a member actually sees.
+    const face = page.locator('#rosterTypeTrigger .fieldpick-face');
     await expect(trigger).toBeVisible();
-    await expect(trigger).toHaveText('CEA / Bilingual');
+    await expect(face).toHaveText('CEA / Bilingual');
     // The value holder is still here, and out of the a11y tree — otherwise a screen reader would
     // find two controls for one value, one of them unreachable.
     await expect(page.locator('#rosterType')).toHaveAttribute('aria-hidden', 'true');
@@ -3256,7 +3261,7 @@ test('operations: the roster type is picked from the app\'s own sheet, and the p
     await expect(sheet).toBeVisible();
     await sheet.locator('.picker-opt', { hasText: 'Dispatchers' }).click();
 
-    await expect(trigger).toHaveText('Dispatchers');
+    await expect(face).toHaveText('Dispatchers');
     await expect(page.locator('#rosterType')).toHaveValue('dispatcher');
 });
 
@@ -3272,12 +3277,13 @@ test('operations: the account-status grade filter is enhanced too, and keeps foc
     await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
 
     const trigger = page.locator('#acctGradeFilterTrigger');
+    const face = page.locator('#acctGradeFilterTrigger .fieldpick-face');   // see the sizer note above
     await expect(trigger).toBeVisible();
-    await expect(trigger).toHaveText('All grades');
+    await expect(face).toHaveText('All grades');
 
     await trigger.click();
     await page.locator('.picker-sheet .picker-opt', { hasText: /^CES$/ }).click();
-    await expect(trigger).toHaveText('CES');
+    await expect(face).toHaveText('CES');
     await expect(page.locator('#acctGradeFilter')).toHaveValue('CES');
 
     // The trigger is a real Tab stop; the select it stands in front of deliberately is not.
@@ -3302,7 +3308,11 @@ test('drawer: a REFUSED document read blames the session, not the signal', async
     await seedSession(page, 'G. Miller');
     await page.goto('/settings.html');
     await page.evaluate(() => document.getElementById('navMenuBtn')?.click());
-    await page.locator('.nav-panel-link--circular').click({ force: true });
+    // Clicked through `evaluate`, not `locator.click`: on a phone viewport the drawer's document
+    // links sit below the fold inside a scroll container, and even `force: true` refuses an element
+    // outside the viewport. What is under test is the handler's CHOICE OF WORDS, not the tap.
+    await page.locator('.nav-panel-link--circular').waitFor();
+    await page.evaluate(() => /** @type {HTMLElement} */ (document.querySelector('.nav-panel-link--circular'))?.click());
     await expect(page.locator('#navComingSoonBody')).toHaveText(/signed out/i, { timeout: 12_000 });
     await expect(page.locator('#navComingSoonBody')).not.toHaveText(/signal/i);
 });
@@ -3314,7 +3324,11 @@ test('drawer: a NETWORK failure still blames the network', async ({ page }) => {
     await seedSession(page, 'G. Miller');
     await page.goto('/settings.html');
     await page.evaluate(() => document.getElementById('navMenuBtn')?.click());
-    await page.locator('.nav-panel-link--circular').click({ force: true });
+    // Clicked through `evaluate`, not `locator.click`: on a phone viewport the drawer's document
+    // links sit below the fold inside a scroll container, and even `force: true` refuses an element
+    // outside the viewport. What is under test is the handler's CHOICE OF WORDS, not the tap.
+    await page.locator('.nav-panel-link--circular').waitFor();
+    await page.evaluate(() => /** @type {HTMLElement} */ (document.querySelector('.nav-panel-link--circular'))?.click());
     await expect(page.locator('#navComingSoonBody')).toHaveText(/signal/i, { timeout: 12_000 });
 });
 
@@ -6794,4 +6808,51 @@ test('admin: switching member at large text does not shave the page @layout', as
 
     expect(await tooWide(page),
         'the container track must not be widened past the viewport by the week grid').toEqual([]);
+});
+
+// ── THE AL AND ABSENCE PICKERS FOLLOW THE MEMBER (v23.42) ────────────────────────────────────────
+// Change a Shift's member selection is mirrored into the Annual Leave and Absence pickers by
+// `_setSelectValue`, which sets `option.selected` — no attribute mutated, no event fired. Since
+// v23.36 the name a manager READS is the enhanced trigger, and it kept the previous person:
+// measured as both cards naming "L. Springer" after the page had moved every write path to
+// "A. Hared". A booking then goes to the right member under the wrong name, which is the exact
+// failure the "Recording for <name>" row exists to prevent, reached from the other side.
+//
+// `#fieldMember` is asserted too, but it is the weak one: a real user's pick fires `change` on it,
+// so it repaints either way. The two it mirrors INTO are the ones with no signal of their own.
+test('admin: switching member on Change a Shift renames the AL and Absence pickers', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page);
+    await page.goto('/admin.html');
+    await expect(page.locator('#fieldMember')).toBeAttached();
+    await expect(page.locator('#fieldMemberTrigger')).toBeVisible();
+
+    const faces = () => page.evaluate(() => ['fieldMember', 'alMember', 'sickMember'].map(id => ({
+        id,
+        held: /** @type {HTMLSelectElement} */ (document.getElementById(id))?.selectedOptions[0]?.textContent?.trim() ?? '',
+        face: document.querySelector(`#${id}Trigger .fieldpick-face`)?.textContent?.trim() ?? '',
+    })));
+
+    const before = await faces();
+    for (const row of before) expect(row.face, `${row.id} starts consistent`).toBe(row.held);
+
+    // Drive the page's own change handler, as picking a row in the sheet does.
+    const moved = await page.evaluate(() => {
+        const sel = /** @type {HTMLSelectElement} */ (document.getElementById('fieldMember'));
+        const other = [...sel.options].find(o => o.value && o.value !== sel.value && !o.disabled);
+        if (!other) return '';
+        for (const o of sel.options) o.selected = (o === other);
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+        return other.value;
+    });
+    expect(moved, 'the roster should offer a second selectable member').not.toBe('');
+
+    await expect.poll(async () => (await faces()).find(r => r.id === 'fieldMember')?.held)
+        .toBe(moved);
+
+    for (const row of await faces()) {
+        expect(row.held, `${row.id} should hold the newly chosen member`).toBe(moved);
+        expect(row.face, `${row.id}: the picker must NAME the member it now holds`).toBe(moved);
+    }
+    expect(errors, 'Uncaught JS exceptions').toHaveLength(0);
 });
