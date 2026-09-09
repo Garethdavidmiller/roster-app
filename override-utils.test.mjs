@@ -5,7 +5,9 @@ import { tsToMillis, shouldReplaceOverride, reconcileRangeIntoCache, isBeforeMem
          OTHER_FLAVOURS, OTHER_RDW_DEFAULT_MINS, isOtherValue, parseOtherValue, composeOtherValue, resolveOtherPay,
          isOverrideDisplaySuppressed, mergeBookedPeriods, resolveEffectiveShift, toOverrideRecord,
          buildOverrideWrite, buildOverrideCacheRecord, collectOverrideRecords, SUNDAY_FORBIDDEN_TYPES, isForbiddenOnSunday, sundaySafeValue,
-         CONTRACTED_WORK_TYPES, VOLUNTARY_WORK_TYPES, isContractedWorkOverride, nextReplacedType, manualCellValue } from './override-utils.js';
+         CONTRACTED_WORK_TYPES, VOLUNTARY_WORK_TYPES, isContractedWorkOverride, nextReplacedType, manualCellValue,
+    isClockTime,
+} from './override-utils.js';
 
 /** Build a fake Firestore QuerySnapshot from an array of {id, ...data} rows. */
 function fakeSnapshot(rows) {
@@ -1165,3 +1167,28 @@ describe('manualCellValue — a real clock time, not the shape of one', () => {
     });
 });
 
+
+
+describe('isClockTime — the guard TEXT boxes need and `<input type="time">` gave for free', () => {
+    // Two places in the app type times into text: the roster review's entry control and Overtime's
+    // custom-hours row. Both refused `type="time"` on a measurement (12-hour rendering from the OS
+    // against 24-hour badges), and the price is that nothing in the browser validates any more.
+    // The expensive direction is ACCEPTING nonsense: `29:00` reaches every duration helper
+    // downstream and is read as a real shift, silently.
+    it('a real time is accepted at both ends of the day', () => {
+        for (const v of ['00:00', '06:00', '13:30', '23:59']) assert.equal(isClockTime(v), true, v);
+    });
+    it('the shape of a time is not a time', () => {
+        // Each of these matches /^\d{2}:\d{2}$/ and none of them is a clock time.
+        for (const v of ['29:00', '99:99', '24:00', '25:61']) assert.equal(isClockTime(v), false, v);
+    });
+    it('24:00 is refused specifically, because midnight is written 00:00', () => {
+        // `15:00-00:00` appears on the real Supervisor sheet; an overnight range is end < start.
+        assert.equal(isClockTime('24:00'), false);
+        assert.equal(isClockTime('00:00'), true);
+    });
+    it('anything that is not two-and-two is refused, including the half-typed', () => {
+        for (const v of ['6:00', '06:0', '0600', '9am', '', ':30', '06:00 ', null, undefined])
+            assert.equal(isClockTime(/** @type {any} */ (v)), false, String(v));
+    });
+});

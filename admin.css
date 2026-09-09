@@ -423,9 +423,18 @@
             position: relative;
             min-width: 0; /* allow flex shrink below min-content so the ● button always has room */
         }
+        /* A <button> since v23.38 (was a <span> under an invisible <input type="date">). It is the
+           TRIGGER for the app's own calendar now, so it has to be focusable and clickable — but the
+           box must stay byte-identical, because the 375px fit of all 57 week labels is a measured
+           property (responsive.spec.js) and a UA button font would change every one of them. Hence
+           `font-family: inherit` and `appearance: none`: a button inherits neither. */
         .week-nav-label {
             display: block;
+            width: 100%;
+            -webkit-appearance: none;
+            appearance: none;
             text-align: center;
+            font-family: inherit;
             font-size: var(--type-body);
             font-weight: 600;
             color: var(--text-dark);
@@ -436,27 +445,20 @@
             white-space: nowrap;
             overflow: hidden;        /* clip date text if wrap is narrower than content */
             text-overflow: ellipsis; /* show … rather than abrupt cut */
-            pointer-events: none;
+            cursor: pointer;
             -webkit-user-select: none;
             user-select: none;
         }
-        /* Calendar icon sits at the right edge of the label — purely decorative indicator
-           that the date is tappable. The invisible <input type="date"> overlay does the work. */
+        @media (hover: hover) and (pointer: fine) {
+            .week-nav-label:hover { border-color: var(--border-mid); }
+        }
+        /* Calendar icon sits at the right edge of the label — the affordance that the week is
+           tappable. The label itself is the trigger. */
         .week-nav-label::after {
             content: ' 📅';
             font-size: var(--type-label);
             opacity: 0.55;
         }
-        .week-date-wrap input[type="date"] {
-            position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-            opacity: 0;
-            cursor: pointer;
-            z-index: 1;
-        }
-
         /* Gold border + tinted fill when the displayed week is the current week (the comment said
            "Blue border" from the rule's first version; it has been gold for a long time). */
         .week-nav-label.is-current-week {

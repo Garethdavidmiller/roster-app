@@ -5631,6 +5631,62 @@ test('admin: the week label follows the swipe, so the grid and its heading agree
         .toContain(String(saturday.getDate()));
 });
 
+// ── THE WEEK JUMP OPENS THE APP'S OWN CALENDAR (v23.38) ───────────────────────────────────────
+//
+// The rules are unit-tested (date-picker.test.mjs covers `monthCells`). What only a browser can
+// answer is whether the label is WIRED to the picker at all — and that is the whole change, because
+// until v23.38 tapping this label opened the OS date picker through an invisible `<input
+// type="date">` laid over it. Both surfaces look identical in a screenshot of the closed control.
+//
+// It also proves the picker's CSS reaches this page. It lived in operations.css until this release
+// and Admin does not load that file, so every rule would have silently not applied and the calendar
+// would have rendered as bare buttons — the exact fault the module exists to fix. Asserting the
+// panel has a real painted box is what sees that; `toBeVisible` would not.
+test('admin: tapping the week label opens the app calendar, and picking a day moves the week',
+    async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    const before = await page.locator('#fieldDate').inputValue();
+    await page.locator('#weekNavLabel').click();
+
+    const panel = page.locator('.dp-content');
+    await expect(panel).toBeVisible();
+    // The picker is styled here, not just present. An unstyled .dp-content is transparent and
+    // padless, which is what a missing stylesheet looks like.
+    const paint = await panel.evaluate(el => {
+        const cs = getComputedStyle(el);
+        return { bg: cs.backgroundColor, pad: parseFloat(cs.paddingTop) };
+    });
+    expect(paint.bg, 'the picker panel should have a painted surface')
+        .not.toBe('rgba(0, 0, 0, 0)');
+    expect(paint.pad, 'the picker panel should carry its own padding').toBeGreaterThan(8);
+
+    // Pick a day that is not the one already selected, so the assertion cannot pass by standing
+    // still. Every visible cell is in the month `#fieldDate` already sits in.
+    const day = page.locator('.dp-day:not(.dp-off):not(.dp-sel)').first();
+    const iso = await day.getAttribute('data-iso');
+    await day.click();
+
+    await expect(panel).toBeHidden();
+    await expect.poll(() => page.locator('#fieldDate').inputValue(), { timeout: 5000 }).toBe(iso);
+    expect(iso).not.toBe(before);
+
+    // And the rest of the page followed: the label names the week containing the picked day. That
+    // is the `change` event the OS picker used to fire, still reaching the same listeners.
+    const picked = new Date(iso + 'T00:00:00');
+    const sunday = new Date(picked);
+    sunday.setDate(picked.getDate() - picked.getDay());
+    const saturday = new Date(sunday);
+    saturday.setDate(sunday.getDate() + 6);
+    const text = await page.locator('#weekNavLabel').textContent();
+    expect(text, `the heading should name the week containing ${iso}`)
+        .toContain(String(sunday.getDate()));
+    expect(text, `the heading should name the week containing ${iso}`)
+        .toContain(String(saturday.getDate()));
+});
+
 test('admin: the week arrows and the swipe move the same state', async ({ page }) => {
     // The buttons live inside the gesture's own closure so they share its cooldown. Extracting the
     // gesture must not leave them wired to a different notion of "which week".
