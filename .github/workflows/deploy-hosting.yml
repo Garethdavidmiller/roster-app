@@ -18,6 +18,12 @@ on:
       # and delays it by the length of a full run. `paths-ignore` only skips when EVERY changed
       # path matches, so a commit touching both this and a served file still deploys.
       - '.claude/**'
+      # The documentation estate, for the same reason (9 Sep 2026, external review). `**/*.md`
+      # above already covered nearly all of it — but `docs/proposals/` had acquired 25 files that
+      # are not markdown: the December proposal designs as `.json`, their paste-ready `.txt`
+      # imports, and `tooling/*.mjs` with its `results/*.json`. Those were eligible to be SERVED,
+      # and a change to one of them triggered a deploy of a tree no member can see a difference in.
+      - 'docs/**'
   workflow_dispatch:
 
 # ── ONE DEPLOY AT A TIME, AND THE NEWEST ONE LAST (1 Sep 2026) ─────────────────────────────────
