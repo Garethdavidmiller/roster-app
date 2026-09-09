@@ -101,6 +101,40 @@ shown that yet.
 
 ## Decisions taken — recorded so they are not re-raised
 
+- **The `push` run being cancelled when the PR run starts — the DESIGN is right, the RACE is now
+  proven, and the question is OPEN** (9 Sep 2026) · **Trigger: FIRED, same day — see below. The open
+  question is whether to make the preference deterministic, not whether one suite per branch is
+  correct.** Every PR shows `Tests [push]: cancelled` beside `Tests [pull_request]: success`, and it
+  reads like a fault. It is the intended outcome: both events collide in one concurrency group so a
+  branch carries one suite rather than two, and the survivor *should* be the `pull_request` run —
+  which checks out the synthetic MERGE COMMIT, i.e. what merging would actually produce, where the
+  `push` run only tests the branch head. When `main` has moved under an open PR those are different
+  trees and the merge-result run is strictly the better evidence. **This was re-raised on 9 Sep 2026
+  as "how do we fix this", which is the whole reason for this row** — the argument existed, but only
+  inside `.github/workflows/e2e.yml`, where somebody watching CI is not looking.
+
+  **Measured that day, and then immediately falsified — both halves are the record.** A sweep of the
+  last 63 `Tests` runs (38 distinct commits) found **zero** wrong-way races: the six cancelled
+  `pull_request` runs were all ordinary supersession by a newer push to the same PR. Cancellation
+  usually lands within 0.1–0.8 min. **Then the very next pull request — #1431, the one adding this
+  row — produced one.** The `pull_request` run started 11:49:42 and was cancelled; the `push` run
+  for the same commit started **11:53:30** and survived. Nothing was lost in that instance (a
+  docs-only change whose full gate had been run locally on the rebased tree), but the merge-result
+  evidence was destroyed and only branch-head evidence remained.
+
+  **The falsification changes one load-bearing assumption.** `e2e.yml` frames the exposure as "a base
+  that moved in the *seconds* between two runs of the same commit". The observed gap was **228
+  seconds** — a force-push after a rebase, where the push event is evaluated over the whole pushed
+  range and is scheduled well after the PR event. Minutes, not seconds, is a window in which `main`
+  genuinely moves; it moved three times on 9 Sep 2026 alone.
+
+  **What is NOT in doubt:** one suite per branch, and the deploy workflow's own gate as the net. What
+  is open is the race. The three deterministic options and their costs, none yet taken — drop the
+  `push` trigger (loses pre-PR CI), a guard job querying for an open PR (an API call on every push),
+  split the groups (doubles CI on every push to an open PR, which is what the group was added to
+  stop). **The full argument, including why the key is `head_ref || ref_name` and why the obvious
+  `github.ref` recipe silently does nothing, lives in `e2e.yml` beside the config.**
+
 - **WebKit stays OUT of the deploy gate — LEAVE IT** (owner, 8 Sep 2026) · **Trigger to revisit: a
   Safari-only regression actually reaching production, or the work-phone install being permitted (a
   second engine running the INSTALLED app changes the exposure, not just the browser mix).** The
