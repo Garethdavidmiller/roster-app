@@ -190,3 +190,13 @@ the calculator's fields, and the Links saved-setups picker. Two were left alone 
 **The trigger that would reopen either:** a report that the month-jump selects look wrong on a phone
 (the same report that started this), or the Overtime identity bar becoming a real choice — which it
 would, the moment a manager can answer on somebody else's behalf.
+
+**Two more were not decisions at all — they were misses** (v23.38). `#rosterType` on Operations was
+in the markup and simply not in the list; `#acctGradeFilter` is built in JavaScript after two
+Firestore reads, so an id in that list would have been skipped silently. Both are now enhanced, and
+the reason they went unnoticed for a release is worth keeping: **a missed select is invisible to
+every lane the repo has.** The closed control looks identical, the popup is the platform's, and
+Playwright's `selectOption` drives both — so the e2e suite, the visual baselines and the axe gate
+are all equally green either way. The three exclusions above are therefore an EXEMPTION TABLE in
+`select-sheet-parity.test.mjs` rather than prose alone: adding an id there is how the decision gets
+taken, and the alternative was taking it by forgetting.

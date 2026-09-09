@@ -4693,6 +4693,60 @@ test('links: the generator header is sticky on desktop, and provably not on mobi
     }
 });
 
+// ── THE GRID CELL EDITOR OPENS THE APP'S OWN SHEET (v23.38) ───────────────────────────────────
+//
+// It used to replace the cell's button with a native `<select>`, focused on the next frame and
+// restored on blur — so the popup a designer chose a shift from was the OS's, in the one card on
+// this page where the app draws every other pixel. Nothing about the CLOSED cell changed, which is
+// why only driving the open state can see it.
+//
+// The three assertions are the three things the swap-out used to do and no longer has to: the cell
+// is never taken apart (its button survives the whole interaction), a dismissed sheet leaves the
+// value alone (there was a `committed` flag and a blur guard for this), and a pick applies.
+test('links: editing a grid cell uses the app sheet, and cancelling changes nothing',
+    async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        /** @type {any} */ const pat = {};
+        for (let i = 1; i <= 24; i++) {
+            pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: '06:20-14:20', wed: 'RD',
+                thu: '15:15-23:55', fri: '15:15-23:55', sat: 'RD' };
+        }
+        w.__E2E.docs = [{ id: 'd1', name: 'Option A', patterns: pat, updatedAt: 1750000000000, updatedBy: 'S. Silva' }];
+    });
+    await page.goto('/links.html');
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
+
+    const cellBtn = page.locator('tr[data-pos="1"] .shift-cell-btn').first();
+    await expect(cellBtn).toHaveText('RD');
+    await cellBtn.click();
+
+    // No native control anywhere — that is the change. And the cell's own button is still there.
+    const sheet = page.locator('.picker-sheet-overlay');
+    await expect(sheet).toBeVisible();
+    expect(await page.locator('.shift-cell-select').count(),
+        'the cell must not be swapped for a native select').toBe(0);
+    await expect(cellBtn, 'the cell is not taken apart to be edited').toBeVisible();
+
+    // The current value is marked, so the sheet says what the cell already holds.
+    await expect(page.locator('.picker-opt[data-value="RD"]')).toHaveAttribute('aria-current', 'true');
+
+    // Dismissing changes nothing. The old editor needed a flag and a blur listener to guarantee
+    // this; now it is true because nothing was destroyed in the first place.
+    await page.keyboard.press('Escape');
+    await expect(sheet).toBeHidden();
+    await page.waitForTimeout(400);   // past the post-fade window a pick would have used
+    await expect(cellBtn).toHaveText('RD');
+
+    // And a pick applies.
+    await cellBtn.click();
+    await page.locator('.picker-opt[data-value="SPARE"]').click();
+    await expect(cellBtn).toHaveText('SP');
+});
+
 test('links: the print button prints, and a work-in-progress sheet says so', async ({ page }) => {
     // The print CSS and the beforeprint/afterprint machinery have existed since v12.37; until v19.62
     // the only way to reach them was the browser menu, which an installed PWA often does not expose.
@@ -4730,9 +4784,16 @@ test('links: the print button prints, and a work-in-progress sheet says so', asy
     expect(clean).toContain('Last saved by S. Silva');
     expect(clean, 'a saved design must not claim unsaved changes').not.toContain('unsaved changes');
 
-    // Now dirty the design and print again.
+    // Now dirty the design and print again. The cell editor opens the app's own sheet since
+    // v23.38 — `__custom__` is excluded because picking it opens a prompt dialog rather than
+    // setting a value, and `.is-current` because re-picking the open one is a no-op by design.
     await page.locator('tr[data-pos="1"] .shift-cell-btn').first().click();
-    await page.locator('.shift-cell-select').selectOption({ index: 2 });
+    await page.locator('.picker-sheet .picker-opt[data-value]:not(.is-current)'
+        + ':not([data-value="__custom__"])').first().click();
+    // Wait for the edit to LAND, not merely for the sheet to shut — the pick is applied after the
+    // overlay's fade. (`#printDesignName` cannot be polled for this: it is stamped by the
+    // `beforeprint` handler, so it still holds the previous print's text until the button below.)
+    await expect(page.locator('tr[data-pos="1"] .shift-cell-btn').first()).toHaveText('SP');
     await btn.click();
     expect(await page.locator('#printDesignName').innerText(),
         'a sheet printed mid-edit must say so, or it misattributes the design')

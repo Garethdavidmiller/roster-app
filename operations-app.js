@@ -28,12 +28,13 @@ import { initDocUploadCard, isPdfFile, isDocxFile } from './doc-upload.js';
 import { initAuthSetup } from './admin-auth.js';
 import { initDatePickers } from './date-picker.js';
 import { isFetchTimeout } from './fetch-timeout.js';
+import { initSelectSheets, enhanceSelect } from './select-sheet.js';
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession, getFirebaseAuthError, reconcileExpiredIdentity } from './session.js';
 import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
-import { initCardCollapse, confirmDialog } from './overlay.js';
+import { initCardCollapse, confirmDialog, createLightbox } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -180,6 +181,10 @@ export function init() {
     // Brand-styled date pickers over the four upload date fields. AFTER the card inits above,
     // which set each field's default value (today / next Saturday) that the trigger label reads.
     initDatePickers(['huddleDate', 'circularDate', 'newsletterDate', 'rosterWeekEnding']);
+
+    // ...and the app's own dropdown over the roster-type select, missed by the sweep that did the
+    // other six pages. It is disabled during a parse (fires no event — hence the observer).
+    initSelectSheets([{ id: 'rosterType', title: 'Roster type' }], { createLightbox });
 
     // ============================================
     // COLLAPSIBLE CARD HEADERS
@@ -606,6 +611,9 @@ export function init() {
             });
             filterRow.appendChild(filterSelect);
             content.appendChild(filterRow);
+            // Enhanced HERE, not in the page's `initSelectSheets` call: this select does not exist
+            // at boot, so an id there would be skipped silently and for ever. Enhance where built.
+            enhanceSelect(filterSelect, { title: 'Filter by grade', createLightbox });
 
             summaryEl = document.createElement('div');
             summaryEl.className = 'acct-summary';

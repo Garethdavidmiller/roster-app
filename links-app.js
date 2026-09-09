@@ -17,6 +17,7 @@ import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSess
 import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse, createLightbox, confirmDialog, promptDialog, openNoticeIfClear } from './overlay.js';
+import { openOptionSheet, readGroups } from './select-sheet.js';
 import { MAX_DESIGN_NAME, checkName, proposeCopyName } from './links-design-naming.js';
 import { createDesignHeader, proposeNewDesignName } from './links-design-header.js';
 import { initAboutLightbox } from './about-lightbox.js';
@@ -1627,53 +1628,56 @@ export function init() {
     // INLINE CELL EDITING (dropdown mode)
     // ============================================
 
-    /** @param {any} btn */
+    /**
+     * Open the app's own dropdown over one grid cell.
+     *
+     * IT USED TO SWAP THE CELL FOR A NATIVE `<select>` (v23.38 replaced it). The cell's button was
+     * destroyed, a select built in its place, focused on the next frame, and restored on blur —
+     * which meant the popup a designer actually chose from was the OS's, in the one card on this
+     * page where the app draws every other pixel itself: the grid, the paint chips, the compare
+     * diff and the heat map. On Android it arrived as a full-bleed Material sheet over a 24-line
+     * rotation grid.
+     *
+     * The button now stays put and the sheet opens over it, which also removes the three pieces of
+     * machinery that existed only to manage a control living in a cell — the `committed` flag, the
+     * blur-cancels guard, and the `requestAnimationFrame` focus. There is nothing to cancel: a
+     * dismissed sheet has changed nothing, and the cell was never taken apart.
+     *
+     * The options still come from `buildShiftOptions`, parsed by the sheet's own `readGroups` off a
+     * detached `<select>` rather than rebuilt in the sheet's shape. One producer, so the brush
+     * chips and this list cannot drift apart, and its `<optgroup>` labels become the sheet's
+     * headings for free.
+     * @param {any} btn
+     */
     function openCellEdit(btn) {
         if (!design) return;
-        const cell     = btn.parentElement;
         const pos      = btn.dataset.pos;
         const day      = btn.dataset.day;
         const dayLabel = DAY_LABELS[DAYS.indexOf(day)];
         const current  = (/** @type {Record<string, any>} */ (design.patterns))[pos]?.[day] ?? 'RD';
 
-        const select = document.createElement('select');
-        select.className = 'shift-cell-select';
-        select.setAttribute('aria-label', `Line ${pos} ${dayLabel}: change shift`);
-        select.innerHTML = buildShiftOptions(current, true);
+        const holder = document.createElement('select');
+        holder.innerHTML = buildShiftOptions(current, true);
 
-        let committed = false;
-
-        function cancel() {
-            committed = true;
-            cell.innerHTML = '';
-            restoreBtn(cell, pos, day, current);
-        }
-
-        select.addEventListener('change', async () => {
-            committed = true;   // set BEFORE the await so the blur guard below never cancels mid-dialog
-            let newVal = select.value;
-            if (newVal === '__custom__') {
-                const typed = normaliseCustomShift(
-                    await promptDialog({ title: 'Custom shift', message: 'Type the shift as start–end, e.g. 06:00-14:00 (CEA shifts start between 04:00 and 20:59)', defaultValue: current.includes('-') ? current : '', placeholder: '06:00-14:00', confirmLabel: 'Set' }));
-                if (!typed) { cancel(); return; }
-                newVal = typed;
-            }
-            cell.innerHTML = '';
-            restoreBtn(cell, pos, day, newVal);
-            applyShift(pos, day, newVal);
+        openOptionSheet({
+            title: `Line ${pos} · ${dayLabel}`,
+            groups: readGroups(holder),
+            current,
+            createLightbox,
+            onPick: async value => {
+                let newVal = value;
+                if (newVal === '__custom__') {
+                    const typed = normaliseCustomShift(
+                        await promptDialog({ title: 'Custom shift', message: 'Type the shift as start–end, e.g. 06:00-14:00 (CEA shifts start between 04:00 and 20:59)', defaultValue: current.includes('-') ? current : '', placeholder: '06:00-14:00', confirmLabel: 'Set' }));
+                    if (!typed) return;   // cancelled: the cell was never taken apart, so nothing to restore
+                    newVal = typed;
+                }
+                // No `newVal === current` check here: `applyShift` has owned "is this actually a
+                // change" since v19.38, where a duplicate of that decision armed the
+                // unsaved-changes guard for an edit that did not happen. One owner.
+                applyShift(pos, day, newVal);
+            },
         });
-
-        select.addEventListener('keydown', e => {
-            if (e.key === 'Escape') { e.stopPropagation(); cancel(); }
-        });
-
-        select.addEventListener('blur', () => {
-            if (!committed) cancel();
-        });
-
-        cell.innerHTML = '';
-        cell.appendChild(select);
-        requestAnimationFrame(() => select.focus());
     }
 
     /**

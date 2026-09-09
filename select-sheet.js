@@ -34,6 +34,11 @@
  * takes the classes the page already gives its fields, so each page keeps its own field
  * design and this module owns only the popup — the part that was never ours before.
  *
+ * TWO ENTRY POINTS, ONE SHEET (v23.38): `enhanceSelect` for a control backed by a real
+ * `<select>`, `openOptionSheet` for a caller that holds the value itself — the Links grid's
+ * cell editor, whose control is a grid cell. The second is the first's own popup, lifted out
+ * rather than copied, so there is still exactly one dropdown in this app.
+ *
  * `createLightbox` is INJECTED rather than imported, for the reason links-design-header.js
  * injects it: `overlay.js` touches `window` at import, and a module that cannot load in Node
  * cannot have its readers unit-tested. The first caller to supply it wins and it is remembered,
@@ -208,53 +213,80 @@ export function enhanceSelect(select, opts = {}) {
     paint();
 
     btn.addEventListener('click', () => {
-        const sheet = ensureSheet();
-        if (!sheet) return;
-        sheet.overlay.setAttribute('aria-label', title);
-        sheet.title.textContent = title;
-        const groups = readGroups(select);
-        const count = groups.reduce((n, g) => n + g.options.length, 0);
-        sheet.sub.textContent = count === 1 ? '1 option' : `${count} options`;
-        sheet.list.textContent = '';
-        for (const g of groups) {
-            const wrap = document.createElement('div');
-            wrap.className = 'picker-group';
-            if (g.label) {
-                wrap.setAttribute('role', 'group');
-                wrap.setAttribute('aria-label', g.label);
-                const h = document.createElement('div');
-                h.className = 'picker-group-label';
-                h.setAttribute('aria-hidden', 'true');
-                h.textContent = g.label;
-                wrap.appendChild(h);
-            }
-            for (const o of g.options) wrap.appendChild(optionRow(o, o.value === select.value));
-            sheet.list.appendChild(wrap);
-        }
-        if (!count) {
-            const empty = document.createElement('p');
-            empty.className = 'picker-empty';
-            empty.textContent = 'Nothing to choose from yet.';
-            sheet.list.appendChild(empty);
-        }
-        sheet.list.onclick = (/** @type {any} */ ev) => {
-            const row = ev.target?.closest?.('.picker-opt[data-value]');
-            if (!row || row.disabled) return;
-            const value = row.dataset.value;
-            sheet.lb.close();
-            // After the fade, for the reason every sheet action in this app waits: a dialog
-            // opened by the consumer's own change handler would race the overlay's history.back().
-            setTimeout(() => {
+        openOptionSheet({
+            title,
+            groups: readGroups(select),
+            current: select.value,
+            onPick: value => {
                 if (select.value === value) return;   // re-picking the open one changes nothing
                 select.value = value;
                 select.dispatchEvent(new Event('input',  { bubbles: true }));
                 select.dispatchEvent(new Event('change', { bubbles: true }));
-            }, 320);
-        };
-        sheet.lb.open();
+            },
+        });
     });
 
     return paint;
+}
+
+/**
+ * Open the shared sheet over an arbitrary set of options and report the pick.
+ *
+ * Exported (v23.38) for the caller that has NO persistent `<select>` to enhance — the Links
+ * grid's cell editor, where the control is a grid cell and the old dropdown was created,
+ * focused and destroyed per edit. `enhanceSelect` is the case where a select exists and holds
+ * the value; this is the case where the caller holds it. Both draw the same sheet, which is the
+ * point: one popup implementation, so the app's dropdown cannot become two that resemble each
+ * other. Same split as `date-picker.js`'s `initDatePickers` / `openDatePicker`.
+ *
+ * `onPick` fires AFTER the overlay's fade, for the reason every sheet action in this app waits:
+ * a dialog opened from the callback would race the overlay's own `history.back()`. It is not
+ * called at all when the sheet is dismissed — a cancel is not a pick.
+ * @param {{ title: string, groups: SheetGroup[], current?: string, subtitle?: string,
+ *           onPick: (value: string) => void,
+ *           createLightbox?: (opts: any) => { open: () => void, close: () => void } }} opts
+ */
+export function openOptionSheet(opts) {
+    if (opts.createLightbox) _createLightbox = opts.createLightbox;
+    const sheet = ensureSheet();
+    if (!sheet) return;
+    const title = opts.title || 'Choose an option';
+    sheet.overlay.setAttribute('aria-label', title);
+    sheet.title.textContent = title;
+    const groups = opts.groups || [];
+    const count = groups.reduce((n, g) => n + g.options.length, 0);
+    sheet.sub.textContent = opts.subtitle
+        || (count === 1 ? '1 option' : `${count} options`);
+    sheet.list.textContent = '';
+    for (const g of groups) {
+        const wrap = document.createElement('div');
+        wrap.className = 'picker-group';
+        if (g.label) {
+            wrap.setAttribute('role', 'group');
+            wrap.setAttribute('aria-label', g.label);
+            const h = document.createElement('div');
+            h.className = 'picker-group-label';
+            h.setAttribute('aria-hidden', 'true');
+            h.textContent = g.label;
+            wrap.appendChild(h);
+        }
+        for (const o of g.options) wrap.appendChild(optionRow(o, o.value === opts.current));
+        sheet.list.appendChild(wrap);
+    }
+    if (!count) {
+        const empty = document.createElement('p');
+        empty.className = 'picker-empty';
+        empty.textContent = 'Nothing to choose from yet.';
+        sheet.list.appendChild(empty);
+    }
+    sheet.list.onclick = (/** @type {any} */ ev) => {
+        const row = ev.target?.closest?.('.picker-opt[data-value]');
+        if (!row || row.disabled) return;
+        const value = row.dataset.value;
+        sheet.lb.close();
+        setTimeout(() => opts.onPick(value), 320);
+    };
+    sheet.lb.open();
 }
 
 /**

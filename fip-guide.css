@@ -471,6 +471,15 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     color: var(--text);
 }
 .cf-input:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; border-color: var(--navy); }
+/* TWO CLEAR BUTTONS, ONE FIELD. `type="search"` makes WebKit and Chromium draw their own cancel
+   glyph at the right edge — exactly where `.cf-clear` below already sits, in the app's own style
+   — so a reader typing a country name saw the platform's ✕ overlapping ours, at a different size,
+   in a different grey, doing the same job. Ours stays because it is reachable, sized to the 30px
+   touch target the guides use, and can say what it does; the UA's is drawn and cannot be told
+   anything. `type="search"` itself is kept for the keyboard's Search key on iOS. */
+.cf-input { -webkit-appearance: none; appearance: none; }
+.cf-input::-webkit-search-cancel-button,
+.cf-input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; display: none; }
 .cf-clear {
     position: absolute; right: 6px;
     background: none; border: none; cursor: pointer;

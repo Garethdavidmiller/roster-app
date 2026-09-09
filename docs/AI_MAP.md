@@ -958,8 +958,9 @@ field"); the decision simply never got carried to selects.
 - `enhanceSelect(select, { title, placeholder })` → a `refresh()`. Inserts a trigger button before
   the select, hides the select (`.fieldpick-native`, `aria-hidden`, `tabindex=-1`) but KEEPS it as
   the value holder, and opens one shared `createLightbox` sheet of `.picker-opt` rows.
-- `initSelectSheets(specs)` — several by id; a missing id is skipped, not an error.
-- `readGroups(select)` / `triggerLabel(select)` — the pure-ish readers, driven by a fake DOM in Node.
+- `initSelectSheets(specs)` — several by id; a missing id is skipped, not an error. **Not for a select built after boot**: the id is looked up once, so a control the page creates later is skipped in silence — enhance it at the point it is created (Operations' `#acctGradeFilter`, built after two Firestore reads, does this).
+- `openOptionSheet({ title, groups, current, subtitle?, onPick })` (v23.38) — the sheet WITHOUT a select behind it, for a caller that holds the value itself: the Links grid's cell editor, whose control is a grid cell and which used to swap that cell for a native `<select>` per edit. `enhanceSelect`'s own popup, lifted out rather than copied, so the app still has exactly one dropdown. `onPick` fires after the overlay's fade (a dialog opened from the callback would race the overlay's `history.back()`) and never on a dismissal — a cancel is not a pick. Same split as `date-picker.js`'s `initDatePickers` / `openDatePicker`.
+- `readGroups(select)` / `triggerLabel(select)` — the pure-ish readers, driven by a fake DOM in Node. `readGroups` also serves as the OPTIONS PARSER for `openOptionSheet`: a caller with an options string builds a detached `<select>` and hands it over, so one producer feeds both routes and `<optgroup>` labels become sheet headings for free.
 
 **Three things an edit can silently break.** The options are read on every OPEN, never cached — a
 snapshot would be the wrong names and would be wrong quietly. The trigger repaints on `change` AND
@@ -968,7 +969,7 @@ the face would keep a name that is no longer in the list. And the trigger copies
 class list, so a page that styles fields by ELEMENT must add `.fieldpick` to those rules — a class
 cannot inherit an element selector, and a trigger that misses one renders as a bare button.
 
-Tested by `select-sheet.test.mjs`.
+Tested by `select-sheet.test.mjs`; which controls are enhanced at all by `select-sheet-parity.test.mjs`, because a missed select is invisible to every other lane — the closed control is identical, the popup belongs to the platform, and `selectOption` drives both.
 
 ### `links-design-header.js`
 
