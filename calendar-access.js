@@ -70,7 +70,7 @@ import { auth, signInWithCustomToken, signInAnonymously, signOut, setViewerPersi
 import { getSession, clearSession, reconcileExpiredIdentity, ensureNamedSession } from './session.js';
 import { CONFIG } from './roster-data.js';
 import { lsGet } from './ls.js';
-import { SELECTED_MEMBER } from './storage-keys.js';
+import { SELECTED_MEMBER, TEAM_VIEW } from './storage-keys.js';
 import { isViewerUser, decideAccess, decideProvisionalAccess, normalisePin, isCompletePin, classifyUnlockFailure, attemptBackoffMs, PIN_LENGTH, CALENDAR_VIEWER_CLAIM } from './calendar-access-core.js';
 import { mountLockCard, unmountLockCard, lockCardId, armSkeleton, showBootSkeleton } from './calendar-lock-slot.js';
 
@@ -923,7 +923,7 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null }) {
         ? { decision: 'none', member: null }
         : decideProvisionalAccess({
             session: getSession(),
-            teamView: lsGet('myb_team_view') === '1',
+            teamView: lsGet(TEAM_VIEW) === '1',
             selectedMember: lsGet(SELECTED_MEMBER),
         });
     if (_prov.decision === 'own-cached' && _prov.member) grantProvisional(_prov.member);

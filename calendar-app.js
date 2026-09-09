@@ -18,7 +18,7 @@ import { authReady, authBootstrap } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
 import { getSession, clearSession, ensureNamedSession } from './session.js';   // reconcileExpiredIdentity now runs inside calendar-access.js
 import { initPasswordForce } from './password-force.js';
-import { PW_FORCE_PENDING_PREFIX } from './storage-keys.js';
+import { PW_FORCE_PENDING_PREFIX, TEAM_VIEW } from './storage-keys.js';
 import { canOpenOvertime } from './auth-policy.js';       // nav-drawer pill gating only — never a boundary
 import { initTeamView } from './calendar-team-view.js';
 import { initNavPanel } from './nav-panel.js';
@@ -641,8 +641,16 @@ document.getElementById('nextMonth')?.addEventListener('click', (e) => {
     announceMonthChange();
 });
 
-// Pay button — navigates to paycalc.html for any staff member.
-// No session needed here: paycalc runs its own in-place login (via navigateToPaycalc).
+// Pay button — opens the calculator on the month being viewed, for anyone.
+// DELIBERATELY NOT `navigateToPaycalc`, and not gated by `personalActionsAllowed`. That helper
+// guards the three routes that name a DAY and so read as a personal action (the day panel's
+// button, a desktop click on a pay-marked cell, keyboard Enter on one — CALENDAR_DATA.md
+// invariant 14). This button names no member and no day: paycalc opens on the reader's OWN
+// localStorage-namespaced data, or shows its own in-place login if they have no local identity,
+// so there is nothing here to scope to a person.
+// This comment used to say the login happened "via navigateToPaycalc" — the handler has never
+// called it. That is the v22.93 trap in a second place: a reader tightening the helper would
+// believe this route inherited it.
 document.getElementById('payBtn')?.addEventListener('click', () => {
     // paycalc shows its own in-place login for unsigned users — navigate there directly.
     const m = String(getDisplayMonth() + 1).padStart(2, '0');
@@ -652,7 +660,10 @@ document.getElementById('payBtn')?.addEventListener('click', () => {
 // lightboxPrintBtn is wired by the shared about-lightbox.js (initAboutLightbox below).
 
 // Pay period strip — shows the current pay period dates + link to the pay calculator.
-// Only shown when a session exists (same condition as the pay button navigation).
+// Hidden without a local session (the `getSession()?.name` guard below). That is STRICTER than
+// the Pay button above, which has no session condition at all — this line claimed the two were
+// the same until v23.46. The strip states a period as a fact and the button only offers a page,
+// which is why they legitimately differ; if you make one follow the other, decide which.
 (function initPayPeriodStrip() {
     const strip = document.getElementById('payPeriodStrip');
     if (!strip) return;
@@ -829,7 +840,7 @@ try {
         // Restore team view if the user was in it before the last refresh; else render the
         // personal calendar. renderCalendar() itself shows the first-run "choose your name"
         // prompt when no member is picked and no session exists (see its guard). (H1)
-        if (lsGet('myb_team_view') === '1') {
+        if (lsGet(TEAM_VIEW) === '1') {
             teamView.restoreTeamView();
         } else if (_cachePainted !== true) {
             // SKIPPED when phase 1 already painted: it renders through this same path the moment

@@ -17,11 +17,12 @@
 
 import { savePushSubscription, deletePushSubscription } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
+import { NOTIF_PROMPT_DONE } from './storage-keys.js';
 
 const VAPID_PUBLIC_KEY  = 'BDycpNlvciF7kfUv3yxSQ0iRzWdi3BDZipNf-vk7QYaOSsbbIgb5FRSW9GrJlZJlmThoyQrbK0t9sd3hEdmhgSg';
 const VAPID_VER_KEY     = 'myb_vapid_ver';
 const VAPID_FINGERPRINT = VAPID_PUBLIC_KEY.slice(0, 12);
-const PROMPT_DISMISSED  = 'myb_notif_prompt_done';
+const PROMPT_DISMISSED  = NOTIF_PROMPT_DONE;
 const SUB_RESAVE_KEY    = 'myb_push_resave_at';   // throttle for the periodic subscription re-save
 const SUB_RESAVE_MS     = 86400000;               // at most one keep-alive re-save per ~24h/device
 

@@ -2086,6 +2086,16 @@ Single source for the CROSS-FILE storage key names (v16.81) — a shared key mus
   this file exists for — a drifted spelling is silent AND self-concealing, since `readyUpdate` then
   never records and the App Speed block simply does not render, which reads as "no release has ever
   reloaded anybody": the finding itself, asserted on nothing.
+- `TEAM_VIEW` (`myb_team_view`, v23.46) — whether the Calendar is in Team Week View. WRITTEN by
+  `calendar-team-view.js` on every toggle; read at boot by `calendar-app.js` (which surface to build)
+  and by `calendar-access.js`, which REFUSES a provisional paint while it is set (CALENDAR_DATA.md
+  invariant 13 — a provisional grant is scoped to one member and Team View draws everybody). Three
+  modules, three bare literals until v23.46; here the drift this file prevents is not lost data but a
+  silent one: rename the writer and the access refusal stops refusing, with `calendar-access.test.mjs`
+  holding its own copy of the string and staying green through it.
+- `NOTIF_PROMPT_DONE` (`myb_notif_prompt_done`, v23.46) — the one-off notification prompt has been
+  answered on this device, by EITHER button (both mean "do not ask again"). Written by
+  `calendar-notif-prompt.js`, read by `notif.js` (which aliases it as `PROMPT_DISMISSED`).
 - Per-module and paycalc-namespaced keys deliberately stay local to their modules — only keys read by MORE THAN ONE file live here.
 - `NOTICE_PW_OWN_DONE` was REMOVED at v21.84. It existed so settings-app.js could retire a
   Calendar notice; the replacement notice's `'signed-out'` audience ended the coupling rather
