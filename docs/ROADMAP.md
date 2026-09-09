@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: September 2026 — v23.30 · Updated every 0.10 version*
+*Last updated: September 2026 — v23.40 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -566,38 +566,6 @@ per-cell labels, and the owner is choosing between them, not approving the cheap
 
 D1 is monitor-only and therefore low-risk: it characterises legitimate traffic before anything is
 enforced. D2 (enforce) must not start until D1 has run long enough to know what normal looks like.
-
-### "Fill this year from calendar" — bulk roster pre-fill (paycalc)
-**Status:** Possible · **Owner:** Gareth · **Trigger:** owner go-ahead on the three open design questions
-
-One tap runs the roster-assist pre-fill across **every paid-but-empty payslip of the viewed tax
-year**, instead of visiting each period individually. The multiplier for everything shipped around
-it: the HPP hours estimate, the back-pay accrual and the "This tax year so far" summary all sharpen
-directly with filled periods, and the v18.42 "Not entered yet: 10 Apr, 8 May" lines name exactly what
-one tap would fix.
-
-**Guard rails (already decided):**
-- **Never overwrites** a period the member has entered — only paid-but-empty periods are touched
-  (the same paid/empty test the "Not entered yet" lists use).
-- Fills follow the existing **conservatism policy** (v9.02): premium categories only
-  (Sat/Sun/BH/Boxing/RDW from base roster + overrides) — no inferred ambiguous categories, no
-  standard weekday hours.
-- Filled values are **marked as roster-suggested** (gold), exactly like the single-period pre-fill,
-  so the member can see and correct what was assumed; the result card's 📅 "Hours from calendar"
-  provenance chip (v18.44) then discloses it on each affected payslip.
-
-**Design questions to settle with the owner before building (deliberately not decided):**
-1. **Where the button lives** — leaning: beside the "Not entered yet: …" lines (HPP card and/or
-   the year-so-far block), since they name what it fixes; alternative: the roster-hint bar.
-2. **Confirm or not** — leaning NO confirm (it can't overwrite anything) with a clear receipt
-   afterwards ("Filled 2 payslips from your calendar: 10 Apr, 8 May"); the alternative is a
-   preview-first flow, which fights the one-tap point.
-3. Whether the fill needs Firestore overrides for HISTORIC months (the override cache may not span
-   the whole year client-side — check `fetchOverridesForPeriod` coverage) or base-roster-only is
-   acceptable for old periods.
-
-**Effort:** medium — the per-period suggestion engine (`getRosterSuggestion` /
-`fetchOverridesForPeriod`) already exists; the work is the loop, the receipt UI, and the tests.
 
 ### Dispatcher pay calculator support
 **Status:** Blocked · **Owner:** Chiltern payroll (via Gareth) · **Evidence required:** class B

@@ -1938,6 +1938,28 @@ test('admin: the leave and absence cards name the person a manager is recording 
     expect(nested, 'the name must not be inside the banner that hides itself').toBe(false);
 });
 
+test('admin: a member\'s locked member field reads as locked, not as broken', async ({ page }) => {
+    // A non-admin can only see their own data, so the member field is DISABLED — but admin.css has
+    // always said it must still read as a normal display box rather than a greyed-out control.
+    // It did not, from v23.33 until this release: the rule was `#fieldMember:disabled`, an ID
+    // selector, and an ID cannot travel to the trigger button select-sheet.js puts in front of the
+    // select. So it un-greyed a control 1px wide and invisible, while the one the member actually
+    // looks at took the generic disabled grey plus shared.css's `opacity: .55` and `not-allowed`.
+    //
+    // Nothing threw, no axe rule fires on it, and `:disabled` is a state no visual baseline
+    // captures — so this measures the computed style, which is the only thing that can see it.
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [] }; });
+    await seedSession(page, 'L. Springer');   // a plain member: not admin, not manager
+    await page.goto('/admin.html');
+    const trigger = page.locator('#fieldMemberTrigger');
+    await expect(trigger).toBeDisabled();
+    const style = await trigger.evaluate(el => {
+        const cs = getComputedStyle(el);
+        return { opacity: cs.opacity, cursor: cs.cursor };
+    });
+    expect(style).toEqual({ opacity: '1', cursor: 'default' });
+});
+
 test('admin: a member booking their own leave is not told whose leave it is', async ({ page }) => {
     // Not a cosmetic preference. This member cannot change the selector, so the row could only ever
     // say their own name back to them — and an empty `.card-member-for` (the failure mode if the
@@ -3208,6 +3230,106 @@ test('operations: the date picker follows the clock across midnight', async ({ p
     await expect(ninth).not.toHaveAttribute('aria-disabled', 'true');
     await ninth.click();
     await expect(trigger).toHaveText(/9 Sep 2026/);
+});
+
+// ── The app's own dropdown on Operations (v23.38) ──────────────────────────────────────────────
+// select-sheet-parity.test.mjs proves the RULE — that every select is enhanced or declared native.
+// It cannot prove the enhancement WORKS, and "the rule tested, the wiring not" is this repo's named
+// blind spot. What only a browser answers is that the trigger opens the sheet, that a pick moves the
+// value the consumer reads (`rosterTypeEl.value` in admin-roster-upload.js), and that the native
+// select is still in the DOM holding it — both halves of progressive enhancement at once.
+test('operations: the roster type is picked from the app\'s own sheet, and the pick reaches the select', async ({ page }) => {
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [] }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('rosterUploadBody')?.classList.add('open'));
+
+    const trigger = page.locator('#rosterTypeTrigger');
+    // The FACE, not the button. Since v23.39 the trigger also carries `.fieldpick-sizer`, a hidden
+    // copy of the widest option that stops the control resizing when its value changes — so the
+    // button's own text is the label TWICE ("CEA / BilingualCEA / Bilingual"). Reading the face is
+    // also the honest assertion: it is the span a member actually sees.
+    const face = page.locator('#rosterTypeTrigger .fieldpick-face');
+    await expect(trigger).toBeVisible();
+    await expect(face).toHaveText('CEA / Bilingual');
+    // The value holder is still here, and out of the a11y tree — otherwise a screen reader would
+    // find two controls for one value, one of them unreachable.
+    await expect(page.locator('#rosterType')).toHaveAttribute('aria-hidden', 'true');
+
+    await trigger.click();
+    const sheet = page.locator('.picker-sheet');
+    await expect(sheet).toBeVisible();
+    await sheet.locator('.picker-opt', { hasText: 'Dispatchers' }).click();
+
+    await expect(face).toHaveText('Dispatchers');
+    await expect(page.locator('#rosterType')).toHaveValue('dispatcher');
+});
+
+test('operations: the account-status grade filter is enhanced too, and keeps focus somewhere visible', async ({ page }) => {
+    // This one is built at RUNTIME, after the card's read returns, and its card rebuilds itself on
+    // every reload — so the enhancement has to happen at construction rather than at page init.
+    // The focus half is the reason the test exists: `filterSelect.focus()` was correct until the
+    // enhancement made the select 1px and `aria-hidden`, at which point focusing it would send a
+    // keyboard user off the visible page with nothing to say where they went.
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [] }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
+
+    const trigger = page.locator('#acctGradeFilterTrigger');
+    const face = page.locator('#acctGradeFilterTrigger .fieldpick-face');   // see the sizer note above
+    await expect(trigger).toBeVisible();
+    await expect(face).toHaveText('All grades');
+
+    await trigger.click();
+    await page.locator('.picker-sheet .picker-opt', { hasText: /^CES$/ }).click();
+    await expect(face).toHaveText('CES');
+    await expect(page.locator('#acctGradeFilter')).toHaveValue('CES');
+
+    // The trigger is a real Tab stop; the select it stands in front of deliberately is not.
+    await expect(trigger).toHaveAttribute('type', 'button');
+    await expect(page.locator('#acctGradeFilter')).toHaveAttribute('tabindex', '-1');
+    await trigger.focus();
+    await expect(trigger).toBeFocused();
+});
+
+// ── THE DRAWER NAMES THE RIGHT CAUSE (v23.41) ──────────────────────────────────────────────────
+// `isAccessFailure` is unit-tested next door; this is the WIRING, and the wiring is where it was
+// wrong. Every rejection used to become "check your signal" — true enough while the three document
+// collections were open, and false from v23.18, when reading one began to require a claim.
+//
+// Both directions run, because a classifier that says "signed out" to somebody genuinely offline
+// has only moved the wrong sentence. Measured on Settings, which has no `canReadDocuments` gate —
+// the Calendar answers earlier and better, and is covered in calendar-pin.spec.js.
+test('drawer: a REFUSED document read blames the session, not the signal', async ({ page }) => {
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { authUser: true, docs: [], failGetDocs: 'permission-denied' };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/settings.html');
+    await page.evaluate(() => document.getElementById('navMenuBtn')?.click());
+    // Clicked through `evaluate`, not `locator.click`: on a phone viewport the drawer's document
+    // links sit below the fold inside a scroll container, and even `force: true` refuses an element
+    // outside the viewport. What is under test is the handler's CHOICE OF WORDS, not the tap.
+    await page.locator('.nav-panel-link--circular').waitFor();
+    await page.evaluate(() => /** @type {HTMLElement} */ (document.querySelector('.nav-panel-link--circular'))?.click());
+    await expect(page.locator('#navComingSoonBody')).toHaveText(/signed out/i, { timeout: 12_000 });
+    await expect(page.locator('#navComingSoonBody')).not.toHaveText(/signal/i);
+});
+
+test('drawer: a NETWORK failure still blames the network', async ({ page }) => {
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { authUser: true, docs: [], failGetDocs: true };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/settings.html');
+    await page.evaluate(() => document.getElementById('navMenuBtn')?.click());
+    // Clicked through `evaluate`, not `locator.click`: on a phone viewport the drawer's document
+    // links sit below the fold inside a scroll container, and even `force: true` refuses an element
+    // outside the viewport. What is under test is the handler's CHOICE OF WORDS, not the tap.
+    await page.locator('.nav-panel-link--circular').waitFor();
+    await page.evaluate(() => /** @type {HTMLElement} */ (document.querySelector('.nav-panel-link--circular'))?.click());
+    await expect(page.locator('#navComingSoonBody')).toHaveText(/signal/i, { timeout: 12_000 });
 });
 
 test('settings (signed in): the Pay Calculator Data pointer card renders and links to the backup card', async ({ page }) => {
@@ -6686,4 +6808,51 @@ test('admin: switching member at large text does not shave the page @layout', as
 
     expect(await tooWide(page),
         'the container track must not be widened past the viewport by the week grid').toEqual([]);
+});
+
+// ── THE AL AND ABSENCE PICKERS FOLLOW THE MEMBER (v23.42) ────────────────────────────────────────
+// Change a Shift's member selection is mirrored into the Annual Leave and Absence pickers by
+// `_setSelectValue`, which sets `option.selected` — no attribute mutated, no event fired. Since
+// v23.36 the name a manager READS is the enhanced trigger, and it kept the previous person:
+// measured as both cards naming "L. Springer" after the page had moved every write path to
+// "A. Hared". A booking then goes to the right member under the wrong name, which is the exact
+// failure the "Recording for <name>" row exists to prevent, reached from the other side.
+//
+// `#fieldMember` is asserted too, but it is the weak one: a real user's pick fires `change` on it,
+// so it repaints either way. The two it mirrors INTO are the ones with no signal of their own.
+test('admin: switching member on Change a Shift renames the AL and Absence pickers', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page);
+    await page.goto('/admin.html');
+    await expect(page.locator('#fieldMember')).toBeAttached();
+    await expect(page.locator('#fieldMemberTrigger')).toBeVisible();
+
+    const faces = () => page.evaluate(() => ['fieldMember', 'alMember', 'sickMember'].map(id => ({
+        id,
+        held: /** @type {HTMLSelectElement} */ (document.getElementById(id))?.selectedOptions[0]?.textContent?.trim() ?? '',
+        face: document.querySelector(`#${id}Trigger .fieldpick-face`)?.textContent?.trim() ?? '',
+    })));
+
+    const before = await faces();
+    for (const row of before) expect(row.face, `${row.id} starts consistent`).toBe(row.held);
+
+    // Drive the page's own change handler, as picking a row in the sheet does.
+    const moved = await page.evaluate(() => {
+        const sel = /** @type {HTMLSelectElement} */ (document.getElementById('fieldMember'));
+        const other = [...sel.options].find(o => o.value && o.value !== sel.value && !o.disabled);
+        if (!other) return '';
+        for (const o of sel.options) o.selected = (o === other);
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+        return other.value;
+    });
+    expect(moved, 'the roster should offer a second selectable member').not.toBe('');
+
+    await expect.poll(async () => (await faces()).find(r => r.id === 'fieldMember')?.held)
+        .toBe(moved);
+
+    for (const row of await faces()) {
+        expect(row.held, `${row.id} should hold the newly chosen member`).toBe(moved);
+        expect(row.face, `${row.id}: the picker must NAME the member it now holds`).toBe(moved);
+    }
+    expect(errors, 'Uncaught JS exceptions').toHaveLength(0);
 });

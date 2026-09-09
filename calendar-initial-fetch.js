@@ -9,6 +9,7 @@
  */
 
 import { _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth, monthKey, fetchOverridesForRange, fetchOverridesForRangeFromCache } from './calendar-overrides.js';
+import { isAccessFailure } from './claim-retry.js';
 import { noteKnowledge } from './calendar-data-state.js';
 import { formatISO } from './roster-data.js';
 
@@ -28,18 +29,6 @@ const SYNC_TIMEOUT_MS = 10000;
  *  budget before an unresponsive control reads as broken. The READ itself is never bounded here. */
 const RETRY_AUTH_WAIT_MS = 2000;
 
-/** Is this failure "you may no longer read the Calendar" rather than "the network is poor"?
- *
- *  Matched on Firestore's own `permission-denied` code plus the local gate's sentinel, because the
- *  two arrive by different routes and mean the same thing to the member: the session that was
- *  letting them see the roster has gone. Anything else — offline, timeout, a transient 5xx — is a
- *  network failure and keeps the ordinary retry chip, which is the right answer for those.
- *  @param {any} err @returns {boolean} */
-function isAccessFailure(err) {
-    const code = err && (err.code || err.message);
-    return code === 'permission-denied' || code === 'calendar-access-required'
-        || (typeof code === 'string' && code.includes('permission-denied'));
-}
 
 /**
  * Kick off the initial 3-month Firestore fetch and wire the sync chip + visibility handler.

@@ -28,6 +28,37 @@ export function isClaimRetryable(err, retryCode, hasUser) {
 }
 
 /**
+ * Is this failure "you are not allowed to read that" rather than "the network is poor"?
+ *
+ * THE TWO NEED DIFFERENT WORDS, and the app has said so since v20.40 — `calendar-access.js`'s
+ * `handleAccessLost` states it plainly: an endless "couldn't update, tap to retry" against an
+ * expired session "is a loop the member cannot win, and they would reasonably conclude the app is
+ * broken." Telling somebody on a shift to check their signal, when the truth is that their session
+ * has gone, sends them to fix the one thing that is not wrong.
+ *
+ * EXTRACTED AT v23.41 FROM TWO BYTE-IDENTICAL PRIVATE COPIES (`calendar-initial-fetch.js` and
+ * `calendar-overrides.js`), because a THIRD consumer arrived — the nav drawer's Circular/Newsletter
+ * tap, which was reporting a v23.18 rules refusal as a connection failure on all six non-Calendar
+ * pages. A rule with two copies and a third site that needed it and did not have it is a rule with
+ * one home and two accidents.
+ *
+ * Matched on Firestore's own `permission-denied` code PLUS the Calendar gate's local sentinel,
+ * because the two arrive by different routes and mean the same thing to the member. `err.message`
+ * is read as well as `err.code`: not every rejection that reaches a caller is a FirebaseError —
+ * a wrapper may have re-thrown, and the code is what production gives while the message is what a
+ * hand-built rejection carries. Anything else — offline, a timeout, a transient 5xx — is a network
+ * failure and keeps whatever retry affordance the caller offers, which is right for those.
+ *
+ * @param {any} err
+ * @returns {boolean}
+ */
+export function isAccessFailure(err) {
+    const code = err && (err.code || err.message);
+    return code === 'permission-denied' || code === 'calendar-access-required'
+        || (typeof code === 'string' && code.includes('permission-denied'));
+}
+
+/**
  * Run `fn`; if it rejects with `err.code === retryCode` and a user is present, force a token refresh
  * then retry ONCE. If the refresh itself throws (offline/flaky), re-throw the ORIGINAL error — never
  * let a connectivity error REPLACE a genuine authorisation denial, because callers key their

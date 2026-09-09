@@ -27,8 +27,8 @@ import { initHuddleUpload } from './huddle.js';
 import { initDocUploadCard, isPdfFile, isDocxFile } from './doc-upload.js';
 import { initAuthSetup } from './admin-auth.js';
 import { initDatePickers } from './date-picker.js';
-import { isFetchTimeout } from './fetch-timeout.js';
 import { initSelectSheets, enhanceSelect } from './select-sheet.js';
+import { isFetchTimeout } from './fetch-timeout.js';
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession, getFirebaseAuthError, reconcileExpiredIdentity } from './session.js';
@@ -301,6 +301,11 @@ export function init() {
         const migrated = (/** @type {string} */ name) => isPasswordMigrated(statusMap.get(name));
 
         /** @type {HTMLSelectElement} */ let filterSelect;
+        /** Focus the grade filter after a re-render has destroyed the row the admin was on. NOT
+         *  `filterSelect.focus()` — the enhanced select is 1px and `aria-hidden`, so that sends a
+         *  keyboard user off the page; the trigger is what they see. Rule: select-sheet-parity. */
+        const focusGradeFilter = () =>
+            /** @type {HTMLElement|null} */ (document.getElementById('acctGradeFilterTrigger') ?? filterSelect)?.focus();
         /** @type {HTMLElement} */ let summaryEl;
         /** @type {HTMLElement} */ let listEl;
 
@@ -465,7 +470,7 @@ export function init() {
                     await saveStaffContact(m.name, email);
                     emailMap.set(m.name, email);
                     renderForGrade(filterSelect.value);
-                    filterSelect.focus();
+                    focusGradeFilter();
                 } catch (e) {
                     console.error('[AccountStatus] email save failed', e);
                     errorEl.textContent = 'Couldn\'t save — check your connection and try again';
@@ -494,7 +499,7 @@ export function init() {
                 await deleteStaffContact(m.name);
                 emailMap.delete(m.name);
                 renderForGrade(filterSelect.value);
-                filterSelect.focus();
+                focusGradeFilter();
             } catch (e) {
                 console.error('[AccountStatus] email remove failed', e);
                 removeBtn.disabled = false; removeBtn.dataset.confirm = ''; removeBtn.textContent = 'Remove';

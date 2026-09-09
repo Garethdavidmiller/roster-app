@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: September 2026 — v23.30 · Updated every 0.10 version*
+*Last updated: September 2026 — v23.40 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -964,13 +964,65 @@ field"); the decision simply never got carried to selects.
 - `readGroups(select)` / `triggerLabel(select)` — the pure-ish readers, driven by a fake DOM in Node. `readGroups` also serves as the OPTIONS PARSER for `openOptionSheet`: a caller with an options string builds a detached `<select>` and hands it over, so one producer feeds both routes and `<optgroup>` labels become sheet headings for free.
 
 **Three things an edit can silently break.** The options are read on every OPEN, never cached — a
-snapshot would be the wrong names and would be wrong quietly. The trigger repaints on `change` AND
-on a MutationObserver for childList/`disabled`, because a rebuild or a disable fires no event and
-the face would keep a name that is no longer in the list. And the trigger copies the select's own
+snapshot would be the wrong names and would be wrong quietly. The trigger repaints on `change`, on
+`input`, AND on a MutationObserver for childList/`disabled`, because a rebuild or a disable fires no
+event and the face would keep a name that is no longer in the list. And the trigger copies the select's own
 class list, so a page that styles fields by ELEMENT must add `.fieldpick` to those rules — a class
 cannot inherit an element selector, and a trigger that misses one renders as a bare button.
 
-Tested by `select-sheet.test.mjs`; which controls are enhanced at all by `select-sheet-parity.test.mjs`, because a missed select is invisible to every other lane — the closed control is identical, the popup belongs to the platform, and `selectOption` drives both.
+**A fifth, added v23.42: `input` is the ear for a selection changed IN CODE.** `option.selected =
+true` and `selectedIndex = n` change what the select holds while mutating no attribute (`selected`
+is not reflected to the content attribute) and firing no event — so neither the `change` listener
+nor the observer can see them, and no observer in the platform could. Both pages carrying an
+optgroup'd select have a helper built on exactly that shape, because iOS Safari ignores `.value`
+there: `_setSelectPeriod` (paycalc-periods.js) and `_setSelectValue` (admin-app.js). Measured before
+the fix: ←/→/a tax-year jump left the pay-period picker naming *25 Sept 2026* over a page computing
+*11 Apr 2025* — a take-home figure under the wrong tax year — and switching member on Change a Shift
+left the AL and Absence pickers naming the previous person. Both helpers now dispatch `input`,
+NON-BUBBLING: a user's own pick does bubble, but these also fire on the initial load, and paycalc
+delegates `input` on `#hoursCard` to mark the hours touched. Contract 8 of the parity suite fails a
+selection changed with no signal, no rebuild and no `disable`.
+
+**A fourth, added v23.40: nothing may `.focus()` an enhanced select.** It is 1px, transparent,
+`pointer-events: none`, `tabindex="-1"` and `aria-hidden` — focusing it takes a keyboard or
+screen-reader user off the visible page, with nothing thrown, nothing redrawn and no axe rule that
+fires. Focus `#<selectId>Trigger`. The app had exactly one of these, and it was not written wrong:
+`filterSelect.focus()` on Operations' account-status card was correct for three releases and became
+wrong in the same commit that enhanced the select, which is why nothing drew the eye to it.
+
+Tested by `select-sheet.test.mjs` (the readers) and `select-sheet-parity.test.mjs` (coverage: which
+controls are enhanced at all, and whether the page CSS reaches the trigger) — a missed select is
+invisible to every other lane, because the closed control is identical, the popup belongs to the
+platform, and `selectOption` drives both.
+
+### `select-sheet-parity.test.mjs`
+
+**The rule is used everywhere it claims to be** (v23.38; widened v23.40). CLAUDE.md's architecture
+table has said since v23.33 that every dropdown a reader reads goes through `enhanceSelect`. Nothing
+checked it, and the v23.36 sweep missed two controls that a manual audit found a release later — so
+"left native on purpose" and "nobody looked at it" were indistinguishable, which is what the guard's
+reason-bearing table exists to end.
+
+**v23.40 widened the scan and added the CSS half.** The first cut looked in two places; a `<select>`
+also reaches a reader from a JS template literal, which hid the sign-in cascade and the Links
+generator's per-slot times. Its runtime half also asked whether a MODULE enhances rather than whether
+THIS select is enhanced, so nineteen native selects were reported as covered by a module that
+enhances a different one. Both are per-select now, identified at each construction site.
+
+Seven contracts, in two halves. **Coverage:** the scan can read every construction site and every
+enhancement call (an unreadable one FAILS — it never skips); every `<select>` the app ships is
+enhanced or declared with a reason; a reason is long enough to be one; and a declaration that no
+longer names anything is stale and fails. It enumerates from three shapes — page markup,
+`createElement`, and JS template literals, the last being what a plain HTML scan misses and where
+`login-overlay.js`'s sign-in pair lives. **The CSS half:** an id-level rule on an enhanced select
+needs a `#<id>Trigger` counterpart (a class travels to the trigger for free, an id cannot); a page
+whose enhanced selects carry no class of their own must name `.fieldpick` in its stylesheet; and no
+module may `.focus()` an enhanced select.
+
+Only the CSS half has found a live defect rather than an undeclared decision: `#fieldMember:disabled`
+in admin.css un-greyed the invisible select while the trigger a non-admin actually looks at took the
+generic disabled grey plus `opacity: .55` and `cursor: not-allowed`. Measured, fixed, and pinned in
+`e2e/pages.spec.js` as well, because `:disabled` is a state no visual baseline captures.
 
 ### `links-design-header.js`
 
@@ -1902,6 +1954,7 @@ The pure RULES of the client error log — no DOM, no Firebase. Two consumers: `
 ### `claim-retry.js`
 Pure stale-claim self-heal runner — no DOM, no Firebase. Imported by `firebase-client.js` only (v18.28). Extracted so the security-critical write-retry decision is unit-testable in Node (firebase-client.js can't load in a test — it pulls the gstatic SDK).
 - `isClaimRetryable(err, retryCode, hasUser)` — true iff `err.code === retryCode` AND a user is present
+- `isAccessFailure(err)` — is this "you are not allowed to read that" rather than "the network is poor"? Matches Firestore's `permission-denied` (as `err.code` OR `err.message`, since not every rejection reaching a caller is a FirebaseError) plus the Calendar gate's local `calendar-access-required` sentinel; everything else — offline, timeout, a transient 5xx — is false and keeps the caller's retry. **The two need different words**, which `calendar-access.js`'s `handleAccessLost` has said since v20.40: a retry prompt against a session that has gone is a loop the member cannot win. Extracted at v23.41 from two byte-identical private copies (`calendar-initial-fetch.js`, `calendar-overrides.js`) when a third consumer appeared — the nav drawer, which was reporting a v23.18 rules refusal as a connection failure on all six non-Calendar pages.
 - `runWithClaimRetry(fn, { retryCode, hasUser, refresh })` — run `fn`; on a retryable stale-claim rejection with a user, force `refresh()` then retry ONCE; a failed refresh re-throws the ORIGINAL error (never masks an auth denial with a connectivity error); at most one retry. `fn` must build a fresh WriteBatch each call. `firebase-client.js`'s `withClaimRetry` (`permission-denied`) and `_uploadBytesWithClaimRetry` (`storage/unauthorized`) inject the Firebase auth deps.
 - Tested by `claim-retry.test.mjs` (no mocks, runs in `test:hygiene`)
 

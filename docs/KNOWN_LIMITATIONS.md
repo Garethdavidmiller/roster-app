@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: September 2026 — v23.30 · Updated every 0.10 version*
+*Last updated: September 2026 — v23.40 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -481,11 +481,19 @@ are architecture/App-Check territory or inherent platform behaviour, not bugs to
   disproved: with the font blocked entirely the height did not change, and at the moment the
   screenshot is taken `document.fonts.check('16px Inter')` is true on the runs that fail as well as
   the ones that pass. What is established is the DEPENDENCY, and stating a line-height removes it.
-  **Every other `<select>` in the app still has `line-height: normal`** — admin's member pickers,
-  paycalc's period selector, the operations dropdowns. They are presumably subject to the same
-  non-determinism; none has been measured, and none has a visual baseline tight enough to have
-  shown it. Fixing them is a one-line change each, but it moves pixels on surfaces nobody has
-  complained about, so it is listed rather than done.
+  **This has since been DISSOLVED for almost every control it named, not fixed** (v23.33–v23.38,
+  restated at the v23.40 sweep). The paragraph used to end "every other `<select>` in the app still
+  has `line-height: normal` — admin's member pickers, paycalc's period selector, the operations
+  dropdowns", and every one of those is now enhanced by `select-sheet.js`: the `<select>` is a 1px
+  invisible value holder and the control a reader sees is a `<button>`, which has no `<select>`
+  height behaviour to be non-deterministic about. Following the old text would have sent somebody
+  to add `line-height` to controls that are not rendered.
+  **What survives is the shape, and it applies to the four selects that are native BY DECISION** —
+  the month-jump pair, Overtime's disabled identity bar, the sign-in cascade and the Links
+  generator's per-slot times (`select-sheet-parity.test.mjs` holds the list with each reason). None
+  has been measured and none carries a tight visual baseline, so the same one-line fix is available
+  and is still not worth moving pixels for. The general lesson is the one to keep: a native
+  control's box is the platform's, and the app only stops depending on that by not using it.
 - **Analytics dynamic-map value integrity.** `analytics/activeAccounts` and `analytics/perf_<month>`
   hold date-keyed maps whose *values* Firestore rules cannot iterate/type-check, so an authenticated
   session could write junk/forged counts (this said "incl. anonymous calendar" until v21.63 — the
@@ -1201,10 +1209,14 @@ never contingent on the beta label, and dropping it does not make any of them go
   the target table until package 4, so rebuilding it for mobile now means doing it twice. The real
   fix is a `max-height` and therefore a nested scrollbox around the primary creation path — a UX
   decision, not a tidy-up. Both facts are pinned by an e2e that runs at both widths.
-- **Firefox keyboard editing commits early.** Firefox fires `change` on every
-  arrow-key press inside a focused `<select>`, so keyboard-only editing of a shift
-  cell commits on the first arrow instead of on Enter. Chrome/Safari (all staff
-  devices) behave correctly. Escape cancels cleanly in all browsers.
+- ~~**Firefox keyboard editing commits early.**~~ **GONE at v23.38** (recorded at the v23.40
+  sweep rather than deleted, because the reason it went is worth more than the entry was). Firefox
+  fires `change` on every arrow-key press inside a focused `<select>`, so keyboard-only editing of
+  a shift cell used to commit on the first arrow instead of on Enter. The cell editor no longer
+  builds a focusable `<select>` at all: it creates a DETACHED one purely to parse its options and
+  hands the groups to `openOptionSheet`, so there is nothing for an arrow key to change. **A
+  platform quirk was designed out by a change made for an unrelated reason** — which is why this is
+  a record rather than a fix to claim.
 - **Coverage heat map counts pattern positions, not a named headcount.** Every position in the
   rotation is counted, including any line not yet designed. Staff names were removed
   at v12.39 — the design is patterns-only — so there is no distinction between named

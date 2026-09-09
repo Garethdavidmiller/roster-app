@@ -344,7 +344,17 @@ export function init() {
      * @param {any} val
      */
     function _setSelectValue(sel, val) {
-        for (const o of sel.options) if (o.value === val) { o.selected = true; return true; }
+        for (const o of sel.options) if (o.value === val) {
+            o.selected = true;
+            // Announce it — see the same line in paycalc-periods.js `_setSelectPeriod`. Setting
+            // `selected` is invisible to every observer, so since v23.36 the enhanced trigger (the
+            // only member name on screen) kept whoever was chosen before. The self-service lock
+            // below survived only because it writes `disabled` straight afterwards, which IS
+            // observed; the runtime path did not — switching member on Change a Shift moved
+            // alMember/sickMember while both pickers went on naming the previous person.
+            sel.dispatchEvent(new Event('input', { bubbles: false }));
+            return true;
+        }
         return false;   // no matching option — caller may need to handle (e.g. a hidden/leaver member)
     }
 

@@ -347,8 +347,18 @@
 
         /* The member select in the context bar is locked for non-admins (they can only view
            their own data), but it should look like a normal display box — not a greyed-out
-           disabled input. Higher specificity (0,2,1) beats select:disabled (0,1,1). */
-        #fieldMember:disabled {
+           disabled input. Higher specificity (0,2,1) beats select:disabled (0,1,1).
+
+           `#fieldMemberTrigger` IS the control the reader sees (select-sheet.js, v23.33): the
+           select itself is 1px and invisible, and the trigger button carries the value. A class
+           travels to the trigger for free — it is built from `select.className` — but an ID cannot,
+           so from v23.33 until this release the rule un-greyed a control nobody can see while the visible
+           one took the generic `select:disabled, .fieldpick:disabled` grey plus shared.css's
+           `opacity: .55`. Every non-admin's member field read as broken rather than as locked, and
+           nothing threw: `:disabled` is a state no screenshot baseline captures.
+           Enforced now by select-sheet-parity.test.mjs contract 4. */
+        #fieldMember:disabled,
+        #fieldMemberTrigger:disabled {
             /* Locked for non-admins but must read as a normal field, not
                disabled — so it matches the enabled sunken fill, not the
                darker --field-bg-disabled grey. */

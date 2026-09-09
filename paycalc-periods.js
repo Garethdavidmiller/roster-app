@@ -202,7 +202,21 @@ export function updateBhRows(/** @type {any} */ p) {
 // the matching option's .selected property works on all platforms.
 export function _setSelectPeriod(/** @type {any} */ sel, /** @type {any} */ pNum) {
   for (const o of sel.options) {
-    if (+o.value === pNum) { o.selected = true; return; }
+    if (+o.value === pNum) {
+      o.selected = true;
+      // SAY SO. Setting `selected` changes what the select holds without mutating an attribute or
+      // firing an event, so nothing downstream can observe it — and since v23.36 the thing a member
+      // actually READS is the enhanced trigger beside it, which repaints on a signal. Without this
+      // line ←/→ and a tax-year jump moved the period (and every figure on the page) while the
+      // picker went on naming the period you left: measured as "● Paid 25 Sept 2026 · P28" over a
+      // page computing 11 Apr 2025, a wrong TAX YEAR under a take-home figure.
+      // Deliberately NOT bubbling. A user's own pick does bubble, but this fires on the initial
+      // load too, and paycalc delegates `input` on #hoursCard to mark the hours touched. No select
+      // sits in that card today (measured) — non-bubbling means the fix does not depend on that
+      // staying true. The trigger listens on the select itself.
+      sel.dispatchEvent(new Event('input', { bubbles: false }));
+      return;
+    }
   }
 }
 

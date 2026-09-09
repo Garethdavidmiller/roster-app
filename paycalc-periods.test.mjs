@@ -139,7 +139,13 @@ function makePeriod(sy, sm, sd, cy, cm, cd, num = 48) {
  */
 function makeFakeSel(currentPNum) {
     const options = getPeriods().map(p => ({ value: String(p.num), selected: false }));
-    return { value: String(currentPNum), options };
+    // RECORDS the events dispatched on it. A real `<select>` always has `dispatchEvent`, and
+    // `_setSelectPeriod` uses it to announce a selection nothing else can observe — `option.selected`
+    // mutates no attribute and fires no event, so the enhanced trigger has no other way to know
+    // (v23.42; the picker named the wrong tax year for six releases). A fake without it would have
+    // forced the production code to guard the call, which is a harness dictating the shipped code.
+    return { value: String(currentPNum), options, events: [],
+             dispatchEvent(/** @type {any} */ e) { this.events.push(e.type); return true; } };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -382,15 +388,34 @@ describe('_setSelectPeriod', () => {
             { value: '48', selected: false },
             { value: '49', selected: false },
             { value: '50', selected: false },
-        ]};
+        ], events: [], dispatchEvent(/** @type {any} */ e) { this.events.push(e.type); return true; } };
         _setSelectPeriod(sel, 49);
         assert.equal(sel.options[0].selected, false);
         assert.equal(sel.options[1].selected, true);
         assert.equal(sel.options[2].selected, false);
     });
 
+    // The half a unit test can see that the e2e cannot say cheaply: the announcement HAPPENS, and
+    // happens only when something actually changed. A silent selection is the whole defect.
+    test('announces the change, so the enhanced trigger can repaint', () => {
+        const sel = { options: [
+            { value: '48', selected: false },
+            { value: '49', selected: false },
+        ], events: [], dispatchEvent(/** @type {any} */ e) { this.events.push(e.type); return true; } };
+        _setSelectPeriod(sel, 49);
+        assert.deepEqual(sel.events, ['input']);
+    });
+
+    test('says nothing when it selected nothing', () => {
+        const sel = { options: [{ value: '48', selected: false }],
+                      events: [], dispatchEvent(/** @type {any} */ e) { this.events.push(e.type); return true; } };
+        _setSelectPeriod(sel, 99);
+        assert.deepEqual(sel.events, [], 'a no-op must not claim the value moved');
+    });
+
     test('does not select anything when pNum is not in the options list', () => {
-        const sel = { options: [{ value: '48', selected: false }] };
+        const sel = { options: [{ value: '48', selected: false }],
+                      dispatchEvent: () => true };
         assert.doesNotThrow(() => _setSelectPeriod(sel, 99));
         assert.equal(sel.options[0].selected, false);
     });

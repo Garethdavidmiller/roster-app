@@ -251,6 +251,15 @@ export function enhanceSelect(select, opts = {}) {
     // member select falls back to a default). Re-painting on `change` means the face shows
     // what the select ACTUALLY holds, never what we asked it to hold.
     select.addEventListener('change', paint);
+    // AND on `input`, which is the OTHER half of what a user's own pick fires — and the only
+    // signal a PROGRAMMATIC selection can give us. `option.selected = true` and `selectedIndex = n`
+    // change what the select holds while mutating NO attribute (`selected` is not reflected to the
+    // content attribute) and firing NO event, so neither the listener above nor the observer below
+    // can see them. That is not a hypothetical shape: both pages that carry an optgroup'd select
+    // have a helper built on it — `_setSelectPeriod` (paycalc-periods.js) and `_setSelectValue`
+    // (admin-app.js) — because iOS Safari ignores `.value` on a select with `<optgroup>`s. Those
+    // helpers now say so by dispatching `input`; this is the ear for it.
+    select.addEventListener('input', paint);
     // AND on any rebuild or disable, because those do NOT fire `change`. Half these selects are
     // repopulated after boot and several are disabled by an access change; without this the face
     // keeps a name that is no longer in the list, or offers a control the page has just switched

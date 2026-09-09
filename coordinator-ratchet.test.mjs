@@ -218,8 +218,30 @@ const CAPS = {
     // What remains above the old cap is review UI: the refusal banner, the inert ticks, the
     // outcome branch, and the control that reaches the original PDF. That is what this file is for.
     'admin-roster-upload.js':  1300,
-    'nav-panel.js':            1250,
-    'operations-app.js':        965,
+    // 1250 → 1300 at v23.41, and this is the SECOND cap raised on one branch — which is worth
+    // saying rather than burying, because a ratchet raised twice quietly is a ratchet nobody
+    // believes. Both are the same shape: a file sitting EXACTLY on its cap, and a change that is a
+    // fix rather than a feature. Here it is ~17 lines, almost all of it the reasoning for two
+    // defects the nav review found — an access refusal reported as a bad signal, and a re-expanded
+    // Reference section un-hiding the list a search had filtered.
+    // **The seam is named, and it is a good one:** the App Notices ARCHIVE — `archiveNotice`,
+    // `isNoticeExpired`, `_parseNoticeDate`, `NOTICES_KEY`, `ARCHIVE_EXPIRY_DAYS` and the rendering
+    // in `_openNotices` — is ~120 lines of RULE (what the archive holds, how long, how a legacy
+    // record migrates) living in a drawer coordinator. Both of those functions are already exported
+    // and imported by page modules that never touch the drawer's DOM, and both are already tested;
+    // they would move to a pure module and load in Node. Deliberately NOT done in a bug-fix pass on
+    // the nav panel, where a rename touching seven pages is the regression the pass exists to avoid.
+    'nav-panel.js':            1300,
+    // 965 → 1020 at v23.40, and the word is RAISE rather than extract, which the note above says
+    // should be justified. What consumed the headroom was v23.38's select-sheet sweep, filling the
+    // file to EXACTLY 965; what needs the five lines now is not a feature but an accessibility fix
+    // — `focusGradeFilter`, which puts focus on the enhanced select's trigger instead of on the 1px
+    // `aria-hidden` value holder the enhancement left behind. That is the class of change the
+    // ratchet's standard headroom exists for, and refusing it would make the guard argue for
+    // shipping a keyboard trap. **The extraction the note above asks for is now OVERDUE and has a
+    // name:** the Account-status card is ~330 lines of this file, owns its own reads, its own
+    // filter, its own row rendering and the reset break-glass, and is the obvious next seam.
+    'operations-app.js':       1020,
     // Crossed the 900 uncapped-file threshold at v22.03 (914 measured): the Needs-attention strip
     // added ~14 lines of pure WIRING — the strip module owns every rule, the coordinator only
     // creates it and feeds it from the loads the cards already run. Capped as the ratchet asks
