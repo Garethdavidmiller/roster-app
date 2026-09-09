@@ -1294,7 +1294,7 @@ export function init() {
         const chip = (/** @type {any} */ shift, /** @type {any} */ label, /** @type {any} */ typeClass, /** @type {any} */ extra = '', /** @type {any} */ spokenLabel = null) => {
             const say = spokenLabel ?? label;
             return `<button class="brush-chip type-${typeClass}${extra}" data-shift="${escapeHtml(shift)}" ` +
-                `aria-pressed="false" aria-label="Paint: ${escapeHtml(say)}" title="${escapeHtml(say)}">${escapeHtml(label)}</button>`;
+                `aria-pressed="false" aria-label="Paint: ${escapeHtml(say)}">${escapeHtml(label)}</button>`;
         };
 
         bar.innerHTML = [
@@ -1303,7 +1303,7 @@ export function init() {
             chip('SPARE', 'SP',     'spare', '', 'Spare'),
             ...barEarly.map(s => chip(s, shiftLabel(s), 'early', '', spoken(s))),
             ...barLate.map(s  => chip(s, shiftLabel(s), 'late',  '', spoken(s))),
-            `<button class="brush-chip brush-chip--custom" data-shift="__custom__" aria-pressed="false" title="Custom time…">Custom…</button>`,
+            `<button class="brush-chip brush-chip--custom" data-shift="__custom__" aria-pressed="false">Custom…</button>`,
         ].join('');
         // Re-apply the armed state: the chips above are brand-new elements, so a rebuild during a
         // paint session would otherwise leave the brush armed with nothing highlighted.
@@ -1565,7 +1565,7 @@ export function init() {
      */
     function _totalCells(t) {
         const cell = (/** @type {string} */ text, /** @type {string} */ extra = '', /** @type {string} */ title = '') =>
-            `<td class="tot-cell${extra}"${title ? ` title="${escapeHtml(title)}"` : ''}>${escapeHtml(text)}</td>`;
+            `<td class="tot-cell${extra}"${title ? ` aria-label="${escapeHtml(title)}"` : ''}>${escapeHtml(text)}</td>`;
         if (!t || t.unfilled) return cell('—') + cell('—') + cell('—');
         if (t.assumed) {
             const h = hmFromHours(t.exSundayMinutes / 60);
@@ -2504,7 +2504,6 @@ export function init() {
         // Header logo is a back-to-calendar button (About moved to the drawer logo).
         const headerIcon = document.getElementById('appIcon');
         if (!headerIcon) return;
-        headerIcon.title = 'Back to calendar';
         headerIcon.setAttribute('aria-label', 'Back to calendar');
         // Keyboard-operable: the logo is an interactive control (was a non-focusable <img>). v18.29.
         headerIcon.setAttribute('role', 'button');

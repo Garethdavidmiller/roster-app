@@ -204,8 +204,8 @@ export function renderTable() {
                 <div class="oc-detail"><span class="list-type-pill lpill-${etype}">${typeMeta ? typeMeta.label : etype}</span>${isLegacyType ? '<span class="legacy-pill">old format</span>' : ''}${o.source === 'roster_import' ? '<span class="source-pill">PDF upload</span>' : ''}<span class="oc-value">${escapeHtml(o.value)}</span></div>
             </div>
             <div class="oc-actions">
-                <button type="button" class="btn-edit" data-member="${ename}" data-date="${edate}" aria-label="Edit ${ename} ${edate}" title="Edit">✎</button>
-                <button type="button" class="btn-delete" data-id="${eid}" aria-label="Delete ${ename} ${edate}" title="Delete">✕</button>
+                <button type="button" class="btn-edit" data-member="${ename}" data-date="${edate}" aria-label="Edit ${ename} ${edate}">✎</button>
+                <button type="button" class="btn-delete" data-id="${eid}" aria-label="Delete ${ename} ${edate}">✕</button>
             </div>`;
         if (tableBody) tableBody.appendChild(card);
     });

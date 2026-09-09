@@ -327,7 +327,6 @@ export function updateRateForPeriod(ty, p) {
   // The rate is FIXED BY GRADE (v17.87) — ALWAYS read-only; the member never types it. A pre-rise
   // payslip shows that period's historic rate, a current/post-rise payslip the new rate.
   field.readOnly = true;
-  field.title    = 'Set by your grade — CEA and CES each have a fixed hourly rate';
   const lbl = document.getElementById('rateYearLabel');
   if (lbl) lbl.textContent = preAward ? `${ty.label} · pre-rise rate` : `${ty.label} · current rate`;
   // Spell out the pre/post-rise position plainly under the field (owner: make pre vs post clear).

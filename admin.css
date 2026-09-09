@@ -347,7 +347,7 @@
             text-align-last: center;
         }
 
-        select:focus-visible, .fieldpick:focus-visible, input:focus-visible {
+        select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not([type="radio"]):focus-visible {
             border-color: var(--primary-blue);
             outline: var(--focus-outline);
             outline-offset: 2px;
@@ -356,7 +356,7 @@
             background-color: white;
         }
 
-        select:disabled, .fieldpick:disabled, input:disabled {
+        select:disabled, .fieldpick:disabled, input:not([type="checkbox"]):not([type="radio"]):disabled {
             /* Flatter, darker neutral grey — distinct from the cool enabled
                tint so a disabled control still reads as inert. */
             background-color: var(--field-bg-disabled);
@@ -887,12 +887,6 @@
             justify-content: center;
         }
 
-        .col-check input[type="checkbox"] {
-            width: 16px;
-            height: 16px;
-            cursor: pointer;
-            accent-color: var(--primary-blue);
-        }
 
         .col-day .day-name {
             font-size: var(--type-label);
@@ -1264,7 +1258,7 @@
            member — the STAFF MEMBER control at the top of the page states it once. It returns for
            the All-staff view, where it is the thing that distinguishes one row from the next. */
         .oc-single-member .oc-member { display: none; }
-        .override-card .row-select { flex-shrink: 0; width: 18px; height: 18px; margin: 0; }
+        .override-card .row-select { flex-shrink: 0; }
         .oc-body { flex: 1; min-width: 0; }
         .oc-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
         .oc-date   { font-weight: 700; font-size: var(--type-label); color: var(--text-dark); white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -1294,7 +1288,6 @@
             .skeleton-row { animation: none; background: var(--surface-sunken); }
         }
         .override-selectall { display: inline-flex; align-items: center; gap: 5px; font-size: var(--type-small); color: var(--text-mid); white-space: nowrap; }
-        .override-selectall input { width: 16px; height: 16px; margin: 0; }
 
         .list-type-pill {
             display: inline-block;
@@ -1816,7 +1809,6 @@
                row checkbox, whose twin in the week grid (`.day-cb`) is enlarged three rules below. */
             /* .btn-delete / .btn-edit are 44px squares at every pointer size since v23.12, so the
                touch enlargement this block used to give them is no longer needed here. */
-            .override-card .row-select { width: 22px; height: 22px; }
             /* The over-entitlement decision — the one confirm on this page a manager can get wrong
                in a way that costs somebody leave. It was the smallest pair of buttons on it. */
             .al-confirm-bar .btn-confirm-save,
@@ -1833,10 +1825,6 @@
 
             .col-check {
                 min-width: 44px;
-            }
-            .col-check input[type="checkbox"] {
-                width: 22px;
-                height: 22px;
             }
 
             /* Time inputs: larger tap target on touch, with padding restored.
@@ -2265,7 +2253,10 @@
     font-weight: 600; color: var(--other);
     cursor: pointer; white-space: nowrap;
 }
-.other-rdw-label input { accent-color: var(--other); }
+.other-rdw-label input { --check-fill: var(--other); }
+/* The Sunday reason, said in the row (v23.50) — replaces four `title` tooltips on the disabled
+   pills, which a phone never showed. Sits on its own line under the pills (the row wraps). */
+.sunday-note { flex-basis: 100%; font-size: var(--type-small); font-weight: 500; color: var(--text-mid); margin-top: 2px; }
 .other-rdw-warn { flex-basis: 100%; color: var(--warning-amber); font-weight: 600; font-size: var(--type-badge); }
 .other-rdw-warn[hidden] { display: none; }
 .other-opts-hint { flex-basis: 100%; color: var(--text-light); font-size: var(--type-badge); }

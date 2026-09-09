@@ -456,8 +456,6 @@ body.auth-ready .container { display: grid; }
     font-size: var(--type-small); color: var(--text-mid);
     min-height: 40px;
 }
-.roster-entry-rdw-cb { width: 18px; height: 18px; flex-shrink: 0; }
-.roster-entry-rdw-cb:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 /* A ticked box nobody can untick needs to say why, on screen — it was a `title` too. */
 .roster-entry-lock { color: var(--text-light); font-size: var(--type-badge); }
 @media (hover: hover) and (pointer: fine) {
@@ -717,7 +715,7 @@ select, .fieldpick {
     background-position: right 10px center;
     padding-right: 30px;
 }
-select:focus-visible, .fieldpick:focus-visible, input:focus-visible {
+select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not([type="radio"]):focus-visible {
     border-color: var(--primary-blue);
     outline: var(--focus-outline);
     outline-offset: 2px;
@@ -980,9 +978,9 @@ select:focus-visible, .fieldpick:focus-visible, input:focus-visible {
 .acct-name {
     flex: 1 1 auto;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    /* Wraps rather than ellipsising (v23.50): the longest roster name is 23 characters, and a
+       second line costs less than an identity nobody can read in full on a phone. */
+    overflow-wrap: anywhere;
     font-size: var(--type-body);
     font-weight: 600;
     color: var(--text-dark);
@@ -1111,7 +1109,6 @@ select:focus-visible, .fieldpick:focus-visible, input:focus-visible {
     font-size: var(--type-label);
     cursor: pointer;
 }
-#authSetupOrphans { width: 16px; height: 16px; accent-color: var(--primary-blue); }
 #authSetupResult          { display: none; margin-top: 14px; font-size: var(--type-label); }
 #authSetupResult.visible  { display: block; }
 .auth-result-line  { margin: 0 0 6px; }

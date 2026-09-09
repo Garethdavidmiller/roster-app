@@ -63,7 +63,6 @@ export function initPaycalcLightboxes() {
 
     const appIcon = document.getElementById('appIcon');
     if (!appIcon) return;
-    appIcon.title = 'Back to calendar';
     appIcon.setAttribute('aria-label', 'Back to calendar');
     // Keyboard-operable: the logo is an interactive control (was a non-focusable <img>). v18.29.
     appIcon.setAttribute('role', 'button');

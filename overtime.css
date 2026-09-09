@@ -873,19 +873,6 @@ body {
     cursor: pointer;
 }
 
-.ot-longday-box {
-    width: 18px;
-    height: 18px;
-    flex: none;
-    accent-color: var(--primary-blue);
-    cursor: pointer;
-}
-
-.ot-longday-box:focus-visible {
-    outline: var(--focus-outline);
-    outline-offset: 2px;
-}
-
 .ot-custom-label {
     display: flex;
     flex-direction: column;

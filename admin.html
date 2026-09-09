@@ -157,7 +157,7 @@
                 <span class="hint">Tick a day, choose a type, then Save changes — the ? has the full steps</span>
             </div>
             <div class="card-header-actions">
-                <button type="button" class="btn-card-tips" data-card="change-shift" aria-label="Tips for changing a shift" title="Tips for changing a shift">?</button>
+                <button type="button" class="btn-card-tips" data-card="change-shift" aria-label="Tips for changing a shift">?</button>
             </div>
         </div>
         <div class="card-body">
@@ -166,16 +166,16 @@
             <div class="selectors">
                 <div class="field-group">
                     <div class="week-nav">
-                        <button type="button" class="week-nav-btn" id="prevWeekBtn" title="Previous week" aria-label="Previous week">‹</button>
+                        <button type="button" class="week-nav-btn" id="prevWeekBtn" aria-label="Previous week">‹</button>
                         <div class="week-date-wrap">
-                            <button type="button" id="weekNavLabel" class="week-nav-label" title="Tap to jump to any week" aria-label="Jump to week containing date">Pick a date</button>
+                            <button type="button" id="weekNavLabel" class="week-nav-label" aria-label="Jump to week containing date">Pick a date</button>
                             <!-- The VALUE HOLDER, hidden. It was a full-size invisible overlay over the
                                  label until v23.38, which is what opened the OS date picker; the label
                                  is now the trigger and opens the app's own calendar (date-picker.js). -->
                             <input type="date" id="fieldDate" class="fieldpick-native" tabindex="-1" aria-hidden="true">
                         </div>
-                        <button type="button" class="week-nav-btn" id="nextWeekBtn" title="Next week" aria-label="Next week">›</button>
-                        <button type="button" class="week-nav-btn week-nav-today" id="thisWeekBtn" title="Jump to current week" aria-label="Jump to current week"><span aria-hidden="true">📍</span><span class="week-today-word">Today</span></button>
+                        <button type="button" class="week-nav-btn" id="nextWeekBtn" aria-label="Next week">›</button>
+                        <button type="button" class="week-nav-btn week-nav-today" id="thisWeekBtn" aria-label="Jump to current week"><span aria-hidden="true">📍</span><span class="week-today-word">Today</span></button>
                     </div>
                 </div>
             </div>
@@ -201,9 +201,9 @@
                     </div>
                     <!-- Time inputs shown for time-based types -->
                     <div class="bulk-time-group" id="bulkTimeGroup" style="display:none">
-                        <input type="text" class="time-input" id="bulkStart" inputmode="numeric" placeholder="HH:MM" maxlength="5" title="24-hour start time, e.g. 06:20" aria-label="Bulk start time (HH:MM)">
+                        <input type="text" class="time-input" id="bulkStart" inputmode="numeric" placeholder="HH:MM" maxlength="5" aria-label="Bulk start time (HH:MM)">
                         <span class="bulk-time-sep" aria-hidden="true">–</span>
-                        <input type="text" class="time-input" id="bulkEnd" inputmode="numeric" placeholder="HH:MM" maxlength="5" title="24-hour end time, e.g. 14:20" aria-label="Bulk end time (HH:MM)">
+                        <input type="text" class="time-input" id="bulkEnd" inputmode="numeric" placeholder="HH:MM" maxlength="5" aria-label="Bulk end time (HH:MM)">
                     </div>
                 </div>
                 <!-- Step 3: apply -->
@@ -235,8 +235,8 @@
                 <span class="hint">Select a staff member and date range — rest days and Sundays are skipped automatically</span>
             </div>
             <div class="card-header-actions">
-                <span class="card-year-chip al-left-chip" id="alHeaderBalance" title="Annual leave remaining this year" hidden>AL left: <strong id="alHeaderRemaining">—</strong></span>
-                <button type="button" class="btn-card-tips" data-card="annual-leave" aria-label="Tips for recording annual leave" title="Tips for recording annual leave">?</button>
+                <span class="card-year-chip al-left-chip" id="alHeaderBalance" hidden>AL left: <strong id="alHeaderRemaining">—</strong></span>
+                <button type="button" class="btn-card-tips" data-card="annual-leave" aria-label="Tips for recording annual leave">?</button>
                 <span class="collapse-chevron" id="alChevron">▾</span>
             </div>
         </div>
@@ -320,7 +320,7 @@
                 <span class="hint">Mark days when a staff member isn't in — visible to all staff in the calendar</span>
             </div>
             <div class="card-header-actions">
-                <button type="button" class="btn-card-tips" data-card="sick-days" aria-label="Tips for recording absence" title="Tips for recording absence">?</button>
+                <button type="button" class="btn-card-tips" data-card="sick-days" aria-label="Tips for recording absence">?</button>
                 <span class="collapse-chevron" id="sickChevron">▾</span>
             </div>
         </div>
@@ -373,8 +373,8 @@
                 <span class="hint">All recorded changes — edit or remove any row</span>
             </div>
             <div class="card-header-actions">
-                <span class="card-year-chip" id="overridesCountChip" title="Changes in the list below"></span>
-                <button type="button" class="btn-card-tips" data-card="saved-changes" aria-label="Tips for Saved Changes" title="Tips for Saved Changes">?</button>
+                <span class="card-year-chip" id="overridesCountChip"></span>
+                <button type="button" class="btn-card-tips" data-card="saved-changes" aria-label="Tips for Saved Changes">?</button>
                 <span class="collapse-chevron" id="overridesChevron">▾</span>
             </div>
         </div>

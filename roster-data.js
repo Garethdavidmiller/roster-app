@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '23.49';
+export const APP_VERSION = '23.50';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -876,8 +876,11 @@ export function getShiftBadge(timeStr, opts = {}) {
     // because a calendar cell prints the time beside the badge already and repeating it would eat
     // the cell. Default false, so every existing caller renders byte-identically. Only a TIMED
     // shift has a word to trade away — the fixed kinds ignore the option, exactly as before.
-    const attr = title ? ` title="${title}"`
-        : (opts.showTime && timed) ? ` aria-label="${word} shift, ${timeStr.replace('-', ' to ')}"`
+    // `title` from shiftBadgeParts is the EXPLANATION — the day panel reads it and says it in
+    // words. It is no longer put on the badge as a tooltip (v23.50): an OS tooltip is a hover
+    // surface, and no phone has ever shown one.
+    void title;
+    const attr = (opts.showTime && timed) ? ` aria-label="${word} shift, ${timeStr.replace('-', ' to ')}"`
         : '';
     const body = (opts.showTime && timed) ? timeStr : word;
     return `<span class="shift-badge ${cls}"${attr}><span aria-hidden="true">${emoji}</span><span>${body}</span></span>`;

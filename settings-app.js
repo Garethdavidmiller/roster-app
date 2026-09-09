@@ -754,7 +754,6 @@ export function init() {
         // Header logo is a back-to-calendar button (About moved to the drawer logo).
         const iconBtn = document.getElementById('appIcon');
         if (iconBtn) {
-            iconBtn.title = 'Back to calendar';
             iconBtn.setAttribute('aria-label', 'Back to calendar');
             // Keyboard-operable: the logo is an interactive control (was a non-focusable <img>). v18.29.
             iconBtn.setAttribute('role', 'button');

@@ -292,7 +292,7 @@
                 <span class="hint" id="linksGridHint">Tap any shift cell to change it. Use the Paint bar to fill cells quickly. Save when done.</span>
             </div>
             <div class="card-header-actions">
-                <button type="button" class="btn-card-tips" data-card="links-grid" aria-label="Tips for link design" title="Tips for link design">?</button>
+                <button type="button" class="btn-card-tips" data-card="links-grid" aria-label="Tips for link design">?</button>
                 <span class="collapse-chevron open" id="linksGridChevron">▾</span>
             </div>
         </div>
@@ -314,7 +314,7 @@
                                 <span class="dm-eyebrow" aria-hidden="true"><span id="designEyebrow">Editing</span><span class="dm-count" id="designCount"></span></span>
                                 <span class="dm-face" aria-hidden="true"><span class="dm-face-name" id="designFaceName"></span><span class="dm-chev"></span></span>
                             </button>
-                            <button class="dm-icon-btn" id="designRenameBtn" type="button" title="Rename this design" aria-label="Rename this design">✎</button>
+                            <button class="dm-icon-btn" id="designRenameBtn" type="button" aria-label="Rename this design">✎</button>
                         </div>
                         <div class="dm-rule" aria-hidden="true"></div>
                         <div class="dm-bottom">
@@ -388,6 +388,9 @@
                         <tbody id="linksGridBodyRows"></tbody>
                         <tfoot id="linksCoverageFoot"></tfoot>
                     </table>
+                    <!-- What the three total-cell styles MEAN (v23.50). These were `title` tooltips on the
+                         cells — a hover surface, so a designer on a phone never saw them. -->
+                    <p class="tot-legend"><span class="lg-assumed">Italic</span> — a cover week, counted as the contracted week &middot; <span class="lg-same">Muted</span> — the same in both hour columns, no Sunday duty &middot; <span class="lg-uncertain">Orange</span> — some duty times couldn’t be read, so the total is a floor</p>
                 </div>
 
                 <!-- Compare mode: two read-only grids with diff highlighting -->
@@ -442,7 +445,7 @@
                          existed since v12.37 — until v19.62 the only way to reach them was the
                          browser menu, which an installed PWA often does not expose at all. -->
                     <button type="button" id="linksPrintBtn" class="btn-print-design"
-                            title="Print this design (A4 landscape)">
+                           >
                         <span aria-hidden="true">🖨</span> Print
                     </button>
                     <div class="links-save-meta">
@@ -468,7 +471,7 @@
                 <span class="hint">Build a rotating pattern automatically from staffing targets</span>
             </div>
             <div class="card-header-actions">
-                <button type="button" class="btn-card-tips" data-card="links-generator" aria-label="Tips for the auto-generator" title="Tips for the auto-generator">?</button>
+                <button type="button" class="btn-card-tips" data-card="links-generator" aria-label="Tips for the auto-generator">?</button>
                 <span class="collapse-chevron" id="generatorChevron">▾</span>
             </div>
         </div>
@@ -587,18 +590,18 @@
                              recognisable as the things you can do to the set named beside them. -->
                         <div class="gen-sets-actions">
                             <button class="btn-set btn-set--primary" id="genSetLoadBtn" type="button"
-                                    title="Bring this setup's shift times into the table above">Use setup</button>
+                                   >Use setup</button>
                             <button class="btn-set" id="genSetSaveBtn" type="button"
-                                    title="Overwrite this staffing setup with the table above">Save changes</button>
+                                   >Save changes</button>
                             <button class="btn-set" id="genSetSaveAsBtn" type="button"
-                                    title="Keep the table above as a new staffing setup of its own">+ Save as new…</button>
+                                   >+ Save as new…</button>
                             <!-- SPELT OUT, not a bare ✕ (v21.08). The design chips can wear a glyph
                                  because they are compact chips with the name right beside them; here
                                  it is the fourth control in a row of three worded buttons, and at
                                  390px it wrapped onto a line of its own — a lone ✕ under a dropdown,
                                  meaning nothing in particular. -->
                             <button class="btn-set btn-set--danger" id="genSetDeleteBtn" type="button"
-                                    title="Delete this staffing setup">Delete</button>
+                                   >Delete</button>
                         </div>
                     </div>
                     <p class="gen-sets-hint" id="genSetHint" aria-live="polite"></p>
@@ -671,7 +674,7 @@
                 <span class="hint">Who is on duty each hour, against the trains they have to cover</span>
             </div>
             <div class="card-header-actions">
-                <button type="button" class="btn-card-tips" data-card="links-coverage" aria-label="Tips for coverage analysis" title="Tips for coverage analysis">?</button>
+                <button type="button" class="btn-card-tips" data-card="links-coverage" aria-label="Tips for coverage analysis">?</button>
                 <span class="collapse-chevron open" id="coverageChevron">▾</span>
             </div>
         </div>
@@ -724,7 +727,7 @@
                 <span class="hint">Hours, shape of the week, company limits, and the ORR fatigue factors</span>
             </div>
             <div class="card-header-actions">
-                <button type="button" class="btn-card-tips" data-card="links-checks" aria-label="Tips for design checks" title="Tips for design checks">?</button>
+                <button type="button" class="btn-card-tips" data-card="links-checks" aria-label="Tips for design checks">?</button>
                 <span class="collapse-chevron open" id="checksChevron">▾</span>
             </div>
         </div>
