@@ -530,6 +530,156 @@ test('the symbol guard would catch the two defects that motivated it — guard t
     }
 });
 
+// ── CONTRACT 1e: a symbol is WHERE the doc says it is ──────────────────────────────────────────
+//
+// 1b asks whether a name exists in the source AT ALL. This asks the neighbouring question — does it
+// exist in the FILE the sentence names — and the gap between them is not academic. A line-by-line
+// audit of the whole markdown estate (v23.44) found twelve stale claims, and FOUR were this shape.
+// Every one of them passed 1b, because the symbol was perfectly real; it had simply moved:
+//
+//   `HUDDLE_PUSH_PAUSED`     — OPERATIONS_REFERENCE said `functions/index.js`. The v20.55 domain
+//                              split moved it to `functions/documents.js`. This is the one that
+//                              cost something: it is a BREAK-GLASS instruction for stopping Huddle
+//                              pushes, so being wrong costs most at exactly the moment it is read.
+//   `RESET_REQUESTS_ENABLED` — PASSWORD_DESIGN, same split, now `functions/auth-endpoints.js`.
+//                              Also an incident switch.
+//   `pruneOldHuddles`        — DATA_MODEL, same split, now `functions/documents.js`.
+//   the Welcome lightbox     — three docs describing a paycalc lightbox retired at v19.36.
+//
+// ONE refactor produced the first three, and nothing failed. That is the argument for this being a
+// gate rather than a habit: a domain split is a normal, well-reviewed change, and it silently
+// invalidates every sentence that named the old home. The reviewer of that split had no reason to
+// grep the documentation estate, and the docs' own reviewers had no reason to suspect the split.
+//
+// ── IT READS THE PHRASE, NOT THE LINE ──────────────────────────────────────────────────────────
+//
+// A location claim is local: "`X` in `y.js`", "`X` is `true` in `y.js`". So the match is a symbol,
+// a SHORT gap that crosses no clause boundary, then the filename — and the negation test reads only
+// the same clause. Both bounds are load-bearing and both were measured. Judging the whole LINE
+// skipped 29 of 65 real claims, because a "never" three clauses away is about something else; and
+// letting the gap cross a full stop or an "and" produced two false flags on prose that was correct
+// (`NAV_PAGES`. Add name to `CONFIG.LINKS_DESIGNERS` in `roster-data.js` is two separate true
+// statements). No exemption list, for the reason 1b gives.
+//
+// It runs over EVERY markdown file except the ones whose job is the past — wider than LIVE_DOCS,
+// which is the point: `RESET_REQUESTS_ENABLED` was in PASSWORD_DESIGN.md, and a plan document is
+// where a location claim goes stale longest because nobody reads it end to end.
+
+/**
+ * Docs whose subject is the past may name an old home freely — that is what they are for.
+ * MEASURED AND NOT LOAD-BEARING TODAY: removing this line changes nothing, because none of
+ * them currently names a symbol at a file it has left. It is a statement of SCOPE, kept so a
+ * history doc recording "`X` was in `functions/index.js` before the split" cannot be made to
+ * fail by writing the truth. Do not read the passing mutation as a reason to delete it.
+ */
+const PAST_DOCS = /ROADMAP_HISTORY|LOGIN_INCIDENT|docs\/proposals|experiments\//;
+
+/** leading-underscore · lowerCamel with an inner capital · UPPER_SNAKE. */
+const LOCATABLE = String.raw`_[A-Za-z][A-Za-z0-9_]{3,}|[a-z][a-z0-9]*[A-Z][A-Za-z0-9_]*|[A-Z][A-Z0-9]*_[A-Z0-9_]+`;
+/** A gap that crosses no clause boundary. It may carry one backticked token ("is `true` in"). */
+const SAME_CLAUSE = String.raw`[^,;().!?—·|]{0,40}?`;
+const LOCATION_CLAIM = new RegExp(
+    '`(' + LOCATABLE + ')(?:\\(\\))?`(' + SAME_CLAUSE + ')\\bin `([a-z0-9-]+/)?([A-Za-z0-9._-]+\\.(?:js|mjs|css|rules|json))`', 'g');
+
+/** The same clause saying the symbol is NOT there — a prohibition, an absence, a move. */
+const NOT_A_LOCATION_CLAIM = /\b(never|not|no|don't|cannot|can't|nothing|instead|rather|without|moved|used to|removed|retired|unlike)\b/i;
+
+/** Where a bare filename in a doc could live. */
+const SOURCE_ROOTS = ['', 'functions/', 'e2e/', 'scripts/', 'test-fixtures/'];
+
+/** Every markdown file that is not about the past. */
+function locatableDocs(dir = '.', out = []) {
+    const here = new URL('.', import.meta.url);
+    let entries = [];
+    try { entries = readdirSync(new URL(dir, here), { withFileTypes: true }); } catch { return out; }
+    for (const e of entries) {
+        if (e.name === 'node_modules' || e.name === '.git') continue;
+        const p = dir === '.' ? e.name : `${dir}/${e.name}`;
+        if (e.isDirectory()) locatableDocs(p, out);
+        else if (e.name.endsWith('.md') && !PAST_DOCS.test(p)) out.push(p);
+    }
+    return out;
+}
+
+/**
+ * Every location claim a doc makes, as {doc, line, sym, path} — or null where the sentence does not
+ * claim a location, or names a file this repo does not have (another project's, an illustration).
+ */
+function locationClaims(/** @type {string} */ doc, /** @type {string} */ text) {
+    const out = [];
+    text.split('\n').forEach((line, i) => {
+        for (const m of line.matchAll(LOCATION_CLAIM)) {
+            const [, sym, gap, dir, file] = m;
+            if (/\b(and|or|but)\b/i.test(gap)) continue;          // the name binds to the other clause
+            const lead = line.slice(Math.max(0, m.index - 34), m.index).split(/[.!?—·|]/).pop();
+            if (NOT_A_LOCATION_CLAIM.test(lead + gap)) continue;
+            let path = null;
+            if (dir) { if (existsSync(new URL(dir + file, import.meta.url))) path = dir + file; }
+            else for (const r of SOURCE_ROOTS) {
+                if (existsSync(new URL(r + file, import.meta.url))) { path = r + file; break; }
+            }
+            if (path) out.push({ doc, line: i + 1, sym, path });
+        }
+    });
+    return out;
+}
+
+test('a symbol is in the file the doc says it is in', () => {
+    const problems = [];
+    for (const doc of locatableDocs()) {
+        let text;
+        try { text = read('./' + doc); } catch { continue; }
+        for (const c of locationClaims(doc, text)) {
+            if (read('./' + c.path).includes(c.sym)) continue;
+            problems.push(`${c.doc}:${c.line}  \`${c.sym}\` is named as living in ${c.path} — it is not there`);
+        }
+    }
+    assert.deepEqual(problems, [],
+        'one refactor moves a symbol and every sentence naming its old home is quietly wrong:\n  '
+        + problems.join('\n  '));
+});
+
+test('the location guard catches the domain-split defects that motivated it — guard the guard', () => {
+    // Verbatim from the three docs as they stood before v23.44. Without this the test above passes
+    // for ever if LOCATION_CLAIM stops matching — and its first cut DID: `()` inside the backticks
+    // and a backticked word in the gap meant it caught none of the three it was written for.
+    const shipped = [
+        ['docs/OPERATIONS_REFERENCE.md', '**Push notifications paused?** If `HUDDLE_PUSH_PAUSED` is `true` in `functions/index.js`, Huddle ingestion succeeds but no push is sent.'],
+        ['docs/DATA_MODEL.md', 'Auto-prunes: docs older than **3 months** (Firestore doc + Storage file) are deleted by `pruneOldHuddles()` in `functions/index.js`, awaited at the end of every `ingestHuddle` run.'],
+        ['docs/PASSWORD_DESIGN.md', 'the public function stayed callable. `RESET_REQUESTS_ENABLED` in `functions/index.js` now closes it with a 503.'],
+    ];
+    for (const [doc, line] of shipped) {
+        const claims = locationClaims(doc, line);
+        assert.equal(claims.length, 1, `the shipped defect must be read as one location claim: ${line.slice(0, 70)}`);
+        assert.equal(claims[0].path, 'functions/index.js');
+        assert.ok(!read('./functions/index.js').includes(claims[0].sym),
+            `${claims[0].sym} has returned to index.js — re-point this fixture at a defect that is still a defect`);
+    }
+
+    // And the sentences that must NOT be read as location claims. Each is real prose from the docs
+    // that an earlier cut of this guard flagged, and each fails for a different reason.
+    const notClaims = [
+        // a PROHIBITION — the symbol is named precisely because it must not be there
+        ['CLAUDE.md', '**Never call `localStorage` directly** in `calendar-app.js`, `admin-app.js`, or `paycalc-app.js`.'],
+        // a CONJUNCTION — the name belongs to the first clause, the file to the second
+        ['docs/AI_MAP.md', 'single source for paycalc `numVal()` and the HPP rate read in `paycalc-hpp.js`'],
+        // a SENTENCE BOUNDARY — two true statements, read as one false one
+        ['CLAUDE.md', '`linksDesignerOnly: true` in `NAV_PAGES`. Add name to `CONFIG.LINKS_DESIGNERS` in `roster-data.js` to grant access'],
+    ];
+    for (const [doc, line] of notClaims) {
+        const bad = locationClaims(doc, line).filter(c => !read('./' + c.path).includes(c.sym));
+        assert.deepEqual(bad, [], `correct prose must not be flagged: ${line.slice(0, 72)}`);
+    }
+
+    // The guard must actually be looking at something. A pattern that silently stops matching reads
+    // exactly like a clean estate — the failure mode this whole file exists to close.
+    let total = 0;
+    for (const doc of locatableDocs()) {
+        try { total += locationClaims(doc, read('./' + doc)).length; } catch { /* unreadable */ }
+    }
+    assert.ok(total > 50, `only ${total} location claims found — the pattern has stopped reading the docs`);
+});
+
 test('no live doc restates a count that a constant owns', () => {
     const problems = [];
     for (const [name, home, re] of OWNED_COUNTS) {
