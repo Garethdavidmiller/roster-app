@@ -2,8 +2,8 @@
 /**
  * paycalc-lightboxes.js — Lightbox and overlay initialisation for paycalc.html.
  *
- * Owns: About panel, Help tooltip lightbox, Welcome first-visit lightbox,
- *   YTD notice, Decimal hours converter card.
+ * Owns: About panel, Help tooltip lightbox, YTD notice, Decimal hours converter card.
+ *   (The Welcome first-visit lightbox was RETIRED at v19.36 and is not here.)
  * Does NOT own: pay calculation (paycalc-app.js), period arithmetic (paycalc-periods.js),
  *   settings persistence (paycalc-settings.js).
  * Edit here for: lightbox content, first-visit notice, decimal converter logic.

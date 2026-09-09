@@ -753,7 +753,7 @@ from the timestamps already on the rows — no new document, no new rules surfac
 could write to suppress the admin's notifications.
 
 **The kill switch didn't reach the endpoint.** `CONFIG.PASSWORD_RESET_REQUESTS` hides the client
-link; the public function stayed callable. `RESET_REQUESTS_ENABLED` in `functions/index.js` now
+link; the public function stayed callable. `RESET_REQUESTS_ENABLED` in `functions/auth-endpoints.js` (v20.55 domain split) now
 closes it with a 503. Deliberately a constant, not a Firestore flag: an incident switch must not
 depend on a read the incident might be affecting.
 
