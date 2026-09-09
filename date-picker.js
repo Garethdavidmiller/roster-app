@@ -214,7 +214,17 @@ export function initDatePickers(inputIds) {
         input.insertAdjacentElement('afterend', trigger);
         _sync();
 
-        trigger.addEventListener('click', () => { _pendingInput = input; lb.open(); });
+        trigger.addEventListener('click', () => {
+            // Ask the consumer to refresh `min`/`max` FIRST — `onOpen` reads them off the input, so
+            // whatever they say at this instant is what the grid will enforce (v23.36). doc-upload.js
+            // recomputes its cap at init and on submit, which was the whole v16.23 stale-tab fix, and
+            // was written before this picker existed: an Operations tab left open past midnight then
+            // had a `max` of yesterday, so the real today rendered `dp-off` and the admin could not
+            // pick it at all. Synchronous and BEFORE `_pendingInput`, so a consumer that re-defaults
+            // the value emits its own `date-refreshed` and the trigger label is right before we open.
+            input.dispatchEvent(new CustomEvent('date-picker-opening'));
+            _pendingInput = input; lb.open();
+        });
         // Any value change — the user's pick OR a consumer's normalisation — refreshes the label.
         // Registered AFTER the cards' own listeners (this runs post-init), so it reads the
         // final, snapped value.

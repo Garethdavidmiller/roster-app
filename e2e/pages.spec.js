@@ -3075,6 +3075,141 @@ test('operations reset requests: clearing two rows quickly leaves neither behind
     await expect(page.locator('#resetRequestsCountChip')).toHaveText('');
 });
 
+// ── The Needs-attention strip must not survive its own card (v23.36) ────────────────────────────
+// `operations-attention.js`'s whole design is that the strip CANNOT disagree with the card it
+// points at: it runs no reads, and every count arrives from the card that owns the data. The Error
+// Log broke that by re-invoking itself twice — the resolve-all refresh and the retry button — with
+// the `onAttention` callback dropped, so the refreshed render set the header chip correctly and
+// told the strip nothing.
+//
+// Both directions are asserted because they cost different things. A stale count after a
+// resolve-all is visible nonsense the admin can reload away. The retry case is the expensive one
+// and is silent: a failed load reports nothing (correctly — unknown is not zero), so after a
+// successful retry the strip does not exist AT ALL over a card listing errors, which is the page's
+// own index of what needs doing stating that nothing does.
+//
+// This is the only level that can see it — `operations-attention.js`'s unit tests are of the pure
+// decision, and it was never the decision that was wrong.
+const ATTN_ERRS = [
+    { id: 'e1', memberName: 'A. Hared', page: 'calendar', message: 'boom one', appVersion: '23.36', resolved: false, timestamp: Date.now() - 60_000 },
+];
+
+test('operations attention: resolving every error clears the strip, not just the chip', async ({ page }) => {
+    await page.addInitScript((rows) => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { authUser: true, docs: rows };
+    }, ATTN_ERRS);
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html#error-log');
+
+    const strip = page.locator('#attentionStrip');
+    await expect(strip).toContainText('Unresolved errors');
+    // Both queries in getClientErrors read the same seeded rows, so the card shows two.
+    await expect(page.locator('#errorLogCountChip')).toHaveText('2');
+
+    // What the in-place refresh will read back: the server now has nothing.
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docs = []; });
+    await page.locator('.error-resolve-all-btn').click();
+
+    await expect(page.locator('#errorLogContent')).toContainText('No errors recorded');
+    await expect(page.locator('#errorLogCountChip')).toHaveText('');
+    // The chip and the strip are two voices for one fact. With `opts` dropped the strip kept
+    // "Unresolved errors 2" over a card saying there are none.
+    await expect(strip).not.toContainText('Unresolved errors');
+});
+
+test('operations attention: a retry after a failed load still reaches the strip', async ({ page }) => {
+    await page.addInitScript((rows) => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { authUser: true, docs: rows, failGetDocs: true };
+    }, ATTN_ERRS);
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html#error-log');
+
+    // A failed read reports NOTHING rather than a reassuring zero, so the strip has no error item.
+    await expect(page.locator('#errorLogContent')).toContainText("Couldn't load error log");
+    await expect(page.locator('#attentionStrip')).not.toContainText('Unresolved errors');
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.failGetDocs = false; });
+    await page.locator('#errorLogContent .card-retry-btn').click();
+
+    await expect(page.locator('#errorLogCountChip')).toHaveText('2');
+    // The false all-clear: the card lists errors and the strip did not exist at all.
+    await expect(page.locator('#attentionStrip')).toContainText('Unresolved errors');
+});
+
+// ── A reset that timed out did not necessarily fail (v23.36) ────────────────────────────────────
+// `fetch-timeout.js`'s header names `resetMemberPassword` when it says a timeout on a write must
+// never be reported as "that failed" — the abort stops us waiting, not the server working. The
+// admin who is told the reset failed goes and tells the member their old password still works,
+// when their account may already be on the surname default with their other sessions revoked.
+//
+// Only a browser can see this: the message is composed in firebase-client.js (and was correct
+// throughout), and the defect was the coordinator discarding it into a console warning.
+test('operations: a reset whose server never answers is not reported as a failure', async ({ page }) => {
+    await page.clock.install();
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { authUser: true, docs: [], docsByPath: { staffContact: [], passwordStatus: [], resetRequests: [] } };
+    });
+    // The request leaves and never comes back — the stalled transport the bound exists for.
+    await page.route('**/resetMemberPassword', () => { /* never fulfilled */ });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.clock.runFor(3000);
+    await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
+
+    const row = page.locator('.acct-row').first();
+    const name = await row.getAttribute('data-member');
+    await row.locator('.btn-acct-reset').click();
+    await page.locator('.dialog-btn-confirm').click();
+    await page.clock.runFor(1000);
+    await expect(row.locator('.btn-acct-reset')).toHaveText('Resetting…');
+
+    // Past the client's own 65s budget (above the endpoint's 60s ceiling — fetch-timeout.js).
+    await page.clock.runFor(70_000);
+
+    // It SAYS it could not confirm, and tells the admin where to look.
+    const dialog = page.locator('.lb-overlay.open');
+    await expect(dialog).toContainText('Couldn’t confirm the reset');
+    await expect(dialog).toContainText(String(name));
+    await expect(dialog).toContainText('may still have gone through');
+    // …and the button does not describe an outcome nobody knows. "Retry" is the failure
+    // affordance and belongs only to a request that provably did not land.
+    await expect(row.locator('.btn-acct-reset')).toHaveText('Reset');
+    await expect(row.locator('.btn-acct-reset')).not.toHaveAttribute('title', /Reset failed/);
+});
+
+// ── A tab left open past midnight can still pick today (v23.36) ─────────────────────────────────
+// `doc-upload.js` recomputes its date cap at init and on submit — the v16.23 stale-tab fix, written
+// before this picker existed. `date-picker.js` reads `min`/`max` at OPEN time, so an Operations tab
+// left open overnight offered a grid whose real today was `dp-off`: the admin could not choose it,
+// and the only escape was a reload. Measured, not reasoned — a screenshot cannot see `dp-off`.
+test('operations: the date picker follows the clock across midnight', async ({ page }) => {
+    await page.clock.install({ time: new Date('2026-09-08T21:00:00Z') });
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [] }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.clock.runFor(2000);
+    await page.evaluate(() => document.getElementById('circularUploadBody')?.classList.add('open'));
+
+    const trigger = page.locator('#circularUploadBody .date-trigger');
+    await expect(trigger).toHaveText(/8 Sep 2026/);
+
+    // The tab just sits there while the day turns over.
+    await page.clock.setFixedTime(new Date('2026-09-09T09:00:00Z'));
+    await trigger.click();
+
+    const ninth = page.locator('.dp-day[data-iso="2026-09-09"]');
+    await expect(ninth).toBeVisible();
+    // The real today is selectable. Without the refresh it carried `dp-off` + aria-disabled,
+    // pinned against yesterday's `max`.
+    await expect(ninth).not.toHaveClass(/dp-off/);
+    await expect(ninth).not.toHaveAttribute('aria-disabled', 'true');
+    await ninth.click();
+    await expect(trigger).toHaveText(/9 Sep 2026/);
+});
+
 test('settings (signed in): the Pay Calculator Data pointer card renders and links to the backup card', async ({ page }) => {
     // A POINTER, not a second copy of the controls — see paycalc-transfer-card.js.
     await seedSession(page);
