@@ -128,6 +128,14 @@ shown that yet.
   range and is scheduled well after the PR event. Minutes, not seconds, is a window in which `main`
   genuinely moves; it moved three times on 9 Sep 2026 alone.
 
+  **It is now COUNTED rather than noticed.** `.github/workflows/race-detector.yml` (9 Sep 2026) runs
+  hourly and reports into one deduped issue, distinguishing the two kinds: *consequential* (a
+  branch-head run survived, so a merge would rest on it) from *superseded* (the push run was killed
+  by a later push too, so nothing completed and nobody was hurt). Its own first cut required the
+  push run to have settled and therefore found NOTHING on the day of the race — both real instances
+  were the second kind — which is the silence it exists to end, so it reports both. Running it over
+  that day's real data found **two** instances, not the one that was noticed by eye.
+
   **What is NOT in doubt:** one suite per branch, and the deploy workflow's own gate as the net. What
   is open is the race. The three deterministic options and their costs, none yet taken — drop the
   `push` trigger (loses pre-PR CI), a guard job querying for an open PR (an API call on every push),

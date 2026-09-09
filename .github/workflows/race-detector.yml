@@ -1,0 +1,158 @@
+name: Did the wrong test run win?
+
+# ── WHY THIS EXISTS (9 Sep 2026) ───────────────────────────────────────────────────────────────
+#
+# `e2e.yml` files the `push` and `pull_request` events into ONE concurrency group so a branch
+# carries one suite rather than two. The survivor SHOULD be the `pull_request` run, which checks
+# out the synthetic merge commit — what merging would actually produce — where the `push` run only
+# tests the branch head. When `main` has moved under an open PR those are different trees.
+#
+# But the group does not encode that preference. Whichever event fires LATER wins. That is
+# ordinarily the PR run, and a sweep of 63 runs over 38 commits found zero exceptions — and then
+# the very next pull request produced one: #1431, where the PR run started 11:49:42 and was
+# cancelled while the push run for the same commit started 11:53:30 and survived. A force-push
+# after a rebase is evaluated over the whole pushed range and scheduled well behind the PR event,
+# so the gap was 228 SECONDS, not the "seconds" e2e.yml's comment assumes.
+#
+# THE POINT OF THIS WORKFLOW IS NOT TO FIX THAT. Fixing it means restructuring the CI graph — nine
+# jobs hang off the `guard` job that exists only to filter push events — and the failure mode of a
+# botched trigger change is a silently SKIPPED suite on a branch somebody is about to merge, which
+# is worse than the thing being fixed. The race costs a stale-base pass, and the deploy workflow's
+# own gate is the net.
+#
+# What was missing is that nobody KNOWS when it happens. The one observed instance was caught only
+# because somebody happened to be watching a run list. So: make it loud before making it different
+# — the same order the visual lane was fixed in. This counts, it does not act.
+#
+# It reports into ONE deduped issue rather than one per occurrence, because a run of these is one
+# situation and N issues is noise. The count IS the deliverable: DECISIONS.md records this race as
+# an OPEN question, and how often it actually happens is what decides whether the restructure earns
+# its risk.
+
+on:
+  schedule:
+    # Hourly, offset off the top of the hour so it does not queue behind everything else that runs
+    # at :00. An hour is fine: nothing here is urgent, and the output is evidence, not an alarm.
+    - cron: '43 * * * *'
+  workflow_dispatch:
+
+# Least privilege: read the repo, write the one issue. It observes and reports; it never re-runs a
+# workflow, never pushes, and never touches a deploy.
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Find commits where the branch-head run beat the merge-result run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # One page of recent `Tests` runs. 100 covers well over a day at this repo's rate, and the
+          # dedupe below means re-reporting an instance already recorded is harmless anyway.
+          if ! gh api "repos/$REPO/actions/runs?per_page=100" > runs.json 2>err.txt; then
+            # FAIL LOUD, NOT SILENT. A detector that dies quietly reports "no races" forever, which
+            # is indistinguishable from a healthy repo — precisely the defect it was built to end.
+            echo "::warning::could not read workflow runs: $(head -c 300 err.txt)"
+            exit 0
+          fi
+
+          python3 - <<'PY' > found.txt
+          import json, collections, os
+
+          runs = [r for r in json.load(open('runs.json')).get('workflow_runs', [])
+                  if r.get('name') == 'Tests']
+          by_sha = collections.defaultdict(list)
+          for r in runs:
+              by_sha[r['head_sha']].append(r)
+
+          out = []
+          for sha, rs in by_sha.items():
+              pr   = [r for r in rs if r['event'] == 'pull_request']
+              push = [r for r in rs if r['event'] == 'push']
+              # The wrong-way race, stated exactly: for ONE commit, the merge-result run was
+              # cancelled AND no merge-result run for that commit completed, while a branch-head
+              # run reached a real conclusion. The second clause is what separates this from
+              # ordinary supersession — a newer push to the same PR also cancels a PR run, and
+              # that is correct behaviour, not a race.
+              pr_cancelled = [r for r in pr if r['conclusion'] == 'cancelled']
+              pr_settled   = [r for r in pr if r['conclusion'] in ('success', 'failure')]
+              push_settled = [r for r in push if r['conclusion'] in ('success', 'failure')]
+
+              # THE RACE IS "the merge-result evidence was destroyed", and nothing more. A PR run
+              # cancelled while ANOTHER PR run for the same commit completed is ordinary
+              # supersession — a newer push to the same PR — and is correct behaviour, so it is not
+              # counted.
+              if not (pr_cancelled and not pr_settled):
+                  continue
+
+              # Then say which KIND, because they are not equally serious and lumping them together
+              # would inflate the case for a risky change:
+              #
+              #   consequential — a branch-head run survived, so a PR could be merged on evidence
+              #                   that never saw the merge result.
+              #   superseded    — nothing completed for this commit either, because the push run was
+              #                   itself killed by a later push. The mechanism fired; nobody was hurt.
+              #
+              # The first cut of this workflow required `push_settled` and so reported ONLY the
+              # first kind. Run against the day the race was discovered, it found NOTHING — both
+              # real instances were the second kind. A detector that answers "no races" on the day
+              # of two races is the exact silence it was built to end, so it now reports both.
+              w = (push_settled or push or [None])[0]
+              out.append({
+                  'sha': sha[:9],
+                  'branch': (w or pr_cancelled[0]).get('head_branch') or '?',
+                  'kind': 'consequential' if push_settled else 'superseded',
+                  'pr_started': pr_cancelled[0]['run_started_at'],
+                  'push_started': (w or {}).get('run_started_at', '—'),
+                  'push_conclusion': (w or {}).get('conclusion') or 'none',
+                  'url': (w or pr_cancelled[0])['html_url'],
+              })
+
+          for o in sorted(out, key=lambda o: o['push_started']):
+              note = ('branch-head run %s — a merge here would rest on it'
+                      % o['push_conclusion']) if o['kind'] == 'consequential' else \
+                     'branch-head run also cancelled — no run completed for this commit'
+              print(f"- **{o['kind']}** · `{o['sha']}` on `{o['branch']}` — merge-result run "
+                    f"cancelled ({o['pr_started']}); {note} ({o['push_started']}) "
+                    f"· [run]({o['url']})")
+          PY
+
+          if [ ! -s found.txt ]; then
+            echo "No wrong-way races in the last 100 Tests runs."
+            exit 0
+          fi
+
+          echo "::warning::the branch-head run beat the merge-result run — see the tracking issue"
+          cat found.txt
+
+          LABEL="ci-race"
+          BODY=$(printf '%s\n' \
+            "The \`push\` run (branch head) outlived the \`pull_request\` run (synthetic merge commit) for the same commit." \
+            "" \
+            "$(cat found.txt)" \
+            "" \
+            "**What this means.** The surviving run tested the branch head, not what merging would produce. If \`main\` moved while the PR was open, the merged combination was never run on a branch. The deploy workflow's own gate on \`main\` is the net, so this is a weaker check rather than no check." \
+            "" \
+            "**What it is FOR.** \`docs/DECISIONS.md\` records this race as an OPEN question — the design (one suite per branch) is right, the preference between the two events is a race rather than a rule. How often this fires is the evidence that decides whether restructuring the CI graph earns its risk. Nine jobs depend on the \`guard\` job that exists only to filter push events, and a botched trigger change fails by silently SKIPPING a suite, which is worse than what it fixes." \
+            "" \
+            "Detected by \`.github/workflows/race-detector.yml\`. Comments accumulate on this one issue on purpose: a run of these is one situation." )
+
+          EXISTING=$(gh issue list --label "$LABEL" --state open --limit 1 --json number \
+            --jq '.[0].number' 2>/dev/null || echo "")
+
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY" \
+              || echo "::warning::could not comment on issue #${EXISTING}"
+          else
+            gh issue create --title "CI: the branch-head run beat the merge-result run" \
+              --label "$LABEL" --body "$BODY" \
+              || echo "::warning::could not create the tracking issue"
+          fi
