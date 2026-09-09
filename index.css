@@ -316,14 +316,23 @@
            cap still applies and the desktop row is byte-identical. */
         .controls .control-group--stacked select,
         .controls .control-group--stacked .fieldpick { align-self: stretch; }
-        /* THE ROW IS NARROWER THAN IT WAS, and that is the change not a regression (v23.33). A
-           <select> sizes to its WIDEST option — every name on the roster, so ~189px of the 200px
-           cap whoever was reading it — while the trigger button sizes to the one name it is
-           showing. The control row therefore centres at about 254px instead of filling 334px, and
-           `← Prev` / `Next →` sit ~40px further in on a 360px phone. Do NOT "fix" this with a
-           percentage width: the paragraph above is the record of that being tried, and a
-           percentage against a shrink-to-fit parent is the cyclic case Chromium resolves as
-           `none`, which throws the 200px cap away and made the control WIDER on desktop. */
+        /* THE ROW WAS NARROWER FOR SIX RELEASES, AND THAT WAS A REGRESSION (v23.33 → v23.39).
+           A <select> sizes to its WIDEST option — every name on the roster, so ~189px of the 200px
+           cap whoever was reading it — while the trigger button that replaced it sized to the one
+           name it was showing. So the control changed width as you switched member and the row
+           re-centred around it, `← Prev` and `Next →` sliding in and out under your thumb. This
+           comment used to say that was "the change not a regression". The owner's call is that
+           consistency is the point (9 Sep 2026), and that is the right call: a control that
+           resizes when its VALUE changes is not the control this replaced.
+           Fixed in select-sheet.js, not here — the trigger carries a hidden copy of the widest
+           option and is a one-cell grid, so its intrinsic width is the widest option exactly as a
+           <select>'s is, and the 200px cap below still clamps it. Every enhanced select in the app
+           gets it, because every one of them had the same fault.
+           The warning that outlived the claim, and still stands: do NOT reach for a percentage
+           width here. The paragraph above is the record of that being tried, and a percentage
+           against a shrink-to-fit parent is the cyclic case Chromium resolves as `none`, which
+           throws the 200px cap away and made the control WIDER on desktop. Pinned by
+           e2e/calendar.spec.js — "the name picker does not change width when the member changes". */
 
         /* `:not(.fieldpick)` throughout: select-sheet.js's trigger is a <button>, but it stands in
            for the member SELECT and has to keep the field's light chrome. Without this the navy pill

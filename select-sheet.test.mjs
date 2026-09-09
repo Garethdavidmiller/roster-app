@@ -19,7 +19,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { readGroups, triggerLabel } from './select-sheet.js';
+import { readGroups, triggerLabel, widestOptionLabel } from './select-sheet.js';
 
 /** A fake `<select>`; `children` is what readGroups walks, `options`/`selectedIndex` what the face reads. */
 function fakeSelect(spec) {
@@ -110,5 +110,52 @@ describe('the face — what the trigger says the value is', () => {
 
     test('an option with only whitespace counts as empty — a blank face is a broken-looking control', () => {
         assert.equal(triggerLabel(fakeSelect([{ value: 'x', label: '   ', selected: true }]), 'Pick one'), 'Pick one');
+    });
+});
+
+
+// ── THE CONTROL MUST NOT RESIZE WHEN ITS VALUE CHANGES (v23.39, owner report) ──────────────────
+//
+// A `<select>` sizes to its widest option; the trigger button that replaced it sized to the name
+// it was showing, so the Calendar's picker changed width as you switched member and the whole
+// control row re-centred. `widestOptionLabel` is what the hidden sizer renders, and the direction
+// that costs something is UNDER-reporting: a sizer narrower than the real widest option puts the
+// control back to moving, silently, because nothing about the page fails.
+describe('widestOptionLabel — what the trigger is sized to', () => {
+    test('reports the longest option, not the selected one', () => {
+        const sel = fakeSelect([
+            { value: 'a', label: 'A. Ng', selected: true },
+            { value: 'b', label: 'R. Forrester-Blackstock' },
+            { value: 'c', label: 'S. Silva' },
+        ]);
+        assert.equal(widestOptionLabel(sel), 'R. Forrester-Blackstock');
+        // …and it does not move when the selection does. That is the whole property.
+        sel.selectedIndex = 2;
+        sel.value = 'c';
+        assert.equal(widestOptionLabel(sel), 'R. Forrester-Blackstock');
+        assert.equal(triggerLabel(sel), 'S. Silva');
+    });
+
+    test('reads the same option text the face does, so the two cannot disagree', () => {
+        const sel = fakeSelect([{ value: 'a', label: '  G. Miller  ', selected: true }]);
+        // Both trim; a sizer that kept the padding would size to text the face never shows.
+        assert.equal(widestOptionLabel(sel), 'G. Miller');
+        assert.equal(triggerLabel(sel), 'G. Miller');
+    });
+
+    test('falls back to the placeholder before the options arrive', () => {
+        // Half these selects are populated after boot. Collapsing to '' would let the control
+        // start at zero width and jump the moment the roster lands.
+        assert.equal(widestOptionLabel(fakeSelect([]), 'Choose your name'), 'Choose your name');
+    });
+
+    test('spans an optgroup, because the widest name is usually inside one', () => {
+        // The member selects group by grade. A walker that only saw top-level options would size
+        // to the placeholder and the control would move again.
+        const sel = fakeSelect([
+            { value: '', label: '— Choose your name —', selected: true },
+            { group: 'CEA', options: [{ value: 'b', label: 'R. Forrester-Blackstock' }] },
+        ]);
+        assert.equal(widestOptionLabel(sel), 'R. Forrester-Blackstock');
     });
 });
