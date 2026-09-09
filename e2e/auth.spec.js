@@ -136,7 +136,7 @@ test('B1 flag ON + sign-in OK: admin loads normally, no forced re-login', async 
     await seedSession(page, 'G. Miller');
     await page.goto('/admin.html');
     await expect(page.locator('#loginOverlay')).toBeHidden();
-    await expect(page.locator('#fieldMember')).toBeVisible();
+    await expect(page.locator('#fieldMemberTrigger')).toBeVisible();
 });
 
 test('B1 flag ON + sign-in OK: operations loads (not redirected)', async ({ page }) => {
@@ -213,7 +213,7 @@ test('in-place sign-in: admin initialises (member selector + nav identity) witho
     await signInThroughOverlay(page, 'G. Miller');
 
     await expect(page.locator('#loginOverlay')).toHaveCount(0);
-    await expect(page.locator('#fieldMember')).toBeVisible();           // admin working surface rendered
+    await expect(page.locator('#fieldMemberTrigger')).toBeVisible();    // admin working surface rendered
     await expect(page.locator('body.auth-ready')).toBeVisible();        // initAuthorised ran in place
     // Nav was deferred + wired with the signed-in identity (footer member badge present).
     await page.locator('#navMenuBtn').click();
@@ -730,5 +730,40 @@ test.describe('sign-in pickers', () => {
         await expect(sheet).toBeHidden();
         await expect(face(page, 'loginName')).toHaveText(picked);
         await expect(page.locator('#loginName')).toHaveValue(picked);
+    });
+
+    // ── ESCAPE IN THE SHEET CLOSES THE SHEET. IT DOES NOT LEAVE THE PAGE ────────────────────────
+    // The MODAL sign-in hand-rolls its own keydown handler — it is not a `createLightbox` overlay —
+    // so it never got the v19.53 `_isTopOverlay` guard that stops a buried overlay answering the
+    // keyboard. Its Escape branch NAVIGATES: `window.location.href = './'`. Two overlays, one key,
+    // and the buried one's answer is to leave the page a member is halfway through signing in on.
+    //
+    // It is safe, and MEASURING why turned up more than reading it did. The shipped reason is the
+    // clean one: the listener is bound to `overlay`, and the sheet mounts on `document.body`
+    // OUTSIDE it, so a keypress in the sheet never reaches the login card's handler at all.
+    //
+    // The obvious mutation — rebind to `document`, the shape every other overlay uses — was run,
+    // and THIS TEST STILL PASSED. The mutation was live and effective: a control with no sheet
+    // open navigated to `/` as expected, and instrumenting the branch showed it firing and setting
+    // `location.href` with the sheet open too. The navigation is simply cancelled, in the same
+    // task, by the `history.back()` that the sheet's own close performs. So the outcome is
+    // protected TWICE, once by design and once by accident, and nobody should lean on the second.
+    //
+    // What that means for this test: it pins the OUTCOME a member experiences, which is the thing
+    // worth pinning, and it does NOT guard the binding — one mutation of that binding survives it.
+    // The binding's reasoning belongs beside the handler in `login-overlay.js`, not here.
+    test('Escape inside the picker sheet closes it and stays on the page', async ({ page }) => {
+        await page.goto('/settings.html');
+        await page.locator('#loginGradeTrigger').waitFor();
+        await page.locator('#loginGradeTrigger').click();
+
+        const sheet = page.locator('.picker-sheet-overlay.open');
+        await expect(sheet).toBeVisible();
+        await page.keyboard.press('Escape');
+
+        await expect(sheet).toBeHidden();
+        // Still here — not bounced to the calendar by the login card's own Escape branch.
+        await expect(page).toHaveURL(/settings\.html/);
+        await expect(page.locator('#loginCard')).toBeVisible();
     });
 });

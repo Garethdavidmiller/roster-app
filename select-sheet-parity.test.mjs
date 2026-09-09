@@ -472,3 +472,216 @@ test('no spec asserts text on a trigger button instead of its face', () => {
     }
     assert.deepEqual([...new Set(offenders)].sort(), []);
 });
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// CONTRACT 10 — A TEST NEVER MEASURES, OR LOOKS AT, THE ENHANCED SELECT
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// An enhanced `<select>` is a 1px `aria-hidden` VALUE HOLDER. It still holds the value, and reading
+// that is right — `selectOption`, `toHaveValue`, `inputValue`, an `option` count. What it no longer
+// has is a BOX. So a geometry or visibility assertion on it is wrong in one of two ways, and the
+// two are not equally visible:
+//
+//   · FALSE FAIL — a measurement returns 1. `pages.spec.js`'s "settings login fields are styled
+//     full-width" read `#loginGrade`'s width and went red the moment v23.49 enhanced the sign-in
+//     pair, on a card that was rendering perfectly. Loud, and fixed the same hour.
+//   · FALSE PASS — `toBeVisible()` keeps passing. Playwright calls a 1px element with no
+//     `visibility: hidden` visible, so the assertion survives the enhancement and stops meaning
+//     anything: the control the reader actually uses could be absent, unstyled or behind another
+//     layer and the line would not notice. **This is the dangerous half**, and there were FIVE of
+//     them the day this contract was written — including `calendar-pin.spec.js`'s proof that a
+//     LOCKED Calendar shows a name control, in the file whose whole job is that proof.
+//
+// The fix at every site is the same: assert on `#<id>Trigger`, which is what the reader sees. That
+// is strictly stronger than what the select ever proved, because the trigger only exists and only
+// fills its field if the enhancement ran AND its CSS resolved.
+//
+// Scoped to the e2e specs: this is about a rendered page, and the unit suites have no box to read.
+test('no e2e assertion measures or looks at an enhanced select', () => {
+    const ids = findEnhanced().ids;
+    // What a value holder may still be asked. Everything else on this list is about a BOX.
+    const BOX = /toBeVisible|toBeHidden|toBeInViewport|boundingBox|toHaveCSS|toHaveScreenshot|scrollIntoView/;
+    const offenders = [];
+    for (const f of readdirSync(new URL('e2e/', ROOT)).filter(n => n.endsWith('.spec.js'))) {
+        const src = strip(read(`e2e/${f}`));
+        src.split('\n').forEach((line, i) => {
+            for (const id of ids) {
+                const esc = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                // The id must END the selector — `'#loginGrade option'` is a different subject and
+                // counting its options is exactly the legitimate use this must not report.
+                const onTheSelect = new RegExp(`locator\\(\\s*['"\`]#${esc}['"\`]\\s*\\)\\s*\\)?\\s*(?:\\.not)?\\s*\\.(?:${BOX.source})`);
+                if (onTheSelect.test(line)) {
+                    offenders.push(`e2e/${f}:${i + 1}: '#${id}' — an enhanced select has no box; `
+                        + `assert on '#${id}Trigger'`);
+                }
+            }
+        });
+    }
+    assert.deepEqual(offenders.sort(), [],
+        'assert on the TRIGGER: the select is a 1px aria-hidden value holder, so toBeVisible() on '
+        + 'it passes whatever the control looks like');
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// CONTRACT 11 — `select.value = x` IS ALSO A SILENT SELECTION CHANGE
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// Contract 8 covers `.selected =` and `.selectedIndex =`, which is how v23.42's defect was written.
+// It is not how the next one will be: `select.value = 'CEA'` is the idiomatic way to set a select,
+// and it is exactly as silent — no attribute mutates, no event fires, and the trigger goes on
+// showing the previous label while the select holds the new value. That is the v23.42 symptom
+// precisely: the pay-period picker naming the wrong TAX YEAR, the AL and Absence pickers the wrong
+// PERSON.
+//
+// Both `.value =` writes in the tree today are safe, and it is worth being honest about why: each
+// sits beside an `innerHTML` options rebuild, which is a childList mutation the observer already
+// watches, so the repaint happens for a reason the author did not have to think about. Delete the
+// rebuild — a perfectly reasonable refactor — and both break with nothing failing anywhere. That is
+// adjacency, not a guard, and this is the guard.
+//
+// The escapes are Contract 8's, plus the paint handle `enhanceSelect` returns, because calling it
+// is the direct and honest way to say "repaint now". Scoped to handles this file can PROVE are
+// enhanced selects — a bare `.value =` is `passwordInput.value = ''` far more often than it is a
+// select, and a contract that cried wolf on those would be switched off within a week.
+/**
+ * Files whose `.value =` writes are safe because they run BEFORE the select is enhanced — the
+ * trigger's very first paint then reads the value they wrote, so there is nothing to announce.
+ *
+ * That is a real and reasonable pattern, and it is also invisible from the file doing the writing:
+ * `paycalc-settings.js`'s `loadSettings` is safe entirely because of two line numbers in
+ * `paycalc-app.js`. Move `initSelectSheets` above `loadSettings()`, or call `loadSettings` a second
+ * time after boot, and three controls in the Settings card silently show stale labels — one of them
+ * the GRADE, which is what the pay rates are read from.
+ *
+ * So the exemption is not a note, it is a CONDITION: it holds only while the ordering it depends on
+ * is still true, checked below. Break the order and the exemption evaporates and this contract
+ * fails, which is the whole point of writing it down this way rather than as a sentence.
+ */
+const SAFE_BY_DECISION = {
+    'paycalc-settings.js': {
+        why: 'loadSettings() populates the controls at boot, BEFORE initSelectSheets enhances them, '
+            + "so the trigger's first paint reads the loaded value",
+        // The condition, not a promise: reverse these two and three Settings controls — one of them
+        // the GRADE the pay rates are read from — silently show stale labels.
+        holds: () => orderedIn('paycalc-app.js', /\bloadSettings\s*\(\s*\)/, /\binitSelectSheets\s*\(/),
+        lapsed: 'paycalc-app.js no longer runs loadSettings() before initSelectSheets()',
+    },
+    'admin-app.js': {
+        why: 'the month filter is written and then renderTable() rebuilds its whole option list, '
+            + 'restoring the value it just read — a childList mutation the observer watches',
+        // renderTable lives in another module, which is why this is a row rather than a resolver
+        // hop. The condition is the thing that actually makes it safe, so that is what is checked.
+        holds: () => {
+            const t = strip(read('admin-saved-changes.js'));
+            return /overridesMonthFilter\.innerHTML\s*=/.test(t)
+                && /prevValue\s*=[\s\S]{0,120}?overridesMonthFilter\.value/.test(t);
+        },
+        lapsed: 'admin-saved-changes.js renderTable() no longer rebuilds #overridesMonthFilter '
+            + 'while preserving its selected value',
+    },
+};
+
+/** True while `first` still appears before `then` in the named file. */
+function orderedIn(/** @type {string} */ file, /** @type {RegExp} */ first, /** @type {RegExp} */ then) {
+    const src = strip(read(file));
+    const a = src.search(first);
+    const b = src.search(then);
+    return a !== -1 && b !== -1 && a < b;
+}
+
+/** Did this body tell THIS control that its value changed? */
+function announces(/** @type {string} */ body, /** @type {string|null} */ h) {
+    if (!h) return /dispatchEvent\s*\(/.test(body);
+    return new RegExp(`\\b${h}\\.dispatchEvent\\s*\\(`).test(body);
+}
+
+/**
+ * Was THIS control's option list rebuilt — here, or in a local function this body calls?
+ *
+ * BOTH ESCAPES ARE HANDLE-SPECIFIC, and that was learned by mutation. The first cut asked only
+ * whether the body dispatched or rebuilt ANYTHING, and deleting the grade's `dispatchEvent` from
+ * `login-overlay.js` sailed straight through it — the body also calls `syncName()`, which repaints
+ * the NAME select. A repaint of a different control is not a repaint of this one, and a guard that
+ * accepts one is guarding a coincidence.
+ */
+function rebuilt(/** @type {string} */ src, /** @type {string} */ body, /** @type {string|null} */ h) {
+    const shapes = (/** @type {string} */ n) => new RegExp(
+        `\\b${n}\\.innerHTML\\s*=|\\b${n}\\.appendChild\\(|\\b${n}\\.replaceChildren\\(`);
+    if (!h) return /\.innerHTML\s*=|\.appendChild\(|\.replaceChildren\(/.test(body);
+    if (shapes(h).test(body)) return true;
+    // One level, and deliberately only within this file. Following imports was tried and turned
+    // into a small static analyser — windows to tune, each one a place to be quietly wrong — which
+    // is the clever generalisation this file's own header says failed last time. A cross-module
+    // rebuild gets a row in SAFE_BY_DECISION instead, where a person can read the reason.
+    for (const m of body.matchAll(/\b([A-Za-z_$][\w$]*)\s*\(/g)) {
+        const fn = m[1];
+        if (['if', 'for', 'while', 'switch', 'catch', 'return', 'function'].includes(fn)) continue;
+        const def = src.match(new RegExp(
+            `(?:function\\s+${fn}\\s*\\(|\\b${fn}\\s*=\\s*(?:async\\s*)?\\()[\\s\\S]{0,2500}`));
+        if (def && shapes(h).test(def[0])) return true;
+    }
+    return false;
+}
+
+test('a `.value =` on an enhanced select announces itself, or rebuilds, or repaints', () => {
+    const enhanced = findEnhanced().ids;
+    const offenders = [];
+    for (const f of MODULES) {
+        const src = strip(read(f));
+        if (!/\.value\s*=(?!=)/.test(src)) continue;
+
+        // Resolve the local handles that ARE enhanced selects: a variable passed to
+        // `enhanceSelect`, or one assigned from an enhanced id.
+        const handles = new Set();
+        for (const m of src.matchAll(/\benhanceSelect\(\s*([A-Za-z_$][\w$]*)\s*[,)]/g)) handles.add(m[1]);
+        for (const id of enhanced) {
+            const esc = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            for (const m of src.matchAll(new RegExp(
+                `\\b([A-Za-z_$][\\w$]*)\\s*=[^;]{0,120}?(?:getElementById\\(\\s*['"]${esc}['"]`
+                + `|querySelector\\(\\s*['"]#${esc}['"])`, 'g'))) handles.add(m[1]);
+        }
+        // The INLINE shape, which no handle can catch: `(document.getElementById('studentLoan')).value = sl`.
+        // Three of `loadSettings`'s writes are written this way, so a handle-only scan under-reports.
+        const inlineIds = [...enhanced].filter(id => new RegExp(
+            `getElementById\\(\\s*['"]${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"]\\s*\\)[^;\\n]{0,40}\\.value\\s*=(?!=)`)
+            .test(src));
+        if (!handles.size && !inlineIds.length) continue;
+
+        // PER FUNCTION BODY, exactly as contract 8 does — and for a reason measured rather than
+        // assumed. The first cut used a +/-8 line window and reported both of `paycalc-settings.js`'s
+        // writes as defects. They are not: `buildPensionFromSelect` rebuilds the whole option list
+        // with `innerHTML`/`appendChild` about 28 lines above its `.value =`, which is the childList
+        // mutation the observer already watches. A line window is the wrong unit for "did anything
+        // in this operation tell the trigger" — the function is.
+        const bodies = src.split(/\n(?=\s*(?:export\s+)?(?:async\s+)?function\s|\s*[A-Za-z_$][\w$]*\s*[:=]\s*(?:async\s*)?\()/);
+        for (const body of bodies) {
+            const writes = [];
+            for (const h of handles) {
+                const m = body.match(new RegExp(`^.*\\b${h}\\.value\\s*=(?!=).*$`, 'm'));
+                if (m && !/^\s*(?:\/\/|\*)/.test(m[0])) writes.push({ line: m[0].trim(), handle: h });
+            }
+            for (const id of inlineIds) {
+                const esc = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const m = body.match(new RegExp(`^.*getElementById\\(\\s*['"]${esc}['"]\\s*\\)[^;\\n]{0,40}\\.value\\s*=(?!=).*$`, 'm'));
+                // An inline write has no named handle; the id IS the handle for escape purposes.
+                if (m && !/^\s*(?:\/\/|\*)/.test(m[0])) writes.push({ line: m[0].trim(), handle: null });
+            }
+            if (!writes.length) continue;
+            const exempt = SAFE_BY_DECISION[f];
+            if (exempt && exempt.holds()) continue;
+            for (const { line, handle } of writes) {
+                // BOTH ESCAPES ARE HANDLE-SPECIFIC, and that was learned by mutation. The first cut
+                // asked only whether the BODY dispatched or rebuilt ANYTHING, and deleting the
+                // grade's `dispatchEvent` from `login-overlay.js` sailed through it — the body also
+                // calls `syncName()`, which repaints the NAME select. A repaint of a different
+                // control is not a repaint of this one, and a guard that accepts it is guarding a
+                // coincidence.
+                if (announces(body, handle) || rebuilt(src, body, handle)) continue;
+                offenders.push(`${f}: ${line.slice(0, 90)} — sets an enhanced select with nothing `
+                    + `the trigger can hear`
+                    + (exempt ? `\n    (its SAFE_BY_DECISION row has LAPSED: ${exempt.lapsed})` : ''));
+            }
+        }
+    }
+    assert.deepEqual([...new Set(offenders)].sort(), [],
+        'dispatch an `input` event after writing .value, or call the paint handle enhanceSelect '
+        + 'returned — otherwise the trigger keeps the old label over the new value');
+});

@@ -906,7 +906,7 @@ test('paycalc: a payslip with nothing fillable shows no roster card (never an en
     await seedSession(page, 'C. Reen');
     await seedMember(page, 'C. Reen');
     await page.goto('/paycalc.html');
-    await expect(page.locator('#periodSelect')).toBeVisible();
+    await expect(page.locator('#periodSelectTrigger')).toBeVisible();
     await expect(page.locator('#rosterHintBar')).toBeHidden();
     expect(errors, 'Uncaught JS exceptions on the empty roster card').toHaveLength(0);
 });

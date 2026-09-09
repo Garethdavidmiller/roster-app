@@ -385,14 +385,45 @@ test('settings: login overlay renders with JS-populated grade options', async ({
 // Regression: the settings login fields must be STYLED (full-width, like admin), not raw browser
 // controls. They fell back to defaults because the field CSS lived in admin.css's generic
 // `select, input {}` rule, which settings.css doesn't have — fixed by styling `.login-field`
-// fields in shared.css (v14.43). A raw <select> renders at its tiny intrinsic width (~120px);
+// fields in shared.css (v14.43). A raw control renders at its tiny intrinsic width (~120px);
 // the styled one fills the card (~280px).
+//
+// IT MEASURES WHICHEVER ELEMENT IS ACTUALLY THE CONTROL, and that is the point (v23.50). This
+// test read `#loginGrade` directly until v23.49 put the sign-in pair through `enhanceSelect`,
+// which leaves the native `<select>` in place as a 1px `aria-hidden` VALUE HOLDER and moves every
+// visible pixel to a `#loginGradeTrigger` button. The measurement then read 1 and the test failed
+// — on a page whose sign-in card was rendering perfectly, the trigger filling its field exactly.
+//
+// That is the failure mode `select-sheet-parity.test.mjs` exists to name: an enhancement changes
+// what an untouched call site is looking at. Retargeting this at `#loginGradeTrigger` would fix
+// today and re-create the same trap in reverse the day the enhancement is removed, so it resolves
+// the control instead. The assertion also got STRICTER on the way past: the defect was a field
+// falling back to its intrinsic width, so "fills its own field" states it, where `> 200` was a
+// threshold that happened to sit between the two.
 test('settings login fields are styled full-width, not raw browser defaults', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/settings.html');
     await expect(page.locator('#loginOverlay')).toBeVisible();
-    const w = await page.locator('#loginGrade').evaluate(el => el.getBoundingClientRect().width);
-    expect(w, 'settings login GRADE select should be full-width (styled), not a raw control').toBeGreaterThan(200);
+    await page.locator('#loginGrade').waitFor({ state: 'attached' });
+
+    const m = await page.evaluate(() => {
+        const sel = document.getElementById('loginGrade');
+        // The enhanced trigger if there is one, else the select itself.
+        const control = document.getElementById('loginGradeTrigger') || sel;
+        const field = sel.closest('.login-field') || sel.parentElement;
+        return {
+            id: control.id,
+            control: control.getBoundingClientRect().width,
+            field: field.getBoundingClientRect().width,
+        };
+    });
+
+    expect(m.field, 'the .login-field container should itself be card-width').toBeGreaterThan(200);
+    expect(
+        m.control,
+        `the settings login GRADE control (#${m.id}) should FILL its field, not render at a raw `
+        + `intrinsic width — measured ${m.control}px inside a ${m.field}px field`,
+    ).toBeGreaterThan(m.field - 2);
 });
 
 test('settings (signed in): card "?" button opens the Tips lightbox, not the card', async ({ page }) => {
