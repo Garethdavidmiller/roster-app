@@ -24,6 +24,7 @@ import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
 import { initSelectSheets } from './select-sheet.js';
+import { openDatePicker } from './date-picker.js';
 
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { SELECTED_MEMBER, SELECTED_MEMBER_LEGACY, VIEWED_MONTH, VIEWED_YEAR } from './storage-keys.js';
@@ -487,6 +488,18 @@ export function init() {
         };
         if (confirmNavigate(go)) go();
     }
+
+    // The week label IS the date picker's trigger (v23.38). It used to be a <span> with an
+    // invisible full-size `<input type="date">` laid over it, so a tap opened the OS calendar —
+    // the one control on this page still drawn by the platform, next to a range picker and a
+    // week grid the app draws itself. `date-picker.js` was built for exactly this and given to
+    // Operations' four date fields; Admin's was never wired up.
+    //
+    // The input stays as the value holder, so every consumer is untouched: the picker writes
+    // `.value` and dispatches `change`, which is the SAME event the OS picker fired — so the
+    // unsaved-changes guard below still gets its say, and still reverts on a decline.
+    /** @type {HTMLElement} */ (document.getElementById('weekNavLabel'))
+        .addEventListener('click', () => openDatePicker(fieldDate, { title: 'Jump to a week' }));
 
     /** @type {HTMLElement} */ (document.getElementById('thisWeekBtn')).addEventListener('click', () => {
         const go = () => {

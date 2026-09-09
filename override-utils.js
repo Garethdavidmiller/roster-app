@@ -781,6 +781,26 @@ export const SUNDAY_FORBIDDEN_TYPES = Object.freeze(['annual_leave', 'sick', 'ot
 export function isForbiddenOnSunday(type) { return SUNDAY_FORBIDDEN_TYPES.includes(type); }
 
 /**
+ * Is `v` a REAL clock time in `HH:MM`, not merely the shape of one?
+ *
+ * The one definition, because two places in the app type times into TEXT boxes rather than an
+ * `<input type="time">` — the roster review's entry control and the Overtime custom-hours row —
+ * and both refuse that control for the same measured reason: Chromium renders it from the OS
+ * format settings, not the page, so it shows `06:00 AM` beside 24-hour shift badges. What text
+ * costs is the browser's free validation, and nothing else rejects `29:00` or `99:99`; a shape
+ * test alone let both through, to be read as nonsense by every duration helper downstream.
+ *
+ * `24:00` is refused with them: the roster writes a midnight finish as `00:00` (`15:00-00:00`
+ * appears on the real Supervisor sheet), and an overnight range is expressed by end < start.
+ * @param {string} v
+ * @returns {boolean}
+ */
+export function isClockTime(v) {
+    const m = /^(\d{2}):(\d{2})$/.exec(String(v ?? ''));
+    return !!m && +m[1] <= 23 && +m[2] <= 59;
+}
+
+/**
  * Compose the parsed-roster VALUE a chosen override TYPE plus optional times amounts to (v22.17).
  *
  * The roster review needs this because an unreadable cell can now be answered in place rather than
@@ -815,11 +835,7 @@ export function manualCellValue(type, from = '', to = '') {
     // helper downstream would then read as nonsense. `24:00` is refused with them: the roster
     // writes a midnight finish as `00:00` (`15:00-00:00` appears on the real Supervisor sheet),
     // and an overnight range is expressed by end < start, which is ordinary here.
-    const t = /** @param {string} v */ (v) => {
-        const m = /^(\d{2}):(\d{2})$/.exec(v);
-        return !!m && +m[1] <= 23 && +m[2] <= 59;
-    };
-    if (!t(from) || !t(to)) return null;
+    if (!isClockTime(from) || !isClockTime(to)) return null;
     const range = `${from}-${to}`;
     return type === 'rdw' ? `RDW|${range}` : range;
 }

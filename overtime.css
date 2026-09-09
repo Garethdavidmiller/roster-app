@@ -895,6 +895,13 @@ body {
 }
 
 .ot-custom-input {
+    /* TEXT boxes since v23.37, not `<input type="time">` — overtime-form.js's `customRow` has the
+       reason, and it is the same one roster-entry-control.js and links-window.js already give.
+       `width` is explicit because a text box no longer sizes itself to a time widget, and
+       `font-variant-numeric` keeps `06:00` and `14:30` the same width as each other. */
+    width: 100%;
+    box-sizing: border-box;
+    font-variant-numeric: tabular-nums;
     /* --type-medium is 16px, which is the floor for any focusable field: below it
        iOS zooms the viewport on focus and the member loses their place. */
     padding: 8px 10px;

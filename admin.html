@@ -168,8 +168,11 @@
                     <div class="week-nav">
                         <button type="button" class="week-nav-btn" id="prevWeekBtn" title="Previous week" aria-label="Previous week">‹</button>
                         <div class="week-date-wrap">
-                            <span id="weekNavLabel" class="week-nav-label">Pick a date</span>
-                            <input type="date" id="fieldDate" title="Tap to jump to any week" aria-label="Jump to week containing date">
+                            <button type="button" id="weekNavLabel" class="week-nav-label" title="Tap to jump to any week" aria-label="Jump to week containing date">Pick a date</button>
+                            <!-- The VALUE HOLDER, hidden. It was a full-size invisible overlay over the
+                                 label until v23.38, which is what opened the OS date picker; the label
+                                 is now the trigger and opens the app's own calendar (date-picker.js). -->
+                            <input type="date" id="fieldDate" class="fieldpick-native" tabindex="-1" aria-hidden="true">
                         </div>
                         <button type="button" class="week-nav-btn" id="nextWeekBtn" title="Next week" aria-label="Next week">›</button>
                         <button type="button" class="week-nav-btn week-nav-today" id="thisWeekBtn" title="Jump to current week" aria-label="Jump to current week"><span aria-hidden="true">📍</span><span class="week-today-word">Today</span></button>

@@ -4693,6 +4693,60 @@ test('links: the generator header is sticky on desktop, and provably not on mobi
     }
 });
 
+// ── THE GRID CELL EDITOR OPENS THE APP'S OWN SHEET (v23.38) ───────────────────────────────────
+//
+// It used to replace the cell's button with a native `<select>`, focused on the next frame and
+// restored on blur — so the popup a designer chose a shift from was the OS's, in the one card on
+// this page where the app draws every other pixel. Nothing about the CLOSED cell changed, which is
+// why only driving the open state can see it.
+//
+// The three assertions are the three things the swap-out used to do and no longer has to: the cell
+// is never taken apart (its button survives the whole interaction), a dismissed sheet leaves the
+// value alone (there was a `committed` flag and a blur guard for this), and a pick applies.
+test('links: editing a grid cell uses the app sheet, and cancelling changes nothing',
+    async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        /** @type {any} */ const pat = {};
+        for (let i = 1; i <= 24; i++) {
+            pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: '06:20-14:20', wed: 'RD',
+                thu: '15:15-23:55', fri: '15:15-23:55', sat: 'RD' };
+        }
+        w.__E2E.docs = [{ id: 'd1', name: 'Option A', patterns: pat, updatedAt: 1750000000000, updatedBy: 'S. Silva' }];
+    });
+    await page.goto('/links.html');
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
+
+    const cellBtn = page.locator('tr[data-pos="1"] .shift-cell-btn').first();
+    await expect(cellBtn).toHaveText('RD');
+    await cellBtn.click();
+
+    // No native control anywhere — that is the change. And the cell's own button is still there.
+    const sheet = page.locator('.picker-sheet-overlay');
+    await expect(sheet).toBeVisible();
+    expect(await page.locator('.shift-cell-select').count(),
+        'the cell must not be swapped for a native select').toBe(0);
+    await expect(cellBtn, 'the cell is not taken apart to be edited').toBeVisible();
+
+    // The current value is marked, so the sheet says what the cell already holds.
+    await expect(page.locator('.picker-opt[data-value="RD"]')).toHaveAttribute('aria-current', 'true');
+
+    // Dismissing changes nothing. The old editor needed a flag and a blur listener to guarantee
+    // this; now it is true because nothing was destroyed in the first place.
+    await page.keyboard.press('Escape');
+    await expect(sheet).toBeHidden();
+    await page.waitForTimeout(400);   // past the post-fade window a pick would have used
+    await expect(cellBtn).toHaveText('RD');
+
+    // And a pick applies.
+    await cellBtn.click();
+    await page.locator('.picker-opt[data-value="SPARE"]').click();
+    await expect(cellBtn).toHaveText('SP');
+});
+
 test('links: the print button prints, and a work-in-progress sheet says so', async ({ page }) => {
     // The print CSS and the beforeprint/afterprint machinery have existed since v12.37; until v19.62
     // the only way to reach them was the browser menu, which an installed PWA often does not expose.
@@ -4730,9 +4784,16 @@ test('links: the print button prints, and a work-in-progress sheet says so', asy
     expect(clean).toContain('Last saved by S. Silva');
     expect(clean, 'a saved design must not claim unsaved changes').not.toContain('unsaved changes');
 
-    // Now dirty the design and print again.
+    // Now dirty the design and print again. The cell editor opens the app's own sheet since
+    // v23.38 — `__custom__` is excluded because picking it opens a prompt dialog rather than
+    // setting a value, and `.is-current` because re-picking the open one is a no-op by design.
     await page.locator('tr[data-pos="1"] .shift-cell-btn').first().click();
-    await page.locator('.shift-cell-select').selectOption({ index: 2 });
+    await page.locator('.picker-sheet .picker-opt[data-value]:not(.is-current)'
+        + ':not([data-value="__custom__"])').first().click();
+    // Wait for the edit to LAND, not merely for the sheet to shut — the pick is applied after the
+    // overlay's fade. (`#printDesignName` cannot be polled for this: it is stamped by the
+    // `beforeprint` handler, so it still holds the previous print's text until the button below.)
+    await expect(page.locator('tr[data-pos="1"] .shift-cell-btn').first()).toHaveText('SP');
     await btn.click();
     expect(await page.locator('#printDesignName').innerText(),
         'a sheet printed mid-edit must say so, or it misattributes the design')
@@ -5625,6 +5686,62 @@ test('admin: the week label follows the swipe, so the grid and its heading agree
     saturday.setDate(sunday.getDate() + 6);
 
     const text = await label.textContent();
+    expect(text, `the heading should name the week containing ${iso}`)
+        .toContain(String(sunday.getDate()));
+    expect(text, `the heading should name the week containing ${iso}`)
+        .toContain(String(saturday.getDate()));
+});
+
+// ── THE WEEK JUMP OPENS THE APP'S OWN CALENDAR (v23.38) ───────────────────────────────────────
+//
+// The rules are unit-tested (date-picker.test.mjs covers `monthCells`). What only a browser can
+// answer is whether the label is WIRED to the picker at all — and that is the whole change, because
+// until v23.38 tapping this label opened the OS date picker through an invisible `<input
+// type="date">` laid over it. Both surfaces look identical in a screenshot of the closed control.
+//
+// It also proves the picker's CSS reaches this page. It lived in operations.css until this release
+// and Admin does not load that file, so every rule would have silently not applied and the calendar
+// would have rendered as bare buttons — the exact fault the module exists to fix. Asserting the
+// panel has a real painted box is what sees that; `toBeVisible` would not.
+test('admin: tapping the week label opens the app calendar, and picking a day moves the week',
+    async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    const before = await page.locator('#fieldDate').inputValue();
+    await page.locator('#weekNavLabel').click();
+
+    const panel = page.locator('.dp-content');
+    await expect(panel).toBeVisible();
+    // The picker is styled here, not just present. An unstyled .dp-content is transparent and
+    // padless, which is what a missing stylesheet looks like.
+    const paint = await panel.evaluate(el => {
+        const cs = getComputedStyle(el);
+        return { bg: cs.backgroundColor, pad: parseFloat(cs.paddingTop) };
+    });
+    expect(paint.bg, 'the picker panel should have a painted surface')
+        .not.toBe('rgba(0, 0, 0, 0)');
+    expect(paint.pad, 'the picker panel should carry its own padding').toBeGreaterThan(8);
+
+    // Pick a day that is not the one already selected, so the assertion cannot pass by standing
+    // still. Every visible cell is in the month `#fieldDate` already sits in.
+    const day = page.locator('.dp-day:not(.dp-off):not(.dp-sel)').first();
+    const iso = await day.getAttribute('data-iso');
+    await day.click();
+
+    await expect(panel).toBeHidden();
+    await expect.poll(() => page.locator('#fieldDate').inputValue(), { timeout: 5000 }).toBe(iso);
+    expect(iso).not.toBe(before);
+
+    // And the rest of the page followed: the label names the week containing the picked day. That
+    // is the `change` event the OS picker used to fire, still reaching the same listeners.
+    const picked = new Date(iso + 'T00:00:00');
+    const sunday = new Date(picked);
+    sunday.setDate(picked.getDate() - picked.getDay());
+    const saturday = new Date(sunday);
+    saturday.setDate(sunday.getDate() + 6);
+    const text = await page.locator('#weekNavLabel').textContent();
     expect(text, `the heading should name the week containing ${iso}`)
         .toContain(String(sunday.getDate()));
     expect(text, `the heading should name the week containing ${iso}`)

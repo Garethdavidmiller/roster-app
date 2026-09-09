@@ -752,32 +752,6 @@ body.auth-ready .container { display: grid; }
     font-weight: 700;
 }
 
-/* Inline select (edit state — matches .shift-cell height) */
-.shift-cell-select {
-    display: block;
-    width: 100%; height: 100%;
-    border: 2px solid var(--primary-blue);
-    border-radius: 0;
-    font-size: var(--type-micro);
-    font-weight: 700;
-    font-family: inherit;
-    background-color: white;
-    background-image: none;
-    color: var(--text-dark);
-    padding: 0 2px;
-    cursor: pointer;
-    outline: none;
-    -webkit-appearance: none;
-    appearance: none;
-    box-shadow: 0 2px 10px rgba(0,30,60,0.2);
-    z-index: 3;
-    position: relative;
-}
-.shift-cell-select:focus-visible {
-    outline: var(--focus-outline-gold);
-    outline-offset: -2px;
-}
-
 /* Coverage footer label in the pos-num column */
 .cov-foot-label {
     font-size: 9px;
@@ -873,14 +847,6 @@ body.auth-ready .container { display: grid; }
     font-size: 9px;
     font-weight: 400;
     color: var(--text-light);
-}
-
-/* iOS force-zooms the page when a focused field is under 16px. Scoped to
-   coarse pointers so the dense desktop grid keeps its compact type.
-   `.gen-input`/`.gen-select` are handled at the END of this file instead — see the note there;
-   their base rule is declared after this block, so at equal specificity an override here LOSES. */
-@media (pointer: coarse) {
-    .shift-cell-select { font-size: var(--type-medium); }
 }
 
 .btn-text-link {
@@ -1210,6 +1176,16 @@ body.auth-ready .container { display: grid; }
     box-sizing: border-box;
 }
 .gen-input  { width: 58px; text-align: center; }
+/* NO NATIVE SPINNER. Every field in this table is `type="number"` — the ~114 slot counts plus the
+   four targets — and at 58px with centred text the UA's stepper takes about a third of the box and
+   pushes the digit off centre, in the one table on this page where the SHAPE of the numbers is the
+   thing being read (see the zero-dimming note above, which the arrows compete with directly).
+   `type="number"` is kept, not swapped for text: it is what gives the numeric keypad on a phone,
+   which is the platform these are actually filled in on, and it carries the min/max. What goes is
+   only the chrome the app cannot style. */
+.gen-input::-webkit-outer-spin-button,
+.gen-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.gen-input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
 /* A ZERO IS THE ABSENCE OF A TARGET, and should read like one. Two thirds of the cells in the
    default table are zeros, and at full contrast in identical white boxes they compete with the
    numbers that mean something — the eye has to read all 114 cells to find the ~38 that matter.
@@ -2045,8 +2021,11 @@ body.auth-ready .container { display: grid; }
    correct comment about iOS zooming a page whose focused field is under 16px. It did nothing: the
    base `.gen-input, .gen-select` rule is declared ~230 lines LATER at equal specificity, so source
    order handed the win to 13px. Measured on a coarse-pointer device: 13px. Its neighbour in that
-   same block, `.shift-cell-select`, works — because ITS base rule happens to sit earlier.
-   That is the whole difference between the two, and nothing about the code said so.
+   same block, `.shift-cell-select`, worked — because ITS base rule happened to sit earlier. That
+   was the whole difference between the two, and nothing about the code said so. (Both that
+   neighbour and the block are gone at v23.38: the cell editor no longer builds a `<select>` at
+   all, so the guard it needed went with it. The lesson it taught stands, which is why this
+   paragraph does.)
    Declared here, at the end, so it beats the base rule; and an e2e now measures the computed size
    on a real coarse-pointer device rather than trusting the cascade to have gone the way it reads.
 

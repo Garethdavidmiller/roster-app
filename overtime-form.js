@@ -36,6 +36,7 @@
 import * as OTD from './overtime-data.js';
 import { confirmDialog } from './overlay.js';
 import { loadRosterContext, rosterBadge } from './overtime-roster.js';
+import { isClockTime } from './override-utils.js';
 import {
     weekLabel, weekSpan, shortDate, answerCopy, answerTone, deadlineLines,
     answerAnchorStale, submitDisposition, modesFor, offersFullTwelve, submitFailureCopy,
@@ -327,7 +328,16 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             const which = String(inp.getAttribute('data-which'));
             const cur = answers[date];
             if (!cur || cur.mode !== 'custom') return;
-            cur[which] = /** @type {HTMLInputElement} */ (inp).value;
+            // TEXT boxes, so the browser no longer guarantees `HH:MM` (customRow says why the
+            // control changed). `dayUnfinished` asks only whether the two times are present and
+            // differ — it cannot tell `9am` from a time — so anything that is not a REAL clock
+            // time is stored as empty and the day stays unfinished. `isClockTime` is the app's one
+            // definition of that, shared with the roster review's entry control.
+            const raw = normaliseTyped(/** @type {HTMLInputElement} */ (inp).value);
+            cur[which] = isClockTime(raw) ? raw : '';
+            // Write the normalised form back so `0600` and `6:00` become `06:00` in the box the
+            // member is looking at, rather than being silently discarded.
+            if (cur[which]) /** @type {HTMLInputElement} */ (inp).value = raw;
             // `nextDay` is DERIVED from the two times, never asked. The server refuses a mismatch,
             // so computing it here is not belt-and-braces — it is the only way a member can enter
             // an overnight period at all.
@@ -476,16 +486,35 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             </label>`;
     }
 
+    /**
+     * What a member typed, in the shape the rest of the app stores. Accepts `0600`, `6:00` and
+     * `06:00`; anything else comes back unchanged and then fails `isClockTime`, which is what
+     * leaves the day unfinished rather than guessing at an intention.
+     * @param {string} v
+     */
+    function normaliseTyped(v) {
+        const t = String(v ?? '').trim();
+        const digits = /^(\d{3,4})$/.exec(t.replace(/\D/g, ''));
+        if (digits && t.indexOf(':') === -1) {
+            const d = digits[1].padStart(4, '0');
+            return `${d.slice(0, 2)}:${d.slice(2)}`;
+        }
+        const m = /^(\d{1,2}):(\d{2})$/.exec(t);
+        return m ? `${m[1].padStart(2, '0')}:${m[2]}` : t;
+    }
+
     /** @param {string} date @param {any} a */
     function customRow(date, a) {
         return `
             <div class="ot-custom">
                 <label class="ot-custom-label">From
-                    <input type="time" class="ot-custom-input" data-date="${esc(date)}" data-which="start"
+                    <input type="text" class="ot-custom-input" data-date="${esc(date)}" data-which="start"
+                           inputmode="numeric" maxlength="5" placeholder="HH:MM" autocomplete="off"
                            value="${esc(a.start || '')}" required>
                 </label>
                 <label class="ot-custom-label">To
-                    <input type="time" class="ot-custom-input" data-date="${esc(date)}" data-which="end"
+                    <input type="text" class="ot-custom-input" data-date="${esc(date)}" data-which="end"
+                           inputmode="numeric" maxlength="5" placeholder="HH:MM" autocomplete="off"
                            value="${esc(a.end || '')}" required>
                 </label>
                 <span class="ot-custom-hint" data-hint="${esc(date)}">${esc(customHint(a))}</span>
@@ -510,7 +539,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
      * @param {any} a
      */
     function customHint(a) {
-        if (!a.start || !a.end) return 'Enter both times';
+        if (!a.start || !a.end) return 'Enter both times as HH:MM, e.g. 06:00';
         if (a.start === a.end)  return 'Start and end cannot match';
         return a.nextDay ? 'Runs into the next day — still this day\'s answer' : '';
     }

@@ -443,7 +443,7 @@ than the purity gain.
   rationale: labelled, low co-visibility.
 
 **Box-shadows are deliberately NOT routed through `--shadow-1/2/3`** (reviewed v17.58): the
-eight app stylesheets carry **28** hand-rolled `rgba()` shadows with varied values, and forcing them
+eight app stylesheets carry **27** hand-rolled `rgba()` shadows with varied values, and forcing them
 onto the three presets would visibly restyle depth across the app — a redesign, not hygiene. Use the
 `--shadow-*` tokens for NEW shadows; leave existing ones unless intentionally redesigning that
 surface. **The figure is measured, not remembered** — `shadow-parity.test.mjs` counts the recipes

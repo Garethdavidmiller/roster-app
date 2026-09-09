@@ -65,9 +65,51 @@ function formatLabel(iso) {
  * skipped silently.
  * @param {string[]} inputIds ids of the date inputs to enhance
  */
-export function initDatePickers(inputIds) {
-    if (!Array.isArray(inputIds) || !inputIds.length) return;
-    if (typeof document === 'undefined') return;
+/** The one overlay every field on a page shares. Built on first use, never at import.
+ *  @type {{ open: (input: HTMLInputElement, title?: string) => void }|null} */
+let _picker = null;
+
+/**
+ * Open the shared calendar for `input`, building it on first call.
+ *
+ * Exported (v23.38) so a page that ALREADY has its own trigger can use this calendar instead of
+ * the OS one. `initDatePickers` is the case where the module supplies the trigger too; Admin's
+ * week-jump is the case where it does not — the control there is the week label, which reads
+ * "8–14 Sep 2026" rather than a date, so only the page can write it.
+ *
+ * `title` is passed rather than read off the input, because a caller that supplies its own
+ * trigger has moved the `aria-label` there — onto the thing a screen reader actually reaches —
+ * and the input it leaves behind is `aria-hidden`. Reading a dialog's heading out of an
+ * attribute on a hidden element would work and would be a lie about where the label lives.
+ * `initDatePickers` still passes the input's own label, so its four fields are unchanged.
+ * @param {HTMLInputElement|null} input
+ * @param {{ title?: string }} [opts]
+ */
+export function openDatePicker(input, opts = {}) {
+    if (!input) return;
+    const picker = _ensurePicker();
+    if (!picker) return;
+    // Ask the consumer to refresh `min`/`max` FIRST — `onOpen` reads them off the input, so
+    // whatever they say at this instant is what the grid will enforce (v23.37). doc-upload.js
+    // recomputes its cap at init and on submit, which was the whole v16.23 stale-tab fix, and was
+    // written before this picker existed: an Operations tab left open past midnight then had a
+    // `max` of yesterday, so the real today rendered `dp-off` and the admin could not pick it at
+    // all. Synchronous and BEFORE the open, so a consumer that re-defaults the value emits its own
+    // `date-refreshed` and the trigger label is right before we open.
+    //
+    // It lives HERE rather than in `initDatePickers`'s click handler (where v23.37 put it, when
+    // this was the only way in) so that EVERY caller gets it — otherwise Admin's week jump, which
+    // supplies its own trigger, would have inherited the stale-`max` bug the same release fixed for
+    // Operations. A field with no cap, as Admin's is, simply has no listener and the event is a
+    // no-op; that is the point of announcing rather than asking.
+    input.dispatchEvent(new CustomEvent('date-picker-opening'));
+    picker.open(input, opts.title || '');
+}
+
+/** @returns {{ open: (input: HTMLInputElement, title?: string) => void }|null} */
+function _ensurePicker() {
+    if (_picker) return _picker;
+    if (typeof document === 'undefined') return null;
 
     // ── One shared overlay for every field ──────────────────────────────────────
     const overlay = document.createElement('div');
@@ -101,6 +143,8 @@ export function initDatePickers(inputIds) {
     /** @type {HTMLInputElement|null} */ let _input = null;
     /** The input a trigger click is opening for — read by onOpen (open() takes no args). */
     /** @type {HTMLInputElement|null} */ let _pendingInput = null;
+    /** The heading for that open, when the caller supplied one. */
+    let _pendingTitle = '';
     let _yr = new Date().getFullYear();
     let _mo = new Date().getMonth();
     let _min = '';   // ISO lower bound (inclusive) or '' for none
@@ -182,7 +226,7 @@ export function initDatePickers(inputIds) {
             const cur = input.value ? parseISODate(input.value) : new Date();
             _yr = cur.getFullYear();
             _mo = cur.getMonth();
-            titleEl.textContent = input.getAttribute('aria-label') || 'Choose a date';
+            titleEl.textContent = _pendingTitle || input.getAttribute('aria-label') || 'Choose a date';
             _render();
         },
         // Focus the selected day if visible, else today, else the first day, else close.
@@ -191,7 +235,23 @@ export function initDatePickers(inputIds) {
             || gridEl.querySelector('.dp-day:not(.dp-off)') || closeBtn),
     });
 
-    // ── Enhance each input ───────────────────────────────────────────────────────
+    _picker = {
+        open: (/** @type {HTMLInputElement} */ input, /** @type {string} */ title = '') => {
+            _pendingInput = input; _pendingTitle = title; lb.open();
+        },
+    };
+    return _picker;
+}
+
+/**
+ * Progressively enhance each `<input type="date">` named in `inputIds`: hide it as the value
+ * holder and put a styled trigger in its place. See the module header for the contract.
+ * @param {string[]} inputIds
+ */
+export function initDatePickers(inputIds) {
+    if (!Array.isArray(inputIds) || !inputIds.length) return;
+    if (!_ensurePicker()) return;
+
     for (const id of inputIds) {
         const el = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
         if (!el) continue;
@@ -214,17 +274,7 @@ export function initDatePickers(inputIds) {
         input.insertAdjacentElement('afterend', trigger);
         _sync();
 
-        trigger.addEventListener('click', () => {
-            // Ask the consumer to refresh `min`/`max` FIRST — `onOpen` reads them off the input, so
-            // whatever they say at this instant is what the grid will enforce (v23.36). doc-upload.js
-            // recomputes its cap at init and on submit, which was the whole v16.23 stale-tab fix, and
-            // was written before this picker existed: an Operations tab left open past midnight then
-            // had a `max` of yesterday, so the real today rendered `dp-off` and the admin could not
-            // pick it at all. Synchronous and BEFORE `_pendingInput`, so a consumer that re-defaults
-            // the value emits its own `date-refreshed` and the trigger label is right before we open.
-            input.dispatchEvent(new CustomEvent('date-picker-opening'));
-            _pendingInput = input; lb.open();
-        });
+        trigger.addEventListener('click', () => openDatePicker(input));
         // Any value change — the user's pick OR a consumer's normalisation — refreshes the label.
         // Registered AFTER the cards' own listeners (this runs post-init), so it reads the
         // final, snapped value.
