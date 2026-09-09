@@ -3287,6 +3287,37 @@ test('operations: the account-status grade filter is enhanced too, and keeps foc
     await expect(trigger).toBeFocused();
 });
 
+// ── THE DRAWER NAMES THE RIGHT CAUSE (v23.41) ──────────────────────────────────────────────────
+// `isAccessFailure` is unit-tested next door; this is the WIRING, and the wiring is where it was
+// wrong. Every rejection used to become "check your signal" — true enough while the three document
+// collections were open, and false from v23.18, when reading one began to require a claim.
+//
+// Both directions run, because a classifier that says "signed out" to somebody genuinely offline
+// has only moved the wrong sentence. Measured on Settings, which has no `canReadDocuments` gate —
+// the Calendar answers earlier and better, and is covered in calendar-pin.spec.js.
+test('drawer: a REFUSED document read blames the session, not the signal', async ({ page }) => {
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { authUser: true, docs: [], failGetDocs: 'permission-denied' };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/settings.html');
+    await page.evaluate(() => document.getElementById('navMenuBtn')?.click());
+    await page.locator('.nav-panel-link--circular').click({ force: true });
+    await expect(page.locator('#navComingSoonBody')).toHaveText(/signed out/i, { timeout: 12_000 });
+    await expect(page.locator('#navComingSoonBody')).not.toHaveText(/signal/i);
+});
+
+test('drawer: a NETWORK failure still blames the network', async ({ page }) => {
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { authUser: true, docs: [], failGetDocs: true };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/settings.html');
+    await page.evaluate(() => document.getElementById('navMenuBtn')?.click());
+    await page.locator('.nav-panel-link--circular').click({ force: true });
+    await expect(page.locator('#navComingSoonBody')).toHaveText(/signal/i, { timeout: 12_000 });
+});
+
 test('settings (signed in): the Pay Calculator Data pointer card renders and links to the backup card', async ({ page }) => {
     // A POINTER, not a second copy of the controls — see paycalc-transfer-card.js.
     await seedSession(page);

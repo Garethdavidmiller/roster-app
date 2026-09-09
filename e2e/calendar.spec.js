@@ -649,6 +649,27 @@ test('guide search: collapsing Reference takes the search box with it', async ({
     await expect(input).toBeVisible();
 });
 
+test('guide search: re-expanding Reference does not bring the full list back UNDER the results', async ({ page }) => {
+    // The filter is applied by hiding the static list; the Reference toggle used to set
+    // `hidden = false` unconditionally on expand, so collapsing and re-opening the section left the
+    // reader looking at the five results AND all six static rows — the query still in the box, and
+    // visibly ignored. Both halves are asserted: an ACTIVE query keeps the list hidden, and an empty
+    // one must still bring it back, or the fix would simply have broken the section the other way.
+    const input = await openGuideSearch(page);
+    await input.fill('gold card');
+    await expect(page.locator('#navGuidesList')).toBeHidden();
+    await page.locator('#navGuidesToggle').click();   // collapse
+    await page.locator('#navGuidesToggle').click();   // re-expand
+    await expect(page.locator('#navGuideSearchResults')).toBeVisible();
+    await expect(page.locator('#navGuidesList')).toBeHidden();
+    await expect(input).toHaveValue('gold card');
+
+    await input.fill('');
+    await page.locator('#navGuidesToggle').click();
+    await page.locator('#navGuidesToggle').click();
+    await expect(page.locator('#navGuidesList')).toBeVisible();
+});
+
 test('guide search: a result navigates same-tab with the ?from= hint and the section hash', async ({ page }) => {
     const input = await openGuideSearch(page);
     await input.fill('gold card');

@@ -89,6 +89,13 @@ export function initGuideSearch({ guides }) {
     function render() {
         const q = input?.value ?? '';
         const active = tokeniseText(q).length > 0;
+        // PUBLISHED for the drawer's Reference toggle (v23.41). Collapsing and re-expanding the
+        // section used to un-hide the full static list while these results were still on screen,
+        // because the toggle set `hidden = false` unconditionally. It now asks this attribute
+        // instead of re-deriving "is a query active" — that test is `tokeniseText`, one line above,
+        // and a second copy in nav-panel.js would disagree the first time somebody typed a comma.
+        // One writer here, one reader there.
+        results.dataset.gsActive = active ? '1' : '';
         if (!active) {
             results.hidden = true;
             results.textContent = '';

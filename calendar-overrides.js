@@ -11,6 +11,7 @@
  */
 
 import { db, collection, query, where, getDocs, getDocsFromCache, COLLECTIONS } from './firebase-client.js';
+import { isAccessFailure as _isAccessFailure } from './claim-retry.js';
 import { getBaseShift, formatISO, isSunday } from './roster-data.js';
 import { reconcileRangeIntoCache, collectOverrideRecords, isBeforeMemberStart, isOtherValue, resolveEffectiveShift } from './override-utils.js';
 import { noteKnowledge, forget as forgetKnowledge } from './calendar-data-state.js';
@@ -98,15 +99,6 @@ let _onAccessLost = null;
 /** @param {(() => void)|null} fn */
 export function setOverrideAccessLostHandler(fn) { _onAccessLost = fn; }
 
-/** Is this failure "you may no longer read the Calendar" rather than "the network is poor"?
- *  Both arrive by different routes and mean the same thing to the member: the session that was
- *  letting them see the roster has gone.
- *  @param {any} err @returns {boolean} */
-function _isAccessFailure(err) {
-    const code = err && (err.code || err.message);
-    return code === 'permission-denied' || code === 'calendar-access-required'
-        || (typeof code === 'string' && code.includes('permission-denied'));
-}
 
 const fetchedMonths        = new Set();
 // Memoised getShiftTypesInMonth() results. Key: "memberName|year|month".

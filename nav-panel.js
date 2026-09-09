@@ -20,8 +20,10 @@
  * Moved here from CLAUDE.md's architecture table (v21.63), which is the always-loaded file and was
  * carrying the whole argument. The drawer had grown FIVE competing treatments for one list of
  * destinations, which is what "cluttered" turned out to mean — measured, it was not dense; there
- * was ~130px of dead space. Now: **pills** = go to a page · **Today** = the documents you open on
- * a shift · **Reference** = look something up.
+ * was ~130px of dead space. Now: **pills** = go to a page · **Latest** = the documents you open on
+ * a shift · **Reference** = look something up. (The zone's IDIOM is "on a shift"; its HEADING is
+ * "Latest" — the argument is beside it in `_inject`. This line said "Today" for a release and a
+ * half after the heading changed, which is a module header describing a word it stopped rendering.)
  *
  * Three consequences that look like taste and are not:
  *
@@ -51,6 +53,7 @@ import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, officeViewerU
 import { APP_VERSION, avatarInitials, avatarHue } from './roster-data.js';
 import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor } from './overlay.js';
 import { lsGet, lsSet } from './ls.js';
+import { isAccessFailure } from './claim-retry.js';
 import { recordOpen } from './usage-reporter.js';
 
 /**
@@ -493,9 +496,16 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                 if (newTab) newTab.close();
                 _docFailureFallback(triggerEl);
             }
-        }).catch(() => {
+        }).catch((/** @type {any} */ err) => {
             if (newTab) newTab.close();
-            _docFailureFallback(triggerEl, 'Couldn\'t connect — check your signal and try again.');
+            // AN ACCESS REFUSAL IS NOT A CONNECTION FAULT. Every rejection became "check your
+            // signal" until v23.41 — true while these collections were open, wrong from v23.18 when
+            // reading one began to require a claim. The rule and its argument: `isAccessFailure` in
+            // claim-retry.js. The Calendar answers earlier and better at the gate above (it can name
+            // the PIN); this is for the six pages with no gate, where the claim is what is missing.
+            _docFailureFallback(triggerEl, isAccessFailure(err)
+                ? 'Couldn\'t open — you may have been signed out. Please sign in again.'
+                : 'Couldn\'t connect — check your signal and try again.');
         }).finally(() => {
             triggerEl.classList.remove('nav-panel-link--loading');
             triggerEl.removeAttribute('aria-busy');
@@ -693,7 +703,15 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // while the initial markup happened to agree with both. See the CSS note in shared.css.
         const isOpen = guidesToggle.getAttribute('aria-expanded') === 'true';
         guidesToggle.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
-        if (guidesList) guidesList.hidden = isOpen;
+        // EXPANDING RESTORES THE SECTION, NOT NECESSARILY THE STATIC LIST. A search hides the full
+        // list and shows results in its place; expanding used to un-hide it unconditionally, so a
+        // collapse and re-open brought back the results AND all six static rows, filter ignored.
+        // WHICH LIST SHOWS is `nav-guide-search.js`'s `render()` — read, never recomputed here: the
+        // test is `tokeniseText`, and a second copy would be the two-copies-of-one-boolean mistake
+        // `aria-expanded` was cleaned up from at v20.09. Absent = the module never loaded = not
+        // filtering.
+        const filtering = document.getElementById('navGuideSearchResults')?.dataset.gsActive === '1';
+        if (guidesList) guidesList.hidden = isOpen || filtering;
         const searchZone = document.getElementById('navGuideSearchZone');
         if (searchZone) searchZone.hidden = isOpen;
     });
@@ -1031,10 +1049,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
  * @param {any} currentPage
  * @param {any} memberName
  * @param {any} onSignOut
- * @param {any} onLockCalendar
  * @param {any} isAdmin
  * @param {any} isLinksDesigner
  * @param {any} canOpenOvertime
+ * @param {any} onLockCalendar
  */
 function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, canOpenOvertime, onLockCalendar) {
     // Render every permitted destination. The current page is shown too — as an
@@ -1058,7 +1076,6 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, c
                 if (link.comingSoon) return `<li><button type="button" class="nav-panel-link nav-panel-link--coming-soon" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}"><span aria-hidden="true">${link.icon}</span> ${link.label}</button></li>`;
                 if (link.circular)    return `<li><button type="button" class="nav-panel-link nav-panel-link--circular" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}"><span aria-hidden="true">${link.icon}</span> ${link.label}</button></li>`;
                 if (link.newsletter)  return `<li><button type="button" class="nav-panel-link nav-panel-link--newsletter" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}"><span aria-hidden="true">${link.icon}</span> ${link.label}</button></li>`;
-                if (link.notices)   return `<li><button type="button" class="nav-panel-link nav-panel-link--notices"><span aria-hidden="true">${link.icon}</span> ${link.label}</button></li>`;
                 return `<li><a href="${link.url}" class="nav-panel-link"><span aria-hidden="true">${link.icon}</span> ${link.label}</a></li>`;
             }).join('')}
         </ul>`).join('');
