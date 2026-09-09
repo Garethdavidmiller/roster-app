@@ -28,6 +28,15 @@
 // socket reaching the origin is NOT covered in relayed mode — the API-key HTTP-referrer
 // restriction, and a real Firebase round trip. Both are live failure modes this repo has been bitten
 // by, so the mode is printed on every run and asserted to be recorded, never quietly assumed.
+//
+// **DO NOT TRY TO FIX A RELAYED RUN BY CONFIGURING THE PROXY.** That is the obvious next move and it
+// was measured on 9 Sep 2026: launching Chromium with `proxy: { server: process.env.HTTPS_PROXY }`
+// fails identically to launching it with no proxy at all — `net::ERR_CONNECTION_RESET` both ways —
+// while `curl` through that same proxy succeeds, which is why the fallback works. The relay's own
+// status endpoint names it: `ws_closed_mid_exchange`, tunnel closed (1006) after 6s with ~1.8 kB
+// sent and 39 B received. Thirty-nine bytes is a handshake dying, not a policy denial. So in a
+// sandbox that relays, DIRECT is not reachable from the repo — the referrer restriction and the
+// Firebase round trip need a human with a browser, and that is the honest hand-off, not a TODO.
 import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, unlinkSync } from 'node:fs';
