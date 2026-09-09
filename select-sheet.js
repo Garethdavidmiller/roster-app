@@ -98,6 +98,33 @@ export function triggerLabel(select, placeholder = 'Choose…') {
     return text || placeholder;
 }
 
+/**
+ * The LONGEST label the select could show — what the trigger is sized to, so its width does not
+ * move when the value does. Reads the same option text `triggerLabel` does, from the same list,
+ * so the two can never disagree about what a row says.
+ *
+ * Longest by CHARACTER COUNT, which is an approximation and a deliberate one: the exact answer is
+ * a text measurement per option in the trigger's own font, and it would have to be redone on every
+ * font load, text-scale change and rebuild. The names, periods and grades these selects hold are
+ * one typeface at one size, where character count and rendered width agree closely enough that the
+ * control stops moving — which is the whole ask. The `max-width` cap catches any case where it
+ * does not, exactly as it did for the native select.
+ * @param {any} select
+ * @param {string} [placeholder]
+ * @returns {string}
+ */
+export function widestOptionLabel(select, placeholder = 'Choose…') {
+    const list = select?.options ? Array.from(select.options) : [];
+    let widest = '';
+    for (const o of list) {
+        const text = String(/** @type {any} */ (o)?.textContent ?? '').trim();
+        if (text.length > widest.length) widest = text;
+    }
+    // No options yet (they arrive after boot on half these controls) — the placeholder is what the
+    // face is showing, so sizing to it is the honest answer rather than collapsing to nothing.
+    return widest || placeholder;
+}
+
 /** Build one option row. Mirrors the Links picker's rows so the two read as one control. */
 function optionRow(/** @type {SheetOption} */ o, /** @type {boolean} */ current) {
     const b = document.createElement('button');
@@ -183,11 +210,34 @@ export function enhanceSelect(select, opts = {}) {
 
     const face = document.createElement('span');
     face.className = 'fieldpick-face';
-    btn.appendChild(face);
+    // THE SIZER — why the trigger is not allowed to size itself to the name it is showing.
+    //
+    // A `<select>` takes its intrinsic width from its WIDEST option, so the control is the same
+    // width whoever is selected. A button sizes to its own text, so from v23.33 the Calendar's
+    // name picker changed width as you switched member and the whole control row re-centred
+    // around it — the arrows moving in and out under your thumb. That was recorded in index.css
+    // as "the change not a regression"; the owner's call is that consistency is the point
+    // (9 Sep 2026), and they are right: a control that resizes when its VALUE changes is not the
+    // control this replaced.
+    //
+    // So the button carries a hidden copy of the widest option and is laid out as a grid with
+    // both children in the same cell — its intrinsic width is then the max of the two, which is
+    // the widest option, which is what a `<select>` does. No percentage anywhere: index.css's
+    // own comment is the record of a percentage width against a shrink-to-fit parent being the
+    // cyclic case Chromium resolves as `none`, throwing the `max-width` cap away. The cap still
+    // applies here, and the face still ellipsises under it.
+    const sizer = document.createElement('span');
+    sizer.className = 'fieldpick-sizer';
+    sizer.setAttribute('aria-hidden', 'true');
+    btn.append(face, sizer);
 
     const paint = () => {
         const label = triggerLabel(select, opts.placeholder);
         face.textContent = label;
+        // Re-measured on every paint, not once: half these selects are populated after boot and
+        // several are rebuilt, so a width taken at enhancement time would be the width of a list
+        // that no longer exists.
+        sizer.textContent = widestOptionLabel(select, opts.placeholder);
         btn.setAttribute('aria-label', `${title}. ${label}`);
         btn.disabled = select.disabled || select.options.length === 0;
     };

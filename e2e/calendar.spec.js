@@ -429,6 +429,59 @@ test('calendar: a successful read renders the grid — the withholding is a gate
     await expect(page.locator('.calendar-pending')).toHaveCount(0);
 });
 
+// ── THE NAME PICKER IS THE SAME WIDTH WHOEVER IS SELECTED (v23.39, owner report) ───────────────
+//
+// A `<select>` sizes to its WIDEST option, so the control never moved. The v23.33 trigger button
+// sized to the name it was showing, so switching member resized the control and re-centred the
+// whole row — `← Prev` and `Next →` sliding in and out under the reader's thumb. index.css called
+// that "the change not a regression"; the owner's call is that consistency is the point.
+//
+// Only a browser can see this: the DOM is identical at every width, so nothing but a measurement
+// across several selections can tell a stable control from a moving one. Asserted on the ROW as
+// well as the control, because the row re-centring is what a reader actually notices.
+test('calendar: the name picker does not change width when the member changes', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await expect(page.locator('#teamMemberSelectTrigger')).toBeVisible();
+
+    const measured = await page.evaluate(() => {
+        const sel = /** @type {any} */ (document.getElementById('teamMemberSelect'));
+        const btn = /** @type {any} */ (document.getElementById('teamMemberSelectTrigger'));
+        const row = /** @type {any} */ (document.getElementById('navRow'));
+        /** @type {{name: string, btn: number, prevLeft: number}[]} */
+        const out = [];
+        for (const o of Array.from(sel.options)) {
+            const opt = /** @type {any} */ (o);
+            if (!opt.value) continue;               // skip the "— Choose your name —" placeholder
+            sel.value = opt.value;
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
+            out.push({
+                name: opt.textContent.trim(),
+                btn: Math.round(btn.getBoundingClientRect().width),
+                // HEIGHT as well as width. The sizer is an extra child of the button, and left in
+                // normal flow it forms its own line box — a 64px two-line control instead of 44px,
+                // measured. The one-cell grid is what collapses the two, so height is the
+                // assertion that guards it; width alone passes either way.
+                btnH: Math.round(btn.getBoundingClientRect().height),
+                // Where the row's first control STARTS — the thing that visibly slid about.
+                prevLeft: Math.round(row.firstElementChild.getBoundingClientRect().left),
+            });
+        }
+        return out;
+    });
+
+    expect(measured.length, 'the picker should list the roster').toBeGreaterThan(5);
+    const widths = [...new Set(measured.map(m => m.btn))];
+    const lefts  = [...new Set(measured.map(m => m.prevLeft))];
+    expect(widths, `the control resized across ${measured.length} members: `
+        + measured.map(m => `${m.name}=${m.btn}px`).join(', ')).toHaveLength(1);
+    expect(lefts, 'the month arrows moved as the member changed').toHaveLength(1);
+    const heights = [...new Set(measured.map(m => m.btnH))];
+    expect(heights, 'the control should be one stable line').toHaveLength(1);
+    expect(heights[0], 'the hidden sizer must not push the control onto a second line')
+        .toBeLessThan(56);
+});
+
 test('calendar: first run (no saved member, not signed in) shows the choose-your-name prompt', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await page.goto('/');   // fresh context: no saved member, no session → first run

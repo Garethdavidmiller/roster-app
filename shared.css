@@ -1028,9 +1028,31 @@ button.lightbox-bug-link {
 }
 .fieldpick:disabled { opacity: 0.55; cursor: default; }
 .fieldpick:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+/* THE TRIGGER IS SIZED BY ITS WIDEST OPTION, NOT BY THE ONE IT IS SHOWING (v23.39).
+   A `<select>` takes its intrinsic width from the widest option, so the control is the same width
+   whoever is selected; a button sizes to its own text, so from v23.33 the Calendar's name picker
+   changed width as you switched member and the whole control row re-centred around it. The button
+   is a one-cell grid holding the visible face and a hidden copy of the widest option, both in that
+   cell — so the button's intrinsic width is the max of the two, which is the widest option. That
+   is the `<select>` behaviour restored, with no percentage anywhere (see index.css, where a
+   percentage width against a shrink-to-fit parent is recorded as the cyclic case Chromium resolves
+   as `none`). The page's own `max-width` cap still applies on top, and the face still ellipsises
+   under it. */
+.fieldpick { display: grid; grid-template-columns: auto; }
+.fieldpick-face, .fieldpick-sizer { grid-area: 1 / 1; }
 /* The face truncates rather than wrapping: a trigger that grows a line changes the row's
    height, and these sit in control rows that are already tight at 320px. */
 .fieldpick-face { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Present for measurement only: it must occupy width but never paint, never be read out, and
+   never add height. `visibility: hidden` rather than `display: none`, which would contribute no
+   width at all and defeat the entire mechanism. */
+.fieldpick-sizer {
+    visibility: hidden;
+    height: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    pointer-events: none;
+}
 
 .picker-sheet {
     background: white;
