@@ -435,6 +435,7 @@
     --z-lightbox: 8000;   /* .lb-overlay base (About / Tips / dialogs / pickers) */
     --z-notice:   8500;   /* one-time notice lightboxes — above the lightbox base, below login */
     --z-login:    9000;   /* login overlay — must sit above content and notices */
+    --z-picker:   9100;   /* the app's own select sheet — see .picker-sheet-overlay below */
     --z-splash:   9999;   /* splash-watchdog recovery panel + hover tooltip (top of everything) */
     --press-scale: 0.97;
 
@@ -1053,6 +1054,17 @@ button.lightbox-bug-link {
     white-space: nowrap;
     pointer-events: none;
 }
+
+/* THE SHEET MUST OUTRANK WHATEVER OPENED IT, AND THE LOGIN OVERLAY IS THE CASE THAT PROVES IT
+   (v23.49). Every other `.lb-overlay` sits at `--z-lightbox` (8000), and the login overlay sits
+   deliberately above them at `--z-login` (9000) so it covers the page and its notices. That is
+   right — until the login overlay OPENS one. The sign-in grade/name pickers then rendered BEHIND
+   the card that opened them: the rows were painted, `elementFromPoint` at a row's centre returned
+   `.login-app-name`, and the member could see names they could not tap.
+   Nothing else lives between 9000 and `--z-splash` (9999), so raising the sheet costs no other
+   surface. Caught by the e2e that clicks a real row rather than by the three tests that only read
+   the trigger's label — the label was right the whole time. */
+.picker-sheet-overlay { z-index: var(--z-picker); }
 
 .picker-sheet {
     background: white;
@@ -2633,6 +2645,7 @@ button.nav-panel-link--notices {
    styled these; settings fell back to raw browser controls — the "settings login looks weird on
    desktop" report. Scoped to `.login-field` so it touches only the login overlay. (v14.43) */
 .login-field select,
+.login-field .fieldpick,
 .login-field input {
     width: 100%;
     box-sizing: border-box;
@@ -2647,7 +2660,8 @@ button.nav-panel-link--notices {
     font-family: inherit;
     transition: border-color 0.12s, background-color 0.12s;
 }
-.login-field select {
+.login-field select,
+.login-field .fieldpick {
     /* Restore the dropdown arrow that appearance:none removes. */
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' viewBox='0 0 12 7'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23001e3c' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
@@ -2657,6 +2671,7 @@ button.nav-panel-link--notices {
     text-align-last: center;
 }
 .login-field select:focus-visible,
+.login-field .fieldpick:focus-visible,
 .login-field input:focus-visible {
     border-color: var(--primary-blue);
     outline: var(--focus-outline);
@@ -2714,6 +2729,7 @@ button.nav-panel-link--notices {
        silently deleted the dropdown arrow that `.login-field select` draws. The two adjacent selects
        therefore looked like two different kinds of control. Fills on a field are always set with the
        `background-color` longhand (.claude/rules/css-tokens.md). */
+#loginNameTrigger:disabled,
 #loginName:disabled {
     background-color: var(--field-bg-disabled);
     color: var(--text-light);

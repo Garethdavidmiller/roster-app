@@ -39,7 +39,8 @@ import { CONFIG, getMembersForGrade } from './roster-data.js';
 import { saveSession, clearSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, primeAuth } from './session.js';
 import { lsGet, lsSet } from './ls.js';
 import { PW_FORCE_PENDING_PREFIX } from './storage-keys.js';
-import { lockBodyScroll, unlockBodyScroll, trapFocus } from './overlay.js';
+import { lockBodyScroll, unlockBodyScroll, trapFocus, createLightbox } from './overlay.js';
+import { enhanceSelect } from './select-sheet.js';
 import { markLoginStart, clearLoginStart } from './perf-reporter.js';
 
 import { setStatus } from './status-text.js';
@@ -231,6 +232,10 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
 
     const gradeSelect   = /** @type {HTMLSelectElement} */ (overlay.querySelector('#loginGrade'));
     const nameSelect    = /** @type {HTMLSelectElement} */ (overlay.querySelector('#loginName'));
+    /* The visible controls once enhanced. Resolved on each call rather than captured: the overlay
+       is rebuilt on a re-show, so a held reference would point at a detached button. */
+    const gradeTrigger = () => /** @type {HTMLButtonElement|null} */ (overlay.querySelector('#loginGradeTrigger'));
+    const nameTrigger  = () => /** @type {HTMLButtonElement|null} */ (overlay.querySelector('#loginNameTrigger'));
     const passwordInput = /** @type {HTMLInputElement} */ (overlay.querySelector('#loginPassword'));
     const pwToggle      = /** @type {HTMLButtonElement} */ (overlay.querySelector('#loginPwToggle'));
     const submitBtn     = /** @type {HTMLButtonElement} */ (overlay.querySelector('#loginSubmit'));
@@ -292,15 +297,40 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
 
     GRADE_ORDER.forEach(g => gradeSelect.appendChild(new Option(g, g)));
 
+    // THE SIGN-IN CASCADE GOES THROUGH THE APP'S OWN PICKER (v23.49, external review). It was the
+    // last native `<select>` a member could meet, and the odd one out: the Calendar stopped handing
+    // a ~50-name roster to Android's full-bleed radio sheet at v23.33, while the LOGIN page — the
+    // first dropdown anybody ever touches, and the same roster — still did. `select-sheet-parity`
+    // held it as an open owner decision rather than an approval; this takes it.
+    //
+    // `createLightbox` is INJECTED, not imported by select-sheet.js — and without it `openOptionSheet`
+    // returns null and the trigger is a button that does nothing. Silent: the control renders, it
+    // just never opens. Every other caller passes it; this one has to as well.
+    enhanceSelect(gradeSelect, { title: 'Select your grade', createLightbox });
+    const refreshName = enhanceSelect(nameSelect, { title: 'Select your name', createLightbox });
+
+    // The name refresher IS captured, unlike the other callers, because this cascade repaints itself
+    // and then immediately acts on the result. `enhanceSelect` repaints from a MutationObserver,
+    // which is a MICROTASK: it has not run while the `change` handler below is still on the stack,
+    // so the trigger is still `disabled` at the moment we try to focus it — and a disabled button
+    // cannot take focus, so keyboard sign-in dies silently at the grade step. Repainting explicitly
+    // orders the two. The observer stays for everything we do NOT drive.
+    const syncName = () => { try { refreshName?.(); } catch { /* a repaint must never block sign-in */ } };
+
     // Restore last-used grade so returning users go straight to name → password.
     const savedGrade = lsGet(GRADE_KEY);
     const gradeRestored = !!(savedGrade && GRADE_ORDER.includes(savedGrade));
     if (gradeRestored) {
         gradeSelect.value = /** @type {string} */ (savedGrade);
+        // Restoring the grade in CODE mutates no attribute and fires no event, so neither the
+        // observer nor the change listener sees it and the trigger keeps saying "Select grade".
+        // Same defect class as v23.42's pay-period picker. `input` is what the sheet listens for.
+        gradeSelect.dispatchEvent(new Event('input', { bubbles: false }));
         populateNames(/** @type {string} */ (savedGrade));
     } else {
         populateNames('');
     }
+    syncName();
 
     // Move focus INTO the dialog, onto the first control the user still needs (grade, or name when
     // grade was restored). Without this, focus stays on <body> behind the opaque overlay: the first
@@ -312,7 +342,9 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     // Inline, only on a device with a real keyboard: autofocusing a select on a phone throws the
     // picker up over a card the member has not read yet — the same rule the staff-PIN card follows.
     if (!inline || (window.matchMedia && window.matchMedia('(pointer: fine)').matches)) {
-        (gradeRestored ? nameSelect : gradeSelect).focus();
+        // The native selects are now 1px and `aria-hidden`; focusing one puts the caret nowhere.
+        // `select-sheet.js` names each trigger `<selectId>Trigger`.
+        (gradeRestored ? nameTrigger() : gradeTrigger())?.focus();
     }
 
     gradeSelect.addEventListener('change', () => {
@@ -323,7 +355,8 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         passwordInput.value = '';
         nameSelect.value = '';
         populateNames(gradeSelect.value);
-        if (gradeSelect.value) nameSelect.focus();
+        syncName();                       // enable the trigger BEFORE trying to focus it
+        if (gradeSelect.value) nameTrigger()?.focus();
     });
 
     nameSelect.addEventListener('change', () => {
@@ -442,7 +475,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             const typedPw = passwordInput.value;
             errorEl.classList.remove('visible');
 
-            if (!gradeSelect.value)   { showError('Please select your grade.'); gradeSelect.focus(); return; }
+            if (!gradeSelect.value)   { showError('Please select your grade.'); gradeTrigger()?.focus(); return; }
             if (!name)                { showError('Please select your name.'); return; }
             if (!typedPw.trim())      { showError('Please enter your password.'); passwordInput.focus(); return; }
 

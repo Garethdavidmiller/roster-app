@@ -107,17 +107,13 @@ const NATIVE_BY_DECISION = {
         'DISABLED with a single option — it states who you are, it does not ask. There is nobody '
         + 'else to pick, so a popup of any kind would be a control that cannot be used. DECISIONS.md.',
 
-    'login-overlay.js#loginGrade':
-        'The sign-in cascade. NOT a decision that this should stay native — an OWNER DECISION that '
-        + 'has not been taken, recorded here so the guard does not read as approval. It is the '
-        + 'strongest remaining candidate in the app: the grade picker enables the name picker below '
-        + 'it, the pair is the FIRST dropdown a member ever touches, and it renders on all six '
-        + 'protected pages plus the Calendar front door. It is also the highest-blast-radius change '
-        + 'available — e2e/auth.spec.js drives it on every one of those surfaces — which is why it '
-        + 'is flagged rather than converted in passing.',
-    'login-overlay.js#loginName':
-        'The other half of the sign-in cascade, and the roster-length list that motivated the module '
-        + 'in the first place. Same owner decision as #loginGrade above.',
+    // `login-overlay.js#loginGrade` / `#loginName` were held here as an OPEN OWNER DECISION rather
+    // than an approval. The decision was taken on 9 Sep 2026 (external review) and they are now
+    // ENHANCED, so the exemptions are gone rather than reworded — an exemption that outlives its
+    // reason is how a guard stops guarding. The review's argument was the one the module was built
+    // on, turned back on the app: the Calendar stopped handing a ~50-name roster to Android's
+    // full-bleed radio sheet at v23.33, while the sign-in page — the FIRST dropdown anybody touches,
+    // the same roster, on all six protected pages plus the Calendar's front door — still did.
 
     'links-generator-targets.js.gen-slot-time':
         'One per shift slot, inside the generator target TABLE — a dense grid of times a designer '
@@ -205,6 +201,17 @@ function findEnhanced() {
             const decl = ident
                 && src.match(new RegExp(`\\b${ident}\\s*=[\\s\\S]{0,200}?getElementById\\(\\s*['"]([^'"]+)['"]`));
             if (decl) { ids.add(decl[1]); continue; }
+            // A select resolved by ID but SCOPED to a root: `x = overlay.querySelector('#id')`.
+            // Taught to the scan on 9 Sep 2026 rather than reshaped in the source, which is what
+            // this file's own instruction says to do when it meets something it cannot name.
+            // `login-overlay.js` is right to scope: it mounts either as a fixed modal or INLINE in
+            // a host element (the Calendar's front door), so two instances can exist and
+            // `document.getElementById` would find whichever came first. Only an `#id` selector is
+            // resolved — a class or descendant selector names no single control and must stay
+            // unresolved rather than be guessed at.
+            const scoped = ident
+                && src.match(new RegExp(`\\b${ident}\\s*=[\\s\\S]{0,200}?querySelector\\(\\s*['"]#([\\w-]+)['"]`));
+            if (scoped) { ids.add(scoped[1]); continue; }
             // A select the page BUILDS: `x = document.createElement('select'); x.id = '…'`. The
             // account-status filter is this shape because it does not exist until its card's read
             // returns. Resolved from the `.id =` that follows, which is the same handle the
