@@ -13,6 +13,7 @@
 import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, MONTH_NAMES, TEAM_GRADES, getBaseShift, escapeHtml, formatISO,
          SHIFT_TIME_REGEX, getShiftKind, isSunday } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
+import { TEAM_VIEW } from './storage-keys.js';
 import { isBeforeMemberStart, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
 import { worstKnowledge, decideDisplay, forget as forgetOverrideKnowledge } from './calendar-data-state.js';
 
@@ -469,7 +470,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
     /** Toggles between personal calendar and team week view. */
     function toggleTeamView() {
         teamViewMode = !teamViewMode;
-        lsSet('myb_team_view', teamViewMode ? '1' : '');
+        lsSet(TEAM_VIEW, teamViewMode ? '1' : '');
 
         applyTeamViewChrome();
 

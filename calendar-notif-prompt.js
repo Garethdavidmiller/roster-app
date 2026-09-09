@@ -46,6 +46,7 @@
  */
 import { notifSupported, getNotifState, enableNotifications } from './notif.js';
 import { lsGet, lsSet } from './ls.js';
+import { NOTIF_PROMPT_DONE } from './storage-keys.js';
 
 /**
  * @param {{ authReady: Promise<any>, getAccessType: () => string }} deps
@@ -83,7 +84,7 @@ export function initNotifPrompt({ authReady, getAccessType }) {
     }
 
     if (Notification.permission === 'denied') return;
-    if (lsGet('myb_notif_prompt_done')) return;
+    if (lsGet(NOTIF_PROMPT_DONE)) return;
 
     const prompt     = document.getElementById('notifPrompt');
     const enableBtn  = document.getElementById('notifPromptEnable');
@@ -115,7 +116,7 @@ export function initNotifPrompt({ authReady, getAccessType }) {
             // UI, so the tap did nothing. Only the Firestore subscription SAVE needs auth.
             const perm = await Notification.requestPermission();
             if (perm !== 'granted') {
-                lsSet('myb_notif_prompt_done', '1');   // asked and declined — don't re-prompt
+                lsSet(NOTIF_PROMPT_DONE, '1');   // asked and declined — don't re-prompt
                 return;
             }
             // Already resolved — the prompt is only shown from inside a `authReady`
@@ -130,6 +131,6 @@ export function initNotifPrompt({ authReady, getAccessType }) {
 
     dismissBtn.addEventListener('click', () => {
         hide();
-        lsSet('myb_notif_prompt_done', '1');
+        lsSet(NOTIF_PROMPT_DONE, '1');
     });
 }

@@ -31,6 +31,24 @@ export const SELECTED_MEMBER_LEGACY = 'adminLastMember';
 export const VIEWED_MONTH = 'myb_roster_month';
 export const VIEWED_YEAR  = 'myb_roster_year';
 
+/** Whether the Calendar is in TEAM WEEK VIEW — written by calendar-team-view.js on every toggle,
+ *  and read back by TWO other modules at boot: calendar-app.js (which surface to build) and
+ *  calendar-access.js (which REFUSES a provisional paint while it is set — invariant 13, because a
+ *  provisional grant is scoped to one member and Team View draws everybody).
+ *
+ *  It joined this file at v23.46, having been three bare literals in three modules since it shipped.
+ *  Nothing was wrong with them — all three spellings matched — but the failure mode is the one this
+ *  file exists for, and here it is not merely lost data: rename the writer and `lsGet` returns null,
+ *  `=== '1'` is false, and the access refusal silently stops refusing. `calendar-access.test.mjs`
+ *  hardcoded the same string independently, so it would have stayed green through exactly that. */
+export const TEAM_VIEW = 'myb_team_view';
+
+/** The one-off notification prompt has been answered on this device — set by EITHER button (Enable
+ *  and ×, because both mean "do not ask again"), so calendar-notif-prompt.js writes it and notif.js
+ *  reads it when deciding what the drawer bell may claim about this device. Two modules, and it was
+ *  four copies of the literal until v23.46. */
+export const NOTIF_PROMPT_DONE = 'myb_notif_prompt_done';
+
 /** Prefix (+ member name) of the one-shot "a real sign-in just happened" marker that triggers the
  *  forced set-password overlay — PASSWORD_DESIGN.md Phase 2. WRITTEN by login-overlay.js (the single
  *  point every protected page's sign-in passes through) and CONSUMED by password-force.js, so it is
