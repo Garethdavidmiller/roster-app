@@ -312,9 +312,6 @@ export function init() {
         const _live = !!(srcP0 && p.num === src + 1 && _hasFigures);
         _chip.classList.toggle('ytd-status-chip--live', _live);
         _chip.textContent = (!_hasFigures || !srcP0 || periodIdx <= 1) ? '' : (_live ? '✓ in use' : 'not in use');
-        _chip.title = _live
-          ? 'Your Year to Date figures sharpen this payslip’s tax estimate'
-          : 'This payslip uses the standard method — the Year to Date figures don’t apply to it';
       }
       if (periodIdx <= 1) {
         note.innerHTML = `This is the first payslip of ${ty.label} — Year to Date starts fresh in April, so you can leave these blank.`;
@@ -403,7 +400,7 @@ export function init() {
       const _chipYear = /^\d{4}\/\d{2}$/.test(ty.label) ? ty.label.slice(2) : ty.label;
       for (const _cid of ['bpYearChip', 'hppYearChip', 'ytdYearChip']) {
         const _chip = document.getElementById(_cid);
-        if (_chip) { _chip.textContent = _chipYear; _chip.title = `Tax year ${ty.label}`; }
+        if (_chip) _chip.textContent = _chipYear;
       }
       // Settings card chip shows the PERIOD/payslip you're on (the rate + pension are period-specific)
       // — the settings summary already carries the tax year. (v17.92)
@@ -783,7 +780,7 @@ export function init() {
       ];
 
       bar.innerHTML    = segs.filter(s => s.val > 0).map(s =>
-        `<div class="pbb-seg ${s.cls}" style="flex-grow:${pct(s.val)}" title="${s.label} ${fmtPct(s.val)}"></div>`
+        `<div class="pbb-seg ${s.cls}" style="flex-grow:${pct(s.val)}"></div>`
       ).join('');
       legend.innerHTML = segs.filter(s => s.val > 0).map(s =>
         `<span class="pbl-item"><span class="${s.dotCls}"></span>${s.label} <strong>${fmtPct(s.val)}</strong></span>`

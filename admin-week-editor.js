@@ -196,7 +196,7 @@ export function buildWeekGridInto(container, dateStr) {
         const baseShift = getBaseShift(member, date);
 
         const badges    = getSpecialDayBadges(date, dateISO);
-        const badgeHTML = badges.map(b => `<span class="day-badge" role="img" aria-label="${b.title}" title="${b.title}">${b.icon}</span>`).join('');
+        const badgeHTML = badges.map(b => `<span class="day-badge" role="img" aria-label="${b.title}">${b.icon}</span>`).join('');
 
         const existing = memberDateMap.get(dateISO);
 
@@ -221,11 +221,12 @@ export function buildWeekGridInto(container, dateStr) {
             <div class="col-base">${getShiftBadge(baseShift, { showTime: true })}</div>
             <div class="col-pills">
                 ${PILL_TYPES.map(t => `<button class="type-pill-btn pill-${t}" data-type="${t}" aria-pressed="false">${TYPES[t].pill}</button>`).join('\n                ')}
+                ${isSunday(dateISO) ? `<span class="sunday-note">Sunday isn’t a contracted day — work is recorded as RDW; leave, absence and Other days can’t be recorded</span>` : ''}
             </div>
             <div class="col-time">
-                <input type="text" class="time-input day-start" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1" title="24-hour start time, e.g. 06:20" aria-label="Start time (HH:MM)" aria-describedby="${timeErrId}">
+                <input type="text" class="time-input day-start" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1" aria-label="Start time (HH:MM)" aria-describedby="${timeErrId}">
                 <span class="time-sep">–</span>
-                <input type="text" class="time-input day-end" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1" title="24-hour end time, e.g. 14:20" aria-label="End time (HH:MM)" aria-describedby="${timeErrId}">
+                <input type="text" class="time-input day-end" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1" aria-label="End time (HH:MM)" aria-describedby="${timeErrId}">
                 <span class="time-note">No time needed</span>
                 <span class="time-hint">24h · max 12 hrs</span>
                 <span class="time-error-msg" id="${timeErrId}" role="alert">Use HH:MM format (e.g. 07:00)</span>
@@ -236,9 +237,9 @@ export function buildWeekGridInto(container, dateStr) {
                     ${Object.entries(OTHER_FLAVOURS).map(([k, f]) =>
                         `<button type="button" class="other-flavour-btn" data-flavour="${k}" aria-pressed="false">${f.full}</button>`
                     ).join('\n                    ')}
-                    <button type="button" class="other-flavour-btn other-flavour-spare" data-flavour="SPARE" aria-pressed="false" title="On standby — shift not yet assigned"><span aria-hidden="true">📋</span> Spare</button>
+                    <button type="button" class="other-flavour-btn other-flavour-spare" data-flavour="SPARE" aria-pressed="false"><span aria-hidden="true">📋</span> Spare</button>
                 </span>
-                <label class="other-rdw-label"><input type="checkbox" class="other-rdw-cb"${isRestShift(baseShift) ? ' checked disabled title="Rest day — RDW is automatic"' : ''}> Rest day (RDW)</label>
+                <label class="other-rdw-label"><input type="checkbox" class="other-rdw-cb"${isRestShift(baseShift) ? ' checked disabled' : ''}> Rest day (RDW)</label>
                 <span class="other-rdw-warn" hidden>Originally rostered ${escapeHtml(baseShift)} this day — RDW pays it as rest-day working instead</span>
                 <span class="other-opts-hint">Pick a type above, then times (optional — blank pays the default: base shift, or 8h RDW).</span>
             </div>`;
@@ -250,22 +251,21 @@ export function buildWeekGridInto(container, dateStr) {
             const alPill = /** @type {HTMLButtonElement|null} */ (row.querySelector('.pill-annual_leave'));
             if (alPill) {
                 alPill.disabled = true;
-                alPill.title    = 'Annual leave cannot be recorded on a Sunday — Sundays are not contracted days';
-                // Disabled buttons drop out of the tab order, so `title` is not reliably
-                // announced — put the reason in the accessible name so a screen reader
-                // reading the row in browse mode hears why the pill is unavailable.
+                // Disabled buttons drop out of the tab order — put the reason in the accessible
+                // name so a screen reader reading the row in browse mode hears why the pill is
+                // unavailable. Sighted readers get the same reason as a LINE IN THE ROW (the
+                // `.sunday-note` below, v23.50): it used to be a `title`, which is a hover surface
+                // no phone shows, so on the device every manager uses the pills simply went grey.
                 alPill.setAttribute('aria-label', 'Annual Leave — unavailable on Sundays (not a contracted day)');
             }
             const sickPill = /** @type {HTMLButtonElement|null} */ (row.querySelector('.pill-sick'));
             if (sickPill) {
                 sickPill.disabled = true;
-                sickPill.title    = 'Absence cannot be recorded on a Sunday — Sundays are not contracted days';
                 sickPill.setAttribute('aria-label', 'Absent — unavailable on Sundays (not a contracted day)');
             }
             const otherPill = /** @type {HTMLButtonElement|null} */ (row.querySelector('.pill-other'));
             if (otherPill) {
                 otherPill.disabled = true;
-                otherPill.title    = 'Other days (training, induction, assessment, team days) cannot be recorded on a Sunday — Sundays are not contracted days';
                 otherPill.setAttribute('aria-label', 'Other — unavailable on Sundays (not a contracted day)');
             }
             // A worked Sunday is always Rest Day Working (RDW), never a plain shift — Sundays are
@@ -276,7 +276,6 @@ export function buildWeekGridInto(container, dateStr) {
             const shiftPill = /** @type {HTMLButtonElement|null} */ (row.querySelector('.pill-shift'));
             if (shiftPill) {
                 shiftPill.disabled = true;
-                shiftPill.title    = 'A worked Sunday is recorded as Rest Day Working (RDW), not a shift — Sundays are not contracted days. Use the RDW pill.';
                 shiftPill.setAttribute('aria-label', 'Shift — unavailable on Sundays; record Sunday work as Rest Day Working (RDW)');
             }
         }

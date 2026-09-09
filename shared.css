@@ -439,9 +439,12 @@
     --z-splash:   9999;   /* splash-watchdog recovery panel + hover tooltip (top of everything) */
     --press-scale: 0.97;
 
-    /* ── Native form control tinting ─────────────────────────────
-       Themes browser checkboxes and radios to the brand gold. */
-    accent-color: var(--accent-gold);
+    /* ── App-drawn checkbox + radio (v23.50) ─────────────────────
+       The two tokens a SITE may set to recolour the control without restating the recipe —
+       `--check-fill` is the checked fill and tick/dot contrast partner; `--check-border` the
+       resting border. The recipe itself lives under "NATIVE CONTROLS THE APP DRAWS" below. */
+    --check-fill:   var(--primary-blue);
+    --check-border: var(--border-mid);
 
     /* ── Button colour intent ─────────────────────────────────────
        Primary   = navy fill, white text
@@ -468,6 +471,148 @@
     padding: 0;
     box-sizing: border-box;
     -webkit-tap-highlight-color: transparent; /* removes grey flash on tap in iOS Safari */
+    /* Scrollbars in the app's own idiom (v23.50): thin, brand-grey thumb, no track. The standard
+       pair is what Chrome/Firefox/Safari 18.2+ honour; the `::-webkit-scrollbar` rules below serve
+       older WebKit and are IGNORED by an engine that took the standard pair, so the two never
+       fight. Phones draw overlay scrollbars that vanish, so this is a desktop-visible change. */
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-mid) transparent;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+    background-color: var(--border-mid);
+    border-radius: var(--radius-pill);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+
+/* ============================================================
+   NATIVE CONTROLS THE APP DRAWS — checkbox + radio (v23.50)
+   ============================================================
+   The last two form widgets the OS was still drawing. `accent-color` tinted them and nothing more:
+   the box shape, the tick glyph, the pressed state and the animation were all the platform's, and
+   the platform is not the same one on the two phones staff carry. That is the argument
+   `select-sheet.js` and `date-picker.js` already made, applied to the controls the audit of
+   9 Sep 2026 found still native — twenty-five of them, five of which decide which PAY figure the
+   calculator shows (the back-pay and Holiday Pay Premium mode radios).
+
+   ONE RECIPE, HERE, AND NO PAGE RESTATES IT. A page may recolour through `--check-fill` /
+   `--check-border` (the Other-day RDW tick is leaf-green that way) and may put the FOCUS RING on
+   the row instead of the box where the row is what is being chosen (`.gen-obj`, the two mode
+   pickers) — `focus-ring-parity.test.mjs` holds those as named exemptions. It may not set a
+   width, a height or an `accent-color`; `native-surface-parity.test.mjs` fails a page that does.
+
+   The tick is a clip-path polygon, not a glyph: a glyph is a FONT decision and would render in
+   whatever the platform substitutes for the missing character. The `::before` scales from 0 on
+   the spring easing so a change of state is seen to happen, and the box stays 2px-bordered in
+   every state so toggling causes no reflow (the `.gen-obj` rule that already argued this).
+
+   The box is 20px, 22px under a coarse pointer — the figure the `.gen-obj` and `.pw-show-row`
+   sites had each settled on with the same reasoning: the ROW is the touch target, the box is
+   what you see. It is NOT 24px, so the `KNOWN_SMALL` entries in `e2e/pages.spec.js` for the
+   sibling-labelled toggles still stand, with their measurements updated. */
+input[type="checkbox"],
+input[type="radio"] {
+    -webkit-appearance: none;
+    appearance: none;
+    display: inline-grid;
+    place-content: center;
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    flex: none;
+    vertical-align: middle;
+    background-color: var(--field-bg);
+    border: 2px solid var(--check-border);
+    border-radius: var(--radius-xs);
+    color: var(--check-fill);
+    cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease-standard),
+                border-color     var(--dur-fast) var(--ease-standard),
+                box-shadow       var(--dur-fast) var(--ease-standard),
+                transform        var(--dur-fast) var(--ease-standard);
+}
+input[type="radio"] { border-radius: 50%; }
+
+/* The `hidden` attribute must still hide — `display: inline-grid` above out-specifies the UA rule
+   (the page-visibility-parity trap), so it is restated here at the same weight plus one. */
+input[type="checkbox"][hidden],
+input[type="radio"][hidden] { display: none; }
+
+input[type="checkbox"]::before,
+input[type="radio"]::before {
+    content: '';
+    display: block;
+    transform: scale(0);
+    transition: transform var(--dur-med) var(--ease-spring);
+    background-color: white;
+}
+input[type="checkbox"]::before {
+    width: 12px;
+    height: 12px;
+    clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0, 43% 62%);
+}
+input[type="radio"]::before {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+/* The select-all box on Saved Changes goes INDETERMINATE when some rows are ticked — a dash,
+   in the checked fill, so "some" is never confused with "all". */
+input[type="checkbox"]:indeterminate::before {
+    width: 10px;
+    height: 2px;
+    clip-path: none;
+    border-radius: 1px;
+    transform: scale(1);
+}
+
+input[type="checkbox"]:checked,
+input[type="radio"]:checked,
+input[type="checkbox"]:indeterminate {
+    background-color: var(--check-fill);
+    border-color: var(--check-fill);
+}
+input[type="checkbox"]:checked::before,
+input[type="radio"]:checked::before { transform: scale(1); }
+
+@media (hover: hover) {
+    input[type="checkbox"]:not(:checked):not(:disabled):hover,
+    input[type="radio"]:not(:checked):not(:disabled):hover { border-color: var(--check-fill); }
+}
+input[type="checkbox"]:active:not(:disabled),
+input[type="radio"]:active:not(:disabled) { transform: scale(var(--press-scale)); }
+
+/* A field's ring, because that is what it is. */
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible {
+    outline: var(--focus-outline);
+    outline-offset: 2px;
+    box-shadow: var(--focus-ring);
+}
+
+input[type="checkbox"]:disabled,
+input[type="radio"]:disabled {
+    background-color: var(--field-bg-disabled);
+    opacity: 0.55;
+    cursor: default;
+}
+input[type="checkbox"]:disabled:checked,
+input[type="radio"]:disabled:checked,
+input[type="checkbox"]:disabled:indeterminate { background-color: var(--check-fill); }
+
+@media (pointer: coarse) {
+    input[type="checkbox"], input[type="radio"] { width: 22px; height: 22px; }
+}
+
+/* The fill is a background, and browsers drop backgrounds on paper unless told not to. */
+@media print {
+    input[type="checkbox"], input[type="radio"] {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
 }
 
 /* iOS status bar — blends with app theme.
@@ -606,6 +751,8 @@ body.lb-open #stickyTotal { display: none !important; }
 @media (prefers-reduced-motion: reduce) {
     .lb-overlay { transition: none; }
     .lb-content { transition: none; }
+    input[type="checkbox"], input[type="radio"],
+    input[type="checkbox"]::before, input[type="radio"]::before { transition: none; }
 }
 
 /* Close button — structural only; colour stays in each ID. */
@@ -2624,9 +2771,9 @@ button.nav-panel-link--notices {
    the input reserves room for it so masked dots never run under the button. */
 .login-pw-wrap { position: relative; }
 /* Reserve room for the toggle. Needs the extra `.login-field` qualifier to outrank the later
-   `.login-field input { padding: … }` shorthand — same specificity + later source would otherwise
+   `.login-field input:not([type="checkbox"]):not([type="radio"]) { padding: … }` shorthand — same specificity + later source would otherwise
    reset padding-right to 10px and the text would run under the Show/Hide button. */
-.login-field .login-pw-wrap input { padding-right: 62px; }
+.login-field .login-pw-wrap input:not([type="checkbox"]):not([type="radio"]) { padding-right: 62px; }
 .login-pw-toggle {
     position: absolute;
     top: 0; right: 0;
@@ -2646,7 +2793,7 @@ button.nav-panel-link--notices {
    desktop" report. Scoped to `.login-field` so it touches only the login overlay. (v14.43) */
 .login-field select,
 .login-field .fieldpick,
-.login-field input {
+.login-field input:not([type="checkbox"]):not([type="radio"]) {
     width: 100%;
     box-sizing: border-box;
     padding: 8px 10px;
@@ -2672,7 +2819,7 @@ button.nav-panel-link--notices {
 }
 .login-field select:focus-visible,
 .login-field .fieldpick:focus-visible,
-.login-field input:focus-visible {
+.login-field input:not([type="checkbox"]):not([type="radio"]):focus-visible {
     border-color: var(--primary-blue);
     outline: var(--focus-outline);
     outline-offset: 2px;

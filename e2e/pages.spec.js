@@ -3230,7 +3230,7 @@ test('operations: a reset whose server never answers is not reported as a failur
     // …and the button does not describe an outcome nobody knows. "Retry" is the failure
     // affordance and belongs only to a request that provably did not land.
     await expect(row.locator('.btn-acct-reset')).toHaveText('Reset');
-    await expect(row.locator('.btn-acct-reset')).not.toHaveAttribute('title', /Reset failed/);
+    await expect(row.locator('.btn-acct-reset')).not.toHaveText('Retry');
 });
 
 // ── A tab left open past midnight can still pick today (v23.36) ─────────────────────────────────
@@ -4333,11 +4333,11 @@ test('no focusable field falls below 16px on a touch device @a11y', async ({ pag
  */
 const KNOWN_SMALL = {
     '/admin.html': {
-        'input.day-cb[]': '22x22 — the per-day tick in the week grid; its 44px cell is not a target (no label)',
+        'input.day-cb[]': '22x22 — the per-day tick in the week grid; its 44px cell is not a target (no label). App-drawn since v23.50, same size',
     },
     '/paycalc.html': {
-        'input#pensionOptOutCheck[]': '18x18 — decides pension membership; its label is a sibling, not a wrapper',
-        'input#pgLoanCheck[]': '18x18 — decides a postgraduate loan deduction; same shape',
+        'input#pensionOptOutCheck[]': '22x22 — decides pension membership; its label is a sibling, not a wrapper (20px box, 22 on a coarse pointer since v23.50)',
+        'input#pgLoanCheck[]': '22x22 — decides a postgraduate loan deduction; same shape',
         'button#actualsImportBtn.actuals-import-link[Import paysl]': '53x22',
         'button#clearBtn.clear-btn[Clear all en]': '53x16 — DESTRUCTIVE, and the smallest on the page',
         'button#rosterDaysToggle.roster-days-toggle[Show days ▼]': '53x14',

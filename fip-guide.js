@@ -59,7 +59,6 @@ function describePrintScope(shown) {
         : shown === 1          ? 'Save or print the 1 country shown'
         :                        'Save or print the ' + shown + ' countries shown';
     printBtn.setAttribute('aria-label', label);
-    printBtn.setAttribute('title', label);
 }
 describePrintScope(null);
 

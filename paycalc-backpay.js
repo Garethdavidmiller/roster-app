@@ -628,8 +628,10 @@ export function calcBackPay() {
     const _opt = _manualRadio.closest('.bp-mode-opt');
     if (_opt) {
       _opt.classList.toggle('bp-mode-opt--disabled', !_payslipExists);
-      if (_payslipExists) _opt.removeAttribute('title');
-      else _opt.setAttribute('title', 'Available once the payslip carrying the lump sum has been paid');
+      // The reason is SAID in the row (v23.50), not tucked into a title — a tooltip is a hover
+      // surface and the member deciding this is on a phone.
+      const why = document.getElementById('bpModeManualWhy');
+      if (why) why.hidden = _payslipExists;
     }
     if (!_payslipExists && _bpMode() === 'manual') applyBpMode('compute');
   }

@@ -69,6 +69,12 @@ const NO_INDICATOR_EXEMPT = [
     '.lb-content',
     // #hourlyRate is the only .pfx--readonly field and carries tabindex="-1".
     '.pfx--readonly input',
+    // The option ROWS carry the ring (`:has(input:focus-visible)` on the row) because the row is
+    // what is being chosen; the app-drawn box inside (shared.css, v23.50) would otherwise draw a
+    // second ring 10px away. Each of these is a Tab stop with a visible indicator — on the row.
+    '.gen-obj input[type="checkbox"]:focus-visible',
+    '.bp-mode-opt input[type="radio"]:focus-visible',
+    '.hpp-mode-opt input[type="radio"]:focus-visible',
 ];
 
 test('a focus rule that removes the outline must put something visible back', () => {

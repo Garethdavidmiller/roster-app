@@ -126,7 +126,7 @@ export function createTargetPanel(deps) {
                 `aria-label="${cls === 'weekday' ? 'Mon–Fri' : cls === 'sat' ? 'Saturday' : 'Sunday'} target for ${escapeHtml(slot.time)}"></td>`
             ).join('') +
             `<td class="gen-td-remove"><button class="gen-remove-btn" data-slot="${i}" type="button" ` +
-            `aria-label="Remove ${escapeHtml(slot.time)} row" title="Remove this shift">✕</button></td>` +
+            `aria-label="Remove ${escapeHtml(slot.time)} row">✕</button></td>` +
             `</tr>`;
         }).join('');
         updateGenTotals();
@@ -504,7 +504,6 @@ export function createTargetPanel(deps) {
             if (delBtn) {
                 delBtn.disabled = !state.canDelete || !list.usable;
                 const label = set ? `Delete “${set.name}”` : 'Delete this set';
-                delBtn.title = label;
                 delBtn.setAttribute('aria-label', label);   // the word alone does not say WHICH set
             }
             // Save as new is deliberately NOT gated on `usable`: it creates a document, needs

@@ -272,3 +272,32 @@ generic grey, and `filterSelect.focus()` sending a keyboard user to a 1px `aria-
 Both were introduced BY an enhancement, in the commit that made it: the call site did not change,
 so nothing drew the eye to it. That is now two contracts — an id rule needs a `#<id>Trigger`
 counterpart, and nothing may focus an enhanced select.
+
+---
+
+## Tooltips are removed, not rebuilt (9 Sep 2026, v23.50)
+
+An audit of every surface the OS still drew found 47 `title` attributes. A `title` is a hover
+tooltip: the platform's font, the platform's delay, the platform's box — and **nothing at all on a
+touch screen**, which is where most of the staff are. So the question was never "how do we restyle
+these" but "what does a phone user see instead", and the answer differed by what each one was for:
+
+- **30 duplicated an `aria-label` on a button** ("Tips for Saved Changes", "Previous week", the
+  header logo's "Back to calendar"). Deleted. The accessible name is the accessibility route; the
+  tooltip added an OS surface for desktop users and nothing for anyone else.
+- **9 sat on chips whose visible text already said it** ("AL left: 12", a count beside the card's
+  own title, a tax year inside a card called Year to Date). Deleted.
+- **A handful explained a DISABLED state** — why the Sunday pills are grey, why the manual back-pay
+  option is unavailable — and those were the only ones with real value, and the only ones a phone
+  user was actively missing. Each became a line in the row (`.sunday-note` in the week grid,
+  `.bp-mode-why` under the option; the roster review's Sunday note already worked this way and its
+  own comment argued the point). The Links totals cells got a legend line for the same reason.
+
+**Not adopted: an app-drawn tooltip component.** The Calendar has one (`initCalendarTooltip`) and it
+is deliberately a no-op on coarse pointers — a tooltip is a hover idiom, and building a better hover
+surface would have polished the one platform that was never the problem. Where information matters it
+belongs in the row, the `?` panel, or the day panel, which is the app's existing ladder
+(Discover → Understand → Act → Deep dive).
+
+`native-surface-parity.test.mjs` fails a `title` attribute anywhere served, so the next one has to be
+argued for rather than typed.

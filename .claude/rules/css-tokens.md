@@ -587,3 +587,26 @@ mistake — either the rule belongs in `shared.css`, or the markup belongs on th
 **A button under a field matches the field.** Settings capped `.btn-action` at 280px on desktop —
 exactly half the 536px field above it and sharing its left edge, so every card ended with a 256px
 gutter. Full width is what the login overlay and the mobile layout already do.
+
+## Checkboxes and radios — app-drawn, one recipe (v23.50)
+
+`accent-color` tinted the OS's checkbox and radio and drew nothing: the box, the tick, the pressed
+state and the animation were the platform's, and Android's and iOS's are not the same. The recipe
+now lives in `shared.css` under "NATIVE CONTROLS THE APP DRAWS", and the rules a page must keep:
+
+| Rule | Why |
+|------|-----|
+| **Never set `width`, `height` or `accent-color` on a checkbox/radio** | The size is the recipe's — 20px, 22px under a coarse pointer (the figure `.gen-obj` and `.pw-show-row` each settled on: the ROW is the touch target, the box is what you see). Enforced by `native-surface-parity.test.mjs`. |
+| **Recolour through `--check-fill` / `--check-border`** | `.other-rdw-label input { --check-fill: var(--other) }` is the shape. A page that restates the box to change its colour has forked the recipe. |
+| **The ring goes on the box — unless the ROW is what is chosen** | Option rows (`.gen-obj`, `.bp-mode-opt`, `.hpp-mode-opt`) ring the row via `:has(input:focus-visible)` and suppress the box's own, or a keyboard user sees two rings 10px apart. Those suppressions are named in `focus-ring-parity.test.mjs`'s `NO_INDICATOR_EXEMPT` with that reason. |
+| **The tick is a `clip-path`, not a glyph** | A glyph is a font decision and renders as whatever the platform substitutes. |
+| **`hidden` still hides** | The recipe sets `display: inline-grid`, which out-specifies the UA `[hidden]` rule — so `input[type="checkbox"][hidden] { display: none }` is restated beside it. The `page-visibility-parity` trap, pre-empted. |
+| **It prints** | The checked fill is a background, and browsers drop backgrounds on paper unless `print-color-adjust: exact` says otherwise. It does. |
+
+The same release removed every `title` attribute (see DECISIONS.md → Tooltips), took the OS resize
+grip off the three textareas (`resize: none; field-sizing: content` — the box grows with its content
+to a cap; Safari, with no `field-sizing` yet, keeps its rows and scrolls) and gave every scrollbar the
+app's thin trackless bar (`scrollbar-width`/`scrollbar-color` on `*`, with the `::-webkit-scrollbar`
+pair for older WebKit — an engine that honours the standard pair ignores the pseudo-elements, so they
+never fight). The guides restate the scrollbar in `guide-shell.css` with their own `--scroll-thumb`
+token, because they load none of the app's stylesheets.

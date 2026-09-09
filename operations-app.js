@@ -352,9 +352,10 @@ export function init() {
             nameEl.textContent = m.name;
             // The NAME is what identifies the row, and at 375px it was the element being cut
             // ("C. Francisco-C…", "R. Forrester-Bla…") while a chip reading the same fifteen
-            // characters on all 51 rows kept its full width (v21.72). The title restores the whole
-            // name to a long-press/hover; the chip below gives back the space that caused it.
-            nameEl.title = m.name;
+            // characters on all 51 rows kept its full width (v21.72). The chip below gives back the
+            // space that caused it — and since v23.50 the name WRAPS rather than ellipsising, because
+            // the `title` this line used to set "restored it on long-press" only on paper: no phone
+            // shows a title on long-press, so on the device this card is read on the name was cut.
             const mig = migrated(m.name);
             const pwEl = document.createElement('span');
             pwEl.className = 'acct-pw' + (mig ? '' : ' acct-pw--warn');
@@ -362,7 +363,6 @@ export function init() {
             // row and the card's own key explains what the default IS. The full wording stays in
             // the `?` panel and in the title here, so nothing is lost from the one place a reader
             // goes when they do not know the term.
-            pwEl.title = mig ? 'Has set their own password' : 'Still on the surname default password';
             // The ✓ is decoration; "Own" is the whole statement, on ~50 rows (v21.94).
             pwEl.innerHTML = mig ? '<span aria-hidden="true">✓</span> Own' : 'Default';
             head.append(nameEl, pwEl);
@@ -371,9 +371,6 @@ export function init() {
             resetBtn.className = 'btn-acct-reset';
             resetBtn.textContent = 'Reset';
             resetBtn.setAttribute('aria-label', `Reset ${m.name}'s password to their surname default`);
-            resetBtn.title = mig
-                ? `Reset ${m.name} back to their surname default`
-                : `Re-apply ${m.name}'s surname default and sign out their other devices`;
             resetBtn.addEventListener('click', () => doReset(m.name, resetBtn));
             head.appendChild(resetBtn);
             row.appendChild(head);
@@ -537,7 +534,6 @@ export function init() {
                 if (isFetchTimeout(/** @type {any} */ (e)?.cause)) {
                     // NOT "Retry": the button must not describe an outcome nobody knows.
                     btn.disabled = false; btn.textContent = 'Reset';
-                    btn.title = `Couldn’t confirm ${name}'s reset — check before resetting again`;
                     confirmDialog({
                         title: 'Couldn’t confirm the reset',
                         message: `The reset for ${name} was sent, but the server didn’t answer in time. It may still have gone through — their password may already be their surname, and their other devices already signed out.\n\nReload this page and check ${name}'s row before resetting again. Resetting again is safe.`,
@@ -547,7 +543,6 @@ export function init() {
                 }
                 // Only a genuine RESET failure gets the Retry affordance.
                 btn.disabled = false; btn.textContent = 'Retry';
-                btn.title = 'Reset failed — try again shortly';
                 return;
             }
             // PARTIAL SUCCESS. The endpoint reports each stage separately (v21.86) because the
@@ -589,7 +584,7 @@ export function init() {
                 renderForGrade(filterSelect.value);   // the row re-renders → Reset drops off (now surname)
             } catch (e) {
                 console.warn('[Operations] status refresh after reset failed (reset itself succeeded):', e);
-                btn.textContent = 'Reset ✓'; btn.title = 'Password reset — refresh the page to update the table';
+                btn.textContent = 'Reset ✓';
             }
         }
 
@@ -790,7 +785,6 @@ export function init() {
         // Header logo is a back-to-calendar button (About moved to the drawer logo).
         const headerIcon = document.getElementById('appIcon');
         if (!headerIcon) return;
-        headerIcon.title = 'Back to calendar';
         headerIcon.setAttribute('aria-label', 'Back to calendar');
         // Keyboard-operable: the logo is an interactive control (was a non-focusable <img>). v18.29.
         headerIcon.setAttribute('role', 'button');

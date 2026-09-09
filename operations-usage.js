@@ -97,7 +97,7 @@ async function initUsageCard() {
                     // `title` so a truncated label is still recoverable. "Weekly Retail Circular"
                     // ellipsises at 390px and must NOT be shortened — it is a canonical staff-facing
                     // term (CLAUDE.md wording conventions), so the name stays and the tooltip carries it.
-                    `<span class="usage-bar-label" title="${label}"><span aria-hidden="true">${emoji}</span> ${label}</span>` +
+                    `<span class="usage-bar-label"><span aria-hidden="true">${emoji}</span> ${label}</span>` +
                     `<span class="usage-bar-track"><span class="usage-bar-fill" style="width:${pct}%"></span></span>` +
                     `<span class="usage-bar-count">${count.toLocaleString('en-GB')}</span>`;
                 list.appendChild(row);
@@ -250,7 +250,6 @@ function _appendOriginSection(content, rows) {
         const name = document.createElement('span');
         name.className = 'usage-bar-label';
         name.textContent = `${meta.emoji} ${meta.label}`;
-        name.title = meta.explain;
         // A STACKED bar, not a longer count column. "22 · 17 installed" made this the only group in
         // the card whose count column was wide enough to shorten the tracks, so its bars no longer
         // lined up with the ones above and below. Nesting the installed share inside the accounts

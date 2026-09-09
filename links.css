@@ -834,6 +834,12 @@ body.auth-ready .container { display: grid; }
 /* Same figure as the Mon–Sat column beside it, i.e. no Sunday duty. Muted so the lines that DO
    work a Sunday are the ones the eye lands on. */
 .links-grid td.tot-same { color: var(--text-light); }
+/* The legend under the grid for the three states above (v23.50) — the cells' `title` tooltips,
+   which no phone showed, said this one cell at a time. */
+.tot-legend { margin: 8px 0 0; font-size: var(--type-small); color: var(--text-mid); line-height: 1.5; }
+.tot-legend .lg-assumed   { font-style: italic; color: var(--text-light); }
+.tot-legend .lg-same      { color: var(--text-light); }
+.tot-legend .lg-uncertain { color: var(--orange-text); font-weight: 600; }
 .links-grid tfoot td.tot-cell { line-height: 1.3; }
 .tot-avg-num {
     display: block;
@@ -1993,16 +1999,12 @@ body.auth-ready .container { display: grid; }
     .gen-obj:hover { border-color: var(--border-mid); }
     .gen-obj:has(input:checked):hover { border-color: var(--primary-blue); }
 }
-/* The ring goes on the ROW, not the 17px box — the row is what you are choosing. */
+/* The ring goes on the ROW, not the box — the row is what you are choosing. The box is drawn by
+   shared.css (v23.50); only its own ring is suppressed here, so a keyboard user sees ONE ring.
+   Named in focus-ring-parity's NO_INDICATOR_EXEMPT for exactly that reason. */
 .gen-obj:has(input:focus-visible) { outline: var(--focus-outline); outline-offset: 2px; }
-.gen-obj input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    flex: 0 0 auto;
-    margin: 1px 0 0;
-    accent-color: var(--primary-blue);
-    cursor: pointer;
-}
+.gen-obj input[type="checkbox"] { margin-top: 1px; }
+.gen-obj input[type="checkbox"]:focus-visible { outline: none; box-shadow: none; }
 .gen-obj-hint {
     display: block;
     margin-top: 3px;
@@ -2047,7 +2049,6 @@ body.auth-ready .container { display: grid; }
     .btn-text-link { padding: 12px 2px; min-height: 44px; }
     /* The ROW is the touch target — clicking a label toggles it, and the row clears 44px — so the
        box itself only needs to be comfortably aimable, not 44px. At 22px it dominated the sentence. */
-    .gen-obj input[type="checkbox"] { width: 20px; height: 20px; }
 }
 
 /* 3. THE SHIFT-TIME COLUMN STAYS PUT WHILE THE COUNTS SCROLL.
@@ -2243,8 +2244,14 @@ body.auth-ready .container { display: grid; }
     font-size: var(--type-body);
     line-height: 1.4;
     white-space: pre;
-    overflow-x: auto;
-    resize: vertical;
+    overflow: auto;
+    /* No OS resize grip (v23.50): the box grows with what is pasted into it, to a cap, and Safari
+       — which has no `field-sizing` yet — keeps the six-row box and scrolls. Either is usable;
+       neither hands a corner of the app to the platform to draw. */
+    resize: none;
+    field-sizing: content;
+    min-height: 6lh;
+    max-height: 40vh;
 }
 .li-paste:focus { background-color: white; outline: var(--focus-outline); outline-offset: 1px; }
 

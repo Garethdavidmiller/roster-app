@@ -352,8 +352,6 @@ body {
     color: var(--text-mid);
     cursor: pointer;
 }
-.pw-show-row input { width: 18px; height: 18px; accent-color: var(--primary-blue); cursor: pointer; }
-.pw-show-row input:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 
 /* What this device is actually holding — the count that makes "move your pay data" mean
    something. Empty until the inventory has been read, and hidden while it is. */
@@ -406,5 +404,4 @@ body {
     }
     /* The row IS the control: a 44px floor here is what makes the 20px box below acceptable. */
     .pw-show-row { min-height: 44px; }
-    .pw-show-row input { width: 20px; height: 20px; }
 }

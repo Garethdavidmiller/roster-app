@@ -42,6 +42,7 @@
     --navy-mid:  #0a2d52;   /* mid-navy tint, used by guide + paycalc-guide */
     --gold:      #f5c800;   /* = --accent-gold       */
     --white:     #fff;      /* the chip fill — the shell draws .chip, so the shell must own it */
+    --scroll-thumb: #cfd4dc; /* the thin scrollbar thumb (v23.50) — the guides load no app tokens */
     --info-bg:   #eef4ff;   /* blue tint used for .info boxes in guide + paycalc-guide */
 }
 
@@ -193,3 +194,11 @@ html { color-scheme: only light; -webkit-text-size-adjust: 100%; text-size-adjus
     }
     .btn-back, .btn-pdf, .chip-bar { display: none !important; }
 }
+
+/* Scrollbars in the app's idiom (v23.50) — the same thin, trackless bar shared.css gives the app
+   pages, restated here because the guides deliberately load none of the app's stylesheets. The
+   `.chip-bar` keeps its own `scrollbar-width: none` above: a class outranks the universal rule. */
+* { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background-color: var(--scroll-thumb); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }

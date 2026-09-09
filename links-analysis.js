@@ -218,7 +218,9 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
                 // "staffed" while five of its movements are not covered, and an hour-level test
                 // reported the whole thing as fine. That was the v19.56 bug.
                 const shut = shutCells.has(`${label}|${h}`);
-                const title = mv > 0 ? ` title="${mv} train${mv === 1 ? '' : 's'}, ${cars} cars"` : '';
+                // The accessible name, not a tooltip (v23.50): the cell shows the cars figure already;
+                // the train count is for a screen reader walking the table, which a hover never served.
+                const title = mv > 0 ? ` aria-label="${mv} train${mv === 1 ? '' : 's'}, ${cars} cars"` : '';
                 cells.push(
                     `<td class="cov-heat-cell dem-cell dem-b${bucket}${shut ? ' dem-shut' : ''}"${title}>` +
                     `${cars || ''}</td>`,

@@ -167,7 +167,7 @@
         <span class="hint" id="settingsHint">Check once per tax year — pension saves per payslip</span>
       </div>
       <div class="card-header-actions">
-        <span class="card-year-chip" id="settingsPeriodChip" title="Payslip you're viewing"></span>
+        <span class="card-year-chip" id="settingsPeriodChip"></span>
         <button type="button" class="help-btn" data-help="settings" aria-label="Help: Settings">?</button>
         <span class="card-toggle-arrow">▼</span>
       </div>
@@ -292,7 +292,7 @@
     <div class="period-nav">
       <button type="button" class="nav-pill" id="prevBtn">← Earlier</button>
       <button type="button" class="nav-pill" id="nextBtn">Later →</button>
-      <button type="button" class="nav-pill-today hidden" id="todayPeriodBtn" title="Jump to current pay period" aria-label="Jump to current pay period">📍</button>
+      <button type="button" class="nav-pill-today hidden" id="todayPeriodBtn" aria-label="Jump to current pay period">📍</button>
     </div>
     <div class="period-meta">
       <div class="pm-range" id="pmRange">–</div>
@@ -684,7 +684,7 @@
              payslip's tax estimate (cumulative engages only on the payslip after the source) —
              visible even while the card is collapsed. Written by _updateYtdNote. -->
         <span class="card-year-chip ytd-status-chip" id="ytdStatusChip"></span>
-        <span class="card-year-chip" id="ytdYearChip" title="Tax year"></span>
+        <span class="card-year-chip" id="ytdYearChip"></span>
         <button type="button" class="help-btn" data-help="accuracy" aria-label="Help: Year to Date Figures">?</button>
         <span class="card-toggle-arrow">▼</span>
       </div>
@@ -737,7 +737,7 @@
         <span class="hint">Paid once a year on a January payslip — look for the green note on that payslip</span>
       </div>
       <div class="card-header-actions">
-        <span class="card-year-chip" id="hppYearChip" title="Tax year"></span>
+        <span class="card-year-chip" id="hppYearChip"></span>
         <button type="button" class="help-btn" data-help="hpp" aria-label="Help: Holiday Pay Premium">?</button>
         <span class="card-toggle-arrow">▼</span>
       </div>
@@ -819,7 +819,7 @@
         <span class="hint">A one-off amount on a single payslip when a pay award lands — look for the green note there</span>
       </div>
       <div class="card-header-actions">
-        <span class="card-year-chip" id="bpYearChip" title="Tax year"></span>
+        <span class="card-year-chip" id="bpYearChip"></span>
         <button type="button" class="help-btn" data-help="backpay" aria-label="Help: Back Pay">?</button>
         <span class="card-toggle-arrow">▼</span>
       </div>
@@ -842,7 +842,7 @@
           <!-- The manual option is DISABLED while the paid-in payslip is still in the future
                (v18.48) — there is no printed figure to copy until it exists; calcBackPay owns the
                disabled state and falls a restored manual selection back to compute. -->
-          <label class="bp-mode-opt"><input type="radio" name="bpMode" id="bpModeManual" value="manual"> Enter the amount from your payslip</label>
+          <label class="bp-mode-opt"><input type="radio" name="bpMode" id="bpModeManual" value="manual"> <span class="bp-mode-text">Enter the amount from your payslip <span class="bp-mode-why" id="bpModeManualWhy" hidden>Available once the payslip carrying the lump sum has been paid</span></span></label>
         </div>
       </div>
 

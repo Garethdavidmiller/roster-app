@@ -106,7 +106,7 @@ export function entryControlHtml(key, s, date) {
         const off = sun && isForbiddenOnSunday(t);
         return `<button type="button" class="roster-entry-pill${d.type === t ? ' is-on' : ''}"
             data-key="${esc(key)}" data-entry-type="${t}" aria-pressed="${d.type === t}"
-            ${off ? 'disabled title="Not allowed on a Sunday — Sunday work is RDW"' : ''}>${esc(TYPES[t].pill)}</button>`;
+            ${off ? 'disabled' : ''}>${esc(TYPES[t].pill)}</button>`;
     }).join('');
     // The Sunday exclusions are DERIVED for the note as well as for the pills (rule 2). A `title`
     // is not a mobile affordance and every admin here is on a phone, so the reason four of the six
@@ -131,7 +131,7 @@ export function entryControlHtml(key, s, date) {
                         data-key="${esc(key)}" data-entry-flavour="${k}" aria-pressed="${d.flavour === k}">${esc(f.full)}</button>`).join('')}
             </div>
             <label class="roster-entry-rdw"><input type="checkbox" class="roster-entry-rdw-cb" data-key="${esc(key)}"
-                ${(d.rdw || baseIsRd) ? 'checked' : ''}${baseIsRd ? ' disabled title="Rest day — RDW is automatic"' : ''}> Rest day worked${
+                ${(d.rdw || baseIsRd) ? 'checked' : ''}${baseIsRd ? ' disabled' : ''}> Rest day worked${
                 baseIsRd ? '<span class="roster-entry-lock">(automatic on a rest day)</span>' : ''}</label>
         </div>`;
     return `<div class="roster-entry" data-key="${esc(key)}">

@@ -277,7 +277,6 @@ export function createBookedPeriods(deps) {
                 const btn = deps.doc.createElement('button');
                 btn.type      = 'button';
                 btn.className = 'btn-period-delete';
-                btn.title     = `Delete ${dateStr}`;
                 // THIS MODULE OWNS EVERY STATE OF THE CONTROL — idle, confirming, and back again
                 // after the delete has run, whatever it did. The first cut left the "back again" to
                 // the coordinator, which restored the label it remembered: the WORD "Delete", into
