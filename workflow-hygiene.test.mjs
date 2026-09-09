@@ -736,7 +736,7 @@ describe('every workflow that installs also caches the install', () => {
     }
 });
 
-// ── THE DEPLOY GATE SURVIVES ONE TRANSIENT FAILURE, AND SAYS IT DID (v23.44) ────────────────────
+// ── THE DEPLOY GATE SURVIVES ONE TRANSIENT FAILURE, AND SAYS IT DID (v23.45) ────────────────────
 //
 // `playwright.config.mjs` is the DEPLOY GATE's config as well as branch CI's, so a single flaky
 // test there does not cost a re-run — it costs a release. v23.42 merged, its gate failed on

@@ -956,7 +956,7 @@ test('the CLAUDE.md file tree stays a routing table', () => {
     // ONE ENTRY PER FILE. A tree is a routing table, and a table with two rows for one file sends
     // a reader to two different descriptions of it — which is exactly what happened: two sessions
     // running in parallel each documented `select-sheet-parity.test.mjs` when they added it, both
-    // squash-merged, and CLAUDE.md carried both rows (v23.38 and v23.40 wording) until v23.44.
+    // squash-merged, and CLAUDE.md carried both rows (v23.38 and v23.40 wording) until v23.45.
     // Nothing could see it — the "every test file is listed" contract below is satisfied MORE than
     // once, and a duplicate reads as a normal entry unless you are looking for it. This is the
     // parallel-session failure mode that survives a green suite, so it is checked rather than

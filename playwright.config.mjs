@@ -22,7 +22,7 @@ export default defineConfig({
     timeout: 30_000,
     expect: { timeout: 10_000 },
 
-    // ONE RETRY IN CI, NONE LOCALLY (v23.44). This line read `retries: 0` on the reasoning that
+    // ONE RETRY IN CI, NONE LOCALLY (v23.45). This line read `retries: 0` on the reasoning that
     // "with the CDN dependency removed the tests are deterministic, so a failure is a real failure".
     // The first half is true and the second does not follow: removing the CDN made the suite
     // hermetic with respect to the NETWORK, not with respect to its own webServer. On 9 Sep 2026 the
