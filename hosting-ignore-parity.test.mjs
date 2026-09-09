@@ -50,8 +50,22 @@ import { readFileSync } from 'node:fs';
 const hostingIgnore = JSON.parse(readFileSync(new URL('./firebase.json', import.meta.url), 'utf8'))
     .hosting.ignore;
 
-/** Directories that hold tooling and can never hold anything the app serves. */
-const TOOLING_DIRS = ['.claude', '.github'];
+/**
+ * Directories that hold tooling and can never hold anything the app serves.
+ *
+ * `docs` joined on 9 Sep 2026 (external review). The estate's documentation was already 404 on
+ * Hosting, but only because of the blanket `**\/*.md` rule — which says nothing about the 25
+ * non-markdown files `docs/proposals/` had acquired: the December proposal `.json` designs, their
+ * paste-ready `.txt` imports, and `tooling/*.mjs` with its `results/*.json`. Those were eligible to
+ * be served from the staff domain.
+ *
+ * Nothing there is secret — the repository is public and the mirror serves them regardless, which
+ * is the standing limitation this file's header already describes. The point is the same one the
+ * `.claude`/`.github` entries were added for: an annealer's inputs and results are not part of the
+ * staff application, and the app's own domain should not offer them. A file-EXTENSION rule is not
+ * a directory rule, and the gap between the two is exactly where these landed.
+ */
+const TOOLING_DIRS = ['.claude', '.github', 'docs'];
 
 test('tooling directories are excluded from the deployed bundle', () => {
     for (const dir of TOOLING_DIRS) {

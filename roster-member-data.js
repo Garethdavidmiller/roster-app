@@ -67,8 +67,15 @@ export const teamMembers = [
     { name: 'C. Reen',                 currentWeek: 1,  rosterType: 'fixed',      role: 'CEA' },
     // New starter (3 Jun 2026). Phase 1 (3–27 Jun): own fixed line — pattern 2 (09:00–16:00
     // Mon–Fri), the same line S. Boyle later moves to. Phase 2 (from Sun 28 Jun): joins the main
-    // link on wk10 (the slot S. Boyle vacates, after O. Mylla) via rosterChanges. AL pro-rated
-    // for 2026 (CEA 32 → ⌈212/365×32⌉ = 19 for a 3 Jun start); standard 32 from 2027.
+    // link on wk10 (the slot S. Boyle vacates, after O. Mylla) via rosterChanges.
+    // `proRatedAL: 18` is TRANSCRIBED from the clerk's workbook, not derived; standard 32 from 2027.
+    // DO NOT recompute it from `startDate`. This comment used to state the old formula
+    // (`CEA 32 → ⌈212/365×32⌉ = 19`) directly above the number 18, which read as an arithmetic
+    // slip and invited exactly the "correction" that would have been wrong: 19 is the FORMULA's
+    // answer and 18 is the clerk's. Measured 6 Sep 2026, that formula missed every mid-year
+    // starter in the roster — Toth 12 vs 11, Jedlinski 19 vs 18, Davies 22 vs 20, Okeke 23 vs 24 —
+    // and two of them are not reachable by any formula from the fields this file holds. See
+    // `.claude/skills/new-starter/SKILL.md`, which is why the step now says ASK AND TRANSCRIBE.
     { name: 'K. Jedlinski',            currentWeek: 2,  rosterType: 'fixed',      role: 'CEA',
       startDate: new Date(2026, 5, 3), proRatedAL: { 2026: 18 },
       rosterChanges: [{ from: new Date(2026, 5, 28), rosterType: 'main', currentWeek: 10 }] },
