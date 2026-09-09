@@ -89,6 +89,11 @@ export function initDocUploadCard(cfg) {
     }
   }
   _refreshDateBounds();
+  // …and again whenever the brand date picker is about to open (v23.36). The v16.23 guard above
+  // covers init and submit, which were the only two moments that existed when it was written; the
+  // picker (date-picker.js, v17.41) reads `max` at OPEN time, so a tab left open past midnight
+  // greyed out the real today and the only escape was a reload. Same fix, third moment.
+  dateInput.addEventListener('date-picker-opening', () => _refreshDateBounds());
 
   function _reject(/** @type {string} */ msg) {
     /** @type {HTMLElement} */ (fileLabel).classList.remove('visible');

@@ -27,6 +27,7 @@ import { initHuddleUpload } from './huddle.js';
 import { initDocUploadCard, isPdfFile, isDocxFile } from './doc-upload.js';
 import { initAuthSetup } from './admin-auth.js';
 import { initDatePickers } from './date-picker.js';
+import { isFetchTimeout } from './fetch-timeout.js';
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession, getFirebaseAuthError, reconcileExpiredIdentity } from './session.js';
@@ -279,8 +280,11 @@ export function init() {
         const contentEl = document.getElementById('accountStatusContent');
         if (!contentEl) return;
         const content = /** @type {HTMLElement} */ (contentEl);
-        // Eligible = active accounts + management (managerOnly: hidden from the calendar but login-capable,
-        // and with no Settings page of their own, so the admin manages their email here). Excludes leavers.
+        // Eligible = active accounts + management (managerOnly: hidden from the calendar but login-capable).
+        // Excludes leavers. Management DO have Settings — `auth-policy.js` gates it on `requireNamed`
+        // with no role — so this card is a convenience for doing it on their behalf, not the only
+        // route. This comment said otherwise until v23.36; the same claim was corrected in the
+        // `account-status` tip below and not carried back here.
         const eligible = teamMembers.filter(m => !m.hidden || m.managerOnly);
         /** @type {Map<string, string>} name → work email */
         let emailMap = new Map();
@@ -507,8 +511,31 @@ export function init() {
             try {
                 result = await resetMemberPassword(name, { revoke: true });
             } catch (e) {
-                // Only a genuine RESET failure gets the Retry affordance.
                 console.warn('[Operations] resetMemberPassword failed:', e);
+                // A TIMEOUT IS NOT A FAILURE, and `fetch-timeout.js`'s header names THIS endpoint
+                // when it says so: the abort stopped us waiting, it did not stop the server
+                // working. A reset that timed out may have landed a second later — the member's
+                // password may already BE their surname and their other devices already signed
+                // out. Reporting that as "Reset failed" is how an admin comes to tell a member
+                // their old password still works, on the app's only break-glass path.
+                //
+                // `firebase-client.js` already composes the honest sentence and hangs the tagged
+                // original off `cause`; this used to discard both into a console warning. The
+                // sibling break-glass path on this page (admin-auth.js's Set up accounts) renders
+                // `err.message`, so its equivalent message has always reached the admin — this one
+                // was the exception.
+                if (isFetchTimeout(/** @type {any} */ (e)?.cause)) {
+                    // NOT "Retry": the button must not describe an outcome nobody knows.
+                    btn.disabled = false; btn.textContent = 'Reset';
+                    btn.title = `Couldn’t confirm ${name}'s reset — check before resetting again`;
+                    confirmDialog({
+                        title: 'Couldn’t confirm the reset',
+                        message: `The reset for ${name} was sent, but the server didn’t answer in time. It may still have gone through — their password may already be their surname, and their other devices already signed out.\n\nReload this page and check ${name}'s row before resetting again. Resetting again is safe.`,
+                        confirmLabel: 'OK',
+                    }).catch(() => {});
+                    return;
+                }
+                // Only a genuine RESET failure gets the Retry affordance.
                 btn.disabled = false; btn.textContent = 'Retry';
                 btn.title = 'Reset failed — try again shortly';
                 return;
@@ -828,7 +855,7 @@ export function init() {
                 title: 'Account status',
                 sections: [
                     { heading: 'What it shows', items: [
-                        { icon: '📧', html: 'Each person\'s <strong>work email</strong> — the address if they\'ve added one, or "No work email" if not. Used for <strong>self-service password reset in a future update</strong>; nothing uses it right now.' },
+                        { icon: '📧', html: 'Each person\'s <strong>work email</strong> — the address if they\'ve added one, or "No work email" if not. It is for <strong>account recovery</strong>. Self-service recovery isn\'t available yet, so nothing uses it today.' },
                         { icon: '🔑', html: 'Their <strong>password</strong> — either <strong>✓ Own</strong> (they\'ve set their own in ☰ → Settings → Password) or <strong>Default</strong> (still on the guessable surname default).' },
                         { icon: '🔒', html: 'Each person can only see their <strong>own</strong> email; as admin you see everyone\'s. Use the <strong>All grades / CEA / CES / Dispatcher / Management</strong> filter to track each grade.' },
                     ]},

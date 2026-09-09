@@ -17,8 +17,22 @@ import { setStatus } from './status-text.js';
  *   chip is set, so the strip and the chip cannot disagree. Deliberately NOT called when the card
  *   load fails: the strip only claims what is known, and a reassuring zero from a failed read
  *   would be a lie (operations-attention.js header).
+ *
+ *   ── `opts` IS FORWARDED THROUGH EVERY RE-ENTRY, AND THAT IS THE WHOLE POINT (v23.36) ──────────
+ *   This card re-invokes ITSELF twice — the in-place refresh after "Resolve all shown", and the
+ *   retry button on a failed load — and both used to call `initErrorLog()` bare. The refreshed
+ *   render then re-looked-up the header chip by id and set it correctly while `onAttention` was
+ *   undefined, so the chip and the strip disagreed in both directions: after a resolve-all the
+ *   card read "No errors recorded" under a strip still listing them, and after a failed load
+ *   followed by a successful retry the strip was ABSENT ENTIRELY over a card showing four errors
+ *   — a false all-clear on the page's own index of what needs attention.
+ *
+ *   `admin-auth.js` never had this because its `loadGaps` is a CLOSURE over `onAttention`; this is
+ *   a module-level function re-invoked by name, so the options have to travel by hand. If you add
+ *   another re-entry point, pass `opts`.
  */
-async function initErrorLog({ onAttention } = {}) {
+async function initErrorLog(opts = {}) {
+    const { onAttention } = opts;
     const content = document.getElementById('errorLogContent');
     if (!content) return;
 
@@ -99,7 +113,7 @@ async function initErrorLog({ onAttention } = {}) {
                     return;   // leave the list as-is so the admin can retry just the failures
                 }
                 content.setAttribute('aria-busy', 'true');
-                await initErrorLog();   // in-place refresh — pulls the next batch, no page reload
+                await initErrorLog(opts);   // in-place refresh — pulls the next batch, no page reload
                 // Announce on the FRESH live region, after aria-busy cleared (the refresh's
                 // finally removes it): setting it before the refresh put the message inside an
                 // aria-busy subtree that was then destroyed — screen readers heard nothing
@@ -215,7 +229,7 @@ async function initErrorLog({ onAttention } = {}) {
         // review fix; re-looked-up because _countChip is scoped inside the try).
         const _chip = document.getElementById('errorLogCountChip');
         if (_chip) _chip.textContent = '';
-        _cardLoadError(content, 'Couldn\'t load error log — check your connection.', initErrorLog);
+        _cardLoadError(content, 'Couldn\'t load error log — check your connection.', () => initErrorLog(opts));
     } finally {
         content.removeAttribute('aria-busy');
     }
