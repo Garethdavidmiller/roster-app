@@ -101,6 +101,30 @@ shown that yet.
 
 ## Decisions taken — recorded so they are not re-raised
 
+- **The `push` run being cancelled when the PR run starts is CORRECT — LEAVE IT** (9 Sep 2026) ·
+  **Trigger to revisit: a wrong-way race actually observed (a `push` run surviving while the
+  `pull_request` run for the same commit is cancelled), or pre-PR CI becoming something anyone
+  relies on.** Every PR shows `Tests [push]: cancelled` beside `Tests [pull_request]: success`, and
+  it reads like a fault. It is the intended outcome: both events collide in one concurrency group so
+  a branch carries one suite rather than two, and the survivor is the `pull_request` run — which
+  checks out the synthetic MERGE COMMIT, i.e. what merging would actually produce, where the `push`
+  run only tests the branch head. When `main` has moved under an open PR those are different trees
+  and the merge-result run is strictly the better evidence. **This was re-raised on 9 Sep 2026 as
+  "how do we fix this", which is the whole reason for this row** — the argument existed, but only
+  inside `.github/workflows/e2e.yml`, where somebody watching CI is not looking.
+  **What was measured that day, and is new:** across the last 63 `Tests` runs (38 distinct commits),
+  **zero wrong-way races** — the six cancelled `pull_request` runs were all ordinary supersession by
+  a newer push to the same PR, not the branch-head run beating the merge-result one. Cancellation
+  usually lands within 0.1–0.8 min, so little is burned. That upgrades the workflow comment's honest
+  hedge ("*ordinarily* the PR run") from an expectation to a reading, and the residual risk stays
+  what that comment says it is: the preference is a RACE, not a rule, and the deploy workflow's own
+  gate is the net if it ever goes the other way. The three ways to make it deterministic were
+  weighed and none taken — dropping the `push` trigger (loses pre-PR CI), a guard job querying for
+  an open PR (an API call on every push), and splitting the groups (doubles CI on every push to an
+  open PR, and is the thing the group was added to stop). **The full argument, including why the key
+  is `head_ref || ref_name` and why the obvious `github.ref` recipe silently does nothing, lives in
+  `e2e.yml` beside the config; this row exists so the question is not re-opened from the outside.**
+
 - **WebKit stays OUT of the deploy gate — LEAVE IT** (owner, 8 Sep 2026) · **Trigger to revisit: a
   Safari-only regression actually reaching production, or the work-phone install being permitted (a
   second engine running the INSTALLED app changes the exposure, not just the browser mix).** The
