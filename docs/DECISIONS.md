@@ -172,7 +172,7 @@ shown that yet.
 
 ---
 
-## The two dropdowns that stay native (8 Sep 2026, v23.33)
+## The dropdowns that stay native (8 Sep 2026, v23.33 — completed and enforced v23.38)
 
 `select-sheet.js` replaced the OS popup everywhere a reader reads a list — the Calendar's member
 picker, Admin's three member selects and its month filter, the pay-period selector and the rest of
@@ -200,3 +200,33 @@ Playwright's `selectOption` drives both — so the e2e suite, the visual baselin
 are all equally green either way. The three exclusions above are therefore an EXEMPTION TABLE in
 `select-sheet-parity.test.mjs` rather than prose alone: adding an id there is how the decision gets
 taken, and the alternative was taking it by forgetting.
+
+### What a wider scan then found (v23.40)
+
+The guard shipped looking in two places — `<select id>` in served HTML, and modules calling
+`createElement` — and a `<select>` reaches a reader from a third: **a JS template literal**. Two
+families were invisible to it, and neither is minor:
+
+- **`#loginGrade` / `#loginName` — the sign-in cascade. AN OPEN OWNER DECISION, not a decision
+  taken.** This is the strongest remaining candidate in the app: a grade picker that enables a
+  roster-length name list, the FIRST dropdown any member touches, rendered on all six protected
+  pages plus the Calendar's front door. It is also the highest-blast-radius change available —
+  `e2e/auth.spec.js` drives it on every one of those surfaces — which is why it is recorded rather
+  than converted in passing. **Gareth's call.**
+- **`.gen-slot-time` (Links generator targets, one per shift slot).** Declared native: a dense table
+  of times a designer sets in a run, not fields read one at a time. Replacing every cell of a table
+  with a sheet trigger is a design question about tables, not a mechanical conversion. Designer-only
+  surface, so nothing a member sees.
+
+The second hole was quieter and is the one to remember: the runtime half asked whether a MODULE
+calls `enhanceSelect` anywhere, not whether THIS select is enhanced. `links-generator-targets.js`
+calls it for its saved-setups picker, so its nineteen slot times were reported as covered by a
+module that does enhance — just not them. **A guard whose unit is coarser than the thing it guards
+reports the thing as guarded.**
+
+The same pass added the CSS half, which found two live defects rather than undeclared decisions —
+`#fieldMember:disabled` styling the invisible select while a non-admin's visible trigger took the
+generic grey, and `filterSelect.focus()` sending a keyboard user to a 1px `aria-hidden` element.
+Both were introduced BY an enhancement, in the commit that made it: the call site did not change,
+so nothing drew the eye to it. That is now two contracts — an id rule needs a `#<id>Trigger`
+counterpart, and nothing may focus an enhanced select.

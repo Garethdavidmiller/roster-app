@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: September 2026 — v23.30 · Updated every 0.10 version*
+*Last updated: September 2026 — v23.40 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -970,7 +970,46 @@ the face would keep a name that is no longer in the list. And the trigger copies
 class list, so a page that styles fields by ELEMENT must add `.fieldpick` to those rules — a class
 cannot inherit an element selector, and a trigger that misses one renders as a bare button.
 
-Tested by `select-sheet.test.mjs`; which controls are enhanced at all by `select-sheet-parity.test.mjs`, because a missed select is invisible to every other lane — the closed control is identical, the popup belongs to the platform, and `selectOption` drives both.
+**A fourth, added v23.40: nothing may `.focus()` an enhanced select.** It is 1px, transparent,
+`pointer-events: none`, `tabindex="-1"` and `aria-hidden` — focusing it takes a keyboard or
+screen-reader user off the visible page, with nothing thrown, nothing redrawn and no axe rule that
+fires. Focus `#<selectId>Trigger`. The app had exactly one of these, and it was not written wrong:
+`filterSelect.focus()` on Operations' account-status card was correct for three releases and became
+wrong in the same commit that enhanced the select, which is why nothing drew the eye to it.
+
+Tested by `select-sheet.test.mjs` (the readers) and `select-sheet-parity.test.mjs` (coverage: which
+controls are enhanced at all, and whether the page CSS reaches the trigger) — a missed select is
+invisible to every other lane, because the closed control is identical, the popup belongs to the
+platform, and `selectOption` drives both.
+
+### `select-sheet-parity.test.mjs`
+
+**The rule is used everywhere it claims to be** (v23.38; widened v23.40). CLAUDE.md's architecture
+table has said since v23.33 that every dropdown a reader reads goes through `enhanceSelect`. Nothing
+checked it, and the v23.36 sweep missed two controls that a manual audit found a release later — so
+"left native on purpose" and "nobody looked at it" were indistinguishable, which is what the guard's
+reason-bearing table exists to end.
+
+**v23.40 widened the scan and added the CSS half.** The first cut looked in two places; a `<select>`
+also reaches a reader from a JS template literal, which hid the sign-in cascade and the Links
+generator's per-slot times. Its runtime half also asked whether a MODULE enhances rather than whether
+THIS select is enhanced, so nineteen native selects were reported as covered by a module that
+enhances a different one. Both are per-select now, identified at each construction site.
+
+Seven contracts, in two halves. **Coverage:** the scan can read every construction site and every
+enhancement call (an unreadable one FAILS — it never skips); every `<select>` the app ships is
+enhanced or declared with a reason; a reason is long enough to be one; and a declaration that no
+longer names anything is stale and fails. It enumerates from three shapes — page markup,
+`createElement`, and JS template literals, the last being what a plain HTML scan misses and where
+`login-overlay.js`'s sign-in pair lives. **The CSS half:** an id-level rule on an enhanced select
+needs a `#<id>Trigger` counterpart (a class travels to the trigger for free, an id cannot); a page
+whose enhanced selects carry no class of their own must name `.fieldpick` in its stylesheet; and no
+module may `.focus()` an enhanced select.
+
+Only the CSS half has found a live defect rather than an undeclared decision: `#fieldMember:disabled`
+in admin.css un-greyed the invisible select while the trigger a non-admin actually looks at took the
+generic disabled grey plus `opacity: .55` and `cursor: not-allowed`. Measured, fixed, and pinned in
+`e2e/pages.spec.js` as well, because `:disabled` is a state no visual baseline captures.
 
 ### `links-design-header.js`
 

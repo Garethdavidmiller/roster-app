@@ -87,6 +87,60 @@ part.**
 ---
 
 
+## "Fill this year from calendar" — SHIPPED v22.06–v22.09, moved 9 Sep 2026
+
+**Moved VERBATIM from ROADMAP.md, where it had sat under NEXT as "Possible · Trigger: owner
+go-ahead" for thirty-four releases after it was built.** Found by the v23.40 0.10 documentation
+sweep, which is what that sweep is for: a roadmap still offering a shipped feature as a decision
+spends the owner's attention on a question already answered, and is the shape that gets a finished
+thing re-proposed.
+
+**All three of its open design questions were answered by the code that shipped**, which is the
+clearest evidence it is done:
+
+1. *Where the button lives* — beside the "Not entered yet: …" line, its own leaning. `paycalc-year-card.js`.
+2. *Confirm or not* — no confirm, with a receipt that NAMES the dates, its own leaning again.
+3. *Historic overrides* — answered more conservatively than the question allowed: rule 3 refuses a
+   base-only fill into a period nobody is looking at, and names what it skipped, rather than
+   accepting base-roster-only for old periods.
+
+Every guard rail it set is enforced and unit-tested — `paycalc-fill-year.js` rules 1–4, with
+`paycalc-fill-year.test.mjs` organised around what a bulk write can DESTROY. The entry as written:
+
+### "Fill this year from calendar" — bulk roster pre-fill (paycalc)
+**Status:** Possible · **Owner:** Gareth · **Trigger:** owner go-ahead on the three open design questions
+
+One tap runs the roster-assist pre-fill across **every paid-but-empty payslip of the viewed tax
+year**, instead of visiting each period individually. The multiplier for everything shipped around
+it: the HPP hours estimate, the back-pay accrual and the "This tax year so far" summary all sharpen
+directly with filled periods, and the v18.42 "Not entered yet: 10 Apr, 8 May" lines name exactly what
+one tap would fix.
+
+**Guard rails (already decided):**
+- **Never overwrites** a period the member has entered — only paid-but-empty periods are touched
+  (the same paid/empty test the "Not entered yet" lists use).
+- Fills follow the existing **conservatism policy** (v9.02): premium categories only
+  (Sat/Sun/BH/Boxing/RDW from base roster + overrides) — no inferred ambiguous categories, no
+  standard weekday hours.
+- Filled values are **marked as roster-suggested** (gold), exactly like the single-period pre-fill,
+  so the member can see and correct what was assumed; the result card's 📅 "Hours from calendar"
+  provenance chip (v18.44) then discloses it on each affected payslip.
+
+**Design questions to settle with the owner before building (deliberately not decided):**
+1. **Where the button lives** — leaning: beside the "Not entered yet: …" lines (HPP card and/or
+   the year-so-far block), since they name what it fixes; alternative: the roster-hint bar.
+2. **Confirm or not** — leaning NO confirm (it can't overwrite anything) with a clear receipt
+   afterwards ("Filled 2 payslips from your calendar: 10 Apr, 8 May"); the alternative is a
+   preview-first flow, which fights the one-tap point.
+3. Whether the fill needs Firestore overrides for HISTORIC months (the override cache may not span
+   the whole year client-side — check `fetchOverridesForPeriod` coverage) or base-roster-only is
+   acceptable for old periods.
+
+**Effort:** medium — the per-period suggestion engine (`getRosterSuggestion` /
+`fetchOverridesForPeriod`) already exists; the work is the loop, the receipt UI, and the tests.
+
+---
+
 ## Rangers & Rovers guide — the plan, retired (2 Sep 2026)
 
 **`RANGERS_ROVERS_PLAN.md` in full, moved here VERBATIM apart from two changes named in place:** §6

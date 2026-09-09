@@ -219,7 +219,16 @@ const CAPS = {
     // outcome branch, and the control that reaches the original PDF. That is what this file is for.
     'admin-roster-upload.js':  1300,
     'nav-panel.js':            1250,
-    'operations-app.js':        965,
+    // 965 → 1020 at v23.40, and the word is RAISE rather than extract, which the note above says
+    // should be justified. What consumed the headroom was v23.38's select-sheet sweep, filling the
+    // file to EXACTLY 965; what needs the five lines now is not a feature but an accessibility fix
+    // — `focusGradeFilter`, which puts focus on the enhanced select's trigger instead of on the 1px
+    // `aria-hidden` value holder the enhancement left behind. That is the class of change the
+    // ratchet's standard headroom exists for, and refusing it would make the guard argue for
+    // shipping a keyboard trap. **The extraction the note above asks for is now OVERDUE and has a
+    // name:** the Account-status card is ~330 lines of this file, owns its own reads, its own
+    // filter, its own row rendering and the reset break-glass, and is the obvious next seam.
+    'operations-app.js':       1020,
     // Crossed the 900 uncapped-file threshold at v22.03 (914 measured): the Needs-attention strip
     // added ~14 lines of pure WIRING — the strip module owns every rule, the coordinator only
     // creates it and feeds it from the loads the cards already run. Capped as the ratchet asks

@@ -1938,6 +1938,28 @@ test('admin: the leave and absence cards name the person a manager is recording 
     expect(nested, 'the name must not be inside the banner that hides itself').toBe(false);
 });
 
+test('admin: a member\'s locked member field reads as locked, not as broken', async ({ page }) => {
+    // A non-admin can only see their own data, so the member field is DISABLED — but admin.css has
+    // always said it must still read as a normal display box rather than a greyed-out control.
+    // It did not, from v23.33 until this release: the rule was `#fieldMember:disabled`, an ID
+    // selector, and an ID cannot travel to the trigger button select-sheet.js puts in front of the
+    // select. So it un-greyed a control 1px wide and invisible, while the one the member actually
+    // looks at took the generic disabled grey plus shared.css's `opacity: .55` and `not-allowed`.
+    //
+    // Nothing threw, no axe rule fires on it, and `:disabled` is a state no visual baseline
+    // captures — so this measures the computed style, which is the only thing that can see it.
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [] }; });
+    await seedSession(page, 'L. Springer');   // a plain member: not admin, not manager
+    await page.goto('/admin.html');
+    const trigger = page.locator('#fieldMemberTrigger');
+    await expect(trigger).toBeDisabled();
+    const style = await trigger.evaluate(el => {
+        const cs = getComputedStyle(el);
+        return { opacity: cs.opacity, cursor: cs.cursor };
+    });
+    expect(style).toEqual({ opacity: '1', cursor: 'default' });
+});
+
 test('admin: a member booking their own leave is not told whose leave it is', async ({ page }) => {
     // Not a cosmetic preference. This member cannot change the selector, so the row could only ever
     // say their own name back to them — and an empty `.card-member-for` (the failure mode if the
@@ -3208,6 +3230,61 @@ test('operations: the date picker follows the clock across midnight', async ({ p
     await expect(ninth).not.toHaveAttribute('aria-disabled', 'true');
     await ninth.click();
     await expect(trigger).toHaveText(/9 Sep 2026/);
+});
+
+// ── The app's own dropdown on Operations (v23.38) ──────────────────────────────────────────────
+// select-sheet-parity.test.mjs proves the RULE — that every select is enhanced or declared native.
+// It cannot prove the enhancement WORKS, and "the rule tested, the wiring not" is this repo's named
+// blind spot. What only a browser answers is that the trigger opens the sheet, that a pick moves the
+// value the consumer reads (`rosterTypeEl.value` in admin-roster-upload.js), and that the native
+// select is still in the DOM holding it — both halves of progressive enhancement at once.
+test('operations: the roster type is picked from the app\'s own sheet, and the pick reaches the select', async ({ page }) => {
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [] }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('rosterUploadBody')?.classList.add('open'));
+
+    const trigger = page.locator('#rosterTypeTrigger');
+    await expect(trigger).toBeVisible();
+    await expect(trigger).toHaveText('CEA / Bilingual');
+    // The value holder is still here, and out of the a11y tree — otherwise a screen reader would
+    // find two controls for one value, one of them unreachable.
+    await expect(page.locator('#rosterType')).toHaveAttribute('aria-hidden', 'true');
+
+    await trigger.click();
+    const sheet = page.locator('.picker-sheet');
+    await expect(sheet).toBeVisible();
+    await sheet.locator('.picker-opt', { hasText: 'Dispatchers' }).click();
+
+    await expect(trigger).toHaveText('Dispatchers');
+    await expect(page.locator('#rosterType')).toHaveValue('dispatcher');
+});
+
+test('operations: the account-status grade filter is enhanced too, and keeps focus somewhere visible', async ({ page }) => {
+    // This one is built at RUNTIME, after the card's read returns, and its card rebuilds itself on
+    // every reload — so the enhancement has to happen at construction rather than at page init.
+    // The focus half is the reason the test exists: `filterSelect.focus()` was correct until the
+    // enhancement made the select 1px and `aria-hidden`, at which point focusing it would send a
+    // keyboard user off the visible page with nothing to say where they went.
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [] }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
+
+    const trigger = page.locator('#acctGradeFilterTrigger');
+    await expect(trigger).toBeVisible();
+    await expect(trigger).toHaveText('All grades');
+
+    await trigger.click();
+    await page.locator('.picker-sheet .picker-opt', { hasText: /^CES$/ }).click();
+    await expect(trigger).toHaveText('CES');
+    await expect(page.locator('#acctGradeFilter')).toHaveValue('CES');
+
+    // The trigger is a real Tab stop; the select it stands in front of deliberately is not.
+    await expect(trigger).toHaveAttribute('type', 'button');
+    await expect(page.locator('#acctGradeFilter')).toHaveAttribute('tabindex', '-1');
+    await trigger.focus();
+    await expect(trigger).toBeFocused();
 });
 
 test('settings (signed in): the Pay Calculator Data pointer card renders and links to the backup card', async ({ page }) => {
