@@ -29,7 +29,13 @@ mock.module('./session.js', { namedExports: {
     primeAuth: () => {},
 } });
 mock.module('./ls.js', { namedExports: { lsGet: () => null, lsSet: () => {}, lsDel: () => {} } });
-mock.module('./overlay.js', { namedExports: { lockBodyScroll: () => {}, unlockBodyScroll: () => {}, trapFocus: () => {} } });
+mock.module('./overlay.js', { namedExports: { lockBodyScroll: () => {}, unlockBodyScroll: () => {}, trapFocus: () => {}, createLightbox: () => ({ open() {}, close() {} }) } });
+// The sign-in pickers go through the app's own sheet (v23.49). This suite is about `runNamedSignIn`
+// — what it commits and when — so the picker is stubbed to a no-op returning a no-op refresher
+// rather than driven here: its own behaviour is covered by select-sheet.test.mjs (the rules), the
+// parity suite (the wiring) and e2e/auth.spec.js (a real click on a real row, which is the only
+// place the z-index defect this shipped with could ever have been seen).
+mock.module('./select-sheet.js', { namedExports: { enhanceSelect: () => () => {} } });
 mock.module('./perf-reporter.js', { namedExports: { markLoginStart: () => {}, clearLoginStart: () => {}, recordPageLatency: () => {} } });
 
 const { runNamedSignIn } = await import('./login-overlay.js');

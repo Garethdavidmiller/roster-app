@@ -41,7 +41,13 @@ test('a fresh browser gets the SIGN-IN card first, and NO roster data', async ({
     // field here.
     await expect(page.locator('#calendarLock')).toBeVisible();
     await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
-    await expect(page.locator('#loginName')).toBeVisible();
+    // THE TRIGGER, NOT THE SELECT (v23.50). This read `#loginName` until v23.49 put the sign-in
+    // pair through `enhanceSelect`, which leaves the native `<select>` as a 1px `aria-hidden`
+    // value holder. Playwright still calls that VISIBLE — a non-empty box and no `visibility:
+    // hidden` — so the assertion went on passing while proving nothing: the front door's name
+    // control could have been entirely absent and this line would not have noticed. Every visible
+    // pixel is the trigger, so that is what the reader sees and what this asserts.
+    await expect(page.locator('#loginNameTrigger')).toBeVisible();
     await expect(page.locator('#calLockPin')).toHaveCount(0);
     await expect(page.locator('#loginAlternative')).toHaveText(/staff PIN/i);
     await expect(page.locator('#loginAlternativeHint')).toContainText(/agency/i);

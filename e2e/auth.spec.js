@@ -136,7 +136,7 @@ test('B1 flag ON + sign-in OK: admin loads normally, no forced re-login', async 
     await seedSession(page, 'G. Miller');
     await page.goto('/admin.html');
     await expect(page.locator('#loginOverlay')).toBeHidden();
-    await expect(page.locator('#fieldMember')).toBeVisible();
+    await expect(page.locator('#fieldMemberTrigger')).toBeVisible();
 });
 
 test('B1 flag ON + sign-in OK: operations loads (not redirected)', async ({ page }) => {
@@ -213,7 +213,7 @@ test('in-place sign-in: admin initialises (member selector + nav identity) witho
     await signInThroughOverlay(page, 'G. Miller');
 
     await expect(page.locator('#loginOverlay')).toHaveCount(0);
-    await expect(page.locator('#fieldMember')).toBeVisible();           // admin working surface rendered
+    await expect(page.locator('#fieldMemberTrigger')).toBeVisible();    // admin working surface rendered
     await expect(page.locator('body.auth-ready')).toBeVisible();        // initAuthorised ran in place
     // Nav was deferred + wired with the signed-in identity (footer member badge present).
     await page.locator('#navMenuBtn').click();
@@ -634,4 +634,136 @@ test('forced overlay: a LATE FAILURE re-enables retry with the real error', asyn
     await expect(page.locator('#pwfError')).toContainText('wasn’t updated', { timeout: 10_000 });
     await expect(page.locator('#pwfSave')).toBeEnabled();
     await expect(page.locator('#pwfSave')).toHaveText('Set password →');
+});
+
+// ── THE SIGN-IN CASCADE THROUGH THE APP'S OWN PICKER (v23.49) ────────────────────────────────────
+//
+// The last native `<select>` a member could meet, and the one the module was built for: the same
+// ~50-name roster the Calendar stopped handing to Android's full-bleed sheet at v23.33. What is
+// tested here is only what the ENHANCEMENT can break, and every case is a thing the unit guards
+// cannot see — they read source, and these are about what a rendered page does.
+//
+// The two selects stay as value holders, so every existing assertion in this file still drives
+// them with `selectOption` and still passes. That is the point of the pattern, not an accident.
+test.describe('sign-in pickers', () => {
+    const face = (/** @type {any} */ p, /** @type {string} */ id) =>
+        p.locator(`#${id}Trigger .fieldpick-face`);
+
+    test('the grade trigger names the grade, and the name trigger repopulates behind it', async ({ page }) => {
+        await page.goto('/settings.html');
+        await page.locator('#loginGradeTrigger').waitFor();
+
+        // Before anything is chosen the name control is inert — there is nothing to pick yet.
+        await expect(page.locator('#loginNameTrigger')).toBeDisabled();
+
+        await page.locator('#loginGrade').selectOption({ index: 1 });
+        const grade = await page.locator('#loginGrade').inputValue();
+        // The FACE, not the button: the trigger also carries a hidden widest-option sizer, so
+        // asserting on the button reads the label twice.
+        await expect(face(page, 'loginGrade')).toHaveText(grade);
+
+        // Choosing a grade rebuilds the name list and enables it. `enhanceSelect` repaints from a
+        // MutationObserver on childList + the disabled attribute, which is exactly what this does.
+        await expect(page.locator('#loginNameTrigger')).toBeEnabled();
+        const names = await page.locator('#loginName option').count();
+        expect(names, 'the name list should have been repopulated for the chosen grade').toBeGreaterThan(1);
+    });
+
+    test('a restored grade shows on the trigger, not just in the select', async ({ page }) => {
+        // The v23.42 defect, on the surface that would have re-introduced it: the grade is restored
+        // in CODE from localStorage, which mutates no attribute and fires no event. Without the
+        // explicit `input` dispatch the select holds the grade while the trigger still says
+        // "Select grade" — and the member is looking at the trigger.
+        //
+        // The key is SEEDED rather than earned by picking a grade: `myb_login_grade` is written on
+        // SUBMIT, not on change, so a pick-then-reload never restores anything and would have tested
+        // nothing. Seeding drives the restore path directly, which is the path under test.
+        await page.addInitScript(() => {
+            try { localStorage.setItem('myb_login_grade', 'CEA'); } catch { /* private mode */ }
+        });
+        await page.goto('/settings.html');
+        await page.locator('#loginGradeTrigger').waitFor();
+        await expect(page.locator('#loginGrade')).toHaveValue('CEA');
+        await expect(face(page, 'loginGrade')).toHaveText('CEA');
+        // …and the name list behind it was populated for that grade, not left on the placeholder.
+        await expect(page.locator('#loginNameTrigger')).toBeEnabled();
+    });
+
+    test('focus lands on the visible trigger, never on the 1px native select', async ({ page }) => {
+        // The native selects are 1px and aria-hidden once enhanced, so `.focus()` on one puts the
+        // caret nowhere and keyboard sign-in silently dies — the shape of the defect the parity
+        // guard's `.focus()` contract was written for, which only a rendered page can confirm.
+        await page.goto('/settings.html');
+        await page.locator('#loginGradeTrigger').waitFor();
+        const focused = () => page.evaluate(() => document.activeElement?.id || '');
+        expect(await focused()).toBe('loginGradeTrigger');
+
+        await page.locator('#loginGrade').selectOption({ index: 1 });
+        await expect.poll(focused, { timeout: 3000 }).toBe('loginNameTrigger');
+    });
+
+    test('the sheet opens from the trigger and picking a row signs the member in', async ({ page }) => {
+        // The whole point, end to end: no native popup, and the value the sheet writes is the value
+        // the sign-in path reads.
+        await page.goto('/settings.html');
+        await page.locator('#loginGradeTrigger').waitFor();
+        await page.locator('#loginGrade').selectOption({ index: 1 });
+        await page.locator('#loginNameTrigger').click();
+
+        const sheet = page.locator('.picker-sheet-overlay.open');
+        await expect(sheet).toBeVisible();
+        // Wait for the ENTRY SPRING to finish before clicking a row. `createLightbox` rests the
+        // panel at scale(0.88) and animates it to 1, so a click issued the instant the overlay is
+        // "visible" races a moving target and Playwright's stability check never catches a clean
+        // frame. Measured: one overlay, 26 rows, settled by ~300ms — the sheet is well-behaved, the
+        // test was just early. Asserting the transform has landed is the honest wait.
+        await expect
+            .poll(async () => sheet.locator('.lb-content').evaluate(
+                el => getComputedStyle(el).transform), { timeout: 5000 })
+            .toBe('matrix(1, 0, 0, 1, 0, 0)');
+        // NOT `.first()` — that is the empty placeholder row, which carries `is-current` and writes
+        // no value. A real name is what the sign-in path reads.
+        const row = sheet.locator('.picker-opt:not(.is-current)').first();
+        const picked = (await row.innerText()).trim();
+        await row.click();
+
+        await expect(sheet).toBeHidden();
+        await expect(face(page, 'loginName')).toHaveText(picked);
+        await expect(page.locator('#loginName')).toHaveValue(picked);
+    });
+
+    // ── ESCAPE IN THE SHEET CLOSES THE SHEET. IT DOES NOT LEAVE THE PAGE ────────────────────────
+    // The MODAL sign-in hand-rolls its own keydown handler — it is not a `createLightbox` overlay —
+    // so it never got the v19.53 `_isTopOverlay` guard that stops a buried overlay answering the
+    // keyboard. Its Escape branch NAVIGATES: `window.location.href = './'`. Two overlays, one key,
+    // and the buried one's answer is to leave the page a member is halfway through signing in on.
+    //
+    // It is safe, and MEASURING why turned up more than reading it did. The shipped reason is the
+    // clean one: the listener is bound to `overlay`, and the sheet mounts on `document.body`
+    // OUTSIDE it, so a keypress in the sheet never reaches the login card's handler at all.
+    //
+    // The obvious mutation — rebind to `document`, the shape every other overlay uses — was run,
+    // and THIS TEST STILL PASSED. The mutation was live and effective: a control with no sheet
+    // open navigated to `/` as expected, and instrumenting the branch showed it firing and setting
+    // `location.href` with the sheet open too. The navigation is simply cancelled, in the same
+    // task, by the `history.back()` that the sheet's own close performs. So the outcome is
+    // protected TWICE, once by design and once by accident, and nobody should lean on the second.
+    //
+    // What that means for this test: it pins the OUTCOME a member experiences, which is the thing
+    // worth pinning, and it does NOT guard the binding — one mutation of that binding survives it.
+    // The binding's reasoning belongs beside the handler in `login-overlay.js`, not here.
+    test('Escape inside the picker sheet closes it and stays on the page', async ({ page }) => {
+        await page.goto('/settings.html');
+        await page.locator('#loginGradeTrigger').waitFor();
+        await page.locator('#loginGradeTrigger').click();
+
+        const sheet = page.locator('.picker-sheet-overlay.open');
+        await expect(sheet).toBeVisible();
+        await page.keyboard.press('Escape');
+
+        await expect(sheet).toBeHidden();
+        // Still here — not bounced to the calendar by the login card's own Escape branch.
+        await expect(page).toHaveURL(/settings\.html/);
+        await expect(page.locator('#loginCard')).toBeVisible();
+    });
 });

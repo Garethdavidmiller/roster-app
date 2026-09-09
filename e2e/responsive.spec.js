@@ -90,7 +90,7 @@ for (const width of DESKTOP_WIDTHS) {
         await page.goto('/admin.html');
         // Signed in → the login overlay is never made .visible, and the admin UI shows.
         await expect(page.locator('#loginOverlay')).toBeHidden();
-        await expect(page.locator('#fieldMember')).toBeVisible();
+        await expect(page.locator('#fieldMemberTrigger')).toBeVisible();
         const overflow = await page.evaluate(
             () => document.documentElement.scrollWidth - document.documentElement.clientWidth);
         expect(overflow, 'no horizontal overflow on desktop admin').toBeLessThanOrEqual(1);
