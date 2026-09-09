@@ -154,7 +154,7 @@ wouldn't.*
 
 | Weight | Tier | Examples |
 |--------|------|----------|
-| 800 | **identity** — the badge that names the page/period/figure | `.badge-page`, `.period-badge`, `.actual-badge`, `.lightbox-badge`, `.welcome-grade-badge` |
+| 800 | **identity** — the badge that names the page/period/figure | `.badge-page`, `.period-badge`, `.actual-badge`, `.lightbox-badge` |
 | 700 | **standard** — most labelled chips | `.shift-badge`, `.notice-badge`, `.card-year-chip`, `.rate-badge`, `.type-pill-btn` |
 | 600 | **quiet status** — a receipt or state, not a label to scan | `.sync-chip`, `.prov-chip`, `.roster-state-badge`, `.conf-badge` |
 
@@ -528,7 +528,7 @@ It has now been found twice — `.selectors` (v12-era, its comment carries the r
 
 ## Prose is left-aligned once it passes ~2 lines (v18.89)
 
-Overlay body copy (`.notice-body`, `.lightbox-privacy`, paycalc's `.welcome-desc`) used to be
+Overlay body copy (`.notice-body`, `.lightbox-privacy`) used to be
 centred. Centred text is fine for a line or two and works against the reader beyond that — every
 line starts at a different x, so the eye has to re-find each one, and these run 3–5 lines. The
 badge/title/date **masthead stays centred**; only the prose is left-aligned, which is the

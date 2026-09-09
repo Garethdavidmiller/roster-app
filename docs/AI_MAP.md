@@ -107,7 +107,7 @@ before deleting anything, because the number alone has now been wrong once.
 | Roster PDF upload, review pipeline, cell state logic | `admin-roster-upload.js` |
 | Roster PDF parsing (Cloud Function) | `functions/index.js` + `functions/roster-parse-helpers.js` |
 | Pay calculator coordinator — calculate(), autosave, HPP, back-pay | `paycalc-app.js` + `paycalc.html` |
-| Pay calculator lightboxes — About, Help, Welcome, YTD notice, decimal converter | `paycalc-lightboxes.js` |
+| Pay calculator lightboxes — About, Help, YTD notice, decimal converter | `paycalc-lightboxes.js` |
 | Pay calculator period arithmetic, select UI, nav | `paycalc-periods.js` |
 | Pay calculator grade helpers, settings save/load | `paycalc-settings.js` |
 | Roster-assist hint bar UI, fill logic, snap persistence | `paycalc-roster-hint.js` |

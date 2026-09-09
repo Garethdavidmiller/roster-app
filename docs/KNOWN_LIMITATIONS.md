@@ -451,7 +451,7 @@ had never been created. Root causes (both fixed in May 2026):
 - The `FIREBASE_SERVICE_ACCOUNT` lacked `roles/cloudscheduler.admin` — deployment failed
   silently trying to manage the scheduler job. (Historical: that SA JSON key + GitHub secret
   have since been **retired** — all deploys now use Workload Identity Federation; see
-  CLAUDE.md → SECURITY_RELEASE_PLAN Appendix A2. The scheduler perms now attach to the WIF
+  SECURITY_RELEASE_PLAN.md → Appendix A2. The scheduler perms now attach to the WIF
   `github-deploy@` service account.)
 - A stale `us-central1` deployment record blocked redeployment (the function had initially
   deployed to us-central1 before the region was set to `europe-west2`). Deleted manually

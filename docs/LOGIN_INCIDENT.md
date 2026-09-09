@@ -97,7 +97,7 @@ Login latency was also improved safest-first (v14.79–80): `primeAuth()` pre-wa
 the overlay mounts (one-shot, best-effort — see AI_MAP → `session.js`), and a `#loginStatus` line
 escalates so a multi-second wait reads as progress. The bigger latency wins (drop the post-login
 `reload()`; lazy-load the Firebase import) are **deliberately deferred** to the auth-state-store /
-in-place-login work — do **NOT** hack them in page-by-page. Tracked in AUTH_ARCHITECTURE.md → Phases 9/10.
+in-place-login work — do **NOT** hack them in page-by-page. **Both are settled now**: Phase 9 (drop the post-login reload) SHIPPED at v15.17, and Phase 10 was scoped at v14.86 and deliberately not built. AUTH_ARCHITECTURE.md → Appendix: Phase 9 has the rollout; the Phase 10 note is at the foot of the same file.
 
 ---
 

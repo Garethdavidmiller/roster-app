@@ -26,7 +26,7 @@ memberName   Must match teamMembers[n].name exactly — one char mismatch = sile
 type         "spare_shift" | "shift" | "rdw" | "annual_leave" | "correction" | "sick" | "other"
              Legacy (still in data, not creatable): "allocated" | "overtime" | "swap"
 value        "HH:MM-HH:MM" for shift/rdw; "SPARE" for spare_shift; "AL" for annual_leave; "RD" for correction; "SICK" for sick;
-             training uses the grammar FLAVOUR[" RDW"][" HH:MM-HH:MM"] — flavour "TRG"|"IND"|"ASSESS"|"TEAM", optional rest-day
+             training uses the grammar FLAVOUR[" RDW"][" HH:MM-HH:MM"] — flavour "TRG"|"IND"|"ASSESS"|"TEAM"|"UNION"|"MEET" (the authority is OTHER_FLAVOURS in override-utils.js — UNION v18.56 and MEET v18.61 were missing here), optional rest-day
              marker, optional actual times (see OTHER_DAYS.md; grammar single-source: override-utils.js)
 note         WRITE-ONLY, and always `""` (v22.69). The rules require the field present and a string,
              so every write still sends it — but nothing in the app can produce a value for it and
@@ -70,7 +70,7 @@ htmlContent  Converted HTML string — present when a DOCX was uploaded/ingested
 ```
 Reads: a member `name` claim, `admin`, or the shared `calendarViewer` capability (v23.18 — was open from v10.76; the client refuses the read at source behind the PIN since v23.17, see Huddle notification tap behaviour in OPERATIONS_REFERENCE.md).
 Writes: require auth + admin claim. Cloud Function writes via Admin SDK (bypasses rules).
-Auto-prunes: docs older than **3 months** (Firestore doc + Storage file) are deleted by `pruneOldHuddles()` in `functions/index.js`, awaited at the end of every `ingestHuddle` run (the daily path). Huddles are higher-volume than circulars/newsletters (which keep 6 months) and rarely referenced after the day, so retention is shorter (v14.29). Storage delete on `/huddles` requires the admin-delete rule (v14.29).
+Auto-prunes: docs older than **3 months** (Firestore doc + Storage file) are deleted by `pruneOldHuddles()` in `functions/documents.js` (v20.55 domain split), awaited at the end of every `ingestHuddle` run (the daily path). Huddles are higher-volume than circulars/newsletters (which keep 6 months) and rarely referenced after the day, so retention is shorter (v14.29). Storage delete on `/huddles` requires the admin-delete rule (v14.29).
 
 **staffContact** (v12.68)
 ```
@@ -155,6 +155,24 @@ can't be locked out; orphans left by a uid change are swept server-side by `fanO
 cleanup). New subscriptions are protected immediately; legacy ones harden as devices re-subscribe. This
 closes the F-SEC-5 hardening gap (an identity that merely knew a doc id could previously delete any
 subscription).
+
+**viewerAttempts** (v20.12; the all-sources ceiling v20.35 — the staff Calendar PIN throttle)
+```
+<doc id>     the SOURCE KEY, not a person — a privacy-conscious derivation of the request origin,
+             or the fixed GLOBAL_SOURCE_KEY for the all-sources bucket. It is never a member name
+             and never a raw address.
+failures     int — failed unlock attempts inside the current window
+windowStart  when that window opened
+blockedUntil set once the limit is REACHED; the block expires on its own, deliberately, because a
+             control any passer-by can drive into a permanent state is a denial-of-service handle
+             pointed at the staff it protects
+```
+**Server-only: `allow read, write: if false`.** No client touches it — the only writer is
+`unlockCalendarViewer` via the Admin SDK. **Only FAILURES are recorded**; a correct PIN writes
+nothing, so the collection can say who is guessing and never who is using the app. The rules and the
+thresholds are argued in `functions/calendar-viewer-auth.js`; the operational view is
+OPERATIONS_REFERENCE.md → the Calendar PIN. Listed here because this document says it records what
+EACH collection holds, and this was the one top-level `match` in `firestore.rules` it had never named.
 
 **clientErrors** (v13.31)
 ```
