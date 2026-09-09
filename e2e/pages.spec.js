@@ -6856,3 +6856,47 @@ test('admin: switching member on Change a Shift renames the AL and Absence picke
     }
     expect(errors, 'Uncaught JS exceptions').toHaveLength(0);
 });
+
+// ── NO LEAVE FIGURE IS CUT OFF ON A NARROW PHONE (v23.45) ───────────────────────────────────────
+// The AL banner's four stats sit on one flex row, and `flex: 1` will not shrink a box below its
+// content: "ENTITLEMENT" is one unbreakable word, so the row demands a fixed 304px however narrow
+// the viewport. `#book-annual-leave` is `overflow-x: hidden`, so the surplus was CUT, not scrolled
+// — 38px lost at 320, 3px at 355, none from ~356, unchanged since v20.96. 359 is BELOW the fix's
+// bound and above the break, so it passes either way: the teeth are at 320 and 340, and removing
+// the media query fails exactly those two.
+//
+// Measured against the CARD's clip edge rather than the viewport, because the page itself never
+// overflowed: `document.scrollWidth` stayed equal to `clientWidth` throughout, so the one number a
+// layout guard usually watches said everything was fine while a label was being chopped.
+//
+// 360 and 414 are here as the other half of the assertion. The fix is a `max-width: 359px` query,
+// and a query with the wrong bound would silently restyle widths that were never broken.
+for (const w of [320, 340, 359, 360, 414]) {
+    test(`admin: no annual-leave figure is clipped at ${w}px @layout`, async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await page.setViewportSize({ width: w, height: 900 });
+        await seedSession(page, 'G. Miller');
+        await page.goto('/admin.html');
+        await expect(page.locator('#fieldMember')).toBeAttached();
+        await page.evaluate(() => document.querySelectorAll('.card-body, [id$="Body"]')
+            .forEach(b => b.classList.add('open')));
+        await expect(page.locator('#alBanner')).toBeVisible();
+
+        const r = await page.evaluate(() => {
+            const card = document.getElementById('book-annual-leave');
+            const clipRight = card.getBoundingClientRect().left + card.clientWidth;
+            return {
+                clipped: [...document.querySelectorAll('.al-banner-stat')]
+                    .map(s => ({
+                        label: s.querySelector('.stat-lbl')?.textContent?.trim() ?? '?',
+                        over: Math.round(s.getBoundingClientRect().right - clipRight),
+                    }))
+                    .filter(s => s.over > 0),
+                statCount: document.querySelectorAll('.al-banner-stat').length,
+            };
+        });
+        expect(r.statCount, 'all four leave figures should be present').toBe(4);
+        expect(r.clipped, `these stats are cut off by the card at ${w}px`).toEqual([]);
+        expect(errors, 'uncaught JS on admin').toHaveLength(0);
+    });
+}

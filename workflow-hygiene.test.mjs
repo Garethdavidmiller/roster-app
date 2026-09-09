@@ -735,3 +735,41 @@ describe('every workflow that installs also caches the install', () => {
         });
     }
 });
+
+// ── THE DEPLOY GATE SURVIVES ONE TRANSIENT FAILURE, AND SAYS IT DID (v23.45) ────────────────────
+//
+// `playwright.config.mjs` is the DEPLOY GATE's config as well as branch CI's, so a single flaky
+// test there does not cost a re-run — it costs a release. v23.42 merged, its gate failed on
+// `route.fetch: read ECONNRESET` against the local webServer on the 1,130th test, and the version
+// staff are served stayed behind until somebody re-ran the job by hand.
+//
+// The retry is a ONE-TOKEN edit in either direction and its whole justification lives in a comment,
+// which is the shape this file already pins for the concurrency rules. Both halves are asserted:
+// CI retries (or the gate is one socket reset from blocking a release) and local does NOT (or a
+// developer's own flake is hidden from the person best placed to fix it).
+describe('the smoke config retries in CI and nowhere else', () => {
+    const cfg = readFileSync('playwright.config.mjs', 'utf8');
+    // COMMENTS STRIPPED BEFORE MATCHING, and the first cut of this test is why: the comment beside
+    // the setting cites `playwright.webkit.mjs` as precedent and QUOTES the expression, so the
+    // regex matched prose about the rule while the rule itself said `retries: 0`. Reverting the
+    // line left this suite green — a guard satisfied by its own justification. Same stripping, and
+    // same reason, as card-header-parity and links-rotation-parity.
+    const code = cfg.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+
+    test('one retry under CI', () => {
+        assert.match(code, /retries:\s*process\.env\.CI\s*\?\s*1\s*:\s*0/,
+            'playwright.config.mjs must read `retries: process.env.CI ? 1 : 0`. A bare `retries: 0` '
+            + 'puts the production deploy one transient socket reset away from not shipping; a bare '
+            + '`retries: 1` hides a flake from the developer who could still reproduce it.');
+    });
+
+    test('the reasoning names the failure it was written for', () => {
+        // Not a style rule. The previous comment asserted the suite was deterministic BECAUSE the
+        // CDN dependency was gone — true of the network and false of the webServer — and that
+        // sentence is what made the old setting look already-decided. Whoever changes this next
+        // should meet the measurement, not the conclusion.
+        assert.match(cfg, /ECONNRESET/,
+            'keep the measured failure in the comment beside `retries` — it is the evidence that '
+            + 'the gate\'s failures are not all real failures.');
+    });
+});

@@ -22,12 +22,36 @@ export default defineConfig({
     timeout: 30_000,
     expect: { timeout: 10_000 },
 
-    // Zero retries: with the CDN dependency removed the tests are deterministic, so
-    // a failure is a real failure (not a transient CDN hiccup) and should surface as
-    // a clean exit 1. Retries previously multiplied a slow run into the "takes ages"
-    // symptom and risked the flaky-test exit-code-1-on-pass behaviour of Playwright
-    // 1.51+; neither applies once the suite is hermetic.
-    retries: 0,
+    // ONE RETRY IN CI, NONE LOCALLY (v23.45). This line read `retries: 0` on the reasoning that
+    // "with the CDN dependency removed the tests are deterministic, so a failure is a real failure".
+    // The first half is true and the second does not follow: removing the CDN made the suite
+    // hermetic with respect to the NETWORK, not with respect to its own webServer. On 9 Sep 2026 the
+    // DEPLOY GATE failed on the 1,130th test of a 12.5-minute run with
+    //
+    //     route.fetch: read ECONNRESET — GET http://127.0.0.1:4001/roster-data.js
+    //
+    // — the local static server dropping a socket under load, inside `fixtures.js`'s own route
+    // handler. Not an assertion, not a timeout, and nothing a test could be written to avoid. It
+    // cost a production deploy: v23.42 merged and did not ship until somebody re-ran the job by
+    // hand. That is the whole argument — the gate's failures are not all real failures, and the one
+    // kind that is not is exactly the kind a retry settles.
+    //
+    // The old comment's two objections were checked rather than inherited:
+    //   · The "exit-code-1-on-pass" behaviour of Playwright 1.51+ does NOT occur at the pinned
+    //     1.56.1. Measured with a spec that fails once and passes on retry: reported as `1 flaky`,
+    //     process exits 0.
+    //   · A retry does not LAUNDER a flaky test. That same run prints `1 flaky` rather than
+    //     `1 passed`, so the signal survives — which is the property that makes this safe and the
+    //     reason the count is worth reading when a job takes longer than usual.
+    //
+    // CI ONLY, because a flake in front of a developer should be seen immediately; the run cost is
+    // one test, not a second suite. Same shape as `playwright.webkit.mjs`, which has carried
+    // `retries: process.env.CI ? 1 : 0` for its own documented flake history.
+    //
+    // WHAT THIS TRADE ACCEPTS: a test that becomes genuinely flaky now passes the gate while
+    // printing `flaky`, and nobody is forced to look. Revisit if a flake count above 1 becomes
+    // routine, or if a real regression is ever found to have reached main behind one.
+    retries: process.env.CI ? 1 : 0,
 
     // Explicit reporter prevents Playwright 1.50+ from auto-adding the GitHub Actions
     // reporter when GITHUB_ACTIONS=true — that auto-reporter has its own exit-code

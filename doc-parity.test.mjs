@@ -953,6 +953,24 @@ test('the CLAUDE.md file tree stays a routing table', () => {
         'these entries have stopped being pointers. Move the reasoning into the module header and ' +
         'leave a routing line:\n  ' + tooLong.join('\n  '));
 
+    // ONE ENTRY PER FILE. A tree is a routing table, and a table with two rows for one file sends
+    // a reader to two different descriptions of it — which is exactly what happened: two sessions
+    // running in parallel each documented `select-sheet-parity.test.mjs` when they added it, both
+    // squash-merged, and CLAUDE.md carried both rows (v23.38 and v23.40 wording) until v23.45.
+    // Nothing could see it — the "every test file is listed" contract below is satisfied MORE than
+    // once, and a duplicate reads as a normal entry unless you are looking for it. This is the
+    // parallel-session failure mode that survives a green suite, so it is checked rather than
+    // remembered.
+    const names = entries
+        .map(l => l.replace(/^[│├└─\s]+/, '').split('←')[0].trim())
+        .filter(n => n && !n.endsWith('/'));          // a directory may legitimately recur
+    const seen = new Map();
+    for (const n of names) seen.set(n, (seen.get(n) || 0) + 1);
+    const doubled = [...seen].filter(([, c]) => c > 1).map(([n, c]) => `${n} (${c} entries)`);
+    assert.deepEqual(doubled, [],
+        'these files are routed more than once. Merge them into a single entry — two rows for one ' +
+        'file is two descriptions that will drift:\n  ' + doubled.join('\n  '));
+
     const stamps = (tree.match(/v\d+\.\d+/g) || []).length;
     assert.ok(stamps < 90,
         `the tree carries ${stamps} version references — it was 208 before v20.11, which is a ` +
