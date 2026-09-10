@@ -74,6 +74,23 @@ const lines = (/** @type {string} */ f) =>
 const LARGE_THRESHOLD = 900;
 
 /**
+ * WHERE THIS GUARD LOOKS — and until v23.54 the answer was "the repo root, and nowhere else".
+ *
+ * `readdirSync` was handed this file's own directory, so the whole of `functions/` sat outside the
+ * ratchet with nothing saying so: not a documented exclusion, not a decision anybody recorded, just
+ * the shape of the first implementation. Four Cloud Functions modules were over the threshold and
+ * uncapped, the largest of them `roster-parse-helpers.js` — 1,351 lines, thirty-five exports, and
+ * named "helpers", which is the exact condition the rule at the top of this file describes.
+ *
+ * That gap mattered more than a root one would: `functions/` is where the roster parser's day-drift
+ * defence lives, and a rule that can be wrong about which day somebody worked is the kind this
+ * guard exists to push out of a big file. The four are capped at their measured sizes now, so they
+ * may shrink and may not grow. **This is a ratchet, not a verdict** — being in the table says a
+ * module is large and watched, not that it is wrong.
+ */
+const SCANNED_DIRS = ['./', 'functions/'];
+
+/**
  * Measured size + 50, rounded up to the next 50 (August 2026, at v21.28).
  *
  * ⚠️ THESE MAY ONLY GO DOWN. If a number here needs raising, the change underneath it is the thing
@@ -150,7 +167,14 @@ const CAPS = {
     // the wiring — the handles the renderer is given, and clearing a pinned year when the member
     // changes. Re-set to the new size plus the usual room rather than left at 1710, which would
     // have been a cap tuned to the fix before it rather than the file after it.
-    'admin-app.js':            1720,
+    // 1720 → 1700 at v23.54. The four pure answers behind the booked-date lists — `addDays`,
+    // `isRestGap` and the two formatters — left for admin-period-dates.js. They were nested in a
+    // 1,600-line `init()` and were ALREADY being handed out of it as named collaborators to
+    // admin-booked-periods.js, so the closure was the only thing keeping them un-testable.
+    // The next-50 formula would give 1750 here, which is a RAISE, and a cap may only fall — so it
+    // is clamped to the round number below the old one. 26 lines of room rather than the usual
+    // 50–99, which is the honest cost of shrinking a file by less than the band is wide.
+    'admin-app.js':            1700,
     'links-design.js':         1500,   // a DOMAIN module: large is less alarming here, but still capped
     // 1350 → 1100 at v21.90. The three date-keyed document collections left for
     // documents-client.js — 1,308 measured lines down to 1,033 — taking the upload SEQUENCE with
@@ -323,7 +347,15 @@ const CAPS = {
     // a change to what the Calendar may SHOW would put two independent risks behind one review. The
     // candidate stands and is now overdue. What landed here is wiring only — the decision, the
     // preconditions and the whole safety argument are in calendar-access-core.js, tested in Node.
-    'calendar-access.js':      1055,
+    // 1055 → 850 at v23.54. The three CARDS this gate can put where the Calendar goes —
+    // the member sign-in front door, the staff PIN behind it, and the member's come-back card —
+    // left for calendar-lock-cards.js with `hideLockPanel` and the unlock form's backoff, 1,053
+    // measured lines down to 756. A SPLIT, not an extraction: no rule came out, because the rules
+    // were never in the cards. This file's own header already said "Does NOT own: ... any
+    // rendering" while about a third of it was card markup, so the seam was one the module had
+    // already described and nobody had cut. The security properties did NOT move — the persistence
+    // order and the claim verification are still here — and the ceiling comes down with the code.
+    'calendar-access.js':      850,
     // Crossed 900 at v21.85 on a ONE-LINE import — `setStatus`, so the four back-pay notices stop
     // announcing their leading glyph. It had been sitting at exactly 900 since v21.82, when the
     // response to the same pressure was to trim a comment of my own rather than raise the ceiling;
@@ -333,6 +365,19 @@ const CAPS = {
     // `bpStoryHtml` — a pure HTML builder with no coordinator state, and the same shape as the
     // split that produced paycalc-breakdown.js.
     'paycalc-backpay.js':       949,
+
+    // ── functions/ — capped for the FIRST TIME at v23.54, at their measured sizes ───────────────
+    //
+    // See SCANNED_DIRS above for why they were never here. Each is the size it was on the day the
+    // scan first reached it, plus the usual room; none is an accusation, and the two domain files
+    // are large because the domains are.
+    'functions/roster-parse-helpers.js': 1400,   // ← 1,351 and named "helpers": 35 exports, and the
+                                                 //   day-drift defence is among them. The clearest
+                                                 //   candidate in this block for a rule to leave.
+    'functions/overtime.js':             1400,   // the Overtime endpoints + Firestore orchestration
+    'functions/overtime-core.js':        1150,   // every Overtime RULE, already pure and tested
+    'functions/index.js':                1100,   // the composition root; its exports ARE the deploy surface
+
 };
 
 describe('an already-large module may not get larger', () => {
@@ -349,7 +394,11 @@ describe('an already-large module may not get larger', () => {
     }
 
     test('every large module is IN the table — a new one is a decision, not an accident', () => {
-        const untracked = readdirSync(here)
+        const untracked = SCANNED_DIRS
+            .flatMap(dir => readdirSync(new URL(dir, here))
+                // Root entries keep their bare name, because that is how the table spells them
+                // and a key that does not match is a file this guard silently stops watching.
+                .map(f => (dir === './' ? f : dir + f)))
             .filter(f => /\.js$/.test(f) && !f.includes('.test.'))
             .filter(f => !(f in CAPS))
             .filter(f => lines(f) > LARGE_THRESHOLD);
