@@ -88,17 +88,18 @@ export function initCalendarNotices({ after } = {}) {
     // snoozed, expired), and as plain blocks those returns leave THIS function — so the first
     // notice already dismissed silenced every notice after it. Caught by a render check the same
     // hour it was written; the wrapper is the scope those returns need.
-    // ── Reminder: book the rest of your 2026 annual leave (v23.31, owner request) ──────────────────
+    // ── Reminder: book the rest of your 2026 annual leave (v23.31; a ONE-OFF since v23.60) ────────
     //
     // The leave year is the calendar year, and leave still unbooked late in it can have dates
-    // allocated for the member. The reminder therefore has to REACH people, so it follows the
-    // skill's actionable pattern rather than the back-pay notice's one-shot: any dismissal snoozes
-    // it 7 days, taking the CTA snoozes it 1 day, and it retires 90 days after posting (~7 Dec
-    // 2026), by which point the year's leave is settled one way or the other. There is no permanent
-    // "done": one booking does not mean the remaining days are booked, and the Admin page would have
-    // to reach across into a Calendar notice's key to say so — the coupling `storage-keys.js`
-    // records ending at v21.84. Archived on OPEN because there is a CTA (the member may leave before
-    // onClose fires).
+    // allocated for the member. It shipped on the skill's actionable pattern — a 7-day snooze on any
+    // dismissal, 1 day on the CTA, repeating until its 90-day expiry — and the owner ruled that wrong
+    // (10 Sep 2026): it is a heads-up, not a nag, and a member who has read it once has been told.
+    // So EVERY dismissal now marks it DONE — the ×, the backdrop, Escape, "Not now" and the CTA
+    // alike — and it never returns on that device. A snooze already sitting on a device can only
+    // have been written by a dismissal under the old rule, which under this rule is "seen", so it
+    // is promoted to done rather than re-shown when it lapses. The 90-day expiry stays: a device
+    // first opened after ~7 Dec 2026 is flagged and shown nothing. Archived on OPEN because there is
+    // a CTA (the member may leave before onClose fires).
     (function () {
         const NOTICE_ID   = 'al-booking-2026';
         const NOTICE_DATE = '8 Sep 2026';
@@ -108,13 +109,13 @@ export function initCalendarNotices({ after } = {}) {
         const overlay = document.getElementById('alNoticeLb');
         if (!overlay) return;
         if (lsGet(DONE_KEY)) return;
-        const snooze = lsGet(SNOOZE_KEY);
-        if (snooze && Date.now() < new Date(snooze).getTime()) return;
+        // A snooze predates the one-off rule and exists only on a device that already dismissed
+        // the notice once. That is "seen": promote it, rather than re-showing when it lapses.
+        if (lsGet(SNOOZE_KEY)) { lsSet(DONE_KEY, '1'); return; }
         // Long expiry — a seasonal reminder that stays relevant for months, not a launch nudge.
         if (isNoticeExpired(NOTICE_DATE, 90)) { lsSet(DONE_KEY, '1'); return; }
 
-        /** @param {number} days */
-        const _snooze = days => lsSet(SNOOZE_KEY, new Date(Date.now() + days * 86_400_000).toISOString());
+        const markDone = () => lsSet(DONE_KEY, '1');
 
         const lb = createLightbox({
             overlay,
@@ -128,10 +129,10 @@ export function initCalendarNotices({ after } = {}) {
                         + 'have soon — leave left unbooked later in the year may have dates allocated for you.',
                 });
             },
-            onClose() { _snooze(7); },
+            onClose() { markDone(); },
         });
 
-        document.getElementById('alNoticeGo')?.addEventListener('click', () => _snooze(1));
+        document.getElementById('alNoticeGo')?.addEventListener('click', markDone);
         document.getElementById('alNoticeLater')?.addEventListener('click', () => lb.close());
 
         // 'members' — it is about YOUR remaining leave and it opens the Admin page's booking card
