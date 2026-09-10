@@ -690,7 +690,7 @@
                 box-shadow: 0 5px 15px rgba(0,0,0,0.1);
                 z-index: 2;
             }
-            /* A DAY IS NOW A BUTTON ON A MOUSE TOO (v23.58) — a click opens the day panel on every
+            /* A DAY IS NOW A BUTTON ON A MOUSE TOO (v23.59) — a click opens the day panel on every
                pointer type, so the cursor has to say so. It could not before: only the two
                pay-marked cells a month did anything, and there was no way to advertise that without
                advertising it on the twenty-eight that did not. `.other-month` is excluded because
@@ -720,7 +720,7 @@
             box-shadow: 0 3px 10px rgba(0,0,0,0.22);
         }
         #calTooltip[hidden] { display: none; }
-        /* An overlay takes the tooltip down with it (v23.58) — BELT AND BRACES, and saying so
+        /* An overlay takes the tooltip down with it (v23.59) — BELT AND BRACES, and saying so
            because the first version of this comment claimed a defect that was never observed. A
            click now opens the day panel on a mouse too and the pointer does not move on the way, so
            `mousemove` never re-runs; the reason the tip does not strand over the backdrop is that

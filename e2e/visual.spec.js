@@ -917,7 +917,7 @@ async function openDenseDayPanel(page, { width, height }) {
     await dismissOneTimeOverlays(page);
     await page.goto('/');
     await settle(page, '.calendar-day');
-    // OPENED BY THE KEYBOARD, and kept that way after v23.58 made a desktop CLICK open the panel
+    // OPENED BY THE KEYBOARD, and kept that way after v23.59 made a desktop CLICK open the panel
     // too. Both routes reach the identical panel, so the baseline is unaffected either way — and
     // Enter leaves the pointer where it is, which a click would not: `body.lb-open` hides the hover
     // tooltip, but a click would first have had to travel over the grid. The viewport widths above

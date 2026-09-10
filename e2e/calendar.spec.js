@@ -49,7 +49,7 @@ test('calendar: renders the current month from roster data', async ({ page }) =>
 // size. Nothing could see that — every element was present and readable, so no behavioural
 // assertion and no axe rule fired, and the visual baselines had been generated with it.
 test('day detail: names the roster it was changed from, and opens at full size', async ({ page }) => {
-    // UNGATED SINCE v23.58, and the note is kept because the reason it WAS gated is instructive: the
+    // UNGATED SINCE v23.59, and the note is kept because the reason it WAS gated is instructive: the
     // panel used to be the touch affordance alone, a desktop click opened nothing, and the first cut
     // of this test ran on both projects and failed on chromium for exactly that reason. The click
     // now opens the panel on every pointer type, so the gate would skip real coverage on two engines.
@@ -1756,7 +1756,7 @@ test('day detail: a PIN-unlocked screen offers neither personal action', async (
 // CLICK on a pay-marked cell and keyboard ENTER on one both called `navigateToPaycalc` directly, so
 // the panel was tidy and a colleague's calendar — or a PIN-unlocked station PC — still jumped.
 //
-// v23.58 removed the first of those two. A click now opens the panel on every pointer type, so the
+// v23.59 removed the first of those two. A click now opens the panel on every pointer type, so the
 // only way a pointer reaches the calculator is `#dayDetailPayBtn`, which `personalActionsAllowed`
 // already governs. These tests are therefore no longer about a desktop-only route and are no longer
 // gated to one — they run wherever a click does, which is everywhere. What they still watch is the
@@ -1778,7 +1778,7 @@ test('calendar: a click on a pay day opens the panel and offers no jump from a c
     expect(payIdx, 'the month has no pay-marked day to click').toBeGreaterThan(-1);
     await page.locator('.calendar-day:not(.other-month)').nth(payIdx).click();
 
-    // The panel opens — the v23.58 behaviour, and the half a "does not navigate" assertion cannot
+    // The panel opens — the v23.59 behaviour, and the half a "does not navigate" assertion cannot
     // tell apart from a click that did nothing at all, which is what this used to be on desktop.
     await expect(page.locator('#dayDetailLightbox')).toBeVisible();
     await expect(page.locator('#dayDetailPayBtn'), 'a colleague’s pay day offers no jump').toBeHidden();
@@ -1810,7 +1810,7 @@ test('calendar: a click on YOUR OWN pay day reaches the calculator through the p
 
 test('calendar: a refused Enter opens the day panel rather than doing nothing', async ({ page }, info) => {
     test.skip(isTouchProject(info), 'Enter on a focused cell is the keyboard route');
-    // THE DIRECTION A CARELESS FIX GETS WRONG, and the one route v23.58 deliberately left alone:
+    // THE DIRECTION A CARELESS FIX GETS WRONG, and the one route v23.59 deliberately left alone:
     // the keyboard still jumps straight to the calculator from a pay cell, because it has neither a
     // hover tooltip nor a visible button to aim at. Refusing the jump is right; refusing it and
     // returning would leave Enter dead on exactly those days. So the refusal has to HAND OVER.
@@ -1861,7 +1861,7 @@ test('calendar: a PIN-unlocked screen cannot click through to the calculator', a
     expect(page.url(), 'a shared screen must not open anybody’s calculator').not.toContain('paycalc');
 });
 
-// A MOUSE CAN DO SOMETHING A FINGER CANNOT: DRAG — and from v23.58 a click opens the day panel on
+// A MOUSE CAN DO SOMETHING A FINGER CANNOT: DRAG — and from v23.59 a click opens the day panel on
 // every pointer type, so "does a paging drag also open a panel?" is a question the change raises and
 // nothing else answers. It does not, and THE REASON IS THE PLATFORM'S, not ours: the swipe takes
 // `setPointerCapture` on the first `pointermove`, and both engines then dispatch the compatibility
@@ -1912,7 +1912,7 @@ test('calendar: a mouse drag pages the month and does NOT open the day panel', a
     throw new Error('the drag never paged the month in four attempts');
 });
 
-// THE HOVER TOOLTIP AND THE PANEL, WHICH NOW SHARE A POINTER (v23.58). Before this release they
+// THE HOVER TOOLTIP AND THE PANEL, WHICH NOW SHARE A POINTER (v23.59). Before this release they
 // could not meet: the tooltip was the desktop route to a day and the panel the touch one. A click
 // now opens the panel WITHOUT MOVING THE MOUSE, so `mousemove` never re-runs — which raises the
 // question of whether the tip strands over the backdrop, describing in one line the day the panel
@@ -1926,7 +1926,7 @@ test('calendar: a mouse drag pages the month and does NOT open the day panel', a
 //
 // THE SECOND HALF IS THE ONE WITH TEETH: a tooltip hidden and never given back would be SILENT. It
 // is drawn only under a live pointer, so it appears in no visual baseline, axe has no rule for it,
-// and until v23.58 nothing in this repo had ever asserted on it at all.
+// and until v23.59 nothing in this repo had ever asserted on it at all.
 test('calendar: the hover tooltip yields to the day panel — and comes back afterwards', async ({ page }, info) => {
     test.skip(isTouchProject(info), 'there is no hover on a touch device; the tip is never built');
     await seedMemberSession(page, 'G. Miller');

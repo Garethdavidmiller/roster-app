@@ -321,7 +321,7 @@ function buildGridPlaceholder(display, onRetry) {
  * @param {number} month - 0-indexed JS month
  * @param {number} year
  * @param {{ onDayDetail?: Function, onRetryMonth?: Function }} [opts]
- *   onDayDetail       — called when ANY day cell is activated, on every pointer type (v23.58)
+ *   onDayDetail       — called when ANY day cell is activated, on every pointer type (v23.59)
  *   onRetryMonth      — called as (year, month) from the "Try again" button of the withheld-grid
  *                       panel. Omitted by callers that have no fetch to re-run (the swipe carousel's
  *                       off-screen panels), in which case no button is drawn — an inert control is
@@ -388,7 +388,7 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // Exclude the greyed adjacent-month filler cells (v16.23): they carry no data-detail-*
         // attributes (and are aria-hidden), so a touch tap opened a BLANK day-detail lightbox.
         if (!cell || cell.classList.contains('other-month')) return;
-        // ONE RULE, EVERY POINTER: clicking a day opens the day panel (v23.58, owner request —
+        // ONE RULE, EVERY POINTER: clicking a day opens the day panel (v23.59, owner request —
         // "I want the day detail lightboxes like mobile on desktop"). There is no pointer branch
         // here any more, and that is the whole change.
         //
