@@ -418,6 +418,52 @@ describe('computeCellStates — review state machine', () => {
         assert.equal(c.options, null, 'AL on a base rest day normalises to RD, so both readings agree');
     });
 
+    // ── RDW-parity is part of COVERED (v16.23; pinned v23.52) ────────────────────────────────
+    // Found by MUTATION during the roster-review-states.js extraction: removing the type-parity
+    // term from `rdwMatches` left every assertion in this file green. The rule was argued at length
+    // beside the code and protected by nothing — which is the exact asymmetry CLAUDE.md names, and
+    // it costs REAL MONEY in one direction: a stored {type:'shift'} and an incoming RDW| compare
+    // equal on the bare time, so without the check a shift→rest-day-working reclassification is
+    // swallowed as COVERED and the overtime is never recorded. Both directions are pinned, plus the
+    // two neighbouring cases that must NOT alarm.
+    const TIME = '14:30-22:00';
+    /** @param {string} parsedVal @param {any} ex @param {string} [date] */
+    const runOver = (parsedVal, ex, date = WORKDAY) =>
+        computeCellStates(
+            { parsed: [{ memberName: mname, shifts: { [date]: parsedVal } }], dates: [date] },
+            [{ memberName: mname, date, value: TIME, source: 'roster_import', id: 'i1', ...ex }],
+        ).get(`${mname}|${date}`);
+
+    test('a stored plain SHIFT vs an incoming RDW is not COVERED — the overtime must not be swallowed', () => {
+        const c = runOver(`RDW|${TIME}`, { type: 'shift' });
+        assert.notEqual(c.state, 'COVERED',
+            'same time, different type: approving this is what records the rest-day working');
+    });
+
+    test('a stored RDW vs an incoming plain shift is not COVERED either — the reverse stuck too', () => {
+        const c = runOver(TIME, { type: 'rdw' });
+        assert.notEqual(c.state, 'COVERED');
+    });
+
+    test('a MANUAL rest-day-working the PDF now shows as an ordinary shift is a CONFLICT, not COVERED', () => {
+        // The same rule on the manual branch, where the cost is higher: silently keeping the manual
+        // entry would leave the admin no way to see the two disagree.
+        const c = runOver(TIME, { type: 'rdw', source: 'manual', id: 'm1' });
+        assert.equal(c.state, 'CONFLICT');
+    });
+
+    test('matching types on both sides ARE covered — the check must not manufacture work', () => {
+        const c = runOver(`RDW|${TIME}`, { type: 'rdw' });
+        assert.equal(c.state, 'COVERED');
+    });
+
+    test('a SUNDAY is exempt — a worked Sunday stores as rdw and arrives as a plain time', () => {
+        // Without the exemption this false-CONFLICTs every worked Sunday on every re-upload, because
+        // the save path promotes a Sunday time to rdw and the PDF never carries the marker.
+        const c = runOver(TIME, { type: 'rdw' }, SUN);
+        assert.equal(c.state, 'COVERED');
+    });
+
     test('a Sunday "AL" is normalised to RD — never written as AL', () => {
         // SUN (2026-06-21) is the module-level Sunday constant.
         const c = computeCellStates(
