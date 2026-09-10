@@ -21,6 +21,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { buildGuideIndex, GUIDE_PAGES, PROVISIONAL_MARKERS } from './scripts/guide-index-lib.mjs';
 import { GUIDE_INDEX } from './guide-index.js';
+import { searchGuideIndex } from './guide-search.js';
 
 const read = (/** @type {string} */ n) => readFileSync(new URL(`./${n}`, import.meta.url), 'utf8');
 
@@ -69,7 +70,29 @@ test('contract 5 — the key legend is a definition, not a claim: no evidence fr
     assert.deepEqual(by('rc-jcp')?.e, ['draft']);
 });
 
-test('contract 6 — result rows ride nav-panel\'s delegated guide-link handler', () => {
+test('contract 6 — a search EXAMPLE is not an answer', () => {
+    // The Staff Guide tells the reader to try "boxing day" and "network railcard". Naming them put
+    // both phrases into the index, and because a body match scores 1 wherever it appears and ties
+    // break on index order — with the Staff Guide indexed first — the top hit for `boxing day`
+    // became the paragraph that told you to search for it. Nothing was wrong with the index: it was
+    // TRUE of the page, which is exactly why contract 1 could not see this.
+    const tip = read('staff-guide.html').match(/<div class="info tip"[^>]*>\s*<strong>Search the guides\./);
+    assert.ok(tip && tip[0].includes('data-gs-example'),
+        'the search tip lost its data-gs-example marker — its example phrases are indexed again');
+    const menu = GUIDE_INDEX.find(u => u.id === 'sg-the-menu');
+    assert.ok(menu, 'the Staff Guide Menu section is gone from the index');
+    for (const word of ['boxing', 'railcard']) {
+        assert.ok(!(menu?.k || '').split(' ').includes(word),
+            `the Menu section still indexes "${word}" — the example is being read as content`);
+    }
+    // And the two queries the guide advertises land on the guide that answers them, not on the advice.
+    for (const [q, page] of [['boxing day', 'paycalc-guide.html'], ['network railcard', 'railcard-guide.html']]) {
+        const top = searchGuideIndex(GUIDE_INDEX, q)[0];
+        assert.equal(top?.page, page, `"${q}" no longer leads to ${page} — it leads to ${top?.page}#${top?.id}`);
+    }
+});
+
+test('contract 7 — result rows ride nav-panel\'s delegated guide-link handler', () => {
     const ui = read('nav-guide-search.js');
     const nav = read('nav-panel.js');
     // The class the delegated handler dispatches on, present in BOTH files: the renderer must
@@ -83,7 +106,7 @@ test('contract 6 — result rows ride nav-panel\'s delegated guide-link handler'
     assert.ok(!/^import .*nav-guide-search/m.test(nav), 'nav-guide-search must not be statically imported');
 });
 
-test('contract 7 — evidence-bearing units exist (the extractor has not gone quietly blind)', () => {
+test('contract 8 — evidence-bearing units exist (the extractor has not gone quietly blind)', () => {
     // If a rewrite of the extractor stopped seeing markers entirely, contracts 3 and 5 could pass
     // vacuously on empty lists. At least the three known claims must be found somewhere.
     assert.ok(GUIDE_INDEX.filter(u => u.e.length > 0).length >= 3);

@@ -1440,12 +1440,17 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     align-items: center;
     gap: 10px;
 }
+/* THE LABEL WRAPS, IT DOES NOT ELLIPSISE (v23.52). It used to do the latter with a `title`
+   recovering the cut-off name — and v23.50 removed every `title` in the app, because no phone shows
+   one. That left "📰 Weekly Retail Circular" truncated at 390px with nothing to read it back, and
+   that name may not be shortened: it is a canonical staff-facing term. Two lines cost a few pixels
+   on the narrowest phone; a name nobody can finish reading costs the row its meaning. Same answer
+   the Account-status name row took in the same release. */
 .usage-bar-label {
     font-size: var(--type-small);
     color: var(--text-dark);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
+    line-height: 1.3;
 }
 .usage-bar-track {
     height: var(--report-bar-h);

@@ -14,6 +14,17 @@
  *    section search can see but never navigate to, which reads as a broken result. extract() throws
  *    on one, so a future section added without an id fails the parity test rather than shipping.
  *
+ *  - AN EXAMPLE IS NOT AN ANSWER. An element marked `data-gs-example` is dropped before anything
+ *    is extracted, so its words never become a unit's tokens. It exists for one shape and the shape
+ *    is self-inflicted: the Staff Guide's own "Search the guides" tip names two things to try, and
+ *    naming them put those phrases into the index. Every hit for `boxing day` scored the same (a
+ *    body match is worth 1), ties break on index order, and the Staff Guide is indexed first — so
+ *    the top result for the query the guide TELLS you to type was the paragraph telling you to type
+ *    it, ahead of the Boxing Day pay rows in the Pay Calculator Guide. Same principle as the key
+ *    legend below ("a definition is not a claim"), one level up: this drops the text outright
+ *    rather than only from the evidence scan, because a definition can still be an answer and an
+ *    example of a search never is.
+ *
  *  - PROVISIONAL MARKERS ARE READ, NEVER INFERRED. The marker vocabulary below mirrors what
  *    guide-sources.test.mjs pins (its per-class marker lists); the parity test asserts the two
  *    stay identical. A unit's evidence is the set of distinct states whose markers appear in its
@@ -83,8 +94,13 @@ function evidenceOf(slice) {
  * @returns {import('../guide-search.js').GuideIndexUnit[]}
  */
 export function extractGuideUnits(html, page) {
-    // Index only the served body — not comments, which in this repo carry design prose.
-    const src = html.replace(/<!--[\s\S]*?-->/g, ' ');
+    // Index only the served body — not comments, which in this repo carry design prose, and not
+    // anything marked `data-gs-example` (see header). Dropped from `src` itself, before sections or
+    // cards are located, so the exclusion cannot be reintroduced by whichever slice happens to
+    // contain it.
+    const src = html
+        .replace(/<!--[\s\S]*?-->/g, ' ')
+        .replace(/<(\w+)[^>]*\bdata-gs-example\b[^>]*>[\s\S]*?<\/\1>/g, ' ');
 
     if (/<h2(?![^>]*\bid=)[^>]*>/.test(src)) {
         throw new Error(`${page}: an <h2> without an id — sections must be deep-linkable`);

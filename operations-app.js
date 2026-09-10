@@ -361,8 +361,8 @@ export function init() {
             pwEl.className = 'acct-pw' + (mig ? '' : ' acct-pw--warn');
             // "Default", not "Surname default": the word repeated verbatim down every unmigrated
             // row and the card's own key explains what the default IS. The full wording stays in
-            // the `?` panel and in the title here, so nothing is lost from the one place a reader
-            // goes when they do not know the term.
+            // the card's key and its `?` panel — this line used to say "and in the title here",
+            // which stopped being true at v23.50 when every tooltip in the app went.
             // The ✓ is decoration; "Own" is the whole statement, on ~50 rows (v21.94).
             pwEl.innerHTML = mig ? '<span aria-hidden="true">✓</span> Own' : 'Default';
             head.append(nameEl, pwEl);
