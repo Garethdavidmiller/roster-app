@@ -360,7 +360,10 @@ export function showMemberPanel(name, why = 'This device needs to sign you in ag
 
     submit.addEventListener('click', async () => {
         const { initLoginOverlay } = await import('./login-overlay.js');
-        initLoginOverlay({ pageLabel: 'the Calendar', onSuccess: () => window.location.reload() });
+        // The card's heading already names them; the form should not ask again (v23.58). The
+        // overlay pre-selects grade and name and lands on the password field. `presetName` is a
+        // convenience the overlay is free to ignore — it never widens who may sign in.
+        initLoginOverlay({ pageLabel: 'the Calendar', onSuccess: () => window.location.reload(), presetName: name });
     });
 
     // ── LEAVING A NAMED IDENTITY IS A SIGN-OUT, NOT A PANEL SWAP (v21.23, external review) ─────────
