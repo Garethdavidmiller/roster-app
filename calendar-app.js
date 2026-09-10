@@ -451,7 +451,6 @@ function renderCalendar() {
         persistViewedMonth();
 
         const calendarContainer = buildCalendarContainer(getDisplayMonth(), getDisplayYear(), {
-            navigateToPaycalc,
             onDayDetail: /** @param {any} cell */ (cell) => openDayDetail?.(cell),
             // No button while the initial 3-month fetch is still running: the sync chip in the
             // header is already the retry for that, and a second control racing a per-month fetch
@@ -863,7 +862,6 @@ try {
             renderCalendar: renderCalendarWhenIdle,
             updateLegend,
             updateNavButtonState,
-            navigateToPaycalc,
             openDayDetail: (cell) => openDayDetail?.(/** @type {HTMLElement} */ (cell)),
             onRetryMonth: retryMonth,
         });

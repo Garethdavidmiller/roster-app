@@ -45,7 +45,6 @@ export function isSwipeGestureActive() { return _gestureActive || _swipeCooldown
  *   renderCalendar: () => void,
  *   updateLegend: () => void,
  *   updateNavButtonState: () => void,
- *   navigateToPaycalc: (str: string) => boolean,
  *   openDayDetail: ((cell: Element) => void) | null,
  *   onRetryMonth?: (year: number, month: number) => void,
  * }} deps
@@ -55,7 +54,7 @@ export function isSwipeGestureActive() { return _gestureActive || _swipeCooldown
  *   it becomes the live view, so a panel built without the callback would leave the committed month
  *   showing a failure with nothing to press.
  */
-export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, updateLegend, updateNavButtonState, navigateToPaycalc, openDayDetail, onRetryMonth }) {
+export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, updateLegend, updateNavButtonState, openDayDetail, onRetryMonth }) {
     const calendarDisplay = document.getElementById('calendarDisplay');
     if (!calendarDisplay) return;
 
@@ -96,7 +95,6 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
         // Shared rollover + boundary clamp (calendar-state.js) — same arithmetic as changeDisplay.
         const { month: m, year: y } = addMonths(getDisplayMonth(), getDisplayYear(), monthDelta);
         return buildCalendarContainer(m, y, {
-            navigateToPaycalc,
             onDayDetail: openDayDetail ?? undefined,
             onRetryMonth,
         });

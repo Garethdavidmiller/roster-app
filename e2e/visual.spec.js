@@ -917,11 +917,11 @@ async function openDenseDayPanel(page, { width, height }) {
     await dismissOneTimeOverlays(page);
     await page.goto('/');
     await settle(page, '.calendar-day');
-    // The visual project is Desktop Chrome, where a CLICK opens nothing — the panel is the touch
-    // affordance and a desktop pointer reads the same content from the hover tooltip. Enter on a
-    // focused cell is the same panel by the KEYBOARD route (calendar-keyboard.js), which is a real
-    // production state and renders identically; the viewport widths above are what the baseline is
-    // actually about.
+    // OPENED BY THE KEYBOARD, and kept that way after v23.58 made a desktop CLICK open the panel
+    // too. Both routes reach the identical panel, so the baseline is unaffected either way — and
+    // Enter leaves the pointer where it is, which a click would not: `body.lb-open` hides the hover
+    // tooltip, but a click would first have had to travel over the grid. The viewport widths above
+    // are what the baseline is actually about.
     const cell = page.locator('.calendar-day:not(.other-month)').nth(24);
     await cell.evaluate(el => /** @type {HTMLElement} */ (el).focus());
     await page.keyboard.press('Enter');
