@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: September 2026 — v23.50 · Updated every 0.10 version*
+*Last updated: September 2026 — v23.60 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -301,7 +301,7 @@ Body:
 - **`"HA"` (hospital appointment), `"OD"` (paid absence / long-term sick marking), `"SC"` (sick on a booked turn), and `"ML"` (maternity leave, v17.19) → `"SICK"`** (v15.45; SC/ML added later). On a base REST day the review normalises them to RD (never written; a stale imported one REMOVE_IMPORTs on re-upload) — full-pay absence only applies to rostered days. Sundays: blocked like all absence. A **Rest↔Absence cross-check disagreement** (one AI pass reads the absence code, the other blank) now **records the absence** rather than flagging UNREADABLE (v17.14, `applyColumnScanCrossCheck`) — dropping a real absence is the dangerous silent failure; the review message uses app language ("Absent", never "sick")
 - `"AL"`, `"A/L"`, `"A.L."` all mean annual leave — return `"AL"`
 - **Other family (v15.34; Team Day added v15.51, Union course added v18.56, Meeting added v18.61, OTHER_DAYS.md):** `"TRG"`/`"TRAINING"`/`"TRAIN"` → `"TRG"`; `"INDUCTION"`/`"IND"` → `"IND"`; `"ASSESSMENT(S)"`/`"ASSESS"` → `"ASSESS"`; `"TEAM DAY"`/`"TEAM DAYS"`/`"TEAM"` → `"TEAM"`; `"UNION COURSE"`/`"UNION"` → `"UNION"`; `"MTG"`/`"MEETING(S)"` → `"MEET"` ("Team Day" and "Union course" are the multi-word roster labels; "MTG" is the meeting code); an RDW marker either side (`"TRG RDW"`, `"RDW TRG"`) is preserved as the canonical `"FLAVOUR RDW"`. Saved as `type: 'other'` with the value verbatim. An Other cell WITH times is unexpected (rosters never set them) → UNREADABLE review row. **An Other day on a Sunday is invalid** — normalised to RD like AL/SICK
-- **AL or Absent on a Sunday is invalid** — Sundays are non-contracted for all grades. The review pipeline (`computeCellStates`) normalises a Sunday `"AL"`/`"SICK"` to `"RD"`, so it classifies as MATCH and is never written as a Sunday annual-leave/absence override. A worked Sunday time stays RDW. Mirrors the in-app rule — see CLAUDE.md "Sundays are non-contracted".
+- **AL or Absent on a Sunday is invalid** — Sundays are non-contracted for all grades. The review pipeline (`computeCellStates`, in `roster-review-states.js` since v23.53) normalises a Sunday `"AL"`/`"SICK"` to `"RD"`, so it classifies as MATCH and is never written as a Sunday annual-leave/absence override. A worked Sunday time stays RDW. Mirrors the in-app rule — see CLAUDE.md "Sundays are non-contracted".
 
 ### Review pipeline
 
@@ -309,7 +309,8 @@ Body:
 parsedResult (from Cloud Function)
         ↓
 computeCellStates(parsedResult, existingOverrides)
-  — classifies each day:
+  — roster-review-states.js (v23.53; re-exported by admin-roster-upload.js, so the
+    existing import path still works). Classifies each day:
     MATCH      = PDF matches base roster, nothing to do
     DIFF       = PDF differs from base roster, needs saving
     CONFLICT   = manual override already exists but differs from PDF

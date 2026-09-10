@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: September 2026 — v23.50 · Updated every 0.10 version*
+*Last updated: September 2026 — v23.60 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -746,9 +746,13 @@ The nav panel traps Tab/Shift+Tab within its focusable elements while open (v10.
 
 ## PWA / service worker
 
-### PWA shortcuts require reinstall to update
+### PWA shortcuts — and the manifest `name` — require reinstall to update
 Changes to `manifest.json` shortcuts do not take effect on existing installs
-until the user reinstalls the PWA (removes and re-adds to home screen).
+until the user reinstalls the PWA (removes and re-adds to home screen). The same
+is true of `name`, which Chrome's pre-Android-12 splash draws as text in the
+device's system font: v23.55 shortened it to "Marylebone Roster" (the long form
+carried an em dash an OEM font may not have, reported as "a strange font"), and an
+installed phone shows the new label only after a reinstall regenerates its WebAPK.
 
 ### Service worker activates immediately (`skipWaiting`)
 `self.skipWaiting()` means a new SW takes over all open tabs at once.
@@ -822,6 +826,17 @@ check"** (both origins past the splash, a sub-page deep-link, no red console
 errors). Re-run it after any change to `firebase.json` (CSP/headers), the
 Firebase SDK version in `firebase-client.js`, the GCP API-key referrer
 allowlist, or the hosting setup.
+
+**It is also checked by a machine, every four hours (v23.60).** `live-health.yml` runs
+`npm run test:live` on a GitHub runner: a real browser opens root, `admin.html` and
+`paycalc.html` on BOTH origins and asserts served, splash down, something usable on
+screen, no console errors. It demands a DIRECT connection (`LIVE_REQUIRE_DIRECT=1`) —
+the spec's curl-relayed fallback cannot see the referrer restriction, so on a schedule
+it fails rather than passing weakly. A failure comments on the open `deploy-failure`
+issue. This is a different question from the hourly `production-currency.yml`, which
+compares the served VERSION against main and reads a stuck splash as "current". The
+scheduled run does not replace the manual check after a `firebase.json`, SDK or
+allowlist change; it bounds how long an outage nobody was looking for can last.
 
 **Root cause of the June 2026 splash outage (fixed v12.34):** `firebase.json`'s
 hosting `ignore` list contained `**/*.mjs` — intended to skip the `*.test.mjs`

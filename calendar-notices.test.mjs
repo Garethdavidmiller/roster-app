@@ -35,8 +35,10 @@ const SOURCE = readFileSync(new URL('./calendar-notices.js', import.meta.url), '
 
 // ── THE PAGE ────────────────────────────────────────────────────────────────────────────────────
 /** @type {Set<string>} */ let _present = new Set();
+/** Click handlers the notices attach, by `<id>:<type>` — so a test can take the CTA (block 5). */
+/** @type {Map<string, Function>} */ let _listeners = new Map();
 function fakeEl(/** @type {string} */ id) {
-    return { id, addEventListener() {} };
+    return { id, addEventListener(/** @type {string} */ type, /** @type {Function} */ fn) { _listeners.set(`${id}:${type}`, fn); } };
 }
 global.document = {
     getElementById: (/** @type {string} */ id) => (_present.has(id) ? fakeEl(id) : null),
@@ -99,7 +101,7 @@ async function wire({ accessType = 'none', present = NOTICES.map(n => n.overlay)
     _present = new Set(present);
     _accessType = accessType;
     _store = { ...store };
-    _reads = []; _writes = []; _archived = []; _openedViaHelper = []; _directOpens = 0;
+    _reads = []; _writes = []; _archived = []; _openedViaHelper = []; _directOpens = 0; _listeners = new Map();
     _expired = expired;
     _access = newAccessGate();
     const mod = await import(`./calendar-notices.js?n=${++_n}`);
@@ -131,6 +133,14 @@ const PINNED_NOW = new Date(2026, 8, 10, 9, 0);   // after al-booking-2026's 8 S
  *  so a notice added later joins the matrix instead of being missed by it. */
 const NOTICES = [...SOURCE.matchAll(/getElementById\('(\w+NoticeLb)'\)[\s\S]*?_openWhenAudienceAllows\(lb, '([a-z-]+)'\)/g)]
     .map(m => ({ overlay: m[1], audience: m[2] }));
+
+/** The notice's own done key, read from the IIFE that declares the overlay — never guessed from its id. */
+function DONE_KEY_OF(/** @type {{overlay: string}} */ n) {
+    const iife = SOURCE.slice(SOURCE.indexOf(`getElementById('${n.overlay}')`) - 800, SOURCE.indexOf(`getElementById('${n.overlay}')`));
+    const m = /const DONE_KEY\s*=\s*'([^']+)'/.exec(iife);
+    if (!m) throw new Error(`no DONE_KEY declared before ${n.overlay}`);
+    return m[1];
+}
 
 /** The real rule — pure, so mocking it would only test the mock. */
 const { noticeAudienceAllows } = await import('./calendar-access-core.js');
@@ -247,7 +257,11 @@ describe('3 · one notice silencing another', () => {
     test('a dismissed notice is not re-read, and does not stop the wiring', async () => {
         // The behavioural half that survives one notice: a device that has dismissed it is left
         // alone, nothing opens, and `initCalendarNotices` still completes rather than throwing.
-        const done = `myb_notice_${NOTICES[0].overlay.replace(/NoticeLb$/, '')}_done`;
+        // READ FROM THE SOURCE, not derived from the overlay id. This line used to build
+        // `myb_notice_al_done` from `alNoticeLb` — a key nothing reads — so the store was ignored,
+        // the notice ran normally, and the assertion passed only because the mocked opener never
+        // reaches `onOpen`. A test that passes on the wrong key is the shape this repo keeps finding.
+        const done = DONE_KEY_OF(NOTICES[0]);
         await wire({ accessType: 'named', store: { [done]: '1' } });
         await settleAccess();
         assert.equal(_writes.length, 0, 'a dismissed notice writes nothing further');
@@ -312,5 +326,69 @@ describe('4 · a notice added later skipping the check', () => {
             assert.equal(seenBySomebody, true, `audience '${a}' reaches nobody`);
             assert.equal(seenByEverybody, a === 'everyone', `audience '${a}' reaches everybody`);
         }
+    });
+});
+
+
+describe('5 · the leave reminder is a ONE-OFF (v23.60, owner decision)', () => {
+    // It shipped on the actionable pattern — a 7-day snooze on any dismissal, a day on the CTA,
+    // repeating until its 90-day expiry — and the owner ruled it a heads-up, not a nag. Organised by
+    // what a wrong answer COSTS: COMING BACK is the shipped defect and the quiet one (a member who
+    // has read it is told again next week, and the week after, and reads the app as nagging), while
+    // NEVER SHOWING is what a careless fix produces — the notice deleted rather than made one-off.
+    const LEAVE  = NOTICES.find(n => n.overlay === 'alNoticeLb');
+    const DONE   = DONE_KEY_OF(LEAVE);
+    const SNOOZE = /const SNOOZE_KEY\s*=\s*'([^']+)'/.exec(SOURCE)[1];
+    const GO_ID  = LEAVE.overlay.replace(/Lb$/, 'Go');
+    // Its audience is 'members', so a named session shows it. The CTA element has to EXIST in the
+    // fake page for the notice to attach its handler — `present` defaults to the overlays alone.
+    const SHOWN  = { accessType: 'named', present: [LEAVE.overlay, GO_ID] };
+
+    test('the keys came from the source and are the notice\'s own', () => {
+        assert.match(DONE, /^myb_notice_al_booking_2026_done$/);
+        assert.match(SNOOZE, /^myb_notice_al_booking_2026_snooze$/);
+    });
+
+    test('a device that has never dismissed it still gets it, ONCE — the fix must not delete the notice', async () => {
+        await wire(SHOWN);
+        await settleAccess();
+        assert.equal(_openedViaHelper.length, 1, 'it opens');
+        assert.deepEqual(_writes, [], 'and nothing is flagged until the member dismisses it');
+    });
+
+    test('closing it — the ×, the backdrop, Escape or "Not now" — marks it DONE and writes no snooze', async () => {
+        await wire(SHOWN);
+        await settleAccess();
+        _openedViaHelper[0]._cfg.onClose();
+        assert.deepEqual(_writes, [[DONE, '1']], 'exactly one write: done. A snooze here is the defect coming back');
+    });
+
+    test('taking the CTA marks it DONE too — the member acted and does not need telling again', async () => {
+        await wire(SHOWN);
+        await settleAccess();
+        const go = _listeners.get(`${GO_ID}:click`);
+        assert.ok(go, `the CTA (#${GO_ID}) has a click handler`);
+        go();
+        assert.deepEqual(_writes, [[DONE, '1']]);
+    });
+
+    test('a snooze left by the OLD rule is a dismissal: promoted to done, nothing shown', async () => {
+        // A snooze can only have been written by somebody who closed the notice, so under the new
+        // rule they have seen it. Both a live snooze and a LAPSED one — the lapsed one is exactly
+        // the device that would have been nagged again on its next open.
+        for (const offsetDays of [+3, -1]) {
+            const stamp = new Date(Date.now() + offsetDays * 86_400_000).toISOString();
+            await wire({ ...SHOWN, store: { [SNOOZE]: stamp } });
+            await settleAccess();
+            assert.equal(_openedViaHelper.length, 0, `snooze ${offsetDays}d: not shown`);
+            assert.deepEqual(_writes, [[DONE, '1']], `snooze ${offsetDays}d: promoted to done`);
+        }
+    });
+
+    test('once done, it stays done', async () => {
+        await wire({ ...SHOWN, store: { [DONE]: '1' } });
+        await settleAccess();
+        assert.equal(_openedViaHelper.length, 0);
+        assert.deepEqual(_writes, []);
     });
 });

@@ -37,11 +37,29 @@
 // sent and 39 B received. Thirty-nine bytes is a handshake dying, not a policy denial. So in a
 // sandbox that relays, DIRECT is not reachable from the repo — the referrer restriction and the
 // Firebase round trip need a human with a browser, and that is the honest hand-off, not a TODO.
+//
+// ── AND IT RUNS ON A SCHEDULE (v23.60, `.github/workflows/live-health.yml`) ────────────────────
+// The check above was RUN RATHER THAN REMEMBERED for one session and then remembered again: it
+// depended on somebody typing `npm run test:live`. The hourly `production-currency.yml` asks a
+// different question — is the served VERSION the one on main? — and would read a stuck splash or a
+// module 404 as perfectly current, because `roster-data.js` still downloads fine. So a GitHub
+// runner now opens the six pages every four hours. There the browser reaches the internet on its
+// own, and that is the point: the runner sets `LIVE_REQUIRE_DIRECT=1`, under which a run that would
+// have to relay FAILS instead. A relayed pass on a schedule would report green while quietly not
+// covering the two failure modes the schedule exists for, and nobody would be reading the mode
+// line at 03:00. Locally, leave the variable unset and the fallback behaves as before.
 import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+/**
+ * Set by the scheduled workflow: a run that cannot reach the origin with the browser's OWN socket
+ * must fail rather than fall back to `curl`. See the header — a relayed pass is a weaker check, and
+ * on a schedule nobody reads the line that says so.
+ */
+const REQUIRE_DIRECT = process.env.LIVE_REQUIRE_DIRECT === '1';
 
 const FIREBASE = 'https://myb-roster.web.app';
 const PAGES    = 'https://garethdavidmiller.github.io/roster-app';
@@ -122,6 +140,11 @@ for (const target of TARGETS) {
         page.on('pageerror', e => errs.push('PAGEERROR ' + String(e).slice(0, 200)));
 
         const direct = await canReachDirectly(page);
+        if (REQUIRE_DIRECT) {
+            expect(direct, 'LIVE_REQUIRE_DIRECT is set and the browser could not reach the origin on its '
+                + 'own socket — a relayed run would pass without covering the referrer restriction or a '
+                + 'Firebase round trip, so on a schedule it must fail instead').toBe(true);
+        }
         if (!direct) {
             await page.route('**/*', async (route) => {
                 const url = route.request().url();

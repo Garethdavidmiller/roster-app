@@ -1,0 +1,132 @@
+name: Is the live site up?
+
+# ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────────
+#
+# The installed app HIDES a broken website. It is offline-first, so a phone that already has it
+# launches — and even updates — from the service-worker cache while the live site serves a splash
+# that never clears, a 404, or a module the CSP refuses. A real outage went unnoticed exactly that
+# way, and CLAUDE.md has asked ever since for the live URLs to be checked "occasionally, and in every
+# review". `npm run test:live` (e2e/live.spec.js) made that check runnable. It still depended on
+# somebody remembering to run it.
+#
+# `production-currency.yml` runs hourly and does NOT cover this. It asks whether the served VERSION
+# matches main, by downloading `roster-data.js` — a question a stuck splash, a broken module graph
+# or a 404 on `admin.html` all answer "yes, current" to, because that one file still downloads
+# fine. The two workflows are deliberately separate: that one is two curls and can run every hour;
+# this one is a real browser opening six pages, and every four hours is plenty for a check whose
+# purpose is to notice an outage in hours rather than in the ten it took by hand.
+#
+# ── WHY IT DEMANDS A DIRECT CONNECTION ──────────────────────────────────────────────────────────
+#
+# live.spec.js has a fallback for sandboxes whose browser cannot complete TLS to the open internet:
+# it fetches through curl and fulfils the requests into the page. That is honest when a person is
+# reading the "mode RELAYED" line it prints. On a schedule nobody is, and a relayed run does not
+# cover the two live failure modes this repo has actually been bitten by — the API-key HTTP-referrer
+# restriction and a real Firebase round trip. So `LIVE_REQUIRE_DIRECT=1`: a GitHub runner's browser
+# reaches the internet on its own, and a run that suddenly could not is itself a finding, not a
+# reason to quietly check less.
+#
+# ── WHAT A FAILURE DOES ─────────────────────────────────────────────────────────────────────────
+#
+# It reports on the SAME `deploy-failure` issue thread the deploy workflows and the currency check
+# use — one situation, one thread. It never deploys and never fixes: least privilege, observe and
+# report. A failed notification must not bury the real failure, so that step never fails the job.
+
+on:
+  schedule:
+    # Every four hours, at :41 — away from production-currency's :17 so the two never read the site
+    # inside the same deploy window and report the same in-flight release twice.
+    - cron: '41 */4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    # Six pages with an 8s settle each plus the browser install: measured ~4 minutes end to end.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Open the live site on both origins
+        run: npm run test:live
+        env:
+          CI: true
+          # A run that would have to relay must fail — see the header.
+          LIVE_REQUIRE_DIRECT: '1'
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: live-health-playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Say so, once, in an issue
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -uo pipefail
+          LABEL="deploy-failure"
+
+          # DEDUPED onto the existing label, so an outage, the failed deploy that caused it and the
+          # stale-version report are ONE thread rather than three. A run of four-hourly failures is
+          # one situation; N issues is how a channel teaches its reader to ignore it.
+          EXISTING=$(gh issue list --label "$LABEL" --state open --limit 1 --json number \
+            --jq '.[0].number' 2>/dev/null || true)
+
+          BODY=$(printf '%s\n' \
+          "**The live site failed its health check.**" \
+          "" \
+          "A real browser on a GitHub runner opened the app on both origins — root, \`admin.html\`" \
+          "and \`paycalc.html\` — and at least one page was not served, kept its splash up, rendered" \
+          "nothing usable, or logged a console error. The run says which:" \
+          "" \
+          "${RUN_URL}" \
+          "" \
+          "### Checking your own phone will not show this" \
+          "" \
+          "The app is offline-first: an installed phone keeps launching from its service-worker" \
+          "cache and looks perfectly healthy. CLAUDE.md → *\"The installed PWA masks live-site" \
+          "breakage\"*." \
+          "" \
+          "### Where to look" \
+          "" \
+          "1. The run's log names the page and the mode. \`LIVE_REQUIRE_DIRECT\` failing on its own" \
+          "   means the runner's browser could not reach the site at all — a TLS or DNS answer, not" \
+          "   an app one." \
+          "2. A stuck splash or a console error on ONE origin points at that origin: a Hosting" \
+          "   release for \`web.app\`, the Pages build for \`github.io\`." \
+          "3. Both origins failing the same way is the app itself — the last merge to \`main\`, or the" \
+          "   GCP API-key referrer allowlist (KNOWN_LIMITATIONS.md task #1)." \
+          "4. Re-run this workflow from the Actions tab once it is fixed; close this when it is green.")
+
+          # Never fails the job: this step only runs when something has already gone wrong, and a
+          # failed notification must not bury the real error under a second one.
+          if [ -n "${EXISTING:-}" ]; then
+            gh issue comment "$EXISTING" --body "$BODY" \
+              || echo "::warning::could not comment on issue #${EXISTING}"
+          else
+            gh issue create --title "⚠️ The live site is failing its health check" \
+              --label "$LABEL" --body "$BODY" \
+              || echo "::warning::could not open the live-site issue"
+          fi
