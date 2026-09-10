@@ -198,9 +198,14 @@ function overlayHtml(pageLabel, alternative, notice) {
  *   a sign-in is in flight, for the same reason the link is.
  * @param {string} [opts.notice]  One line under the subtitle saying why the card is up, when it is
  *   not obvious — an expired session, say. Empty renders nothing.
+ * @param {string} [opts.presetName]  The member this card is FOR, where the caller already knows —
+ *   the Calendar's come-back card names them in its heading. Pre-selects their grade and name and
+ *   lands focus on the password field, so the only thing left to do is the one thing only they can
+ *   do. A name no grade lists (a leaver, a typo) is ignored and the card behaves as if none was
+ *   given: the preset is a convenience, never a gate. Empty does nothing.
  * @returns {void}
  */
-export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternative = null, notice = '' }) {
+export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternative = null, notice = '', presetName = '' }) {
     // Inject the overlay (idempotent — never double-mount).
     if (document.getElementById('loginOverlay')) return;
     const inline = !!host;
@@ -317,16 +322,47 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     // orders the two. The observer stays for everything we do NOT drive.
     const syncName = () => { try { refreshName?.(); } catch { /* a repaint must never block sign-in */ } };
 
+    // ── WHO IS THIS CARD FOR? (v23.58) ──────────────────────────────────────────────────────────
+    //
+    // The Calendar's come-back card already says "Calendar · G. Miller" in its heading — a member
+    // whose local session outlived their Firebase identity, which on iPhone is every member who
+    // goes a week without opening the app. Until now, tapping its Sign in button opened this form
+    // asking them to pick their grade and then their own name from the whole roster, on the way to
+    // the one field only they can fill. With `FORCE_PASSWORD_SET` on, the silent surname re-auth
+    // fails for every migrated member, so this card IS their routine way back in — the taps were
+    // paid weekly by exactly the people the app most wants to keep.
+    //
+    // The grade is found by asking each grade's OWN list whether it holds the name — the same
+    // `getMembersForGrade` that builds the dropdown — never by reading a role off the member record.
+    // That keeps the preset honest by construction: it can only ever select a name the picker would
+    // have offered, so a hidden member, a leaver or a misspelling falls through to the ordinary
+    // path rather than landing the form in a state a member could not have reached by hand.
+    const presetGrade = presetName
+        ? (GRADE_ORDER.find(g => getMembersForGrade(g).some(m => /** @type {any} */ (m).name === presetName)) || '')
+        : '';
+    const namePreset = !!presetGrade;
+
     // Restore last-used grade so returning users go straight to name → password.
     const savedGrade = lsGet(GRADE_KEY);
-    const gradeRestored = !!(savedGrade && GRADE_ORDER.includes(savedGrade));
+    const gradeRestored = namePreset || !!(savedGrade && GRADE_ORDER.includes(savedGrade));
     if (gradeRestored) {
-        gradeSelect.value = /** @type {string} */ (savedGrade);
+        const grade = /** @type {string} */ (namePreset ? presetGrade : savedGrade);
+        gradeSelect.value = grade;
         // Restoring the grade in CODE mutates no attribute and fires no event, so neither the
         // observer nor the change listener sees it and the trigger keeps saying "Select grade".
         // Same defect class as v23.42's pay-period picker. `input` is what the sheet listens for.
         gradeSelect.dispatchEvent(new Event('input', { bubbles: false }));
-        populateNames(/** @type {string} */ (savedGrade));
+        populateNames(grade);
+        if (namePreset) {
+            nameSelect.value = presetName;
+            // The same rule, one control down — a value set in code must SAY so — though here it is
+            // BELT AND BRACES rather than load-bearing, and the mutation that proved it is worth
+            // recording: deleting this dispatch left the browser test green, because `populateNames`
+            // has just rewritten the options and the sheet's MutationObserver repaints on childList,
+            // as a microtask, after this line has run. The dispatch stays so the face does not depend
+            // on that ordering; what actually paints it today is the observer.
+            nameSelect.dispatchEvent(new Event('input', { bubbles: false }));
+        }
     } else {
         populateNames('');
     }
@@ -343,8 +379,9 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     // picker up over a card the member has not read yet — the same rule the staff-PIN card follows.
     if (!inline || (window.matchMedia && window.matchMedia('(pointer: fine)').matches)) {
         // The native selects are now 1px and `aria-hidden`; focusing one puts the caret nowhere.
-        // `select-sheet.js` names each trigger `<selectId>Trigger`.
-        (gradeRestored ? nameTrigger() : gradeTrigger())?.focus();
+        // `select-sheet.js` names each trigger `<selectId>Trigger`. With the name preset there is
+        // nothing left to pick, so focus goes straight to the one field the member has to type in.
+        (namePreset ? passwordInput : gradeRestored ? nameTrigger() : gradeTrigger())?.focus();
     }
 
     gradeSelect.addEventListener('change', () => {

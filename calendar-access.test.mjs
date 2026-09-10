@@ -649,6 +649,28 @@ describe('initCalendarAccess', () => {
         assert.ok(!html.includes('disabled'), 'the sign-in button is disabled on arrival');
     });
 
+    test("the member card's Sign in hands the overlay the name the card already shows (v23.58)", async () => {
+        // The heading says "Calendar · G. Miller". Until v23.58 the button under it opened a form
+        // that asked them to pick their grade and then their own name from the whole roster — on
+        // the routine way back in for every migrated iPhone member. The overlay's own behaviour
+        // (pre-selecting, dispatching `input`, focusing the password) is a browser matter and is
+        // pinned in e2e/calendar-pin.spec.js; THIS pins the wiring, which is the half a unit test
+        // can see and the half that silently regresses if somebody rebuilds the call.
+        sessionValue = { name: 'G. Miller' };
+        await initCalendarAccess({ onGranted: () => {} });
+        await new Promise(r => setTimeout(r, 0));   // let the silent attempt settle
+        loginMounts = [];
+        const btn = document.getElementById('calLockSubmit');
+        assert.ok(btn, 'the member card has no Sign in button');
+        // The handler is async — it awaits a dynamic import before mounting — so await the promise
+        // it returns rather than guessing at how many turns the loader needs.
+        await btn._listeners.get('click')();
+        assert.equal(loginMounts.length, 1, 'the shared sign-in was not mounted');
+        assert.equal(loginMounts[0].presetName, 'G. Miller',
+            'the overlay was opened without the name the card is already showing');
+        assert.equal(loginMounts[0].host, undefined, 'the come-back sign-in is the modal, not inline');
+    });
+
     test('"Use the staff PIN instead" SIGNS THE MEMBER OUT — it is not a panel swap (v21.23)', async () => {
         // ── THE DEFECT (external review of v21.22) ──────────────────────────────────────────────
         //

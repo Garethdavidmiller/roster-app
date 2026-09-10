@@ -471,6 +471,47 @@ test('a MIGRATED member whose identity is gone is offered sign-in, with the PIN 
     // The real overlay, not a second sign-in written for this card.
     await signIn.click();
     await expect(page.locator('#loginOverlay')).toBeVisible();
+
+    // ── AND IT ALREADY KNOWS WHO THEY ARE (v23.58) ──────────────────────────────────────────────
+    // The card's heading just said "Calendar · G. Miller". The form must not ask again: grade and
+    // name pre-selected, and focus on the one field only they can fill. Asserted on the PICKER
+    // FACES, not the hidden selects — a value set in code repaints nothing unless `input` is
+    // dispatched (the v23.42 rule), and the face is what a member sees.
+    await expect(page.locator('#loginName')).toHaveValue('G. Miller');
+    await expect(page.locator('#loginNameTrigger')).toContainText('G. Miller');
+    // The grade is read from the SELECT, not the trigger's text: the trigger also carries a hidden
+    // width-sizer holding the widest option label, so its textContent reads "CEA— Select grade —".
+    // The name trigger above already proves the right grade's list was populated; this pins that
+    // the grade control itself holds a value rather than the placeholder.
+    await expect(page.locator('#loginGrade')).not.toHaveValue('');
+    await expect(page.locator('#loginGradeTrigger')).toHaveAttribute('aria-label', /Select your grade\. \S/);
+    await expect(page.locator('#loginPassword')).toBeFocused();
+});
+
+test('a preset name NO grade lists falls through to the ordinary form — a convenience, never a gate', async ({ page }) => {
+    // The preset finds the grade by asking each grade's own list whether it holds the name, so a
+    // leaver, a hidden row or a misspelling cannot land the form in a state a member could not have
+    // reached by hand. Driven directly, because no shipped card passes a name that is not on the
+    // roster — which is exactly why this path would otherwise go unexercised.
+    await seedMemberSession(page, 'G. Miller');   // a GRANTED calendar: nothing else is mounted in the slot
+    // A LAST-USED GRADE is on record, deliberately. "Falls through to the ordinary form" has to
+    // mean the whole ordinary form — including the grade the form remembers between sign-ins. The
+    // first cut of this test had no saved grade, and a mutation that inverted the guard passed it:
+    // a bad preset still produced an empty, disabled form, but it had silently thrown the saved
+    // grade away on the way, and nothing here could see that.
+    await page.addInitScript(() => { try { localStorage.setItem('myb_login_grade', 'CES'); } catch {} });
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarDisplay')).toBeVisible();
+    await expect(page.locator('#loginOverlay')).toHaveCount(0);   // or initLoginOverlay's idempotence would no-op
+    await page.evaluate(async () => {
+        const { initLoginOverlay } = await import('./login-overlay.js');
+        initLoginOverlay({ pageLabel: 'a test', onSuccess() {}, presetName: 'Nobody Onthe-Roster' });
+    });
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+    await expect(page.locator('#loginGrade')).toHaveValue('CES', { timeout: 5_000 });   // the ordinary restore ran
+    await expect(page.locator('#loginName')).toHaveValue('');                            // and nobody was picked
+    await expect(page.locator('#loginName')).toBeEnabled();
+    await expect(page.locator('#loginNameTrigger')).toContainText(/select your name/i);
 });
 
 test('the member card falls back to the staff PIN by SIGNING OUT first', async ({ page }) => {
