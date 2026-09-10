@@ -181,6 +181,10 @@ const {
     calendarAccessReady, calendarAuthReady,
 } = await import('./calendar-access.js');
 
+// The three cards live in calendar-lock-cards.js since v23.54. Imported AFTER calendar-access.js,
+// whose module scope wires their collaborators — a card reached before that would have no deps.
+const { showSignInPanel } = await import('./calendar-lock-cards.js');
+
 // A DOM just rich enough for the module to build and query its card.
 /** @param {boolean} online */
 function setOnline(online) {
@@ -1162,5 +1166,60 @@ describe('the provisional paint — showing a returning member their own saved r
         assert.deepEqual(b.scopes, [], 'the rollback mode grew a second path to the same screen');
         b.release();
         await b.done;
+    });
+});
+
+// ── The cards' own rules — three of which had NOTHING checking them ─────────────────────────────
+//
+// Found by mutation when `calendar-lock-cards.js` was split out at v23.54 and its header wrote the
+// rules down: deleting the post-import access re-check, and deleting the line that clears the PIN
+// field on a failure, both left this whole file green. Writing an invariant in a header is not
+// protecting it — that is this repo's own stated discipline, and these are the tests it asks for.
+//
+// The third mutation, deleting `hideLockPanel()` from the member card, also survived — and there
+// the CODE was fine and the header was wrong. `mountLockCard` calls `unmountLockCard` itself, so
+// one-card-at-a-time is the SLOT's guarantee, not these calls'. `hideLockPanel` is here to disarm
+// the PIN card's backoff timer, which the slot knows nothing about. The header now says so.
+describe('the cards themselves', () => {
+    test('a card must not mount over a Calendar that was granted while it loaded', () => {
+        // The sign-in card awaits a dynamic import, and access can arrive during it — the
+        // late-identity watcher, or a silent re-auth landing. Mounting afterwards puts a sign-in
+        // form over a working Calendar, which is the one outcome this path must not have. The race
+        // is forced deterministically: start the card, let it reach its `await`, then grant.
+        const pending = showSignInPanel();
+        return unlockWithPin('1234')
+            .then(() => pending)
+            .then(() => {
+                assert.equal(getAccessType(), 'viewer', 'the grant did not happen — the race is not being tested');
+                assert.ok(!lastPanelHtml().includes('SIGN-IN CARD'),
+                    'a sign-in card was mounted over a granted Calendar');
+            });
+    });
+
+    test('a failed unlock CLEARS the PIN field', async () => {
+        // On a shared PC a PIN left in a form field is readable by the next person through devtools
+        // or autofill — and on a failure a cleared field is what the member wants anyway, since
+        // they are retyping it. Asserted on the real form handler, not on `unlockWithPin`.
+        globalThis.window.location.hash = '#staff-pin';
+        await initCalendarAccess({ onGranted: () => {} });
+        const input = document.getElementById('calLockPin');
+        const form  = document.getElementById('calLockForm');
+        assert.ok(input && form, 'the PIN card is not up');
+        input.value = '0000';
+        fetchQueue = [{ ok: false, status: 401, json: async () => ({}) }];
+        await form._listeners.get('submit')({ preventDefault() {} });
+        assert.equal(input.value, '', 'the PIN was left in the field after a rejected attempt');
+        assert.equal(getAccessType(), 'none');
+    });
+
+    test('a SUCCESSFUL unlock clears it too — the field is emptied on every path', async () => {
+        globalThis.window.location.hash = '#staff-pin';
+        await initCalendarAccess({ onGranted: () => {} });
+        const input = document.getElementById('calLockPin');
+        const form  = document.getElementById('calLockForm');
+        input.value = '1234';
+        await form._listeners.get('submit')({ preventDefault() {} });
+        assert.equal(input.value, '', 'a correct PIN was left in the field');
+        assert.equal(getAccessType(), 'viewer');
     });
 });

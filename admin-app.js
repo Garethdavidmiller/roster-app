@@ -14,7 +14,8 @@
  *   notifications, pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShift, formatISO, isSunday, parseISODate, TIME_RE, projectAnnualLeaveOverage } from './roster-data.js';
+import { CONFIG, teamMembers, MONTH_ABB, getALEntitlement, formatISO, isSunday, parseISODate, TIME_RE, projectAnnualLeaveOverage } from './roster-data.js';
+import { addDays, isRestGap, fmtPeriodDate, fmtPeriodRange } from './admin-period-dates.js';
 import { db, auth, doc, writeBatch, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
@@ -33,7 +34,7 @@ import { initCardCollapse, createLightbox } from './overlay.js';
 import { initPasswordForce } from './password-force.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
-import { isRestShift, computePeriodDeleteIds, mergeBookedPeriods, composeOtherValue } from './override-utils.js';
+import { computePeriodDeleteIds, mergeBookedPeriods, composeOtherValue } from './override-utils.js';
 import { alPosition, countedAlDates, consumesEntitlement, dispatcherBreakdown } from './al-entitlement.js';
 import { createBookedPeriods } from './admin-booked-periods.js';
 import { alFigureYear } from './admin-al-year.js';
@@ -1330,47 +1331,9 @@ export function init() {
         }
     }
 
-    // ── Shared helpers for AL and sick booked-box rendering ──────────────────────
-
-    /**
-     * @param {string} dateStr
-     * @param {number} n
-     */
-    function _addDays(dateStr, n) {
-        const d = parseISODate(dateStr);
-        d.setDate(d.getDate() + n);
-        return formatISO(d);
-    }
-
-    /**
-     * @param {string} dateStr
-     * @param {any} memberObj
-     */
-    function _isRestGap(dateStr, memberObj) {
-        if (isSunday(dateStr)) return true; // Sunday — uncontracted
-        if (!memberObj) return false;
-        const shift = getBaseShift(memberObj, parseISODate(dateStr));
-        return isRestShift(shift);
-    }
-
-    /** @param {string} d */
-    function _fmtPeriodDate(d) {
-        const dt = parseISODate(d);
-        return `${DAY_NAMES[dt.getDay()]} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}`;
-    }
-
-    /**
-     * @param {string} start
-     * @param {string} end
-     */
-    function _fmtPeriodRange(start, end) {
-        const ds = parseISODate(start);
-        const de = parseISODate(end  );
-        if (ds.getMonth() === de.getMonth()) {
-            return `${DAY_NAMES[ds.getDay()]} ${ds.getDate()} – ${DAY_NAMES[de.getDay()]} ${de.getDate()} ${MONTH_ABB[de.getMonth()]}`;
-        }
-        return `${_fmtPeriodDate(start)} – ${_fmtPeriodDate(end)}`;
-    }
+    // The four pure answers behind the booked-date lists — stepping a date, what counts as a gap,
+    // and the wording — live in admin-period-dates.js (v23.54). They were already handed OUT of
+    // this closure as named collaborators below, which is what made keeping them in it arbitrary.
 
     // THE RECORDED-DATES LIST lives in admin-booked-periods.js (v23.09) — it grew a year selector,
     // and choosing a year is precedence, which belongs somewhere it can be tested with no DOM.
@@ -1384,11 +1347,11 @@ export function init() {
         memberFor:    name => teamMembers.find(m => m.name === name),
         isSunday,
         mergePeriods: mergeBookedPeriods,
-        isRestGap:    _isRestGap,
-        addDays:      _addDays,
+        isRestGap,
+        addDays,
         monthAbb:     MONTH_ABB,
-        fmtDate:      _fmtPeriodDate,
-        fmtRange:     _fmtPeriodRange,
+        fmtDate:      fmtPeriodDate,
+        fmtRange:     fmtPeriodRange,
         onDelete:     deletePeriodOverrides,
         onRendered:   boxId => _landing.settle(boxId),
     });
