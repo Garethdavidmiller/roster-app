@@ -1912,6 +1912,47 @@ test('calendar: a mouse drag pages the month and does NOT open the day panel', a
     throw new Error('the drag never paged the month in four attempts');
 });
 
+// THE HOVER TOOLTIP AND THE PANEL, WHICH NOW SHARE A POINTER (v23.58). Before this release they
+// could not meet: the tooltip was the desktop route to a day and the panel the touch one. A click
+// now opens the panel WITHOUT MOVING THE MOUSE, so `mousemove` never re-runs — which raises the
+// question of whether the tip strands over the backdrop, describing in one line the day the panel
+// is describing in full.
+//
+// IT DOES NOT, AND NOT BECAUSE OF THE CSS THAT LOOKS LIKE THE ANSWER. Deleting
+// `body.lb-open #calTooltip { display: none }` and re-running this leaves it GREEN on both engines:
+// the full-screen overlay appearing under a stationary cursor fires a `mouseover`, the handler
+// resolves no cell and hides the tip itself. The CSS is kept as belt and braces (index.css says
+// why) and this test is what actually holds the behaviour.
+//
+// THE SECOND HALF IS THE ONE WITH TEETH: a tooltip hidden and never given back would be SILENT. It
+// is drawn only under a live pointer, so it appears in no visual baseline, axe has no rule for it,
+// and until v23.58 nothing in this repo had ever asserted on it at all.
+test('calendar: the hover tooltip yields to the day panel — and comes back afterwards', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'there is no hover on a touch device; the tip is never built');
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const tip = page.locator('#calTooltip');
+    const cellA = page.locator('.calendar-day:not(.other-month)').nth(10);
+    const cellB = page.locator('.calendar-day:not(.other-month)').nth(14);
+
+    await cellA.hover();
+    await expect(tip, 'the tooltip is still the hover preview').toBeVisible();
+
+    await cellA.click();
+    await expect(page.locator('#dayDetailLightbox')).toBeVisible();
+    await expect(tip, 'and it must not sit over the panel it duplicates').toBeHidden();
+    // Moving over the BACKDROP keeps it down — the handler resolves no cell there, which is the
+    // pre-existing path; the CSS covers the case where the pointer never moves at all.
+    await page.mouse.move(8, 8);
+    await expect(tip).toBeHidden();
+
+    await page.locator('#dayDetailClose').click();
+    await expect(page.locator('#dayDetailLightbox')).toBeHidden();
+    await cellB.hover();
+    await expect(tip, 'a panel must not kill the tooltip for the rest of the session').toBeVisible();
+});
+
 // ─── THE SAVED-COPY LADDER RUNG (v22.95) ────────────────────────────────────────────────────────
 //
 // `rosterCached` splits the gap the 5 Sep 2026 field read exposed — Unlocked 58% over a second,
