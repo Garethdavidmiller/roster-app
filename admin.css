@@ -2246,6 +2246,7 @@
 .other-flavour-spare.active { background: var(--purple); color: white; border-color: var(--purple); }
 /* Spare has no RDW tick, no times, and no "pick a type / times optional" hint — hide them. */
 .day-row.other-spare .other-rdw-label,
+.day-row.other-spare .other-rdw-auto,
 .day-row.other-spare .other-rdw-warn,
 .day-row.other-spare .other-opts-hint { display: none; }
 .other-rdw-label {
@@ -2254,6 +2255,12 @@
     cursor: pointer; white-space: nowrap;
 }
 .other-rdw-label input { --check-fill: var(--other); }
+/* WHY THE TICK IS LOCKED, said in the row (v23.52). This was a `title` until v23.50, which removed
+   every tooltip in the app — and unlike the three other disabled-state explainers in that release
+   (`.sunday-note`, `.bp-mode-why`, the roster review's Sunday note) this one was dropped without a
+   replacement, so the tick simply went grey with no reason given. It renders only on a base rest
+   day, which is the only state that locks it. */
+.other-rdw-auto { flex-basis: 100%; color: var(--text-light); font-size: var(--type-badge); }
 /* The Sunday reason, said in the row (v23.50) — replaces four `title` tooltips on the disabled
    pills, which a phone never showed. Sits on its own line under the pills (the row wraps). */
 .sunday-note { flex-basis: 100%; font-size: var(--type-small); font-weight: 500; color: var(--text-mid); margin-top: 2px; }

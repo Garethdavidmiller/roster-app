@@ -94,9 +94,11 @@ async function initUsageCard() {
                 const row = document.createElement('div');
                 row.className = 'usage-bar-row';
                 row.innerHTML =
-                    // `title` so a truncated label is still recoverable. "Weekly Retail Circular"
-                    // ellipsises at 390px and must NOT be shortened — it is a canonical staff-facing
-                    // term (CLAUDE.md wording conventions), so the name stays and the tooltip carries it.
+                    // The label WRAPS rather than ellipsising (v23.52 — `.usage-bar-label` in
+                    // operations.css says why). "Weekly Retail Circular" must NOT be shortened — it
+                    // is a canonical staff-facing term (CLAUDE.md wording conventions) — and the
+                    // `title` that used to recover it when cut went with every other tooltip at
+                    // v23.50, so the name has to fit on the row itself.
                     `<span class="usage-bar-label"><span aria-hidden="true">${emoji}</span> ${label}</span>` +
                     `<span class="usage-bar-track"><span class="usage-bar-fill" style="width:${pct}%"></span></span>` +
                     `<span class="usage-bar-count">${count.toLocaleString('en-GB')}</span>`;

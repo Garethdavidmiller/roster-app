@@ -240,6 +240,7 @@ export function buildWeekGridInto(container, dateStr) {
                     <button type="button" class="other-flavour-btn other-flavour-spare" data-flavour="SPARE" aria-pressed="false"><span aria-hidden="true">📋</span> Spare</button>
                 </span>
                 <label class="other-rdw-label"><input type="checkbox" class="other-rdw-cb"${isRestShift(baseShift) ? ' checked disabled' : ''}> Rest day (RDW)</label>
+                ${isRestShift(baseShift) ? `<span class="other-rdw-auto">Ticked and locked because the base roster has this as a rest day — RDW is automatic</span>` : ''}
                 <span class="other-rdw-warn" hidden>Originally rostered ${escapeHtml(baseShift)} this day — RDW pays it as rest-day working instead</span>
                 <span class="other-opts-hint">Pick a type above, then times (optional — blank pays the default: base shift, or 8h RDW).</span>
             </div>`;

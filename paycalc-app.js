@@ -395,8 +395,10 @@ export function init() {
       // Tax-year chip in the back-pay + HPP + Year-to-Date card headers — makes clear WHICH year
       // each card is editing, even when collapsed (all follow the viewed period's tax year). (v17.89)
       // The chip shows the COMPACT tax-year form ("26/27", v18.53) — the full "2026/27" tipped the
-      // longest title ("Holiday Pay Premium (HPP)") into a two-line wrap on narrow phones; the full
-      // year stays on the tabs and in the chip's tooltip. `.slice(2)` = drop the century digits.
+      // longest title ("Holiday Pay Premium (HPP)") into a two-line wrap on narrow phones. The full
+      // year is on the TAX-YEAR TABS, which are on the same screen; this line also said "and in the
+      // chip's tooltip" until v23.52, and that tooltip went with all the others at v23.50.
+      // `.slice(2)` = drop the century digits.
       const _chipYear = /^\d{4}\/\d{2}$/.test(ty.label) ? ty.label.slice(2) : ty.label;
       for (const _cid of ['bpYearChip', 'hppYearChip', 'ytdYearChip']) {
         const _chip = document.getElementById(_cid);
