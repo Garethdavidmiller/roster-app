@@ -40,7 +40,6 @@
     "dispatcher": [
         "D. Minto",
         "A. Targanov",
-        "S. Warman",
         "S. Faure",
         "L. Szpejer",
         "K. Porter",
@@ -87,7 +86,6 @@
         "S. Horsman",
         "D. Minto",
         "A. Targanov",
-        "S. Warman",
         "S. Faure",
         "L. Szpejer",
         "K. Porter",
@@ -353,7 +351,7 @@
             "grade": "Dispatcher",
             "startDate": null,
             "rosterOrder": 28,
-            "hidden": false,
+            "hidden": true,
             "managerOnly": false
         },
         {

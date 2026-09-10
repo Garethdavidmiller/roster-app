@@ -99,7 +99,7 @@ export const teamMembers = [
     // currentWeek reflects each person's row in the base roster on that date
     { name: 'D. Minto',                currentWeek: 1,  rosterType: 'dispatcher', role: 'Dispatcher' },
     { name: 'A. Targanov',             currentWeek: 2,  rosterType: 'dispatcher', role: 'Dispatcher' },
-    { name: 'S. Warman',               currentWeek: 3,  rosterType: 'dispatcher', role: 'Dispatcher' },
+    { name: 'S. Warman',               currentWeek: 3,  rosterType: 'dispatcher', role: 'Dispatcher', hidden: true }, // left 10 Sep 2026 — Dispatcher week-3 line is a vacancy. Row kept so his past shifts, overrides and any frozen Overtime week still resolve
     // S. Faure — MATERNITY LEAVE from Mon 29 Jun 2026. She comes OFF the rotating link on that
     // date (B. Toth took line 4) and onto her own Mon–Fri row: `fixedRoster[2]`, 09:00–16:00, the
     // 35 contracted hours a week she is credited with, weekends RD. The base fields still describe
