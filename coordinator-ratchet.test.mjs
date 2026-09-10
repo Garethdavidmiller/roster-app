@@ -217,7 +217,14 @@ const CAPS = {
     // shifted-week fixture from the real roster instead of hard-coding names that go stale.
     // What remains above the old cap is review UI: the refusal banner, the inert ticks, the
     // outcome branch, and the control that reaches the original PDF. That is what this file is for.
-    'admin-roster-upload.js':  1300,
+    'admin-roster-upload.js':  1150,
+    // 1300 → 1150 at v23.52 — a cap coming DOWN, which is the direction this mechanism is for and
+    // the one it had not yet demonstrated. `computeCellStates` left for roster-review-states.js:
+    // ~206 lines that touch no DOM, hold no state, and decide what a Save writes. It was the second
+    // time this file stood at EXACTLY its cap with zero headroom, and the fix the first time was to
+    // raise it; the seam was there on both occasions. The ceiling travels with the code — a cap
+    // left at 1300 would have banked 216 lines as future headroom, which is this guard loosening
+    // while appearing to hold.
     // 1250 → 1300 at v23.41, and this is the SECOND cap raised on one branch — which is worth
     // saying rather than burying, because a ratchet raised twice quietly is a ratchet nobody
     // believes. Both are the same shape: a file sitting EXACTLY on its cap, and a change that is a
