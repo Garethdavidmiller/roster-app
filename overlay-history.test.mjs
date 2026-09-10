@@ -236,3 +236,134 @@ describe('openNoticeIfClear — a one-time notice never opens stacked', () => {
         document.body.classList.remove('lb-open');
     });
 });
+
+
+// ── WHEN HAS A BUTTON-CLOSE LANDED? (v23.61) ────────────────────────────────────────────────────
+//
+// `_clearOverlayHistory` calls `history.back()`; the browser answers with a popstate LATER. A
+// dialog opened in between pushes an entry the traversal then pops — it closes itself. Every sheet
+// action used to wait out a fixed 320ms for that reason; `whenHistorySettled` and `close()`'s promise
+// replace the timer with the two events themselves. The harness above fires the echo SYNCHRONOUSLY
+// inside history.back(), which is exactly the case that hides this — so these tests swap in a
+// `back()` that does NOT echo, and fire the echo by hand when the test says so.
+describe('whenHistorySettled — the popstate echo, not a timer', () => {
+    /** history.back() that records the call and leaves the echo to the test. */
+    const silentBack = () => { global.history.back = () => { backCount++; }; };
+
+    test('nothing outstanding → runs synchronously (a hardware-Back close has no echo to wait for)', async () => {
+        const { whenHistorySettled } = await freshOverlay();
+        let ran = 0;
+        whenHistorySettled(() => { ran++; });
+        assert.equal(ran, 1);
+    });
+
+    test('an outstanding echo → waits for it, then runs exactly once', async () => {
+        const { _pushOverlayState, _clearOverlayHistory, whenHistorySettled } = await freshOverlay();
+        silentBack();
+        _pushOverlayState(() => {});
+        _clearOverlayHistory();                 // history.back() issued, echo NOT yet arrived
+        let ran = 0;
+        whenHistorySettled(() => { ran++; });
+        assert.equal(ran, 0, 'the echo is outstanding — a dialog opened now would be popped');
+        pressBack();                            // the echo lands
+        assert.equal(ran, 1, 'and the waiter runs on it');
+        pressBack();                            // a later, unrelated pop
+        assert.equal(ran, 1, 'once');
+    });
+
+    test('a browser that never sends the echo → the 500ms fallback runs it, and the late echo does not run it again', async () => {
+        const { mock } = await import('node:test');
+        mock.timers.enable({ apis: ['setTimeout'] });
+        try {
+            const { _pushOverlayState, _clearOverlayHistory, whenHistorySettled } = await freshOverlay();
+            silentBack();
+            _pushOverlayState(() => {});
+            _clearOverlayHistory();
+            let ran = 0;
+            whenHistorySettled(() => { ran++; });
+            mock.timers.tick(499);
+            assert.equal(ran, 0);
+            mock.timers.tick(1);
+            assert.equal(ran, 1, 'the fallback covers a missing echo, as dismissOverlay covers a missing transitionend');
+            pressBack();
+            assert.equal(ran, 1, 'the late echo is absorbed without a second run');
+        } finally { mock.timers.reset(); }
+    });
+});
+
+describe('createLightbox — close() resolves when the close has LANDED, both halves', () => {
+    // A minimal overlay element: classes, a transitionend listener the test can fire, nothing else.
+    function fakeOverlay() {
+        const classes = new Set();
+        /** @type {Record<string, Function[]>} */ const listeners = {};
+        return {
+            classList: { add: (/** @type {string} */ c) => classes.add(c), remove: (/** @type {string} */ c) => classes.delete(c), contains: (/** @type {string} */ c) => classes.has(c) },
+            addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { (listeners[t] ??= []).push(fn); },
+            removeEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { listeners[t] = (listeners[t] ?? []).filter(f => f !== fn); },
+            fade: () => (listeners.transitionend ?? []).slice().forEach(fn => fn({})),
+        };
+    }
+    const microtasks = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
+    const silentBack = () => { global.history.back = () => { backCount++; }; };
+
+    async function openOne() {
+        const { createLightbox } = await freshOverlay();
+        silentBack();
+        /** @type {any} */ (global.window).scrollY = 0;
+        /** @type {any} */ (global.window).scrollTo = () => {};
+        /** @type {any} */ (global).requestAnimationFrame = (/** @type {Function} */ fn) => fn();
+        /** @type {any} */ (global.document).activeElement = null;
+        const overlay = fakeOverlay();
+        let landed = 0;
+        const lb = createLightbox({ overlay: /** @type {any} */ (overlay), content: null, closeBtn: null, afterClose: () => { landed++; } });
+        lb.open();
+        return { lb, overlay, landedCount: () => landed };
+    }
+
+    test('fade first, echo second → resolves on the echo', async () => {
+        const { lb, overlay, landedCount } = await openOne();
+        let resolved = false;
+        const p = lb.close().then(() => { resolved = true; });
+        overlay.fade();  await microtasks();
+        assert.equal(resolved, false, 'the fade alone is not a landing — the echo is still outstanding');
+        assert.equal(landedCount(), 0);
+        pressBack();     await microtasks();
+        assert.equal(resolved, true);
+        assert.equal(landedCount(), 1, 'afterClose fires at the same moment');
+        await p;
+    });
+
+    test('echo first, fade second → resolves on the fade', async () => {
+        const { lb, overlay, landedCount } = await openOne();
+        let resolved = false;
+        lb.close().then(() => { resolved = true; });
+        pressBack();     await microtasks();
+        assert.equal(resolved, false, 'the echo alone is not a landing — the panel is still fading');
+        overlay.fade();  await microtasks();
+        assert.equal(resolved, true);
+        assert.equal(landedCount(), 1);
+    });
+
+    test('a second close() during the fade hands back the SAME landing, not a fresh resolved one', async () => {
+        const { lb, overlay } = await openOne();
+        const first = lb.close();
+        let secondResolved = false;
+        lb.close().then(() => { secondResolved = true; });
+        await microtasks();
+        assert.equal(secondResolved, false, 'a double-tap must not report the close as landed early');
+        overlay.fade(); pressBack(); await microtasks();
+        assert.equal(secondResolved, true);
+        await first;
+    });
+
+    test('close() on an overlay that is not open resolves at once and lands nothing', async () => {
+        const { lb, overlay, landedCount } = await openOne();
+        lb.close(); overlay.fade(); pressBack(); await microtasks();
+        assert.equal(landedCount(), 1);
+        let resolved = false;
+        lb.close().then(() => { resolved = true; });
+        await microtasks();
+        assert.equal(resolved, true);
+        assert.equal(landedCount(), 1, 'no second landing for a close that closed nothing');
+    });
+});

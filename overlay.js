@@ -200,10 +200,45 @@ export function registerPopInterceptor(fn) { _popInterceptors.push(fn); }
  *  interceptor can't claim the echo). */
 export function suppressNextPop() { _suppressPops++; }
 
+// ── WHEN HAS A BUTTON-CLOSE ACTUALLY LANDED? (v23.61) ────────────────────────────────────────────
+//
+// `_clearOverlayHistory` calls `history.back()`, and the browser answers with a popstate LATER —
+// asynchronously, after the call returns. Anything that pushes a history entry in between (a
+// dialog opened from a picker's callback, say) pushes it on top of the entry the traversal is about
+// to pop, so the traversal pops the NEW entry instead: the dialog's own Back handler runs and it
+// closes itself, having just opened. That race is why every sheet action in this app used to wait
+// out a fixed timer before acting. A timer measures neither the fade nor the echo; this does.
+/** @type {Array<() => void>} */ let _settleWaiters = [];
+/** @type {any} */ let _settleFallback = null;
+function _drainSettleWaiters() {
+    clearTimeout(_settleFallback); _settleFallback = null;
+    const fns = _settleWaiters; _settleWaiters = [];
+    for (const fn of fns) {
+        try { fn(); } catch (e) { console.error('[overlay] settle callback threw:', e); }
+    }
+}
+/**
+ * Run `fn` once no popstate echo from our own `history.back()` is outstanding — SYNCHRONOUSLY when
+ * none is (a hardware-Back close issues no `history.back()`, so there is nothing to wait for),
+ * otherwise when the echo lands. A 500 ms fallback covers a browser that never sends one, the same
+ * tolerance `dismissOverlay` gives a missing `transitionend`; a late echo after the fallback is
+ * simply absorbed as before.
+ * @param {() => void} fn
+ */
+export function whenHistorySettled(fn) {
+    if (_suppressPops === 0) { fn(); return; }
+    _settleWaiters.push(fn);
+    if (!_settleFallback) _settleFallback = setTimeout(_drainSettleWaiters, 500);
+}
+
 window.addEventListener('popstate', () => {
     // Absorb the echo from our own button-initiated history.back() (or an external owner's — see
     // suppressNextPop). Checked FIRST so a claimed/suppressed pop can never leak the counter.
-    if (_suppressPops > 0) { _suppressPops--; return; }
+    if (_suppressPops > 0) {
+        _suppressPops--;
+        if (_suppressPops === 0 && _settleWaiters.length) _drainSettleWaiters();
+        return;
+    }
     // An external owner (the nav drawer) claims pops for its own live history entry.
     for (const claims of _popInterceptors) {
         try { if (claims()) return; } catch (_e) { /* interceptor must never break the stack */ }
@@ -287,9 +322,14 @@ function _watchScrollFade(panel) {
  * @param {Element|Function} [opts.initialFocus] - Element (or fn returning one) to focus on open instead of closeBtn
  * @param {Function} [opts.onOpen]       - Called with open()'s arguments before the overlay is shown
  * @param {Function} [opts.onClose]      - Called as the overlay starts closing (any close path)
- * @returns {{ open: () => void, close: () => void }}
+ * @param {Function} [opts.afterClose]   - Called once a close has fully LANDED: the fade finished
+ *   (or the reduced-motion synchronous finish) AND the popstate echo of its history.back() has
+ *   arrived. The moment after which opening another overlay is safe — see `whenHistorySettled`.
+ * @returns {{ open: () => void, close: () => Promise<void> }} — `close()` resolves at that same
+ *   moment. A caller that does not care may ignore the promise; one that acts on a close (the
+ *   picker sheet applying a pick) awaits it rather than a timer.
  */
-export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpen, onClose }) {
+export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpen, onClose, afterClose }) {
     /** @type {Element|null} */
     let _focusReturn = null;
     // The in-flight close's finisher while the overlay is fading out (null otherwise). Lets a
@@ -297,6 +337,10 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
     // re-open being silently dropped.
     /** @type {(() => void)|null} */
     let _pendingClose = null;
+    /** The in-flight close's landing promise (fade AND history echo), so a second close() during the
+     *  fade hands back the same promise rather than a fresh resolved one. */
+    /** @type {Promise<void>|null} */
+    let _settling = null;
     /** Retires this open's scroll/resize listeners. Reassigned per open, called on close. */
     let _stopScrollFade = /** @type {() => void} */ (() => {});
 
@@ -367,8 +411,8 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
         // covers REDUCED MOTION, where `dismissOverlay` finishes synchronously and returns null —
         // so a guard on `_pendingClose` alone would let a second close through on exactly the
         // devices whose users asked for less animation.
-        if (_pendingClose) return;
-        if (!overlay.classList.contains('visible')) return;
+        if (_pendingClose) return _settling ?? Promise.resolve();
+        if (!overlay.classList.contains('visible')) return _settling ?? Promise.resolve();
         _stopScrollFade();
         // A caller's onClose must NEVER strand the overlay: if it threw, dismissOverlay below would
         // not run, leaving the overlay .open/.visible, body scroll locked, and the pushed Back-history
@@ -378,13 +422,26 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
         // drops only THIS lightbox's entry, never the overlay beneath it. Capture the finisher so a
         // re-open during the fade can complete this close first; afterClose clears it once the close
         // lands naturally (transitionend/fallback).
+        /** @type {() => void} */ let fadeLanded = () => {};
+        const fade = /** @type {Promise<void>} */ (new Promise(res => { fadeLanded = () => res(); }));
         _pendingClose = dismissOverlay(overlay, {
             onKey: /** @type {EventListener} */ (onKey),
             focusReturn: /** @type {HTMLElement|undefined} */ (_focusReturn ?? undefined),
             backHandler: close,
-            afterClose: () => { _pendingClose = null; },
+            afterClose: () => { _pendingClose = null; fadeLanded(); },
         });
         _focusReturn = null;
+        // The close has LANDED when both halves have: the fade (or its fallback, or the synchronous
+        // reduced-motion finish — `fade` covers all three) AND the history echo, which
+        // `dismissOverlay` has just made outstanding via `_clearOverlayHistory`. Under reduced motion
+        // the first half is already done by this line and the second is what the caller is really
+        // waiting for; a picker that opened a dialog on the fade alone would have it popped.
+        const echo = /** @type {Promise<void>} */ (new Promise(res => whenHistorySettled(() => res())));
+        _settling = Promise.all([fade, echo]).then(() => {
+            _settling = null;
+            try { afterClose?.(); } catch (e) { console.error('[overlay] afterClose threw:', e); }
+        });
+        return _settling;
     }
 
     overlay.addEventListener('click', e => { if (e.target === overlay) close(); });

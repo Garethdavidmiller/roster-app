@@ -45,7 +45,7 @@
  * so the second and third enhanced select on a page need not repeat themselves.
  */
 
-/** @type {((opts: any) => { open: () => void, close: () => void })|null} */
+/** @type {((opts: any) => { open: () => void, close: () => (Promise<void>|void) })|null} */
 let _createLightbox = null;
 
 /** @typedef {{ value: string, label: string, meta: string, disabled: boolean }} SheetOption */
@@ -152,7 +152,7 @@ function optionRow(/** @type {SheetOption} */ o, /** @type {boolean} */ current)
     return b;
 }
 
-/** @typedef {{ overlay: HTMLElement, lb: { open: () => void, close: () => void }, title: HTMLElement, sub: HTMLElement, list: HTMLElement }} Sheet */
+/** @typedef {{ overlay: HTMLElement, lb: { open: () => void, close: () => (Promise<void>|void) }, title: HTMLElement, sub: HTMLElement, list: HTMLElement }} Sheet */
 /** The one sheet every enhanced select on a page shares. Built on first use.
  *  @type {Sheet|null} */
 let _sheet = null;
@@ -192,7 +192,7 @@ function ensureSheet() {
  * (the `change` listener already covers the ordinary case).
  * @param {HTMLSelectElement|null} select
  * @param {{ title?: string, placeholder?: string, triggerClass?: string,
- *           createLightbox?: (opts: any) => { open: () => void, close: () => void } }} [opts]
+ *           createLightbox?: (opts: any) => { open: () => void, close: () => (Promise<void>|void) } }} [opts]
  */
 export function enhanceSelect(select, opts = {}) {
     if (opts.createLightbox) _createLightbox = opts.createLightbox;
@@ -276,6 +276,15 @@ export function enhanceSelect(select, opts = {}) {
             title,
             groups: readGroups(select),
             current: select.value,
+            // THE FACE MOVES ON THE TAP (v23.61). The value below waits for the sheet's close to land,
+            // so with nothing here the trigger kept the old name for the whole fade and the pick
+            // read as laggy. The face is shown the chosen row's own label the instant it is tapped;
+            // `paint()` then repaints from the select on `input`, so if a consumer normalises the
+            // value (the roster upload snaps a date) the face ends on what the select actually holds.
+            onPreview: value => {
+                const chosen = /** @type {any} */ (Array.from(select.options).find(o => /** @type {any} */ (o).value === value));
+                if (chosen) face.textContent = String(chosen.textContent ?? '').trim();
+            },
             onPick: value => {
                 if (select.value === value) return;   // re-picking the open one changes nothing
                 select.value = value;
@@ -298,12 +307,18 @@ export function enhanceSelect(select, opts = {}) {
  * point: one popup implementation, so the app's dropdown cannot become two that resemble each
  * other. Same split as `date-picker.js`'s `initDatePickers` / `openDatePicker`.
  *
- * `onPick` fires AFTER the overlay's fade, for the reason every sheet action in this app waits:
- * a dialog opened from the callback would race the overlay's own `history.back()`. It is not
- * called at all when the sheet is dismissed — a cancel is not a pick.
+ * `onPick` fires once the sheet's close has LANDED — the fade finished and the popstate echo of
+ * its `history.back()` arrived — for the reason every sheet action in this app waits: a dialog
+ * opened from the callback before that echo would race the traversal and pop itself (the Links
+ * grid editor opens `promptDialog` from exactly this callback). Until v23.61 that wait was a fixed
+ * 320 ms timer, 120 ms past a 200 ms fade and no guarantee of the echo at all; it is now
+ * `createLightbox`'s own `close()` promise, so under reduced motion it is a frame rather than a
+ * third of a second. `onPreview` fires SYNCHRONOUSLY on the tap for the caller that wants to
+ * repaint its control while the sheet fades. Neither is called when the sheet is dismissed — a
+ * cancel is not a pick.
  * @param {{ title: string, groups: SheetGroup[], current?: string, subtitle?: string,
- *           onPick: (value: string) => void,
- *           createLightbox?: (opts: any) => { open: () => void, close: () => void } }} opts
+ *           onPick: (value: string) => void, onPreview?: (value: string) => void,
+ *           createLightbox?: (opts: any) => { open: () => void, close: () => (Promise<void>|void) } }} opts
  */
 export function openOptionSheet(opts) {
     if (opts.createLightbox) _createLightbox = opts.createLightbox;
@@ -342,8 +357,10 @@ export function openOptionSheet(opts) {
         const row = ev.target?.closest?.('.picker-opt[data-value]');
         if (!row || row.disabled) return;
         const value = row.dataset.value;
-        sheet.lb.close();
-        setTimeout(() => opts.onPick(value), 320);
+        opts.onPreview?.(value);
+        // A factory whose close() returns nothing (the unit tests' fakes) resolves at once; the
+        // real one resolves when the close has landed — see the JSDoc above.
+        Promise.resolve(sheet.lb.close()).then(() => opts.onPick(value));
     };
     sheet.lb.open();
 }
@@ -352,7 +369,7 @@ export function openOptionSheet(opts) {
  * Enhance several selects by id. Missing ids are skipped — a page that does not carry
  * one of them is not an error, which is what lets one call site serve several pages.
  * @param {Array<{ id: string, title: string, placeholder?: string }>} specs
- * @param {{ createLightbox?: (opts: any) => { open: () => void, close: () => void } }} [opts]
+ * @param {{ createLightbox?: (opts: any) => { open: () => void, close: () => (Promise<void>|void) } }} [opts]
  */
 export function initSelectSheets(specs, opts = {}) {
     if (opts.createLightbox) _createLightbox = opts.createLightbox;
