@@ -14,7 +14,7 @@ import {
     isSameDay, isBankHoliday, isChristmasDay, isEasterSunday,
     isPayday, isCutoffDate, getShiftKind, getShiftClass, getShiftBadge, shiftBadgeParts,
     getWeekNumberForDate, getRosterForMember, resolveMemberRoster, getBaseShift, formatISO, isSunday, isWorkedShift,
-    SWIPE_THRESHOLD, SWIPE_VELOCITY, paydayForCutoff, escapeHtml,
+    SWIPE_THRESHOLD, SWIPE_VELOCITY, escapeHtml,
 } from './roster-data.js';
 import { isBeforeMemberStart, isOtherValue, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
 import { getCurrentMember } from './calendar-member.js';
@@ -320,16 +320,15 @@ function buildGridPlaceholder(display, onRetry) {
  * Accepts explicit month/year so callers never need to mutate global display state.
  * @param {number} month - 0-indexed JS month
  * @param {number} year
- * @param {{ navigateToPaycalc?: Function, onDayDetail?: Function, onRetryMonth?: Function }} [opts]
- *   navigateToPaycalc — called when a payday/cutoff cell is tapped
- *   onDayDetail       — called when any other cell is tapped on touch devices
+ * @param {{ onDayDetail?: Function, onRetryMonth?: Function }} [opts]
+ *   onDayDetail       — called when ANY day cell is activated, on every pointer type (v23.59)
  *   onRetryMonth      — called as (year, month) from the "Try again" button of the withheld-grid
  *                       panel. Omitted by callers that have no fetch to re-run (the swipe carousel's
  *                       off-screen panels), in which case no button is drawn — an inert control is
  *                       worse than none.
  */
 export function buildCalendarContainer(month, year, opts = {}) {
-    const { navigateToPaycalc, onDayDetail, onRetryMonth } = opts;
+    const { onDayDetail, onRetryMonth } = opts;
     const member = /** @type {any} */ (getCurrentMember());
     const firstDay = new Date(year, month, 1);
     const lastDay  = new Date(year, month + 1, 0);
@@ -389,23 +388,23 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // Exclude the greyed adjacent-month filler cells (v16.23): they carry no data-detail-*
         // attributes (and are aria-hidden), so a touch tap opened a BLANK day-detail lightbox.
         if (!cell || cell.classList.contains('other-month')) return;
-        // Desktop: a click on a pay-marked cell jumps straight to the calculator (the hover tooltip
-        // already showed it's a payday/cut-off). Touch has no hover, so a bare tap there used to
-        // teleport to paycalc with no warning — instead open the day-detail lightbox, which offers an
-        // explicit "View pay estimate" button for pay-marked days (v16.57).
-        if (!window.matchMedia('(pointer: coarse)').matches) {
-            // The return value is IGNORED here, and that is the right answer rather than an
-            // oversight (v23.07). `navigateToPaycalc` declines on a colleague's calendar or a
-            // PIN-unlocked screen, and a declined click then does what a click on EVERY OTHER
-            // desktop cell already does — nothing, because the hover tooltip is the desktop
-            // route to a day's detail. The keyboard is the case that needs the answer, and it
-            // takes it; see calendar-keyboard.js's Enter branch.
-            const paydayIso = cell.dataset.paydayIso;
-            if (paydayIso) { navigateToPaycalc?.(paydayIso); return; }
-            const cutoffIso = cell.dataset.cutoffIso;
-            if (cutoffIso) { const payday = paydayForCutoff(cutoffIso); if (payday) navigateToPaycalc?.(payday); }
-            return;   // desktop non-pay cell: nothing (the hover tooltip covers the detail)
-        }
+        // ONE RULE, EVERY POINTER: clicking a day opens the day panel (v23.59, owner request —
+        // "I want the day detail lightboxes like mobile on desktop"). There is no pointer branch
+        // here any more, and that is the whole change.
+        //
+        // WHAT IT REPLACED, so nobody restores it by accident: from v16.57 a desktop click on a
+        // PAY-MARKED cell jumped straight to the calculator, and a click on any other cell did
+        // nothing at all — the hover tooltip was the desktop route to a day's detail. That left
+        // the panel, which is where the app explains what a day IS, reachable on a mouse only by
+        // focusing a cell and pressing Enter. The panel already carries the pay route as an
+        // explicit "View pay estimate" button (calendar-al-lightbox.js), so the jump is one click
+        // deeper rather than lost — and it is now VISIBLE, where before it needed a hover to know
+        // the day was pay-marked at all.
+        //
+        // THE KEYBOARD IS DELIBERATELY UNCHANGED. Enter on a focused pay cell still jumps and
+        // falls through to this panel when the jump is refused (calendar-keyboard.js, v23.07):
+        // that is the one route with no pointer to hover and no button to see, so it keeps its
+        // express path.
         onDayDetail?.(cell);
     });
 

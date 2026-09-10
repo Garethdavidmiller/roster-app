@@ -226,9 +226,10 @@
         </div>
     </div>
 
-    <!-- Day detail lightbox — tap a calendar cell on touch devices to see shift/extras/note.
-         Shows the shift time, any markers, and the override note (the same
-         content desktop users see in the hover tooltip). -->
+    <!-- Day detail lightbox — click or tap ANY calendar cell, on any pointer type (v23.59; it was
+         touch-only before, and a desktop mouse had the one-line hover tooltip and nothing else).
+         Shows the date and roster week, what changed or that nothing did, what the date is, and
+         the route where there is one. The tooltip survives as the hover preview. -->
     <div id="dayDetailLightbox" class="lb-overlay" role="dialog" aria-label="Day details" aria-modal="true">
         <div id="dayDetailContent" class="lb-content">
             <button id="dayDetailClose" class="lb-close" type="button" aria-label="Close">✕</button>

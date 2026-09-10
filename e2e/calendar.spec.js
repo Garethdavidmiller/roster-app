@@ -48,11 +48,11 @@ test('calendar: renders the current month from roster data', async ({ page }) =>
 // `transform` out-specified `.lb-overlay.open .lb-content { scale(1) }`, so it never grew to full
 // size. Nothing could see that — every element was present and readable, so no behavioural
 // assertion and no axe rule fired, and the visual baselines had been generated with it.
-test('day detail: names the roster it was changed from, and opens at full size', async ({ page }, info) => {
-    // The panel is the TOUCH affordance — a desktop pointer reads the same content from the hover
-    // tooltip, and a click there never opens it. Mobile-only, and stated rather than assumed: the
-    // first cut ran on both and failed on chromium for exactly that reason.
-    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
+test('day detail: names the roster it was changed from, and opens at full size', async ({ page }) => {
+    // UNGATED SINCE v23.59, and the note is kept because the reason it WAS gated is instructive: the
+    // panel used to be the touch affordance alone, a desktop click opened nothing, and the first cut
+    // of this test ran on both projects and failed on chromium for exactly that reason. The click
+    // now opens the panel on every pointer type, so the gate would skip real coverage on two engines.
     await seedMember(page);
     await page.addInitScript(() => {
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
@@ -112,8 +112,7 @@ test('day detail: names the roster it was changed from, and opens at full size',
 // two identical pills either side of an arrow, reading as "nothing changed" directly under a
 // headline saying it did. Found by looking at the render, not by reasoning about it. A timed pill
 // shows its TIME; the kind is still carried by the colour, the emoji and the accessible label.
-test('day detail: a same-KIND change still reads as a change', async ({ page }, info) => {
-    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
+test('day detail: a same-KIND change still reads as a change', async ({ page }) => {
     await seedMember(page);
     await page.addInitScript(() => {
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
@@ -155,8 +154,7 @@ test('day detail: a same-KIND change still reads as a change', async ({ page }, 
 // The DAY MARKERS are the second: the panel is where a member goes to ask what the ⭐ on a cell
 // means, and it answered in a comma-joined sentence with no ⭐ in it. Asserted against the ICONS,
 // because the labels were always right — it is the vocabulary that was missing.
-test('day detail: the date clears the close button at every phone width', async ({ page }, info) => {
-    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
+test('day detail: the date clears the close button at every phone width', async ({ page }) => {
     // THE CASE HAS TO BE ONE THAT CAN BITE, and the first version of this test was not: at 320px
     // the longest date wraps and clears the button on the broken CSS as well as the fixed CSS, so
     // the mutation passed. Measured across 320/360/390/412 on "Wednesday 30 September 2026" — the
@@ -216,8 +214,7 @@ test('day detail: the date clears the close button at every phone width', async 
 // The markers are their own test because the two concerns want different DATES: the clearance case
 // needs the longest date the app renders, and the marker case needs a date that actually carries
 // markers. Folding them into one test meant one of the two ran on a fixture that could not fail it.
-test('day detail: the day markers carry the calendar\'s own icons', async ({ page }, info) => {
-    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
+test('day detail: the day markers carry the calendar\'s own icons', async ({ page }) => {
     await seedMember(page);
     await page.addInitScript(() => {
         localStorage.setItem('myb_roster_year', '2026');
@@ -243,8 +240,7 @@ test('day detail: the day markers carry the calendar\'s own icons', async ({ pag
 // monochrome, so the app's shift colour and glyph read as properties of "something happened"
 // rather than of the shift. A plain Late turn and a plain Rest day were one grey card with
 // different words on it.
-test('day detail: an UNCHANGED day still leads with its own kind glyph', async ({ page }, info) => {
-    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
+test('day detail: an UNCHANGED day still leads with its own kind glyph', async ({ page }) => {
     await seedMember(page);
     await page.goto('/');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
@@ -1414,8 +1410,7 @@ test('calendar: the team week is ANNOUNCED with the full month name, not the on-
 // has recorded losing: a perfect rule whose result is never written, or written into an element
 // nothing shows.
 
-test('day detail: states the roster week under the date', async ({ page }, info) => {
-    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
+test('day detail: states the roster week under the date', async ({ page }) => {
     await seedMember(page);
     await page.goto('/');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
@@ -1435,8 +1430,7 @@ test('day detail: states the roster week under the date', async ({ page }, info)
     expect(shift.y, 'and above the shift').toBeGreaterThanOrEqual(wk.y + wk.height - 2);
 });
 
-test('day detail: an unchanged day says so, a changed one shows the change instead', async ({ page }, info) => {
-    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
+test('day detail: an unchanged day says so, a changed one shows the change instead', async ({ page }) => {
     await seedMember(page);
     // One override, so the same month holds both states and neither can pass by the fixture alone.
     await page.addInitScript(() => {
@@ -1477,8 +1471,7 @@ test('day detail: an unchanged day says so, a changed one shows the change inste
     await expect(page.locator('#dayDetailChange')).toHaveCSS('display', 'none');
 });
 
-test('day detail: a month before the member joined confirms nothing', async ({ page }, info) => {
-    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
+test('day detail: a month before the member joined confirms nothing', async ({ page }) => {
     // THE FOURTH WAY "As rostered" CAN BE UNEARNED, and the only one that is not about knowledge
     // (v22.93). J. Davies starts 5 May 2026, so April 2026 is entirely before their roster begins:
     // `getBaseShift` suppresses every shift to a rest day, base and effective therefore match, and
@@ -1564,8 +1557,7 @@ for (const width of [320, 333, 360]) {
 
 // ─── THE DAY PANEL'S HEADING BLOCK, AND THE LEAVE ACTION (v22.91) ────────────────────────────────
 
-test('day detail: the roster week is bound to the date, not floating between it and the shift', async ({ page }, info) => {
-    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
+test('day detail: the roster week is bound to the date, not floating between it and the shift', async ({ page }) => {
     await seedMember(page);
     await page.goto('/');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
@@ -1589,8 +1581,7 @@ test('day detail: the roster week is bound to the date, not floating between it 
     expect(g.weekFs, 'the week must be visibly smaller than the date').toBeLessThan(g.dateFs);
 });
 
-test('day detail: an annual-leave day offers the leave dates, and no other day does', async ({ page }, info) => {
-    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
+test('day detail: an annual-leave day offers the leave dates, and no other day does', async ({ page }) => {
     // SIGNED IN, ON THEIR OWN CALENDAR — the only state the action is offered in since v23.04, and
     // it has to be seeded explicitly: this file's default is a VIEWER session (see its header), and
     // a PIN-unlocked machine now gets no personal actions at all. This test is about the AL rule,
@@ -1655,8 +1646,7 @@ test('day detail: an annual-leave day offers the leave dates, and no other day d
 // that is never reloaded), or handing it the session name as both arguments, which makes it
 // tautologically true. Each of those leaves the unit suite green.
 
-test('day detail: YOUR OWN pay-marked day still offers the pay estimate', async ({ page }, info) => {
-    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
+test('day detail: YOUR OWN pay-marked day still offers the pay estimate', async ({ page }) => {
     // THE DIRECTION THE GATE CAN BREAK SILENTLY, and until now the only one nothing watched. Every
     // other assertion on this button in this file expects it HIDDEN, so `personal` returning false
     // in the ordinary signed-in case — one wrong argument, one stale read of the member selector —
@@ -1684,8 +1674,7 @@ test('day detail: YOUR OWN pay-marked day still offers the pay estimate', async 
     await page.waitForURL(/paycalc\.html\?payday=\d{4}-\d{2}-\d{2}/);
 });
 
-test('day detail: a COLLEAGUE’s day offers neither personal action', async ({ page }, info) => {
-    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
+test('day detail: a COLLEAGUE’s day offers neither personal action', async ({ page }) => {
     // Signed in as one member, looking at another — what the member selector is FOR, and the
     // reported case. The leave day is seeded against the member on SCREEN, so the panel has every
     // reason to offer the button except the one that matters.
@@ -1731,8 +1720,7 @@ test('day detail: a COLLEAGUE’s day offers neither personal action', async ({ 
     await expect(page.locator('#dayDetailActions')).toHaveCSS('display', 'none');
 });
 
-test('day detail: a PIN-unlocked screen offers neither personal action', async ({ page }, info) => {
-    test.skip(!isTouchProject(info), 'the day panel is the touch route; desktop hovers');
+test('day detail: a PIN-unlocked screen offers neither personal action', async ({ page }) => {
     // The station PC — and deliberately the HARD version of it: a stale local session naming the
     // very member whose calendar is on screen. That state is reachable, not contrived (an iOS ITP
     // eviction drops the Firebase user while the 60-day session lives on, so `decideAccess` falls
@@ -1762,22 +1750,24 @@ test('day detail: a PIN-unlocked screen offers neither personal action', async (
 
 // ─── AND THE OTHER TWO ROUTES TO THE CALCULATOR (v23.07) ────────────────────────────────────────
 //
-// v23.04 gated the day panel's two buttons. It gated ONE of three ways into the pay calculator: a
-// DESKTOP CLICK on a pay-marked cell and keyboard ENTER on one both called `navigateToPaycalc`
-// directly, so the panel was tidy and the routes around it still jumped from a colleague's calendar
-// or a PIN-unlocked station PC. These run on DESKTOP, where those two routes live — the touch
-// projects never reach them (a tap always opens the panel), which is exactly why the phone-only
-// tests above could not see this.
+// ─── THE PAY ROUTE, WHICH IS NOW ONE ROUTE ───────────────────────────────────────────────────────
 //
-// ONE MUTATION HERE PROVABLY CANNOT FAIL, and saying so is better than a test that pretends
-// otherwise: making `navigateToPaycalc` return `false` after a SUCCESSFUL jump changes nothing
-// observable. Its only consumer is the keyboard's fall-through, and by the time a successful jump
-// returns, `window.location` is already leaving the page — so the panel it would then open is torn
-// down before it can be seen. The refusal direction is what carries meaning, and that is covered
-// in both branches below.
+// v23.04 gated the day panel's two buttons and left the routes AROUND the panel ungated: a desktop
+// CLICK on a pay-marked cell and keyboard ENTER on one both called `navigateToPaycalc` directly, so
+// the panel was tidy and a colleague's calendar — or a PIN-unlocked station PC — still jumped.
+//
+// v23.59 removed the first of those two. A click now opens the panel on every pointer type, so the
+// only way a pointer reaches the calculator is `#dayDetailPayBtn`, which `personalActionsAllowed`
+// already governs. These tests are therefore no longer about a desktop-only route and are no longer
+// gated to one — they run wherever a click does, which is everywhere. What they still watch is the
+// thing that has broken before: the button appearing, or not appearing, for the wrong person.
+//
+// ONE MUTATION IN THE KEYBOARD TEST PROVABLY CANNOT FAIL, and saying so is better than a test that
+// pretends otherwise: making `navigateToPaycalc` return `true` after a REFUSAL is caught, but making
+// it return `false` after a SUCCESSFUL jump changes nothing observable — `window.location` is
+// already leaving the page, so the panel it would then open is torn down before it can be seen.
 
-test('calendar: a desktop click on a pay day does NOT reach the calculator from a colleague’s month', async ({ page }, info) => {
-    test.skip(isTouchProject(info), 'the desktop click route is what this covers; touch opens the panel');
+test('calendar: a click on a pay day opens the panel and offers no jump from a colleague’s month', async ({ page }) => {
     await seedMemberSession(page, 'G. Miller');
     await page.addInitScript(() => localStorage.setItem('myb_roster_selected_member', 'S. Silva'));
     await page.goto('/');
@@ -1787,17 +1777,21 @@ test('calendar: a desktop click on a pay day does NOT reach the calculator from 
         .findIndex(c => c.dataset.paydayIso || c.dataset.cutoffIso));
     expect(payIdx, 'the month has no pay-marked day to click').toBeGreaterThan(-1);
     await page.locator('.calendar-day:not(.other-month)').nth(payIdx).click();
-    await page.waitForTimeout(600);
-    // Still on the calendar. Asserted as the URL rather than "no navigation happened", because the
-    // failure this catches is arriving somewhere — paycalc would take it, show its own sign-in and
-    // look perfectly healthy, which is the whole reason the jump was confusing rather than broken.
+
+    // The panel opens — the v23.59 behaviour, and the half a "does not navigate" assertion cannot
+    // tell apart from a click that did nothing at all, which is what this used to be on desktop.
+    await expect(page.locator('#dayDetailLightbox')).toBeVisible();
+    await expect(page.locator('#dayDetailPayBtn'), 'a colleague’s pay day offers no jump').toBeHidden();
+    // Asserted as the URL rather than "no navigation happened", because the failure this catches is
+    // ARRIVING somewhere — paycalc would take it, show its own sign-in and look perfectly healthy,
+    // which is the whole reason the jump was confusing rather than broken.
     expect(page.url(), 'a colleague’s pay day must not open YOUR calculator').not.toContain('paycalc');
 });
 
-test('calendar: a desktop click on YOUR OWN pay day still reaches the calculator', async ({ page }, info) => {
-    test.skip(isTouchProject(info), 'the desktop click route is what this covers');
+test('calendar: a click on YOUR OWN pay day reaches the calculator through the panel', async ({ page }) => {
     // The other direction, and the one that would be silently lost by over-gating: the route has
-    // worked since v10.17 and most members are looking at their own calendar every time.
+    // worked since v10.17 and most members are looking at their own calendar every time. It is one
+    // click deeper than it was on a desktop pointer, and it is the SAME depth a phone always had.
     await seedMemberSession(page, 'G. Miller');
     await page.goto('/');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
@@ -1806,15 +1800,20 @@ test('calendar: a desktop click on YOUR OWN pay day still reaches the calculator
         .findIndex(c => c.dataset.paydayIso || c.dataset.cutoffIso));
     expect(payIdx, 'the month has no pay-marked day to click').toBeGreaterThan(-1);
     await page.locator('.calendar-day:not(.other-month)').nth(payIdx).click();
+    await expect(page.locator('#dayDetailLightbox')).toBeVisible();
+    await page.locator('#dayDetailPayBtn').click();
     await page.waitForURL(/paycalc/, { timeout: 5000 });
+    // `payday=` is the whole point of the route — the nav drawer's Pay pill already reaches the
+    // calculator, but it cannot say WHICH period, so a jump that lost the date would look fine.
     expect(page.url()).toContain('payday=');
 });
 
 test('calendar: a refused Enter opens the day panel rather than doing nothing', async ({ page }, info) => {
     test.skip(isTouchProject(info), 'Enter on a focused cell is the keyboard route');
-    // THE DIRECTION A CARELESS FIX GETS WRONG. Refusing the jump is right; refusing it and
-    // returning would leave Enter dead on exactly those days, and only for keyboard users, who
-    // have no hover tooltip to fall back on. So the refusal has to HAND OVER, not swallow.
+    // THE DIRECTION A CARELESS FIX GETS WRONG, and the one route v23.59 deliberately left alone:
+    // the keyboard still jumps straight to the calculator from a pay cell, because it has neither a
+    // hover tooltip nor a visible button to aim at. Refusing the jump is right; refusing it and
+    // returning would leave Enter dead on exactly those days. So the refusal has to HAND OVER.
     //
     // BOTH BRANCHES, SEPARATELY SELECTED, and that is not thoroughness for its own sake. The Enter
     // handler treats a PAYDAY and a CUT-OFF differently (a cut-off resolves to its own payday
@@ -1843,13 +1842,10 @@ test('calendar: a refused Enter opens the day panel rather than doing nothing', 
     }
 });
 
-test('calendar: a PIN-unlocked desktop cannot click through to the calculator', async ({ page }, info) => {
-    test.skip(isTouchProject(info), 'the desktop click route is what this covers');
-    // THE STATION PC, which is a desktop — so this is the machine the whole change is about, and
-    // the ONLY fixture that can see the viewer refusal work on this route. The name check cannot
-    // stand in for it: seed a stale session naming the very member on screen (reachable — an iOS
-    // ITP eviction drops the Firebase user while the 60-day session lives on) and a rule that only
-    // compared names would wave this straight through.
+test('calendar: a PIN-unlocked screen cannot click through to the calculator', async ({ page }) => {
+    // THE STATION PC — and deliberately the HARD version of it: a stale local session naming the
+    // very member on screen (reachable — an iOS ITP eviction drops the Firebase user while the
+    // 60-day session lives on) and a rule that only compared names would wave this straight through.
     await seedSession(page, 'G. Miller');
     await seedMember(page, 'G. Miller');
     await seedViewerAccess(page);
@@ -1860,8 +1856,101 @@ test('calendar: a PIN-unlocked desktop cannot click through to the calculator', 
         .findIndex(c => c.dataset.paydayIso || c.dataset.cutoffIso));
     expect(payIdx, 'the month has no pay-marked day to click').toBeGreaterThan(-1);
     await page.locator('.calendar-day:not(.other-month)').nth(payIdx).click();
-    await page.waitForTimeout(600);
+    await expect(page.locator('#dayDetailLightbox')).toBeVisible();
+    await expect(page.locator('#dayDetailPayBtn'), 'a shared screen has no whose to open').toBeHidden();
     expect(page.url(), 'a shared screen must not open anybody’s calculator').not.toContain('paycalc');
+});
+
+// A MOUSE CAN DO SOMETHING A FINGER CANNOT: DRAG — and from v23.59 a click opens the day panel on
+// every pointer type, so "does a paging drag also open a panel?" is a question the change raises and
+// nothing else answers. It does not, and THE REASON IS THE PLATFORM'S, not ours: the swipe takes
+// `setPointerCapture` on the first `pointermove`, and both engines then dispatch the compatibility
+// `click` at the capture element — measured, `#calendarDisplay`, never a `.calendar-day`. A tap sets
+// no capture at all (calendar-swipe.js deliberately captures on MOVE, not on `pointerdown`, because
+// iOS suppresses `pointermove` if it is captured there) and lands on the cell as it always did.
+//
+// SO THIS TEST HAS NO TEETH AGAINST OUR OWN CODE, and saying so is better than implying otherwise: a
+// guard was written first, in the coordinator, and deleting it changed nothing on either engine —
+// which is why there is no guard in the tree to find. What it pins is the PLATFORM ASSUMPTION the
+// absence of one rests on. If a future engine stops retargeting, or the capture moves back to
+// `pointerdown`, this is what fails, and the coordinator gets its guard then.
+test('calendar: a mouse drag pages the month and does NOT open the day panel', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'the defect is a mouse drag; a touch pan fires no click');
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+
+    // Retried for the same reason `swipeMonth` retries — a mouse-simulated gesture is swallowed
+    // perhaps one time in two. A SWALLOWED one legitimately opens the panel (a drag that pages
+    // nothing is a click), so it is closed and the attempt repeated rather than asserted on.
+    for (let attempt = 0; attempt < 4; attempt++) {
+        await page.waitForFunction(() => document.querySelectorAll('.month-year').length === 1,
+            null, { timeout: 10000 });
+        const before = await page.locator('.month-year').first().textContent();
+        const box = /** @type {any} */ (await page.locator('.calendar-day:not(.other-month)').nth(15).boundingBox());
+        expect(box.width, 'the drag must fit inside ONE cell or the click never reaches a day')
+            .toBeGreaterThan(95);
+        const y = box.y + box.height / 2;
+        await page.mouse.move(box.x + box.width - 5, y);
+        await page.mouse.down();
+        await page.mouse.move(box.x + 5, y, { steps: 12 });
+        await page.mouse.up();
+
+        let paged = true;
+        try {
+            await page.waitForFunction((b) => document.querySelectorAll('.month-year').length === 1
+                && document.querySelector('.month-year')?.textContent !== b, before, { timeout: 10000 });
+        } catch { paged = false; }
+
+        if (paged) {
+            await expect(page.locator('#dayDetailLightbox'), 'a paging drag must not open a day panel')
+                .toBeHidden();
+            return;
+        }
+        if (await page.locator('#dayDetailLightbox').isVisible()) await page.locator('#dayDetailClose').click();
+    }
+    throw new Error('the drag never paged the month in four attempts');
+});
+
+// THE HOVER TOOLTIP AND THE PANEL, WHICH NOW SHARE A POINTER (v23.59). Before this release they
+// could not meet: the tooltip was the desktop route to a day and the panel the touch one. A click
+// now opens the panel WITHOUT MOVING THE MOUSE, so `mousemove` never re-runs — which raises the
+// question of whether the tip strands over the backdrop, describing in one line the day the panel
+// is describing in full.
+//
+// IT DOES NOT, AND NOT BECAUSE OF THE CSS THAT LOOKS LIKE THE ANSWER. Deleting
+// `body.lb-open #calTooltip { display: none }` and re-running this leaves it GREEN on both engines:
+// the full-screen overlay appearing under a stationary cursor fires a `mouseover`, the handler
+// resolves no cell and hides the tip itself. The CSS is kept as belt and braces (index.css says
+// why) and this test is what actually holds the behaviour.
+//
+// THE SECOND HALF IS THE ONE WITH TEETH: a tooltip hidden and never given back would be SILENT. It
+// is drawn only under a live pointer, so it appears in no visual baseline, axe has no rule for it,
+// and until v23.59 nothing in this repo had ever asserted on it at all.
+test('calendar: the hover tooltip yields to the day panel — and comes back afterwards', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'there is no hover on a touch device; the tip is never built');
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const tip = page.locator('#calTooltip');
+    const cellA = page.locator('.calendar-day:not(.other-month)').nth(10);
+    const cellB = page.locator('.calendar-day:not(.other-month)').nth(14);
+
+    await cellA.hover();
+    await expect(tip, 'the tooltip is still the hover preview').toBeVisible();
+
+    await cellA.click();
+    await expect(page.locator('#dayDetailLightbox')).toBeVisible();
+    await expect(tip, 'and it must not sit over the panel it duplicates').toBeHidden();
+    // Moving over the BACKDROP keeps it down — the handler resolves no cell there, which is the
+    // pre-existing path; the CSS covers the case where the pointer never moves at all.
+    await page.mouse.move(8, 8);
+    await expect(tip).toBeHidden();
+
+    await page.locator('#dayDetailClose').click();
+    await expect(page.locator('#dayDetailLightbox')).toBeHidden();
+    await cellB.hover();
+    await expect(tip, 'a panel must not kill the tooltip for the rest of the session').toBeVisible();
 });
 
 // ─── THE SAVED-COPY LADDER RUNG (v22.95) ────────────────────────────────────────────────────────

@@ -690,6 +690,14 @@
                 box-shadow: 0 5px 15px rgba(0,0,0,0.1);
                 z-index: 2;
             }
+            /* A DAY IS NOW A BUTTON ON A MOUSE TOO (v23.59) — a click opens the day panel on every
+               pointer type, so the cursor has to say so. It could not before: only the two
+               pay-marked cells a month did anything, and there was no way to advertise that without
+               advertising it on the twenty-eight that did not. `.other-month` is excluded because
+               the filler cells are still inert. The CONTAINER stays `default` — the block above
+               drops grab/grabbing deliberately, and a cell offering a click is the opposite claim
+               from a surface offering a drag. */
+            .calendar-day:not(.other-month) { cursor: pointer; }
         }
         .calendar-day:focus-visible {
             outline: var(--focus-outline-gold);
@@ -712,6 +720,17 @@
             box-shadow: 0 3px 10px rgba(0,0,0,0.22);
         }
         #calTooltip[hidden] { display: none; }
+        /* An overlay takes the tooltip down with it (v23.59) — BELT AND BRACES, and saying so
+           because the first version of this comment claimed a defect that was never observed. A
+           click now opens the day panel on a mouse too and the pointer does not move on the way, so
+           `mousemove` never re-runs; the reason the tip does not strand over the backdrop is that
+           the full-screen overlay appearing under a stationary cursor fires a `mouseover`, whose
+           handler resolves no cell and hides it. MEASURED on both engines by deleting this line —
+           the test below still passed. It is kept because that mechanism is incidental: it works
+           because `closest()` returns null on the overlay, so scoping the tooltip's listeners to
+           the grid — a plausible tidy-up — would strand the tip with nothing in the CSS to catch
+           it. `e2e/calendar.spec.js` pins the behaviour whichever of the two delivers it. */
+        body.lb-open #calTooltip { display: none; }
         @media print { #calTooltip { display: none !important; } }
 
         .calendar-day.other-month {
