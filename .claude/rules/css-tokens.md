@@ -610,3 +610,22 @@ app's thin trackless bar (`scrollbar-width`/`scrollbar-color` on `*`, with the `
 pair for older WebKit — an engine that honours the standard pair ignores the pseudo-elements, so they
 never fight). The guides restate the scrollbar in `guide-shell.css` with their own `--scroll-thumb`
 token, because they load none of the app's stylesheets.
+
+## The six the first audit missed (v23.51)
+
+A re-audit went through **every control type the markup actually ships** rather than the v23.50
+notes, and found six more. Four are drawn only by engines the deploy gate does not render in, which
+is exactly why a static guard and not a screenshot is what holds them.
+
+| Surface | The recipe |
+|---------|-----------|
+| **Edge's `::-ms-reveal` / `::-ms-clear`, Safari's `::-webkit-credentials-auto-fill-button`** | Suppressed in `shared.css`. All three land in the corner `.login-pw-toggle` already occupies (the field reserves 62px for it), and Settings offers a third route in its "Show passwords" tick. The station PC is Windows, so the Edge one is on a real staff surface. **`::-webkit-strong-password-auto-fill-button` is deliberately NOT suppressed** — it offers a keychain password, which the app draws no alternative to, and that is the line between chrome to replace and a platform feature to leave alone. |
+| **Autofill's repaint** | Chrome and Safari override `--field-bg` with their own yellow on the sign-in overlay and the Settings account card. An `!important` inset box-shadow is the only thing that covers it, because the UA's own background is `!important`. **The `:focus-visible` half must restate `--focus-ring`** — the focus indicator here IS a box-shadow, so covering the yellow without it would trade one defect for a worse, invisible one. |
+| **`::selection`** | One rule, `color-mix(in srgb, var(--accent-gold) 35%, transparent)`, and **it sets no `color`**: the selected text keeps its own, which is what lets a single tint serve both surface families — measured 10.2:1 for dark text on a card and 7.3:1 for white text on the navy drawer. Naming a colour would force one of the two to be wrong. |
+| **`::placeholder`** | `--text-light` with `opacity: 1` (Firefox applies its own opacity on top of the colour). 5.4:1 on `--field-bg`, 6.0:1 on the focused white. 49 of the app's 50 placeholders had been whatever grey the engine picked. |
+| **`caret-color`** | `--primary-blue` on `input, textarea, select` — **bare, where every skin rule in `shared.css` carries the two `:not()`s.** A caret has no effect on a checkbox, and `input:not([type="checkbox"]):not([type="radio"])` is specificity (0,2,1), which BEATS `.nav-gs-input` at (0,1,0) and would have painted the navy caret over the drawer's gold one. Copying a shape without its reason is how that happens. |
+| **Dictionary underlines** | `spellcheck="false"` on `<body>`, once per served page. Nothing in this app takes prose — the fields are hours, minutes, rates, money, times, a tax code, names and an address — so the decision is uniform, and on `<body>` it inherits to the fields built in JS without 42 attributes. The two legacy redirect stubs have no fields and are exempt by name. |
+
+The guides restate `::selection`, `::placeholder` and `caret-color` in `guide-shell.css` with their
+own `--placeholder` token, for the same reason `--scroll-thumb` lives there: they load none of the
+app's stylesheets, so a rule added only to `shared.css` reaches seven pages of twelve.

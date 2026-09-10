@@ -35,6 +35,23 @@
  *  7. No `alert(`, `confirm(` or `prompt(` — `confirmDialog`/`promptDialog` in overlay.js are the
  *     replacements. The install prompt's `deferred.prompt()` is a METHOD on the OS event and is
  *     the one OS dialog the app is supposed to open; a preceding `.` excludes it.
+ *  9. The password field's own OS buttons are suppressed — Edge's `::-ms-reveal`/`::-ms-clear`
+ *     and Safari's `::-webkit-credentials-auto-fill-button`. The app draws `.login-pw-toggle` in
+ *     that exact corner and reserves 62px for it, so the platform's lands under the app's.
+ * 10. Autofill cannot repaint a field. Chrome and Safari override `--field-bg` with their own
+ *     yellow; an `!important` inset shadow is the only thing that covers it. The FOCUS half is
+ *     what this pins hardest: that shadow must restate `--focus-ring`, or an autofilled field
+ *     loses its focus indicator and no other suite can see it (focus-ring-parity reads
+ *     stylesheets for `outline`/`box-shadow` recipes, not for which selector wins).
+ * 11. `::selection`, `::placeholder` and `caret-color` are declared in BOTH stylesheets that need
+ *     them. The guides load no app stylesheet, so a rule added only to shared.css reaches seven
+ *     pages of twelve — the way `--scroll-thumb` had to be minted twice at v23.50.
+ * 12. Every served page sets `spellcheck="false"` on `<body>`. Nothing in this app takes prose:
+ *     the fields are hours, minutes, rates, money, times, a tax code, names and an address, and a
+ *     dictionary underline under any of them is the OS drawing on the app's data. On `<body>` it
+ *     inherits, so the fields built in JS are covered without 42 attributes. The two legacy
+ *     redirect stubs carry no fields and are exempt by name.
+ *
  *  8. A page that styles inputs BY ELEMENT excludes the two the app draws. `.field input { width:
  *     100% }` reached the pay calculator's toggles and mode radios the moment their per-site sizes
  *     were removed, and rendered a checkbox as a full-width navy bar — found by looking, since
@@ -42,8 +59,11 @@
  *     in reverse: an element selector cannot know what the recipe replaced, so it says so.
  *
  * What it cannot see: the surfaces that are the platform's by nature — the file picker, the print
- * dialog, Web Push, the install prompt, the keyboard and its autofill. Those are correct and the
- * audit says so; this file is about the ones that were a choice.
+ * dialog, Web Push, the install prompt, and the keyboard with its AutoFill bar. Those are correct
+ * and the audit says so; this file is about the ones that were a choice. Note the line contract 10
+ * draws through autofill, because the first version of this paragraph put the whole of it on the
+ * platform's side: OFFERING a saved password is the platform's and is left alone; REPAINTING the
+ * app's own field to say so is not, and is covered.
  */
 
 import { test } from 'node:test';
@@ -191,4 +211,78 @@ test('a rule that styles bare `input` by element excludes the checkbox and radio
     assert.deepEqual(offenders, [],
         'write it as `input:not([type="checkbox"]):not([type="radio"])` — an element selector reaches the '
         + 'app-drawn box and out-specifies or ties the recipe (paycalc\'s `.field input` did exactly that)');
+});
+
+// ── 9. the password field's own OS buttons ──────────────────────────────────────────────────────
+test('the OS password reveal and credentials buttons are suppressed', () => {
+    const shared = strip(read('shared.css'));
+    const missing = [];
+    for (const sel of ['::-ms-reveal', '::-ms-clear', '::-webkit-credentials-auto-fill-button', '::-webkit-contacts-auto-fill-button']) {
+        if (!shared.includes(sel)) missing.push(sel);
+    }
+    assert.deepEqual(missing, [],
+        'Edge and Safari draw their own button in the corner `.login-pw-toggle` already occupies');
+    // The strong-password button is a platform FEATURE, not a duplicate of anything the app draws.
+    // Suppressing it would take away a keychain password and offer nothing back — that is the line
+    // v23.50 drew, and this asserts the line rather than trusting the comment beside it.
+    assert.ok(!shared.includes('::-webkit-strong-password-auto-fill-button'),
+        'leave Safari\'s strong-password offer alone — the app draws no alternative to it');
+});
+
+// ── 10. autofill may not repaint the field, and may not eat the focus ring ───────────────────────
+test('autofill is pinned to --field-bg, and its focus state keeps the ring', () => {
+    const shared = strip(read('shared.css'));
+    const rules = [...shared.matchAll(/([^{}]*:-webkit-autofill[^{}]*)\{([^}]*)\}/g)];
+    assert.ok(rules.length >= 2, 'expected a resting autofill rule and a focus-visible one');
+
+    const resting = rules.find(r => !r[1].includes(':focus-visible'));
+    assert.ok(resting && /-webkit-box-shadow[^;]*inset[^;]*var\(--field-bg\)/.test(resting[2]),
+        'the resting fill must be an inset shadow pinned to --field-bg — the UA background is !important, so nothing else covers it');
+    assert.ok(/!important/.test(resting[2]), 'the UA autofill background is itself !important');
+
+    const focused = rules.find(r => r[1].includes(':focus-visible'));
+    assert.ok(focused, 'an autofilled field can be focused; that state needs its own rule');
+    assert.ok(/var\(--focus-ring\)/.test(focused[2]),
+        'the focus shadow must RESTATE --focus-ring — otherwise covering the yellow removes the focus indicator, '
+        + 'which is the app\'s only invisible design system (focus-ring-parity.test.mjs)');
+});
+
+// ── 11. selection, placeholder and caret — in both stylesheets that need them ────────────────────
+test('::selection, ::placeholder and caret-color are declared for the app AND the guides', () => {
+    // The guides deliberately load no app stylesheet, so shared.css reaches 7 of the 12 served
+    // pages. Both files, or the other five keep the platform's colours.
+    const missing = [];
+    for (const f of ['shared.css', 'guide-shell.css']) {
+        const css = strip(read(f));
+        for (const decl of ['::selection', '::placeholder', 'caret-color']) {
+            if (!css.includes(decl)) missing.push(`${f}: ${decl}`);
+        }
+    }
+    assert.deepEqual(missing, [], 'a rule added only to shared.css misses every guide page');
+
+    // ::selection sets a background and NOT a colour: one rule serves the light cards and the navy
+    // drawer, and naming a text colour would force one of the two to be unreadable.
+    for (const f of ['shared.css', 'guide-shell.css']) {
+        const m = strip(read(f)).match(/::selection\s*\{([^}]*)\}/);
+        assert.ok(m, `${f}: no ::selection rule`);
+        assert.ok(!/(?:^|[\s;])color\s*:/.test(m[1]),
+            `${f}: ::selection must not set \`color\` — the selected text keeps its own, which is what lets one tint serve both surface families`);
+    }
+});
+
+// ── 12. no dictionary underlines on data ────────────────────────────────────────────────────────
+test('every served page turns spellcheck off at the body', () => {
+    // The two legacy redirect stubs (v22.48) carry no fields at all — they are a <meta refresh>
+    // and a link. page-contract-parity gives them their own contract for the same reason.
+    const LEGACY = ['guide.html', 'fip.html'];
+    const offenders = [];
+    for (const f of HTML) {
+        if (LEGACY.includes(f)) continue;
+        const body = read(f).match(/<body[^>]*>/);
+        if (!body) { offenders.push(`${f}: no <body>`); continue; }
+        if (!/spellcheck\s*=\s*["']false["']/.test(body[0])) offenders.push(`${f}: ${body[0]}`);
+    }
+    assert.deepEqual(offenders, [],
+        'nothing here takes prose — hours, times, rates, money, a tax code, names, an address. '
+        + 'On <body> it inherits, so a field built in JS is covered without an attribute of its own');
 });

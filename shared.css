@@ -615,6 +615,93 @@ input[type="checkbox"]:disabled:indeterminate { background-color: var(--check-fi
     }
 }
 
+/* ============================================================
+   THE PASSWORD FIELD'S OWN BUTTONS (v23.51)
+   ============================================================
+   The audit that produced v23.50 missed these because they are drawn by only TWO engines and
+   neither is the one CI renders in. Edge paints `::-ms-reveal` — an eye — inside every password
+   field, and Safari paints `::-webkit-credentials-auto-fill-button`, a key, in the same corner.
+   The app already draws its own control there: `.login-pw-toggle` is absolutely positioned at the
+   field's right edge and the input reserves 62px for it, so the platform's button lands UNDER or
+   BESIDE the app's, and the Settings card offers a third route to the same thing in its
+   "Show passwords" tick. Three controls, one job, two of them the OS's.
+
+   The station PC is Windows, so the Edge one is not hypothetical — it is on the surface a member
+   uses to sign in at work.
+
+   `::-webkit-strong-password-auto-fill-button` is deliberately NOT in this list. The others
+   duplicate a control the app draws; that one offers something the app does not (a keychain
+   password), which is the line v23.50 drew between chrome to replace and a platform feature to
+   leave alone. iOS AutoFill is unaffected either way — it is offered on the keyboard's QuickType
+   bar, which no page can style or suppress. */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear { display: none; }
+input::-webkit-credentials-auto-fill-button,
+input::-webkit-contacts-auto-fill-button {
+    display: none !important;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+/* ============================================================
+   AUTOFILL REPAINTS THE APP'S OWN FIELD (v23.51)
+   ============================================================
+   Chrome and Safari paint an autofilled input in their own yellow (or blue), which is the one
+   place the platform overrides a surface the three-surface model specifies: the sunken
+   `--field-bg` well becomes a colour the app never chose. It lands on the sign-in overlay and the
+   Settings work-email and password card — precisely the fields autofill fires on.
+
+   `!important` is load-bearing and is the reason this is a recipe rather than a declaration: the
+   UA sheet's autofill background is itself `!important`, and an inset box-shadow is the only
+   thing that covers it. Hence also the absurd `transition` — Chrome animates its background in
+   after the fill, and a delay longer than any session outruns it.
+
+   THE FOCUS RULE MUST RESTATE THE RING. A field's focus indicator IS a box-shadow here
+   (`--focus-ring`, focus-ring-parity.test.mjs), so a bare shadow on `:focus-visible` would trade
+   one defect for a worse one — an autofilled field with no visible focus. Both are listed, ring
+   first. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+    -webkit-box-shadow: inset 0 0 0 100px var(--field-bg) !important;
+    -webkit-text-fill-color: var(--text-dark);
+    caret-color: var(--primary-blue);
+    transition: background-color 100000s ease-in-out 0s;
+}
+/* Focused, an autofilled field brightens to the same white every other field does — and keeps its ring. */
+input:-webkit-autofill:focus-visible,
+textarea:-webkit-autofill:focus-visible {
+    -webkit-box-shadow: var(--focus-ring), inset 0 0 0 100px white !important;
+}
+
+/* ============================================================
+   SELECTION, PLACEHOLDER AND CARET (v23.51)
+   ============================================================
+   The last three things the platform still coloured. Selection was the browser's default blue on
+   a navy-and-gold app; the caret was the OS accent; and of fifty placeholders exactly one was
+   styled (`.nav-gs-input`), so every other one was whatever grey the engine happened to pick.
+
+   ONE selection rule serves both surface families, which is why it sets no `color`: at 35% the
+   gold tint leaves dark text at 10.2:1 on a card and white text at 7.3:1 on the navy drawer
+   (measured, both above AAA). Naming a colour would force one of those two to be wrong. */
+::selection {
+    background: color-mix(in srgb, var(--accent-gold) 35%, transparent);
+}
+input::placeholder,
+textarea::placeholder {
+    color: var(--text-light);   /* 5.4:1 on --field-bg, 6.0:1 on the focused white — measured */
+    opacity: 1;                 /* Firefox applies its own opacity on top of the colour */
+}
+/* Bare `input`, deliberately, where every skin rule in this file carries the two `:not()`s: a
+   caret has no effect on a checkbox or a radio, and `input:not([type="checkbox"]):not([type="radio"])`
+   is specificity (0,2,1) — which BEATS `.nav-gs-input` at (0,1,0) and would have overridden the
+   drawer's gold caret with navy on navy. Copying the shape without the reason is how that happens. */
+input, textarea, select {
+    caret-color: var(--primary-blue);
+}
+
 /* iOS status bar — blends with app theme.
    No overflow-x on html; each page's body handles scroll containment. */
 html {
@@ -2352,10 +2439,13 @@ button.lightbox-bug-link {
     font-size: var(--type-medium); /* >=16px — never trip iOS focus-zoom on a focusable field */
 }
 .nav-gs-input::placeholder { color: var(--nav-text-faint); }
+/* The one text field on a NAVY surface, so it opts out of the app-wide navy caret (v23.51). */
+.nav-gs-input { caret-color: var(--accent-gold); }
 .nav-gs-input:focus-visible { outline: var(--focus-outline-gold); outline-offset: 1px; }
 /* WebKit draws its own ✕ clear control in a search field; on navy it renders as a dark smudge.
    The Escape/backspace paths cover clearing, so hide it rather than restyle it. */
-.nav-gs-input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.nav-gs-input::-webkit-search-cancel-button,
+.nav-gs-input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
 .nav-gs-status {
     color: var(--nav-text-faint);
     font-size: var(--type-small);

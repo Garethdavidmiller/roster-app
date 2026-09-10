@@ -299,5 +299,28 @@ surface would have polished the one platform that was never the problem. Where i
 belongs in the row, the `?` panel, or the day panel, which is the app's existing ladder
 (Discover → Understand → Act → Deep dive).
 
+## Safari's strong-password button stays (10 Sep 2026, v23.51)
+
+The v23.51 re-audit suppressed three OS buttons inside the password field — Edge's `::-ms-reveal`
+and `::-ms-clear`, Safari's `::-webkit-credentials-auto-fill-button` — because all three land in the
+corner `.login-pw-toggle` already occupies and duplicate a control the app draws. The obvious fourth,
+`::-webkit-strong-password-auto-fill-button`, is deliberately **left alone**, and it is worth
+recording so the list is not "completed" later by someone tidying it.
+
+The rule v23.50 established is *the OS draws nothing the app can draw*. That is a statement about
+**chrome**, not about features. A reveal button duplicates the app's Show/Hide; a credentials key
+duplicates a route the member already has. The strong-password overlay offers something the app has
+no alternative to — a keychain-generated password — so suppressing it would remove a security
+affordance and put nothing in its place, which is the opposite of what the rule is for.
+
+The same distinction settles autofill, which the guard's own header got wrong on the first pass:
+**offering** a saved password is the platform's job and is left alone (on iOS it is the keyboard's
+QuickType bar, which no page can style anyway); **repainting the app's own field** to say so is not,
+and is covered by contract 10.
+
+**Not adopted: hiding the OS buttons by widening the field's padding instead.** The login field
+already reserves 62px on the right for `.login-pw-toggle`; making room for a second, engine-specific
+button would mean a different reserve per engine, measured on hardware this repo cannot test on.
+
 `native-surface-parity.test.mjs` fails a `title` attribute anywhere served, so the next one has to be
 argued for rather than typed.

@@ -43,6 +43,7 @@
     --gold:      #f5c800;   /* = --accent-gold       */
     --white:     #fff;      /* the chip fill — the shell draws .chip, so the shell must own it */
     --scroll-thumb: #cfd4dc; /* the thin scrollbar thumb (v23.50) — the guides load no app tokens */
+    --placeholder:  #6b7280; /* placeholder text (v23.51) — 4.83:1 on white (measured, above the 4.5:1 floor); the job --text-light does in the app */
     --info-bg:   #eef4ff;   /* blue tint used for .info boxes in guide + paycalc-guide */
 }
 
@@ -202,3 +203,12 @@ html { color-scheme: only light; -webkit-text-size-adjust: 100%; text-size-adjus
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background-color: var(--scroll-thumb); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+
+/* ── SELECTION, PLACEHOLDER AND CARET (v23.51) ──────────────────────────────────────────────────
+   The same three platform-coloured surfaces shared.css closes for the app. Restated here, in the
+   shell's own token names, because the guides deliberately load no app stylesheet — the same
+   reason `--scroll-thumb` lives here. The guides are light-only, so the selection tint has just
+   the one surface to serve and dark text on it measures 10.2:1. */
+::selection { background: color-mix(in srgb, var(--gold) 35%, transparent); }
+input::placeholder { color: var(--placeholder); opacity: 1; }
+input, textarea, select { caret-color: var(--navy); }
