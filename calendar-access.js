@@ -270,8 +270,19 @@ function grantProvisional(/** @type {string} */ member) {
  * session did not revalidate, and the honest next step is their own sign-in, which the caller shows
  * by falling through to the ordinary `none` handling.
  *
- * The gate is shut FIRST and the workspace hidden immediately: between those two, a render must not
- * be able to repaint from the cache we are in the middle of withdrawing.
+ * Both things have to happen — the override gate SHUT and the roster taken off the screen — and the
+ * second is the one with nothing else standing behind it. `_onEveryGrant(false)` closes the source;
+ * `setWorkspaceHidden(true)` is what removes what is already drawn, and a Calendar left on screen
+ * under an identity that did not confirm is the whole failure this path exists to prevent.
+ *
+ * **The ORDER between them is defence in depth, not a live property, and that was measured (v23.63).**
+ * The two statements are adjacent and synchronous: neither yields, neither triggers a render, no
+ * subscriber of `setOverrideAccess`/`setDocumentAccess` repaints, and a browser cannot paint between
+ * two statements of the same function. Swapping them fails nothing and can cost nothing today. It is
+ * written this way so that an `await` introduced into either line later cannot open a window with
+ * roster data on screen and the gate already believed shut — so keep the order, but do not build
+ * anything on the belief that something is currently checking it. What IS checked is that both
+ * happen: `calendar-access.test.mjs` fails on the deletion of either.
  */
 function revokeProvisional() {
     if (!_provisionalFor) return;

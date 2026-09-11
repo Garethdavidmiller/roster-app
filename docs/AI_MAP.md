@@ -305,6 +305,15 @@ The **pure** half — no DOM, no Firebase, no storage, so it loads in Node. Same
   direction). A refused boot behaves exactly as it did before v22.97. Tested by
   calendar-access-core.test.mjs; the grant/revoke WIRING by calendar-access.test.mjs, and the paint
   itself only by e2e/calendar-pin.spec.js — no unit assertion can say a member is looking at shifts.
+- **Withdrawing it is TWO acts, and the second had nothing checking it (v23.63).** `revokeProvisional`
+  shuts the override gate AND hides the workspace; the first stops the next read, only the second
+  takes down the grid already drawn. Deleting the hide left `calendar-access.test.mjs` green, because
+  the sign-in card that follows hides the workspace itself — but not before the boot has awaited the
+  silent re-establishment for up to `SILENT_BEFORE_CARD_MS`, so the roster stayed on screen through
+  that window under an identity that had just failed to confirm. Now pinned at that instant.
+  **The ORDER between the two is defence in depth, not a live property** — measured: they are
+  adjacent synchronous statements, so swapping them fails nothing and can cost nothing today. Keep
+  the order for the `await` somebody adds later; do not believe anything is checking it.
 
 ### `calendar-overrides.js`
 Firestore override cache for `index.html` — extracted from `calendar-app.js` at v13.82.
