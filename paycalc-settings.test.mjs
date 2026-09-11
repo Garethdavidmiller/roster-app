@@ -1,5 +1,6 @@
 /**
- * Unit tests for the money-critical grade-lookup wrappers in paycalc-settings.js:
+ * Unit tests for the money-critical grade lookups in paycalc-settings.js:
+ *   gradeForRole (which pay grade a member's ROLE is — see its own block at the foot of this file),
  *   getStoredRateForYear (the hourly rate for a tax year) and getPensionDefault (the period's
  *   default pension). These were previously ONLY ever mocked (paycalc-hpp/-year-summary tests
  *   mock the whole module), so a regression in the wrapper — e.g. delegating to the wrong grade,
@@ -65,8 +66,12 @@ mock.module('./paycalc-roster-suggestions.js', {
 });
 
 const { SK } = await import('./paycalc-migrations.js');
-const { getStoredRateForYear, getPensionDefault, isPensionOptedOut } = await import('./paycalc-settings.js');
+const { getStoredRateForYear, getPensionDefault, isPensionOptedOut, gradeForRole } = await import('./paycalc-settings.js');
 const { awardRatesFor, getPensionForPeriod, GRADES } = await import('./paycalc-calc.js');
+// The REAL roster people table, NOT the `./roster-data.js` stub above — this file mocks that
+// specifier only, and `roster-member-data.js` imports nothing, so it loads in Node as it is.
+// The role→grade contract is derived from it rather than from a list kept here.
+const { teamMembers } = await import('./roster-member-data.js');
 
 // getGrade() reads SK.grade from (mocked) localStorage and CACHES on first call — so pin the grade
 // before any settings function runs. One grade per module load is enough to prove the wiring.
@@ -169,5 +174,73 @@ describe('getPensionDefault — a member who is not in the pension scheme', () =
             assert.equal(getPensionDefault({ num: 60 }), GRADES.cea.pension);
         }
         _ls.delete(SK.pensionTimeline);
+    });
+});
+
+// ── WHICH PAY GRADE A ROLE IS (v21.78) ───────────────────────────────────────────────────────────
+//
+// `gradeForRole` had no test anywhere in the repo, and it is the function every figure on the page
+// eventually hangs off: `loadSettings` calls it to auto-detect a member's grade, and the grade
+// picks the hourly rate, every premium bucket, the Holiday Pay Premium base and the back-pay
+// accrual. Organised by what a wrong answer COSTS, and the two directions are not remotely equal:
+//
+//   · SOMEBODY ELSE'S RATE is the expensive one and it is SILENT. Map 'CES' to 'cea' and every
+//     supervisor is computed at the CEA rate — the figure is complete, formatted, plausible, and
+//     wrong by the gap asserted below on contracted basic alone, before a single premium hour.
+//     Nothing on screen says so, because nothing knows.
+//   · A REFUSAL the app did not mean costs a CEA or a CES the calculator entirely — loud, and the
+//     member reports it the same day. It is still a bug, which is why the positive cases are here.
+//
+// The third case is the one `.claude/rules/paycalc.md` invariant 13 names: a role with no confirmed
+// rates gets NO figure, not a caption over somebody else's. `null` is what makes that possible, so
+// it is a return value with a job, not an absence.
+describe('gradeForRole — the role → pay-grade map every figure hangs off', () => {
+    test('a CES is a CES, and the gap is the reason that matters', () => {
+        assert.equal(gradeForRole('CES'), 'ces');
+        // Stated as MONEY, not as a string match: what a wrong mapping costs is this, per payslip,
+        // on contracted hours alone. Derived from the real tables so an award never churns it.
+        const perPeriod = (GRADES.ces.rate - GRADES.cea.rate) * GRADES.ces.contr;
+        assert.ok(perPeriod > 100,
+            `the two grades must be far enough apart for this test to mean anything (gap £${perPeriod.toFixed(2)})`);
+        assert.equal(GRADES[/** @type {string} */ (gradeForRole('CES'))].rate, GRADES.ces.rate);
+    });
+
+    test('a CEA is a CEA', () => {
+        assert.equal(gradeForRole('CEA'), 'cea');
+        assert.equal(GRADES[/** @type {string} */ (gradeForRole('CEA'))].rate, GRADES.cea.rate);
+    });
+
+    test('the rate that FOLLOWS from the role is the right year’s CES rate', () => {
+        // One rung further down the chain than the map itself, because the map being right is only
+        // useful if what reads it lands on the same grade's award row.
+        for (const ty of ['2025/26', '2026/27']) {
+            const ces = awardRatesFor(/** @type {string} */ (gradeForRole('CES')), ty);
+            const cea = awardRatesFor(/** @type {string} */ (gradeForRole('CEA')), ty);
+            assert.equal(ces.rate, awardRatesFor('ces', ty).rate, `${ty}: a CES was priced off the wrong row`);
+            assert.notEqual(ces.rate, cea.rate, `${ty}: the two grades' rates are identical, so this proves nothing`);
+        }
+    });
+
+    test('a role with no confirmed rates gets NULL, never a fallback grade', () => {
+        // invariant 13. `getGrade()` returns '' for anybody with nothing stored and every consumer
+        // then falls back to `GRADES.cea`, so returning a grade here for an unmodelled role is not
+        // a smaller error than a wrong one — it is the same error, arriving quietly.
+        for (const role of ['Dispatcher', 'Management', 'Supervisor', 'CEA ', 'cea', '', null, undefined]) {
+            assert.equal(gradeForRole(/** @type {any} */ (role)), null,
+                `"${String(role)}" was handed a pay grade the app has no rates for`);
+        }
+    });
+
+    test('and every role the REAL roster carries is answered deliberately', () => {
+        // Derived from the file that owns the roster rather than from a list kept here, so a role
+        // added to the establishment fails HERE — where the answer is decided — instead of handing
+        // that person a plausible CEA estimate on a page nobody thought about.
+        const KNOWN = { CEA: 'cea', CES: 'ces', Dispatcher: null, Management: null };
+        const roles = [...new Set(teamMembers.map(m => m.role))];
+        assert.ok(roles.length >= 2, 'the roster produced no roles — this case is checking nothing');
+        for (const role of roles) {
+            assert.ok(role in KNOWN, `the roster carries a role this test has never decided about: ${role}`);
+            assert.equal(gradeForRole(role), KNOWN[/** @type {'CEA'} */ (role)], `role ${role}`);
+        }
     });
 });

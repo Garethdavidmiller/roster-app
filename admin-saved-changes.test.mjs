@@ -1,5 +1,6 @@
 /**
- * admin-saved-changes.test.mjs — THE CONTROLS MUST SURVIVE THEIR OWN SUCCESS.
+ * admin-saved-changes.test.mjs — THE CONTROLS MUST SURVIVE THEIR OWN SUCCESS, AND THE LIST MUST NOT
+ * SAY MORE THAN IT KNOWS.
  * Run with: node --experimental-test-module-mocks --test admin-saved-changes.test.mjs
  *
  * ── WHY THIS FILE EXISTS ────────────────────────────────────────────────────────────────────────
@@ -31,6 +32,24 @@
  *   3. THE RESTORE MUST NOT OVERREACH. Only the LABEL and `disabled` belong to the handler;
  *      VISIBILITY is the renderer's, and forcing it here would leave a live primary action above a
  *      list with nothing ticked — the same class of defect the v16.19 paycalc fix removed.
+ *
+ * ── AND BY WHAT AN OVERSTATED LIST COSTS (added later) ──────────────────────────────────────────
+ *
+ * The file's subject widened, because the module's one stated INVARIANT — it may not claim
+ * completeness it does not have — had nothing exercising it, and neither did the role gate beside
+ * it. Both are the same failure in different currencies, and both are silent:
+ *
+ *   4. SHOWING SOMEBODY ELSE'S RECORD. The "All staff" toggle is admin/manager only; gating it on
+ *      `selectedMember` alone put it in front of a self-service member — whose own name is always
+ *      selected — and handed them every colleague's leave and absence, under a card whose tip says
+ *      "your own changes only". That was fixed once already. Two LAYERS hold it (the button is
+ *      hidden, and the handler refuses anyway), so each needs its own reachable case: with the
+ *      first intact the second can never fire from a real tap.
+ *   5. CLAIMING COMPLETENESS. `coversAllStaff()` is asked at RENDER time because the toggle only
+ *      STARTS a load. A load that failed, is still running, or was coalesced away leaves the flag
+ *      true over a cache holding ONE member — so a manager asking "has anyone else booked that
+ *      week?" is answered, confidently, from a list that was never capable of saying. The pure rule
+ *      underneath is well covered next door; what was untested is that this render ASKS it.
  *
  * ── THE HARNESS ─────────────────────────────────────────────────────────────────────────────────
  *
@@ -138,20 +157,29 @@ mock.module('./firebase-client.js', {
         COLLECTIONS: { overrides: 'overrides' },
     },
 });
+/** Rows the store will hand back, and whether it claims to hold EVERY member. Both are `let`s
+ *  because the render's two disclosure questions — whose rows are these, and do we know about
+ *  everyone — are answered from them, and a fixed mock can only ever exercise one answer. */
+/** @type {any[]} */ let _rows = [];
+let _coversAll = true;
+/** Every `loadOverrides` call, so a test can tell "it fetched first" from "it rendered anyway". */
+/** @type {any[]} */ let _loads = [];
+
 mock.module('./admin-override-store.js', {
     namedExports: {
-        // Empty AFTER the delete is the worst presentation and the simplest to set up: `renderTable`
-        // returns from its `!rows.length` branch before the line that would have hidden the button.
-        getAllOverrides: () => [],
+        // Default: empty AFTER the delete is the worst presentation and the simplest to set up —
+        // `renderTable` returns from its `!rows.length` branch before the line that would have
+        // hidden the button.
+        getAllOverrides: () => _rows,
         removeFromCache: () => {},
         isTruncated: () => false,
-        coversAllStaff: () => true,
+        coversAllStaff: () => _coversAll,
         OVERRIDES_QUERY_CAP: 400,
-        loadOverrides: async () => {},
+        loadOverrides: async (/** @type {any} */ opts) => { _loads.push(opts); },
     },
 });
 
-const { initSavedChanges } = await import('./admin-saved-changes.js');
+const { initSavedChanges, renderTable, resetTableMemberFilter } = await import('./admin-saved-changes.js');
 
 const PAGE_IDS = ['overrideTableBody', 'bulkDeleteBtn', 'listFeedback', 'selectAllOverrides',
                  'overridesMonthFilter', 'fieldMember', 'fieldDate', 'listCount',
@@ -167,8 +195,14 @@ const PAGE_IDS = ['overrideTableBody', 'bulkDeleteBtn', 'listFeedback', 'selectA
  * properties are cleared rather than the objects replaced.
  */
 let _wiredOnce = false;
-function setup() {
+/**
+ * @param {{ isAdmin?: boolean, isManager?: boolean }} [roles]
+ */
+function setup(roles = {}) {
     _checked = [];
+    _rows = [];
+    _coversAll = true;
+    _loads = [];
     for (const id of PAGE_IDS) {
         const e = el(id);
         e.textContent = '';
@@ -183,14 +217,20 @@ function setup() {
     }
     // The bulk button's idle accessible name, as admin.html gives it.
     el('bulkDeleteBtn').setAttribute('aria-label', 'Delete selected changes');
-    if (!_wiredOnce) {
-        _wiredOnce = true;
-        initSavedChanges({
-            currentIsAdmin: true, currentIsManager: false,
-            showError: () => {}, onEditRow: () => {}, onAfterSave: () => {},
-            onRenderWeekGrid: () => {}, hasStagedEdits: () => false, formatDate: (/** @type {string} */ s) => s,
-        });
-    }
+    // Called EVERY time, not only the first. The module applies its deps on every call and guards
+    // only the WIRING (`_wired`), which is what lets a test run the same listeners under a
+    // different identity — and the identity is the subject of block 4. The comment above still
+    // holds: the listeners belong to the element objects from the first call, so `_els` is cleared
+    // rather than rebuilt.
+    _wiredOnce = true;
+    initSavedChanges({
+        currentIsAdmin: roles.isAdmin ?? true, currentIsManager: roles.isManager ?? false,
+        showError: () => {}, onEditRow: () => {}, onAfterSave: () => {},
+        onRenderWeekGrid: () => {}, hasStagedEdits: () => false, formatDate: (/** @type {string} */ s) => s,
+    });
+    // `_tableShowAllOverrides` is module state and survives a test. Put it back through the
+    // module's own reset, or one test's toggle decides the next test's answer.
+    resetTableMemberFilter();
 }
 
 /** Arm the two-tap confirm, then commit. The first press only arms; the second is the delete. */
@@ -292,5 +332,119 @@ describe('3. the restore must not overreach', () => {
         assert.equal(commits, 0);
         assert.equal(el('bulkDeleteBtn').classList.contains('confirming'), false,
             'a press with nothing ticked armed the confirm, so the NEXT press would delete blind');
+    });
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// WHO MAY SEE WHOSE RECORD, AND WHAT THE LIST IS ENTITLED TO CLAIM.
+//
+// Both blocks below drive the REAL listeners and the REAL render, because both defects are wiring:
+// the rules they lean on (who is admin, does the cache cover everyone) are trivially right in
+// isolation, and what shipped wrong was which of them the render asked.
+//
+// The observable is `#listCount`. It is not a proxy chosen for convenience — it is the sentence the
+// card puts on screen, it names the population ("(all staff)"), and it is computed from the same
+// `memberFilter` that decides which rows get built. A list that counts five has five on it.
+
+/** A saved change, as `getAllOverrides()` hands them over. */
+const change = (/** @type {string} */ who, /** @type {string} */ date) =>
+    ({ id: `${who}-${date}`, memberName: who, date, type: 'annual_leave', value: 'AL', source: 'manual' });
+
+const MINE   = [change('G. Miller', '2026-09-01'), change('G. Miller', '2026-09-02')];
+const THEIRS = [change('S. Silva', '2026-09-03'), change('S. Silva', '2026-09-04'), change('S. Silva', '2026-09-05')];
+
+/** Put a member in the page's member field, the way the Admin page always has one selected. */
+function selectMember(/** @type {string} */ name) { el('fieldMember').value = name; }
+
+describe('4. showing a colleague’s record to somebody who may not see it', () => {
+    test('LAYER 1 — a self-service member is never offered the "All staff" toggle', () => {
+        // Their own name is always selected, so `!selectedMember` is false for exactly the person
+        // the gate exists for. Gating on it alone is what shipped, under a card whose tip says
+        // "your own changes only" a few lines further down the page.
+        setup({ isAdmin: false, isManager: false });
+        selectMember('G. Miller');
+        _rows = [...MINE, ...THEIRS];
+        renderTable();
+        assert.equal(el('showAllOverridesBtn').hidden, true,
+            'a self-service member was offered the All-staff toggle');
+    });
+
+    test('...and a manager still is — this is a gate, not a removal', () => {
+        setup({ isAdmin: false, isManager: true });
+        selectMember('G. Miller');
+        _rows = [...MINE, ...THEIRS];
+        renderTable();
+        assert.equal(el('showAllOverridesBtn').hidden, false,
+            'the toggle managers use daily was hidden from them');
+    });
+
+    test('LAYER 2 — and if the control is reached anyway, the handler refuses', async () => {
+        // Defence in depth, and the only way to exercise it is to fire the listener directly: with
+        // layer 1 intact the button is hidden, so no tap can get here. That is precisely why it
+        // needs its own case — a hidden button is still a live listener on a real page.
+        setup({ isAdmin: false, isManager: false });
+        selectMember('G. Miller');
+        _rows = [...MINE, ...THEIRS];
+        renderTable();
+        assert.equal(el('listCount').textContent, '2 saved changes',
+            'the member-only list is not what this case started from');
+
+        await fire('showAllOverridesBtn', 'click');
+
+        assert.equal(el('listCount').textContent, '2 saved changes',
+            'a self-service member was shown every colleague’s recorded leave and absence');
+        assert.equal(el('overridesCountChip').textContent, '2');
+        assert.deepEqual(_loads, [], 'and it must not even go and FETCH everybody');
+    });
+
+    test('the same tap DOES work for a manager, so the refusal is about the role', async () => {
+        setup({ isAdmin: false, isManager: true });
+        selectMember('G. Miller');
+        _rows = [...MINE, ...THEIRS];
+        renderTable();
+        await fire('showAllOverridesBtn', 'click');
+        assert.equal(el('listCount').textContent, '5 saved changes (all staff)');
+    });
+});
+
+describe('5. claiming a completeness the cache does not have', () => {
+    test('the flag alone does not make it an all-staff list', async () => {
+        // The scenario the module header describes: the toggle flips the flag and STARTS a load;
+        // that load fails, or is still in flight, or was coalesced away. Any later re-render — here
+        // the month filter, an ordinary unrelated action — must not draw the one member it holds
+        // and label it everybody.
+        setup({ isAdmin: true });
+        selectMember('G. Miller');
+        _rows = [...MINE];        // the cache holds ONE member
+        _coversAll = false;       // ...and knows it
+        renderTable();
+
+        await fire('showAllOverridesBtn', 'click');
+        assert.deepEqual(_loads, [{ everyone: true }], 'the toggle must fetch the collection first');
+        // The load never lands.
+        await fire('overridesMonthFilter', 'change');
+
+        assert.equal(el('listCount').textContent, '2 saved changes',
+            'the list called one member’s rows "(all staff)" — a manager asking who else booked that week gets a confident no');
+        assert.equal(el('showAllOverridesBtn').textContent, 'All staff',
+            'and the button agreed with it, which is what makes the wrong answer unquestionable');
+    });
+
+    test('and once the load HAS landed, the same flag renders every member', async () => {
+        // The other direction, without which the case above would be satisfied by a toggle that
+        // simply never worked.
+        setup({ isAdmin: true });
+        selectMember('G. Miller');
+        _rows = [...MINE];
+        _coversAll = false;
+        renderTable();
+        await fire('showAllOverridesBtn', 'click');
+
+        _rows = [...MINE, ...THEIRS];   // the load returned
+        _coversAll = true;
+        await fire('overridesMonthFilter', 'change');
+
+        assert.equal(el('listCount').textContent, '5 saved changes (all staff)');
+        assert.equal(el('showAllOverridesBtn').textContent, 'This member only');
     });
 });

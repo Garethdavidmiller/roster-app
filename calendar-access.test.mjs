@@ -15,6 +15,10 @@
  *   · verify the CLAIM before granting anything (a token without it signs in perfectly and then has
  *     every read denied, leaving an unlocked-looking Calendar with no shifts on it).
  *
+ * The third kind is not an ordering but a REFUSAL TO CLAIM: `lockCalendar` reloads, and the reload
+ * is what a person reads as proof. So a sign-out that did not take must throw rather than reload —
+ * a button reporting success it did not achieve is worse than one that fails visibly.
+ *
  * The fake DOM is deliberately minimal: this file tests the module's decisions, not its markup. The
  * card's appearance and behaviour under a real browser are e2e's job (`e2e/calendar-pin.spec.js`).
  */
@@ -862,6 +866,41 @@ describe('lockCalendar + handleAccessLost', () => {
         ops = [];
         await lockCalendar();
         assert.ok(ops.includes('replace:./#staff-pin'), `the next person gets the sign-in card: ${JSON.stringify(ops)}`);
+    });
+
+    // ── LOCK MUST NOT REPORT SUCCESS IT DID NOT ACHIEVE (v20.39, audit §13) ─────────────────────
+    //
+    // The other two cases above prove the button works. This is the one that costs something, and
+    // it is invisible from every one of them: the reload is what a person READS as "locked", so a
+    // sign-out that did not take turns the reload into a lie. `decideAccess` re-runs against ground
+    // truth, sees the viewer still current, and returns `viewer` — the roster comes back on screen
+    // for whoever sits down next at the shared station PC, with the person who pressed Lock already
+    // out of the building.
+    //
+    // The two shapes are NOT held by the same line, which is why both are here: `await signOut()`
+    // covers only a REJECTION, and the assertion beneath it covers an SDK that resolves without
+    // clearing. Deleting the assertion leaves the rejection case green.
+    test('a sign-out that RESOLVES without clearing refuses to reload', async () => {
+        await unlockWithPin('1234');
+        assert.equal(isViewerMode(), true);
+        ops = [];
+        signOutBehavior = 'noop';   // resolves; `currentUser` stays the viewer
+        await assert.rejects(() => lockCalendar(), /not locked/,
+            'lockCalendar resolved with the viewer still signed in');
+        assert.ok(!ops.some(o => o.startsWith('replace:')),
+            'the page navigated as though it had locked — the next person gets the roster');
+        assert.equal(isViewerMode(), true,
+            'and the app must not pretend otherwise in its own state either');
+    });
+
+    test('a REJECTED sign-out does not reload either', async () => {
+        // The half held by the `await` rather than by the assertion. Pinned so a future "best
+        // effort" catch cannot quietly restore the v20.39 defect from the other side.
+        await unlockWithPin('1234');
+        ops = [];
+        signOutBehavior = 'reject';
+        await assert.rejects(() => lockCalendar());
+        assert.ok(!ops.some(o => o.startsWith('replace:')), 'a failed sign-out still reloaded');
     });
 
     test('losing access mid-session drops back to locked rather than looping on retry', async () => {

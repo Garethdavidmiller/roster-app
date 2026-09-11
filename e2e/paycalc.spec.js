@@ -1,5 +1,9 @@
 import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
 import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, clickInView } from './helpers.js';
+// The REAL pay tables, imported rather than restated: the unsupported-role block below asserts that
+// a CES is priced as a CES, and a literal rate there would go stale on the next award — or, worse,
+// be "corrected" to whatever the page happened to show.
+import { GRADES, AWARD_RATES } from '../paycalc-calc.js';
 
 
 test('paycalc: shows the in-place login when not signed in (no redirect)', async ({ page }) => {
@@ -861,8 +865,25 @@ test('paycalc: a Dispatcher is told the calculator does not cover their pay, and
     expect(errors, 'Uncaught JS exceptions on the unsupported-role gate').toHaveLength(0);
 });
 
-for (const [name, role] of [['G. Miller', 'CEA'], ['F. Mohamed', 'CES']]) {
-    test(`paycalc: a ${role} is unaffected by the unsupported-role gate`, async ({ page }) => {
+// ...and at the RIGHT RATE. "a figure appeared" is not the assertion that matters here: the gate
+// under test is `gradeForRole`, and its expensive failure mode produces a page that passes every
+// line above — a CES computed at the CEA rate, complete, formatted, and £155 a period light on
+// contracted basic alone. The grade is what the page never states in words, so it is read off the
+// two places that carry it: the Settings grade picker, and the rate the period resolved to.
+//
+// The rate is checked against the SETS the real tables produce rather than against a literal,
+// because which rate is correct depends on which payslip the page happened to open on (pre- or
+// post-award) and on whatever the next award does to the figures. The two sets are disjoint, which
+// is the whole property: a member priced off the wrong grade lands in the other one.
+const rateSetFor = (/** @type {string} */ g) => new Set(
+    [GRADES[g].rate, ...Object.values(AWARD_RATES[g]).flatMap(a => [a.rate, a.pre])]
+        .filter(r => r != null).map(r => r.toFixed(2)));
+
+for (const [name, role, grade, otherGrade] of [
+    ['G. Miller', 'CEA', 'cea', 'ces'],
+    ['F. Mohamed', 'CES', 'ces', 'cea'],
+]) {
+    test(`paycalc: a ${role} is unaffected by the unsupported-role gate, and is priced as a ${role}`, async ({ page }) => {
         const errors = collectFatalErrors(page);
         await seedSession(page, name);
         await page.goto('/paycalc.html');
@@ -871,6 +892,21 @@ for (const [name, role] of [['G. Miller', 'CEA'], ['F. Mohamed', 'CES']]) {
         // A real figure, not the "£–" placeholder — the calculator ran.
         await expect(page.locator('#netDisplay')).toContainText('£');
         await expect(page.locator('#netDisplay')).not.toHaveText('£–');
+
+        // The auto-detected grade, straight off `loadSettings` → `gradeForRole(member.role)`.
+        await expect(page.locator('#gradeSelect')).toHaveValue(grade);
+
+        // And the money that follows from it. `#hourlyRate` is written by `updateRateForPeriod`
+        // from the grade's own award row, so this is the first point in the chain where a wrong
+        // grade becomes a wrong £.
+        const rate = await page.locator('#hourlyRate').inputValue();
+        const mine = rateSetFor(grade);
+        const theirs = rateSetFor(otherGrade);
+        expect([...mine].some(r => [...theirs].includes(r)),
+            'the two grades share a rate, so this test cannot tell them apart').toBe(false);
+        expect(mine.has(rate), `a ${role} was priced at £${rate} — not a ${role} rate (${[...mine].join(', ')})`).toBe(true);
+        expect(theirs.has(rate), `a ${role} was priced at the ${otherGrade.toUpperCase()} rate £${rate}`).toBe(false);
+
         expect(errors, `Uncaught JS exceptions for ${role}`).toHaveLength(0);
     });
 }
