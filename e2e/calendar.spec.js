@@ -2064,3 +2064,43 @@ test.describe('the team week jump', () => {
         expect(label).toContain(String(target.satDate));
     });
 });
+
+// Team View opens on the month the reader is ON. `weekStartForMonth` is unit-tested in
+// team-week-start.test.mjs; what NO unit test can see is `calendar-app.js` actually passing the
+// `getDisplayedMonth` dep — the rule is optional by design (it falls back to today when the dep is
+// missing), so dropping the call site restores the exact reported defect with every unit test green.
+// Teeth-verified: deleting that one line from calendar-app.js fails this test and nothing else.
+test('calendar: Team View opens on the month you were browsing, not the current week', async ({ page }) => {
+    await seedMember(page);
+    await seedMemberSession(page);
+    await page.setViewportSize({ width: 390, height: 820 });
+    await page.goto('/');
+    await page.waitForSelector('.control-group--actions', { state: 'attached' });
+
+    // Three months forward — past any week that today's week could reach by accident.
+    const thisMonth = await page.locator('.month-year').innerText();
+    for (let i = 0; i < 3; i++) await page.locator('#nextMonth').click();
+    await expect(page.locator('.month-year')).not.toHaveText(thisMonth);
+    const browsing = await page.locator('.month-year').innerText();
+
+    await page.locator('#teamViewBtn').click();
+    await page.waitForSelector('.team-week-text');
+    const label = await page.locator('.team-week-text').innerText();
+
+    // The expected week is derived from what the calendar SAYS it is showing, not from a second
+    // copy of the month maths — so a heading that disagrees fails here rather than cancelling out.
+    const want = await page.evaluate((heading) => {
+        const [name, year] = heading.trim().split(/\s+/);
+        const month = new Date(`${name} 1, ${year}`).getMonth();
+        const first = new Date(Number(year), month, 1);
+        const sun = new Date(first); sun.setDate(sun.getDate() - sun.getDay());
+        // MONTH_ABB is MONTH_NAMES sliced to three, so the heading already carries it.
+        return { sunDate: sun.getDate(), tail: `${name.slice(0, 3)} ${year}` };
+    }, browsing);
+
+    // The label opens with the Sunday's date and closes with the browsing month and year — the
+    // Saturday of the week containing the 1st is always in that month, whichever side the Sunday
+    // falls. Both ends together are what separates this week from today's.
+    expect(label, `team week label while browsing ${browsing}`).toMatch(new RegExp(`^${want.sunDate}\\b`));
+    expect(label, `team week label while browsing ${browsing}`).toMatch(new RegExp(`${want.tail}$`));
+});

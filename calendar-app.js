@@ -197,6 +197,7 @@ const teamView = initTeamView({
     getSelectedMemberIndex,
     isFirstRun,
     renderCalendar,
+    getDisplayedMonth: () => ({ month: getDisplayMonth(), year: getDisplayYear() }),
     _pushOverlayState,
     _clearOverlayHistory,
 });
