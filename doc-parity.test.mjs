@@ -1017,6 +1017,47 @@ test('the CLAUDE.md architecture table states decisions, not retrospectives', ()
         'history belongs in git and the plan docs.');
 });
 
+// ── CONTRACT 3bb: CLAUDE.md has a TOTAL size, and nothing was bounding it ──────────────────────
+//
+// Contracts 3 and 3b cap what any ONE entry or row may cost. Neither caps what the FILE costs, and
+// the file is loaded into every session regardless of the task — so total size is the number that
+// actually converts into a bill, and it was the only one nobody was watching.
+//
+// Measured 11 Sep 2026, and the tree is the demonstration. The v20.11 sweep rescued it from 136k
+// characters (54% of the file) and left a per-entry cap to hold it there. Every entry has obeyed
+// that cap ever since; not one is over 900. The tree is now 185k characters and 59% of the file.
+// It grew 36% under a rule that was working exactly as written, because a per-entry cap does not
+// bound a file that keeps gaining entries — 416 of them now.
+//
+// The same pass also shows what per-entry caps do instead of restraining: they become targets. At
+// the time of writing the five longest tree entries are 887, 885, 884, 882 and 881 against a cap of
+// 900, and the longest architecture row is 1,594 against 1,600 — six characters of headroom. Both
+// sections are packed against their ceilings, which is the coordinator-ratchet pathology one
+// document up, and is why the answer here is a RATCHET rather than a limit.
+//
+// So: a ceiling on the whole file, set just above where it stands, in the spirit of
+// `coordinator-ratchet.test.mjs` — room for an edit that is not a new section, and no more.
+// Shrinking CLAUDE.md is free and always will be. RAISING this number is a decision somebody makes
+// and defends in the commit that raises it, and the defence has to answer the question the ratchet
+// exists to ask: what did a reader gain, on every task, for the cost they now pay on every task?
+//
+// The remedy when it fails is never to trim prose evenly. It is the v20.11 discipline: find the
+// reasoning that has drifted back in from a module header, move it BACK beside the code, and leave
+// the pointer. That is what worked last time, and it is the only edit that reduces the total
+// without losing anything.
+const CLAUDE_MD_CAP = 320_000;
+test('CLAUDE.md stays affordable — it is loaded into every session', () => {
+    const chars = CLAUDE.length;
+    assert.ok(chars > 100_000, 'CLAUDE.md was not read — this test is checking nothing');
+    assert.ok(chars <= CLAUDE_MD_CAP,
+        `CLAUDE.md is ${chars.toLocaleString()} characters, over the ${CLAUDE_MD_CAP.toLocaleString()} ratchet.\n` +
+        'This file is loaded into EVERY session, so this is a cost paid on every task regardless of\n' +
+        'relevance. Do not trim evenly: find reasoning that has drifted back in from a module header,\n' +
+        'move it back beside the code, and leave the routing line (the v20.11 discipline). If the\n' +
+        'growth is genuinely new routing, raise the ratchet IN THE SAME COMMIT and say in the message\n' +
+        'what a reader gains on every task for what they now pay on every task.');
+});
+
 // ── CONTRACT 3c: the repo-derived counts are COUNTED, never written down ────────────────────────
 //
 // `OWNED_COUNTS` guards counts a CONSTANT owns. These are different: nobody declares them anywhere,
