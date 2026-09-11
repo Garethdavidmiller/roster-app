@@ -11,7 +11,7 @@
  */
 
 import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, MONTH_NAMES, TEAM_GRADES, getBaseShift, escapeHtml, formatISO,
-         SHIFT_TIME_REGEX, getShiftKind, isSunday } from './roster-data.js';
+         SHIFT_TIME_REGEX, getShiftKind, isSunday, parseISODate } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
 import { TEAM_VIEW } from './storage-keys.js';
 import { isBeforeMemberStart, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
@@ -294,7 +294,8 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
                 <div class="team-week-row">
                     <button class="tv-week-nav" id="tvPrevWeek" aria-label="Previous week">← Prev</button>
                     <div class="team-week-center">
-                        <span class="team-week-text">${weekLabel}</span>
+                        <button type="button" class="team-week-text" id="tvWeekJump" aria-label="Jump to a week — currently ${weekLabel}">${weekLabel}</button>
+                        <input type="date" id="tvWeekDate" class="fieldpick-native" tabindex="-1" aria-hidden="true">
                         ${statusLine}
                     </div>
                     <button class="tv-week-nav" id="tvNextWeek" aria-label="Next week">Next →</button>
@@ -367,6 +368,49 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             announceTeamWeek();
             /** @type {HTMLElement} */ (calendarDisplay.querySelector('#tvNextWeek'))?.focus();
         });
+        // THE WEEK LABEL IS THE JUMP TRIGGER (v23.64). Prev/Next move one week, so reaching a week
+        // three months out was ~13 taps and reaching one in another year was not worth attempting.
+        // The Calendar's own jump is a MONTH+YEAR picker, which cannot answer this surface's
+        // question — a month names four or five weeks and the grid shows one — so this follows
+        // ADMIN's week jump instead: the app's own calendar (date-picker.js), on a label that reads
+        // "8–14 Sep 2026" rather than a date, with a hidden `<input type="date">` as the value
+        // holder. Same control, same module, same reason the OS one is not used.
+        //
+        // `min`/`max` are set HERE rather than in the markup because they are the SAME bound
+        // Prev/Next enforce, and a picker that offers a week the arrows refuse would be the app
+        // disagreeing with itself. They are read at open time (see openDatePicker), so setting them
+        // on every render is what keeps them true.
+        const tvJump = /** @type {HTMLElement|null} */ (calendarDisplay.querySelector('#tvWeekJump'));
+        const tvDate = /** @type {HTMLInputElement|null} */ (calendarDisplay.querySelector('#tvWeekDate'));
+        if (tvJump && tvDate) {
+            tvDate.value = formatISO(currentTeamWeekStart);
+            tvDate.min   = `${CONFIG.MIN_YEAR}-01-01`;
+            tvDate.max   = `${CONFIG.MAX_YEAR}-12-31`;
+            // LAZY, and for two reasons that point the same way. `date-picker.js` reaches
+            // `overlay.js`, which touches `window` at module scope — so a static import here would
+            // make this module unloadable in Node, and `hidden-member-visibility.test.mjs` EXECUTES
+            // the real grid precisely because this graph has no such dependency. It also keeps the
+            // picker off the Calendar's boot path, which is `nav-guide-search.js`'s argument: no
+            // page open pays for a control reached by one tap in one mode.
+            tvJump.addEventListener('click', async () => {
+                const { openDatePicker } = await import('./date-picker.js');
+                openDatePicker(tvDate, { title: 'Jump to a week' });
+            });
+            // `change` is what the picker dispatches once a day is picked. Parsed with
+            // `parseISODate` (local NOON) and never `new Date(str)`, which is UTC midnight and
+            // lands on the previous day — and therefore in the previous WEEK — anywhere behind UTC.
+            tvDate.addEventListener('change', () => {
+                if (!tvDate.value) return;
+                const picked = getSunday(parseISODate(tvDate.value));
+                if (picked.getTime() === currentTeamWeekStart.getTime()) return;
+                currentTeamWeekStart = picked;
+                renderTeamView(currentTeamGrade);
+                announceTeamWeek();
+                // The row is rebuilt by that render, so focus goes to the NEW node, not this one.
+                /** @type {HTMLElement} */ (calendarDisplay.querySelector('#tvWeekJump'))?.focus();
+            });
+        }
+
         if (tvToday) tvToday.addEventListener('click', () => {
             currentTeamWeekStart = getSunday(new Date());
             renderTeamView(currentTeamGrade);
