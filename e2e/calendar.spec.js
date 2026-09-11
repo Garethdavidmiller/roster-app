@@ -432,6 +432,67 @@ test('calendar: a successful read renders the grid — the withholding is a gate
 // whole row — `← Prev` and `Next →` sliding in and out under the reader's thumb. index.css called
 // that "the change not a regression"; the owner's call is that consistency is the point.
 //
+// THE FILTER ON A LONG SHEET (v23.68). The RULES are unit-tested in select-sheet.test.mjs and none
+// of them is repeated here; what only a browser answers is the wiring — that the box is rendered at
+// all, that typing reaches the list, that a filtered row still sets the value the consumer reads,
+// and that the box does NOT steal focus, which is the one property the review asked for by name and
+// the one a unit test provably cannot see.
+test('calendar: the name sheet offers a filter, and picking a filtered row still sets the member', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await expect(page.locator('#teamMemberSelectTrigger')).toBeVisible();
+
+    const total = await page.locator('#teamMemberSelect option').count();
+    expect(total, 'the roster picker must be long enough to earn a filter, or this proves nothing')
+        .toBeGreaterThan(16);
+
+    await page.locator('#teamMemberSelectTrigger').click();
+    const box = page.locator('.picker-search-input');
+    await expect(box).toBeVisible();
+
+    // It opens as a BROWSABLE LIST. A keyboard rising over the list the sheet just opened is worse
+    // than the scroll it saves, so nothing here may take focus — on any platform.
+    //
+    // Teeth-verified, and one mutation is recorded as INERT rather than counted: adding a
+    // synchronous `input.focus()` beside `lb.open()` does NOT fail this, because `createLightbox`
+    // sets its own initial focus immediately afterwards and takes it straight back. The mutation
+    // that reproduces the real defect is a DEFERRED focus (`setTimeout(… , 0)`), and that one is
+    // caught. Worth knowing before anyone "strengthens" this by moving the read earlier.
+    expect(await page.evaluate(() => document.activeElement?.className || ''),
+        'the search box took focus on open — on a phone that covers the list with a keyboard')
+        .not.toContain('picker-search-input');
+
+    const shownNow = () => page.locator('.picker-opt[data-value]').count();
+    const before = await shownNow();
+    expect(before).toBeGreaterThan(1);
+
+    // A real name from the real roster, taken from the select rather than hardcoded, so a roster
+    // edit moves the case instead of breaking it.
+    const target = await page.evaluate(() => {
+        const sel = /** @type {any} */ (document.getElementById('teamMemberSelect'));
+        const opt = Array.from(sel.options).find((/** @type {any} */ o) => o.value && o.text.includes('.'));
+        return { value: opt.value, text: opt.text.trim() };
+    });
+    const fragment = target.text.split('.').pop().trim().slice(0, 4);
+
+    await box.fill(fragment);
+    const after = await shownNow();
+    expect(after, `typing "${fragment}" filtered nothing`).toBeLessThan(before);
+    expect(after).toBeGreaterThan(0);
+    await expect(page.locator('.picker-head span'), 'the subtitle must say how much is hidden')
+        .toHaveText(new RegExp(`of ${total}`));
+
+    // The pick still goes through the select, which is the contract every consumer relies on.
+    await page.locator(`.picker-opt[data-value="${target.value}"]`).click();
+    await expect(page.locator('#datePickerLightbox, .picker-sheet-overlay')).toBeHidden();
+    expect(await page.locator('#teamMemberSelect').inputValue()).toBe(target.value);
+
+    // A short sheet is better with no box at all — the review's own line.
+    await page.locator('#teamMemberSelectTrigger').click();
+    await expect(box).toBeVisible();                       // still long
+    expect(await box.inputValue(), 'the filter must reset between opens').toBe('');
+});
+
 // Only a browser can see this: the DOM is identical at every width, so nothing but a measurement
 // across several selections can tell a stable control from a moving one. Asserted on the ROW as
 // well as the control, because the row re-centring is what a reader actually notices.

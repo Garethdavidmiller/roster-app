@@ -74,17 +74,20 @@ const fakeLightbox = () => ({
 const land = () => { const fns = _landers; _landers = []; fns.forEach(fn => fn()); };
 const microtasks = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
 
-/** The sheet appends itself to `document.body`; its list is the third child of the content card. */
-function rows() {
+/* The sheet appends itself to `document.body`. The list is found BY CLASS, not by child index:
+   it was `content.children[2]` until v23.68, and adding the search box between the head and the
+   list moved it — a positional handle breaks on a change that is correct, and the failure reads
+   as a product bug rather than as a test reaching for the wrong thing. */
+const sheetList = () => {
     const overlay = body.children[body.children.length - 1];
-    const content = overlay.children[0];
-    const list = content.children[2];
+    return overlay.children[0].children.find(
+        (/** @type {any} */ c) => c.classList.contains('picker-list'));
+};
+function rows() {
+    const list = sheetList();
     return /** @type {any[]} */ (list.children.flatMap((/** @type {any} */ g) => g.children.filter((/** @type {any} */ c) => c.classList.contains('picker-opt'))));
 }
-const tap = (/** @type {any} */ row) => {
-    const overlay = body.children[body.children.length - 1];
-    overlay.children[0].children[2].onclick({ target: row });
-};
+const tap = (/** @type {any} */ row) => { sheetList().onclick({ target: row }); };
 
 let mod;
 let _n = 0;
