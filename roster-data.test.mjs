@@ -810,6 +810,104 @@ test('resolveMemberRoster: applies the change on the from date (inclusive)', () 
     assert.equal(eff.currentWeek, 4);
 });
 
+// ── TWO OR MORE CHANGES: WHICH ONE WINS ───────────────────────────────────────────────────────
+// The expensive direction is resolving to the EARLIER move: the member is then drawn, paid and
+// rostered off a link they left, on every page, for every date after the second move — and
+// nothing errors, because the earlier entry is a real roster the app renders perfectly.
+// Every member in `teamMembers` carries at most ONE entry today, so the precedence rule this
+// block pins is exercised by no real data at all: inverting the comparison in
+// `resolveMemberRoster` left the whole suite green before these cases existed.
+
+test('resolveMemberRoster: with TWO changes past, the LATER one wins', () => {
+    const member = {
+        name: 'X', rosterType: 'main', currentWeek: 3,
+        rosterChanges: [
+            { from: new Date(2026, 5, 1), rosterType: 'fixed', currentWeek: 2 },  // 1 Jun
+            { from: new Date(2026, 6, 1), rosterType: 'ces',   currentWeek: 4 },  // 1 Jul
+        ],
+    };
+    const eff = resolveMemberRoster(member, d(2026, 9, 15)); // well after both
+    assert.equal(eff.rosterType, 'ces');
+    assert.equal(eff.currentWeek, 4);
+});
+
+test('resolveMemberRoster: between two changes, only the FIRST applies', () => {
+    const member = {
+        name: 'X', rosterType: 'main', currentWeek: 3,
+        rosterChanges: [
+            { from: new Date(2026, 5, 1), rosterType: 'fixed', currentWeek: 2 },
+            { from: new Date(2026, 6, 1), rosterType: 'ces',   currentWeek: 4 },
+        ],
+    };
+    const eff = resolveMemberRoster(member, d(2026, 6, 30)); // 30 Jun — after the first, before the second
+    assert.equal(eff.rosterType, 'fixed');
+    assert.equal(eff.currentWeek, 2);
+});
+
+test('resolveMemberRoster: the SECOND change is inclusive on its own from date', () => {
+    // The boundary the first-change test already pins, asserted where it can be got wrong a
+    // second way: on 1 Jul the later entry must take over, not merely become eligible.
+    const member = {
+        name: 'X', rosterType: 'main', currentWeek: 3,
+        rosterChanges: [
+            { from: new Date(2026, 5, 1), rosterType: 'fixed', currentWeek: 2 },
+            { from: new Date(2026, 6, 1), rosterType: 'ces',   currentWeek: 4 },
+        ],
+    };
+    assert.equal(resolveMemberRoster(member, d(2026, 7, 1)).rosterType, 'ces');
+    // A midnight date object, not the noon one `d` builds — `from` is compared at midnight.
+    assert.equal(resolveMemberRoster(member, new Date(2026, 6, 1)).rosterType, 'ces');
+    assert.equal(resolveMemberRoster(member, new Date(2026, 5, 30, 23, 59, 59)).rosterType, 'fixed');
+});
+
+test('resolveMemberRoster: an OUT-OF-ORDER array still resolves to the latest applicable change', () => {
+    // The contract says sorted ascending and a separate test holds the real roster to it, but
+    // nothing stops an author writing two entries the wrong way round — and the consequence
+    // would be a silently wrong link rather than an error. The lookup is order-independent by
+    // construction (v16.19); this is the behaviour, pinned, not an invitation to unsort.
+    const later  = { from: new Date(2026, 6, 1), rosterType: 'ces',   currentWeek: 4 };
+    const earlier = { from: new Date(2026, 5, 1), rosterType: 'fixed', currentWeek: 2 };
+    const member = { name: 'X', rosterType: 'main', currentWeek: 3, rosterChanges: [later, earlier] };
+    assert.equal(resolveMemberRoster(member, d(2026, 9, 15)).rosterType, 'ces');
+    assert.equal(resolveMemberRoster(member, d(2026, 9, 15)).currentWeek, 4);
+    // …and the mid-window answer is the earlier one, whichever order they were written in.
+    assert.equal(resolveMemberRoster(member, d(2026, 6, 30)).rosterType, 'fixed');
+});
+
+test('resolveMemberRoster: three changes, the last of them wins', () => {
+    const member = {
+        name: 'X', rosterType: 'main', currentWeek: 3,
+        rosterChanges: [
+            { from: new Date(2026, 2, 1), rosterType: 'fixed',      currentWeek: 1 },
+            { from: new Date(2026, 5, 1), rosterType: 'ces',        currentWeek: 4 },
+            { from: new Date(2026, 8, 1), rosterType: 'dispatcher', currentWeek: 7 },
+        ],
+    };
+    const eff = resolveMemberRoster(member, d(2026, 12, 25));
+    assert.equal(eff.rosterType, 'dispatcher');
+    assert.equal(eff.currentWeek, 7);
+});
+
+test('getBaseShift follows the LATER of two changes, not the first', () => {
+    // The precedence matters because every shift the app shows is read through it. A member
+    // resolved onto the wrong entry is not a wrong label — it is a wrong shift, for a real
+    // person, on every page.
+    const member = {
+        name: 'X', rosterType: 'main', currentWeek: 3,
+        rosterChanges: [
+            { from: new Date(2026, 5, 1), rosterType: 'fixed', currentWeek: 1 },   // C. Reen's 12:00–19:00 line
+            { from: new Date(2026, 6, 1), rosterType: 'fixed', currentWeek: 2 },   // the Mon–Fri 09:00–16:00 line
+        ],
+    };
+    const monday = d(2026, 9, 14); // a Monday, after both changes
+    assert.equal(monday.getDay(), 1, 'precondition: the sample date is a Monday');
+    assert.equal(getBaseShift(member, monday), '09:00-16:00');
+    // Between the two, the first line is still in force.
+    const midMonday = d(2026, 6, 15);
+    assert.equal(midMonday.getDay(), 1, 'precondition: the mid-window date is a Monday');
+    assert.equal(getBaseShift(member, midMonday), '12:00-19:00');
+});
+
 // ---------------------------------------------------------------------------
 // B. Khalil — new CES starter on the CES rotation from his 9 Jun 2026 start
 // (no bespoke fixed induction line — corrected June 2026)

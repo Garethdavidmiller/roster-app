@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { PILL_TYPES } from './admin-shift-types.js';
+import { PILL_TYPES, TYPES } from './admin-shift-types.js';
+import { isSunday, TIME_RE } from './roster-data.js';
 import { tsToMillis, shouldReplaceOverride, reconcileRangeIntoCache, isBeforeMemberStart, isRestShift, computePeriodDeleteIds,
          OTHER_FLAVOURS, OTHER_RDW_DEFAULT_MINS, isOtherValue, parseOtherValue, composeOtherValue, resolveOtherPay,
          isOverrideDisplaySuppressed, mergeBookedPeriods, resolveEffectiveShift, toOverrideRecord,
@@ -957,6 +958,171 @@ describe('what may not be recorded on a Sunday', () => {
             assert.ok(scope.includes(`type === '${t}'`),
                 `the single-row save has no Sunday answer for ${t} — it would be written`);
         }
+    });
+
+    // ── LAYER 6, EXECUTED: what the save actually WRITES on a Sunday ───────────────────────────
+    //
+    // The pin above asks whether the save has an ANSWER for each forbidden type. It cannot ask what
+    // the answer is, and for `shift` the answer is the interesting part: the row is not refused, it
+    // is PROMOTED to `rdw`. Nothing was executing that. Deleting the promotion line left every
+    // suite green, and the consequence is a worked Sunday stored as an ordinary shift — it draws a
+    // plain badge instead of 💼 RDW, and the pay calculator's Sunday-overtime pre-fill does not see
+    // it, so the member is paid 1.5× only if they notice and type it in themselves.
+    //
+    // The collector cannot be imported: it is a click handler registered inside a 1,600-line
+    // `init()` behind the session guard, the login overlay and the Firestore client. So it is
+    // SLICED OUT OF THE SOURCE and evaluated — the sw-internals.test.mjs / splash-watchdog.test.mjs
+    // pattern. The assertions run against admin-app.js's own text, never a copy of it, and the
+    // extraction throws if the code it names moves.
+    describe('LAYER 6 EXECUTED — the single-row save on a Sunday', () => {
+        const adminSrc = readFileSync(new URL('./admin-app.js', import.meta.url), 'utf8');
+        const SLICE_START = '        /** @type {any[]} */\n        const toSave = [];';
+        const SLICE_END   = '        if (errors.length)';
+        const _a = adminSrc.indexOf(SLICE_START);
+        const _b = adminSrc.indexOf(SLICE_END, _a);
+        if (_a === -1 || _b === -1) {
+            throw new Error('override-utils.test.mjs: could not slice the week-grid save collector out '
+                + 'of admin-app.js — it has moved or been renamed. Re-anchor rather than deleting these tests.');
+        }
+        const COLLECTOR_SRC = adminSrc.slice(_a, _b);
+
+        /** The real collector, given its collaborators by name. No copy of the logic exists here. */
+        const collect = new Function('weekGrid', 'memberName', 'deps',
+            'const { isSunday, formatDisplay, TYPES, TIME_RE, composeOtherValue } = deps;\n'
+            + COLLECTOR_SRC
+            + '\nreturn { toSave, toDelete, errors };');
+
+        /** A week-grid row as the editor stages it — only the fields the collector reads. */
+        function makeRow({ date, type, start = '', end = '', flavour = null, rdwTicked = false,
+                           baseIsRd = false, existingId = null, prefilled = false }) {
+            const classes = new Set(prefilled ? ['day-row', 'prefilled-existing'] : ['day-row']);
+            return {
+                dataset: {
+                    ...(type ? { type } : {}),
+                    date,
+                    ...(existingId ? { existingId } : {}),
+                    baseIsRd: baseIsRd ? '1' : '0',
+                },
+                classList: {
+                    add:      (/** @type {string} */ c) => classes.add(c),
+                    remove:   (/** @type {string} */ c) => classes.delete(c),
+                    contains: (/** @type {string} */ c) => classes.has(c),
+                },
+                querySelector(/** @type {string} */ sel) {
+                    if (sel === '.day-start')    return { value: start };
+                    if (sel === '.day-end')      return { value: end };
+                    if (sel === '.other-rdw-cb') return { checked: rdwTicked };
+                    if (sel === '.other-flavour-btn.active') return flavour ? { dataset: { flavour } } : null;
+                    return null;
+                },
+            };
+        }
+
+        /** Runs the real collector over `rows` with the app's own helpers wired in. */
+        function save(/** @type {any[]} */ rows, memberName = 'G. Miller') {
+            const weekGrid = { querySelectorAll: () => rows };
+            return collect(weekGrid, memberName, {
+                isSunday, TIME_RE, composeOtherValue, TYPES,
+                // The only stand-in: it formats a date for an error message and decides nothing.
+                formatDisplay: (/** @type {string} */ iso) => iso,
+            });
+        }
+
+        const SUNDAY = '2026-09-06';
+        const MONDAY = '2026-09-07';
+
+        it('precondition: the sample dates really are a Sunday and a Monday', () => {
+            assert.equal(isSunday(SUNDAY), true);
+            assert.equal(isSunday(MONDAY), false);
+        });
+
+        it('a plain SHIFT staged on a Sunday is WRITTEN as rdw', () => {
+            const { toSave, errors } = save([makeRow({ date: SUNDAY, type: 'shift', start: '07:00', end: '15:00' })]);
+            assert.deepEqual(errors, [], 'the row must not be refused — a worked Sunday is recordable');
+            assert.equal(toSave.length, 1);
+            assert.equal(toSave[0].type, 'rdw',
+                'a worked Sunday is overtime. Stored as a plain shift it draws an ordinary badge and '
+                + "the pay calculator's Sunday pre-fill misses it — the member is underpaid quietly");
+            assert.equal(toSave[0].value, '07:00-15:00', 'the promotion must not touch the times');
+            assert.equal(toSave[0].date, SUNDAY);
+            assert.equal(toSave[0].memberName, 'G. Miller');
+        });
+
+        it('the SAME row on a Monday stays a shift — the promotion is the Sunday rule, not a rewrite', () => {
+            const { toSave } = save([makeRow({ date: MONDAY, type: 'shift', start: '07:00', end: '15:00' })]);
+            assert.equal(toSave[0].type, 'shift',
+                'promoting every shift to rdw would pay ordinary weekday work at overtime rates');
+        });
+
+        it('an rdw already staged on a Sunday is written unchanged', () => {
+            const { toSave } = save([makeRow({ date: SUNDAY, type: 'rdw', start: '10:00', end: '18:00' })]);
+            assert.equal(toSave[0].type, 'rdw');
+            assert.equal(toSave[0].value, '10:00-18:00');
+        });
+
+        it('ANNUAL LEAVE on a Sunday is refused, and the refusal costs the WHOLE batch', () => {
+            // The cost of losing the earlier layers, measured rather than assumed: the save does not
+            // drop the Sunday row and carry on — `errors` is non-empty, so the handler returns before
+            // anything is written and the legitimate changes staged beside it go with it. That is why
+            // layers 1 and 2 stop the row being staged at all.
+            const rows = [
+                makeRow({ date: SUNDAY, type: 'annual_leave' }),
+                makeRow({ date: MONDAY, type: 'shift', start: '07:00', end: '15:00' }),
+            ];
+            const { toSave, errors } = save(rows);
+            assert.deepEqual(errors, ['2026-09-06: annual leave cannot be recorded on a Sunday']);
+            // `showError("Can't save — " + errors.join(' · '))` — the sentence the manager reads.
+            assert.equal("⚠ Can't save — " + errors.join(' · '),
+                "⚠ Can't save — 2026-09-06: annual leave cannot be recorded on a Sunday");
+            assert.equal(toSave.length, 1,
+                'the collector still collects the Monday row — what is lost is the SAVE, which the '
+                + 'handler abandons the moment errors is non-empty');
+        });
+
+        it('ABSENCE on a Sunday is refused too, and says absence rather than sick', () => {
+            const { errors } = save([makeRow({ date: SUNDAY, type: 'sick' })]);
+            assert.deepEqual(errors, ['2026-09-06: absence cannot be recorded on a Sunday']);
+        });
+
+        it('an "Other" day on a Sunday is refused — unless it is Spare', () => {
+            const refused = save([makeRow({ date: SUNDAY, type: 'other', flavour: 'TRG' })]);
+            assert.deepEqual(refused.errors, ['2026-09-06: an "Other" day cannot be recorded on a Sunday']);
+
+            // Spare is its own override type and IS legal on a Sunday (v18.91). Refusing it used to
+            // abort every other staged change in the week with a message wrong on its face.
+            const spare = save([makeRow({ date: SUNDAY, type: 'other', flavour: 'SPARE' })]);
+            assert.deepEqual(spare.errors, []);
+            assert.equal(spare.toSave[0].type, 'spare_shift');
+            assert.equal(spare.toSave[0].value, 'SPARE');
+        });
+
+        it('every type SUNDAY_FORBIDDEN_TYPES names is answered here, and none is written as itself', () => {
+            // The declaration is the list; this is what the write path does with each member of it.
+            // A fifth forbidden type added to the declaration and not to this handler fails here with
+            // the value it would have written, rather than being written.
+            for (const t of SUNDAY_FORBIDDEN_TYPES) {
+                const row = t === 'other'
+                    ? makeRow({ date: SUNDAY, type: t, flavour: 'TRG' })
+                    : makeRow({ date: SUNDAY, type: t, start: '07:00', end: '15:00' });
+                const { toSave, errors } = save([row]);
+                const written = toSave.map((/** @type {any} */ e) => e.type);
+                assert.ok(!written.includes(t),
+                    `${t} was written to a Sunday as itself — it is in SUNDAY_FORBIDDEN_TYPES`);
+                assert.ok(errors.length > 0 || written.length > 0,
+                    `${t} was neither refused nor rewritten on a Sunday — the row vanished silently`);
+            }
+        });
+
+        it('a deactivated row is deleted, and a prefilled untouched row is left alone', () => {
+            // Guard on the guard: without this the harness could be feeding rows the collector
+            // ignores, and every assertion above would pass over an effectively empty grid.
+            const { toSave, toDelete } = save([
+                makeRow({ date: MONDAY, type: '', existingId: 'abc' }),
+                makeRow({ date: MONDAY, type: 'shift', start: '07:00', end: '15:00', prefilled: true }),
+            ]);
+            assert.deepEqual(toDelete, ['abc']);
+            assert.deepEqual(toSave, []);
+        });
     });
 
     it('LAYER 1 disables a pill for every forbidden type — it keeps its own copy', () => {
