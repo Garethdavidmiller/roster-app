@@ -30,7 +30,8 @@ describe('grouping — your own first, others alphabetical, newest first inside 
     ];
     test('the current user leads, whatever the alphabet says', () => {
         const g = groupDesigns(designs, ME);
-        assert.deepEqual(g.map(x => x.label), ['Your designs', "M. Robson's designs", "S. Silva's designs"]);
+        assert.deepEqual(g.map(x => x.label),
+            ['Last saved by you', 'Last saved by M. Robson', 'Last saved by S. Silva']);
         assert.equal(g[0].own, true);
         assert.equal(g[1].own, false);
     });
@@ -38,15 +39,41 @@ describe('grouping — your own first, others alphabetical, newest first inside 
         const mine = groupDesigns(designs, ME)[0].designs.map(d => d.id);
         assert.deepEqual(mine, ['b', 'a']);
     });
-    test('a design with no saver is still offered — under Other designs, last', () => {
+    test('a design with no saver is still offered — under the not-recorded group, last', () => {
         const g = groupDesigns([...designs, { id: 'x', name: 'Legacy', updatedAt: null }], ME);
-        assert.equal(g.at(-1)?.label, 'Other designs');
+        assert.equal(g.at(-1)?.label, 'Last saver not recorded');
         assert.equal(g.at(-1)?.designs[0].id, 'x');
         assert.equal(g.flatMap(x => x.designs).length, 5, 'nothing dropped');
     });
-    test('a user with no designs of their own gets no empty "Your designs" group', () => {
+    test('a user who has saved nothing gets no empty "Last saved by you" group', () => {
         const g = groupDesigns(designs, 'Somebody Else');
-        assert.ok(g.every(x => x.label !== 'Your designs'));
+        assert.ok(g.every(x => x.label !== 'Last saved by you'));
+    });
+
+    // The labels above are strings and could be reworded; THIS is the rule behind them, and it is
+    // the one an edit can silently break. The grouping key is `updatedBy` — last saver — so a
+    // heading that claims OWNERSHIP is false the moment a colleague saves your design, and it says
+    // so about a design you are looking at, in a workspace where designs are shared. Pinned as a
+    // property of every label rather than as three more literals.
+    test('no group heading claims OWNERSHIP — the key is last-saver, so only that may be stated', () => {
+        for (const who of [ME, 'S. Silva', 'Somebody Else']) {
+            for (const { label } of groupDesigns([...designs, { id: 'x', name: 'Legacy' }], who)) {
+                assert.doesNotMatch(label, /^Your\b/,  `"${label}" claims the reader owns these`);
+                assert.doesNotMatch(label, /'s designs$/, `"${label}" claims somebody else owns these`);
+            }
+        }
+    });
+
+    test('a design you created MOVES when a colleague saves it — and the heading is still true', () => {
+        // The known wobble, stated as a test rather than only in the header: same design, same
+        // reader, different last saver. It is not a defect, so nothing here asserts it stays put —
+        // what is asserted is that the heading describes SAVING, which survives the move.
+        const mine  = groupDesigns([{ id: 'd', name: 'Option A', updatedBy: ME }], ME);
+        const after = groupDesigns([{ id: 'd', name: 'Option A', updatedBy: 'S. Silva' }], ME);
+        assert.equal(mine[0].label,  'Last saved by you');
+        assert.equal(after[0].label, 'Last saved by S. Silva');
+        assert.equal(mine[0].own,  true);
+        assert.equal(after[0].own, false);
     });
 });
 
@@ -250,7 +277,8 @@ describe('render — what the masthead SAYS', () => {
     test('the picker list is grouped by designer, and the open design is the one marked current', () => {
         const { els, h } = harness();
         h.render({ designs: DESIGNS, activeId: 'c', design: { name: 'Proposal' }, dirty: false, currentUser: ME, now: NOW });
-        assert.deepEqual(els.pickList.children.map((/** @type {any} */ g) => g.attrs['aria-label']), ['Your designs', "S. Silva's designs"]);
+        assert.deepEqual(els.pickList.children.map((/** @type {any} */ g) => g.attrs['aria-label']),
+            ['Last saved by you', 'Last saved by S. Silva']);
         const row = els.pickList.children[1].children[1];   // [0] is the group's own label
         assert.equal(row.dataset.id, 'c');
         assert.equal(rowName(row), 'Proposal');
@@ -388,7 +416,7 @@ describe('the source stays TEXT', () => {
         const bad = [...src].filter(c => c.charCodeAt(0) < 9 || (c.charCodeAt(0) > 13 && c.charCodeAt(0) < 32));
         assert.deepEqual(bad, [], 'write it as an escape (\\u0000), never as the byte');
     });
-    test('…and the sentinel still groups a design with no updatedBy under "Other designs"', () => {
-        assert.equal(groupDesigns([{ id: 'x', name: 'N' }], ME)[0].label, 'Other designs');
+    test('…and the sentinel still groups a design with no updatedBy under the not-recorded label', () => {
+        assert.equal(groupDesigns([{ id: 'x', name: 'N' }], ME)[0].label, 'Last saver not recorded');
     });
 });
