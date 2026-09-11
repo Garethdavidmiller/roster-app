@@ -370,7 +370,7 @@ The member's side of the Overtime page. `overtime-form.js` renders one week's se
 
 **`nextDay` is derived, never asked.** The form computes it from the two times (`end < start`), which is both what the server validates and the only way a member can enter an overnight period at all.
 
-**The timeout path is three outcomes, not two.** A timed-out submit re-reads state and looks for its own `clientMutationId`: found → "your earlier submission did save"; provably absent → "try again"; still offline → "we couldn't confirm". Collapsing the third into the second is how somebody submits a second, contradictory version. And a 409 branches on whether the winning mutation id is the caller's own — "you did this, in the request that timed out" is a completely different message from "somebody else changed this". Both decisions are `reconcileVerdict` and `conflictIsOurs`; this module supplies the state and picks the words.
+**The timeout path is three outcomes, not two.** A timed-out submit re-reads state and looks for its own `clientMutationId`: found → "your earlier submission did save"; provably absent → "try again"; still offline → "we couldn't confirm". Collapsing the third into the second is how somebody submits a second, contradictory version. And a 409 branches on whether the winning mutation id is the caller's own — "you did this, in the request that timed out" is a completely different message from "somebody else changed this". Both decisions are `reconcileVerdict` and `conflictIsOurs`; this module supplies the state and picks the words. **Tested by `overtime-form.test.mjs`**, which holds the ladder below a timeout and nothing else: the e2e already drives the three rules the module header names, and what a browser cannot do is choose the re-read's answer or read the Submit button at an instant between two awaits. The button stays DISABLED across reconciliation for the reason the rest of this paragraph gives — a second press racing the read that decides the first is the contradictory double — and a `saved` verdict that did not ADOPT the revision it found is the quiet half of the same failure: the member is reassured, presses Save again later, and a submission that was never in danger comes back as a conflict about somebody else's changes. The suite also pins that the conflict offer REPLACES the working copy rather than blending it; a merged week is a well-formed seven-day answer neither the member nor the server ever made.
 
 **The member's query is SCOPED, and that one clause is the whole property** — tested by `overtime-roster.test.mjs`, which is the first unit suite this module has had. `firestore.rules` grants `overrides` read to any `name` claim with no per-member restriction, so dropping `where('memberName','==',…)` does not fail, it SUCCEEDS and returns more; a mutation sweep deleted it with every lane green. The leak is the smaller half: the accumulator is keyed by DATE alone, so the last document read for a date wins whoever it belongs to, and the member is then offered "available after my shift" anchored to a colleague's duty times — which is the literal time they submit and a roster clerk acts on. The suite's fake Firestore APPLIES the constraints it is handed instead of restating the intended filter, so removing the clause reproduces the real behaviour rather than the harness's memory of it. Its second subject is the `catch`: a swallowed read failure returns the locally-computed base roster as `authoritative` with every override invisible.
 
@@ -2208,6 +2208,15 @@ seen from two sides, and a second page would double every contract the feature h
 an argument for one coordinator carrying both: the member has a window, a form, a submission and a
 deadline; the reviewer has a horizon, a selection, a workspace, two lenses, a preview and a confirm
 bar. Nothing in the second is reachable from the first.
+
+**Tested by `overtime-review-controller.test.mjs`** — the first unit suite this module has had, and
+the only test class that can see any of the guards below work, because a browser cannot choose which
+of two in-flight reads resolves last. Two of its mutations SURVIVED the first cut and both are
+recorded in the file: `selectedWeek !== weekEnding` and the gone-branch's own `selectedWeek = null`
+/ chip clear are unreachable from the routes the obvious cases take, and each needed the exact
+sequence that reaches it — landing on a vanished week takes no generation ticket, and `selectWeek`
+already clears the chip on the way in, so only the visibility refresh reaches that branch with a
+ratio still on screen.
 
 **The invariant it owns.** Eight pieces of state that have to agree about which week is on screen,
 and with nothing else on the page:

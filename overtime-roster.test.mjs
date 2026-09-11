@@ -252,3 +252,52 @@ describe('the reviewer\'s read is wide ON PURPOSE, and still attributes every ro
         assert.equal('Nobody At All' in byMember, false);
     });
 });
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+describe('the week is keyed to the day the ISO string NAMES, wherever the device is', () => {
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    // `resolveWeek` hands `getBaseShift` a Date built by `parseISODate`, which anchors at LOCAL
+    // NOON. Written as `new Date(date)` it would be UTC midnight, and in any timezone behind UTC
+    // that is the previous calendar day — so all seven days resolve to the shift before them.
+    // Nothing errors: a plausible week comes back, one day out, and the form then offers
+    // "available after 15:00" anchored to a duty the member is not working that day.
+    //
+    // The cases above DO catch that, and only on a machine already set behind UTC. CI runs in UTC,
+    // where the two parses are indistinguishable and the mutation is invisible — so the timezone is
+    // FORCED here rather than inherited. Node applies a `process.env.TZ` change to the next `Date`
+    // it constructs, which is what makes this possible without a second process.
+    //
+    // Pacific/Midway (UTC-11) is the discriminating case. Ahead of UTC the two parses agree —
+    // measured at UTC+14 — so an ahead-of-UTC arm would pass with the bug in, and is not written.
+
+    /** Run `fn` as though the device were somewhere else, and put the clock back afterwards. */
+    async function inTimezone(tz, fn) {
+        const was = process.env.TZ;
+        process.env.TZ = tz;
+        try { return await fn(); } finally {
+            if (was === undefined) delete process.env.TZ; else process.env.TZ = was;
+        }
+    }
+
+    test('a phone eleven hours behind UTC reads Friday as Friday, not Thursday', async () => {
+        const { byDate } = await inTimezone('Pacific/Midway', () => loadRosterContext(MEMBER, DATES));
+
+        // FRI is a worked day and THU is a rest day, so a one-day slip is not a subtle difference
+        // in this member's week — it is a duty appearing where the member has none.
+        assert.equal(byDate[FRI].shift, '08:00-16:30', 'Friday must resolve to Friday\'s duty');
+        assert.equal(byDate[FRI].start, '08:00', 'and the anchor times are the ones a member submits');
+        assert.equal(byDate[FRI].end, '16:30');
+        assert.equal(byDate[THU].shift, 'RD', 'Thursday stays the rest day it is');
+        assert.equal(byDate[THU].hasTime, false);
+    });
+
+    test('and the same week read from UTC agrees with it, day for day', async () => {
+        // The pair is the assertion: one timezone alone cannot say whether a week is right or
+        // merely self-consistent. A base roster is a rotating pattern with no timezone in it, so
+        // two devices reading the same seven dates must produce the same seven answers.
+        const here  = (await inTimezone('UTC',            () => loadRosterContext(MEMBER, DATES))).byDate;
+        const there = (await inTimezone('Pacific/Midway', () => loadRosterContext(MEMBER, DATES))).byDate;
+        assert.deepEqual(there, here, 'the roster a member sees must not depend on where they are');
+    });
+});
