@@ -20,6 +20,12 @@
 // before capture; animations are disabled. Together these make the pixels reproducible.
 
 import { defineConfig, devices } from '@playwright/test';
+import { devServer } from './e2e/dev-server.mjs';
+
+// One decision, shared with `baseURL` so the two cannot disagree: which port this
+// CHECKOUT serves on, and therefore which running server may be reused. See
+// e2e/dev-server.mjs — a fixed port let one worktree's run adopt another's server.
+const DEV = devServer(4001);
 
 export default defineConfig({
     testDir: './e2e',
@@ -53,7 +59,7 @@ export default defineConfig({
     // project/platform suffix needed) — keeps the committed set easy to eyeball in review.
     snapshotPathTemplate: 'e2e/visual-baselines/{arg}{ext}',
     use: {
-        baseURL: 'http://127.0.0.1:4001',
+        baseURL: DEV.baseURL,
         serviceWorkers: 'block',
         trace: 'retain-on-failure',
     },
@@ -62,9 +68,5 @@ export default defineConfig({
     projects: [
         { name: 'visual', use: { ...devices['Desktop Chrome'] } },
     ],
-    webServer: {
-        command: 'npx http-server . -p 4001 -a 127.0.0.1 -c-1 --silent',
-        url: 'http://127.0.0.1:4001',
-        reuseExistingServer: !process.env.CI,
-    },
+    webServer: DEV.webServer,
 });
