@@ -1634,6 +1634,25 @@
             align-items: center;
             min-height: calc(0.8125em + 16px);
         }
+        /* THE AFFORDANCE (v23.69, external review). On desktop the label underlines on hover and
+           reads as a control; on a phone there is no hover, so it read as ordinary text and the
+           week jump went undiscovered — people kept tapping Next. A chevron, not a calendar glyph:
+           it is the mark this app already puts on every picker trigger (`.fieldpick`), and what
+           opens here is a picker. Small and low-contrast on purpose — the label must keep reading
+           as THE WEEK, not as a third control beside the two arrows.
+           Sized in `em` so it tracks the label under OS text scaling, like the min-height above. */
+        .team-week-text::after {
+            content: '';
+            flex: none;
+            width: 0.7em;
+            height: 0.7em;
+            margin-left: 5px;
+            background-image: var(--caret-chevron);
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: contain;
+            opacity: 0.6;
+        }
         .tv-week-nav {
             background: var(--primary-blue);
             color: white;
