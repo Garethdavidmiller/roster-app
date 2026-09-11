@@ -1,12 +1,24 @@
 /**
- * admin-roster-upload.test.mjs
- * Tests for shiftValueToOverrideType — the parsed-value → Firestore override `type`
- * classification (hoisted to module scope + exported at v15.34 so it is unit-testable).
+ * admin-roster-upload.test.mjs — the roster import, from the parsed cell to what a Save writes.
+ *
+ * It began as tests for `shiftValueToOverrideType` (the parsed-value → Firestore override `type`
+ * classification, hoisted to module scope + exported at v15.34 so it is unit-testable) and has
+ * grown with the pipeline it guards: the review state machine (`computeCellStates`, since v23.52
+ * in roster-review-states.js and re-exported from here), the chunked save and its stale-claim
+ * retry, the review table's pure formatters, and the day-drift gate — `detectShiftedRow`, the
+ * circuit breaker, and the words each of them puts on screen.
  * Run with: node --experimental-test-module-mocks --test admin-roster-upload.test.mjs
  *
+ * The blocks written since v22.16 are organised by what a WRONG ANSWER COSTS rather than by
+ * function, and the costs here are not symmetrical. Writing a week onto the wrong days, or
+ * dropping a shift somebody actually worked, is SILENT: the review renders a perfectly ordinary
+ * roster and nobody has a reason to look twice. Refusing a good read, or asking about a cell that
+ * needed no question, costs a re-upload or a tap. Each block leans hard on the first and keeps
+ * only enough of the second to stop its gate becoming one nobody can get past.
+ *
  * firebase-client.js is mocked via mock.module() because it imports Firebase
- * from CDN URLs that are unreachable in Node. roster-data.js and override-utils.js
- * are pure and imported for real.
+ * from CDN URLs that are unreachable in Node. roster-data.js, override-utils.js and
+ * roster-alignment.js are pure and imported for real.
  */
 
 import { test, describe, mock, beforeEach } from 'node:test';
@@ -473,6 +485,112 @@ describe('computeCellStates — review state machine', () => {
     });
 });
 
+// ── AN ABSENCE ALREADY ON RECORD MUST NOT SWALLOW A WORKED SHIFT ───────────────────────────────
+//
+// The manual branch of `computeCellStates` has one exemption: a hand-recorded AL or absence on a
+// day the member's BASE roster has as a rest day, where the PDF also shows rest, is COVERED rather
+// than CONFLICT. It exists because "Use new roster" on such a CONFLICT writes correction/RD and
+// DELETES the annual leave (v16.19) — so a question nobody needed to be asked is one careless tap
+// from destroying a real leave day.
+//
+// The exemption is three conjuncts wide, and the third — `normParsed === 'RD'` — is the one that
+// keeps it from applying when the PDF disagrees. Found by MUTATION: delete it and every test in
+// this file stays green, while a manual AL on a rest day with `RDW|09:00-17:00` in the PDF moves
+// from CONFLICT to COVERED. The comment beside the line states the rule exactly — "If the PDF
+// instead shows a worked shift (an RDW on the rest day), fall through to CONFLICT so the genuine
+// shift isn't dropped" — and that sentence was documented and not protected.
+//
+// The two costs, and they are not the same size:
+//
+//   DROPPING THE SHIFT is silent and it is money. The row renders COVERED, which on this surface
+//     means "nothing to do", so there is nothing to approve and nothing to notice. The rest-day
+//     working never reaches the calendar badge or paycalc's RDW pre-fill, and the day goes on
+//     reading as leave for somebody who came in and worked it.
+//
+//   ASKING WHEN NOTHING CHANGED is the v16.19 defect and is not free either — but it is a row on
+//     screen, with "Saved: AL" beside it, that an admin can answer. So both directions are pinned.
+describe('an absence already on record must not swallow a worked shift', () => {
+    const member = teamMembers.find(/** @param {any} m */ m => !m.hidden && !m.managerOnly && m.rosterType === 'main');
+    const mname  = member.name;
+
+    /**
+     * A non-Sunday date this member's BASE roster has as a rest day.
+     *
+     * FOUND rather than named. The guard needs all three of its conditions to be genuinely in play,
+     * and two of them are facts about the roster on a particular date; a hardcoded member and day
+     * would hold until the next rota edit and then start passing for the wrong reason — the branch
+     * would simply stop being reached, and an unreached branch is green. (Sundays are excluded
+     * because they have their own rule: `normaliseCellValue` rewrites a Sunday absence to RD
+     * before this branch can see it, so the test would be about the Sunday layer instead.)
+     */
+    const RESTDAY = (() => {
+        for (let d = 1; d <= 28; d++) {
+            const iso = `2026-06-${String(d).padStart(2, '0')}`;
+            const dt  = new Date(iso + 'T12:00:00');
+            if (dt.getDay() === 0) continue;
+            const b = getBaseShift(member, dt);
+            if (b === 'RD' || b === 'OFF') return iso;
+        }
+        throw new Error('no non-Sunday base rest day found for the absence-guard tests');
+    })();
+
+    /** @param {string} parsedVal @param {string} manualVal */
+    const run = (parsedVal, manualVal) => computeCellStates(
+        { parsed: [{ memberName: mname, shifts: { [RESTDAY]: parsedVal } }], dates: [RESTDAY] },
+        [{
+            memberName: mname, date: RESTDAY, value: manualVal, id: 'm1', source: 'manual',
+            type: manualVal === 'AL' ? 'annual_leave' : 'sick',
+        }],
+    ).get(`${mname}|${RESTDAY}`);
+
+    // Both values take the exemption, so both have to be checked: fixing one and not the other is
+    // how a guard ends up half-applied, and AL and absence sit on the same line.
+    for (const manual of ['AL', 'SICK']) {
+        test(`a manual ${manual} on a rest day, with a REST-DAY WORKING in the PDF, is a CONFLICT`, () => {
+            const c = run('RDW|09:00-17:00', manual);
+            assert.equal(c.state, 'CONFLICT',
+                'the PDF says they worked it — COVERED here would drop the shift with nothing on screen');
+            assert.equal(c.manualValue, manual, 'and the row must still show what is on record');
+        });
+
+        test(`a manual ${manual} on a rest day, with a plain worked TIME in the PDF, is a CONFLICT too`, () => {
+            // Same disagreement without the RDW marker — a swapped day rather than overtime. The
+            // exemption must key on the PDF showing REST, not on the shape of what it shows instead.
+            assert.equal(run('09:00-17:00', manual).state, 'CONFLICT');
+        });
+
+        test(`a manual ${manual} on a rest day the PDF also shows as rest stays COVERED — untouched`, () => {
+            // The other direction, and the reason the exemption exists at all: turning this into a
+            // CONFLICT puts a real leave day one "Use new roster" away from being deleted.
+            assert.equal(run('RD', manual).state, 'COVERED');
+        });
+    }
+
+    test('the exemption is about a REST DAY — the same disagreement on a worked day was never exempt', () => {
+        // A guard on the guard. If the fixture above ever stopped finding a true base rest day,
+        // every CONFLICT assertion in this block would pass for the wrong reason: the exemption
+        // would not be reachable at all. This pins the neighbouring case explicitly, so the two
+        // together say the branch is live.
+        const WORKDAY = (() => {
+            for (let d = 1; d <= 28; d++) {
+                const iso = `2026-06-${String(d).padStart(2, '0')}`;
+                const dt  = new Date(iso + 'T12:00:00');
+                if (dt.getDay() === 0) continue;
+                if (/^\d{2}:\d{2}-/.test(getBaseShift(member, dt))) return iso;
+            }
+            throw new Error('no non-Sunday base WORK day found');
+        })();
+        assert.notEqual(getBaseShift(member, new Date(RESTDAY + 'T12:00:00')),
+            getBaseShift(member, new Date(WORKDAY + 'T12:00:00')),
+            'fixture: the two dates must genuinely differ, or neither case proves anything');
+        const c = computeCellStates(
+            { parsed: [{ memberName: mname, shifts: { [WORKDAY]: 'RD' } }], dates: [WORKDAY] },
+            [{ memberName: mname, date: WORKDAY, value: 'AL', type: 'annual_leave', source: 'manual', id: 'm2' }],
+        ).get(`${mname}|${WORKDAY}`);
+        assert.equal(c.state, 'CONFLICT');
+    });
+});
+
 // ── detectShiftedRow — the base-roster day-drift detector ─────────────────────
 // The independent (non-AI) signal: a parsed week that correlates with the member's
 // own base pattern ONE DAY out is very probably a drifted AI row read.
@@ -517,6 +635,105 @@ describe('detectShiftedRow', () => {
         assert.equal(detectShiftedRow(null, rowOf(1), DATES), null);
         assert.equal(detectShiftedRow(MEMBER, rowOf(1), DATES.slice(0, 5)), null);
         assert.equal(detectShiftedRow(MEMBER, {}, DATES), null);
+    });
+});
+
+// ── HOW MUCH DRIFT IT TAKES TO BE SUSPECT — the detector's SENSITIVITY ─────────────────────────
+//
+// `detectShiftedRow` calls a row drifted only when the ±1 alignment matches at least THREE MORE
+// days than the honest one. That three is the entire sensitivity of the app's only AI-independent
+// witness, and it was the one number in the function nothing was checking. The asymmetry is what
+// makes it worth writing down: the `sLeft >= 5` floor beside it IS pinned (mutate it and the block
+// above fails), and `ALIGNMENT_BLOCK_THRESHOLD` is pinned by the breaker tests below — while the
+// bar that actually decides how much gets seen could be moved by one, in either direction, with the
+// whole suite green. Found by mutation, not by reading.
+//
+// What each direction costs:
+//
+//   RAISING IT halves the witness, silently. MEASURED over the real roster with every member's week
+//     left-shifted: 25 of 44 rows are detected at a bar of three, and 14 at four. The breaker needs
+//     THREE suspects to refuse a read, so roughly halving per-member detection roughly halves the
+//     chance a genuinely misread week is refused at all — and every row of an unrefused read stays
+//     TICKED, so the default action on it is to save a week onto the wrong days for real staff.
+//
+//   LOWERING IT starts refusing honest reads. At two, 35 of those 44 would be called suspect on a
+//     week that was read perfectly, and there is deliberately no per-row override and no "save
+//     anyway": the roster would be three coincidences away from an import nobody can complete.
+//
+// So the assertion with teeth is the BOUNDARY, from both sides — exactly three is suspect, exactly
+// two is not. One synthetic drifted row proves neither: the fixtures in the block above improve by
+// six or seven, so they survive a bar of four, five OR six unchanged, which is precisely how this
+// stayed unguarded while looking well covered.
+describe('detectShiftedRow — the improvement bar, from both sides', () => {
+    const DATES  = ['2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08'];
+    const ROSTER = teamMembers.filter(/** @param {any} m */ m => !m.hidden && !m.managerOnly);
+    const norm   = /** @param {string} v */ v => (v === 'OFF' ? 'RD' : v);
+    const baseOf = (/** @type {any} */ m, /** @type {string} */ d, off = 0) => {
+        const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + off);
+        return getBaseShift(m, x);
+    };
+    /** `m`'s own base pattern read `off` days out — the shape a collapsed column produces. */
+    const shiftedRead = (/** @type {any} */ m, /** @type {number} */ off) =>
+        Object.fromEntries(DATES.map(d => [d, baseOf(m, d, off)]));
+
+    /**
+     * How many days better such a read lines up at ±1 than at 0.
+     *
+     * FIXTURE ARITHMETIC, not a second copy of the rule. The row IS this member's base pattern at
+     * ±1, so the shifted alignment matches all seven days by construction; the improvement over the
+     * honest alignment is therefore just seven minus the days on which their week already looks the
+     * same as the neighbouring one. Nothing here knows or restates what the detector DOES with that
+     * number — which is the whole point: a helper that re-derived the verdict would agree with any
+     * bar the detector happened to be using, including a mutated one.
+     */
+    const improvement = (/** @type {any} */ m, /** @type {number} */ off) =>
+        7 - DATES.filter(d => norm(baseOf(m, d, off)) === norm(baseOf(m, d, 0))).length;
+
+    /** Everyone on the real roster whose week moves by exactly `n` days under an `off` shift. */
+    const cohort = (/** @type {number} */ off, /** @type {number} */ n) =>
+        ROSTER.filter(m => improvement(m, off) === n);
+
+    // The bar is written TWICE in the function — once per direction — so a mutation of one line
+    // would survive a test of the other. Both are driven.
+    for (const [off, verdict] of /** @type {[number, 'left'|'right'][]} */ ([[1, 'left'], [-1, 'right']])) {
+        describe(`${verdict} drift`, () => {
+            test('a week that lines up exactly THREE days better IS suspect', () => {
+                const at3 = cohort(off, 3);
+                assert.ok(at3.length > 0,
+                    'fixture: the roster must contain members whose shifted week improves by exactly 3 — '
+                    + 'without them this pins nothing. If it ever reads zero, the rota shape changed and '
+                    + 'the boundary needs re-finding, not deleting.');
+                for (const m of at3) {
+                    assert.equal(detectShiftedRow(m, shiftedRead(m, off), DATES), verdict,
+                        `${m.name} lines up 3 days better one day out and must be flagged — this is the `
+                        + 'case a bar of four throws away, and it is ~44% of everything the detector sees');
+                }
+            });
+
+            test('a week that lines up only TWO days better is NOT', () => {
+                const at2 = cohort(off, 2);
+                assert.ok(at2.length > 0, 'fixture: the roster must contain members who improve by exactly 2');
+                for (const m of at2) {
+                    // These all match seven of seven at ±1, so the `>= 5` floor is not what refuses
+                    // them — the improvement bar is, and only the bar. That is what gives this case
+                    // teeth against a bar of two, which would call 35 of 44 honest rows suspect.
+                    assert.equal(detectShiftedRow(m, shiftedRead(m, off), DATES), null,
+                        `${m.name} improves by only 2 — a pattern that simply resembles its neighbour `
+                        + 'is not evidence of a misread, and treating it as such refuses good reads');
+                }
+            });
+        });
+    }
+
+    test('the bar leaves the witness covering most of the roster, not a third of it', () => {
+        // The SENSITIVITY itself, rather than one row. Stated as a SHARE so a new starter or a rota
+        // edit cannot fail it on arithmetic: measured today it is 25 of 44 (57%) at a bar of three,
+        // 14 of 44 (32%) at four, 35 of 44 (80%) at two. The floor sits between the first two — a
+        // bar of four cannot reach it, and today's bar clears it comfortably.
+        const detected = ROSTER.filter(m => detectShiftedRow(m, shiftedRead(m, 1), DATES)).length;
+        assert.ok(detected / ROSTER.length >= 0.4,
+            `only ${detected} of ${ROSTER.length} left-shifted weeks are detected. The breaker needs `
+            + 'three suspects in one upload; at this coverage a genuinely misread roster can pass.');
     });
 });
 
