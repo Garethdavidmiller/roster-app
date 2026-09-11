@@ -1420,8 +1420,13 @@ button.lightbox-bug-link {
     padding: 10px 12px;
     font-family: inherit;
     /* Never below 16px on a focusable field — iOS zooms the page on focus otherwise, and this one
-       is focused from inside a modal sheet, where a zoom is especially disorienting. */
-    font-size: var(--type-body);
+       is focused from inside a modal sheet, where a zoom is especially disorienting.
+       IT SHIPPED AT 14px (v23.68 → v23.69, external review): the comment above stated the rule and
+       the line below broke it, which is the one shape of comment worse than none. Note this is 16px
+       FLAT rather than the app's usual small-on-desktop + `@media (pointer: coarse)` override — the
+       override pattern has failed in this repo three times by being written above the rule it meant
+       to beat (see links.css), and a modal search field gains nothing from being 14px on a mouse. */
+    font-size: var(--type-medium);
     color: var(--text-dark);
     background-color: var(--field-bg);
     border: 2px solid var(--border-mid);

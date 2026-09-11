@@ -462,6 +462,25 @@ test('calendar: the name sheet offers a filter, and picking a filtered row still
         'the search box took focus on open — on a phone that covers the list with a keyboard')
         .not.toContain('picker-search-input');
 
+    // AND IT MUST BE 16px, or focusing it force-zooms the page on iOS Safari — the app's oldest
+    // typography rule (css-tokens.md, v11.77). It shipped at 14px for one release with the comment
+    // stating the rule sitting directly above the line that broke it, and NOTHING saw it: the
+    // `@a11y` sweep in pages.spec.js walks `input, select, textarea` on a page AT REST, and this
+    // input does not exist until a sheet with enough options is opened. The stylesheet is now
+    // guarded statically by type-scale-parity.test.mjs, which laziness cannot dodge; this is the
+    // WIRING half — that the rule actually reaches the element a member's thumb lands on.
+    expect(await box.evaluate(el => parseFloat(getComputedStyle(el).fontSize)),
+        'the picker search will force-zoom the page when focused on iOS')
+        .toBeGreaterThanOrEqual(16);
+
+    // The accessible NAME reads as a phrase, not as a concatenation. `Search ${title}` turned
+    // "Choose a staff member" into "Search choose a staff member", which passes every a11y rule
+    // and still sounds like a machine talking.
+    const label = await box.getAttribute('aria-label');
+    expect(label, 'the search box must be named').toBeTruthy();
+    expect((label || '').toLowerCase(), 'the sheet title leaked into the search name verbatim')
+        .not.toMatch(/search (choose|select|pick) /);
+
     const shownNow = () => page.locator('.picker-opt[data-value]').count();
     const before = await shownNow();
     expect(before).toBeGreaterThan(1);
