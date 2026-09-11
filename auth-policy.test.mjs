@@ -105,6 +105,40 @@ describe('requirePage — convenience over real CONFIG', () => {
         assert.equal(requirePage(snap('named', PLAIN), 'bogus').decision, 'forbidden'); // non-admin denied
         assert.equal(requirePage(snap('signedOut'),    'bogus').decision, 'login');
     });
+    // WHY AN ORDINARY UNKNOWN NAME CANNOT SEE THIS GUARD. `requirePage` looks a page up with
+    // `Object.prototype.hasOwnProperty.call`, and the block above — `'bogus'` — answers the same
+    // under every wrong spelling of that lookup: `'bogus' in PAGE_POLICIES` is false, and
+    // `PAGE_POLICIES['bogus']` is undefined, so the strict default is reached either way. Replacing
+    // the guard with a bare index left every one of those assertions green (measured).
+    //
+    // The names that separate them are the ones JavaScript hands out for free. `PAGE_POLICIES` is an
+    // object literal, so it inherits `toString`, `constructor`, `valueOf`, `hasOwnProperty` and
+    // `__proto__` — all truthy. A bare index returns one of those as the "policy", `requireNamed` is
+    // then undefined on it, and `requirePageAuth` reads that as a PUBLIC page: **allow, to an
+    // anonymous visitor.** The guard's whole purpose is that inversion, so this is the only shape of
+    // test that can fail when it goes.
+    const PROTOTYPE_NAMES = ['toString', 'constructor', 'valueOf', 'hasOwnProperty', '__proto__'];
+    test('a page named after an Object.prototype member fails closed, like any other unknown page', () => {
+        for (const page of PROTOTYPE_NAMES) {
+            assert.equal(requirePage(snap('anonymous'), page).decision, 'login',
+                `anonymous/${page} must not be answered as a public page`);
+            assert.equal(requirePage(snap('named', PLAIN), page).decision, 'forbidden',
+                `named non-admin/${page} must not be allowed`);
+            assert.equal(requirePage(snap('named', ADMIN), page).decision, 'allow',
+                `${page} must still clear for an admin — fail-closed, not fail-broken`);
+        }
+    });
+    test('and the inherited members really are reachable on PAGE_POLICIES — or the case above is vacuous', () => {
+        // The guard-on-the-guard. If PAGE_POLICIES ever became a null-prototype object or a Map,
+        // every assertion above would pass without exercising anything, and the lookup could quietly
+        // revert to a bare index with nothing to say so.
+        for (const page of PROTOTYPE_NAMES) {
+            assert.ok(/** @type {any} */ (PAGE_POLICIES)[page],
+                `PAGE_POLICIES no longer inherits "${page}" — the prototype-name cases are vacuous`);
+            assert.ok(!Object.prototype.hasOwnProperty.call(PAGE_POLICIES, page),
+                `"${page}" is now a real page — pick a different inherited name for this case`);
+        }
+    });
 });
 
 describe('invariants', () => {

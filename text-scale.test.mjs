@@ -43,6 +43,51 @@ describe('a probe that cannot measure never says compact', () => {
     });
 });
 
+// ── THE BOUNDARY WAS PINNED ON THE SIBLING NOBODY CALLS ─────────────────────────────────────────
+//
+// `isCompact(COMPACT_FROM)` is asserted above, and `isCompact` has no consumer outside this file.
+// The shipped decision is `applyTextScale → tierFor`, and `tierFor`'s own compact boundary was
+// unpinned: turning its `scale >= COMPACT_FROM` into `scale > COMPACT_FROM` left all 24 assertions
+// green (measured), while a phone reporting exactly 1.2× drew the action row uncompacted — the
+// "compacting too late" cost, on the one reading where the two tiers are a hair apart.
+//
+// Both directions, on both rungs, on the function that is actually called.
+describe('the boundaries of the shipped decision — tierFor, not its sibling', () => {
+    test('exactly the compact threshold IS compact', () => {
+        assert.equal(tierFor(COMPACT_FROM), 'compact');
+    });
+    test('a hair under the compact threshold is still only large', () => {
+        // 1.19 rather than 1.15: a case comfortably inside the band cannot tell `>=` from a
+        // threshold that has quietly moved down a step.
+        assert.equal(tierFor(COMPACT_FROM - 0.01), 'large');
+    });
+    test('a hair under the large threshold is no tier at all', () => {
+        assert.equal(tierFor(LARGE_FROM - 0.01), null);
+    });
+    test('the stamp on <html> agrees with tierFor at both thresholds — this is the part CSS reads', () => {
+        // applyTextScale is what `calendar-app.js` calls, and the attribute is the whole output.
+        // A correct tierFor wired to the wrong attribute value changes nothing about the tests
+        // above and everything about the row.
+        for (const [scale, expected] of /** @type {[number, string|undefined][]} */ ([
+            [COMPACT_FROM, 'compact'],
+            [COMPACT_FROM - 0.01, 'large'],
+            [LARGE_FROM, 'large'],
+            [LARGE_FROM - 0.01, undefined],
+        ])) {
+            const doc = fakeDoc(16 * scale);
+            applyTextScale(doc);
+            assert.equal(doc.documentElement.attrs['data-text-scale'], expected, `at ${scale}×`);
+        }
+    });
+    test('isCompact and tierFor never disagree about what compact means', () => {
+        // Two answers to one question, kept apart because the stylesheet needs three states and the
+        // action row needs two. The divergence is the bug, not either rule on its own.
+        for (const s of [1, 1.05, LARGE_FROM, 1.15, COMPACT_FROM - 0.01, COMPACT_FROM, 1.3, 1.5, NaN, 0]) {
+            assert.equal(isCompact(s), tierFor(s) === 'compact', `at ${s}×`);
+        }
+    });
+});
+
 // ── THE PROBE MUST NOT BE ABLE TO BLANK THE CALENDAR (v22.99, bug check) ────────────────────────
 //
 // `calendar-app.js` calls `applyTextScale(document)` at MODULE SCOPE, with no try above it. That

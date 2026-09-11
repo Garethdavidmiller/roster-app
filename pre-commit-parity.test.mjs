@@ -93,6 +93,54 @@ describe('the pre-commit hook can read what it checks', () => {
     });
 });
 
+// ── THE SAME LESSON, ONE STEP ALONG: THE TOOL IT CANNOT FIND (v23.63) ──────────────────────────
+//
+// The stamp check was fixed for documents and the ESLint step was left with exactly the defect,
+// one layer down — it skipped on a missing BINARY rather than a missing file. `git rev-parse
+// --show-toplevel` is the WORKTREE root when the commit is made from one, a worktree has no
+// `node_modules` (gitignored, so `git worktree add` never copies it and nobody installs into a
+// throwaway checkout), and the probe was a bare `./node_modules/.bin/eslint`. So from every
+// `.claude/worktrees/*` tree the step printed one line and passed having linted nothing.
+//
+// Measured, not inferred: with the hook installed and a `no-undef` staged, a commit from a worktree
+// was accepted, printing "(node_modules/.bin/eslint not found — run: npm install)". After the fix
+// the same commit is refused, naming the error, with eslint resolved out of the main checkout.
+//
+// Nothing else can see this. CI does not install the hook; a container that never ran
+// `core.hooksPath` does not run it; and the one lane that DOES exercise it — a session committing
+// from a worktree, which is how this whole sweep was run — reads the skip as success.
+describe('a step the hook cannot RUN is not a step that passed', () => {
+    test('ESLint is resolved from the main checkout too, not only the current tree', () => {
+        // `--git-common-dir` is the only thing in git that names the main checkout from inside a
+        // worktree. Requiring it by name is blunt, and blunt is right here: the alternative is
+        // asserting on a shell expression, and the failure this guards is somebody simplifying the
+        // candidate list back to one entry because it looks redundant in an ordinary checkout.
+        assert.match(code, /--git-common-dir/,
+            'githooks/pre-commit resolves ESLint without consulting `git rev-parse '
+            + '--git-common-dir`, so from a worktree — which never has node_modules — the lint step '
+            + 'is skipped and the commit passes unlinted.');
+        assert.ok(!/\[\[\s*-x\s*"\.\/node_modules\/\.bin\/eslint"\s*\]\]\s*;\s*then/.test(code),
+            'the ESLint probe tests only ./node_modules/.bin/eslint. That path does not exist in a '
+            + 'git worktree, and the else branch does not fail — so every worktree commit is '
+            + 'unlinted with nothing to say so.');
+    });
+
+    test('and when it truly cannot be found, the hook SAYS the check did not run', () => {
+        // Deliberately not a refusal: a bare clone with no install must stay committable, which is
+        // the same posture `npm run test:nodeps` takes about the test suite. What is not acceptable
+        // is a line that reads as advice ("run: npm install") when it is in fact a report that this
+        // commit was never checked. The wording is pinned because softening it is a one-word edit
+        // and the whole value of the branch is that a person reads it and believes it.
+        const elseBranch = code.slice(code.lastIndexOf('ESLINT_BIN'));
+        assert.match(elseBranch, /DID NOT RUN/,
+            'the ESLint fallback no longer states that the check DID NOT RUN. A missing tool has to '
+            + 'read as an unchecked commit, not as a suggestion to install something.');
+        assert.match(elseBranch, /NOT linted/,
+            'the ESLint fallback no longer says the staged JS was not linted — which is the only '
+            + 'fact a reader of that line needs.');
+    });
+});
+
 describe('the hook and CI check the same documents', () => {
     // The hook says it "mirrors sw-asset-check.test.mjs exactly", which is the claim that makes it
     // safe to lean on locally. Nothing was checking the claim, and at v22.47 it stopped being true:
