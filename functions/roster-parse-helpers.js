@@ -912,6 +912,17 @@ const NOTIFICATION_FEATURES = {
     // ("2 waiting") and each new request refreshes it. Stacking would leave the admin counting
     // notifications to learn what one glance now tells them.
     resetRequest: { emoji: '🙋', tag: 'reset-request' },
+    // Targeted-only (v23.62) — to the ONE member whose password was just reset, on their OWN
+    // devices. The audience rule here is the CONTENT's, exactly as it is for resetRequest above:
+    // this names a person and says their credential changed, so `.claude/rules/notifications.md`'s
+    // test ("would I be happy for all 50 staff to read this?") answers itself. 🔑 is the Settings
+    // "Password" card's own emoji, and that card is where the tap lands.
+    //
+    // It carries a DEFAULT HEADLINE, unlike the other event features, because it only ever says one
+    // thing — there is no count and no deadline to compose. Keeping the wording here rather than at
+    // the call site puts it in the file the notification rules already point at, where the emoji,
+    // the tag and the budgets are enforced together.
+    passwordReset: { emoji: '🔑', tag: 'password-reset', defaultHeadline: 'Password reset — set a new one', hashPath: '/settings.html' },
 };
 
 /**

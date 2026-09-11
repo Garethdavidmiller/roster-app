@@ -555,9 +555,17 @@ export function init() {
             // that existed then, and a flat untruth on the one this release added.
             const _revokeFailed = result && result.revokeFailed === true;
             const _notStamped   = result && result.stamped === false;
-            if (_revokeFailed || _notStamped) {
+            // v23.62: the member is now told on their OWN devices that their password was reset.
+            // This is the one notification state worth a receipt — they were signed OUT and could
+            // not be reached, so they are locked out with no explanation and the admin is the only
+            // one who can close that gap. Deliberately NOT shown when the reset left their sessions
+            // running (the migration nudge): nobody is stranded, so there is nothing to act on.
+            // `notified` is what HAPPENED, so a member with no push subscription lands here — which
+            // is the point, since that is exactly who needs telling another way.
+            const _uninformed   = !!(result && result.notified === false && result.revoked === true);
+            if (_revokeFailed || _notStamped || _uninformed) {
                 console.warn('[Operations] resetMemberPassword partial for', name,
-                             { revoked: result?.revoked, stamped: result?.stamped });
+                             { revoked: result?.revoked, stamped: result?.stamped, notified: result?.notified });
                 const parts = [`${name}'s password WAS reset to their surname.`];
                 // The security-relevant half leads, because it is the one with an action attached.
                 if (_revokeFailed) {
@@ -568,9 +576,16 @@ export function init() {
                 if (_notStamped) {
                     parts.push('The account-status stamp couldn\'t be saved, so the table below may still show "Own password".');
                 }
+                if (_uninformed) {
+                    parts.push(`${name} has no notifications on this app, so they have NOT been told. Let them know their password is now their surname and they are signed out.`);
+                }
                 parts.push('Resetting again is safe.');
                 confirmDialog({
-                    title: _revokeFailed ? 'Password reset — other devices not signed out' : 'Password reset — status not updated',
+                    // Precedence, most actionable first: a live session somewhere is a security
+                    // state, a missing stamp is a wrong table, and an untold member is an errand.
+                    title: _revokeFailed ? 'Password reset — other devices not signed out'
+                         : _notStamped   ? 'Password reset — status not updated'
+                         :                 'Password reset — tell them yourself',
                     message: parts.join('\n\n'),
                     confirmLabel: 'OK',
                 }).catch(() => {});   // informational; the reset itself already succeeded

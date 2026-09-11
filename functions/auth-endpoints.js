@@ -381,10 +381,48 @@ const resetMemberPassword = onRequest(
                 stamped = false;
                 console.error('[resetMemberPassword] resetAt stamp failed (password WAS reset) for', member, stampErr && stampErr.code, stampErr);
             }
+            // TELL THE MEMBER (v23.62, owner request). Until now the one person this is ABOUT was
+            // the only person not told: their password had become the surname default and — with
+            // `revoke` — every other device was signed out, and they learned both by failing to
+            // sign in. This closes the loop on their OWN devices.
+            //
+            // `sendTargetedPush`, never `fanOutPush`, and the rule is the CONTENT's rather than a
+            // convention: it names a person and says their credential changed.
+            // `.claude/rules/notifications.md` poses the test as "would I be happy for all 50 staff
+            // to read this?" — plainly not. The uid is the one ALREADY resolved above for the
+            // password write, so unlike the reset-request notice there is no name→uid lookup that
+            // could widen or miss the audience.
+            //
+            // A THIRD independently-reported stage, for the reason the two above it are: the
+            // credential has already changed by this line, so a push failure must never report the
+            // reset as failed. `notified` is what HAPPENED — `sendTargetedPush` returns how many
+            // subscriptions ACCEPTED the message, and a member with no subscription is a legitimate
+            // 0 rather than an error. It is the admin's cue to tell them another way.
+            let notified = false;
+            try {
+                setupWebPush(VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY);
+                const accepted = await sendTargetedPush(
+                    buildPushPayload({
+                        feature: 'passwordReset',
+                        // THE CREDENTIAL IS NEVER IN THE PAYLOAD. A push renders on a LOCK SCREEN,
+                        // so naming the new password would show it to whoever picks the phone up —
+                        // and this app's default is derived from a surname that is on the roster.
+                        // What the member needs is that it changed and where to fix it.
+                        body: 'The admin reset your password. Open Settings to choose your own.',
+                        baseUrl: STAFF_SITE_URL,
+                    }),
+                    [user.uid],
+                    '[resetMemberPassword]',
+                );
+                notified = accepted > 0;
+            } catch (pushErr) {
+                console.error('[resetMemberPassword] notify failed (password WAS reset) for', member,
+                              pushErr && pushErr.code, pushErr);
+            }
             // `revoked` is now what HAPPENED, not what was asked for. A caller reading the old
             // field saw the REQUEST echoed back, which is the same value on the failure path.
             return res.json({
-                ok: true, member, revoked, stamped,
+                ok: true, member, revoked, stamped, notified,
                 ...(revoke && !revoked ? { revokeFailed: true } : {}),
             });
         } catch (e) {

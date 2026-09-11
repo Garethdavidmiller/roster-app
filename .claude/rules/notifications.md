@@ -21,6 +21,7 @@ identity); the **emoji carries feature identity**.
 | Pay reminder | 💷 | Pay nav pill / paycalc | `pay-reminder` | event |
 | Overtime availability | ⏱️ | Overtime nav pill / page badge | `overtime` | event |
 | Password reset request | 🙋 | Operations "Password Reset Requests" card | `reset-request` | event |
+| Password was reset | 🔑 | Settings "Password" card | `password-reset` | event |
 
 When the app gains a new notifying feature, add ONE row here and ONE entry to the
 `NOTIFICATION_FEATURES` map — never hand-write a payload.
@@ -53,6 +54,7 @@ Because a document is republished regularly and the Huddle in particular is sent
 | Overtime asked | `⏱️ Overtime — availability form open` | `Tell the roster team when you can work. Answer by Tue 18 Aug · 12:00.` |
 | Overtime reminder | `⏱️ Overtime — answers due today` | `Initial answers for week ending Sat 5 Sep are due by 12:00 today.` |
 | Reset request | `🙋 Reset requests — 2 waiting` | `S. Silva asked for a reset. 1 other waiting.` |
+| Password was reset | `🔑 Password reset — set a new one` | `The admin reset your password. Open Settings to choose your own.` |
 
 **The Overtime pair is targeted too (v21.47).** Both notices go through `sendTargetedPush` to
 member uids resolved from the account email — the asked notice to whoever a window newly asked
@@ -63,13 +65,33 @@ targeted-to-participants already reaches everyone eligible, so the reach scales 
 change. Deadlines are worded in LONDON time by the pure builders in `functions/overtime-core.js`
 (`askedNotice`/`reminderNotice`), never composed inline.
 
-**The one notification that is NOT a broadcast to all staff by design of its CONTENT.** Every other feature here goes to all subscribed
+**Two notifications are NOT broadcasts by design of their CONTENT** (v23.62 added the second). Every other feature here goes to all subscribed
 staff; the reset request goes to the **admin's devices only** — "N. Surname is locked out" sent to
 50 people is a leak, not a notification. It is sent by `sendTargetedPush` (not `fanOutPush`), which
 filters `pushSubscriptions` by the `owner` uid and **fails closed at every step**: no target uids →
 send nothing; a subscription doc with no `owner` (written before v17.76) → skipped, never assumed;
 no matches → log and stop. There is deliberately **no "no targets → fall back to everyone" branch**.
 If you add another addressed-to-one-person notification, use `sendTargetedPush` and keep that shape.
+
+**The second is `password-reset` (v23.62, owner request):** when the admin resets a member's password
+from Operations, that member is told on their OWN devices. Until then the one person the reset was
+about was the only person not told — their credential had become the surname default and their other
+devices were signed out, and they discovered both by failing to sign in. Two properties of it are
+load-bearing and easy to undo:
+
+- **The new password is NEVER in the payload.** A push renders on a LOCK SCREEN, so naming it would
+  show it to whoever picks the phone up — and the default is derived from a surname that is on the
+  roster. The body says that it changed and where to fix it, and nothing else.
+- **The uid is the one the endpoint already resolved** to write the password, not a fresh
+  name→address→uid lookup. The reset-request notice needs that lookup because it is addressed to
+  whoever holds the admin role; this one is addressed to the account being changed, which the
+  handler is already holding. There is no resolution step to widen or miss.
+
+`resetMemberPassword` reports the send as `notified`, a third independently-reported stage beside
+`revoked` and `stamped`: the credential has already changed by that line, so a push failure must
+never report the reset as failed. A member with no subscription is a legitimate `false`, and
+Operations turns exactly that case — signed out AND not told — into the admin's cue to tell them
+another way.
 
 **Why the queue depth is in the title.** One stable tag per feature means a second request *replaces*
 the first on the lock screen. Rather than let that lose information, the headline states the current
@@ -115,6 +137,9 @@ adding the feature. Full rationale: OPERATIONS_REFERENCE.md → "Huddle notifica
 - Pay → `paycalc.html?payday=YYYY-MM-DD` (calculator opens on the right period).
 - Circular / Newsletter → `#circular` / `#newsletter` (opens the in-app document viewer,
   `calendar-doc-viewer.js`, used on notification taps).
+- Password was reset → `settings.html` (no hash: the Password card opens ITSELF when its state
+  says to — `shouldOpen` in `settings-status.js` — and a reset stamps exactly that state, so the
+  member lands on the card already open with the nudge showing).
 - Reset request → `operations.html#reset-requests` (opens the queue card and scrolls to it —
   `DEEP_LINK_CARDS` in `operations-app.js`; Operations is a page of collapsed cards, so landing on
   it alone would still leave the admin hunting for the one the notification was about).
