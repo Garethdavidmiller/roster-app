@@ -258,6 +258,22 @@ describe('writing the wrong days', () => {
         assert.equal(_writes.length, 0, 'a vetoed save must not reach Firestore');
     });
 
+    test('a veto leaves NO "Saving…" state behind', async () => {
+        // Named by the external review, and not implied by "writes nothing": a veto that had already
+        // disabled the button and relabelled it would leave the AL confirm bar sitting above a dead
+        // control — the member is asked to confirm and then cannot. The guard runs BEFORE the
+        // Saving state is set, and this is what pins that ordering.
+        const { section } = wire({ preSave: () => true });
+        setRange(section, '2026-10-05', '2026-10-09');
+        await save();
+        const btn = el('alSaveBtn');
+        // NOT `=== 'Record Annual Leave'`: the idle label is page markup, and the handler only
+        // writes a label when it actually runs, so an untouched button reads empty here. The claim
+        // is that it never entered the Saving state — which is what a dead control looks like.
+        assert.doesNotMatch(btn.textContent, /Saving/, 'the veto path entered the Saving state');
+        assert.equal(btn.disabled, false, 'the confirm bar must not be shown above a dead button');
+    });
+
     test('a preSave that allows still writes — the veto is not the default', async () => {
         // Without this the case above passes on a save path that is simply broken.
         const { section } = wire({ preSave: () => false });
@@ -429,6 +445,23 @@ describe('what the admin is told', () => {
         assert.equal(calls.showSuccess.length, 1, 'the bottom toast must fire too');
         assert.equal(calls.afterSave.length, 1, 'the AL banner and boxes must be refreshed');
         assert.deepEqual(calls.jump[0], [MEMBER, '2026-10-05'], 'Change a Shift jumps to what was recorded');
+    });
+
+    test('a failure RETAINS the range — there is nothing to re-enter', async () => {
+        // Also named by the review. Only a SUCCESS clears the picker; a failed save must leave the
+        // dates exactly as chosen, because the admin's next act is to retry or adjust, and a
+        // 60-day AL range re-entered by hand is how a retry becomes a different booking.
+        for (const err of [new Error('generic'), new Error('cache/load-failed'),
+                           new Error('auth/session-expired')]) {
+            _els = {}; _pickerResets = 0;
+            const { section } = wire();
+            setRange(section, '2026-10-05', '2026-10-09');
+            _record = async () => { throw err; };
+            await save();
+            assert.equal(_pickerResets, 0, `${err.message}: the range must be kept`);
+            assert.equal(el('alFrom').value, '2026-10-05');
+            assert.equal(el('alSaveBtn').disabled, false, `${err.message}: still retryable`);
+        }
     });
 
     test('a FAILED save refreshes nothing and jumps nowhere', async () => {
