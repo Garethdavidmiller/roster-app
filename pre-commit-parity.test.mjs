@@ -56,6 +56,25 @@ const code = src
 const declared = [...src.matchAll(/^export (DOC_[A-Z_]+)="([^"]+)"$/gm)]
     .map(([, name, path]) => ({ name, path }));
 
+// STAMPED is a SUBSET of declared, and the two stopped being the same set on 11 Sep 2026.
+//
+// Every `DOC_*` used to be a version-stamped document, so "the hook declares it" and "the hook
+// stamps it" were interchangeable and this file used one for the other. Then the one-line-per-file
+// catalogue moved to `docs/FILE_INDEX.md`: the hook must KNOW that path, because the module check
+// greps it, and it must NOT stamp it, because like every other file under docs/ it carries no
+// version. Treating declaration as stamping made the parity tests below demand that CI stamp a
+// document nobody stamps — a real failure, of a rule that had quietly become two rules.
+//
+// So the stamped set is derived from the hook's own stamp check (the `{ file: …, re: … }` rows)
+// rather than from the variable list. A doc the hook references without stamping is now a category
+// that exists, and it is invisible to the three parity assertions, which is correct: they are about
+// version stamps.
+const _stampedPaths = new Set(
+    [...src.matchAll(/\{ file: process\.env\.(DOC_[A-Z_]+)\s*,/g)]
+        .map(m => (declared.find(d => d.name === m[1]) || {}).path)
+        .filter(Boolean));
+const stamped = declared.filter(d => _stampedPaths.has(d.path));
+
 describe('the pre-commit hook can read what it checks', () => {
     test('it declares its documentation paths in one place', () => {
         // The point of the single declaration is that the next move is one edit rather than four.
@@ -154,7 +173,7 @@ describe('the hook and CI check the same documents', () => {
     });
 
     test('every document CI version-stamps is one the hook also stamps', () => {
-        const hookDocs = new Set(declared.map(d => d.path));
+        const hookDocs = new Set(stamped.map(d => d.path));
         for (const f of ciDocs) {
             assert.ok(hookDocs.has(f),
                 `sw-asset-check.test.mjs stamps ${f} but githooks/pre-commit does not. The hook `
@@ -181,7 +200,7 @@ describe('the hook and CI check the same documents', () => {
             for (const m of text.matchAll(rx)) out[resolve(m[1].trim())] = m[2];
             return out;
         };
-        const byEnv = Object.fromEntries(declared.map(d => [`process.env.${d.name}`, d.path]));
+        const byEnv = Object.fromEntries(stamped.map(d => [`process.env.${d.name}`, d.path]));
         const hookRes = patterns(src, k => byEnv[k] ?? k);
         const ciRes = patterns(swSrc, k => k.replace(/^'|'$/g, ''));
 
@@ -196,7 +215,7 @@ describe('the hook and CI check the same documents', () => {
     test('and the reverse — the hook stamps nothing CI leaves unchecked', () => {
         // A document only the hook knows about is checked for whoever installed the hook and for
         // nobody else, so it looks enforced and is not.
-        for (const { path: f } of declared) {
+        for (const { path: f } of stamped) {
             assert.ok(ciDocs.includes(f),
                 `githooks/pre-commit stamps ${f} but sw-asset-check.test.mjs does not. Add it there `
                 + 'too, or the rule only applies to developers who installed the hook.');

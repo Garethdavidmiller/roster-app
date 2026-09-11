@@ -34,6 +34,12 @@ import { createRequire } from 'node:module';
 
 const read = (/** @type {string} */ f) => readFileSync(new URL(f, import.meta.url), 'utf8');
 const CLAUDE = read('./CLAUDE.md');
+const FILE_INDEX = read('./docs/FILE_INDEX.md');
+// THE ROUTING CORPUS. The one-line-per-file catalogue moved to `docs/FILE_INDEX.md` on 11 Sep 2026
+// (it was 64% of a document loaded into every session). Every contract below that asks "is this file
+// ROUTED anywhere?" must read BOTH, or the split would silently un-route ~430 files — which is the
+// one way this move could have gone wrong and left every suite green.
+const ROUTING = CLAUDE + '\n' + FILE_INDEX;
 const AI_MAP = read('./docs/AI_MAP.md');
 
 /** Strip fenced code and inline code so a name inside an example is not read as a listing. */
@@ -111,15 +117,15 @@ test('KNOWN_LIMITATIONS.md headings state what is still true', () => {
 
 test('every root MODULE is listed in CLAUDE.md and AI_MAP.md', () => {
     const missing = modules
-        .filter(f => !CLAUDE.includes(f) || !AI_MAP.includes(f))
-        .map(f => `${f} — missing from ${!CLAUDE.includes(f) ? 'CLAUDE.md' : ''}${!CLAUDE.includes(f) && !AI_MAP.includes(f) ? ' + ' : ''}${!AI_MAP.includes(f) ? 'docs/AI_MAP.md' : ''}`);
+        .filter(f => !ROUTING.includes(f) || !AI_MAP.includes(f))
+        .map(f => `${f} — missing from ${!ROUTING.includes(f) ? 'docs/FILE_INDEX.md' : ''}${!ROUTING.includes(f) && !AI_MAP.includes(f) ? ' + ' : ''}${!AI_MAP.includes(f) ? 'docs/AI_MAP.md' : ''}`);
     assert.deepEqual(missing, [],
         'these modules are not routed from both docs, so nothing points a reader at them:\n  ' +
         missing.join('\n  '));
 });
 
 test('every runner config is listed in CLAUDE.md', () => {
-    const missing = rootFiles.filter(f => f.startsWith('playwright.') && !CLAUDE.includes(f));
+    const missing = rootFiles.filter(f => f.startsWith('playwright.') && !ROUTING.includes(f));
     assert.deepEqual(missing, [], 'unlisted runner configs: ' + missing.join(', '));
 });
 
@@ -183,7 +189,7 @@ test('every root TEST file is listed in CLAUDE.md', () => {
     // The pre-commit hook covers modules on a STAGED commit. It cannot see a file added earlier and
     // never listed, and it does not look at tests at all — which is how `calendar-doc-viewer.test.mjs`
     // reached AI_MAP.md and not CLAUDE.md.
-    const missing = tests.filter(f => !CLAUDE.includes(f));
+    const missing = tests.filter(f => !ROUTING.includes(f));
     assert.deepEqual(missing, [],
         'these test files exist but CLAUDE.md does not list them:\n  ' + missing.join('\n  '));
 });
@@ -206,7 +212,7 @@ test('every e2e spec is routed in CLAUDE.md', () => {
             .filter(f => f.endsWith('.spec.js')).sort();
     } catch { /* no e2e directory in this checkout */ }
     assert.ok(specs.length > 0, 'no e2e specs found — the guard would pass vacuously');
-    const missing = specs.filter(f => !CLAUDE.includes(f));
+    const missing = specs.filter(f => !ROUTING.includes(f));
     assert.deepEqual(missing, [],
         'these e2e specs exist but CLAUDE.md does not list them:\n  ' + missing.join('\n  '));
 });
@@ -252,7 +258,8 @@ test('the file list itself is non-empty — guard the guard', () => {
     // Every assertion above passes vacuously if the directory read returns nothing.
     assert.ok(modules.length > 60, `expected >60 modules, saw ${modules.length}`);
     assert.ok(tests.length > 60, `expected >60 test files, saw ${tests.length}`);
-    assert.ok(CLAUDE.length > 50_000 && AI_MAP.length > 50_000, 'a routing doc came back suspiciously short');
+    assert.ok(CLAUDE.length > 50_000 && AI_MAP.length > 50_000 && FILE_INDEX.length > 50_000,
+        'a routing doc came back suspiciously short');
 });
 
 // ── CONTRACT 1d: AI_MAP gives every module its OWN ENTRY, not merely a mention ─────────────────
@@ -940,7 +947,7 @@ const TREE_ENTRY_CAP = 900;
 //   · the tree may not accumulate release history. A handful of version stamps is fine (they date
 //     a decision); dozens means the changelog has moved back in.
 test('the CLAUDE.md file tree stays a routing table', () => {
-    const tree = (CLAUDE.match(/```[\s\S]*?```/) || [''])[0];
+    const tree = (FILE_INDEX.match(/```[\s\S]*?```/) || [''])[0];
     assert.ok(tree.length > 10_000, 'the file tree was not found — this test is checking nothing');
 
     const entries = tree.split('\n').filter(l => /^[│├└]/.test(l) && l.includes('←'));
@@ -1045,7 +1052,14 @@ test('the CLAUDE.md architecture table states decisions, not retrospectives', ()
 // reasoning that has drifted back in from a module header, move it BACK beside the code, and leave
 // the pointer. That is what worked last time, and it is the only edit that reduces the total
 // without losing anything.
-const CLAUDE_MD_CAP = 320_000;
+// 140,000 since the catalogue left for `docs/FILE_INDEX.md` on 11 Sep 2026 (was 320,000 against a
+// 312,675 file). The external review's objection to the first version of this cap was exactly right:
+// a ratchet set just above the current size prevents deterioration and preserves the problem for
+// ever. The catalogue was ~200k of that, it is a LOOKUP TABLE rather than something read top to
+// bottom, and no session needs all ~430 entries to do one task. CLAUDE.md is now ~128k; this leaves
+// room for a section, not for another catalogue. The same rules apply: shrinking is free, raising is
+// a decision defended in the commit that raises it.
+const CLAUDE_MD_CAP = 140_000;
 test('CLAUDE.md stays affordable — it is loaded into every session', () => {
     const chars = CLAUDE.length;
     assert.ok(chars > 100_000, 'CLAUDE.md was not read — this test is checking nothing');
