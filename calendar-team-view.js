@@ -107,7 +107,10 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
      *  @type {'loading'|'unavailable'|'stale'|'render'} */
     let _lastRenderDisplay = 'loading';
 
-    /** Sunday of the week currently shown in team view. Reset to current week on each open. */
+    /** Sunday of the week currently shown in team view. Re-decided on each open by
+     *  `weekStartForMonth` — today's week on the current month, the month's first week otherwise.
+     *  The initial value here is only what stands before any open; `restoreTeamView` (a PWA
+     *  relaunched straight into the grid) keeps it, because that reader has not navigated anywhere. */
     let currentTeamWeekStart = getSunday(new Date());
 
     /** Grade tab shown in team view. Defaults to the logged-in member's role. */
