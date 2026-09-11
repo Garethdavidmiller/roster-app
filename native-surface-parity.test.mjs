@@ -58,6 +58,21 @@
  *     every test was green. It is the `.controls select` / `.fieldpick` rule from select-sheet.js
  *     in reverse: an element selector cannot know what the recipe replaced, so it says so.
  *
+ * 13. **Having taken the drawing over, the app honours the user's THEME.** This is the counterpart
+ *     to every contract above: the OS draws nothing here, so under `forced-colors: active` nothing
+ *     is left to state the checked state in the user's own palette unless we do. Measured before
+ *     it was written (v23.67, external review) — the checked fill and the tick's `::before` are
+ *     both backgrounds, so the UA forced both to `Canvas` and a checked box and an unchecked one
+ *     painted with the SAME colours in the SAME pixel counts. Not low contrast: no state at all,
+ *     on all 25 of these controls. The block is pinned here for its SHAPE — system colours only,
+ *     the `Highlight`/`HighlightText` pair, `opacity: 1` (opacity is not forced, so the disabled
+ *     rule's 0.55 would mute the person who asked for contrast), `forced-color-adjust: none` and
+ *     the `box-shadow: none` that goes with it. **This file is where four of those five are
+ *     actually caught**: the e2e next door proves the PAINTING and so only fails on the defect
+ *     itself — a tick drawn in the fill colour, or the block deleted — while the declarations
+ *     that make the fix robust rather than merely working are shape, and shape is read here.
+ *     Teeth-verified five ways, each mutation confirmed applied before the run.
+ *
  * What it cannot see: the surfaces that are the platform's by nature — the file picker, the print
  * dialog, Web Push, the install prompt, and the keyboard with its AutoFill bar. Those are correct
  * and the audit says so; this file is about the ones that were a choice. Note the line contract 10
@@ -161,6 +176,45 @@ test('shared.css draws the checkbox and the radio', () => {
     assert.ok(rule, 'shared.css must carry `appearance: none` for both input[type="checkbox"] and input[type="radio"]');
     assert.match(src, /input\[type="checkbox"\]\[hidden\]/, 'the recipe sets display, so `[hidden]` must be restated (page-visibility-parity)');
     assert.match(src, /print-color-adjust:\s*exact/, 'the checked fill is a background — it must survive printing');
+});
+
+// ── 13. the forced-colours contract ─────────────────────────────────────────────────────────────
+test('the checkbox/radio recipe states itself in the user\'s forced-colours palette', () => {
+    const src = strip(read('shared.css'));
+    const at = src.indexOf('@media (forced-colors: active)');
+    assert.notEqual(at, -1, 'shared.css must carry a @media (forced-colors: active) block for the drawn controls');
+
+    // Brace-match the block: it contains nested rules, so a lazy regex would stop at the first `}`.
+    let i = src.indexOf('{', at), depth = 0, end = -1;
+    for (let j = i; j < src.length; j++) {
+        if (src[j] === '{') depth++;
+        else if (src[j] === '}' && --depth === 0) { end = j; break; }
+    }
+    assert.notEqual(end, -1, 'the forced-colors block is unclosed');
+    const block = src.slice(i + 1, end);
+
+    assert.match(block, /input\[type="checkbox"\]/, 'the block must cover the checkbox');
+    assert.match(block, /input\[type="radio"\]/,    'the block must cover the radio');
+
+    // Every colour in it is a SYSTEM colour. A var() would resolve to a brand colour and a literal
+    // would ignore the theme — either way the user's own palette is not what gets painted.
+    const SYSTEM = /^(Canvas|CanvasText|Highlight|HighlightText|GrayText|ButtonFace|ButtonText|LinkText|Field|FieldText|currentColor|none|transparent|inherit)$/;
+    for (const m of block.matchAll(/(?:^|[\s;{])(background-color|border-color|color|outline-color)\s*:\s*([^;}]+)/g)) {
+        const value = m[2].trim();
+        assert.ok(SYSTEM.test(value), `\`${m[1]}: ${value}\` is not a system colour — under forced colours it cannot honour the reader's theme`);
+    }
+    for (const m of block.matchAll(/(?:^|[\s;{])outline\s*:\s*([^;}]+)/g)) {
+        const last = m[1].trim().split(/\s+/).pop() || '';
+        assert.ok(SYSTEM.test(last), `\`outline: ${m[1].trim()}\` must end in a system colour`);
+    }
+    assert.doesNotMatch(block, /var\(--/, 'a brand token inside the forced-colors block defeats the whole point of it');
+
+    // The five declarations that carry the fix. Each is load-bearing for a reason the header gives.
+    assert.match(block, /forced-color-adjust:\s*none/,  'without this the UA substitutes our system colours too, and the state vanishes again');
+    assert.match(block, /background-color:\s*Highlight\b/,   'the checked fill must be Highlight');
+    assert.match(block, /background-color:\s*HighlightText\b/, 'the tick must be HighlightText — the pair guaranteed to contrast in every theme');
+    assert.match(block, /opacity:\s*1\b/,               'opacity is NOT forced, so the disabled 0.55 must be reset or it mutes a high-contrast theme');
+    assert.match(block, /box-shadow:\s*none/,           'box-shadow is normally forced away; the opt-out restores the brand ring unless it is removed');
 });
 
 // ── 5. no resize grip ───────────────────────────────────────────────────────────────────────────

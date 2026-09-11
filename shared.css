@@ -615,6 +615,87 @@ input[type="checkbox"]:disabled:indeterminate { background-color: var(--check-fi
     }
 }
 
+/* WINDOWS HIGH CONTRAST — the one environment where drawing our own box LOSES information.
+
+   MEASURED, not reasoned (v23.67, external review). Under `forced-colors: active` the UA replaces
+   author colours with the user's theme: a background becomes `Canvas`, a border `CanvasText`. Our
+   box's checked fill is a background and the tick's `::before` is ALSO a background, so both were
+   forced to Canvas — a white tick on a white fill inside a black border. Decoding the painted
+   pixels of a 20px box, checked and unchecked came back with the SAME colours in the SAME counts
+   (255,255,255 x248 · 0,0,0 x92). Not merely low contrast: the checked state was not drawn at all,
+   on all twenty-five of these controls, five of which pick which PAY figure the calculator shows.
+
+   Nothing could see it. `getComputedStyle` returns the AUTHOR value — the forcing happens at paint
+   time — so a style assertion reads back our navy and reports it correct; the visual baselines are
+   captured with forced colours off; and axe has no rule for it. Only rendering under the emulation
+   and reading the pixels says anything, which is what `forced-colors.spec.js` now does.
+
+   Every colour below is a SYSTEM colour, so this is not an opt-OUT of the reader's theme: it still
+   resolves to whatever theme they chose. It states the distinction IN their palette rather than
+   letting a blanket substitution erase it.
+
+   **`forced-color-adjust: none` is belt-and-braces, and it was MEASURED rather than assumed.**
+   Removing it changes nothing in Chromium today — system colours survive the forcing — so the
+   first draft of this comment was wrong to call it load-bearing. It is kept because it makes the
+   result independent of whether an engine substitutes a system colour for a system colour, which
+   is the one thing here that is not worth discovering from a staff report. Know what it costs:
+   it also stops `box-shadow` being forced away, which is why the focus rule below has to remove
+   the brand ring by hand. If it ever goes, that line goes with it.
+
+   Three things that ARE load-bearing, each pinned by native-surface-parity contract 13:
+   - **The tick is `HighlightText` and the fill `Highlight`** — that pair is guaranteed to contrast
+     in every theme. `white` would be a literal and would vanish on a light theme.
+   - **`opacity` is NOT forced**, so the disabled rule's 0.55 survives into a high-contrast theme
+     and mutes exactly the person who asked for more contrast. It is reset to 1 here, and disabled
+     state is carried by `GrayText` instead — which is what that colour is for.
+   - **A `var(--…)` anywhere in this block defeats it** — a brand colour would be painted over the
+     reader's theme, which is the failure this block exists to prevent, arrived at from the other
+     side. */
+@media (forced-colors: active) {
+    input[type="checkbox"],
+    input[type="radio"] {
+        forced-color-adjust: none;
+        background-color: Canvas;
+        border-color: CanvasText;
+    }
+    input[type="checkbox"]::before,
+    input[type="radio"]::before { background-color: HighlightText; }
+
+    input[type="checkbox"]:checked,
+    input[type="radio"]:checked,
+    input[type="checkbox"]:indeterminate {
+        background-color: Highlight;
+        border-color: Highlight;
+    }
+
+    input[type="checkbox"]:not(:checked):not(:disabled):hover,
+    input[type="radio"]:not(:checked):not(:disabled):hover { border-color: Highlight; }
+
+    /* Disabled is a GREYED TICK, not a grey block: the answer stays readable while the control
+       says it cannot be changed. A block would hide which way it was set. */
+    input[type="checkbox"]:disabled,
+    input[type="radio"]:disabled {
+        background-color: Canvas;
+        border-color: GrayText;
+        opacity: 1;
+    }
+    input[type="checkbox"]:disabled:checked,
+    input[type="radio"]:disabled:checked,
+    input[type="checkbox"]:disabled:indeterminate {
+        background-color: Canvas;
+        border-color: GrayText;
+    }
+    input[type="checkbox"]:disabled::before,
+    input[type="radio"]:disabled::before { background-color: GrayText; }
+
+    input[type="checkbox"]:focus-visible,
+    input[type="radio"]:focus-visible {
+        outline: 2px solid CanvasText;
+        outline-offset: 2px;
+        box-shadow: none;
+    }
+}
+
 /* ============================================================
    THE PASSWORD FIELD'S OWN BUTTONS (v23.51)
    ============================================================
