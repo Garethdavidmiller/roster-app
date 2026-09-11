@@ -502,16 +502,54 @@ describe('who was asked — the frozen population', () => {
         const roster = [
             { name: 'A. One',  grade: 'CEA',        rosterOrder: 1, hidden: false, managerOnly: false },
             { name: 'M. Boss', grade: 'Management', rosterOrder: 2, hidden: true,  managerOnly: true  },
+            // …and one who is managerOnly WITHOUT being hidden. See the test below for why that row
+            // is not a stylistic variation: without it, `!m.hidden` alone satisfies every case here.
+            { name: 'M. Open', grade: 'Management', rosterOrder: 3, hidden: false, managerOnly: true  },
         ];
         for (const audience of C.AUDIENCES) {
             const chosen = C.selectParticipants(roster, {
                 weekStart: '2026-08-30', audience,
-                // The manager named as an admin too — the strongest form of the test. Even an
+                // The managers named as admins too — the strongest form of the test. Even an
                 // entitlement that WOULD select them must not, because the flag is what decides.
-                adminNames: ['A. One', 'M. Boss'],
+                adminNames: ['A. One', 'M. Boss', 'M. Open'],
             }).map(x => x.memberName);
             assert.equal(chosen.includes('M. Boss'), false, `audience "${audience}" selected a manager`);
+            assert.equal(chosen.includes('M. Open'), false,
+                `audience "${audience}" selected a manager who is not also hidden`);
         }
+    });
+
+    test('managerOnly excludes ON ITS OWN — `hidden` is a different fact and must not be doing the work', () => {
+        // WHY THIS IS A TEST OF ITS OWN. Stage 1 is `!m.hidden && !m.managerOnly`, and until this
+        // case existed the second clause had NO TEETH: every managerOnly fixture in this file also
+        // set `hidden: true`, and so does every managerOnly row in the real roster-members.json — so
+        // deleting `&& !m.managerOnly` left the whole suite green, while deleting `!m.hidden` failed
+        // immediately. The coupling is accidental, not a rule: CLAUDE.md defines managerOnly as
+        // "hidden from the calendar member selector", which is a display decision about the roster
+        // GRID, and `hidden` is what a leaver gets. The day a manager ships without `hidden` — a
+        // clerk who should appear in the picker, a manager who also works a line — that one row
+        // becomes a frozen participant in every overtime window: permanently recorded as expected
+        // and not responding, uncorrectable because the population is frozen, and sent the
+        // availability push. Nothing errors and nothing can be put right afterwards.
+        const manager = { name: 'M. Open', grade: 'Management', rosterOrder: 1, hidden: false, managerOnly: true };
+        const member  = { name: 'A. One',  grade: 'CEA',        rosterOrder: 2, hidden: false, managerOnly: false };
+
+        for (const audience of C.AUDIENCES) {
+            const chosen = C.selectParticipants([manager, member], {
+                weekStart: '2026-08-30', audience, adminNames: ['M. Open', 'A. One'],
+            }).map(x => x.memberName);
+            assert.deepEqual(chosen, ['A. One'],
+                `audience "${audience}" must ask the member and only the member`);
+        }
+
+        // The control: the SAME person with the flag off IS asked. Without this the assertion above
+        // would also pass on a `selectParticipants` that had simply stopped selecting anybody.
+        const asAMember = { ...manager, managerOnly: false };
+        assert.deepEqual(
+            C.selectParticipants([asAMember], { weekStart: '2026-08-30', audience: 'all' })
+                .map(x => x.memberName),
+            ['M. Open'],
+            'the exclusion must come from the FLAG, not from the row being unselectable for some other reason');
     });
 
     test('a LEAVER is in nobody\'s window, whichever audience is in force', () => {

@@ -3,7 +3,7 @@ import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword
 // The REAL pay tables, imported rather than restated: the unsupported-role block below asserts that
 // a CES is priced as a CES, and a literal rate there would go stale on the next award — or, worse,
 // be "corrected" to whatever the page happened to show.
-import { GRADES, AWARD_RATES } from '../paycalc-calc.js';
+import { GRADES, AWARD_RATES, TAX_YEARS } from '../paycalc-calc.js';
 
 
 test('paycalc: shows the in-place login when not signed in (no redirect)', async ({ page }) => {
@@ -742,6 +742,218 @@ test('paycalc: the back-pay lump scales the first period of the award window', a
     // Compute mode, or the figure above came from a typed one and proves nothing.
     await expect(page.locator('#bpModeCompute')).toBeChecked();
     expect(errors, 'Uncaught JS exceptions on the back-pay card').toHaveLength(0);
+});
+
+// ── THE TWO OPT-IN LUMPS: THE TICK IS THE GATE, AND THE BANNER MUST AGREE WITH THE £ ─────────────
+//
+// Back pay and the Holiday Pay Premium are both OFF by default (owner, Jul 2026). `calculate()`
+// adds each only when its own include flag is set:
+//
+//     const _bpThisPeriod  = (_bpPNum > 0 && _bpPNum === _pNum && _bpIncluded) ? _bpAmount : 0;
+//     const _hppForPeriod  = _hppIncluded ? _hppAmount : 0;
+//
+// Drop `_bpIncluded` / `_hppIncluded` from those lines and **nothing in the repo fails**. The
+// estimate silently gains £476.18 of back pay, or £1,843.01 of premium, while the banner directly
+// beneath it still reads "could land on this payslip — not added to this estimate".
+//
+// That contradiction is precisely the failure `paycalc-money-banner.test.mjs` exists to prevent,
+// reached from the side it cannot see: that suite pins the SENTENCE against the `included` flag it
+// is handed, and nothing pins the ARITHMETIC to the same flag. So these two tests assert the pair
+// together — the words and the figure, in the same browser, as one fact — because a member reading
+// "not added" over a number that contains it has no way to notice, and the two states differ by
+// hundreds of pounds with both looking equally plausible.
+//
+// The assertions are on the MOVEMENT, not on a hardcoded take-home: ticking must raise the figure,
+// un-ticking must put it back exactly, and the rise must be a taxed share of the lump (more than
+// nothing, less than all of it). Under either mutation the movement is ZERO in both directions.
+// The clock is pinned because which payslip carries each lump depends on today.
+
+/** Parse a rendered "£3,122.27" into a number. */
+const poundsOf = (/** @type {string|null} */ s) => parseFloat(String(s ?? '').replace(/[^0-9.]/g, ''));
+
+const LUMP_QUIET = () => {
+    localStorage.setItem('myb_pc_ns_migrated', '1');
+    localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+};
+
+test('paycalc: the back-pay lump joins take-home ONLY when the tick is on', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    // 28 Aug 2026 is the payslip the 2026/27 award actually landed on, so the lump is offered here.
+    await page.clock.setFixedTime(new Date('2026-08-20T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(LUMP_QUIET);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    await expect(page.locator('#bpActiveBanner')).toBeVisible();
+
+    // The lump is real money out of the real tables, not a placeholder. Derived rather than
+    // written down, so the next award moves it instead of failing here: one period's arrears is
+    // the hourly uplift over contracted hours plus the London Allowance step, and the window the
+    // pinned clock produces is four whole periods plus the April fraction of a fifth.
+    const AW = AWARD_RATES.cea['2026/27'];
+    const TY = TAX_YEARS.find(t => t.label === '2026/27');
+    const perPeriodUplift = (AW.rate - AW.pre) * GRADES.cea.contr + (TY.londonAllow - TY.londonAllowPre);
+    const lump = poundsOf(await page.locator('#backPayTotalAmt').textContent());
+    expect(lump, 'the lump is four-and-a-bit periods of the recorded uplift')
+        .toBeGreaterThan(perPeriodUplift * 4);
+    expect(lump).toBeLessThan(perPeriodUplift * 5);
+
+    // OFF by default: the tick is clear, the sentence says so, and the receipt chip is absent.
+    await expect(page.locator('#bpBannerTick')).not.toBeChecked();
+    await expect(page.locator('#bpBannerText')).toContainText('not added to this estimate');
+    await expect(page.locator('#provChips')).not.toContainText('back pay');
+    const excluded = poundsOf(await page.locator('#netDisplay').textContent());
+    expect(excluded, 'the take-home figure rendered').toBeGreaterThan(0);
+
+    // ON: the sentence flips to "Includes", the same lump is named, and the figure moves.
+    await page.locator('#bpBannerTick').check();
+    await expect(page.locator('#bpBannerText')).toContainText('✓ Includes');
+    await expect(page.locator('#bpBannerText')).toContainText('back pay lump sum');
+    await expect(page.locator('#provChips')).toContainText('back pay');
+    await expect.poll(async () => poundsOf(await page.locator('#netDisplay').textContent()))
+        .toBeGreaterThan(excluded);
+    const included = poundsOf(await page.locator('#netDisplay').textContent());
+
+    // A taxed share of the lump: strictly more than nothing, strictly less than the whole sum.
+    // Nothing is asserted about the exact deduction — that is computeTax/computeNI's own suite.
+    const delta = included - excluded;
+    expect(delta, 'the lump reaches take-home net of tax and NI, never in full').toBeLessThan(lump);
+    expect(delta, 'and the deductions do not swallow it either').toBeGreaterThan(lump * 0.4);
+
+    // And back off again. The round trip is what proves the tick is the gate rather than a
+    // one-way door that happens to fire a recompute.
+    await page.locator('#bpBannerTick').uncheck();
+    await expect(page.locator('#bpBannerText')).toContainText('not added to this estimate');
+    await expect.poll(async () => poundsOf(await page.locator('#netDisplay').textContent()))
+        .toBe(excluded);
+    expect(errors, 'Uncaught JS exceptions on the back-pay opt-in').toHaveLength(0);
+});
+
+test('paycalc: the Holiday Pay Premium joins take-home ONLY when the tick is on', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    // The 2025/26 premium is paid on the first January payslip of 2027 (TAX_YEARS.hppPaidJan), so
+    // this clock lands the calculator on the one payslip of the year that can carry it.
+    await page.clock.setFixedTime(new Date('2027-01-10T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    // A CONFIRMED premium, seeded as the figure a member copies off the January payslip — the
+    // amount here is payslip-shaped rather than rate-derived, and the gate is what is under test.
+    // A confirmed actual also keeps the banner's wording free of the estimate hedge, so the two
+    // sentences below discriminate on the include state alone.
+    const PREMIUM = 1843.01;
+    await page.addInitScript((amt) => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        localStorage.setItem('myb_pc_gmiller_hpp_actual_2025_26', String(amt));
+    }, PREMIUM);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    await expect(page.locator('#hppActiveBanner')).toBeVisible();
+
+    await expect(page.locator('#hppBannerTick')).not.toBeChecked();
+    await expect(page.locator('#hppBannerText')).toContainText('not added to this estimate');
+    await expect(page.locator('#provChips')).not.toContainText('Holiday Pay Premium');
+    const excluded = poundsOf(await page.locator('#netDisplay').textContent());
+    expect(excluded, 'the take-home figure rendered').toBeGreaterThan(0);
+
+    await page.locator('#hppBannerTick').check();
+    await expect(page.locator('#hppBannerText')).toContainText('✓ Includes');
+    await expect(page.locator('#hppBannerText')).toContainText('Holiday Pay Premium');
+    await expect(page.locator('#provChips')).toContainText('Holiday Pay Premium');
+    await expect.poll(async () => poundsOf(await page.locator('#netDisplay').textContent()))
+        .toBeGreaterThan(excluded);
+    const included = poundsOf(await page.locator('#netDisplay').textContent());
+
+    const delta = included - excluded;
+    expect(delta, 'the premium reaches take-home net of tax and NI, never in full').toBeLessThan(PREMIUM);
+    expect(delta, 'and the deductions do not swallow it either').toBeGreaterThan(PREMIUM * 0.4);
+
+    await page.locator('#hppBannerTick').uncheck();
+    await expect(page.locator('#hppBannerText')).toContainText('not added to this estimate');
+    await expect.poll(async () => poundsOf(await page.locator('#netDisplay').textContent()))
+        .toBe(excluded);
+    expect(errors, 'Uncaught JS exceptions on the Holiday Pay Premium opt-in').toHaveLength(0);
+});
+
+// ── THE YEAR TO DATE FIGURES ARE ANCHORED TO THE PAYSLIP THEY CAME FROM (v17.98) ─────────────────
+//
+// The cumulative PAYE method adds THIS payslip's pay to the entered totals, so it is only valid on
+// the payslip immediately after the one the member copied them from. `calculate()` enforces that
+// with one line:
+//
+//     if (!(_ytdSrc && _curP && _curP.num === _ytdSrc + 1)) { ytdP = null; ytdT = null; }
+//
+// Delete it and nothing fails. Stale totals are then treated as last-payslip figures on whatever
+// payslip happens to be on screen, which is exactly the pre-v17.98 defect — a member who entered
+// their figures in July and left them there gets a skewed tax estimate for the rest of the year,
+// with no error and no visible difference.
+//
+// What makes it worth a browser is that the page ALREADY SAYS THE RIGHT THING: `_updateYtdNote`
+// writes "not in use" into the header chip and "this payslip uses the standard method" into the
+// note from the same rule, independently of the arithmetic. So without the guard the chip and the
+// figure disagree, and the chip is the honest one. The assertion therefore pairs them.
+//
+// The probe is the figures' own EFFECT: clear the two boxes and see whether the take-home moves.
+// On the anchored payslip it must (they are feeding the estimate); on any other payslip it must
+// not (they are being ignored). The second half is vacuous without the first, which is why the
+// anchored payslip is exercised in the same test rather than assumed.
+test('paycalc: Year to Date figures sharpen ONLY the payslip after their source', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2027-01-10T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    // Source = P32 (paid 23 Oct 2026, internal p.num 57). Anchored payslip = 58; 59 and 60 are not.
+    const SRC = 57, YTD_PAY = '30000', YTD_TAX = '4200';
+    await page.addInitScript(([src, pay, tax]) => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        localStorage.setItem('myb_pc_gmiller_ytd_src_2026_27', src);
+        localStorage.setItem('myb_pc_gmiller_ytd_pay_2026_27', pay);
+        localStorage.setItem('myb_pc_gmiller_ytd_tax_2026_27', tax);
+    }, [String(SRC), YTD_PAY, YTD_TAX]);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+
+    /** Take-home with the two boxes filled, then emptied, then refilled — on the payslip on screen. */
+    const netWithAndWithoutFigures = async () => {
+        await expect(page.locator('#ytdPay')).toHaveValue(YTD_PAY);
+        const withFigures = poundsOf(await page.locator('#netDisplay').textContent());
+        for (const id of ['#ytdPay', '#ytdTax']) {
+            await page.fill(id, '');
+            await page.dispatchEvent(id, 'input');
+        }
+        await expect(page.locator('#ytdPay')).toHaveValue('');
+        const withoutFigures = poundsOf(await page.locator('#netDisplay').textContent());
+        await page.fill('#ytdPay', YTD_PAY);
+        await page.dispatchEvent('#ytdPay', 'input');
+        await page.fill('#ytdTax', YTD_TAX);
+        await page.dispatchEvent('#ytdTax', 'input');
+        await expect(page.locator('#ytdPay')).toHaveValue(YTD_PAY);
+        return { withFigures, withoutFigures };
+    };
+
+    // THE ANCHORED PAYSLIP — source + 1. The figures are in use, and removing them moves the £.
+    await page.locator('#periodSelect').selectOption(String(SRC + 1));
+    await expect(page.locator('#ytdStatusChip')).toHaveText('✓ in use');
+    await expect(page.locator('#ytdUptoNote')).toContainText("sharpen this payslip's tax estimate");
+    const anchored = await netWithAndWithoutFigures();
+    expect(anchored.withFigures,
+        'on source + 1 the entered totals must actually change the estimate — without this the '
+        + 'equalities below would pass on figures nothing ever reads')
+        .not.toBe(anchored.withoutFigures);
+
+    // EVERY OTHER PAYSLIP — the chip says "not in use", and the arithmetic must agree with it.
+    for (const pNum of [SRC + 2, SRC + 3]) {
+        await page.locator('#periodSelect').selectOption(String(pNum));
+        await expect(page.locator('#ytdStatusChip')).toHaveText('not in use');
+        await expect(page.locator('#ytdUptoNote')).toContainText('uses the standard method');
+        const other = await netWithAndWithoutFigures();
+        expect(other.withFigures,
+            `p${pNum} is not the payslip these totals came from, so they must not reach the estimate`)
+            .toBe(other.withoutFigures);
+    }
+    expect(errors, 'Uncaught JS exceptions on the Year to Date anchor').toHaveLength(0);
 });
 
 // ── THE TWO EDITS THE CARD MAKES, IN A BROWSER (v21.80) ──────────────────────────────────────────

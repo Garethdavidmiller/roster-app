@@ -12,9 +12,19 @@
  *           `normalisePatterns` — into memory AND into the new document — and wrote no `window`.
  *           Found by this extraction, not by anything watching.
  *
+ *   v23.62  `revision` — the concurrency identity — was carried out of a document with a `typeof`
+ *           guard that nothing asserted. Found by a mutation sweep, not by a defect: replacing the
+ *           guard with `?? null` left this file AND links-concurrency.test.mjs green.
+ *
  * So the suite is organised around the two INVARIANTS rather than around the functions: every shape
  * carries a window, and everything arriving from Firestore is canonicalised. A per-function suite
  * would pass on exactly the code that produced both bugs.
+ *
+ * INVARIANT 2 IS ABOUT TYPE AS WELL AS FORMAT. Canonicalising the times was its first instance and
+ * for a long time its only one, so the invariant read as "pad the times". It is the wider rule the
+ * module header states — exactly one shape of each value exists in memory, because the document is
+ * where the other shapes get in — and `revision` is the second instance: a `number|null` in memory,
+ * whatever a corrupt or older-client document holds. That half is tested below beside the times.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -106,6 +116,73 @@ describe('canonicalisation on the way IN (the v19.94 defect)', () => {
         assert.equal(binEntryFrom({ id: 'd1', patterns: weird }, 'x').patterns['1'].mon, '6:00-14:00');
         assert.equal(restoredEntryFrom({ id: 'd1', patterns: weird }, { updatedAt: null, updatedBy: 'x' })
             .patterns['1'].mon, '6:00-14:00');
+    });
+});
+
+// ── INVARIANT 2, second instance — the CONCURRENCY IDENTITY is coerced, not carried ────────────
+//
+// WHAT A WRONG ANSWER COSTS. `revision` is the exact identity `conflictOf` compares with `===` to
+// decide whether a colleague saved while this page was open. A non-number that survives the read is
+// not a wrong figure on a screen — it is an identity nobody can be equal to, or (with a document
+// written by an older client at both ends) two values that ARE equal and mean nothing. Both
+// directions land in the class links-concurrency.js exists to prevent: the loser of the race sees a
+// successful save, the work destroyed is somebody else's, and they find out on reopening.
+//
+// WHY THE GUARD LIVES HERE AND IS TESTED HERE. Every downstream consumer re-asks `typeof` —
+// `baselineFromEntry`, `conflictOf`'s own `freshRev`, the store's `liveRev` — so this coercion is
+// defence in depth for them, and a case in links-concurrency.test.mjs cannot see it removed
+// (measured: with the guard replaced by `?? null`, that whole file stays green). But it is NOT
+// defence in depth for everybody. `links-app.js`'s rename path reads the entry with
+// `(d.revision ?? null)` and no guard of its own, so this line is the only thing standing between a
+// corrupt document and the value `store.rename` compares to decide whether our baseline may advance.
+describe('a revision arriving from Firestore is a number or it is nothing', () => {
+    // The shapes a document can actually hold: an older client's string, a boolean somebody wrote,
+    // an object, the empty string. Not NaN — that IS a number and the module lets it through, which
+    // is safe here (it can never be `===` anything, so it always reports a conflict) and would be a
+    // product change to alter.
+    const NOT_A_REVISION = [false, true, '3', '', 'rev-3', {}, [], () => 3];
+
+    test('designFromDoc coerces every non-number to null — the trust boundary', () => {
+        for (const bad of NOT_A_REVISION) {
+            assert.equal(designFromDoc('d1', { name: 'A', revision: bad }).revision, null,
+                `a revision of ${JSON.stringify(bad) ?? String(bad)} was carried into memory as an identity`);
+        }
+        assert.equal(designFromDoc('d1', { name: 'A' }).revision, null,
+            'a design nobody has saved since v22.18 has no revision, and null is what says so');
+    });
+
+    test('…and a REAL revision survives, or the guard would simply have disabled the feature', () => {
+        // The control. Without it the assertions above would pass equally on `revision: null` hard-coded,
+        // which loses the exact identity and silently drops every design back to the timestamp rules.
+        assert.equal(designFromDoc('d1', { name: 'A', revision: 7 }).revision, 7);
+        assert.equal(designFromDoc('d1', { name: 'A', revision: 0 }).revision, 0,
+            'zero is a number — the guard must test the TYPE, never the truthiness');
+    });
+
+    test('the consumer\'s own expression sees null — `links-app.js` reads `d.revision ?? null`', () => {
+        // Written as the call site writes it, because `??` is exactly what does NOT stop `false`
+        // or `'3'`. The rename path then hands that value to `store.rename` as `preRevision`, where
+        // `liveRev === preRevision` decides whether our baseline may advance over a colleague's save.
+        for (const bad of NOT_A_REVISION) {
+            const entry = designFromDoc('d1', { name: 'A', revision: bad });
+            assert.equal(entry.revision ?? null, null,
+                'the one unguarded consumer would receive a non-number as an exact version identity');
+        }
+    });
+
+    test('every FROM-DOC reader obeys it, so a new one cannot join carrying the raw value', () => {
+        // The EVERY_SHAPE discipline applied to this invariant: the rule is asserted over the
+        // readers whose INPUT is a Firestore document, not over the one that happens to have the
+        // field today. `binEntryFromDoc` emits no revision at all and passes by absence — which is
+        // the point, since the day it starts emitting one it is checked here rather than in a
+        // designer's proposal.
+        for (const read of [designFromDoc, binEntryFromDoc]) {
+            for (const bad of NOT_A_REVISION) {
+                const out = /** @type {any} */ (read('d1', { name: 'A', revision: bad }));
+                assert.ok(!('revision' in out) || out.revision === null || typeof out.revision === 'number',
+                    `${read.name} carried a ${typeof bad} out of a document as a revision`);
+            }
+        }
     });
 });
 

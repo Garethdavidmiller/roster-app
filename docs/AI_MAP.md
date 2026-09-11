@@ -1330,6 +1330,7 @@ The seven-day grid and everything staged but not saved (v21.38, extracted from `
 - `_hasStagedEdits()` — counts a staged ADD/CHANGE and a staged REMOVAL; counting only the first discarded un-ticked rows on a background refresh while the dirty flag stayed set
 - Draws a LOADING state for a member whose slice has not arrived and a distinct FAILED state when their load stopped — seven base-roster days would be indistinguishable from a clear week
 - Permissions, feedback and the dirty marker arrive via `initWeekEditor`
+- **It holds Sunday enforcement layers 1 and 2** (CLAUDE.md → "Sundays are non-contracted"): the per-row pills for every `SUNDAY_FORBIDDEN_TYPES` entry are disabled with the reason in their accessible name, and the bulk sweep skips a ticked Sunday and says how many it dropped. `override-utils.test.mjs` pins that each layer MENTIONS every forbidden type, which is drift cover and not guard cover — the `.pill-<type>` strings live inside the `if`, so they survive its condition being deleted. The guards themselves are tested only by `e2e/pages.spec.js`, on a rendered row, because whether a pill is actually dead is not a fact any source scan or fake DOM can reach
 
 ### `admin-saved-changes.js`
 The Saved Changes list, and un-recording (v21.38, extracted from `admin-overrides.js`).
