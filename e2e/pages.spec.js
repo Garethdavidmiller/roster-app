@@ -6,6 +6,7 @@ import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword
 // rotation would leave every fixture over-length: the grid ignores the surplus rows, so the specs
 // would still pass while quietly testing the legacy-design path rather than the normal one.
 import { ROTATING_LINES } from '../links-design.js';
+import { SUNDAY_FORBIDDEN_TYPES } from '../override-utils.js';
 import { describeSetList } from '../links-target-sets.js';
 
 // ── SETTINGS (settings.html) ──────────────────────────────────────────────
@@ -2035,6 +2036,107 @@ test('admin: saving reports the DAYS it changed, not just how many', async ({ pa
     const headline = await feedback.textContent();
     const stated = Number((headline || '').match(/(\d+) changes? saved/)?.[1]);
     expect(await lines.count(), 'the headline must agree with its own receipt').toBe(stated);
+});
+
+// ── SUNDAY IS NOT A CONTRACTED DAY — LAYERS 1 AND 2, AS THE GRID ACTUALLY DRAWS THEM ────────────
+//
+// CLAUDE.md's Sunday rule has six enforcement layers and says none of them is removable alone. Two
+// of them live in `admin-week-editor.js` — the per-row pills a manager presses, and the bulk sweep
+// that stages a whole week at once — and until now neither had a behavioural test in any lane. A
+// mutation sweep replaced each guard's condition with `false` and everything stayed green.
+//
+// What already existed is a SOURCE pin (override-utils.test.mjs, "LAYER 1 disables a pill for every
+// forbidden type"), which asserts the layer mentions a `.pill-<type>` for each forbidden type. That
+// is real coverage of DRIFT — a fifth forbidden type not wired into the grid — and no coverage at
+// all of the guard: the strings sit INSIDE the `if`, so they survive its condition being deleted.
+// Only a rendered row can answer whether the pill is actually dead.
+//
+// NEITHER FAILURE IS LOUD, AND NEITHER LOSES THE SUNDAY. A staged Sunday row reaches the `#saveBtn`
+// handler in admin-app.js — layer 6, which still answers for every forbidden type, so nothing wrong
+// is written. (`executeSave` in admin-overrides.js, the writer underneath it, has no Sunday guard
+// and does not need one; it never sees the row.) But layer 6 answers by pushing an error, and the
+// save aborts the WHOLE batch on the first one. Measured with layer 2 removed: a seven-day AL sweep
+// wrote NOTHING — zero batch writes, one row flagged, six legitimate days lost with it. So what a
+// missing layer costs is never the Sunday; it is the rest of the week, and it arrives as a dead end
+// at the end instead of a closed door at the start.
+//
+// Both read the list from override-utils.js rather than restating it (CLAUDE.md forbids a new call
+// site restating the four types), so a fifth forbidden type joins these tests by being declared.
+
+/** The dates of the rendered week, keyed by weekday. The grid always runs Sunday→Saturday, but the
+ *  assertions name the day rather than an index so a failure says which day it meant. */
+async function weekGridDates(page) {
+    return page.evaluate(() => Object.fromEntries(
+        [...document.querySelectorAll('.day-row')].map(r => {
+            const iso = /** @type {HTMLElement} */ (r).dataset.date || '';
+            return [['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][new Date(iso + 'T12:00:00').getDay()], iso];
+        })));
+}
+
+test('admin: the Sunday row offers no pill for anything that cannot be recorded on a Sunday', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    const days = await weekGridDates(page);
+    expect(days.sun, 'the week grid always draws a Sunday').toBeTruthy();
+    const sunday  = page.locator(`.day-row[data-date="${days.sun}"]`);
+    const weekday = page.locator(`.day-row[data-date="${days.wed}"]`);
+
+    for (const type of SUNDAY_FORBIDDEN_TYPES) {
+        await expect(sunday.locator(`.pill-${type}`), `${type} must not be pressable on a Sunday`)
+            .toBeDisabled();
+        // A disabled button leaves the tab order, so the reason has to be in the accessible name —
+        // it used to be a `title`, which no phone shows (v23.50). Asserted alongside the state it
+        // explains: a grey pill nobody can ask about is the same dead end from the other side.
+        await expect(sunday.locator(`.pill-${type}`)).toHaveAttribute('aria-label', /Sunday/);
+        // The SAME pill on a weekday is live — so this is the Sunday rule biting, not a row that
+        // failed to render or a member whose overrides never loaded.
+        await expect(weekday.locator(`.pill-${type}`), `${type} is recordable on a weekday`).toBeEnabled();
+    }
+    // And the one thing that DOES belong on a Sunday is still offered. Sundays are uncontracted, so
+    // Sunday work is overtime; a row where every pill were dead would pass the loop above while
+    // making a genuinely payable shift unrecordable.
+    await expect(sunday.locator('.pill-rdw')).toBeEnabled();
+});
+
+test('admin: a bulk sweep of all seven days stages six — the Sunday is dropped, and it says so', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+
+    // Every forbidden type the bulk bar actually offers. `other` is applied per-row (it needs a
+    // flavour the bar cannot host), so the bar is PILL_TYPES minus that one — read off the rendered
+    // bar rather than listed here, for the same reason the loop below is.
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    const offered = await page.evaluate(types => types.filter(t => document.querySelector(`#bulkTypePills .pill-${t}`)),
+        [...SUNDAY_FORBIDDEN_TYPES]);
+    expect(offered.length, 'the bulk bar must offer at least one forbidden type, or this proves nothing')
+        .toBeGreaterThan(0);
+
+    for (const type of offered) {
+        await page.goto('/admin.html');
+        await page.waitForSelector('.day-row', { timeout: 10000 });
+        const days = await weekGridDates(page);
+
+        await page.locator('#bulkSelAll').click();
+        await page.locator(`#bulkTypePills .pill-${type}`).click();
+        await page.locator('#bulkApplyBtn').click();
+
+        const staged = await page.evaluate(() => Object.fromEntries(
+            [...document.querySelectorAll('.day-row')].map(r => {
+                const el = /** @type {HTMLElement} */ (r);
+                return [el.dataset.date, el.dataset.type || ''];
+            })));
+        expect(staged[days.sun], `${type} must not stage on a Sunday`).toBe('');
+        // The other six DID take it — the sweep is being filtered, not broken. Without this, a
+        // guard that skipped every row would pass the line above.
+        for (const key of ['mon', 'tue', 'wed', 'thu', 'fri', 'sat']) {
+            expect(staged[days[key]], `${key} is a contracted day and must take ${type}`).toBe(type);
+        }
+        // "All 7 → 6 applied" is a surprise unless it is stated. This is the only place the manager
+        // is told, and it is what stops the drop reading as a lost tap.
+        await expect(page.locator('#formFeedback')).toContainText('Sunday skipped');
+    }
 });
 
 // ── THE STAGED OVERRIDE LOAD (v21.38, external review) ──────────────────────────────────────────
