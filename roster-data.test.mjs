@@ -3,7 +3,9 @@
  * Run with: node --test roster-data.test.mjs
  *
  * Uses Node's built-in test runner (no dependencies required).
- * Covers: bank holidays, Easter, paydays, cutoffs, AL entitlement, validation.
+ * Covers: bank holidays, Easter, paydays, cutoffs, AL entitlement, validation, the START-DATE
+ * BOUNDARY (a new starter's first day) and the worked-shift predicate the lieu-day count and the
+ * calendar renderer both read.
  */
 
 import { test, describe } from 'node:test';
@@ -18,6 +20,7 @@ import {
     isPayday,
     isCutoffDate,
     getALEntitlement,
+    isWorkedShift,
     projectAnnualLeaveOverage,
     validateRosterPatterns,
     isChristmasRD,
@@ -865,9 +868,12 @@ test('getBaseShift: startDate suppression — returns RD before member joins', (
     // One day before startDate
     const shiftBefore = getBaseShift(member, d(2026, 4, 19)); // 19 Apr 2026
     assert.equal(shiftBefore, 'RD', 'Expected RD for date before startDate');
-    // On startDate itself — should return normal shift (not suppressed)
-    const shiftOn = getBaseShift(member, d(2026, 4, 20)); // 20 Apr 2026
-    assert.ok(shiftOn !== undefined, 'Expected a value on startDate');
+    // On startDate itself — should return normal shift (not suppressed). Asserted against the SAME
+    // member with the startDate removed, which skips the suppression branch altogether: `!== undefined`
+    // stood here for years and could not fail, since getBaseShift always returns a string. The boundary
+    // is swept across the whole roster in "a member's first day is theirs" at the end of this file.
+    const roster = getBaseShift({ ...member, startDate: undefined }, d(2026, 4, 20));
+    assert.equal(getBaseShift(member, d(2026, 4, 20)), roster, 'the join day is not suppressed');
 });
 
 // Regression: v13.97 — getBaseShift previously accessed member.startDate without
@@ -1476,5 +1482,175 @@ describe('a Dispatcher who joined mid-year keeps the days they earned', () => {
     test('an unresolved member is still null, not a number', () => {
         assert.equal(getALEntitlement(null, 2026, []), null);
         assert.equal(getALEntitlement({ name: 'Y', role: 'Management' }, 2026, []), null);
+    });
+});
+
+// ── A MEMBER'S FIRST DAY IS THEIRS (the start-date boundary) ────────────────────────────────────
+//
+// `getBaseShift` hides everything BEFORE a member joins, and the whole of that rule is one
+// comparison. Move it by a day — `<` to `<=` — and the join day itself becomes a rest day. The two
+// directions of error are not remotely symmetrical, which is how this one survived:
+//
+//   SWALLOWING THE FIRST DAY is silent. 'RD' is a legitimate value, it renders as an ordinary rest
+//   day, and the one person positioned to notice is a new starter who does not yet know what their
+//   roster should look like. It also travels: `al-entitlement.js` never charges leave against a rest
+//   day, and the roster-import alignment detector correlates each parsed week against this same base
+//   pattern — so a wrong first day quietly weakens the only import witness the model cannot influence.
+//
+//   SHOWING A SHIFT BEFORE THEY JOINED is the older defect, and the loud one — a calendar full of
+//   turns for somebody who had not started. The tests below pin both edges of the same comparison.
+//
+// Every case is DERIVED from the live roster, and the expectation is always the SAME member with
+// `startDate` removed: that path skips the suppression branch entirely, so it states what the roster
+// holds for that day without asking the code under test to confirm itself. Measured when written:
+// six members carry a start date and four of them work their first day (three a real shift, one
+// SPARE), so the sweep has teeth today — and the constructed cases keep it having teeth on a roster
+// where nobody happens to.
+describe("a member's first day is theirs", () => {
+    const joiners = () => teamMembers.filter(m => m.startDate);
+    /** The roster's own answer for a date, with the join-date rule taken out of the picture. */
+    const unsuppressed = (m, date) => getBaseShift({ ...m, startDate: undefined }, date);
+    const dayOf = (m, offset = 0) => new Date(
+        m.startDate.getFullYear(), m.startDate.getMonth(), m.startDate.getDate() + offset);
+
+    describe('never swallows the join day', () => {
+        test('every joiner sees what the roster holds on the day they start', () => {
+            const wrong = joiners()
+                .map(m => ({ m, want: unsuppressed(m, dayOf(m)), got: getBaseShift(m, dayOf(m)) }))
+                .filter(({ want, got }) => want !== got)
+                .map(({ m, want, got }) =>
+                    `${m.name} starts ${m.startDate.toDateString()}: roster says ${want}, getBaseShift says ${got}`);
+
+            assert.deepEqual(wrong, [],
+                'the start date is INCLUSIVE — a member works the day they join:\n  ' + wrong.join('\n  '));
+        });
+
+        test('and the sweep above is not vacuous — somebody really does work their first day', () => {
+            // If this ever fails the roster has changed rather than the code: every current joiner
+            // would be starting on a rest day, so the sweep could no longer see the boundary move.
+            // The two constructed cases below cover it regardless.
+            const working = joiners().filter(m => unsuppressed(m, dayOf(m)) !== 'RD').map(m => m.name);
+            assert.ok(working.length,
+                'no live joiner works their first day, so the sweep can no longer detect an off-by-one '
+                + 'at the boundary — rely on the constructed cases below');
+        });
+    });
+
+    describe('and never shows a day before it', () => {
+        test('the day before a start date is suppressed for every joiner', () => {
+            const leaked = joiners()
+                .filter(m => getBaseShift(m, dayOf(m, -1)) !== 'RD')
+                .map(m => `${m.name}: ${getBaseShift(m, dayOf(m, -1))} on ${dayOf(m, -1).toDateString()}`);
+            assert.deepEqual(leaked, [], 'pre-start days must be RD:\n  ' + leaked.join('\n  '));
+        });
+
+        test('and suppression is doing work — at least one of those days is a shift on the roster', () => {
+            // Otherwise the test above would pass on a getBaseShift with no start-date rule at all.
+            const suppressed = joiners().filter(m => unsuppressed(m, dayOf(m, -1)) !== 'RD').map(m => m.name);
+            assert.ok(suppressed.length,
+                'every joiner is rostered off the day before they start, so the pre-start assertion '
+                + 'would hold with the suppression removed entirely');
+        });
+    });
+
+    // Constructed from the live roster rather than from a literal: pick a real member and a real
+    // date their pattern says they work, then make that date their start date. It asserts the same
+    // boundary as the sweep and cannot go vacuous while anybody on the roster works anything.
+    describe('a date made into a first day keeps its shift', () => {
+        /** First 2026 date for which `member`'s roster satisfies `want`, or null. */
+        const findDay = (member, want) => {
+            for (let i = 0; i < 400; i++) {
+                const date = new Date(2026, 0, 1 + i);
+                if (want(unsuppressed(member, date))) return date;
+            }
+            return null;
+        };
+
+        test('a worked turn is still a worked turn on the day it becomes a start date', () => {
+            const member = teamMembers.find(m => !m.hidden && !m.startDate && m.rosterType === 'main');
+            assert.ok(member, 'precondition: a main-roster member with no start date of their own');
+            const day = findDay(member, s => /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(s));
+            assert.ok(day, 'precondition: that member works at least one day in 2026');
+
+            const joiner = { ...member, startDate: new Date(day.getFullYear(), day.getMonth(), day.getDate()) };
+            assert.equal(getBaseShift(joiner, day), unsuppressed(member, day),
+                'the join day keeps its rostered turn');
+            assert.equal(getBaseShift(joiner, new Date(day.getFullYear(), day.getMonth(), day.getDate() - 1)), 'RD',
+                'the day before it is still suppressed');
+        });
+
+        test('and so is a SPARE day, which is the quietest version of the same loss', () => {
+            // SPARE → RD reads as one more rest day rather than as anything missing, so nothing on
+            // the calendar distinguishes it from a correct week.
+            const member = teamMembers.find(m => !m.hidden && !m.startDate && findDay(m, s => s === 'SPARE'));
+            assert.ok(member, 'precondition: some live pattern carries a SPARE day');
+            const day = findDay(member, s => s === 'SPARE');
+            const joiner = { ...member, startDate: new Date(day.getFullYear(), day.getMonth(), day.getDate()) };
+            assert.equal(getBaseShift(joiner, day), 'SPARE', 'a first day spent on standby is still a SPARE day');
+        });
+    });
+});
+
+// ── SPARE IS STANDBY, NOT WORK ─────────────────────────────────────────────────────────────────
+//
+// `isWorkedShift` is one expression naming five values, and it is the single source CLAUDE.md's
+// "isWorkedDay: false for RD, OFF, SPARE, AL, SICK" line describes. Two consumers read it and both
+// fail quietly when a value falls out of the set:
+//
+//   THE LIEU-DAY COUNT is the expensive one. A Dispatcher earns a day in lieu for each bank holiday
+//   they WORK; counting a standby day as worked credits a day that was never earned, and an
+//   entitlement one day high is a plausible number that books against, renders everywhere a real one
+//   would, and is only ever discovered by the year running out a day early.
+//
+//   THE CALENDAR RENDERER draws a SPARE day for a permanent-shift member as an early or late shift
+//   instead of standby — pinned next door in calendar-renderer.test.mjs, which since this sweep
+//   consumes the REAL predicate rather than a copy of it.
+//
+// The entitlement cases drive `getALEntitlement`, not the predicate: the rule being right is not the
+// same fact as the count asking it.
+describe('SPARE is standby, not work', () => {
+    const NOT_WORKED = ['RD', 'OFF', 'SPARE', 'AL', 'SICK'];
+    const WORKED     = ['RDW', '06:00-14:00', '21:00-05:00', 'TRG', 'TRG RDW 09:00-17:00'];
+    const dispatcher = () => ({ name: 'T. Test', role: 'Dispatcher', rosterType: 'dispatcher', currentWeek: 1 });
+    const AUG_BH = '2026-08-31';   // the late-August bank holiday — a Monday, so a normal rostered day
+    const onBH = (value, type) => [{ memberName: 'T. Test', date: AUG_BH, value, type, source: 'manual' }];
+
+    describe('never counts a day nobody worked', () => {
+        test('a standby bank holiday earns no day in lieu, where the same day worked earns one', () => {
+            const spare = getALEntitlement(dispatcher(), 2026, onBH('SPARE', 'spare_shift'));
+            const rdw   = getALEntitlement(dispatcher(), 2026, onBH('RDW', 'rdw'));
+            assert.equal(rdw - spare, 1,
+                'the same bank holiday worked and spent on standby must differ by exactly one lieu day');
+        });
+
+        test('and no other non-worked value counts either — one figure for the whole set', () => {
+            const spare = getALEntitlement(dispatcher(), 2026, onBH('SPARE', 'spare_shift'));
+            for (const value of NOT_WORKED) {
+                assert.equal(getALEntitlement(dispatcher(), 2026, onBH(value, 'shift')), spare,
+                    `${value} on a bank holiday must not earn a day in lieu`);
+            }
+        });
+
+        test('the predicate itself says so for every value in the set', () => {
+            for (const value of NOT_WORKED) {
+                assert.equal(isWorkedShift(value), false, `${value} is not a worked day`);
+            }
+        });
+    });
+
+    describe('and never loses a day that was', () => {
+        test('a rest day worked, a rostered turn and an Other day all count', () => {
+            for (const value of WORKED) {
+                assert.equal(isWorkedShift(value), true, `${value} is a worked day`);
+            }
+        });
+
+        test('the lieu count agrees — a worked bank holiday is one day up on standby', () => {
+            const spare = getALEntitlement(dispatcher(), 2026, onBH('SPARE', 'spare_shift'));
+            for (const value of ['RDW', '06:00-14:00']) {
+                assert.equal(getALEntitlement(dispatcher(), 2026, onBH(value, 'shift')), spare + 1,
+                    `${value} on a bank holiday earns a day in lieu`);
+            }
+        });
     });
 });

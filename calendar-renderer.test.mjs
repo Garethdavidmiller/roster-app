@@ -29,6 +29,21 @@ const FAKE_MEMBER = { name: 'G. Miller', currentWeek: 1, rosterType: 'main' };
 // Swappable so a test can exercise a rosterChanges transition member; getCurrentMember reads it live.
 let _member = FAKE_MEMBER;
 
+// ── The REAL worked-day predicate, reached past the mock below ────────────────
+//
+// `mock.module` keys on the resolved module URL, so `?real` is a different module and is NOT
+// intercepted — and this import runs BEFORE any mock is registered, so `roster-data.js` links
+// against the real `override-utils.js` rather than the stub further down.
+//
+// It matters because this entry used to be a hand-written COPY of the predicate, which made the
+// renderer's consumer blind to the real one BY CONSTRUCTION: deleting `'SPARE'` from
+// `roster-data.js` left all 71 tests here green (measured), while a SPARE day for a permanent-shift
+// member silently drew as an early or late shift. That is "a harness that discards is a harness
+// that cannot see" in its other shape — a harness that RESTATES. The remaining faithful copies in
+// this mock are copies because their originals are not reachable this way (`override-utils.js` is
+// itself mocked below, and a whole-module mock has no partial form); this one had no such excuse.
+const { isWorkedShift: realIsWorkedShift } = await import('./roster-data.js?real');
+
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
 mock.module('./roster-data.js', {
@@ -91,7 +106,7 @@ mock.module('./roster-data.js', {
         getBaseShift:         (m, d) => _mockGetBaseShift(m, d),
         formatISO:            d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
         isSunday:             dateStr => _mockIsSunday(dateStr),
-        isWorkedShift:        s => s !== 'RD' && s !== 'OFF' && s !== 'SPARE' && s !== 'AL' && s !== 'SICK',
+        isWorkedShift:        realIsWorkedShift,   // the REAL one — see the note above the mocks
         paydayForCutoff:      () => null,
         escapeHtml:           s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])),
     },
@@ -679,6 +694,44 @@ describe('buildCalendarContainer — shift classes', () => {
         const cell = getDayCell(container, 2);
         assert.ok(!cell?._classes.has('al-day'), 'override before startDate should be suppressed');
         assert.ok(cell?._classes.has('rest-day'), 'base class should be kept');
+    });
+
+    // THE CONSUMER OF `isWorkedShift`, WHICH IS WHY THAT MOCK ENTRY IS THE REAL FUNCTION.
+    // A permanent-shift member's worked days are forced to their one badge class; the guard that
+    // keeps standby, rest, leave and absence out of that branch is `isWorkedShift` alone. Drop a
+    // value from it and the cell silently gains `early-shift`/`late-shift` — a colour and a name
+    // that say the member is on duty. SPARE is the quiet one: it is the only value in the set with
+    // no override of its own on a normal roster week, so nothing else on the day contradicts it.
+    test('a SPARE day on a permanent-shift member draws as standby, not as their shift', () => {
+        _member = { name: 'G. Miller', currentWeek: 1, rosterType: 'main', permanentShift: 'early' };
+        _mockGetBaseShift = () => 'SPARE';
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.ok(cell?._classes.has('spare-day'), 'SPARE keeps its own class');
+        assert.ok(!cell?._classes.has('early-shift'),
+            'the permanent-shift branch is for WORKED days — standby is not one');
+        _member = FAKE_MEMBER;
+    });
+
+    test('and a rest day likewise — the same branch, the other end of the set', () => {
+        _member = { name: 'G. Miller', currentWeek: 1, rosterType: 'main', permanentShift: 'late' };
+        _mockGetBaseShift = () => 'RD';
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.ok(cell?._classes.has('rest-day'));
+        assert.ok(!cell?._classes.has('late-shift'));
+        _member = FAKE_MEMBER;
+    });
+
+    test('while a real turn DOES take the permanent-shift class', () => {
+        // Otherwise the two above would pass on a renderer that had lost the branch entirely.
+        // Deliberately `late` over an EARLY-classified time: `getShiftClass` answers 'early-shift'
+        // for any time value, so asserting 'early-shift' here passes with the branch gone — a
+        // tautology this test had on its first cut, found by mutating `isWorkedDay` to `false`.
+        // Only the permanent-shift branch can put 'late-shift' on a 06:00 turn.
+        _member = { name: 'G. Miller', currentWeek: 1, rosterType: 'main', permanentShift: 'late' };
+        _mockGetBaseShift = () => '06:00-14:00';
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.ok(cell?._classes.has('late-shift'), 'a worked day still follows the permanent shift');
+        _member = FAKE_MEMBER;
     });
 });
 
