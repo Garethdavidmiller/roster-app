@@ -362,6 +362,62 @@ describe('computeSL', () => {
     }
   });
 
+  // ── THE PENNY FLOOR ON THE THRESHOLD (the one line the payslip fixture cannot see) ───────────
+  //
+  // `const threshold = Math.floor(slPlan.t * 100) / 100` is the only statement in computeSL that
+  // the block above does not exercise, and the reason is an accident of whose payslips we hold:
+  // G. Miller is on Plan 1, and Plan 1's 2025/26 periodic threshold is 26065/13 = £2005.00 EXACTLY.
+  // Flooring an exact penny changes nothing, so every real-payslip assertion passes with the floor
+  // deleted. Seven of the nine plan/year thresholds in the table are NOT exact.
+  //
+  // What a wrong answer costs, and the two directions are not equal:
+  //   · WITHOUT the floor the raw 1/13th is a hair HIGHER than the published penny threshold, so the
+  //     excess is smaller and the deduction comes out £1 LOWER. That is the silent direction — a
+  //     pound a period, thirteen a year, on a figure the member has no way to check against
+  //     anything except a loan balance that will not match years later. Nothing on the page moves.
+  //   · WITH a floor applied one step too EARLY (on the excess, before the rate) the deduction comes
+  //     out £1 lower again on a different set of grosses — that is the withdrawn v17.04 method, and
+  //     it is already locked by the payslip regression above.
+  //
+  // The witness is DERIVED from the real table rather than written down, so an April threshold
+  // uprating moves it instead of breaking it.
+  test('the periodic threshold is floored to the PENNY — worth £1 a period on the plans that need it', () => {
+    for (const [label, plan] of [['2025/26', 'plan4'], ['2026/27', 'plan5'], ['2026/27', 'plan2']]) {
+      const cfg = getThresholds(label).sl[plan];
+      const floored = Math.floor(cfg.t * 100) / 100;
+      assert.ok(cfg.t - floored > 0, `${label} ${plan}: threshold is already an exact penny — this case proves nothing`);
+
+      // A gross whose excess over the PUBLISHED (floored) threshold prices at exactly £100 of
+      // repayment. Against the raw 1/13th the same gross falls a fraction short of £100.
+      const gross = floored + 100 / cfg.r;
+      assert.equal(computeSL(gross, plan, getThresholds(label).sl), 100,
+        `${label} ${plan}: the floored threshold must be the one used`);
+      assert.equal(Math.floor((gross - cfg.t) * cfg.r), 99,
+        `${label} ${plan}: without the floor this gross deducts a pound less — the case has teeth`);
+
+      // …and it is the PENNY, not the pound. A whole-pound floor on the threshold is the tidy-up
+      // that reads as harmless and deducts £1 too MUCH on the grosses just under a boundary, which
+      // is the direction a member notices and cannot explain. Swept rather than spot-checked: one
+      // witness per rounding variant would need a witness per variant nobody has thought of yet.
+      const toThePound = Math.floor(cfg.t);
+      assert.ok(floored - toThePound > 0, `${label} ${plan}: pound and penny floors coincide — the sweep proves nothing`);
+      for (let k = 1; k <= 40; k++) {
+        const g = floored + (k * 10 - 0.05) / cfg.r;
+        assert.equal(computeSL(g, plan, getThresholds(label).sl), Math.floor((g - floored) * cfg.r),
+          `${label} ${plan}: gross ${g.toFixed(2)} was priced off a threshold that is not the penny-floored one`);
+      }
+    }
+  });
+
+  test('and the floor never moves a plan whose threshold is already exact', () => {
+    // The other direction: it must not be a general downward nudge. Plan 1 in 2025/26 divides
+    // exactly, and its deduction is the one G. Miller's payslips confirm.
+    const cfg = T25.sl.plan1;
+    assert.equal(Math.floor(cfg.t * 100) / 100, cfg.t, 'Plan 1 2025/26 is no longer an exact penny — re-read this case');
+    const gross = cfg.t + 100 / cfg.r;
+    assert.equal(computeSL(gross, 'plan1', T25.sl), 100);
+  });
+
 });
 
 // ── computeTax ────────────────────────────────────────────────────────────────
