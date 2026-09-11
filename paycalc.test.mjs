@@ -591,6 +591,94 @@ describe('computeTax', () => {
     assert.ok(tax >= 0, 'tax should never be negative');
   });
 
+  // ── THE HALF-FILLED YEAR TO DATE PAIR ────────────────────────────────────────────────────────
+  //
+  // `calculate()` (paycalc-app.js) reads the two boxes INDEPENDENTLY, so "Taxable Pay typed, Tax
+  // Paid still blank" is an ordinary keystroke-by-keystroke state rather than an exotic one — the
+  // comment above that read says the guard exists for exactly it. The gate here is
+  // `ytdPay != null && ytdTax != null`; weaken the `&&` to `||` and the cumulative path runs with
+  // `ytdTax` null, `cumTaxDue - null` collapses to `cumTaxDue - 0`, and the WHOLE YEAR'S tax is
+  // charged in one period — then clipped by the reg-23 50% overriding limit, which is what makes
+  // the result look like a number instead of an error.
+  //
+  // The two directions cost differently, which is why both are pinned:
+  //   · Refusing the cumulative path when both figures ARE present costs a slightly rougher
+  //     estimate, and the card's own note states which method is in use.
+  //   · Taking it on half a pair understates take-home by four figures and says nothing at all.
+  //     Measured on the real payslips: on the 13 Feb 2026 one the mutation charges the whole
+  //     year's liability, clipped by the overriding limit to £2,594.42, against a true £1,108.40.
+  //
+  // Figures come from MILLER_ACTUALS and the year-to-date totals are SUMMED from it rather than
+  // written down, so a fixture correction flows through instead of being restated here.
+  describe('a half-filled Year to Date pair never engages the cumulative method', () => {
+    const ROWS = Object.values(MILLER_ACTUALS);
+    /** The year-to-date position a member would copy off payslip `n - 1`, for estimating `n`. */
+    const ytdBefore = (/** @type {number} */ n) => ({
+      ytdPay: ROWS.slice(0, n - 1).reduce((a, v) => a + v.gross, 0),
+      ytdTax: ROWS.slice(0, n - 1).reduce((a, v) => a + v.tax, 0),
+    });
+    const P1 = MILLER_ACTUALS['2025-04-11'];   // period 1 — the payslip the totals were copied from
+    const P2 = MILLER_ACTUALS['2025-05-09'];   // period 2 — the payslip being estimated
+
+    // The control. Without it the whole block would also pass on a computeTax that had simply
+    // stopped going cumulative at all, which is the careless fix for the cases below.
+    test('both figures present → cumulative (the positive control)', () => {
+      const { tax, usingCumulative } =
+        computeTax(P2.gross, '1257L', T25, { ytdPay: P1.gross, ytdTax: P1.tax, periodN: 2 });
+      assert.equal(usingCumulative, true, 'a complete pair must still sharpen the estimate');
+      approx(tax, P2.tax, 'cumulative tax lands on the real payslip figure', 5);
+    });
+
+    test('Taxable Pay typed, Tax Paid blank → non-cumulative, and NOT the 50% cap', () => {
+      const { tax, usingCumulative } =
+        computeTax(P2.gross, '1257L', T25, { ytdPay: P1.gross, ytdTax: null, periodN: 2 });
+      assert.equal(usingCumulative, false, 'half a pair is not a year-to-date position');
+      // Identical to having entered nothing: the figures are simply not usable yet.
+      const { tax: blank } = computeTax(P2.gross, '1257L', T25);
+      approx(tax, blank, 'half a pair must compute exactly as no pair does', 0.005);
+    });
+
+    test('late in the year, the half-filled pair does not charge the whole year at once', () => {
+      // The expensive shape, and the one the sweep measured. By February the year-to-date pay is
+      // ~£53k, so a cumulative recalc that subtracts nothing produces a five-figure liability —
+      // which the reg-23 overriding limit then clips to half the period's pay. That is what makes
+      // it dangerous rather than obviously broken: the member sees a plausible number.
+      const N = 12;                             // the 13 Feb 2026 payslip
+      const cur = ROWS[N - 1];
+      const { ytdPay } = ytdBefore(N);
+      const { tax, usingCumulative } =
+        computeTax(cur.gross, '1257L', T25, { ytdPay, ytdTax: null, periodN: N });
+      assert.equal(usingCumulative, false, 'half a pair is not a year-to-date position');
+      const { tax: blank } = computeTax(cur.gross, '1257L', T25);
+      approx(tax, blank, 'half a pair must compute exactly as no pair does', 0.005);
+      approx(tax, cur.tax, 'and that is the figure the real payslip carries', 1);
+      // The specific wrong answer, named: the overriding limit is what the broken gate returns,
+      // so asserting the DISTANCE from it separates "right" from "merely capped".
+      const overridingLimit = cur.gross * 0.5;
+      assert.ok(tax < overridingLimit - 1000,
+        `tax ${tax.toFixed(2)} must be nowhere near the 50% cap ${overridingLimit.toFixed(2)}`);
+    });
+
+    test('Tax Paid typed, Taxable Pay blank → non-cumulative too', () => {
+      // The mirror image, and the quieter one: a null ytdPay makes cumGross this period's pay
+      // alone, measured against several periods of free-pay allowance, so the tax comes out too
+      // LOW and the member is told they take home more than they will.
+      const { tax, usingCumulative } =
+        computeTax(P2.gross, '1257L', T25, { ytdPay: null, ytdTax: P1.tax, periodN: 2 });
+      assert.equal(usingCumulative, false, 'half a pair is not a year-to-date position');
+      const { tax: blank } = computeTax(P2.gross, '1257L', T25);
+      approx(tax, blank, 'half a pair must compute exactly as no pair does', 0.005);
+    });
+
+    test('a typed £0 is a FIGURE, not a blank — period 1 stays cumulative', () => {
+      // Why the gate tests `!= null` rather than falsiness: the first payslip of a tax year
+      // genuinely has £0 of year-to-date pay and £0 of tax collected, and that pair is complete.
+      const { usingCumulative } =
+        computeTax(P2.gross, '1257L', T25, { ytdPay: 0, ytdTax: 0, periodN: 1 });
+      assert.equal(usingCumulative, true, 'zero is an answer; blank is not');
+    });
+  });
+
   test('no YTD provided → non-cumulative even for standard code', () => {
     const { usingCumulative } = computeTax(1200, '1257L', T25);
     assert.equal(usingCumulative, false);
