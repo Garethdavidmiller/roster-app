@@ -142,6 +142,7 @@ function makeDb(seed = {}) {
 function build({
     adminResolves = true,
     pushAccepts = 1,
+    pushFail = null,
     seed = {},
     authFail = {},
     token = { admin: true, name: ADMIN },
@@ -211,6 +212,10 @@ function build({
         setupWebPush: () => {},
         sendTargetedPush: async (payload, uids, tag) => {
             sends.push({ payload, uids, tag });
+            // Injectable failure, the same seam `authFail` gives the Auth calls. The reset endpoint
+            // treats a push failure as a reportable stage rather than a failed reset, and that
+            // branch is unreachable from a fake that can only succeed.
+            if (pushFail) throw new Error(pushFail);
             // The REAL sendTargetedPush returns how many subscriptions accepted the message, and
             // the reset endpoint acts on that number. A fake returning undefined would make every
             // "did it record that the admin was reached?" assertion vacuous.
@@ -569,12 +574,27 @@ describe('setupRosterAuth previews leavers before it disables them', () => {
 });
 
 test('the module never reaches for a broadcast sender', () => {
-    // A static twin of the first case. The handler could acquire `fanOutPush` in a refactor that no
-    // behavioural test happens to exercise — an error path, a "no targets" fallback — and the cost
-    // of finding that out in production is a leak, so the import surface is pinned as well.
-    const src = readFileSync(new URL('./functions/auth-endpoints.js', import.meta.url), 'utf8');
+    // A static twin of the first case. The handler could acquire the broadcast sender in a refactor
+    // that no behavioural test happens to exercise — an error path, a "no targets" fallback — and
+    // the cost of finding that out in production is a leak, so the import surface is pinned too.
+    //
+    // COMMENTS ARE STRIPPED FIRST (v23.62), the rule `links-rotation-parity` and
+    // `card-header-parity` already apply for the same reason. Naming the forbidden sender is
+    // exactly how a module explains why it uses the other one, and this guard duly fired on the
+    // sentence "sendTargetedPush, never fanOutPush" in the reset endpoint's own header. A guard
+    // that punishes its own explanation gets satisfied by deleting the explanation — which is the
+    // one edit that makes the next reader likelier to reach for the wrong sender. The teeth belong
+    // in the CODE, so the code is what it reads.
+    //
+    // Trailing comments are stripped only where `//` is not preceded by `:`, so a URL in real code
+    // survives; the assertion below is the guard on the guard, because a strip that ate the whole
+    // file would pass this test while checking nothing at all.
+    const raw = readFileSync(new URL('./functions/auth-endpoints.js', import.meta.url), 'utf8');
+    const src = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(?<!:)\/\/[^\n]*/g, '');
+    assert.match(src, /sendTargetedPush\(/,
+        'the stripped source still holds the real call — otherwise this test guards nothing');
     assert.ok(!/fanOutPush/.test(src),
-        'auth-endpoints.js must not reference fanOutPush — this notification names one person');
+        'auth-endpoints.js must not reference fanOutPush — these notifications name one person');
 });
 
 
@@ -700,5 +720,105 @@ describe('getAccountSetupGaps — the provisioning audit', () => {
         assert.equal(out.code, 200);
         assert.equal(out.body.refused, 'no-accounts-visible');
         assert.deepEqual(out.body.setUp, []);
+    });
+});
+
+
+// ── THE MEMBER IS TOLD THEIR PASSWORD WAS RESET (v23.62, owner request) ─────────────────────────
+//
+// Organised by what a wrong answer COSTS, and the two directions are not symmetrical.
+//
+//   TOO WIDE is a leak and it is permanent. "G. Miller's password was reset" delivered to fifty
+//   lock screens cannot be recalled, and the notification rules pose exactly this test — "would I
+//   be happy for all 50 staff to read this?". The audience here is ONE uid, and it is the uid the
+//   handler already resolved to write the password, so the assertions pin the uid rather than
+//   merely counting the sends.
+//
+//   TOO LOUD is the other leak, and it is the one a reviewer's eye slides over: the payload must
+//   never carry the new credential. A push renders on a LOCK SCREEN, and this app's default is
+//   derived from a surname that is on the roster, so a body "helpfully" naming it would show the
+//   password to whoever picks the phone up.
+//
+//   NOT SENT costs the member an explanation — they are signed out with no idea why — but it must
+//   never cost them the reset. The credential has already changed by the time the push is
+//   attempted, so a transport failure that reported the whole call as failed would put the admin
+//   back in the v21.86 position: told nothing happened about an account that is now on the
+//   surname default.
+describe('resetMemberPassword tells the member, and only the member', () => {
+    const memberUid = `uid_${emailFor(MEMBER).split('@')[0]}`;
+
+    test('it pushes to the member\'s OWN uid — not the admin, and never everyone', async () => {
+        const { eps, sends } = build();
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+
+        assert.equal(out.code, 200);
+        assert.equal(sends.length, 1, 'exactly one send');
+        assert.deepEqual(sends[0].uids, [memberUid], 'the account being reset, and nothing else');
+        assert.ok(!sends[0].uids.includes(ADMIN_UID), 'the admin is not told about their own action');
+        assert.notEqual(sends[0].uids, 'EVERYONE',
+            'a broadcast would put "your password was reset" on fifty lock screens');
+    });
+
+    test('the payload NEVER carries the new password', async () => {
+        // The reset sets the surname default — 'springer' for this fixture, asserted by value in the
+        // block above. A lock screen is a public surface; the member needs to know it CHANGED and
+        // where to fix it, never what it changed to.
+        const { eps, sends } = build();
+        await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+        const { title, body } = sends[0].payload;
+        assert.doesNotMatch(`${title} ${body}`, /springer/i, 'no credential on the lock screen');
+        assert.doesNotMatch(`${title} ${body}`, /surname/i, 'nor the rule for deriving it');
+    });
+
+    test('it speaks the app\'s notification design language', async () => {
+        const { eps, sends } = build();
+        await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+        const { title, body, tag, url } = sends[0].payload;
+
+        assert.match(title, /^🔑 /, 'the leading feature emoji — the Settings Password card\'s own');
+        assert.equal(tag, 'password-reset', 'one stable tag, so a repeat replaces rather than stacks');
+        assert.ok(title.length <= 40, `title within the truncation budget (${title.length})`);
+        assert.ok(body.length <= 80, `body within the truncation budget (${body.length})`);
+        assert.doesNotMatch(`${title} ${body}`, /!/, 'calm and factual — no exclamation marks');
+        // The deep link lands on the card that fixes it, and the SW only re-bases pages on its own
+        // allowlist — a page missing from SAFE_NOTIFICATION_PAGES silently opens the app root.
+        assert.match(url, /\/settings\.html$/, 'lands on Settings, where the Password card lives');
+        const sw = readFileSync(new URL('./service-worker.js', import.meta.url), 'utf8');
+        assert.match(sw, /SAFE_NOTIFICATION_PAGES\s*=\s*\[[^\]]*'settings\.html'/,
+            'and settings.html is allowlisted, or the tap goes to the app root instead');
+    });
+
+    test('a push that THROWS does not report the reset as failed', async () => {
+        // Same rule as the revoke and stamp stages above it: past the password write, this endpoint
+        // reports what happened and never "nothing did".
+        const { eps, authOps, db } = build({ pushFail: 'push service down' });
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+
+        assert.equal(out.code, 200, 'the password change is irreversible — it is reported');
+        assert.equal(out.body.notified, false, 'and `notified` says plainly that nobody was reached');
+        assert.ok(authOps.some((o) => o.op === 'updateUser' && o.patch.password),
+            'the password really was rewritten');
+        assert.ok(db._dump('passwordStatus')[MEMBER].resetAt, 'and the stamp still ran');
+    });
+
+    test('`notified` reports what HAPPENED, not that a send was attempted', async () => {
+        // A member with no push subscription is the COMMON case, not an error — sendTargetedPush
+        // returns 0 and the admin needs that, because they are then the only route to telling them.
+        const { eps: none } = build({ pushAccepts: 0 });
+        const off = await call(none.resetMemberPassword, asAdmin({ member: MEMBER }));
+        assert.equal(off.body.notified, false, 'nobody accepted it');
+
+        const { eps: ok } = build({ pushAccepts: 2 });
+        const on = await call(ok.resetMemberPassword, asAdmin({ member: MEMBER }));
+        assert.equal(on.body.notified, true, 'at least one device took it');
+    });
+
+    test('a refused call notifies nobody', async () => {
+        // The ordering property the whole file exists for: "refuses with 403" must be
+        // indistinguishable from "never happened", and a push is externally visible.
+        const { eps, sends } = build({ token: { admin: false, name: MEMBER } });
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+        assert.equal(out.code, 403);
+        assert.equal(sends.length, 0, 'no notification for a reset that did not happen');
     });
 });
