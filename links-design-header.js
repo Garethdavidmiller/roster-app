@@ -50,8 +50,13 @@
  *    is the one ordering; the face, the picker sheet and the More sheet read it. It groups by
  *    `updatedBy`, which is LAST SAVED BY, not creator — a design moves group when a colleague saves
  *    it. That is a known wobble and the owner chose to live with it rather than add a `createdBy`
- *    field (a rules change, backend-first). If that field ever arrives, this is the one function to
- *    change. There is deliberately NO filter-by-designer step in front of the list: a two-step
+ *    field (a rules change, backend-first). **The LABELS now say that** (v23.66, external review):
+ *    they read "Last saved by you" / "Last saved by S. Silva", not "Your designs" / "S. Silva's
+ *    designs", because the old wording claimed OWNERSHIP the grouping cannot support — your own
+ *    design silently moved into a colleague's group the moment they saved it, and the heading then
+ *    stated something untrue about who it belongs to rather than something true about who touched
+ *    it last. The fix is the words, not the schema. If `createdBy` ever arrives, this is still the
+ *    one function to change — and the labels would go back to ownership, because then they could. There is deliberately NO filter-by-designer step in front of the list: a two-step
  *    picker costs a tap on every switch and buys nothing below a few dozen designs.
  *
  * 3. **An unsaved design has no name until its FIRST SAVE.** The generator used to hand every new
@@ -106,7 +111,7 @@ const NO_DESIGNER = '\u0000';
 /**
  * Group designs for the picker: the current user's own first, then other designers alphabetically,
  * newest save first within each group (a name tie-break keeps the order stable when dates match).
- * A design with no `updatedBy` is grouped under "Other designs" rather than dropped — a document
+ * A design with no `updatedBy` is grouped under "Last saver not recorded" rather than dropped — a document
  * the picker cannot show is a document nobody can open.
  *
  * @param {DesignEntry[]} designs
@@ -131,7 +136,9 @@ export function groupDesigns(designs, currentUser) {
         return a.localeCompare(b, 'en', { sensitivity: 'base' });
     });
     return keys.map(key => ({
-        label: key === me ? 'Your designs' : key === NO_DESIGNER ? 'Other designs' : `${key}'s designs`,
+        label: key === me ? 'Last saved by you'
+             : key === NO_DESIGNER ? 'Last saver not recorded'
+             : `Last saved by ${key}`,
         own: key === me,
         designs: /** @type {DesignEntry[]} */ (by.get(key)).slice().sort((x, y) => {
             const tx = toDate(x.updatedAt)?.getTime() ?? 0;

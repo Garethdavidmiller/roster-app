@@ -39,6 +39,11 @@
  * cell editor, whose control is a grid cell. The second is the first's own popup, lifted out
  * rather than copied, so there is still exactly one dropdown in this app.
  *
+ * A LONG SHEET EARNS A FILTER (v23.68). From 16 options the sheet grows a search box; below that
+ * it does not, because a four-item list is better without one. The rules, the threshold and the
+ * reasons — including why it is deliberately not `guide-search.js`, and why it never takes focus —
+ * are in the block above `SEARCH_FROM`, beside the code.
+ *
  * `createLightbox` is INJECTED rather than imported, for the reason links-design-header.js
  * injects it: `overlay.js` touches `window` at import, and a module that cannot load in Node
  * cannot have its readers unit-tested. The first caller to supply it wins and it is remembered,
@@ -152,10 +157,63 @@ function optionRow(/** @type {SheetOption} */ o, /** @type {boolean} */ current)
     return b;
 }
 
-/** @typedef {{ overlay: HTMLElement, lb: { open: () => void, close: () => (Promise<void>|void) }, title: HTMLElement, sub: HTMLElement, list: HTMLElement }} Sheet */
+/** @typedef {{ overlay: HTMLElement, lb: { open: () => void, close: () => (Promise<void>|void) }, title: HTMLElement, sub: HTMLElement, list: HTMLElement, search: HTMLElement, input: HTMLInputElement }} Sheet */
 /** The one sheet every enhanced select on a page shares. Built on first use.
  *  @type {Sheet|null} */
 let _sheet = null;
+/* ── FILTERING A LONG SHEET ──────────────────────────────────────────────────────────────────────
+   A four-row sheet is better without a search box; a ~50-name roster is materially worse without
+   one (external review, v23.68). So the box appears from `SEARCH_FROM` rows and not before, and
+   the threshold counts the OPTIONS, not the groups — a reader scrolling past fifty names does not
+   care that they were in three optgroups.
+
+   **It never takes focus, on any platform.** The review asked for no autofocus on mobile — a
+   keyboard covering the list the sheet just opened is worse than the scroll it saves — and the
+   same answer is taken for desktop rather than branching on pointer type, because this app's own
+   rule is that `hover`/`pointer` queries are unreliable on Android (CLAUDE.md) and a sheet that
+   sometimes grabs focus is harder to trust than one that never does. The list is browsable the
+   instant it opens, which is what it was before; the box is one tap away for anyone who wants it.
+
+   NOT `guide-search.js`. That module is a real search engine — tokenised, AND across terms, title
+   weighted over body, results ranked — because it answers a question across five documents. This
+   is a FILTER over a list already on screen: a substring, in order, with nothing ranked and
+   nothing dropped for relevance. Reusing the tokeniser would make "S. Sil" stop matching
+   "S. Silva" (a prefix on the LAST token only) and would reorder a roster somebody reads
+   alphabetically. Different question, deliberately different rule. */
+const SEARCH_FROM = 16;
+
+/** Lower-case and strip diacritics, so "B. Toth" is found by typing "toth" and by "tóth". */
+const fold = (/** @type {string} */ s) =>
+    String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
+/** Does a sheet of this many options get a search box? @param {number} count */
+export function shouldOfferSearch(count) { return count >= SEARCH_FROM; }
+
+/**
+ * A row matches if the typed text appears in its label OR its second line. Both, because the
+ * meta is where a grade or a date lives and "dispatcher" is a reasonable thing to type.
+ * @param {SheetOption} option @param {string} query
+ */
+export function optionMatches(option, query) {
+    const q = fold(query);
+    if (!q) return true;
+    return fold(option.label).includes(q) || fold(option.meta).includes(q);
+}
+
+/**
+ * Filter the grouped shape, dropping groups that keep nothing. A group heading over no rows reads
+ * as a section that failed to draw — the same rule the Overtime manager states about its empty
+ * sections, arrived at from the other side: there, an empty section is MEANINGFUL and must render;
+ * here it means only "nothing in this group matched what you typed" and carries nothing.
+ * @param {SheetGroup[]} groups @param {string} query @returns {SheetGroup[]}
+ */
+export function filterGroups(groups, query) {
+    if (!fold(query)) return groups;
+    return (groups || [])
+        .map(g => ({ ...g, options: (g.options || []).filter(o => optionMatches(o, query)) }))
+        .filter(g => g.options.length > 0);
+}
+
 function ensureSheet() {
     if (_sheet) return _sheet;
     if (!_createLightbox) return null;   // no factory, no sheet — the trigger simply does nothing
@@ -176,13 +234,26 @@ function ensureSheet() {
     const title = document.createElement('b');
     const sub = document.createElement('span');
     head.append(title, sub);
+    const search = document.createElement('div');
+    search.className = 'picker-search';
+    search.hidden = true;
+    // `type="search"` for the iOS keyboard's Search key; the OS clear button it brings with it is
+    // suppressed in shared.css, exactly as `.nav-gs-input` already does for the drawer's box.
+    const input = document.createElement('input');
+    input.type = 'search';
+    input.className = 'picker-search-input';
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    input.setAttribute('autocapitalize', 'none');
+    input.setAttribute('autocorrect', 'off');
+    search.appendChild(input);
     const list = document.createElement('div');
     list.className = 'picker-list';
-    content.append(close, head, list);
+    content.append(close, head, search, list);
     overlay.appendChild(content);
     document.body.appendChild(overlay);
     const lb = _createLightbox({ overlay, content, closeBtn: close });
-    _sheet = { overlay, lb, title, sub, list };
+    _sheet = { overlay, lb, title, sub, list, search, input };
     return _sheet;
 }
 
@@ -317,6 +388,7 @@ export function enhanceSelect(select, opts = {}) {
  * repaint its control while the sheet fades. Neither is called when the sheet is dismissed — a
  * cancel is not a pick.
  * @param {{ title: string, groups: SheetGroup[], current?: string, subtitle?: string,
+ *           searchPlaceholder?: string,
  *           onPick: (value: string) => void, onPreview?: (value: string) => void,
  *           createLightbox?: (opts: any) => { open: () => void, close: () => (Promise<void>|void) } }} opts
  */
@@ -329,30 +401,55 @@ export function openOptionSheet(opts) {
     sheet.title.textContent = title;
     const groups = opts.groups || [];
     const count = groups.reduce((n, g) => n + g.options.length, 0);
-    sheet.sub.textContent = opts.subtitle
-        || (count === 1 ? '1 option' : `${count} options`);
-    sheet.list.textContent = '';
-    for (const g of groups) {
-        const wrap = document.createElement('div');
-        wrap.className = 'picker-group';
-        if (g.label) {
-            wrap.setAttribute('role', 'group');
-            wrap.setAttribute('aria-label', g.label);
-            const h = document.createElement('div');
-            h.className = 'picker-group-label';
-            h.setAttribute('aria-hidden', 'true');
-            h.textContent = g.label;
-            wrap.appendChild(h);
+    const searchable = shouldOfferSearch(count);
+
+    /** Paint the list for the current query. Runs on open and on every keystroke. */
+    const paint = (/** @type {string} */ query) => {
+        const shown = filterGroups(groups, query);
+        const showing = shown.reduce((n, g) => n + g.options.length, 0);
+        sheet.sub.textContent = query.trim()
+            ? `${showing} of ${count}`
+            : (opts.subtitle || (count === 1 ? '1 option' : `${count} options`));
+        sheet.list.textContent = '';
+        for (const g of shown) {
+            const wrap = document.createElement('div');
+            wrap.className = 'picker-group';
+            if (g.label) {
+                wrap.setAttribute('role', 'group');
+                wrap.setAttribute('aria-label', g.label);
+                const h = document.createElement('div');
+                h.className = 'picker-group-label';
+                h.setAttribute('aria-hidden', 'true');
+                h.textContent = g.label;
+                wrap.appendChild(h);
+            }
+            for (const o of g.options) wrap.appendChild(optionRow(o, o.value === opts.current));
+            sheet.list.appendChild(wrap);
         }
-        for (const o of g.options) wrap.appendChild(optionRow(o, o.value === opts.current));
-        sheet.list.appendChild(wrap);
-    }
-    if (!count) {
-        const empty = document.createElement('p');
-        empty.className = 'picker-empty';
-        empty.textContent = 'Nothing to choose from yet.';
-        sheet.list.appendChild(empty);
-    }
+        if (!showing) {
+            const empty = document.createElement('p');
+            empty.className = 'picker-empty';
+            // The two empty states are DIFFERENT FACTS and must not share a sentence: one says the
+            // control has nothing to offer, the other that your text matched none of what it has.
+            // Collapsing them would tell a member searching a full roster that it is empty.
+            empty.textContent = query.trim()
+                ? `No match for \u201C${query.trim()}\u201D.`
+                : 'Nothing to choose from yet.';
+            sheet.list.appendChild(empty);
+        }
+    };
+
+    sheet.search.hidden = !searchable;
+    sheet.input.value = '';
+    sheet.input.placeholder = opts.searchPlaceholder || 'Search\u2026';
+    // A placeholder is not a label — it is the field's own content, and it disappears the moment
+    // anything is typed. The name says WHAT is being filtered, because a screen-reader user meets
+    // this control without the heading above it in view.
+    sheet.input.setAttribute('aria-label', `Search ${title.toLowerCase()}`);
+    // Rebound on every open, and `oninput` rather than addEventListener so a sheet opened by a
+    // different control can never still be filtered by the previous one's handler.
+    sheet.input.oninput = searchable ? () => paint(sheet.input.value) : null;
+    paint('');
     sheet.list.onclick = (/** @type {any} */ ev) => {
         const row = ev.target?.closest?.('.picker-opt[data-value]');
         if (!row || row.disabled) return;

@@ -615,6 +615,87 @@ input[type="checkbox"]:disabled:indeterminate { background-color: var(--check-fi
     }
 }
 
+/* WINDOWS HIGH CONTRAST — the one environment where drawing our own box LOSES information.
+
+   MEASURED, not reasoned (v23.67, external review). Under `forced-colors: active` the UA replaces
+   author colours with the user's theme: a background becomes `Canvas`, a border `CanvasText`. Our
+   box's checked fill is a background and the tick's `::before` is ALSO a background, so both were
+   forced to Canvas — a white tick on a white fill inside a black border. Decoding the painted
+   pixels of a 20px box, checked and unchecked came back with the SAME colours in the SAME counts
+   (255,255,255 x248 · 0,0,0 x92). Not merely low contrast: the checked state was not drawn at all,
+   on all twenty-five of these controls, five of which pick which PAY figure the calculator shows.
+
+   Nothing could see it. `getComputedStyle` returns the AUTHOR value — the forcing happens at paint
+   time — so a style assertion reads back our navy and reports it correct; the visual baselines are
+   captured with forced colours off; and axe has no rule for it. Only rendering under the emulation
+   and reading the pixels says anything, which is what `forced-colors.spec.js` now does.
+
+   Every colour below is a SYSTEM colour, so this is not an opt-OUT of the reader's theme: it still
+   resolves to whatever theme they chose. It states the distinction IN their palette rather than
+   letting a blanket substitution erase it.
+
+   **`forced-color-adjust: none` is belt-and-braces, and it was MEASURED rather than assumed.**
+   Removing it changes nothing in Chromium today — system colours survive the forcing — so the
+   first draft of this comment was wrong to call it load-bearing. It is kept because it makes the
+   result independent of whether an engine substitutes a system colour for a system colour, which
+   is the one thing here that is not worth discovering from a staff report. Know what it costs:
+   it also stops `box-shadow` being forced away, which is why the focus rule below has to remove
+   the brand ring by hand. If it ever goes, that line goes with it.
+
+   Three things that ARE load-bearing, each pinned by native-surface-parity contract 13:
+   - **The tick is `HighlightText` and the fill `Highlight`** — that pair is guaranteed to contrast
+     in every theme. `white` would be a literal and would vanish on a light theme.
+   - **`opacity` is NOT forced**, so the disabled rule's 0.55 survives into a high-contrast theme
+     and mutes exactly the person who asked for more contrast. It is reset to 1 here, and disabled
+     state is carried by `GrayText` instead — which is what that colour is for.
+   - **A `var(--…)` anywhere in this block defeats it** — a brand colour would be painted over the
+     reader's theme, which is the failure this block exists to prevent, arrived at from the other
+     side. */
+@media (forced-colors: active) {
+    input[type="checkbox"],
+    input[type="radio"] {
+        forced-color-adjust: none;
+        background-color: Canvas;
+        border-color: CanvasText;
+    }
+    input[type="checkbox"]::before,
+    input[type="radio"]::before { background-color: HighlightText; }
+
+    input[type="checkbox"]:checked,
+    input[type="radio"]:checked,
+    input[type="checkbox"]:indeterminate {
+        background-color: Highlight;
+        border-color: Highlight;
+    }
+
+    input[type="checkbox"]:not(:checked):not(:disabled):hover,
+    input[type="radio"]:not(:checked):not(:disabled):hover { border-color: Highlight; }
+
+    /* Disabled is a GREYED TICK, not a grey block: the answer stays readable while the control
+       says it cannot be changed. A block would hide which way it was set. */
+    input[type="checkbox"]:disabled,
+    input[type="radio"]:disabled {
+        background-color: Canvas;
+        border-color: GrayText;
+        opacity: 1;
+    }
+    input[type="checkbox"]:disabled:checked,
+    input[type="radio"]:disabled:checked,
+    input[type="checkbox"]:disabled:indeterminate {
+        background-color: Canvas;
+        border-color: GrayText;
+    }
+    input[type="checkbox"]:disabled::before,
+    input[type="radio"]:disabled::before { background-color: GrayText; }
+
+    input[type="checkbox"]:focus-visible,
+    input[type="radio"]:focus-visible {
+        outline: 2px solid CanvasText;
+        outline-offset: 2px;
+        box-shadow: none;
+    }
+}
+
 /* ============================================================
    THE PASSWORD FIELD'S OWN BUTTONS (v23.51)
    ============================================================
@@ -1314,6 +1395,48 @@ button.lightbox-bug-link {
 .picker-head { padding: 12px 40px 12px 12px; border-bottom: 1px solid var(--border-light); }
 .picker-head b    { display: block; font-size: var(--type-medium); font-weight: 800; color: var(--primary-blue); letter-spacing: -0.2px; }
 .picker-head span { display: block; font-size: var(--type-small); color: var(--text-mid); margin-top: 2px; }
+/* THE FILTER ON A LONG SHEET (v23.68, external review). Only rendered from `SEARCH_FROM` options —
+   `select-sheet.js` owns that threshold and the reason for it.
+
+   STICKY, and that is the whole point of it: the box exists for a ~50-name roster, and one that
+   scrolls away at row six is one you have to scroll back up to use. `.picker-sheet` is the scroll
+   container (it carries the `max-height` and `overflow-y`), so `top: 0` resolves against it.
+
+   The head drops its own rule while the box is showing — two hairlines 50px apart read as a
+   mis-drawn box rather than as two sections. */
+.picker-head:has(+ .picker-search:not([hidden])) { border-bottom: 0; }
+.picker-search {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: white;
+    padding: 4px 12px 10px;
+    border-bottom: 1px solid var(--border-light);
+}
+.picker-search-input {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 44px;
+    padding: 10px 12px;
+    font-family: inherit;
+    /* Never below 16px on a focusable field — iOS zooms the page on focus otherwise, and this one
+       is focused from inside a modal sheet, where a zoom is especially disorienting. */
+    font-size: var(--type-body);
+    color: var(--text-dark);
+    background-color: var(--field-bg);
+    border: 2px solid var(--border-mid);
+    border-radius: var(--radius-md);
+    transition: background-color var(--dur-fast) var(--ease-standard),
+                border-color     var(--dur-fast) var(--ease-standard);
+}
+.picker-search-input::placeholder { color: var(--text-light); }
+.picker-search-input:focus { background-color: white; border-color: var(--primary-blue); }
+.picker-search-input:focus-visible { outline: var(--focus-outline); outline-offset: 1px; }
+/* The OS clear button, suppressed exactly as `.nav-gs-input` does — `type="search"` is kept for
+   the iOS keyboard's Search key, not for the widget the engine draws with it. */
+.picker-search-input::-webkit-search-cancel-button,
+.picker-search-input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
+
 .picker-list { display: grid; gap: 2px; padding: 4px 0 0; }
 .picker-group + .picker-group { margin-top: 10px; }
 .picker-group-label { font-size: var(--type-badge); font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-light); padding: 8px 12px 4px; }

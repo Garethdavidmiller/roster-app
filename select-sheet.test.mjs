@@ -19,7 +19,8 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { readGroups, triggerLabel, widestOptionLabel } from './select-sheet.js';
+import { readGroups, triggerLabel, widestOptionLabel,
+         shouldOfferSearch, optionMatches, filterGroups } from './select-sheet.js';
 
 /** A fake `<select>`; `children` is what readGroups walks, `options`/`selectedIndex` what the face reads. */
 function fakeSelect(spec) {
@@ -157,5 +158,78 @@ describe('widestOptionLabel — what the trigger is sized to', () => {
             { group: 'CEA', options: [{ value: 'b', label: 'R. Forrester-Blackstock' }] },
         ]);
         assert.equal(widestOptionLabel(sel), 'R. Forrester-Blackstock');
+    });
+});
+
+// ── THE FILTER ON A LONG SHEET (v23.68) ─────────────────────────────────────────────────────────
+// Organised by cost, and the directions are not symmetrical. HIDING A ROW THAT MATCHES is the
+// expensive one and it is silent: the reader types three letters of their own name, does not see
+// it, and concludes they are not on the roster — from a control whose whole job is to find them.
+// SHOWING A ROW THAT DOES NOT match only costs a glance.
+describe('filtering a long sheet — hiding a row that matches is the expensive direction', () => {
+    const ROSTER = [
+        { label: 'CEA', options: [
+            { value: '1', label: 'G. Miller',  meta: 'CEA',        disabled: false },
+            { value: '2', label: 'B. Toth',    meta: 'CEA',        disabled: false },
+            { value: '3', label: 'S. Faure',   meta: 'CEA',        disabled: false },
+        ] },
+        { label: 'Dispatcher', options: [
+            { value: '4', label: 'M. Robson',  meta: 'Dispatcher', disabled: false },
+        ] },
+    ];
+
+    test('a substring anywhere in the name finds it — not just the start', () => {
+        // "Miller" is the review's own example, and a reader types what they remember. A
+        // starts-with rule would fail every surname in a roster written "G. Miller".
+        assert.deepEqual(filterGroups(ROSTER, 'mill').flatMap(g => g.options.map(o => o.label)),
+            ['G. Miller']);
+        assert.deepEqual(filterGroups(ROSTER, 'G.').flatMap(g => g.options.map(o => o.label)),
+            ['G. Miller']);
+    });
+
+    test('case and accents are folded, so a name is found however it is typed', () => {
+        assert.equal(optionMatches({ value: '2', label: 'B. Toth', meta: 'CEA', disabled: false }, 'TÓTH'), true);
+        assert.equal(optionMatches({ value: '3', label: 'S. Faure', meta: '', disabled: false }, 'faure'), true);
+    });
+
+    test('the SECOND LINE is searched too — a grade is a reasonable thing to type', () => {
+        assert.deepEqual(filterGroups(ROSTER, 'dispatch').flatMap(g => g.options.map(o => o.label)),
+            ['M. Robson']);
+    });
+
+    test('an empty or whitespace query hides NOTHING, and returns the list unchanged', () => {
+        // The identity is asserted, not merely the length: a filter that rebuilt the groups on an
+        // empty query would drop `disabled` or a group label and nothing would say so.
+        assert.equal(filterGroups(ROSTER, ''), ROSTER);
+        assert.equal(filterGroups(ROSTER, '   '), ROSTER);
+    });
+
+    test('a group that keeps nothing is dropped, heading and all', () => {
+        // A heading over no rows reads as a section that failed to draw.
+        const out = filterGroups(ROSTER, 'robson');
+        assert.deepEqual(out.map(g => g.label), ['Dispatcher']);
+    });
+
+    test('a disabled row is still findable — it is shown, so it must be searchable', () => {
+        const groups = [{ label: '', options: [
+            { value: 'x', label: 'C. Reen', meta: '', disabled: true },
+        ] }];
+        assert.equal(filterGroups(groups, 'reen')[0].options[0].disabled, true);
+    });
+
+    test('no match returns an empty LIST, never the unfiltered one', () => {
+        // Falling back to everything is the plausible-looking bug: it reads as "search is broken"
+        // rather than "nobody matched", and the reader picks the wrong person from a list they
+        // believe is filtered.
+        assert.deepEqual(filterGroups(ROSTER, 'zzzz'), []);
+    });
+
+    test('the box appears for a roster and not for a four-item control', () => {
+        // The review's line: a four-item selector is great as-is; ~50 names is not. The boundary
+        // is pinned on BOTH sides so a change to it is deliberate.
+        assert.equal(shouldOfferSearch(4), false);
+        assert.equal(shouldOfferSearch(15), false);
+        assert.equal(shouldOfferSearch(16), true);
+        assert.equal(shouldOfferSearch(50), true);
     });
 });
