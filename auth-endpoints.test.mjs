@@ -44,6 +44,31 @@
  * Every test drives the REAL handler against a fake Firestore, a fake Auth and a recording push
  * transport, so what it asserts is what production would send — and every fake RECORDS rather than
  * discards, because a harness that throws the payload away cannot see the defect it exists for.
+ *
+ * ── WHAT A MUTATION SWEEP FOUND AFTERWARDS, AND WHY THE GAPS WERE THE SHAPE THEY WERE ───────────
+ *
+ * Three guards in this module could be deleted with every lane green (Sep 2026). None was a rule
+ * nobody had thought about; each was a rule this file had thought about for ONE caller.
+ *
+ *  · **The server-roster check on `requestPasswordReset`.** The suite called the app's only
+ *    unauthenticated endpoint ten times and never once with a name off the roster — while its
+ *    authenticated sibling `resetMemberPassword` had carried that exact case from the start. The
+ *    asymmetry was backwards: the same guard is worth more on the door with no lock, because it is
+ *    both the bound on a shared collection and the injection boundary for a string that is rendered
+ *    into the admin's card and into a push headline.
+ *  · **`checkRevoked`, on three of four admin endpoints.** It was asserted on
+ *    `resetMemberPassword` alone, so the other three could verify the signature only and stay
+ *    green — including `setupRosterAuth`, where a revoked admin's remaining hour is enough to
+ *    re-stamp every claim tier and disable colleagues' accounts. It is now a loop, and each failure
+ *    message names the endpoint.
+ *  · **The two server-config refusals in `setupRosterAuth`.** The block only ever built the real,
+ *    healthy roster, so a broken one was unreachable and both refusals were unprotected. The fakes
+ *    now reach that: `rosterJson` stubs `roster-members.json` in require.cache before the module
+ *    loads, and `tokenRevoked` models a token that verifies by signature and fails only when asked.
+ *
+ * The common shape is worth naming, because it is not "an untested line". It is a guard tested
+ * through one of its callers and assumed to be covered for the rest — which reads, from the test
+ * file, exactly like coverage.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -137,6 +162,15 @@ function makeDb(seed = {}) {
  * @param {object}  o.seed           starting Firestore contents, by collection
  * @param {object}  o.authFail       force one Auth call to throw, e.g. { setCustomUserClaims: 'boom' }
  * @param {object}  o.token          what verifyIdToken resolves to (null → it throws, i.e. no token)
+ * @param {boolean} o.tokenRevoked  the admin's access has been pulled but their cached token is
+ *                                  still inside its hour. It verifies perfectly by SIGNATURE and
+ *                                  fails only when the handler asks for the revocation check —
+ *                                  which is the whole property, and is invisible to a fake that
+ *                                  simply refuses the token
+ * @param {object}  o.rosterJson     stand in for functions/roster-members.json, to reach the two
+ *                                  server-config refusals (`empty-admin`, `missing-active-members`).
+ *                                  The module requires it at LOAD time, so the stub has to enter
+ *                                  require.cache before auth-endpoints.js does
  * @param {object[]} o.existingUsers accounts that already exist, for listUsers / already-exists
  */
 function build({
@@ -146,6 +180,8 @@ function build({
     seed = {},
     authFail = {},
     token = { admin: true, name: ADMIN },
+    tokenRevoked = false,
+    rosterJson = null,
     existingUsers = null,
 } = {}) {
     const sends = [];
@@ -166,6 +202,13 @@ function build({
         verifyIdToken: async (bearer, checkRevoked) => {
             authOps.push({ op: 'verifyIdToken', bearer, checkRevoked });
             if (!token) throw new Error('no token');
+            // Modelled on the real SDK, and the modelling is the point: a revoked token is still a
+            // VALID token. It fails only when the second argument asks it to, so a handler that
+            // dropped the flag would be served an admin whose access was pulled an hour ago — and
+            // a fake that simply refused the token could never show that.
+            if (tokenRevoked && checkRevoked) {
+                const e = new Error('revoked'); e.code = 'auth/id-token-revoked'; throw e;
+            }
             return token;
         },
         getUserByEmail: async (email) => {
@@ -225,6 +268,11 @@ function build({
         // assertion, rather than throwing an import error that reads like a broken test.
         fanOutPush: async (payload) => { sends.push({ payload, uids: 'EVERYONE' }); return 0; },
     } };
+    // The server-owned roster, stubbed only where a test needs a BROKEN one. The cache entry is
+    // always cleared first, so one test's broken config cannot leak into the next build.
+    const rosterPath = require.resolve('./functions/roster-members.json');
+    delete require.cache[rosterPath];
+    if (rosterJson) stub(rosterPath, rosterJson);
     delete require.cache[require.resolve('./functions/auth-endpoints.js')];
     const { buildAuthEndpoints } = require('./functions/auth-endpoints.js');
     const eps = buildAuthEndpoints({
@@ -261,6 +309,10 @@ const reqWith = (body, headers = {}) => ({
 });
 const reqFor = (member) => reqWith({ member });
 const asAdmin = (body) => reqWith(body, { authorization: 'Bearer tok' });
+/** The same bearer, on the two endpoints that are pure GET reads. */
+const getAsAdmin = () => ({ ...reqWith(undefined, { authorization: 'Bearer tok' }), method: 'GET' });
+/** Anything that would CHANGE an account. verifyIdToken is a read and is expected everywhere. */
+const AUTH_MUTATIONS = ['createUser', 'updateUser', 'setCustomUserClaims', 'revokeRefreshTokens'];
 
 /** Run one endpoint and give back its status + body. */
 async function call(ep, req) {
@@ -301,6 +353,64 @@ describe('the reset request tells the ADMIN, and only the admin', () => {
         const { eps, sends } = build({ seed: { resetRequests: { [MEMBER]: { requestedAt: { toMillis: () => NOW } } } } });
         await call(eps.requestPasswordReset, reqFor(MEMBER));
         assert.equal(sends.length, 0);
+    });
+});
+
+// ── THE PUBLIC DOORBELL ONLY RINGS FOR NAMES ON THE SERVER ROSTER ──────────────────────────────
+//
+// `requestPasswordReset` is the app's ONLY unauthenticated endpoint: anybody who can reach the URL
+// can POST to it, with any body. One line stands between that and an attacker-chosen string, and it
+// is doing two jobs at once — it bounds a shared collection to the ~50 names on the roster, and it
+// is the INJECTION BOUNDARY for a value that is then rendered into the admin's Operations card and
+// into a push HEADLINE on their lock screen. The module states it in those terms: the name "came
+// from OUR list, never the request body".
+//
+// Nothing tested it. The suite called this endpoint ten times and never once with a name off the
+// roster, so deleting the check left both lanes green — while its AUTHENTICATED sibling
+// `resetMemberPassword` has carried exactly this case ('Z. Nobody' → 404) since the file was
+// written. The asymmetry was backwards: the guard matters more on the door with no lock.
+describe('the public reset request refuses a name the SERVER roster does not know', () => {
+    test('an unknown name is refused, and nothing is written or sent', async () => {
+        const { eps, db, sends } = build();
+        const out = await call(eps.requestPasswordReset, reqFor('Z. Nobody'));
+
+        assert.equal(out.code, 404);
+        assert.deepEqual(db._dump('resetRequests'), {},
+            'no row under a name the admin could not act on even if they wanted to');
+        assert.equal(sends.length, 0,
+            'and the admin phone is not rung about somebody who does not exist');
+    });
+
+    test('a name shaped like markup never reaches the queue', async () => {
+        // The card renders the name and the push carries it in a headline. Refusing at the door is
+        // what makes the value downstream a roster name rather than a string somebody chose, which
+        // is the property every consumer of that field relies on without checking.
+        const { eps, db } = build();
+        const out = await call(eps.requestPasswordReset, reqFor('<img src=x onerror=alert(1)>'));
+
+        assert.equal(out.code, 404);
+        assert.deepEqual(Object.keys(db._dump('resetRequests')), []);
+    });
+
+    test('a name carrying a path separator never becomes a document id', async () => {
+        // The member name IS the document id. A value with a slash in it is not a document at that
+        // path — in real Firestore it is a different collection depth entirely, and the write fails
+        // in a way nothing here would report. It never gets that far.
+        const { eps, db } = build();
+        const out = await call(eps.requestPasswordReset, reqFor('a/b/c'));
+
+        assert.equal(out.code, 404);
+        assert.deepEqual(Object.keys(db._dump('resetRequests')), []);
+    });
+
+    test('a real roster name in the same shape still works', async () => {
+        // The guard on the guard. All three refusals above would pass just as well if the endpoint
+        // had simply stopped recording anything at all.
+        const { eps, db } = build();
+        const out = await call(eps.requestPasswordReset, reqFor(MEMBER));
+
+        assert.equal(out.code, 200);
+        assert.deepEqual(Object.keys(db._dump('resetRequests')), [MEMBER]);
     });
 });
 
@@ -386,15 +496,9 @@ describe('resetMemberPassword refuses BEFORE it writes', () => {
         assert.deepEqual(passwordWrites(authOps), []);
     });
 
-    test('the token is checked for REVOCATION, not merely for signature', async () => {
-        // A disabled admin's cached ID token stays cryptographically valid for up to an hour.
-        // checkRevoked is the difference between "was an admin" and "is an admin", on the one
-        // endpoint that can hand somebody else's account a guessable password.
-        const { eps, authOps } = build();
-        await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
-        const verify = authOps.find((o) => o.op === 'verifyIdToken');
-        assert.equal(verify.checkRevoked, true);
-    });
+    // The REVOCATION check used to be tested here, on this endpoint alone. It now runs as a loop
+    // over all four admin endpoints — see "every admin endpoint checks the token for REVOCATION"
+    // below, and its header for what the other three were quietly free to do without it.
 
     test('a member the SERVER roster does not know is refused, whatever the body says', async () => {
         // B4: the target list is server-owned. A client-supplied name reaching updateUser would let
@@ -403,6 +507,72 @@ describe('resetMemberPassword refuses BEFORE it writes', () => {
         const out = await call(eps.resetMemberPassword, asAdmin({ member: 'Z. Nobody' }));
         assert.equal(out.code, 404);
         assert.deepEqual(passwordWrites(authOps), []);
+    });
+});
+
+// ── EVERY ADMIN ENDPOINT CHECKS THE TOKEN FOR REVOCATION, NOT MERELY FOR SIGNATURE ─────────────
+//
+// A disabled or revoked admin's cached ID token stays cryptographically VALID for up to an hour.
+// `checkRevoked` is the whole difference between "was an admin" and "is an admin", and what that
+// hour buys is not the same on each of the four endpoints:
+//
+//   · `setupRosterAuth` is the worst of them. Inside that window a revoked admin can re-stamp every
+//     claim tier on the roster AND run the leaver sweep (`removeOrphans` + `confirmOrphanRemoval`)
+//     — disabling colleagues' accounts after their own access was pulled. The code comment at that
+//     call site says exactly this, and nothing was holding it to it.
+//   · `resetMemberPassword` hands somebody else's account a guessable password.
+//   · `getSignInStats` and `getAccountSetupGaps` leak provisioning state, and the second one NAMES.
+//
+// This was one test on one endpoint. Dropping the flag on the other three left every lane green, so
+// it is a LOOP, and each failure message names which endpoint let a revoked admin through.
+//
+// Two assertions per endpoint, because they fail in different ways. The first is the flag itself;
+// the second drives a genuinely revoked admin through the real handler and asserts the refusal —
+// which is what the flag is FOR, and the only half that would survive somebody deciding the
+// revocation check belonged somewhere else.
+describe('every admin endpoint checks the token for REVOCATION, not merely for signature', () => {
+    const ADMIN_ENDPOINTS = [
+        { name: 'setupRosterAuth',     run: (eps) => call(eps.setupRosterAuth, asAdmin({})) },
+        { name: 'resetMemberPassword', run: (eps) => call(eps.resetMemberPassword, asAdmin({ member: MEMBER })) },
+        { name: 'getSignInStats',      run: (eps) => call(eps.getSignInStats, getAsAdmin()) },
+        { name: 'getAccountSetupGaps', run: (eps) => call(eps.getAccountSetupGaps, getAsAdmin()) },
+    ];
+
+    for (const { name, run } of ADMIN_ENDPOINTS) {
+        test(`${name} asks Firebase to check revocation`, async () => {
+            const { eps, authOps } = build();
+            await run(eps);
+            const verify = authOps.find((o) => o.op === 'verifyIdToken');
+            assert.ok(verify, `${name} never verified a token at all`);
+            assert.equal(verify.checkRevoked, true,
+                `${name} verified the SIGNATURE only — a revoked admin keeps it for up to an hour`);
+        });
+
+        test(`${name} refuses a revoked admin, and changes nothing on the way`, async () => {
+            // The token is perfectly valid; only its owner's access is gone. An endpoint that
+            // dropped the flag would be served the admin claim here and do the whole job.
+            const { eps, authOps } = build({ tokenRevoked: true });
+            const out = await run(eps);
+
+            assert.equal(out.code, 401, `${name} served a revoked admin (HTTP ${out.code})`);
+            assert.deepEqual(authOps.filter((o) => AUTH_MUTATIONS.includes(o.op)), [],
+                `${name} touched accounts before refusing a revoked admin`);
+        });
+    }
+
+    test('the leaver sweep in particular never runs for a revoked admin', async () => {
+        // Named separately because it is the irreversible one: `setupRosterAuth` with both flags
+        // disables accounts and revokes their sessions. Somebody whose own access has just been
+        // pulled must not be able to spend the rest of the hour pulling everybody else's.
+        const leaver = { uid: 'uid_leaver', email: 'x.gone@myb-roster.local', disabled: false };
+        const { eps, authOps } = build({ tokenRevoked: true, existingUsers: [leaver] });
+        const out = await call(eps.setupRosterAuth,
+            asAdmin({ removeOrphans: true, confirmOrphanRemoval: true }));
+
+        assert.equal(out.code, 401);
+        assert.ok(!authOps.some((o) => o.op === 'updateUser' && o.patch && o.patch.disabled === true),
+            'nobody was disabled');
+        assert.ok(!authOps.some((o) => o.op === 'revokeRefreshTokens'), 'and nobody was signed out');
     });
 });
 
@@ -573,6 +743,95 @@ describe('setupRosterAuth previews leavers before it disables them', () => {
     });
 });
 
+// ── THE TWO SERVER-CONFIG REFUSALS: THE LOCKOUT THAT HAS NO REPAIR PATH ────────────────────────
+//
+// `roster-members.json` is GENERATED (`npm run generate:roster-members`), which is precisely why it
+// can arrive broken without anybody editing it by hand: a change to the generator, a bad merge, a
+// regeneration against a half-applied roster. `resolveRosterAuthConfig` names the two shapes that
+// matter and `setupRosterAuth` refuses both before it touches a single account.
+//
+// The `empty-admin` one is the expensive refusal, and the reason is that this endpoint is the only
+// thing that can undo its own damage. Run it against a roster with no admins and `claimsForTier`
+// stamps every account WITHOUT `admin: true` — so huddles, circulars, newsletters, the roster
+// collection and the auth collection close to everyone at once, including whoever would have to run
+// the repair. `missing-active-members` is the same class one step earlier: a config that names
+// nobody at all.
+//
+// Neither branch had a test. The `setupRosterAuth` block never built a roster fixture that was
+// anything other than the real, healthy one, so replacing either condition with `if (false)` left
+// both lanes green — a guard that existed, was correct, and was documented rather than protected.
+//
+// WHICH ASSERTION CARRIES THE TEETH, because it is not the obvious one. Bypassing either guard does
+// not reach the claim loop with a usable config: `resolveRosterAuthConfig` returns an error object
+// carrying no `processMembers`, so the loop throws on the spot and the platform reports THAT as a
+// 500 as well. The status code is identical either way and proves nothing by itself. What separates
+// a deliberate refusal from an unhandled crash is the NAMED message — which is the line the admin
+// reads and acts on — so that is the assertion that fails under mutation, and both were checked.
+describe('setupRosterAuth refuses a server roster it cannot trust', () => {
+    /** A healthy fixture, so each broken one below differs in exactly ONE field. */
+    const HEALTHY = {
+        activeMembers: [ADMIN, MEMBER, MANAGER],
+        roles: { admin: [ADMIN], manager: [MANAGER], designer: [] },
+    };
+
+    test('a roster with NO admin is refused before any claim is stamped', async () => {
+        // Without the refusal every account is re-stamped at the ordinary tier — and the one button
+        // that could put admin back is in the collection that just closed.
+        const { eps, authOps } = build({
+            rosterJson: { ...HEALTHY, roles: { ...HEALTHY.roles, admin: [] } },
+        });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+
+        assert.equal(out.code, 500, 'it refuses rather than proceeding on a config it has judged bad');
+        assert.match(String(out.body && out.body.error), /admin/i,
+            'a NAMED refusal, not a generic 500 — see the note above on which half of this bites');
+        assert.deepEqual(authOps.filter((o) => AUTH_MUTATIONS.includes(o.op)), [],
+            'no account was created, claimed or re-claimed on the way to the refusal');
+    });
+
+    test('a roster with no activeMembers is refused the same way', async () => {
+        // The sibling branch, equally untested. A config naming nobody would otherwise walk an empty
+        // list, report a cheerful `{ created: [], skipped: [] }`, and tell the admin the roster is
+        // fully provisioned.
+        const { eps, authOps } = build({ rosterJson: { ...HEALTHY, activeMembers: [] } });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+
+        assert.equal(out.code, 500);
+        assert.match(String(out.body && out.body.error), /activeMembers/,
+            'named explicitly, because the fix is a command the admin has to run');
+        assert.deepEqual(authOps.filter((o) => AUTH_MUTATIONS.includes(o.op)), []);
+    });
+
+    test('the leaver sweep does not run on a broken config either', async () => {
+        // The direction that would be permanent. A config that resolves to nobody makes EVERY
+        // existing account an orphan, so a sweep that ran past the refusal would disable the whole
+        // project in one press.
+        const leaver = { uid: 'uid_leaver', email: 'x.gone@myb-roster.local', disabled: false };
+        const { eps, authOps } = build({
+            rosterJson: { ...HEALTHY, activeMembers: [] }, existingUsers: [leaver],
+        });
+        const out = await call(eps.setupRosterAuth,
+            asAdmin({ removeOrphans: true, confirmOrphanRemoval: true }));
+
+        assert.equal(out.code, 500);
+        assert.ok(!authOps.some((o) => o.op === 'updateUser' && o.patch && o.patch.disabled === true),
+            'nothing was disabled');
+    });
+
+    test('a healthy roster in the same fixture shape is accepted', async () => {
+        // The guard on the guard: the three refusals above would read identically if the injected
+        // roster were simply never being loaded, or if the endpoint had stopped working at all.
+        const { eps, authOps } = build({ rosterJson: HEALTHY });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+
+        assert.equal(out.code, 200);
+        const claims = authOps.filter((o) => o.op === 'setCustomUserClaims');
+        assert.equal(claims.length, 3, 'all three fixture members were provisioned');
+        assert.deepEqual(claims.find((c) => c.uid === uidFor(ADMIN)).claims,
+            { admin: true, name: ADMIN }, 'from the INJECTED roster, not the real one');
+    });
+});
+
 test('the module never reaches for a broadcast sender', () => {
     // A static twin of the first case. The handler could acquire the broadcast sender in a refactor
     // that no behavioural test happens to exercise — an error path, a "no targets" fallback — and
@@ -632,8 +891,7 @@ describe('getAccountSetupGaps — the provisioning audit', () => {
     const getReq = (headers = { authorization: 'Bearer tok' }) => ({
         ...reqWith(undefined, headers), method: 'GET',
     });
-    /** Anything that would CHANGE an account. verifyIdToken is a read and is expected. */
-    const MUTATIONS = ['createUser', 'updateUser', 'setCustomUserClaims', 'revokeRefreshTokens'];
+    const MUTATIONS = AUTH_MUTATIONS;
 
     test('a fully provisioned roster reports nothing, and refuses nothing', async () => {
         const { eps } = build({ existingUsers: fullyProvisioned() });
