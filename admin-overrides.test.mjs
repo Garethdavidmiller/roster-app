@@ -146,6 +146,12 @@ const { teamMembers } = await import('./roster-data.js');
 // Grab the mocked auth object so we can set currentUser for recordRangeOverrides tests.
 const { auth } = await import('./firebase-client.js');
 
+// The worked-override Set is imported from the module that DECLARES it, so the cases below are
+// derived from the real rule rather than a copy of it; `isRestShift` is imported for the same
+// reason — the assertion that the seeded value is a worked one has to ask the real predicate.
+const { WORKED_OVERRIDE_TYPES } = await import('./admin-shift-types.js');
+const { isRestShift } = await import('./override-utils.js');
+
 // ── cache-load-failure guard (Finding #2) ─────────────────────────────────────
 // MUST run before any setAllOverrides()/successful loadOverrides() below — those latch the
 // module-level "cache loaded" flag true for the rest of the file (it only ever transitions to true).
@@ -863,5 +869,109 @@ describe('the AL/absence range path survives a load in either direction', () => 
         const rows = await raceRangeBookingAgainst('2026-11-03', ids => [ids[ids.length - 1]]);
         assert.equal(rows.length, 1,
             `one day booked must count once — cache holds ${rows.length}: ${JSON.stringify(rows.map(o => o.id))}`);
+    });
+});
+
+// ── the Sunday RD correction must never ERASE a worked override ──────────────
+//
+// Layer 3 above answers "may AL be written on a Sunday?" (no). This answers the
+// question one line further down, and it is the one that destroys a record
+// rather than refusing one: a worked Sunday INSIDE an absence range already
+// carries an override — real overtime — and the RD correction that hides the
+// base roster would write straight over it.
+//
+// The guard is `WORKED_OVERRIDE_TYPES.has(ov.type)` in recordRangeOverrides, and
+// the comment beside it says in terms that omitting a type "clobbered a legacy
+// Sunday overtime doc". Dropping 'rdw' from that Set left every suite green — so
+// the rule was documented and not protected, on the one path where the loss is
+// money already earned and nothing on screen says it went.
+//
+// The cases are DERIVED from the real Set rather than listed here: a type
+// removed from it fails, and a type added to it later is covered without an
+// edit. Each seeds a WORKED value on purpose — `isRestShift(ov.value)` is the
+// clause immediately before, so a rest value would satisfy the guard for the
+// wrong reason and the test would pass with the rule deleted.
+
+describe('a Sunday RD correction never erases a worked override', () => {
+
+    beforeEach(() => {
+        auth.currentUser = { uid: 'test-user', displayName: 'Test' };
+    });
+
+    // Sun 21 Jun 2026: G. Miller's Week 2 Sunday is '14:30-23:25' — a WORKED base
+    // shift, so without an existing override this date does take a correction
+    // (the block above asserts exactly that). That is what makes it the right
+    // date here: the correction is otherwise due, so only the guard stops it.
+    const SUNDAY = '2026-06-21';
+    const SATURDAY = '2026-06-20';
+    const WORKED_VALUE = '14:30-23:25';
+
+    // ── the half the loop below CANNOT do ────────────────────────────────────
+    //
+    // The loop derives its cases from the real Set, which is right for a type
+    // ADDED later — it is covered with no edit. It is blind to the mutation that
+    // actually shipped, a type REMOVED: dropping 'rdw' deletes its own test case
+    // and the suite stays green one test lighter, which is indistinguishable
+    // from success. Measured, not assumed — that is what the first cut did.
+    //
+    // So the membership is ALSO pinned as a literal. A literal here is a pin and
+    // not a copy: it is the assertion that the rule still says what it said when
+    // somebody reasoned about what a correction may overwrite, and every entry
+    // costs real money to lose. Adding a type is free; removing one has to be
+    // argued for in this file.
+    test('every override type that records WORKED time is still in the Set', () => {
+        for (const t of ['rdw', 'shift', 'spare_shift', 'allocated', 'overtime', 'swap']) {
+            assert.ok(WORKED_OVERRIDE_TYPES.has(t),
+                `'${t}' left WORKED_OVERRIDE_TYPES — a Sunday RD correction will now write ` +
+                `over a '${t}' day, erasing time the member actually worked`);
+        }
+    });
+
+    for (const workedType of WORKED_OVERRIDE_TYPES) {
+        test(`an existing '${workedType}' override on a worked Sunday is left alone`, async () => {
+            assert.ok(!isRestShift(WORKED_VALUE),
+                'the seeded value must be a WORKED shift, or the isRestShift clause answers first ' +
+                'and this test passes with the worked-type guard deleted');
+
+            setAllOverrides([{
+                id: `ov-${workedType}`, memberName: 'G. Miller',
+                date: SUNDAY, type: workedType, value: WORKED_VALUE,
+            }]);
+
+            const result = await recordRangeOverrides({
+                type: 'annual_leave', value: 'AL',
+                memberName: 'G. Miller', dates: [SATURDAY, SUNDAY], changedBy: 'G. Miller',
+            });
+
+            assert.equal(result.sundayCount, 0,
+                `a Sunday already carrying a '${workedType}' override must not be counted for correction`);
+
+            const correction = getAllOverrides()
+                .find(o => o.date === SUNDAY && o.type === 'correction');
+            assert.equal(correction, undefined,
+                `correction/RD was written over a '${workedType}' override — the worked day is erased`);
+        });
+    }
+
+    test('a NON-worked override on a worked Sunday is still corrected to RD', async () => {
+        // The other direction, so the guard cannot be "fixed" by refusing every
+        // Sunday that holds any override at all. sick/AL on a Sunday is legacy
+        // data that should never have been written, and masking it is the v12.61
+        // behaviour this correction exists for.
+        setAllOverrides([{
+            id: 'ov-legacy-sick', memberName: 'G. Miller',
+            date: SUNDAY, type: 'sick', value: 'SICK',
+        }]);
+
+        const result = await recordRangeOverrides({
+            type: 'annual_leave', value: 'AL',
+            memberName: 'G. Miller', dates: [SATURDAY, SUNDAY], changedBy: 'G. Miller',
+        });
+
+        assert.equal(result.sundayCount, 1,
+            'a non-worked Sunday override must still take the RD correction');
+        const correction = getAllOverrides()
+            .find(o => o.date === SUNDAY && o.type === 'correction');
+        assert.equal(correction?.value, 'RD');
     });
 });
