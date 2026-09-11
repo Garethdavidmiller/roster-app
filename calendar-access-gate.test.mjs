@@ -61,6 +61,10 @@ const {
     fetchOverridesForRange, fetchOverridesForRangeFromCache, ensureOverridesCached, clearFetchedMonth, monthKey,
     setOverrideAccessLostHandler,
 } = mod;
+// NOT mocked, and that is the point: `calendar-data-state.js` is pure and holds the module state
+// the calendar reads back to decide what it may SHOW. A month the gate was supposed to skip
+// entirely, left recorded as `error`, is the difference between a cached grid and a failure panel.
+const { knowledgeOf, forget } = await import('./calendar-data-state.js');
 
 const OVERRIDE = {
     date: '2026-08-12', memberName: 'G. Miller', type: 'annual_leave',
@@ -78,6 +82,7 @@ beforeEach(() => {
     // Release every month this file touches, so one test's fetch cannot mark a month claimed for
     // the next — `fetchedMonths` is module state and does not reset with the cache.
     for (let m = 0; m < 12; m++) clearFetchedMonth(monthKey(2026, m));
+    forget();   // same reason, for what the calendar KNOWS about those months
 });
 
 describe('the gate is CLOSED until something opens it', () => {
@@ -301,6 +306,61 @@ describe('a PROVISIONAL grant is one member, out of the cache, and nothing else'
             /calendar-access-required/, 'the authoritative read must refuse');
         await ensureOverridesCached(2026, 6);
         assert.equal(calls.server, before, 'no server request may be issued under a provisional grant');
+    });
+
+    // ── `ensureOverridesCached` MUST REFUSE IN ITS OWN RIGHT ────────────────────────────────────
+    //
+    // The test above proves no request reaches Firestore. It cannot see whether this function
+    // refused or merely inherited the refusal one layer down, and the two are worlds apart: the
+    // inherited one arrives as a THROWN `calendar-access-required`, which is exactly the shape the
+    // access-lost recovery is built to treat as a revoked session.
+    //
+    // So without the guard here, the v22.97 fast path — the grid painted from this device's own
+    // cache while Firebase revalidates the stored identity — tears ITSELF down. Month navigation
+    // and Team View both come through this function; each month swiped past would mark itself
+    // `error` (a failure panel over data the device is holding), repaint once to show it, and,
+    // wherever the coordinator has registered its handler, SHUT THE GATE and send a returning
+    // member to the lock card in the middle of a successful provisional paint. Nothing throws to
+    // the console on that path, because the recovery returns before the log. CALENDAR_DATA.md 13.
+    test('a provisional month navigation does NOTHING — it is not a failed read', async () => {
+        setOverrideAccess(true, { provisionalMember: 'G. Miller' });
+        const errs = [];
+        const orig = console.error;
+        console.error = (/** @type {any[]} */ ...a) => errs.push(a.join(' '));
+        try {
+            let rendered = 0;
+            await ensureOverridesCached(2026, 8, () => { rendered++; });
+            assert.equal(calls.server, 0, 'a whole-team server read was issued under an unconfirmed identity');
+            assert.equal(knowledgeOf(monthKey(2026, 8)), 'unknown',
+                'the month was recorded as FAILED — the grid shows a retry panel over the cached roster it was asked to paint');
+            assert.equal(rendered, 0, 'a repaint was triggered to show a failure that never happened');
+            assert.deepEqual(errs, [], 'a provisional paint logged a Firestore failure');
+        } finally { console.error = orig; }
+    });
+
+    test('and it cannot revoke the grant it is painting under', async () => {
+        // The expensive direction, and the one with no console trace at all. `handleAccessLost`
+        // takes the Calendar back to the lock card; reaching it from a provisional paint means a
+        // member with a perfectly good stored session is asked to sign in again because the app
+        // refused its own read.
+        setOverrideAccess(true, { provisionalMember: 'G. Miller' });
+        let lost = 0;
+        setOverrideAccessLostHandler(() => { lost++; });
+        await ensureOverridesCached(2026, 9, () => {});
+        setOverrideAccessLostHandler(null);
+        assert.equal(lost, 0, 'the access-lost handler fired on a grant that was never lost');
+        assert.equal(hasOverrideAccess(), true, 'the provisional grant closed the gate on itself');
+        assert.equal(provisionalMember(), 'G. Miller', 'and the scope must still be the member being painted');
+    });
+
+    test('the real read still happens once the identity IS confirmed', async () => {
+        // The cheap direction, pinned so the guard above cannot be "fixed" into a permanent skip:
+        // refusing here must leave the month unclaimed, exactly as the locked case does.
+        setOverrideAccess(true, { provisionalMember: 'G. Miller' });
+        await ensureOverridesCached(2026, 10, () => {});
+        setOverrideAccess(true);
+        await ensureOverridesCached(2026, 10, () => {});
+        assert.equal(calls.server, 1, 'the month was claimed while provisional and never fetched');
     });
 
     test('losing access clears the scope too — a revoked grant leaves nothing behind', () => {

@@ -372,6 +372,8 @@ The member's side of the Overtime page. `overtime-form.js` renders one week's se
 
 **The timeout path is three outcomes, not two.** A timed-out submit re-reads state and looks for its own `clientMutationId`: found → "your earlier submission did save"; provably absent → "try again"; still offline → "we couldn't confirm". Collapsing the third into the second is how somebody submits a second, contradictory version. And a 409 branches on whether the winning mutation id is the caller's own — "you did this, in the request that timed out" is a completely different message from "somebody else changed this". Both decisions are `reconcileVerdict` and `conflictIsOurs`; this module supplies the state and picks the words.
 
+**The member's query is SCOPED, and that one clause is the whole property** — tested by `overtime-roster.test.mjs`, which is the first unit suite this module has had. `firestore.rules` grants `overrides` read to any `name` claim with no per-member restriction, so dropping `where('memberName','==',…)` does not fail, it SUCCEEDS and returns more; a mutation sweep deleted it with every lane green. The leak is the smaller half: the accumulator is keyed by DATE alone, so the last document read for a date wins whoever it belongs to, and the member is then offered "available after my shift" anchored to a colleague's duty times — which is the literal time they submit and a roster clerk acts on. The suite's fake Firestore APPLIES the constraints it is handed instead of restating the intended filter, so removing the clause reproduces the real behaviour rather than the harness's memory of it. Its second subject is the `catch`: a swallowed read failure returns the locally-computed base roster as `authoritative` with every override invisible.
+
 **`overtime-roster.js` is deliberately not `calendar-overrides.js`.** That module holds process-wide mutable state (a month cache, a fetched-month claim set, an access gate defaulting closed) and its `reconcileRangeIntoCache` is AUTHORITATIVE for its range — a second authoritative reconciler racing the first is exactly the v18.76 Team View bug. This one reads its own seven dates, keeps its own answer, and shares only the pure vocabulary of `calendar-data-state.js`.
 
 **Unknown roster context removes the shortcuts rather than guessing them.** `modesFor` (in `overtime-format.js` since v20.75, so the rule is Node-testable) offers before/after/before-and-after ONLY where an authoritative duty time exists. **And a day offers ONE both-sides answer (v21.22, owner):** on a normal worked day `all_day` ("Any time around my shift") duplicated "Before & after duty" — the same meaning to a clerk, two pills — so it is withheld wherever before_after can be offered; the survivor is the one that stores the declared clock times (the schema's own philosophy — a roster change flags the answer stale instead of silently re-pointing it). all_day stays on rest/spare days, overnight duties and unknown rosters, so no day loses its both-sides answer, and a SAVED all_day still renders via the form's stored-mode fallback. **WILLINGNESS IS NO LONGER A WINDOW (v21.24, owner — external review of v21.22).** `twelve_hours` answered HOW LONG in a control whose every other option answers WHEN, so the two competed rather than combining: on a rest day it duplicated `all_day`, and on a worked day it gave a duration with no window, which a clerk cannot build a duty from. The dimensions are now split — `modesFor` offers it NOWHERE, and the optional `fullTwelve` flag rides alongside any available answer instead ("before and after my duty, **and** go long if it helps" is one unambiguous statement). Its old offer gate survives whole as `offersFullTwelve`, because that gate was never about the mode: a day whose effective roster already reaches 720 minutes (`rosteredMinutes`, overnight-aware via `shiftSpanMinutes`; a 12-hour RDW already agreed as extra gates it the same as a 12-hour shift) has nothing left to give, so the question has no answer worth recording. It needs a POSITIVE fact to withhold — an unknown day length still asks, because "could not read the roster" is not "already rostered 12 hours". The mode stays in the server schema and in `answerCopy` for ever: revisions are immutable, so beta answers stored under it must keep parsing and rendering, and the form re-adds a stored mode to its list so nobody returns to a day marked answered with nothing selected. **A row's age is THIS date's, not the whole form's (v21.26, external review).** A submission has one `updatedAt`, so a member who answered the week a fortnight ago and edited only the Saturday this morning had all seven rows reporting today — always in the fresher direction, which is the one that misleads a clerk arranging short-notice cover. `dayChangedAt` walks the append-only revisions and records per date when that date's answer last actually changed; a no-op resubmission is not a change and neither is a reordered answer. Derived, never stored, for the same reason `lateInitial` is. The whole-form stamp remains the fallback when a revision read fails. The member form's day rows also wear **admin's state grammar** since v20.83 — plain (unanswered), gold tint (chosen, nothing saved), cream `--al-confirm-bg` (about to overwrite a saved answer, decided by the structural `sameAnswer`, never stringify), green accent (recorded) — and an **overnight duty** (dispatcher turns; `overnight` on the day context, `end < start`) withholds `after` and `before_after` too: its `end` names the NEXT morning, so "After 07:00" would store hours the member never declared and "Before & after duty" stores `until > from`, which the server refuses outright (`before-after-inverted`). The untestable version of this rule shipped wrong in exactly that branch. The consequence of a wrong offer is sharper here than on the calendar: the form puts the time into a declaration the member then submits.
@@ -2418,6 +2420,38 @@ unreviewed addition.
 - `parseRosterPDF` — admin upload → Claude AI → parsed shifts JSON (stays here: roster-prompt-parity.test.mjs reads the prompt from this file)
 - `unlockCalendarViewer` (v20.12) — the staff Calendar PIN exchange (stays here: calendar-viewer-parity.test.mjs pins its handler source, secret binding and no-log rule to this file)
 - `Object.assign(exports, buildDocumentEndpoints({...}))` / `buildAuthEndpoints({...})` — the wiring; the deps passed are the shared infra above, so the domain modules never own a second copy of a guarded literal
+
+Both handlers that stayed here are EXECUTED by `index-endpoints.test.mjs`; `functions-surface.test.mjs`
+proves only that they were defined.
+
+### `index-endpoints.test.mjs`
+
+**The two endpoints the domain split left in the composition root, driven for real.** Found by a
+repo-wide mutation sweep: `parseRosterPDF` and `unlockCalendarViewer` were the only handlers in the
+estate with no executing test at all, and six mutations survived both `npm test` and
+`npm run test:functions` — the admin check reduced to `if (false)`, the PIN handler's two
+fail-closed catches each continuing instead of answering 503, the v20.35 all-sources ceiling
+deleted, `createCustomToken(uid, viewerClaims())` reduced to `createCustomToken(uid)`, and the
+missing-or-malformed-secret guard reduced to `if (false)`.
+
+This is the repo's named blind spot rather than a gap in the rules. `functions/calendar-viewer-auth.js`
+is exemplary and every probe against it is caught; what nothing asked was whether the HANDLER calls
+it, in the right order, and acts on the answer. The standing lesson is this very endpoint — v20.50
+was signed off on a GET→405 and a wrong PIN→401, neither of which reaches the mint.
+
+**Organised by what a wrong answer costs.** For the roster parser it is somebody else's API key and
+the model's reading of whatever was uploaded, so every refusal — an ordinary member, the shared PIN
+token, a manager, a truthy-but-not-`true` claim, no bearer, an unverifiable one — asserts that the
+MODEL WAS NOT ASKED, against the same request a positive control proves is accepted. For the PIN it
+is the whole roster against a 10,000-space secret: an uncounted guess is never answered, both
+ceilings hold independently, a correct PIN writes nothing, the minted token carries `calendarViewer`
+and none of `name`/`admin`/`manager`/`linksDesigner` by name, and a deployment fault is a 503 that
+charges nobody.
+
+`functions/index.js` is not a factory, so the fakes enter `require.cache` before it is required and
+`getAuth`/`getFirestore` resolve a per-test world through a mutable binding — one load serves every
+test. Every fake RECORDS: "refused with 403" and "spent the key and then returned 403" are the same
+status line. Runs in `test:functions`; teeth-verified by eight mutations.
 
 ### `functions/documents.js`
 The DOCUMENT-AND-NOTIFICATION domain (v20.55, second cut of the index.js split after push.js).
