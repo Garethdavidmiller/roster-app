@@ -306,7 +306,8 @@ const CAPS = {
     // needs raising, and this raise is the words: a printed availability sheet needed its own
     // timestamp shape (with a year, which a deadline must not carry), and a module whose whole job
     // is putting Overtime into words is where that belongs. Twelve lines of room, no bank.
-    'overtime-format.js':      1070,   // ← the words are the seam if this ever needs raising
+    'overtime-format.js':      1030,   // ← 1070 until v23.69, when the CLOCK left for overtime-clock.js
+                                       //   (977 now). The words are the seam if this needs raising again
     // 1200 → 1250 at v21.54, and this one is a RAISE rather than an extraction, which the note
     // above says must be argued rather than assumed. The growth is the same-week read guard from
     // the external review — a generation ticket around one `await`, so that a slow earlier read

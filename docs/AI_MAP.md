@@ -349,10 +349,34 @@ What the Calendar KNOWS about a month's overrides, and what it is therefore allo
 
 **`cached` still renders its grid, and adds no banner.** Withholding it would be its own failure: a device with data and no network would be reduced to a spinner. A banner would be worse than useless — phase 1 marks `cached` and phase 2 overrules it a moment later on every single app open, so it would flash on every load and mean nothing. The sync chip already says "Updating…" and then "Couldn't update — tap to retry", which is the honest running commentary; this model's job is only to stop the two states that must show NO grid.
 
-### `overtime-app.js` / `overtime-boot.js` / `overtime-data.js` / `overtime-format.js` / `overtime-tips.js`
+### `overtime-app.js` / `overtime-boot.js` / `overtime-data.js` / `overtime-format.js` / `overtime-clock.js` / `overtime-tips.js`
 The Overtime availability page. `overtime-app.js` is the coordinator (body exported as `init()`, invoked by the boot shim); `overtime-data.js` owns every server call and the corrected clock; `isWithdrawn` and `withdrawnLine` live in `overtime-format.js` because the reviewer's browser reads participant documents directly, and the server holds a second copy of the first — pinned by `overtime-parity.test.mjs`, which asserts BOTH the parity and the outcome, since two copies that drift the same way agree perfectly and are both wrong; `overtime-format.js` is pure words and time arithmetic; `overtime-tips.js` is `?`-panel data. Server side: `functions/overtime.js` + `functions/overtime-core.js`. Feature design: `OVERTIME_AVAILABILITY.md`.
 - `correctedNow()` — the server-corrected clock. Only meaningful after `getMyOvertimeState` has returned, since that return is what sets the offset; there is deliberately no exported "is it ready" flag, because one that is structurally always true is worse than none.
 
+
+**`overtime-clock.js` — whether an action is still ALLOWED** (v23.69). Six exports left
+`overtime-format.js` when that module stood eleven lines under its ratchet cap, along a line its own
+header had already drawn: it turns a window, a phase and a day's answer into WORDS, and these six are
+not words. `SUBMIT_GRACE_MS`, `DEADLINE_SYNC_WINDOW_MS`, `clockOffset`, `submitDisposition`,
+`shouldResyncClock` and `canRestoreNow` are the DECISIONS a member's own device clock is permitted to
+make about a deadline, and each one can remove a control from somebody's screen. Being wrong in the
+words produces a sentence a member can query; being wrong here produces an ABSENCE — a Submit button
+that quietly is not there, on a phone whose clock nobody checked, for somebody who was in time.
+
+One rule governs all six and every branch states it: **the client never refuses what the server would
+accept.** It may offer more than the server will allow, because an extra request costs nothing, and it
+may never offer less than the member is owed. So the grace band answers `check-with-server` rather than
+`closed`, and `canRestoreNow` returns TRUE when it cannot tell — running deliberately opposite to its
+server twin, because a wrong refusal there puts a sentence on screen explaining a rule that may not
+apply, and a false explanation is believed in a way a refused tap is not.
+
+Three things the move must not undo, each in the module header: `overtime-format.js` **re-exports all
+six**, so all eight import sites and both existing suites are untouched (the device
+`admin-roster-upload.js` uses for `roster-review-states.js`); `canRestoreNow` still has a server twin
+that `overtime-parity.test.mjs` compares by behaviour; and the module **imports nothing**, which is
+what lets a deadline be tested at the minute either side of noon with no fixtures. Tested by
+`overtime-clock.test.mjs`, which pins what the extraction put at risk rather than restating the clock
+cases the re-export already carries.
 
 **`overtime-format.js` — the pure exports** (words, and the clock they are worded against). Added to this map at v21.63; the section had run on prose alone, so eleven of its exports were unroutable:
 - **Dates and labels:** `shortDate` / `longDate` (an ISO day, two lengths) · `weekLabel(weekEnding)` · `weekSpan(weekStart)` · `deadlineLabel` · `printedLabel` — all formatted through `Intl` in **Europe/London**, never the device's zone, so a phone left on holiday time still shows the deadline staff are held to. The last two differ by the **year**, and deliberately: a deadline is days away, so a year on it is noise, while `printedLabel` stamps a PRINTED sheet — a physical object that goes in a folder and must still be orderable against one printed a year earlier.
