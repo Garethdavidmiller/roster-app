@@ -44,71 +44,44 @@ let _member = FAKE_MEMBER;
 // itself mocked below, and a whole-module mock has no partial form); this one had no such excuse.
 const { isWorkedShift: realIsWorkedShift } = await import('./roster-data.js?real');
 
+// ── The REAL override-utils, reached the same way ────────────────────────────
+//
+// `override-utils.js` imports nothing, so it loads in Node exactly as it ships. It used to be
+// mocked as a page of hand-written COPIES — `resolveEffectiveShift`, `isOverrideDisplaySuppressed`,
+// `isOtherValue`, `parseOtherValue`, `OTHER_FLAVOURS` and `isRestShift` — which is the failure mode
+// CLAUDE.md names: a harness that RESTATES the rule cannot see the rule change. Two things it was
+// already hiding, both measured:
+//   · `OTHER_FLAVOURS` listed three flavours. The shipped table has six — Team Day, Union course
+//     and Meeting were added between v15.51 and v18.61 and never reached the copy, so every
+//     renderer test involving one was asserting against a table the app stopped having.
+//   · `resolveEffectiveShift` reaches the Calendar, Team Week View AND the Overtime roster context
+//     (CLAUDE.md's change-impact table). A copy here made this suite blind to all three.
+const realOverrideUtils = await import('./override-utils.js?real');
+const realRosterData = await import('./roster-data.js?real');
+
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
 mock.module('./roster-data.js', {
     namedExports: {
-        DAY_NAMES:   ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-        MONTH_NAMES: ['January', 'February', 'March', 'April', 'May', 'June',
-                      'July', 'August', 'September', 'October', 'November', 'December'],
-        SWIPE_THRESHOLD: 75,
-        SWIPE_VELOCITY:  0.4,
-        isSameDay:        (a, b) => _mockIsSameDay(a, b),
-        isBankHoliday:    d  => _mockIsBH(d),
-        isChristmasDay:   d  => _mockIsXmas(d),
-        isEasterSunday:   d  => _mockIsEaster(d),
-        isPayday:         d  => _mockIsPayday(d),
-        isCutoffDate:     d  => _mockIsCutoffDate(d),
-        getShiftKind:     () => 'early',
-        getShiftClass(s) {
-            if (s === 'RD' || s === 'OFF') return 'rest-day';
-            if (s === 'SPARE') return 'spare-day';
-            if (s === 'RDW')   return 'rdw-day';
-            if (s === 'AL')    return 'al-day';
-            if (s === 'SICK')  return 'sick-day';
-            if (/^(TRG|IND|ASSESS)( RDW)?/.test(s)) return 'other-day';
-            return 'early-shift';
-        },
-        // `shiftWords` asks this whether a value is one the app can read at all, rather than
-        // keeping a second regex (v22.89). The stub follows the real branch order so the
-        // unrecognised case is reachable here — every value the suite uses is a known one, so
-        // nothing else changes.
-        shiftBadgeParts(s) {
-            if (!s || ['RD', 'OFF', 'SPARE', 'RDW', 'AL', 'SICK'].includes(s)) return { cls: 'badge-rest', emoji: '🏠', word: 'Rest' };
-            if (/^(TRG|IND|ASSESS|TEAM|UNION|MEET)( RDW)?( \d{2}:\d{2}-\d{2}:\d{2})?$/.test(s)) return { cls: 'badge-other', emoji: '🏷️', word: 'Train' };
-            if (!/^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$/.test(s)) return { cls: 'badge-unknown', emoji: '❓', word: 'Unknown' };
-            return { cls: 'badge-early', emoji: '☀️', word: 'Early' };
-        },
-        getShiftBadge(s) {
-            if (!s || s === 'RD' || s === 'OFF') return '<span class="shift-badge badge-rest"><span aria-hidden="true">🏠</span><span>Rest</span></span>';
-            if (s === 'SPARE') return '<span class="shift-badge badge-spare"><span aria-hidden="true">📋</span><span>Spare</span></span>';
-            if (s === 'RDW')   return '<span class="shift-badge badge-rdw"><span aria-hidden="true">💼</span><span>RDW</span></span>';
-            if (s === 'AL')    return '<span class="shift-badge badge-al"><span aria-hidden="true">🏖️</span><span>AL</span></span>';
-            if (s === 'SICK')  return '<span class="shift-badge badge-sick"><span aria-hidden="true">🪑</span><span>Absent</span></span>';
-            // Faithful copy of the real training branch — badge = 🏷️ + short flavour word
-            const _t = /^(TRG|IND|ASSESS)( RDW)?( ([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d)?$/.exec(s);
-            if (_t) {
-                const word = { TRG: 'Train', IND: 'Ind', ASSESS: 'Assess' }[_t[1]];
-                return `<span class="shift-badge badge-other"><span aria-hidden="true">🏷️</span><span>${word}</span></span>`;
-            }
-            return '<span class="shift-badge badge-early"><span aria-hidden="true">☀️</span><span>Early</span></span>';
-        },
+        // The SHIPPED module, then the seams. Everything a test needs to put a DAY into a given
+        // state is injected below; everything that turns a shift VALUE into words, a class, a badge
+        // or a roster is the real thing. The difference matters: injecting state is a harness doing
+        // its job, restating a rule is a harness that cannot see the rule change.
+        ...realRosterData,
+        // ── Injected state, one per thing a test needs to decide about a DATE ────────────────
+        isSameDay:      (a, b) => _mockIsSameDay(a, b),
+        isBankHoliday:  d  => _mockIsBH(d),
+        isChristmasDay: d  => _mockIsXmas(d),
+        isEasterSunday: d  => _mockIsEaster(d),
+        isPayday:       d  => _mockIsPayday(d),
+        isCutoffDate:   d  => _mockIsCutoffDate(d),
+        getBaseShift:   (m, d) => _mockGetBaseShift(m, d),
+        isSunday:       dateStr => _mockIsSunday(dateStr),
+        // The roster the header names. Pinned rather than real so the header assertions describe a
+        // fixed week label instead of whatever week the real cycle maths puts today in.
         getWeekNumberForDate: () => 3,
         getRosterForMember:   () => ({ weekPrefix: 'CEA Week' }),
-        // Faithful mini-copy: the latest rosterChanges entry whose `from` ≤ date wins; no changes → unchanged.
-        resolveMemberRoster:  (m, d) => {
-            if (m && m.rosterChanges && d) {
-                const hit = m.rosterChanges.filter(c => d >= c.from).pop();
-                if (hit) return { ...m, rosterType: hit.rosterType, currentWeek: hit.currentWeek };
-            }
-            return m;
-        },
-        getBaseShift:         (m, d) => _mockGetBaseShift(m, d),
-        formatISO:            d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
-        isSunday:             dateStr => _mockIsSunday(dateStr),
-        isWorkedShift:        realIsWorkedShift,   // the REAL one — see the note above the mocks
         paydayForCutoff:      () => null,
-        escapeHtml:           s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])),
     },
 });
 
@@ -128,46 +101,10 @@ mock.module('./calendar-overrides.js', {
 
 mock.module('./override-utils.js', {
     namedExports: {
+        ...realOverrideUtils,
+        // The ONE injected seam: a test decides whether a date falls before the member joined.
+        // Everything else above is the shipped module — see the note on `realOverrideUtils`.
         isBeforeMemberStart: (m, d) => _mockIsBeforeMember(m, d),
-        // Real (pure) training-grammar helpers — inlined because a module mock replaces the
-        // WHOLE module: the renderer needs these to classify training values faithfully.
-        isRestShift: (s) => s === 'RD' || s === 'OFF',
-        // Faithful copy of the real display-suppression predicate (v16.37).
-        isOverrideDisplaySuppressed: (ov, baseShift, sunday) =>
-            ov.type === 'sick'         ? (baseShift === 'RD' || baseShift === 'OFF' || sunday)
-          : ov.type === 'annual_leave' ? sunday
-          : ov.type === 'other'        ? sunday
-          : false,
-        isOtherValue: (v) => typeof v === 'string' && /^(TRG|IND|ASSESS)( RDW)?( ([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d)?$/.test(v),
-        parseOtherValue: (v) => {
-            const m = typeof v === 'string' ? v.match(/^(TRG|IND|ASSESS)( RDW)?( ([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d)?$/) : null;
-            return m ? { flavour: m[1], rdw: !!m[2], time: m[3] ? m[3].trim() : null } : null;
-        },
-        OTHER_FLAVOURS: {
-            TRG:    { badge: 'Train',  full: 'Training'   },
-            IND:    { badge: 'Ind',    full: 'Induction'  },
-            ASSESS: { badge: 'Assess', full: 'Assessment' },
-        },
-        // Faithful copy of the real override→effective-shift resolver (override-utils.js, v16.48)
-        // — the renderer now consumes this instead of re-branching on override.type itself.
-        resolveEffectiveShift: (override, baseShift, sunday) => {
-            const suppressed = override && (
-                override.type === 'sick'         ? (baseShift === 'RD' || baseShift === 'OFF' || sunday)
-              : override.type === 'annual_leave' ? sunday
-              : override.type === 'other'        ? sunday
-              : false);
-            if (!override || suppressed) return { shift: baseShift, rdwTime: '', derivedRdw: false };
-            if (override.type === 'rdw') return { shift: 'RDW', rdwTime: override.value, derivedRdw: false };
-            const pm = override.type === 'other' && typeof override.value === 'string'
-                ? override.value.match(/^(TRG|IND|ASSESS)( RDW)?( ([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d)?$/) : null;
-            if (pm) {
-                const rdw = !!pm[2], time = pm[3] ? pm[3].trim() : null;
-                const derivedRdw = rdw || baseShift === 'RD' || baseShift === 'OFF';
-                const rdwTime = time ?? (derivedRdw ? 'RDW' : (/^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/.test(baseShift) ? baseShift : ''));
-                return { shift: override.value, rdwTime, derivedRdw };
-            }
-            return { shift: override.value, rdwTime: '', derivedRdw: false };
-        },
     },
 });
 
@@ -732,6 +669,68 @@ describe('buildCalendarContainer — shift classes', () => {
         const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
         assert.ok(cell?._classes.has('late-shift'), 'a worked day still follows the permanent shift');
         _member = FAKE_MEMBER;
+    });
+});
+
+// ── WHAT THE RESTATED MOCK COULD NOT SEE (v23.63) ───────────────────────────────────────────────
+//
+// `override-utils.js` and `roster-data.js` were mocked as hand-written copies until the modules
+// themselves were imported above. A copy answers correctly for as long as somebody keeps copying,
+// and these two had stopped — so the cases below could not be written at all, because the harness
+// would have answered them from a rule the app no longer has.
+//
+// Organised by what each wrong answer costs a member reading the grid. The Sunday one is the
+// expensive direction and it is silent: a worked Sunday drawn as an ordinary turn tells somebody
+// their overtime is rostered time, and the rate it is worth is nowhere on the day.
+describe('buildCalendarContainer — the real resolver, against values the copy had no branch for', () => {
+    test('a legacy WORKED override on a Sunday draws as RDW, not as a turn', () => {
+        // `SUNDAY_RDW_DISPLAY_TYPES` in override-utils.js. Sundays are non-contracted for every
+        // grade, so work on one is always overtime; new writes are blocked at six places, but a
+        // hand-written or legacy `shift` document on a Sunday still has to DISPLAY honestly. The
+        // mocked resolver had no branch for this at all — it returned the raw value, so the cell
+        // took a worked-shift class and the badge read as an ordinary early turn.
+        _mockGetBaseShift = () => 'RD';
+        // Jan 4 2026 is a Sunday — `_realIsSunday` says so, and the renderer asks `isSunday`.
+        _overrideCache.set('G. Miller|2026-01-04', { type: 'shift', value: '09:00-17:00', note: '', source: 'manual' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 4);
+        assert.ok(cell, 'precondition: the Sunday cell exists');
+        assert.ok(cell._classes.has('rdw-day'), 'a worked Sunday is Rest Day Working');
+        assert.ok(!cell._classes.has('early-shift'), 'it was drawn as an ordinary rostered turn');
+        assert.ok(cell.dataset.tooltip?.includes('09:00-17:00'), 'the hours are still stated');
+    });
+
+    test('the SAME override on a weekday is an ordinary turn — the rule is the Sunday, not the type', () => {
+        // Otherwise the case above would pass on a resolver that had simply started calling
+        // everything RDW.
+        _mockGetBaseShift = () => 'RD';
+        _overrideCache.set('G. Miller|2026-01-02', { type: 'shift', value: '09:00-17:00', note: '', source: 'manual' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.ok(!cell?._classes.has('rdw-day'), 'a Friday turn was promoted to overtime');
+    });
+
+    test('a MEETING shows its badge and NO time — it is not tied to a rostered shift', () => {
+        // `OTHER_FLAVOURS[...].hideBaseTime`. The mocked table listed three flavours; the shipped
+        // one has six, and Meeting and Union course were two of the three it never gained. Under
+        // the copy a MEET value did not even parse as an Other day, so it fell through to the
+        // unrecognised branch — a leaf-green Other day rendered as a shift the app cannot read.
+        _mockGetBaseShift = () => '06:00-14:00';
+        _overrideCache.set('G. Miller|2026-01-02', { type: 'other', value: 'MEET', note: '', source: 'manual' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.ok(cell?._classes.has('other-day'), 'a Meeting is an Other day');
+        assert.ok(cell?.innerHTML.includes('>Meet<'), 'the flavour word');
+        assert.ok(!cell?.innerHTML.includes('06:00-'),
+            'a Meeting borrowed the rostered shift time it is not tied to');
+    });
+
+    test('a TEAM DAY keeps the base time — it happens DURING the shift', () => {
+        // The other side of `hideBaseTime`, and the reason the flag exists rather than a blanket
+        // rule. Team Day was also absent from the copied table.
+        _mockGetBaseShift = () => '06:00-14:00';
+        _overrideCache.set('G. Miller|2026-01-02', { type: 'other', value: 'TEAM', note: '', source: 'manual' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.ok(cell?._classes.has('other-day'));
+        assert.ok(cell?.innerHTML.includes('>Team<'), 'the flavour word');
+        assert.ok(cell?.innerHTML.includes('06:00-'), 'a Team Day runs during the rostered turn');
     });
 });
 

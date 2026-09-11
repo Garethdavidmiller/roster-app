@@ -18,6 +18,9 @@ import assert from 'node:assert/strict';
 
 const _ls = new Map();
 let _session = null;
+/** The roster the module under test reads. Mutable so a case can BE a joiner: `getLoggedMember`
+ *  finds the session name in here, and everything pro-rate hangs off what it finds. */
+const _members = /** @type {any[]} */ ([]);
 
 mock.module('./firebase-client.js', {
     namedExports: {
@@ -55,7 +58,7 @@ mock.module('./ls.js', {
 });
 mock.module('./roster-data.js', {
     namedExports: {
-        teamMembers: [], APP_VERSION: '13.00',
+        teamMembers: _members, APP_VERSION: '13.00',
         CONFIG: { ADMIN_NAMES: [], LINKS_DESIGNERS: [], MAX_YEAR: 2027, MIN_YEAR: 2025 },
         formatISO: d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,
         parseSmartFloat: v => parseFloat(String(v)),
@@ -65,9 +68,18 @@ mock.module('./paycalc-roster-suggestions.js', {
     namedExports: { bhsForYear: () => [], getRosterSuggestion: async () => ({}), fetchOverridesForPeriod: async () => {} },
 });
 
-const { SK } = await import('./paycalc-migrations.js');
-const { getStoredRateForYear, getPensionDefault, isPensionOptedOut, gradeForRole } = await import('./paycalc-settings.js');
-const { awardRatesFor, getPensionForPeriod, GRADES } = await import('./paycalc-calc.js');
+const { SK, periodKey } = await import('./paycalc-migrations.js');
+const {
+    getStoredRateForYear, getPensionDefault, isPensionOptedOut, gradeForRole,
+    periodDefaultPension, getProRateFactor, getEffectiveContr,
+} = await import('./paycalc-settings.js');
+const { awardRatesFor, getPensionForPeriod, GRADES, computeGross, getRateForPeriod, getLondonAllowanceForPeriod } = await import('./paycalc-calc.js');
+// The REAL period grid and the REAL year engine, both running against the REAL settings module
+// above. Nothing about the pro-rate is mocked in the joining-period blocks at the foot of this file
+// — that is the whole point of them, and it is only possible because this file mocks the LEAF
+// modules (Firebase, session, storage, the roster) rather than paycalc-settings itself.
+const { getPeriods, CONFIG: PERIOD_CONFIG } = await import('./paycalc-periods.js');
+const { computeYearSoFar } = await import('./paycalc-year-summary.js');
 // The REAL roster people table, NOT the `./roster-data.js` stub above — this file mocks that
 // specifier only, and `roster-member-data.js` imports nothing, so it loads in Node as it is.
 // The role→grade contract is derived from it rather than from a list kept here.
@@ -242,5 +254,177 @@ describe('gradeForRole — the role → pay-grade map every figure hangs off', (
             assert.ok(role in KNOWN, `the roster carries a role this test has never decided about: ${role}`);
             assert.equal(gradeForRole(role), KNOWN[/** @type {'CEA'} */ (role)], `role ${role}`);
         }
+    });
+});
+
+// ── THE JOINING PERIOD'S PENSION (seams 1 and 2 of the v23.63 mutation sweep) ─────────────────────
+//
+// `periodDefaultPension(p)` is `getPensionDefault(p) × getProRateFactor(p)`, rounded to the penny,
+// and DELETING THE PRO-RATE FACTOR LEFT EVERY SUITE IN THIS REPO GREEN. So did deleting the same
+// multiplication from `computeYearSoFar`. Two copies of one rule, neither protected.
+//
+// What a wrong answer COSTS, and the directions are not symmetrical:
+//
+//   · NOT PRO-RATING is the silent one. A member who joined ten days before the cut-off is shown a
+//     full period's pension deduction. It comes off gross BEFORE tax and NI, so the error is not
+//     confined to one line — it moves the tax, the National Insurance and the take-home together,
+//     and every figure stays perfectly plausible. Nothing is out of range, nothing says "this was
+//     built for a whole period", and the one member it happens to is a new starter with no earlier
+//     payslip from this employer to compare against. It is their FIRST payslip that is wrong.
+//   · PRO-RATING SOMEBODY WHO SHOULD NOT BE is the other direction and has a real population: a
+//     secondment return carries `startDate` (to suppress the shifts before they came back) with
+//     `noProRate: true`, because their pay and leave are full-year. Scaling their pension
+//     understates the deduction and OVERSTATES take-home, which is the direction a member does not
+//     query.
+//
+// Every figure is derived from the real period grid and the real pension table, so an award or a
+// pension step moves these cases rather than breaking them.
+
+/** Put a single member on the (mocked) roster and make them the session. */
+function beMember(/** @type {any} */ fields) {
+    _members.length = 0;
+    _members.push({ name: 'Z. Joiner', role: 'CEA', ...fields });
+    _session = /** @type {any} */ ({ name: 'Z. Joiner' });
+}
+function beNobody() { _members.length = 0; _session = null; }
+
+/** The real 2026/27 tax year, so the post-award rates and the current pension step apply. */
+const TY_2627 = () => PERIOD_CONFIG.TAX_YEARS.find(/** @param {any} t */ t => t.label === '2026/27');
+const periodsInYear = () => {
+    const ty = TY_2627();
+    return getPeriods().filter(/** @param {any} p */ p => p.num - 48 >= ty.first && p.num - 48 <= ty.last);
+};
+/** Joined `days` days before this period's cut-off — so the factor is days/28, never 0 or 1. */
+function joinedPartWay(/** @type {any} */ p, /** @type {number} */ days) {
+    const d = new Date(p.cutoff);
+    d.setDate(d.getDate() - (days - 1));
+    return d;
+}
+
+describe('the joining period’s pension is pro-rated — and only for somebody who should be', () => {
+    test('a part-period joiner pays part of the contribution, to the penny', () => {
+        const p = periodsInYear()[6];
+        beMember({ startDate: joinedPartWay(p, 10) });
+
+        const factor = getProRateFactor(p);
+        assert.ok(factor > 0 && factor < 1, `the fixture is not a part period (factor ${factor})`);
+
+        const full = getPensionDefault(p);
+        assert.ok(full > 0, 'no scheme pension on record for this period — the case proves nothing');
+        assert.equal(periodDefaultPension(p), parseFloat((full * factor).toFixed(2)));
+
+        // Stated as MONEY, because that is what a missing factor costs. It is not a rounding
+        // difference; it is most of a pension contribution, taken off gross before tax and NI.
+        const missed = full - periodDefaultPension(p);
+        assert.ok(missed > 90, `a dropped pro-rate would overstate the deduction by £${missed.toFixed(2)} — too small a gap to prove anything`);
+    });
+
+    test('a secondment return is NOT pro-rated — `noProRate` is what says so', () => {
+        const p = periodsInYear()[6];
+        beMember({ startDate: joinedPartWay(p, 10), noProRate: true });
+        assert.equal(getProRateFactor(p), 1);
+        assert.equal(periodDefaultPension(p), getPensionDefault(p));
+        // The same fixture WITHOUT the flag must differ, or this case is passing on the date rather
+        // than on the flag it names.
+        beMember({ startDate: joinedPartWay(p, 10) });
+        assert.notEqual(periodDefaultPension(p), getPensionDefault(p));
+    });
+
+    test('a long-server with no start date pays the full contribution', () => {
+        const p = periodsInYear()[6];
+        beMember({});
+        assert.equal(getProRateFactor(p), 1);
+        assert.equal(periodDefaultPension(p), getPensionDefault(p));
+        beNobody();
+        assert.equal(periodDefaultPension(p), getPensionDefault(p), 'no session at all must behave like a long-server, not throw');
+    });
+
+    test('a payslip entirely before they joined has no contribution at all', () => {
+        // Factor 0 is a real value the ladder must carry through, not a falsy case that quietly
+        // becomes 1 — and it is the one assertion here that a `?? 1` fallback would fail.
+        const ps = periodsInYear();
+        beMember({ startDate: joinedPartWay(ps[6], 10) });
+        assert.equal(getProRateFactor(ps[2]), 0);
+        assert.equal(periodDefaultPension(ps[2]), 0);
+    });
+
+    test('the figure is a 2dp MONEY value, not a raw float', () => {
+        // The field writes it with `.toFixed(2)`, and `readFormData` compares a typed figure against
+        // it within half a penny to decide whether the member overrode the default. An unrounded
+        // value here would make that comparison ask a slightly different question.
+        const p = periodsInYear()[6];
+        beMember({ startDate: joinedPartWay(p, 9) });
+        const v = periodDefaultPension(p);
+        assert.equal(v, parseFloat(v.toFixed(2)));
+        assert.notEqual(getPensionDefault(p) * getProRateFactor(p), v, 'the raw product is already 2dp — this case proves nothing');
+    });
+
+    test('no period in hand returns the bare default — the boot paint, before a payslip is resolved', () => {
+        beMember({ startDate: joinedPartWay(periodsInYear()[6], 10) });
+        assert.equal(periodDefaultPension(null), GRADES.cea.pension);
+        assert.equal(periodDefaultPension(undefined), GRADES.cea.pension);
+    });
+});
+
+// ── AND THE YEAR CARD MUST NOT DISAGREE WITH THE FIELD ───────────────────────────────────────────
+//
+// `computeYearSoFar` re-runs the calculator headlessly over every entered payslip and multiplies the
+// SAME two things by hand: `getPensionDefault(p) * proRate`. Two copies of one rule in two modules,
+// which is the exact shape of the v18.84 year-summary defect — the card and the calculator reporting
+// different money for the same payslip, both plausible, neither flagged.
+//
+// So the property is asserted rather than each copy separately: for a joiner, the pension the YEAR
+// ENGINE actually used must be the pension the FIELD would have shown. It is recovered from the
+// engine's own output (taxable = gross − pension) rather than read out of it, which is what makes
+// this a test of the assembly and not of the expression.
+//
+// ONE DIFFERENCE IS REAL AND DELIBERATE, and the tolerance names it: the field rounds to the penny
+// and the year engine does not. Measured at under half a penny on a joining period, and it stops
+// there. A dropped pro-rate at either end moves the same comparison by ninety pounds, which is the
+// distance this is actually watching.
+describe('the pay field and the year card agree about a joiner’s pension', () => {
+    /** Run the real year engine over one entered payslip and hand back what it and the field say. */
+    function priceOnePayslip(/** @type {any} */ p, { london = 1 } = {}) {
+        const ty = TY_2627();
+        _ls.clear();
+        _ls.set(SK.grade, 'cea');
+        _ls.set(periodKey(p.num), JSON.stringify({ otH: 4, otM: 0 }));
+        const now = new Date(p.payday);
+        now.setDate(now.getDate() + 1);
+        const y = computeYearSoFar(ty, { taxCode: '1257L', plan: 'none', pgLoan: false, now });
+        // Rebuild the gross the engine priced, from the same REAL settings module it read. Nothing
+        // here is a restatement of the engine's own line — every input comes from the shipped code.
+        const g = computeGross({
+            rate:     getRateForPeriod(p, 'cea', ty.label, getStoredRateForYear(ty)),
+            effContr: getEffectiveContr(p),
+            satHrs: 0, bhHrs: 0, bhOtHrs: 0,
+            oHrs: 4, rHrs: 0, sHrs: 0, bHrs: 0, peerDays: 0,
+            london:   getLondonAllowanceForPeriod(p, ty) * london,
+            otherAdj: 0,
+        });
+        return { y, engine: g.gross - y.taxable, field: periodDefaultPension(p) };
+    }
+
+    test('the pension the year engine used is the one the field would show', () => {
+        const p = periodsInYear()[4];
+        beMember({ startDate: joinedPartWay(p, 10) });
+        const { y, engine, field } = priceOnePayslip(p, { london: getProRateFactor(p) });
+        assert.equal(y.entered, 1, 'the fixture did not reach the engine — nothing below means anything');
+        assert.ok(Math.abs(engine - field) < 0.005,
+            `the year card priced this payslip's pension at £${engine.toFixed(4)} and the field would show £${field.toFixed(2)}`);
+
+        // …and the agreement is not the trivial one: without the pro-rate at either end the two
+        // would stand this far apart.
+        const gapIfEitherDropped = getPensionDefault(p) - field;
+        assert.ok(gapIfEitherDropped > 90,
+            `a divergence would only be £${gapIfEitherDropped.toFixed(2)} — the fixture is too close to a full period`);
+    });
+
+    test('and they agree for a long-server too — the case with no pro-rate in it at all', () => {
+        const p = periodsInYear()[4];
+        beMember({});
+        const { engine, field } = priceOnePayslip(p);
+        assert.ok(Math.abs(engine - field) < 0.005);
+        assert.equal(field, getPensionDefault(p), 'a long-server must be charged the whole contribution');
     });
 });

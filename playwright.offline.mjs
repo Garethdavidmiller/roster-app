@@ -8,6 +8,12 @@
 // timing is environment-sensitive), mirroring playwright.csp.mjs and playwright.visual.mjs.
 
 import { defineConfig, devices } from '@playwright/test';
+import { devServer } from './e2e/dev-server.mjs';
+
+// One decision, shared with `baseURL` so the two cannot disagree: which port this
+// CHECKOUT serves on, and therefore which running server may be reused. See
+// e2e/dev-server.mjs — a fixed port let one worktree's run adopt another's server.
+const DEV = devServer(4002);
 
 export default defineConfig({
     testDir: './e2e',
@@ -17,7 +23,7 @@ export default defineConfig({
     retries: 0,
     reporter: 'list',
     use: {
-        baseURL: 'http://127.0.0.1:4002',
+        baseURL: DEV.baseURL,
         // The whole point of this suite: let the real service worker register + control the page.
         serviceWorkers: 'allow',
         trace: 'retain-on-failure',
@@ -25,10 +31,5 @@ export default defineConfig({
     projects: [
         { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
     ],
-    webServer: {
-        // Own port (4002) so it never clashes with the smoke server (4001).
-        command: 'npx http-server . -p 4002 -a 127.0.0.1 -c-1 --silent',
-        url: 'http://127.0.0.1:4002',
-        reuseExistingServer: !process.env.CI,
-    },
+    webServer: DEV.webServer,
 });

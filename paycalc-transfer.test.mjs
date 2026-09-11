@@ -84,6 +84,63 @@ describe('selecting what to back up', () => {
     });
 });
 
+// ── WHAT GOES OUT MUST BE WHAT COMES BACK IN ─────────────────────────────────────────────────────
+//
+// `selectBackupKeys` and `validateBackup` each hold their own idea of what a pay key is — the export
+// filter (`startsWith(prefix) && !DEVICE_KEYS.has(k) && KEY_RE.test(k)`) and the import refusal
+// (`!KEY_RE.test(k) || DEVICE_KEYS.has(k)`). They are two statements of one rule, written twice, in
+// opposite polarity, in two functions nothing compares. Both surviving mutations in this file's
+// mutation sweep were one half of one of them, and the cost is different at each end:
+//
+//   · EXPORT too WIDE — a key shape the importer refuses is written into the file, and the whole
+//     backup is then rejected on restore. The member is holding their only copy of their pay history
+//     and the app will not read it. No partial restore, no way to fix it from the phone.
+//   · IMPORT too WIDE — a browser flag is accepted as pay data (see the legacy cases above).
+//
+// Neither end can see the other, so the property is asserted rather than the two filters separately:
+// a key is exportable if and only if it is importable, over a candidate set that includes the shapes
+// nobody writes TODAY. That last part is the point — `selectBackupKeys` is a prefix scan precisely so
+// a key type invented later is picked up for free, and "invented later" is where a hyphen or a dot
+// enters (a per-date key would carry them naturally). The guard has to run against shapes the app
+// does not yet produce, or it only checks the past.
+describe('the export filter and the import filter are one rule', () => {
+    const CANDIDATES = [
+        // real shapes, under the bare legacy prefix so both ends see the same universe
+        'myb_pc_p16', 'myb_pc_grade', 'myb_pc_hpp_est_2026_27', 'myb_pc_snap_16', 'myb_pc_actuals',
+        'myb_pc_some_future_thing_2028_29',
+        // device flags, active and retired
+        'myb_pc_ns_migrated', 'myb_pc_cea_migrated', 'myb_pc_ytd_notice_2_shown',
+        'myb_pc_pay_welcome_shown', 'myb_pc_ytd_notice_shown',
+        // shapes the app does not write today — a key type added later could
+        'myb_pc_snap_2026-07-03', 'myb_pc_a.b', 'myb_pc_a b', 'myb_pc_',
+    ];
+
+    const importable = (k) => {
+        const blob = JSON.stringify(buildBackup({
+            entries: { [k]: '{}' }, member: '', slug: '', appVersion: '19.16',
+            exportedAt: '2026-07-28T16:40:00.000Z', prefix: 'myb_pc_',
+        }));
+        return validateBackup(blob, { currentSlug: SLUG }).ok;
+    };
+
+    test('every key the export takes, the import accepts — and no other', () => {
+        for (const k of CANDIDATES) {
+            const exported = selectBackupKeys([k], 'myb_pc_').length === 1;
+            assert.equal(exported, importable(k),
+                exported
+                    ? `${k} is written into backups the app will then refuse to restore`
+                    : `${k} is accepted on restore but never exported — the two filters disagree`);
+        }
+    });
+
+    test('and the candidate set actually straddles the line', () => {
+        // Guard-on-the-guard: an all-yes or all-no list would satisfy the property trivially.
+        const taken = CANDIDATES.filter(k => selectBackupKeys([k], 'myb_pc_').length === 1);
+        assert.ok(taken.length >= 6, 'no real pay keys in the set — the property proves nothing');
+        assert.ok(taken.length < CANDIDATES.length, 'nothing is refused — the property proves nothing');
+    });
+});
+
 describe('summary — stated in payslips, not key counts', () => {
     test('counts periods and distinct tax years', () => {
         const s = summarise(Object.keys(SAMPLE), PREFIX);
@@ -270,7 +327,63 @@ describe('the trust boundary — a backup must not write arbitrary storage', () 
     });
 
     test('a DEVICE key smuggled into the data is refused', () => {
-        reject({ 'myb_pc_ns_migrated': '1' }, 'device flags must never be importable');
+        // ⚠️ THIS CASE ALONE DOES NOT REACH THE DEVICE-KEY RULE, and for eight releases nothing did.
+        // The blob `makeBlob` builds claims slug "gmiller", so `myb_pc_ns_migrated` — which carries no
+        // slug segment — is caught two checks later by the "does not sit under the claimed slug" rule,
+        // and `ok: false` is `ok: false` whichever refused it. Deleting `|| DEVICE_KEYS.has(k)` from
+        // validateBackup left this green. Naming the refusal is what makes it bite; the legacy blob
+        // below is where the rule is actually the only thing standing there.
+        const err = reject({ 'myb_pc_ns_migrated': '1' }, 'device flags must never be importable');
+        assert.match(err, /isn't pay data/, 'refused for the wrong reason — the device-key rule was not what stopped it');
+    });
+
+    test('a LEGACY backup carrying a device flag is refused — the one blob where nothing else would', () => {
+        // An unnamespaced (pre-v14.11) backup claims `slug: ''`, so its own prefix IS the bare
+        // `myb_pc_` and a device flag sits legitimately under it: the stray check cannot see it, and
+        // the shape check cannot either (every device key is plain `myb_pc_<word>`). The device-key
+        // rule is the only gate, and legacy blobs are exactly the ones where it matters — restoring
+        // `myb_pc_ns_migrated` re-keys it into the member's namespace, where it stops being a browser
+        // flag and becomes an unrecognised entry counted by the card whose whole job is to say what
+        // the member is carrying, and copied into every backup they take afterwards.
+        for (const flag of ['myb_pc_ns_migrated', 'myb_pc_cea_migrated', 'myb_pc_ytd_notice_2_shown']) {
+            const legacy = JSON.stringify(buildBackup({
+                entries: { 'myb_pc_p16': '{}', [flag]: '1' },
+                member: '', slug: '', appVersion: '19.16',
+                exportedAt: '2026-07-28T16:40:00.000Z', prefix: 'myb_pc_',
+            }));
+            const res = validateBackup(legacy, { currentSlug: SLUG });
+            assert.equal(res.ok, false, `${flag} reached the member's namespace`);
+            assert.match(res.error, /isn't pay data/);
+            assert.match(res.error, new RegExp(flag), 'the refusal must name the key, or the member cannot fix the file');
+        }
+    });
+
+    test('a RETIRED device flag is refused too — the set is not the active list', () => {
+        // RETIRED_DEVICE_KEYS exists because deleting a flag the app stopped writing reclassifies it
+        // as member data (v19.36 → v19.37). The same reclassification happens here, arriving by file
+        // instead of by edit, and it is the retired ones that are still sitting on real devices.
+        const legacy = JSON.stringify(buildBackup({
+            entries: { 'myb_pc_p16': '{}', 'myb_pc_pay_welcome_shown': '1' },
+            member: '', slug: '', appVersion: '19.16',
+            exportedAt: '2026-07-28T16:40:00.000Z', prefix: 'myb_pc_',
+        }));
+        const res = validateBackup(legacy, { currentSlug: SLUG });
+        assert.equal(res.ok, false);
+        assert.match(res.error, /isn't pay data/);
+    });
+
+    test('…and a legacy blob with no device flag still restores — this is a gate, not a ban on legacy files', () => {
+        // The guard-on-the-guard. Without it every case above would pass equally on an import path
+        // that had simply stopped accepting unnamespaced backups, which is the population that needs
+        // it most: their data predates namespacing and this is the only way it reaches a new phone.
+        const legacy = JSON.stringify(buildBackup({
+            entries: { 'myb_pc_p16': '{}', 'myb_pc_grade': 'cea' },
+            member: '', slug: '', appVersion: '19.16',
+            exportedAt: '2026-07-28T16:40:00.000Z', prefix: 'myb_pc_',
+        }));
+        const res = validateBackup(legacy, { currentSlug: SLUG });
+        assert.equal(res.ok, true, res.ok === false ? res.error : '');
+        assert.equal(res.unnamespaced, true);
     });
 
     test('path-traversal-looking and punctuation keys are refused', () => {

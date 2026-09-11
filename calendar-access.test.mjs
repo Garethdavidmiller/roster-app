@@ -32,6 +32,12 @@ let ops = [];
 let currentUser = null;
 /** What `getIdTokenResult()` will report. */
 let tokenClaims = { calendarViewer: true };
+/** WHO the minted token signs in as, overriding the viewer shape. The fake hardcoded the viewer
+ *  uid, so `isViewerUser(cred.user)` — the second half of the claim check — could never be false
+ *  and deleting it left the whole file green (measured). A token's SUBJECT is the server's answer
+ *  as much as its claims are, and this is the seam that lets a test disagree with it.
+ *  @type {any} */
+let tokenUser = undefined;
 let sessionValue = null;
 /** Queue of fetch outcomes: `{ ok, status, json }` or an Error to throw. */
 let fetchQueue = [];
@@ -48,7 +54,7 @@ mock.module('./firebase-client.js', {
         signInWithCustomToken: async (_a, token) => {
             ops.push('signIn:' + token);
             if (token === 'BAD_TOKEN') { const e = new Error('bad'); e.code = 'auth/invalid-custom-token'; throw e; }
-            currentUser = {
+            currentUser = tokenUser !== undefined ? tokenUser : {
                 uid: 'calendar-viewer', isAnonymous: false,
                 getIdTokenResult: async () => ({ claims: tokenClaims }),
             };
@@ -140,6 +146,7 @@ mock.module('./session.js', {
         },
         ensureNamedSession: async (name) => {
             ops.push('ensureNamedSession:' + name);
+            if (silentGate) await silentGate;
             // The RESULT and the resulting IDENTITY are set separately, because the real function
             // can genuinely report success on an ANONYMOUS fallback (`ENFORCE_NAMED_SESSION` off).
             // A fake that tied the two together would make "trust the boolean" indistinguishable
@@ -163,6 +170,10 @@ let silentReauthUser = undefined;
 let reconcileHangs = false;
 /** A promise the mocked reconcile awaits, so a test can hold the decision open. @type {Promise<void>|null} */
 let reconcileGate = null;
+/** The same, for the silent re-establishment — the boot AWAITS that attempt (up to
+ *  `SILENT_BEFORE_CARD_MS`) between withdrawing a provisional paint and putting a card up, and that
+ *  window is the only place the withdrawal's own workspace hide is observable. @type {Promise<void>|null} */
+let silentGate = null;
 
 /** Mutable so both sides of the switch are reachable — the whole point of the flag is that it has
  *  two behaviours, and a test that could only ever see one would be checking half a feature. */
@@ -188,6 +199,10 @@ const {
 // The three cards live in calendar-lock-cards.js since v23.54. Imported AFTER calendar-access.js,
 // whose module scope wires their collaborators — a card reached before that would have no deps.
 const { showSignInPanel } = await import('./calendar-lock-cards.js');
+// The slot, so a test can ask WHICH card is standing where the Calendar goes. Real, not mocked —
+// it touches only the fake DOM, and the whole point of asking is that the answer is the shipped
+// one. Used to prove a workspace hide belongs to the revoke and not to a card that arrived later.
+const { lockCardId } = await import('./calendar-lock-slot.js');
 
 // A DOM just rich enough for the module to build and query its card.
 /** @param {boolean} online */
@@ -196,6 +211,9 @@ function setOnline(online) {
         value: { onLine: online }, configurable: true, writable: true,
     });
 }
+
+/** The element factory of the CURRENT fake DOM — see the note in `beforeEach`. @type {any} */
+let domEl = () => null;
 
 function fakeDom() {
     /** @type {any} */
@@ -279,6 +297,7 @@ beforeEach(async () => {
     ops = [];
     currentUser = null;
     tokenClaims = { calendarViewer: true };
+    tokenUser = undefined;
     sessionValue = null;
     CONFIG.CALENDAR_PIN_ACCESS = true;
     signInAnonymouslyHangs = false;
@@ -286,12 +305,13 @@ beforeEach(async () => {
     silentReauthSucceeds = false;
     silentReauthUser = undefined;
     reconcileGate = null;
+    silentGate = null;
     authSubs.clear();
     store.clear();
     fetchQueue = [];
     lastFetchBody = null;
     loginMounts = [];
-    fakeDom();
+    ({ el: domEl } = fakeDom());
     // (`_accessType` is module-level — the whole app asks one module "may this browser see the
     // roster?" — so without the reset above a successful unlock in one test would leave every later
     // test starting from `viewer` and the "stays locked" assertions would pass for the wrong reason.)
@@ -505,6 +525,55 @@ describe('THE CLAIM IS VERIFIED — a token is not trusted for what it says on t
         tokenClaims = { name: 'G. Miller', admin: true };
         assert.equal((await unlockWithPin('1234')).ok, false);
         assert.equal(getAccessType(), 'none');
+    });
+
+    // ── THE OTHER HALF OF THE SAME LINE (v23.63) ────────────────────────────────────────────────
+    //
+    // `res2?.claims?.[CALENDAR_VIEWER_CLAIM] !== true || !isViewerUser(cred.user)` is two questions,
+    // and the three cases above only ever asked the first. The fake minted every token as the viewer
+    // uid, so `isViewerUser` was true in every test in this file and deleting that half left all 71
+    // green (measured). A guard nothing can make fire is documentation.
+    //
+    // The two are not redundant. The claim says what the token may DO; the uid says WHO it is, and
+    // the app asks that question separately everywhere afterwards — `session.js` sheds a viewer by
+    // uid before restoring member persistence, `reconcileExpiredIdentity` preserves one by uid, and
+    // `lockCalendar` decides whether its sign-out took by uid. Granting `'viewer'` to an identity
+    // `isViewerUser` does not recognise puts `getAccessType()` and every one of those in permanent
+    // disagreement about the same browser — and the quietest consequence is Lock: it signs out, asks
+    // `isViewerUser(auth.currentUser)`, gets `false` because this was never the viewer, and reloads
+    // reporting success. Somebody walks away from a shared machine on a session that did not end.
+    test('a token carrying the RIGHT claim under the WRONG uid is refused', async () => {
+        tokenUser = {
+            uid: 'member-1', isAnonymous: false,
+            getIdTokenResult: async () => ({ claims: { calendarViewer: true } }),
+        };
+        const r = await unlockWithPin('1234');
+        assert.equal(r.ok, false, 'a non-viewer identity was granted the shared capability');
+        assert.equal(getAccessType(), 'none');
+        assert.equal(currentUser, null, 'the wrong-uid identity was left signed in');
+    });
+
+    test('and an ANONYMOUS identity carrying it is refused too — that is the belt', async () => {
+        // `isViewerUser` requires non-anonymous as well as the uid, and its own header says why:
+        // every caller uses it to decide whether an identity may be PRESERVED across
+        // `reconcileExpiredIdentity`, so a predicate that could return true for an unverified one
+        // turns that preservation into a bypass. The claim check cannot see this at all.
+        tokenUser = {
+            uid: 'calendar-viewer', isAnonymous: true,
+            getIdTokenResult: async () => ({ claims: { calendarViewer: true } }),
+        };
+        assert.equal((await unlockWithPin('1234')).ok, false);
+        assert.equal(getAccessType(), 'none');
+        assert.equal(currentUser, null);
+    });
+
+    test('the viewer itself still gets in — or the two above would pass on a gate that refuses everyone', async () => {
+        tokenUser = {
+            uid: 'calendar-viewer', isAnonymous: false,
+            getIdTokenResult: async () => ({ claims: { calendarViewer: true } }),
+        };
+        assert.equal((await unlockWithPin('1234')).ok, true);
+        assert.equal(getAccessType(), 'viewer');
     });
 });
 
@@ -1214,6 +1283,42 @@ describe('the provisional paint — showing a returning member their own saved r
         assert.equal(isViewerMode(), false);
         b.release();
         await b.done;
+    });
+
+    // ── TAKING IT BACK IS TWO THINGS, AND ONLY ONE WAS PINNED (v23.63) ──────────────────────────
+    //
+    // `a confirmation that FAILS takes the paint back` above reads the SCOPE argument — it proves
+    // the override gate was shut. It says nothing about the grid, and the grid is what a person is
+    // looking at. Deleting `setWorkspaceHidden(true)` from `revokeProvisional` left all 71 tests in
+    // this file green (measured), with the roster still on screen under an identity that had just
+    // failed to confirm, and the sign-in card then mounted over the top of it.
+    //
+    // Shutting the gate stops the NEXT read. Only this takes down the one already drawn.
+    test('and it takes the ROSTER off the screen, not just the gate that feeds it', async () => {
+        // Read at the RIGHT INSTANT. A member holding a session is not sent straight to a card:
+        // the boot puts the skeleton up — which does not touch the workspace — and then AWAITS the
+        // silent re-establishment for up to `SILENT_BEFORE_CARD_MS`. The card that eventually
+        // appears hides the workspace itself, so an assertion taken after the boot settles passes
+        // either way. Held open here, so what is asserted is the withdrawal's own hide and nothing
+        // else's.
+        const grid = domEl('calendarDisplay');
+        let releaseSilent;
+        silentGate = new Promise(r => { releaseSilent = r; });
+        const b = bootHeld();
+        await Promise.resolve(); await Promise.resolve();
+        assert.deepEqual(b.scopes, ['G. Miller'], 'precondition: the paint is up');
+        assert.equal(grid.hidden, false, 'precondition: the workspace was un-hidden for the paint');
+
+        b.release();                      // the identity fails to confirm; the paint is withdrawn
+        await new Promise(r => setTimeout(r, 5));
+        assert.deepEqual(b.scopes, ['G. Miller', false], 'precondition: the gate was shut');
+        assert.equal(lockCardId(), 'calendarBooting',
+            'precondition: no card has replaced the grid yet — the hide below is the revoke\'s own');
+        assert.equal(grid.hidden, true,
+            'the roster stayed on screen through the re-establishment window, under an identity that failed');
+
+        releaseSilent();
+        assert.equal(await b.done, 'none');
     });
 
     // LAST IN THIS BLOCK, deliberately: `handleAccessLost` — which `beforeEach` uses to reset the

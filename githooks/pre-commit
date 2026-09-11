@@ -171,8 +171,29 @@ NODEEOF
 fi
 
 # ESLint — run on staged .js files only (fast).
-# Uses project-local node_modules/.bin/eslint (installed by `npm install`).
-if [[ -x "./node_modules/.bin/eslint" ]]; then
+#
+# ── RESOLVING THE BINARY FROM A WORKTREE (v23.63) ──────────────────────────────────────────────
+#
+# `git rev-parse --show-toplevel` names the WORKTREE root when the commit is made from one, and a
+# worktree never has `node_modules` — it is gitignored, so `git worktree add` does not copy it and
+# nobody installs into a throwaway checkout. The probe here was a bare `./node_modules/.bin/eslint`,
+# so from every `.claude/worktrees/*` tree this step printed one line and passed having linted
+# nothing. That is the v22.48 stamp-check shape again: a step that SKIPS what it cannot find is
+# indistinguishable, at the terminal, from one that looked and was satisfied. Reproduced before
+# fixing — a staged `no-undef` committed cleanly from a worktree with the hook installed.
+#
+# `--git-common-dir` names the MAIN checkout's `.git` from anywhere in the family, so its parent is
+# the tree where `npm install` actually ran. The worktree's own install is tried first, so a tree
+# that does have one is never made to borrow. In an ordinary checkout the second candidate resolves
+# to the same path as the first, which is why there is no separate branch for that case.
+ESLINT_BIN=""
+for _candidate in \
+    "./node_modules/.bin/eslint" \
+    "$(dirname "$(git rev-parse --git-common-dir)")/node_modules/.bin/eslint"; do
+  if [[ -x "$_candidate" ]]; then ESLINT_BIN="$_candidate"; break; fi
+done
+
+if [[ -n "$ESLINT_BIN" ]]; then
   # --no-warn-ignored is load-bearing (v20.11). Naming an ESLint-IGNORED file on the command line
   # makes it warn "file ignored", which --max-warnings=0 turns into a failed commit — so any commit
   # touching one is blocked for a reason that is not a lint problem. This block used to handle that
@@ -185,16 +206,22 @@ if [[ -x "./node_modules/.bin/eslint" ]]; then
   STAGED_JS=$(git diff --cached --name-only --diff-filter=ACM | grep '\.js$' | grep -v 'node_modules\|functions/' | grep -v 'service-worker\.js' | tr '\n' ' ')
   if [[ -n "$STAGED_JS" ]]; then
     # shellcheck disable=SC2086
-    ./node_modules/.bin/eslint --max-warnings=0 --no-warn-ignored $STAGED_JS
+    "$ESLINT_BIN" --max-warnings=0 --no-warn-ignored $STAGED_JS
     if [ $? -ne 0 ]; then
       echo ""
       echo "  ESLint: fix the above warnings/errors, then re-commit."
-      echo "  (Run: ./node_modules/.bin/eslint --fix <file> to auto-fix most issues.)"
+      echo "  (Run: $ESLINT_BIN --fix <file> to auto-fix most issues.)"
       exit 1
     fi
   fi
 else
-  echo "  (node_modules/.bin/eslint not found — run: npm install)"
+  # SAY THAT NOTHING WAS CHECKED, not merely that something is missing. The old line read
+  # "(node_modules/.bin/eslint not found — run: npm install)", which is a suggestion; this is a
+  # statement about what this commit was and was not checked against. Deliberately NOT a refusal:
+  # a bare clone with no install must still be committable, which is the same posture as
+  # `npm run test:nodeps`. The parity test pins the wording so it cannot soften back.
+  echo "  ESLint DID NOT RUN — no eslint binary in this checkout or the main one."
+  echo "  Staged JS was NOT linted by this commit. Run: npm install"
 fi
 
 # service-worker.js syntax check — ESLint is bypassed above; use node --check instead.

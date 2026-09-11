@@ -31,12 +31,32 @@ function makeDoc(id, data) {
     return { id, data: () => data };
 }
 
+// EVERY query this module builds, as it was actually built. The fake used to answer
+// `where: () => ({})` and `collection: () => ({})`, which threw the constraints away — so no test
+// in this file could see what was ASKED FOR, only what came back, and the two are different passes
+// over the same state. Recorded as plain tuples; `queries` groups them per issued query, because
+// the module builds two shapes and "which read carried what" is the question.
+/** @type {Array<[string, string, any]>} */
+let wheres = [];
+/** @type {string[]} */
+let collections = [];
+/** @type {Array<{ collection: string|null, wheres: Array<[string, string, any]> }>} */
+let queries = [];
+
 mock.module('./firebase-client.js', {
     namedExports: {
         db:         {},
-        collection: () => ({}),
-        query:      (...args) => args,
-        where:      () => ({}),
+        collection: (/** @type {any} */ _db, /** @type {any} */ name) => { collections.push(name); return { _collection: name }; },
+        query:      (/** @type {any} */ ...args) => {
+            const coll = args.find(a => a && a._collection)?._collection ?? null;
+            queries.push({ collection: coll, wheres: args.filter(a => Array.isArray(a?._where)).map(a => a._where) });
+            return args;
+        },
+        where:      (/** @type {any} */ f, /** @type {any} */ op, /** @type {any} */ v) => {
+            const c = /** @type {[string, string, any]} */ ([f, op, v]);
+            wheres.push(c);
+            return { _where: c };
+        },
         getDocs:    async () => {
             if (_getDocsThrows) throw new Error('simulated Firestore fetch failure');
             const docs = _mockDocs;   // captured at ISSUE — a later test mutation must not reach it
@@ -118,6 +138,80 @@ describe('addFetchedMonths / clearFetchedMonth', () => {
         _mockDocs = [];
         await ensureOverridesCached(2099, 7, () => { fetched = true; });
         assert.equal(fetched, true);   // fetch was allowed after clearing
+    });
+});
+
+// ── WHAT WAS ACTUALLY ASKED FOR (v23.63) ────────────────────────────────────────────────────────
+//
+// Every test above reads this module's answers. None of them could read its QUESTIONS, because the
+// fake discarded `where()` and `collection()` — "a harness that discards is a harness that cannot
+// see" (CLAUDE.md), and the thing it could not see here is the date range.
+//
+// Organised by what a wrong question costs, and the two directions are not symmetrical:
+//
+//   · An UNBOUNDED read is silent and it is the expensive one. Drop either date bound and every
+//     assertion in this file still passes: the per-month slice below `getDocs` filters what is
+//     WRITTEN, so the cache stays correct and the grid is identical — the app has simply asked
+//     Firestore for every override it has ever held, on a phone, on mobile data, on every month
+//     navigation that is not already claimed. The module carries its own 1,900-document warning
+//     for exactly this, and MAINTENANCE_CALENDAR.md has the collection on a path past 5,000.
+//     Measured: removing `where('date', '<=', endStr)` left the whole repository green.
+//   · A read scoped TOO TIGHTLY loses overrides off the end of the month, which is visible — the
+//     grid shows a base roster where a change was recorded, and somebody reports it.
+//
+// The member scope is NOT re-pinned here: `calendar-access-gate.test.mjs` already drives it from
+// both sides, with a recording fake of its own, in the file that owns the access question.
+describe('the QUESTION, not the answer — every read is bounded to the range it was asked for', () => {
+    beforeEach(() => {
+        rosterOverridesCache.clear();
+        _mockDocs = [];
+        _mockCacheDocs = [];
+        _cacheThrows = false;
+        wheres = [];
+        collections = [];
+        queries = [];
+    });
+
+    test('the authoritative read asks for the overrides collection, and only the range', async () => {
+        await fetchOverridesForRange('2026-06-01', '2026-06-30');
+        assert.deepEqual(collections, ['overrides'], 'the read went to another collection');
+        assert.equal(queries.length, 1, 'one read, one query');
+        assert.deepEqual(queries[0].wheres, [
+            ['date', '>=', '2026-06-01'],
+            ['date', '<=', '2026-06-30'],
+        ], 'the server read was not bounded to the range it was handed');
+    });
+
+    test('the CACHE read carries the same bounds — it is the same range, without the network', async () => {
+        _mockCacheDocs = [makeDoc('c1', { memberName: 'A. Smith', date: '2026-06-10', value: 'AL', type: 'annual_leave', source: 'manual', note: '' })];
+        await fetchOverridesForRangeFromCache('2026-06-01', '2026-06-30');
+        assert.deepEqual(collections, ['overrides']);
+        assert.deepEqual(queries[0].wheres, [
+            ['date', '>=', '2026-06-01'],
+            ['date', '<=', '2026-06-30'],
+        ], 'the local cache read was unbounded — it deserialises the whole collection out of IndexedDB');
+    });
+
+    test('a different month asks a different question — the bounds are the argument, not a constant', async () => {
+        // Otherwise both cases above would pass on a read that hardcoded June.
+        await ensureOverridesCached(2027, 1, () => {});      // February 2027
+        assert.equal(queries.length, 1);
+        assert.deepEqual(queries[0].wheres, [
+            ['date', '>=', '2027-02-01'],
+            ['date', '<=', '2027-02-28'],
+        ], 'the month asked for is not the month the caller named');
+    });
+
+    test('the range spans WHOLE months — a 3-month fetch is one query, first to last', async () => {
+        // The initial fetch hands three months at once and relies on one round trip for the lot.
+        // Asserted because the alternative — a query per month — is a change nothing else would
+        // notice and three times the reads on the app's most-opened page.
+        await fetchOverridesForRange('2026-05-01', '2026-07-31');
+        assert.equal(queries.length, 1, 'a multi-month range was split into separate reads');
+        assert.deepEqual(queries[0].wheres, [
+            ['date', '>=', '2026-05-01'],
+            ['date', '<=', '2026-07-31'],
+        ]);
     });
 });
 

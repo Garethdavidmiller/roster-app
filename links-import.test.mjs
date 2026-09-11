@@ -63,6 +63,22 @@ describe('one cell — where a proposal loses a duty', () => {
         }
     });
 
+    test('an impossible MINUTE is refused on either side, and :59 still is not', () => {
+        // The shipped defect: the hour was checked on both sides of the range and the minute on
+        // NEITHER, so `07:75-15:30` and `07:45-15:99` both became duties. `canonicaliseShift` only
+        // pads and re-spells, so an impossible minute round-tripped unchanged — and nothing
+        // downstream refuses one. The heat map counts the duty, the hours maths adds it, and the
+        // cell renders as an ordinary shift, so the only thing that could catch it was a reader
+        // noticing the digits in somebody else's pasted proposal.
+        for (const t of ['07:75-15:30', '07:45-15:99', '07:60-15:30', '07:45-15:60', '07:99-15:99']) {
+            assert.ok('error' in parseCell(t), `${t} was accepted as ${JSON.stringify(parseCell(t))}`);
+        }
+        // The other direction, which is the one a careless fix breaks: 59 is a real minute and 23
+        // a real hour, and a `>=` would refuse the last minute of the day on every design.
+        assert.deepEqual(parseCell('07:59-15:59'), { value: '07:59-15:59' });
+        assert.deepEqual(parseCell('00:00-23:59'), { value: '00:00-23:59' });
+    });
+
     test('a value it returns is one the design layer already accepts', () => {
         // Round-tripped through the app's own canonicaliser rather than compared to a literal —
         // a test asserting its own idea of the format would pass while the app stored something else.

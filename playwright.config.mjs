@@ -4,6 +4,12 @@
 // Run in CI: see .github/workflows/e2e.yml
 
 import { defineConfig, devices } from '@playwright/test';
+import { devServer } from './e2e/dev-server.mjs';
+
+// One decision, shared with `baseURL` so the two cannot disagree: which port this
+// CHECKOUT serves on, and therefore which running server may be reused. See
+// e2e/dev-server.mjs — a fixed port let one worktree's run adopt another's server.
+const DEV = devServer(4001);
 
 export default defineConfig({
     testDir: './e2e',
@@ -63,7 +69,7 @@ export default defineConfig({
         // ::1 first, while http-server binds IPv4 only — that mismatch makes the
         // webServer readiness probe (and every page.goto) hang then fail. Pinning
         // both sides to 127.0.0.1 removes the ambiguity.
-        baseURL: 'http://127.0.0.1:4001',
+        baseURL: DEV.baseURL,
         // Block service workers in tests: the app's SW (network-first, skipWaiting)
         // would otherwise intercept fetches and compete with the Firebase route stub.
         // sw-register.js catches the resulting registration rejection, so blocking is
@@ -85,11 +91,9 @@ export default defineConfig({
     // -a 127.0.0.1 forces an IPv4 bind that matches baseURL/url above.
     // -c-1 disables http-server's default 1-hour cache so SW/JS changes are visible.
     // --silent suppresses the per-request log spam during test runs.
-    webServer: {
-        command: 'npx http-server . -p 4001 -a 127.0.0.1 -c-1 --silent',
-        url: 'http://127.0.0.1:4001',
-        // Reuse an existing server when running locally to speed up iteration.
-        // Always start fresh in CI so port conflicts don't produce false passes.
-        reuseExistingServer: !process.env.CI,
-    },
+    // The command, its url and `baseURL` all come from one call, because a port changed in one
+    // of them and not the others is a readiness probe that HANGS rather than an error. Reuse is
+    // still on locally — but the port now names the CHECKOUT, so an adopted server is serving
+    // these files and not another worktree's. See e2e/dev-server.mjs for what went wrong.
+    webServer: DEV.webServer,
 });

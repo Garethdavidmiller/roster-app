@@ -97,7 +97,12 @@ export function parseCell(raw) {
     const m = TIME_RE.exec(t);
     if (!m) return { error: `“${t}” is not a time, a rest day or a spare day` };
     const [, h1, m1, h2, m2] = m;
-    if (+h1 > 23 || +h2 > 23) return { error: `“${t}” is not a real time` };
+    // BOTH halves of both times. The hour was checked here from the first cut and the minute was
+    // not, on either side — and `canonicaliseShift` below only pads and re-spells, so `07:75-15:99`
+    // round-tripped unchanged and became a duty. Nothing downstream refuses it: the heat map counts
+    // it, the hours maths adds it, and the cell reads as an ordinary shift, so the only signal a
+    // proposal carried an impossible time was somebody noticing the digits.
+    if (+h1 > 23 || +h2 > 23 || +m1 > 59 || +m2 > 59) return { error: `“${t}” is not a real time` };
     // Round-tripped through the app's own canonicaliser rather than formatted here, so an imported
     // time is byte-identical to a painted one. Two spellings of the same duty would defeat every
     // comparison the workspace makes.

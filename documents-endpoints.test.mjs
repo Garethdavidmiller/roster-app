@@ -310,6 +310,64 @@ describe('ingestHuddle — the happy path, executed to its side effects', () => 
     });
 });
 
+// ── the retention sweep, by what it DESTROYS ───────────────────────────────────────────────────
+//
+// pruneOldHuddles runs INSIDE the ingest request, against a collection that same request has just
+// written to. The costs are not symmetrical:
+//
+//  - DESTROYING THE UPLOAD IT WAS CALLED ABOUT is silent and total. A back-dated Huddle — a
+//    catch-up upload, or a Power Automate run whose date header lags — lands outside the retention
+//    window the instant it is written, so the sweep's own query returns it. The doc goes, the
+//    prefix sweep takes the object uploaded seconds earlier, staff have already been pushed a
+//    notification for it, and the endpoint answers 200 with a storageUrl that 404s. Nothing logs a
+//    failure, because nothing failed. `excludeDate` is the whole defence.
+//  - Leaving a genuinely stale huddle behind only costs storage, and the next ingest sweeps it.
+describe('the retention sweep — the upload it was called about is never its own victim', () => {
+    test('a back-dated huddle survives the sweep its own ingest triggers', async () => {
+        const b = build();                                         // now = 30 Aug 2026 ⇒ cutoff 30 May 2026
+        const out = await ingest(b.eps, { date: '2026-04-01' });    // four months old on arrival
+        assert.equal(out.code, 200);
+        assert.ok(b.store.has('huddles/2026-04-01'), 'the doc this request wrote must still be there');
+        assert.equal(b.deletes.length, 0, 'no Firestore delete at all — the excluded date was the only match');
+        const uploaded = b.saved[0].path;
+        assert.ok(!b.deleted.includes(uploaded), 'the object this request uploaded must survive the prefix sweep');
+        assert.ok(b.objects.has(uploaded), 'and it is still in the bucket');
+        assert.equal(b.sends.length, 1, 'staff were told it arrived — so it had better still exist');
+        assert.ok(out.body.storageUrl.includes(encodeURIComponent(uploaded)),
+            'the 200 hands Power Automate a URL for the object that survived');
+    });
+
+    test('a back-dated RE-upload loses only the version it replaced, never the one it wrote', async () => {
+        // The sweep deletes by the `huddles/<date>` prefix, which matches every version for a date.
+        // Excluding the date is what keeps that prefix off the object written moments earlier; the
+        // superseded object is reclaimed by the ingest's own targeted cleanup instead.
+        const b = build({
+            seed: { 'huddles/2026-04-01': { date: '2026-04-01', storagePath: 'huddles/2026-04-01-old.pdf' } },
+            objects: ['huddles/2026-04-01-old.pdf'],
+        });
+        const out = await ingest(b.eps, { date: '2026-04-01' });
+        assert.equal(out.code, 200);
+        const uploaded = b.saved[0].path;
+        assert.ok(b.store.has('huddles/2026-04-01'), 'the replacement metadata stays');
+        assert.equal(b.store.get('huddles/2026-04-01').storagePath, uploaded);
+        assert.ok(!b.deleted.includes(uploaded), 'the new object is not swept by its own date prefix');
+        assert.ok(b.deleted.includes('huddles/2026-04-01-old.pdf'), 'the superseded version still goes');
+    });
+
+    test('an out-of-window date that is NOT this upload is still swept — an exclusion, not a stop', async () => {
+        // The other direction: excluding one date must not disarm the sweep. Without this case the
+        // two above would pass equally well on a pruneOldHuddles that had stopped deleting anything.
+        const b = build({
+            seed: { 'huddles/2026-03-02': { date: '2026-03-02', storagePath: 'huddles/2026-03-02-aa.pdf' } },
+            objects: ['huddles/2026-03-02-aa.pdf'],
+        });
+        await ingest(b.eps, { date: '2026-04-01' });
+        assert.ok(b.store.has('huddles/2026-04-01'), 'the excluded date survives');
+        assert.ok(!b.store.has('huddles/2026-03-02'), 'the other stale date does not');
+        assert.ok(b.deleted.includes('huddles/2026-03-02-aa.pdf'));
+    });
+});
+
 // ── the three Firestore triggers ───────────────────────────────────────────────────────────────
 
 describe('the create triggers — who notifies, and the halves of the double-push guard', () => {

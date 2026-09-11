@@ -100,9 +100,9 @@ const OPTS = { taxCode: '1257L', plan: 'none', pgLoan: false, now: NOW };
 
 /** Mirror one payslip through the same real engine, so the totals assert the wiring. `lump` is a
  *  gross bp/HPP lump folded into gross BEFORE pension/tax/NI/SL — exactly as calculate() does. */
-function mirror({ oHrs = 0, sHrs = 0, pension = PENSION, plan = 'none', slSkip = false, lump = 0 }) {
+function mirror({ oHrs = 0, sHrs = 0, pension = PENSION, plan = 'none', slSkip = false, lump = 0, london = LONDON }) {
     const g = computeGross({ rate: RATE, effContr: CONTR, satHrs: 0, bhHrs: 0, bhOtHrs: 0,
-        oHrs, rHrs: 0, sHrs, bHrs: 0, peerDays: 0, london: LONDON, otherAdj: 0 });
+        oHrs, rHrs: 0, sHrs, bHrs: 0, peerDays: 0, london, otherAdj: 0 });
     const sacGross = g.gross + lump - pension;
     const tax = computeTax(sacGross, '1257L', T25).tax;
     const ni  = computeNI(sacGross, T25.ni);
@@ -152,6 +152,40 @@ describe('computeYearSoFar', () => {
         // would over-project a joiner's full-year take-home by 2×.
         assert.ok(Math.abs(y.projectedNet - (y.net / 1) * 2) < 0.01, 'projection = avg × employed periods (2), not year total (4)');
         assert.notEqual(Math.round(y.projectedNet), Math.round((y.net / 1) * 4), 'must NOT project over all 4 periods');
+    });
+
+    // ── THE JOINING PERIOD (seam 2 of the v23.63 mutation sweep) ──────────────────────────────
+    //
+    // The engine pro-rates TWO things on a joining payslip — the London Allowance and the pension —
+    // and only one of them was ever exercised here. Every existing case sets the factor to 0 or 1,
+    // where `× proRate` on the pension is either the identity or zeroes a payslip nothing else
+    // reads, so deleting that multiplication left this whole file green.
+    //
+    // The expensive direction is charging a part-period joiner a WHOLE period's pension. It comes
+    // off gross before tax and NI, so it moves the taxable figure, the tax, the NI and the take-home
+    // together, every one of them still plausible — and this card is a member's year summary, the
+    // surface they would use to notice exactly that kind of thing.
+    //
+    // The mirror is given the same two pro-rated inputs, so the case fails if EITHER is dropped, and
+    // the second assertion states what the pension half alone is worth.
+    test('a joining payslip pro-rates the pension, not only the London Allowance', () => {
+        const F = 10 / 28;                       // employed for the last ten days of the period
+        _proRate = () => F;
+        _ls.set('myb_pc_p60', JSON.stringify({ otH: 4, otM: 0 }));
+
+        const y = computeYearSoFar(TY, OPTS);
+        assert.equal(y.entered, 1);
+
+        const m = mirror({ oHrs: 4, pension: PENSION * F, london: LONDON * F });
+        assert.ok(Math.abs(y.taxable - m.sacGross) < 0.01,
+            `taxable was £${y.taxable.toFixed(2)}, a pro-rated payslip is £${m.sacGross.toFixed(2)}`);
+        assert.ok(Math.abs(y.net - m.net) < 0.01, 'take-home follows the pro-rated pension through tax and NI');
+
+        // What the pension half alone is worth, stated as money: a payslip priced with the FULL
+        // contribution differs from this one by most of a month's pension.
+        const full = mirror({ oHrs: 4, pension: PENSION, london: LONDON * F });
+        assert.ok(Math.abs(y.taxable - full.sacGross) > 90,
+            'the full-pension and pro-rated-pension payslips are too close for this case to mean anything');
     });
 
     test('nothing entered → all-zero result with a zero projection', () => {

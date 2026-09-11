@@ -305,6 +305,15 @@ The **pure** half — no DOM, no Firebase, no storage, so it loads in Node. Same
   direction). A refused boot behaves exactly as it did before v22.97. Tested by
   calendar-access-core.test.mjs; the grant/revoke WIRING by calendar-access.test.mjs, and the paint
   itself only by e2e/calendar-pin.spec.js — no unit assertion can say a member is looking at shifts.
+- **Withdrawing it is TWO acts, and the second had nothing checking it (v23.63).** `revokeProvisional`
+  shuts the override gate AND hides the workspace; the first stops the next read, only the second
+  takes down the grid already drawn. Deleting the hide left `calendar-access.test.mjs` green, because
+  the sign-in card that follows hides the workspace itself — but not before the boot has awaited the
+  silent re-establishment for up to `SILENT_BEFORE_CARD_MS`, so the roster stayed on screen through
+  that window under an identity that had just failed to confirm. Now pinned at that instant.
+  **The ORDER between the two is defence in depth, not a live property** — measured: they are
+  adjacent synchronous statements, so swapping them fails nothing and can cost nothing today. Keep
+  the order for the `await` somebody adds later; do not believe anything is checking it.
 
 ### `calendar-overrides.js`
 Firestore override cache for `index.html` — extracted from `calendar-app.js` at v13.82.
@@ -370,7 +379,7 @@ The member's side of the Overtime page. `overtime-form.js` renders one week's se
 
 **`nextDay` is derived, never asked.** The form computes it from the two times (`end < start`), which is both what the server validates and the only way a member can enter an overnight period at all.
 
-**The timeout path is three outcomes, not two.** A timed-out submit re-reads state and looks for its own `clientMutationId`: found → "your earlier submission did save"; provably absent → "try again"; still offline → "we couldn't confirm". Collapsing the third into the second is how somebody submits a second, contradictory version. And a 409 branches on whether the winning mutation id is the caller's own — "you did this, in the request that timed out" is a completely different message from "somebody else changed this". Both decisions are `reconcileVerdict` and `conflictIsOurs`; this module supplies the state and picks the words.
+**The timeout path is three outcomes, not two.** A timed-out submit re-reads state and looks for its own `clientMutationId`: found → "your earlier submission did save"; provably absent → "try again"; still offline → "we couldn't confirm". Collapsing the third into the second is how somebody submits a second, contradictory version. And a 409 branches on whether the winning mutation id is the caller's own — "you did this, in the request that timed out" is a completely different message from "somebody else changed this". Both decisions are `reconcileVerdict` and `conflictIsOurs`; this module supplies the state and picks the words. **Tested by `overtime-form.test.mjs`**, which holds the ladder below a timeout and nothing else: the e2e already drives the three rules the module header names, and what a browser cannot do is choose the re-read's answer or read the Submit button at an instant between two awaits. The button stays DISABLED across reconciliation for the reason the rest of this paragraph gives — a second press racing the read that decides the first is the contradictory double — and a `saved` verdict that did not ADOPT the revision it found is the quiet half of the same failure: the member is reassured, presses Save again later, and a submission that was never in danger comes back as a conflict about somebody else's changes. The suite also pins that the conflict offer REPLACES the working copy rather than blending it; a merged week is a well-formed seven-day answer neither the member nor the server ever made.
 
 **The member's query is SCOPED, and that one clause is the whole property** — tested by `overtime-roster.test.mjs`, which is the first unit suite this module has had. `firestore.rules` grants `overrides` read to any `name` claim with no per-member restriction, so dropping `where('memberName','==',…)` does not fail, it SUCCEEDS and returns more; a mutation sweep deleted it with every lane green. The leak is the smaller half: the accumulator is keyed by DATE alone, so the last document read for a date wins whoever it belongs to, and the member is then offered "available after my shift" anchored to a colleague's duty times — which is the literal time they submit and a roster clerk acts on. The suite's fake Firestore APPLIES the constraints it is handed instead of restating the intended filter, so removing the clause reproduces the real behaviour rather than the harness's memory of it. Its second subject is the `catch`: a swallowed read failure returns the locally-computed base roster as `authoritative` with every override invisible.
 
@@ -1396,6 +1405,7 @@ Huddle upload, push notification subscribe/unsubscribe, and Huddle card toggle.
 
 ### `doc-upload.js`
 Shared Operations upload-card skeleton (v16.07). `initDocUploadCard(cfg)` owns file-pick → validate (type + 20 MB) → optional pre-upload `transform` → upload → feedback + the date cap; per-card config (accepted types, transform, `maxDateOffsetDays`, uploadFn, copy). Drives Circular + Newsletter (operations-app.js) and the Huddle (huddle.js, which passes its DOCX→HTML Mammoth transform). `isPdfFile(f)` + `isDocxFile(f)` exported as accept predicates; Circular/Newsletter accept both (PDF or Word .docx — no upload transform, v16.31; a Word doc later opens via the Office Online viewer rather than downloading, v16.45), the Huddle also converts DOCX→HTML. Imports only `roster-data.js` (formatISO) + `session.js` (sessionReady).
+- **`MAX_UPLOAD_BYTES` is one of THREE declarations of the same limit** and the only one a member meets before the upload starts: the Cloud Functions' own `MAX_FILE_BYTES` (`functions/index.js`) and the `request.resource.size` cap in each of `storage.rules`' three upload blocks are the other two. They sit in three languages that cannot import one another, so they are kept in step by `upload-cap-parity.test.mjs`, which derives all three from source rather than restating the number. **A client cap ABOVE the rule's is the direction that costs something**: the card accepts the file, the admin waits out a full upload on whatever connection the station has, and Storage refuses on the last byte — reaching them as the card's generic failure, with no mention of size. The parity test also pins the "maximum 20 MB" sentence to the enforced figure, that being the only place an admin can read the limit at all.
 
 ### `admin-auth.js`
 Staff Firebase Auth account setup (admin only) — and, since v22.53, what is actually wrong right now.
@@ -1607,6 +1617,7 @@ Back-pay lump sum calculator for `paycalc.html` (v13.81).
 - `bpStoryHtml(o)` — PURE (v18.39, review item 5): the plain-English story leading the card — award shape (tense-aware, date-first payslip naming, backdated-to 1 April year from the label) + the member's figure per state (`computed` "roughly £X" / `manual` exact tense-aware / `manual-empty` prompt / `empty-window` / `no-figures` facts-only). Unit-tested in `paycalc-periods.test.mjs`; replaced the static award-scope line + the removed generic card explainer
 - `raiseByPercent(oldVal, pct)` — pure; new value after a % rise (`oldVal × (1 + pct/100)`), 0 for non-positive inputs. Backs the coordinator's "Pay rise %" shortcut that fills the New rate/London from the Old figure (v15.62)
 - Imports from `paycalc-calc.js`, `paycalc-periods.js`, `paycalc-settings.js`, `paycalc-migrations.js`, `paycalc-hpp.js`, `paycalc-format.js`, `ls.js`
+- **Tested by `paycalc-backpay.test.mjs`** (v23.63) — the ASSEMBLY, not the rules. `calcBackPay` needs only `getElementById`, `querySelector` and localStorage, so a fake `document` drives the real function to its real return value: the priced window, the first period's fraction, the rate boxes being overwritten from the record, the paid-in gate on both modes, and the rows summing exactly to the headline. Expected figures are derived from `TAX_YEARS` + the pure accrual, never written down. Teeth-verified by ten mutations — and it records the three that CANNOT fail: the paid-in exclusion and the award-date stop are redundant with each other while every award has a payment date on record (removing both together fails six cases), and the tax-year fence and the `fromPNum` lower bound are both covered by `awardWindowFactor` returning 0 before the backdate
 
 ### `paycalc-format.js`
 Pure date/currency formatters + time-input helpers shared by `paycalc-app.js` and `paycalc-backpay.js` (v14.06; time helpers added v17.74 / Section G). No DOM, no Firebase. Tested by `paycalc-format.test.mjs`.
@@ -1650,7 +1661,7 @@ The DOM-pure form-field input helpers extracted from `paycalc-app.js`'s `init()`
 Which **FIGURE** ends up in which back-pay box, and which of them the member may change (v19.93). Pure; tested by `paycalc-backpay-state.test.mjs`.
 
 - `BP_FIELDS` (the saved-state schema — DOM id ↔ blob key), `readBpFields` / `bpFieldWrites` (the round trip), `resolveAuthoritativeRates`, `allRatesOnRecord`, `resolvePaidInPeriod`.
-- **Why it exists.** `paycalc-backpay.js` was the ONLY module in the paycalc family with no test file of its own — four of its ten exports untested, including `calcBackPay`, which produces the lump sum. The per-period accrual was covered; the ASSEMBLY around it was not, and all five of its recorded defects live there. **Every one is the same shape: a money figure comes out wrong and nothing says so.**
+- **Why it exists.** `paycalc-backpay.js` was the ONLY module in the paycalc family with no test file of its own — four of its ten exports untested, including `calcBackPay`, which produces the lump sum. The per-period accrual was covered; the ASSEMBLY around it was not, and all five of its recorded defects live there. **Every one is the same shape: a money figure comes out wrong and nothing says so.** (It has a test file of its own since v23.63 — `paycalc-backpay.test.mjs` drives `calcBackPay` end to end; these three decisions stay extracted, because they are rules rather than wiring.)
 - **Three rules that must survive an edit.** `bpFieldWrites` returns an entry for EVERY field — a blob silent about a field must BLANK it, not leave the last year's number (that is the clear-then-apply pair collapsed into one pass, so there is nothing left to keep in step). The lock decision never reads a box's contents, and a locked box is WRITTEN with its figure. And `resolvePaidInPeriod` must not return 0 while any candidate exists — the ORDER of its ladder is a judgement, never-zero is the safety property.
 
 ### `paycalc-pension.js`
@@ -2208,6 +2219,15 @@ seen from two sides, and a second page would double every contract the feature h
 an argument for one coordinator carrying both: the member has a window, a form, a submission and a
 deadline; the reviewer has a horizon, a selection, a workspace, two lenses, a preview and a confirm
 bar. Nothing in the second is reachable from the first.
+
+**Tested by `overtime-review-controller.test.mjs`** — the first unit suite this module has had, and
+the only test class that can see any of the guards below work, because a browser cannot choose which
+of two in-flight reads resolves last. Two of its mutations SURVIVED the first cut and both are
+recorded in the file: `selectedWeek !== weekEnding` and the gone-branch's own `selectedWeek = null`
+/ chip clear are unreachable from the routes the obvious cases take, and each needed the exact
+sequence that reaches it — landing on a vanished week takes no generation ticket, and `selectWeek`
+already clears the chip on the way in, so only the visibility refresh reaches that branch with a
+ratio still on screen.
 
 **The invariant it owns.** Eight pieces of state that have to agree about which week is on screen,
 and with nothing else on the page:
