@@ -1609,6 +1609,18 @@
             min-width: 0;
         }
         .team-week-text {
+            /* A real <button> since v23.64 — it opens the week jump. The appearance reset is what
+               keeps it looking exactly as the <span> did; every metric below is unchanged, and the
+               `min-height` comment that follows still describes the same box. `.week-nav-label` on
+               Admin is the same control and the same reset. */
+            -webkit-appearance: none;
+            appearance: none;
+            background: none;
+            border: 0;
+            padding: 0;
+            font-family: inherit;
+            cursor: pointer;
+            touch-action: manipulation;
             font-size: var(--type-medium);
             font-weight: 700;
             color: var(--primary-blue);
@@ -1641,6 +1653,11 @@
             white-space: nowrap;
             box-shadow: 0 2px 4px rgba(0, 30, 60, 0.2);
             transition: background-color var(--dur-base) var(--ease-standard), border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard), transform var(--dur-base) var(--ease-standard);
+        }
+        @media (hover: hover) and (pointer: fine) {
+            /* The only affordance a label-as-button gets — it must keep reading as the week, not
+               as a third control beside the two arrows. */
+            .team-week-text:hover { text-decoration: underline; }
         }
         @media (hover: hover) and (pointer: fine) {
             .tv-week-nav:hover {

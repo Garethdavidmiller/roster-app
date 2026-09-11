@@ -2007,3 +2007,60 @@ test('calendar: a cache MISS stamps NOTHING — it has no such moment', async ({
     const marks = await page.evaluate((m) => performance.getEntriesByName(m).length, CACHED_MARK);
     expect(marks, 'a boot with no saved copy must not be given a time').toBe(0);
 });
+
+// ── THE TEAM WEEK JUMP (v23.64) ───────────────────────────────────────────────
+// Prev/Next move one week at a time, so the label is the only way to reach a week that is not
+// adjacent. The RULES are elsewhere — `getSunday` is the team view's own and already exercised by
+// every render — so what is pinned here is the WIRING, which is all a browser can see: that the
+// label reaches the app's own picker at all, and that the week it lands on is the week containing
+// the picked day rather than the one before it.
+//
+// TWO THINGS MAKE THE SECOND HALF BITE, and without either it passes with the bug in — measured,
+// not assumed. The value holder is an `<input type="date">` whose value is a bare `YYYY-MM-DD`, and
+// `new Date(str)` on one of those is UTC MIDNIGHT: the previous day anywhere behind UTC. So
+//   · the context runs at UTC−11, because CI runs in UTC where the two parses agree; and
+//   · the picked day is a SUNDAY, because sliding back one day only changes the WEEK there.
+// With both, the buggy parse lands a week early and the label is visibly wrong. With the first cut
+// of this test — UTC, an arbitrary day — swapping in `new Date(...)` passed.
+test.describe('the team week jump', () => {
+    test.use({ timezoneId: 'Pacific/Midway' });   // UTC−11, no DST
+
+    test('calendar: the week label opens the app\'s own picker and lands on the picked week', async ({ page }) => {
+        await seedMember(page);
+        await seedMemberSession(page);
+        await page.setViewportSize({ width: 390, height: 820 });
+        await page.goto('/');
+        await page.waitForSelector('.control-group--actions', { state: 'attached' });
+        await page.locator('#teamViewBtn').click();
+        await page.waitForSelector('.team-week-text');
+
+        // The OS picker would not be in the page at all — this asserts the app drew its own.
+        await page.locator('#tvWeekJump').click();
+        await expect(page.locator('#datePickerLightbox')).toBeVisible();
+        await expect(page.locator('#dpTitle')).toHaveText('Jump to a week');
+
+        // A Sunday ~10 weeks out: far enough that Prev/Next could not have produced it by accident,
+        // and a Sunday for the reason in the header.
+        const target = await page.evaluate(() => {
+            const d = new Date(); d.setDate(d.getDate() + 70);
+            while (d.getDay() !== 0) d.setDate(d.getDate() + 1);
+            const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            const sat = new Date(d); sat.setDate(sat.getDate() + 6);
+            return { iso, sunDate: d.getDate(), satDate: sat.getDate() };
+        });
+
+        // The picker opens on the month the label is currently in, so walk forward to the target
+        // month. Bounded, and it fails by name rather than spinning if the cell never appears.
+        const cell = page.locator(`.dp-day[data-iso="${target.iso}"]`);
+        for (let i = 0; i < 6 && await cell.count() === 0; i++) await page.locator('#dpNext').click();
+        await expect(cell, `the picker never reached ${target.iso}`).toHaveCount(1);
+        await cell.click();
+
+        await expect(page.locator('#datePickerLightbox')).toBeHidden();
+        const label = await page.locator('.team-week-text').innerText();
+        // The label is "8–14 Sep 2026" or "29 Sep–5 Oct 2026" — both open with the Sunday's date and
+        // carry the Saturday's, so both ends are checked without restating the formatter.
+        expect(label, `week label after picking Sunday ${target.iso}`).toMatch(new RegExp(`^${target.sunDate}\\b`));
+        expect(label).toContain(String(target.satDate));
+    });
+});
