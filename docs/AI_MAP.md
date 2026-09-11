@@ -333,6 +333,34 @@ Firestore override cache for `index.html` — extracted from `calendar-app.js` a
 - `hasOverrideAccess()` / `setOverrideAccessLostHandler(fn)` — the gate's read side, and the coordinator-injected callback fired when a read comes back `permission-denied`. Both are INJECTED rather than imported for the same reason the gate is: this module must not depend on the access layer it exists to back up.
 - `setOverrideAccess(granted)` — the gate. **A grant is a FRESH START (v20.41):** granting clears `fetchedMonths` and `_failureRepainted`. It has to, because a re-grant follows a re-lock — months claimed under the old session were still claimed under the new one, so every `ensureOverridesCached` no-opped and a re-unlocked Calendar never read anything again. With its knowledge forgotten at the same moment, that was a permanent "Checking this month" and a Try again that could not win. Revoking viewer tokens is a documented step of rotating the PIN, so this is the ordinary path. Revoking deliberately does NOT clear: a shut gate reads nothing regardless, and clearing there would let anything running in between re-claim months against it
 
+### `calendar-legend.js`
+The month legend, and the two questions it answers — which are easy to confuse and fail at different
+sizes. `legendVisibility({ types, isDispatcher, displayMonth, easterMonth })` returns element id →
+visible for the conditional keys (the five row-2 items, their container, nights, Christmas, Easter);
+`legendShown(display, isTeamViewMode)` answers whether the legend appears at all; `createLegend(deps)`
+paints both. Left `calendar-app.js` at v23.70, when that coordinator stood FIVE lines under its ratchet
+cap — the most saturated file in the repo, where the next fix would have had to buy its own room first.
+
+**The second question is the one with teeth.** The legend is a KEY to the grid and is derived from the
+BASE roster, so over a month whose read has not landed it will describe shift types perfectly
+confidently beside a panel saying we do not yet know them — a statement, in the app's own voice, about
+data nobody has. So an unrecognised display verdict fails CLOSED, and `'stale'` is deliberately on the
+showing side: a cached month IS a grid, and a grid gets its key.
+
+**`'stand-down'` is a third answer, not a spelling of `'hide'`.** Team View owns the legend element
+while it is active, so the correct behaviour there is to write NOTHING — not to write `none` and
+happen to agree. The two are indistinguishable today, because `applyTeamViewChrome` hides it anyway,
+which is exactly why collapsing them would pass every visual and behavioural check and surface only
+when Team View wants a legend of its own.
+
+**The v20.41 rule moved with the code.** The shown/hidden decision belongs to the legend UPDATE and not
+to a render: a swipe COMMIT calls the update and never `renderCalendar` (the incoming carousel panel
+simply becomes the live view), so putting it in the render broke both directions — swiping from a
+withheld month onto a good one left the legend hidden, and onto an unfetched one left it up over the
+wait panel. `e2e/calendar.spec.js` pins the swipe; the pure rules are pinned by
+`calendar-legend.test.mjs`. Imports nothing — every collaborator is injected, which keeps it
+Node-testable and avoids a cycle back into `calendar-state.js` / `calendar-overrides.js`.
+
 ### `calendar-data-state.js`
 What the Calendar KNOWS about a month's overrides, and what it is therefore allowed to show (v20.40). Pure — no DOM, no Firebase, no imports — so every branch is reachable from a Node test. `calendar-overrides.js` and `calendar-initial-fetch.js` RECORD; `calendar-renderer.js`, `calendar-team-view.js` and `calendar-app.js`'s page-ready metric READ. Tested by `calendar-data-state.test.mjs`.
 

@@ -193,7 +193,8 @@ const CAPS = {
     // the notification prompt strip and silent renewal (an IIFE that closed over nothing the
     // coordinator owns) left for calendar-notif-prompt.js, 1,346 down to 1,267. The ceiling comes
     // down with it rather than banking eighty lines as headroom, per the header's rule.
-    'calendar-app.js':         1320,
+    'calendar-app.js':         1310,
+                                       //   ← 1320 until v23.70, when the month LEGEND left for calendar-legend.js (1264 now)
     'roster-data.js':          1250,   // mostly data, not logic
     // 1360 → 1250 at v23.31, and this is the entry below FINISHING rather than another raise. That
     // note said the file's length "tracks HEADCOUNT, so it will cross again on a future starter,
