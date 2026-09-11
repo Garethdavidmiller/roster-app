@@ -20,6 +20,51 @@ import { worstKnowledge, decideDisplay, forget as forgetOverrideKnowledge } from
 // Warn at most once per session per unknown shift type — avoids console spam on every render.
 const _unknownShiftWarned = new Set();
 
+/** The Sunday that starts `date`'s week, at LOCAL midnight.
+ *  Module scope since v23.65 so `weekStartForMonth` can use it; it closes over nothing.
+ *  @param {any} date @returns {Date} */
+function getSunday(date) {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - d.getDay()); // getDay() 0=Sun, so subtract to reach Sunday
+    return d;
+}
+
+/**
+ * WHICH WEEK the team grid opens on when the reader switches into it (v23.65).
+ *
+ * It was always today's, whatever month the calendar was showing — so somebody looking at December
+ * tapped Team View and was returned to this week, with no indication that the surface had moved
+ * them three months. Reported by the owner; not a decision anybody had made, just how the module
+ * was first written.
+ *
+ * The rule has two cases and the FIRST is the one that keeps the app honest:
+ *   · the displayed month CONTAINS today — open on today's week. Anything else would move a reader
+ *     who had not gone anywhere, which is the same complaint in the other direction, and it is
+ *     what every reader on the current month (nearly all of them, nearly all the time) sees.
+ *   · any other month — open on the week containing the 1st. That week is exactly the calendar
+ *     grid's own first row, leading days from the previous month included, so the two surfaces
+ *     agree about where a month starts rather than each having a private answer.
+ *
+ * `today` is a PARAMETER, not `new Date()` read inside: the branch is a comparison against the
+ * clock, and a rule about the clock that reads it for itself cannot be tested at the boundary.
+ *
+ * @param {{month: number, year: number}|null|undefined} displayed the calendar's current month
+ * @param {Date} today
+ * @returns {Date} the local-midnight Sunday the grid should open on
+ */
+export function weekStartForMonth(displayed, today) {
+    // No displayed month is the pre-v23.65 answer, and deliberately so: a caller that cannot say
+    // which month it is on has not asked for a different one.
+    if (!displayed || typeof displayed.month !== 'number' || typeof displayed.year !== 'number') {
+        return getSunday(today);
+    }
+    if (displayed.month === today.getMonth() && displayed.year === today.getFullYear()) {
+        return getSunday(today);
+    }
+    return getSunday(new Date(displayed.year, displayed.month, 1));
+}
+
 /**
  * Initialises the Team Week View.
  *
@@ -40,12 +85,16 @@ const _unknownShiftWarned = new Set();
  * @param {Function} deps.getSelectedMemberIndex Returns index of logged-in member in teamMembers
  * @param {Function} deps.isFirstRun             True for a brand-new visitor who hasn't picked a name
  * @param {Function} deps.renderCalendar         Called when team view is dismissed
+ * @param {Function} [deps.getDisplayedMonth]    () => ({ month, year }) — the month the CALENDAR is
+ *   showing, so switching into the team grid opens on that month rather than dragging the reader
+ *   back to today. See `weekStartForMonth`. Optional: omitted, the grid opens on today's week,
+ *   which is what it always did.
  * @param {Function} deps._pushOverlayState      Registers Back-button close handler
  * @param {Function} deps._clearOverlayHistory   Removes Back-button handler when closing via button
  * @returns {{ toggleTeamView: any, isTeamViewMode: any, restoreTeamView: any, jumpToCurrentWeek: any, refreshFromCache: any, isGridShown: () => boolean, isGridConfirmed: () => boolean }}
  */
 export function initTeamView({ rosterOverridesCache, ensureOverridesCached, monthKey, clearFetchedMonth,
-                                getSelectedMemberIndex, isFirstRun, renderCalendar,
+                                getSelectedMemberIndex, isFirstRun, renderCalendar, getDisplayedMonth,
                                 _pushOverlayState, _clearOverlayHistory }) {
 
     // ── STATE ─────────────────────────────────────────────────────────────────
@@ -58,7 +107,10 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
      *  @type {'loading'|'unavailable'|'stale'|'render'} */
     let _lastRenderDisplay = 'loading';
 
-    /** Sunday of the week currently shown in team view. Reset to current week on each open. */
+    /** Sunday of the week currently shown in team view. Re-decided on each open by
+     *  `weekStartForMonth` — today's week on the current month, the month's first week otherwise.
+     *  The initial value here is only what stands before any open; `restoreTeamView` (a PWA
+     *  relaunched straight into the grid) keeps it, because that reader has not navigated anywhere. */
     let currentTeamWeekStart = getSunday(new Date());
 
     /** Grade tab shown in team view. Defaults to the logged-in member's role. */
@@ -72,13 +124,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
 
     // ── HELPERS ───────────────────────────────────────────────────────────────
 
-    /** Returns the Sunday of the week containing `date` (Chiltern week: Sun–Sat). */
-    function getSunday(/** @type {any} */ date) {
-        const d = new Date(date);
-        d.setHours(0, 0, 0, 0);
-        d.setDate(d.getDate() - d.getDay()); // getDay() 0=Sun, so subtract to reach Sunday
-        return d;
-    }
+    // `getSunday` is at module scope — see its comment there.
 
     /** Returns an array of 7 Date objects Sun–Sat starting from `sunday`. */
     function getTeamWeekDates(/** @type {any} */ sunday) {
@@ -520,7 +566,8 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
 
         if (teamViewMode) {
             _pushOverlayState(toggleTeamView); // Back returns to calendar
-            currentTeamWeekStart = getSunday(new Date());
+            // The month the reader is ON, not the month the clock is on — see `weekStartForMonth`.
+            currentTeamWeekStart = weekStartForMonth(getDisplayedMonth?.(), new Date());
             renderTeamView(currentTeamGrade);
         } else {
             _clearOverlayHistory(toggleTeamView); // Remove THIS overlay's pushed entry when exiting via button
