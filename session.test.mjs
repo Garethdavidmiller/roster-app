@@ -116,6 +116,10 @@ const {
 const { nameToEmail, auth } = await import('./firebase-client.js');
 // The real (pure) auth store — session.js feeds it; these tests verify the Phase-2 bridge.
 const { getAuthSnapshot, _resetAuthStateForTest } = await import('./auth-state.js');
+// The REAL viewer uid — session.js imports `isViewerUser` from this module rather than keeping a
+// second copy, so a fixture built from the constant cannot drift out of agreement with the predicate
+// that decides whether an identity may be preserved.
+const { CALENDAR_VIEWER_UID } = await import('./calendar-access-core.js');
 
 // EVERY test is a fresh page load. The boot restore is memoised for a page's lifetime (v21.29) —
 // which is the point of it — so one carried between tests would let an earlier test's identity
@@ -499,6 +503,55 @@ describe('reconcileExpiredIdentity', () => {
         auth.currentUser = null;
         await reconcileExpiredIdentity();
         assert.equal(_signOutCalled, false);
+    });
+
+    // ── preserveCalendarViewer: the DEFAULT is the security half (v20.12) ──────────────────────
+    //
+    // The shared Calendar viewer is a non-anonymous Firebase identity with NO local session by
+    // construction — exactly the shape this function exists to tear down — so the Calendar asks for
+    // it to be kept, or the staff PIN would be demanded on every navigation. Six protected
+    // coordinators (admin, settings, operations, links, paycalc, overtime) call this BARE and take
+    // the default; `calendar-access.js` is the only caller that opts in.
+    //
+    // PRESERVING TOO MUCH is the expensive direction and it is silent. Flip the default and a
+    // station PC that entered the PIN and then opened Admin keeps that identity live instead of
+    // shedding it — nothing errors, nothing renders differently, and the page's own login overlay
+    // (driven by getSession(), which is null either way) still appears, so every end-to-end
+    // assertion about the PAGE refusing goes on passing. Only an assertion about the IDENTITY can
+    // see it. PRESERVING TOO LITTLE costs a PIN entry on the Calendar: visible, and self-correcting.
+    //
+    // The block the flag was missing until now was a VIEWER fixture, not a bare call — the cases
+    // above call bare all the time, but always with a named identity, where the flag cannot bite.
+    const viewerUser = { uid: CALENDAR_VIEWER_UID, isAnonymous: false, email: null };
+
+    test('the DEFAULT sheds the shared viewer — a bare call is a protected page, not the Calendar', async () => {
+        auth.currentUser = /** @type {any} */ (viewerUser);
+        // store empty → no local session, which is the viewer's permanent condition
+        await reconcileExpiredIdentity();
+        assert.equal(_signOutCalled, true,
+            'a PIN identity must not survive into Admin/Settings/Operations/Links/Pay/Overtime');
+        assert.equal(auth.currentUser, null, 'and must actually be gone, not merely decided against');
+    });
+
+    test('an explicit opts object with the flag ABSENT is still a teardown', async () => {
+        // A caller that passes options for some other reason must not inherit preservation.
+        auth.currentUser = /** @type {any} */ (viewerUser);
+        await reconcileExpiredIdentity({});
+        assert.equal(_signOutCalled, true);
+    });
+
+    test('only the Calendar\'s opt-in keeps it — and only for the viewer itself', async () => {
+        // The visible direction, pinned so a fix for the above cannot be "never preserve".
+        auth.currentUser = /** @type {any} */ (viewerUser);
+        await reconcileExpiredIdentity({ preserveCalendarViewer: true });
+        assert.equal(_signOutCalled, false, 'the Calendar would otherwise re-demand the PIN on every open');
+
+        // …and the opt-in is scoped to the viewer UID. A named identity whose session has expired is
+        // torn down even on the Calendar, or the flag becomes a general amnesty.
+        _signOutCalled = false;
+        auth.currentUser = /** @type {any} */ ({ uid: 'uid-miller', isAnonymous: false, email: 'g.miller@myb.test' });
+        await reconcileExpiredIdentity({ preserveCalendarViewer: true });
+        assert.equal(_signOutCalled, true, 'preserveCalendarViewer must never preserve a MEMBER identity');
     });
 });
 

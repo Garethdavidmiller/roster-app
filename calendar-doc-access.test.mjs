@@ -8,18 +8,51 @@
  * and must not count), and a subscriber that throws must not stop the others being told to close.
  * SHUT WHEN IT SHOULD BE OPEN costs a tap: a "sign in to read this" message over a document the
  * reader is entitled to. Pinned too, from the other side.
+ *
+ * ── ONE ASSERTION HERE RUNS BEFORE THE `beforeEach`, AND THAT IS THE POINT ──────────────────────
+ *
+ * Every test below is handed a gate that `_resetDocumentAccessForTests()` has just forced shut, so
+ * none of them can see the value the module actually LOADS with — which is the only value a real
+ * page ever gets, because nothing in the app calls the reset seam. `_open` could be initialised to
+ * `true` and this whole file would stay green while a locked Calendar reported document access from
+ * the first line of the module: the Huddle, Circular and Newsletter viewers and the drawer's two
+ * document links would each issue a read the local Firestore cache answers WITHOUT consulting the
+ * server's rules, and yesterday's Huddle would paint for whoever picked up the station phone before
+ * any PIN. `AT_LOAD` is therefore captured at import, where the harness cannot reach it.
+ * (`e2e/calendar-pin.spec.js` does catch this in a real browser — this closes the unit half.)
  */
 import { describe, test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { hasDocumentAccess, setDocumentAccess, onDocumentAccess, documentAccess, _resetDocumentAccessForTests }
     from './calendar-doc-access.js';
 
+// Read AT IMPORT — this line runs while the module graph is still being evaluated, before any test
+// and therefore before any reset. Both readers are sampled: `documentAccess` is the frozen handle
+// the viewers are actually given, and it is a separate expression from `hasDocumentAccess`.
+const AT_LOAD = { has: hasDocumentAccess(), viaHandle: documentAccess.has() };
+
 beforeEach(() => _resetDocumentAccessForTests());
 
 describe('open when it should be shut — the silent direction', () => {
-    test('shut on a freshly-loaded module', () => {
-        assert.equal(hasDocumentAccess(), false);
+    test('shut AS LOADED — the value no reset has touched, and the only one a real page gets', () => {
+        // The assertion is on AT_LOAD, not on a fresh call: calling here would measure the reset
+        // seam's answer, which is what every other test in this file measures and is not the same
+        // question. Nothing in the app calls `_resetDocumentAccessForTests`, so if the module can
+        // load open, a locked Calendar is open.
+        assert.equal(AT_LOAD.has, false,
+            'the gate must load SHUT — a browser holding a cached Huddle would paint it before any PIN');
+        assert.equal(AT_LOAD.viaHandle, false,
+            'and the frozen handle the viewers are given must agree with it at load');
     });
+
+    test('and the reset seam puts it back to that same value, so the rest of this file is honest', () => {
+        // Guard on the guard: if the seam ever reset to something OTHER than the load value, every
+        // test below would be describing a state the shipped module never occupies.
+        setDocumentAccess(true);
+        _resetDocumentAccessForTests();
+        assert.equal(hasDocumentAccess(), AT_LOAD.has);
+    });
+
     test('only a literal true opens it — a provisional scope string is truthy and is NOT access', () => {
         setDocumentAccess(/** @type {any} */ ('G. Miller'));
         assert.equal(hasDocumentAccess(), false);
