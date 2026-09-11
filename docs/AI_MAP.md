@@ -2421,6 +2421,38 @@ unreviewed addition.
 - `unlockCalendarViewer` (v20.12) — the staff Calendar PIN exchange (stays here: calendar-viewer-parity.test.mjs pins its handler source, secret binding and no-log rule to this file)
 - `Object.assign(exports, buildDocumentEndpoints({...}))` / `buildAuthEndpoints({...})` — the wiring; the deps passed are the shared infra above, so the domain modules never own a second copy of a guarded literal
 
+Both handlers that stayed here are EXECUTED by `index-endpoints.test.mjs`; `functions-surface.test.mjs`
+proves only that they were defined.
+
+### `index-endpoints.test.mjs`
+
+**The two endpoints the domain split left in the composition root, driven for real.** Found by a
+repo-wide mutation sweep: `parseRosterPDF` and `unlockCalendarViewer` were the only handlers in the
+estate with no executing test at all, and six mutations survived both `npm test` and
+`npm run test:functions` — the admin check reduced to `if (false)`, the PIN handler's two
+fail-closed catches each continuing instead of answering 503, the v20.35 all-sources ceiling
+deleted, `createCustomToken(uid, viewerClaims())` reduced to `createCustomToken(uid)`, and the
+missing-or-malformed-secret guard reduced to `if (false)`.
+
+This is the repo's named blind spot rather than a gap in the rules. `functions/calendar-viewer-auth.js`
+is exemplary and every probe against it is caught; what nothing asked was whether the HANDLER calls
+it, in the right order, and acts on the answer. The standing lesson is this very endpoint — v20.50
+was signed off on a GET→405 and a wrong PIN→401, neither of which reaches the mint.
+
+**Organised by what a wrong answer costs.** For the roster parser it is somebody else's API key and
+the model's reading of whatever was uploaded, so every refusal — an ordinary member, the shared PIN
+token, a manager, a truthy-but-not-`true` claim, no bearer, an unverifiable one — asserts that the
+MODEL WAS NOT ASKED, against the same request a positive control proves is accepted. For the PIN it
+is the whole roster against a 10,000-space secret: an uncounted guess is never answered, both
+ceilings hold independently, a correct PIN writes nothing, the minted token carries `calendarViewer`
+and none of `name`/`admin`/`manager`/`linksDesigner` by name, and a deployment fault is a 503 that
+charges nobody.
+
+`functions/index.js` is not a factory, so the fakes enter `require.cache` before it is required and
+`getAuth`/`getFirestore` resolve a per-test world through a mutable binding — one load serves every
+test. Every fake RECORDS: "refused with 403" and "spent the key and then returned 403" are the same
+status line. Runs in `test:functions`; teeth-verified by eight mutations.
+
 ### `functions/documents.js`
 The DOCUMENT-AND-NOTIFICATION domain (v20.55, second cut of the index.js split after push.js).
 `buildDocumentEndpoints(deps)` — a factory taking the shared infra (secrets, VAPID public key,
