@@ -459,6 +459,41 @@ export function summariseUpdateOpens(samples, { page }) {
     return _summariseMetricRows(samples, page, UPDATE_OPENS);
 }
 
+/**
+ * OPENS THAT DID NOT WAIT FOR THE IDENTITY CHECK (v23.69) — the reading v22.97 shipped without.
+ *
+ * The fast path shows a returning member their own cached roster while `accounts:lookup` is still
+ * in flight (`calendar-access-core.js` → `decideProvisionalAccess`). `LATENCY.md` predicted that
+ * would pull `Shifts shown` off `Recognised` for cache-served starts, and the September 2026 card
+ * showed no such movement — 78% over a second before, 77% after.
+ *
+ * **That reading cannot be acted on, because two incompatible explanations fit it exactly.** Either
+ * the path rarely fires (most opens are on a version that does not have it, or are PIN unlocks and
+ * colleagues' rosters, which it refuses by design) — in which case the identity finding stands and
+ * nothing is wrong; or it fires constantly and buys nothing — in which case the finding this plan
+ * spent a month establishing is wrong. A month more of the same aggregate cannot separate them.
+ *
+ * This row does, and it is the only thing that does: **its TOTAL answers how often, its
+ * DISTRIBUTION answers whether it helped.** A SUBSET of `ready` in the `UPDATE_OPENS` mould — same
+ * bucket, same code path, same load — so the counts divide and the speeds compare directly.
+ *
+ * ONE ROW, like the release block and for the same reason: the complement is `ready` minus this,
+ * and buying a second sample on every load to save a subtraction is the trade that block already
+ * refused.
+ */
+// A SHORT label, by `READY_SOURCES`' rule above and its measured lesson: the label column is
+// `minmax(76px, 27%)`, and "Shown before the check" ellipsises at 390px to something that names
+// nothing. The HEADING carries the question; the row only has to name the answer, and `sub` — the
+// bar's accessible description — carries the full sentence.
+export const PROVISIONAL_OPENS = /** @type {const} */ ([
+    { metric: 'readyProvisional', label: 'Shown early', sub: 'a saved roster up before the sign-in was confirmed' },
+]);
+
+/** @param {Record<string, number>} samples @param {{page: string}} opts */
+export function summariseProvisionalOpens(samples, { page }) {
+    return _summariseMetricRows(samples, page, PROVISIONAL_OPENS);
+}
+
 // ── HOW MUCH THE SERVICE WORKER WAS DOING (v23.00) ──────────────────────────────────────────────
 //
 // `swrCount` and `readyHeavySwr` were written from v22.94 and read by NOTHING until this block:

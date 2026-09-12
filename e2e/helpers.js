@@ -585,6 +585,13 @@ export function perfSamples() {
     // built from four figures. It must stay a SUBSET of the `ready` seeded above, or the card's
     // share sentence would print a percentage over 100 and nothing would fail.
     add('calendar', 'readyUpdate', '1-3s', 26); add('calendar', 'readyUpdate', '3-8s', 14);
+    // OPENS THAT DID NOT WAIT FOR THE SIGN-IN CHECK (v23.69) — the other subset of the same rung,
+    // and it must be SEEDED or the block never renders, which would leave the 390px truncation
+    // guard measuring a card the new label is not on. Same subset constraint as `readyUpdate`
+    // above: it has to stay inside the `ready` seeded at the top, or the share sentence prints a
+    // percentage over 100 and nothing fails. Deliberately QUICK-weighted — the fast path exists to
+    // put a grid up early, so that is the shape the row has to render legibly.
+    add('calendar', 'readyProvisional', 'lt500ms', 210); add('calendar', 'readyProvisional', '1-3s', 40);
     // Second connection class, so the "Why some are slower" splits have something to split.
     add('calendar', 'domReady', '1-3s', 160, '3g'); add('calendar', 'domReady', '3-8s', 90, '3g');
     add('calendar', 'domReady', '1-3s', 60, '4g', 'browser');

@@ -2,7 +2,7 @@
 // Run with: node --test perf-stats.test.mjs   (part of test:hygiene)
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { THIN_SAMPLE, PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, summarisePerfBy, PERF_DIMENSIONS, perfVerdict, loginDurationBucket, LOGIN_MAX_MS, BOOT_PHASES, bootPhases, summariseBootPhases, START_MILESTONES, summariseStartMilestones, READY_SOURCES, summariseReadySource, UPDATE_OPENS, summariseUpdateOpens, SWR_COUNT_BUCKETS, bucketSwrCount, SWR_HEAVY_BUCKET } from './perf-stats.js';
+import { THIN_SAMPLE, PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, summarisePerfBy, PERF_DIMENSIONS, perfVerdict, loginDurationBucket, LOGIN_MAX_MS, BOOT_PHASES, bootPhases, summariseBootPhases, START_MILESTONES, summariseStartMilestones, READY_SOURCES, summariseReadySource, UPDATE_OPENS, summariseUpdateOpens, PROVISIONAL_OPENS, summariseProvisionalOpens, SWR_COUNT_BUCKETS, bucketSwrCount, SWR_HEAVY_BUCKET } from './perf-stats.js';
 
 /** Build a samples map from [page, metric, bucket, count] rows (version/mode/conn fixed). */
 function samplesFrom(rows) {
@@ -581,7 +581,7 @@ describe('summariseReadySource', () => {
     test('another page’s samples are not mixed in', () => {
         const samples = Object.fromEntries([
             mk('calendar', 'readyCached', 'lt500ms', 5),
-            mk('paycalc', 'readyCached', '3s+', 500),
+            mk('paycalc', 'readyCached', '3-8s', 500),
         ]);
         const { rows } = summariseReadySource(samples, { page: 'calendar' });
         assert.equal(rows[0].total, 5);
@@ -653,13 +653,116 @@ describe('summariseUpdateOpens', () => {
     test('another page’s update opens are not mixed in', () => {
         const samples = Object.fromEntries([
             mk('calendar', 'readyUpdate', 'lt500ms', 4),
-            mk('paycalc', 'readyUpdate', '3s+', 400),
+            mk('paycalc', 'readyUpdate', '3-8s', 400),
         ]);
         assert.equal(summariseUpdateOpens(samples, { page: 'calendar' }).rows[0].total, 4);
     });
 
     test('the row set is the one the card renders', () => {
         assert.deepEqual(UPDATE_OPENS.map(m => m.metric), ['readyUpdate']);
+    });
+});
+
+// ── summariseProvisionalOpens — the opens that did not wait for the identity check ───────────────
+//
+// Organised by what a wrong answer costs, and here the two directions are not merely unequal — they
+// point at OPPOSITE conclusions, which is why this row exists at all.
+//
+// September 2026 showed the v22.97 fast path buying nothing: cache-served starts 78% over a second
+// before it, 77% after. Two explanations fit that identically. If the path rarely fires, the
+// identity finding stands and there is nothing to fix. If it fires on most opens and they are no
+// faster, `LATENCY.md`'s central finding — that the wall is one `accounts:lookup` — is wrong, and a
+// month of work rests on it. **The number that separates them is this row's SHARE**, so a share
+// that reads too high is the expensive error: it would falsify a correct finding.
+//
+// A share that reads too low is the mirror, and only slightly cheaper: it excuses a fast path that
+// is not working by making it look unused.
+describe('summariseProvisionalOpens', () => {
+    test('it counts only the fast-path opens, and does NOT absorb the `ready` it is a subset of', () => {
+        // The relation the share rests on: `readyProvisional` is written BESIDE `ready`. Folding
+        // `ready` in would report every open as fast-path and read 100% — the falsifying direction.
+        const samples = Object.fromEntries([
+            mk('calendar', 'ready', 'lt500ms', 900),
+            mk('calendar', 'readyProvisional', '1-3s', 120),
+        ]);
+        const { rows } = summariseProvisionalOpens(samples, { page: 'calendar' });
+        assert.equal(rows.length, 1);
+        assert.equal(rows[0].metric, 'readyProvisional');
+        assert.equal(rows[0].total, 120, 'the 900 ordinary opens are not this row');
+    });
+
+    test('the count divides against `ready` to give the share — the two summaries agree', () => {
+        // Driven through BOTH real summaries, because the card computes the share across them and a
+        // restatement here would agree with itself while disagreeing with the card.
+        const samples = Object.fromEntries([
+            mk('calendar', 'ready', 'lt500ms', 150),
+            mk('calendar', 'ready', '1-3s', 50),
+            mk('calendar', 'readyProvisional', 'lt500ms', 60),
+        ]);
+        const readyTotal = summariseStartMilestones(samples, { page: 'calendar' }).rows
+            .find(r => r.metric === 'ready').total;
+        const { rows } = summariseProvisionalOpens(samples, { page: 'calendar' });
+        assert.equal(readyTotal, 200);
+        assert.equal(Math.round((rows[0].total / readyTotal) * 100), 30);
+    });
+
+    test('the SPEED is reported separately from the share, and both halves are needed', () => {
+        // The two questions this row answers are independent, and a summary that got one right and
+        // the other wrong would read as a finding. A fast path firing on 40% of opens that are all
+        // slow is the falsifying case; the same share all quick is the confirming one. So the
+        // distribution is asserted, not just the total.
+        const slow = Object.fromEntries([
+            mk('calendar', 'ready', 'lt500ms', 200),
+            mk('calendar', 'readyProvisional', '3-8s', 80),
+        ]);
+        const quick = Object.fromEntries([
+            mk('calendar', 'ready', 'lt500ms', 200),
+            mk('calendar', 'readyProvisional', 'lt500ms', 80),
+        ]);
+        assert.equal(summariseProvisionalOpens(slow, { page: 'calendar' }).rows[0].pctOver1s, 100);
+        assert.equal(summariseProvisionalOpens(quick, { page: 'calendar' }).rows[0].pctOver1s, 0);
+    });
+
+    test('the other ready variants are not swept in', () => {
+        // `readyCached` is the row DIRECTLY ABOVE this one on the card and shares its population
+        // almost exactly — every fast-path open is cache-served — so absorbing it is the realistic
+        // mistake, and it would put the share at or near 100% on data that says nothing of the kind.
+        const samples = Object.fromEntries([
+            mk('calendar', 'readyCached', 'lt500ms', 400),
+            mk('calendar', 'readyFetched', '1-3s', 10),
+            mk('calendar', 'readyUpdate', '1-3s', 50),
+            mk('calendar', 'readyProvisional', 'lt500ms', 9),
+        ]);
+        const { rows } = summariseProvisionalOpens(samples, { page: 'calendar' });
+        assert.equal(rows.length, 1);
+        assert.equal(rows[0].total, 9);
+    });
+
+    test('no fast-path open reported ⇒ NO row, never a zero', () => {
+        // A rendered zero would state "the fast path never fires", which is one of the two
+        // conclusions this row exists to choose between — asserted from an absence of data. Every
+        // other block on this card follows the same rule.
+        const samples = Object.fromEntries([mk('calendar', 'ready', 'lt500ms', 500)]);
+        assert.equal(summariseProvisionalOpens(samples, { page: 'calendar' }).rows.length, 0);
+    });
+
+    test('another page’s samples are not mixed in', () => {
+        // Only the Calendar has a fast path, so a cross-page leak here could only ever inflate.
+        //
+        // THE BUCKET NAME IS LOAD-BEARING IN A TEST LIKE THIS. `'3s+'` is not in `PERF_BUCKETS`
+        // (`'3-8s'` and `'over8s'` are), and `_summariseMetricRows` silently drops a sample whose
+        // bucket it does not recognise — so the two cross-page tests in this file written with
+        // `'3s+'` were passing whether or not the page filter worked at all. Fixed in the same pass
+        // that added this block; if you write a new one, spell the bucket from `PERF_BUCKETS`.
+        const samples = Object.fromEntries([
+            mk('calendar', 'readyProvisional', 'lt500ms', 4),
+            mk('paycalc', 'readyProvisional', '3-8s', 400),
+        ]);
+        assert.equal(summariseProvisionalOpens(samples, { page: 'calendar' }).rows[0].total, 4);
+    });
+
+    test('the row set is the one the card renders', () => {
+        assert.deepEqual(PROVISIONAL_OPENS.map(m => m.metric), ['readyProvisional']);
     });
 });
 

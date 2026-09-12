@@ -904,6 +904,64 @@ test('a returning member sees their roster WHILE the identity is still being con
     await expect(page.locator('#teamMemberSelect')).toBeEnabled();
 });
 
+// THE READING THE FAST PATH SHIPPED WITHOUT (v23.69). September 2026 showed v22.97 buying nothing
+// — cache-served starts 78% over a second before it, 77% after — and the card could not say whether
+// the path rarely RUNS or runs and does not HELP. Those have opposite consequences for
+// `LATENCY.md`'s central finding, so `readyProvisional` was added to separate them.
+//
+// The RULE is unit-tested in `perf-stats.test.mjs` and the WRITE in `perf-reporter.test.mjs`. What
+// neither can see is the wiring in between, and it is a plain one-way failure: `calendar-app.js`
+// tells `perf-reporter.js` the grant is provisional, from the grant, before the paint. Drop that
+// call — or make it say the wrong thing — and every sample records an ordinary open, so the fast
+// path reads as absent, which is precisely the answer that would falsify the finding. Nothing
+// throws, nothing looks wrong, and the card states it with a straight face.
+//
+// A NON-ADMIN member, deliberately: `recordPageLatency` drops a developer load entirely, so this
+// test run through `G. Miller` would pass on an empty write list whatever the wiring did.
+test('the fast path RECORDS itself — a provisional paint writes `readyProvisional`', async ({ page }) => {
+    test.setTimeout(60_000);
+    await seedSession(page, 'S. Silva');
+    await seedMember(page, 'S. Silva');
+    // Same 5s as the test above and load-bearing for the same reason: long enough that the paint is
+    // genuinely ahead of the confirmation, short enough to stay inside `resolveAccess`'s own bound.
+    //
+    // `cacheDocs` is the OTHER precondition, and the first cut of this test did not have it: the
+    // workspace unhides during the provisional window, but `markPageReady` only fires once a real
+    // GRID is up, and on a device with nothing cached the month is still "Checking this month…".
+    // So every sample landed after the confirmation, `readyFetched` at 3–8s, and the test failed
+    // against correct code. One override in the visible window is all it takes.
+    await page.addInitScript(() => {
+        const d = new Date();
+        const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-15`;
+        window.__E2E = Object.assign(window.__E2E || {}, {
+            authUser: true,
+            authRestoreDelayMs: 5000,
+            cacheDocs: [{ id: 'x', memberName: 'S. Silva', date: iso, type: 'rdw', value: '09:00-17:00' }],
+        });
+    });
+    await page.goto('/index.html');
+
+    // The grid is up while the round trip is open — the state the sample is supposed to describe.
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 3000 });
+
+    // The sample itself lands later: `recordPageLatency` runs off the auth chain, so it cannot be
+    // written until the restore resolves. Poll for the WRITE rather than the render.
+    const provisionalKeys = async () => page.evaluate(() => (window.__E2E?.setWrites || [])
+        .filter(w => String(w.path || '').includes('perf_'))
+        .flatMap(w => Object.keys((w.data && w.data.samples) || {}))
+        .filter(k => k.includes('|readyProvisional|')));
+    await expect.poll(async () => (await provisionalKeys()).length, { timeout: 25_000 }).toBeGreaterThan(0);
+
+    // …and it is a SUBSET, not a replacement. The card divides this row's total by `ready`'s, so an
+    // implementation that wrote one instead of the other would put the share at 100% — the reading
+    // that says "the fast path runs on every open", from data that says nothing of the kind.
+    const keys = await page.evaluate(() => (window.__E2E?.setWrites || [])
+        .filter(w => String(w.path || '').includes('perf_'))
+        .flatMap(w => Object.keys((w.data && w.data.samples) || {})));
+    expect(keys.some(k => k.includes('|ready|')), '`ready` still counts this open').toBe(true);
+    expect(keys.some(k => k.includes('|readyCached|')), 'a fast-path grid is cache-served').toBe(true);
+});
+
 test('a TEAM VIEW member is not painted early, and their team grid still restores', async ({ page }) => {
     // The precondition, end to end: the whole team cannot be drawn from a one-member scope, so this
     // boot is simply not eligible. The delay is what makes the refusal OBSERVABLE — without it the

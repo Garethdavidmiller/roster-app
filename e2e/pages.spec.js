@@ -6625,6 +6625,60 @@ test('operations: App speed reports the opens a release caused, as a SHARE of al
     expect(total).toBe('30');
 });
 
+test('operations: App speed reports the fast-path opens, as a SHARE of all opens', async ({ page }) => {
+    /*
+     * THE WIRING for the block that decides whether v22.97 worked.
+     *
+     * `summariseProvisionalOpens` is pinned next door and the write in perf-reporter.test.mjs. What
+     * neither sees is the SHARE, which the card computes by dividing this block's count by a total
+     * that lives in a DIFFERENT block's summary — and the share is the whole reading: a small one
+     * means September's flat figure was diluted and says nothing, a large one with no speed gain
+     * falsifies `LATENCY.md`'s central finding. A wrong divisor renders a plausible percentage and
+     * every unit test stays green.
+     *
+     * The decoys are chosen so each plausible mistake gives a DIFFERENT answer: 120 against the
+     * calendar's 600 `ready` is 20%; the calendar's `readyCached` (150) gives 80%, paycalc's `ready`
+     * (300) gives 40%, and this block's own total gives 100%. `readyCached` is the dangerous one —
+     * it is the row directly above and shares this population almost exactly.
+     */
+    await page.addInitScript(() => {
+        window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: {
+            '23_69|calendar|ready|lt500ms|standalone|4g':            400,
+            '23_69|calendar|ready|1-3s|standalone|4g':               200,
+            '23_69|calendar|readyProvisional|lt500ms|standalone|4g': 120,
+            // Decoys — each a divisor a plausible mistake reaches for.
+            '23_69|calendar|readyCached|lt500ms|standalone|4g':      150,
+            '23_69|paycalc|ready|lt500ms|standalone|4g':             300,
+            '23_69|paycalc|readyProvisional|1-3s|standalone|4g':      90,
+            '23_69|calendar|domReady|lt500ms|standalone|4g':         600,
+            '23_69|paycalc|domReady|lt500ms|standalone|4g':          300,
+        } } };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const speed = page.locator('#pageSpeedContent');
+    await expect(speed).toContainText('Opens that did not wait for the sign-in check');
+    await expect(speed).toContainText('Shown early');
+    await expect(speed, 'the share is stated, not left for the reader to divide across two blocks')
+        .toContainText('That is 20% of them');
+
+    // The SUBSET relation in words. The block immediately above is a SPLIT, so a reader arriving in
+    // order has just been taught the other arithmetic and would subtract this one.
+    await expect(speed).toContainText('also counted in');
+    // And the sentence that says how to READ it — a row no faster than "Shifts shown" is the result
+    // that falsifies, so the card has to state the comparison rather than leave it to be noticed.
+    await expect(speed).toContainText('no faster than that one');
+
+    // This page's fast-path opens, not paycalc's 90 — which would read as 15%.
+    const total = await speed.evaluate(() => {
+        const label = [...document.querySelectorAll('.speed-dim-label')]
+            .find(el => el.textContent === 'Opens that did not wait for the sign-in check');
+        return label.nextElementSibling.nextElementSibling
+            .querySelector('.speed-row--why:not(.speed-dual-head) .speed-row-sub')?.textContent;
+    });
+    expect(total).toBe('120');
+});
+
 test('operations: App speed shows what the background worker was doing, and whether it cost anything', async ({ page }) => {
     /*
      * THE WIRING, and this block is the reason the rule exists.

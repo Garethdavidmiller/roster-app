@@ -341,6 +341,15 @@ returning member is shown their own already authorised cached roster while Fireb
 stored identity, instead of waiting for it. Never the shared PIN viewer, whose whole security model
 is that it holds no identity.
 
+**What it is WORTH is still not established (12 Sep 2026).** The field signature that justified the
+decision is now confirmed on live devices and `VAL-AUTH-006` is closed — `Recognised` runs 48% / 68%
+/ 91% over a second across the connection groups while `Getting ready` is 0% in every one of them.
+But the fix's own prediction — that cache-served starts would stop waiting — **has not shown up**:
+78% over a second before, 77% after, on 1,285 opens. That is not yet a falsification, because it
+fits "the path rarely fires" exactly as well as "it fires and does not help", and those have
+opposite consequences. `readyProvisional` (v23.70) separates them; read it mid-October against the
+table in `LATENCY.md` → THE FULL-MONTH READ → item 6.
+
 The whole entry as it stood when the decision was taken — the field confirmation, the offline
 measurement, the two couplings and all three candidate answers — is in `ROADMAP_HISTORY.md`, moved
 verbatim. It is worth keeping whole: the reasoning is what a future reader will need if the boundary
@@ -399,8 +408,8 @@ reason this section exists — so the next review's re-raises cost a link rather
 
 | The decision | Where it lives |
 |---|---|
-| Did the cached-roster fast path actually work? | "Calendar start — the identity round trip" above, and MAINTENANCE_CALENDAR's 28 Sep row. **Not answerable yet:** it shipped 6 Sep, so a reading taken now is a few days of samples — which is how you conclude a fix worked when what you measured was the weekend |
-| Is the service-worker revalidation storm costing staff anything? | The SW revalidation entry above. Same date, same card visit, same reason for waiting: the instrument landed 5 Sep and its readout 6 Sep |
+| Did the cached-roster fast path actually work? | "Calendar start — the identity round trip" above, and MAINTENANCE_CALENDAR's row. **STILL OPEN on 12 Sep 2026, and for a DIFFERENT reason than this row gave** — the samples are no longer thin (1,285 Calendar opens) and the figure did not move: cache-served starts 78% over a second before the fix, 77% after. That single number fits two opposite worlds — a path that rarely FIRES (diluted aggregate, diagnosis intact) and one that fires constantly and buys NOTHING (diagnosis wrong) — so **no amount of the same aggregate can settle it**. `readyProvisional` (v23.70) measures the share directly; the decision table is `LATENCY.md` → THE FULL-MONTH READ → item 6, and the clock now runs from that release |
+| Is the service-worker revalidation storm costing staff anything? | **ANSWERED — no**, 12 Sep 2026. A full sweep (31+ files) was running on 78% of Calendar opens, and the card's own test is whether those boots are slower: **Worker busy 78% over a second against Shifts shown 78%.** Identical. The storm is real and costs the member nothing measurable. `LATENCY.md` → THE FULL-MONTH READ → item 4 |
 | Make `myb-roster.web.app` the canonical staff URL | **NEW — no home before this row.** KNOWN_LIMITATIONS measures the mirror's 21% byte penalty; nothing recorded the decision that measurement prices. It is the one change with two payoffs — fewer bytes on every cold load, and headers and redirects reaching the half of the staff that has neither. The cost is operational, not technical: telling colleagues, and the install and notification target moving |
 | Pay Calculator progressive disclosure on phones | **ALREADY DECLINED**, 3 Sep 2026 — see "More pay tools — DECLINED" below, which took the same proposal through four drafts and a measured prototype. The review restates the observation the prototype answered (the page is long on a phone) and brings no new evidence, so the recorded trigger stands: **a staff report about the tail of the page**, which does not exist. Do not add instrumentation to test it |
 | Links generator — Recommended first, Advanced second | Already an entry below, unchanged by this review |
