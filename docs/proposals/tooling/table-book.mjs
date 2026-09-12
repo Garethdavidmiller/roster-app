@@ -195,13 +195,17 @@ const pick = a => a[Math.floor(rnd() * a.length)];
 const clone = ds => ds.map(d => ({ ...d }));
 function score(cls, ds, weekday) {
   const v = violations(cls, ds); const shared = weekday ? ds.filter(d => weekday.some(w => w.s === d.s && w.e === d.e)).length : 0;
-  return { c: v.reduce((a, [, w]) => a + w, 0) * 1000 + fit(cls, ds) + new Set(ds.map(timeOf)).size * 0.6 + offQuarter(ds).size * 6 + closePairs(ds) * 10 - shared * 2.5, v };
+  return { c: v.reduce((a, [, w]) => a + w, 0) * 1000 + fit(cls, ds) + new Set(ds.map(timeOf)).size * 0.6 + offQuarter(ds).size * 15 + closePairs(ds) * 10 - shared * 2.5, v };
 }
 function initial(cls) {
-  const [open, close] = WIN[cls]; const n = N[cls]; const L = cls === 'sun' ? SUN_TOTAL / n : TOTAL[cls] / n; const d = [];
-  for (let i = 0; i < OPENERS; i++) d.push({ role: 'o', s: open, e: open + L });
-  for (let i = 0; i < CLOSERS[cls]; i++) d.push({ role: 'c', s: close - L, e: close });
-  while (d.length < n) { const s0 = open + 60 + 15 * Math.floor(rnd() * ((close - 60 - L - open - 60) / 15)); d.push({ role: 'm', s: s0, e: s0 + L }); }
+  // ON THE GRID: a total that is not a multiple of 5n (a Sunday walk step of 4,835) must not seed 483.5-minute
+  // duties — every move keeps whatever grid the seed is on, and the first cut put 14:37 on a Sunday sheet.
+  const [open, close] = WIN[cls]; const n = N[cls]; const total = cls === 'sun' ? SUN_TOTAL : TOTAL[cls];
+  const base = Math.floor(total / n / 5) * 5; let extra = (total - base * n) / 5;   // this many duties get five more
+  const len = () => base + (extra-- > 0 ? 5 : 0); const d = [];
+  for (let i = 0; i < OPENERS; i++) { const L = len(); d.push({ role: 'o', s: open, e: open + L }); }
+  for (let i = 0; i < CLOSERS[cls]; i++) { const L = len(); d.push({ role: 'c', s: close - L, e: close }); }
+  while (d.length < n) { const L = len(); const s0 = open + 60 + 15 * Math.floor(rnd() * ((close - 60 - L - open - 60) / 15)); d.push({ role: 'm', s: s0, e: s0 + L }); }
   return d;
 }
 function move(cls, ds) {
@@ -226,9 +230,9 @@ function move(cls, ds) {
   for (const d of q) if (d.s < open || d.e > close || d.e - d.s < MIN - 30 || d.e - d.s > CAP + 30) return null;
   return q;
 }
-function annealDay(cls, weekday) {
+function annealDay(cls, weekday, restarts = RESTARTS) {
   let best = null;
-  for (let r = 0; r < RESTARTS; r++) {
+  for (let r = 0; r < restarts; r++) {
     let cur = initial(cls), cc = score(cls, cur, weekday).c; let lb = { d: clone(cur), c: cc };
     for (let st = 0; st < STEPS; st++) {
       const T = 2000 * Math.pow(0.3 / 2000, st / STEPS);
@@ -253,7 +257,7 @@ if (process.argv[1]?.endsWith('table-book.mjs')) {
   const found = {}; const counts = {};
   for (const cls of ['weekday', 'sat', 'sun']) {
     let best = null;
-    if (cls === 'sun') { for (SUN_TOTAL = 5000; SUN_TOTAL >= SUN_FLOOR && !best; SUN_TOTAL -= 5) { best = annealDay('sun', null); if (!best) console.error(`  [sun] no table pays ${SUN_TOTAL} under the pins; trying ${SUN_TOTAL - 5}`); } if (best) SUN_TOTAL += 5; }
+    if (cls === 'sun') { for (SUN_TOTAL = 5000; SUN_TOTAL >= SUN_FLOOR && !best; SUN_TOTAL -= 5) { best = annealDay('sun', null, Math.min(4, RESTARTS)); if (!best) console.error(`  [sun] no table pays ${SUN_TOTAL} under the pins; trying ${SUN_TOTAL - 5}`); } if (best) { SUN_TOTAL += 5; best = annealDay('sun', null) ?? best; } }   // a short walk finds the total; the full run then places it
     else best = annealDay(cls, cls === 'sat' ? found.weekday.d : null);
     if (!best) { console.error(`no feasible ${cls} table`); process.exit(1); }
     const { n, found: ok } = inEnumeration(cls, best.d); counts[cls] = { structures: n, inEnumeration: ok };
