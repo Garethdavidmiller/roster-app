@@ -588,6 +588,22 @@ mistake — either the rule belongs in `shared.css`, or the markup belongs on th
 exactly half the 536px field above it and sharing its left edge, so every card ended with a 256px
 gutter. Full width is what the login overlay and the mobile layout already do.
 
+## The picker chevron is ONE token (v23.69)
+
+`--caret-chevron` in `shared.css` `:root` is the down-chevron every control that opens a picker
+wears: `.fieldpick` triggers, Team View's `.team-week-text::after`, and Admin's
+`.week-nav-label::after`. It is a `url("data:image/svg+xml;…")`, and **the navy lives inside the
+SVG's own `stroke`, where no token can reach it** — which is precisely why it is declared once. It
+had been written out per site, and a third copy was the point at which one of them would have
+diverged from the other two with nothing to catch it.
+
+Two rules for a consumer: size it in `em` so it tracks its label under OS text scaling, and keep it
+low-contrast where the label must still read as the label rather than as a third control (Admin's
+and Team View's week labels sit between two arrow buttons and say so in their own comments).
+
+Admin's week label wore a 📅 glyph until v23.69. Two identical controls wearing different marks is
+drift that is cheap to prevent and expensive to notice, and what opens from both is a picker.
+
 ## Checkboxes and radios — app-drawn, one recipe (v23.50)
 
 `accent-color` tinted the OS's checkbox and radio and drew nothing: the box, the tick, the pressed
