@@ -49,14 +49,11 @@
  * at CSS resolution so the PNG is the sheet at 1:1 and does not change size with a poppler default.
  */
 import { test, expect } from './fixtures.js';
-import { seedSession } from './helpers.js';
+import { prep, settle } from './visual-harness.js';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
-/** The clock `visual.spec.js` pins, so a printed month is the same month every run. */
-const FIXED_TIME = new Date('2026-07-15T09:00:00Z');
 
 /** Is poppler's rasteriser on this machine? Probed once. */
 const RASTERISER = (() => {
@@ -88,42 +85,11 @@ function pageCount(/** @type {Buffer} */ pdf) {
     return (s.match(/\/Type\s*\/Page[^s]/g) || []).length;
 }
 
-/** Pre-dismiss every one-time overlay, exactly as the screen baselines do. */
-async function dismissOneTimeOverlays(page) {
-    await page.addInitScript(() => {
-        const flags = {
-            'myb_notice_al_booking_2026_done': '1',
-            'myb_notif_prompt_done': '1',
-            'myb_links_welcome_seen': '1',
-        };
-        for (const [k, v] of Object.entries(flags)) {
-            try { localStorage.setItem(k, v); } catch { /* iOS private mode — ignore */ }
-        }
-    });
-}
-
-async function prep(page) {
-    await page.clock.setFixedTime(FIXED_TIME);
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await seedSession(page, 'G. Miller');
-    // The Calendar needs a restorable Firebase identity as well as a local session since v20.12 —
-    // without it every capture here would be the staff-PIN card rather than a roster.
-    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { authUser: true }); });
-    await dismissOneTimeOverlays(page);
-}
-
-async function settle(page, ready) {
-    await expect(page.locator(ready).first()).toBeVisible();
-    await page.waitForLoadState('networkidle');
-    await page.evaluate(() => document.fonts.ready);
-    await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
-}
-
 test.describe('the first printed sheet @print', () => {
     test.skip(({ browserName }) => browserName !== 'chromium', 'page.pdf() is Chromium-only');
 
     test('calendar — page 1 of the printed month', async ({ page }) => {
-        await prep(page);
+        await prep(page, { width: 1280, height: 900 });
         await page.goto('/index.html');
         await settle(page, '.calendar-day');
         const pdf = await page.pdf({ preferCSSPageSize: true, printBackground: true });
@@ -140,7 +106,7 @@ test.describe('the first printed sheet @print', () => {
     });
 
     test('team view — page 1, and it is LANDSCAPE', async ({ page }) => {
-        await prep(page);
+        await prep(page, { width: 1280, height: 900 });
         await page.goto('/index.html');
         await settle(page, '.calendar-day');
         await page.locator('#teamViewBtn').click();

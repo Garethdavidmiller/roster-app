@@ -588,6 +588,49 @@ jobs:
   # this one's noise for a few weeks. If the runner's diffs are consistently empty, pin the browser
   # image, regenerate the baselines on it and promote this to blocking. If they are consistently
   # noisy, that is the answer too, and it stays report-only for good.
+  # ── THE SAME IDEA UNDER SAFARI'S ENGINE (v23.71, the v23.01 review's item 3) ──────────────────
+  # Six baselines, not 45. iOS BEHAVIOUR is covered by the `webkit` job below; iOS APPEARANCE was
+  # covered by nothing, because every pixel baseline is Chromium's. Report-only for the same reason
+  # the Chromium visual lane is: a renderer difference nobody can act on must not fail a build.
+  visual-webkit:
+    needs: guard
+    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright WebKit
+        run: npx playwright install --with-deps webkit
+
+      - name: Compare against the committed WebKit baselines
+        run: npm run test:visual:webkit
+        env:
+          CI: true
+
+      # Always uploaded, pass or fail — a diff nobody can see is the one thing a report-only job
+      # must not produce.
+      - name: Upload WebKit visual diffs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: visual-diffs-webkit
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
+
   visual:
     needs: guard
     if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}

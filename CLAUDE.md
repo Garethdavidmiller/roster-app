@@ -344,6 +344,19 @@ npm run test:csp
 # the wrong field. Regenerate: `npm run test:visual -- --update-snapshots=all` (`=all` is load-bearing — a bare `--update-snapshots` only rewrites baselines whose comparison FAILED, so a baseline that drifted inside the tolerance could never be refreshed). **Then `git status e2e/visual-baselines/` and revert anything you cannot explain** (v19.62): `=all` rewrites every baseline including the ones that PASSED, so a run intended to capture ONE change came back with FIVE modified — four of them sub-tolerance rendering noise that would have been committed as though reviewed. Reverting a file and re-running is the check: still passes ⇒ it was noise and does not belong in the diff:
 npm run test:visual
 
+# THE SAME IDEA UNDER SAFARI'S ENGINE, and a deliberately small set (v23.71, the v23.01 review's
+# item 3). Every one of the 45 baselines above is CHROMIUM's, so iOS BEHAVIOUR was far better proven
+# than iOS APPEARANCE — `npm run test:webkit` runs the whole smoke suite under WebKit, but no pixel
+# ever was. Six surfaces, config `playwright.visual-webkit.mjs`, baselines under
+# `e2e/visual-baselines/webkit/` (a different engine's pixels; they will never equal their Chromium
+# twins and are not meant to). Report-only in branch CI, same posture and same reason as the lane
+# above. **The mobile month grid is deliberately NOT in it** — the fractional 390/7 columns that keep
+# it out of the Chromium lane are no more stable here, and a flaky baseline is worse than none; the
+# Calendar is represented by the day panel instead. Measured on this container: six consecutive runs
+# green, and a full `=all` regeneration byte-identical, which is why the tolerance is the Chromium
+# lane's 0.001 and not looser:
+npm run test:visual:webkit
+
 # The smoke suite under Safari's engine. Runs in branch CI, not the deploy gate. **The browser is
 # NOT in a fresh dev container** — `npx playwright install webkit && npx playwright install-deps
 # webkit` (the second is apt, so it needs root; without it the launch dies listing missing shared
