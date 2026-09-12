@@ -64,7 +64,13 @@ const identity = PROPOSAL === 'BB' ? {
 const step = a => String(a.fatigue.results.find(r => r.code === 'FF18')?.value ?? '').replace(/.*typically /, '').replace(' a week','');
 const alt = (name, a, ev, chosen = false, p = null) => ({ name, run: a.checks.longestStretch, present: a.fatigue.present, weekends: a.checks.weekendsOff, oneTurn: `${a.feel.oneTurn}/${a.feel.workingLines}`, step: step(a), fit: p ? weekdayFit(p) : '—', score: ev ? ev.cost.toFixed(0) : '—', chosen });
 const alternatives = [];
-for (const c of cands) { const A = assess(c.patterns, 24); alternatives.push(alt(`${codeFor(c)} · ${fingerprint(c.patterns)}${c === win ? ` — <b>${identity.name}</b> (this proposal)` : c === cands[1] ? ' — runner-up' : ''}`, A, { cost: c.cost }, c === win, c.patterns)); }
+// The rows that carry information. Every seed's result is in results/ and named in the note below;
+// listing all eight on the page put the alternatives table past the printable A4 height (measured
+// 1117px against 1032 — shots.mjs), so QT shows the winner, the runner-up and the other table's best.
+const shown = PROPOSAL === 'QT'
+  ? [...new Set([cands[0], cands[1], cands.find(c => c.variant !== cands[0].variant)].filter(Boolean))]
+  : cands;
+for (const c of shown) { const A = assess(c.patterns, 24); alternatives.push(alt(`${codeFor(c)} · ${fingerprint(c.patterns)}${c === win ? ` — <b>${identity.name}</b> (this proposal)` : c === cands[1] ? ' — runner-up' : ''}`, A, { cost: c.cost }, c === win, c.patterns)); }
 alternatives.push(alt(`Workspace default · ${fingerprint(gp)} (Dec 2026 table, generated)`, G, gEval, false, gp));
 for (const x of (process.env.EXTRA ?? '').split(',').filter(existsSync)) { const e = JSON.parse(readFileSync(x, 'utf8')); alternatives.push(alt(`${codeFor(e)}p · ${fingerprint(e.patterns)} — rules only, no coherence term`, assess(e.patterns, 24), null, false, e.patterns)); }
 // The siblings: the OTHER shipped proposals, so a reader can put this one beside them on one table.
@@ -100,8 +106,13 @@ const stretch = (() => {
   const wk = A => A.tableRows.filter(r => r.weekday > 0);
   const gone = wk(B).filter(r => !wk(P).some(x => x.time === r.time)), came = wk(P).filter(r => !wk(B).some(x => x.time === r.time));
   const closer = { from: gone.find(r => r.time.endsWith('23:55'))?.time, to: came.find(r => r.time.endsWith('23:55'))?.time };
-  const turns = came.filter(r => !r.time.endsWith('23:55')).map(r => {
-    const from = gone.find(g => g.time.slice(0,5) === r.time.slice(0,5) && !g.time.endsWith('23:55') && !came.some(c => c !== r && c.time.slice(0,5) === g.time.slice(0,5) && Math.abs(endMinutes(c.time) - endMinutes(g.time)) < Math.abs(endMinutes(r.time) - endMinutes(g.time))))?.time;
+  // Pair the openers POSITIONALLY: both lists sorted by finish, then zipped. A nearest-finish heuristic
+  // (v1 of this reader) dropped the second opener — 06:20-14:00 is nearer to 14:20 than 14:50 is, so
+  // 14:50 found nobody and the PDF said 150 minutes a week where the arithmetic says 450.
+  const byEnd = rows => rows.filter(r => !r.time.endsWith('23:55')).sort((a, b) => endMinutes(a.time) - endMinutes(b.time));
+  const g2 = byEnd(gone), c2 = byEnd(came);
+  const turns = c2.map((r, i) => {
+    const from = g2[i]?.time;
     return { from, to: r.time, people: r.weekday, each: from ? endMinutes(r.time) - endMinutes(from) : null, onToday: todayTimes.has(r.time) };
   }).filter(t => t.from);
   return { closer, closerShift: closer.from && closer.to ? startMinutes(closer.to) - startMinutes(closer.from) : null, turns, weekly: turns.reduce((n, t) => n + t.people * t.each * 5, 0), allOnToday: turns.every(t => t.onToday) };
@@ -119,7 +130,8 @@ const meta = {
   date: PROPOSAL === 'QT' ? '12 September 2026' : '8 September 2026',
   tables: PROPOSAL === 'QT' ? 42 : 81, steps: PROPOSAL === 'QT' ? '100,000' : '60,000', restarts: PROPOSAL === 'QT' ? 'five' : 'four',
   runs: PROPOSAL === 'QT' ? 'four seeded runs per table, two tables' : PROPOSAL === 'BB' ? 'four seeded runs' : 'three seeded runs per table',
-  stretch, pickNote, candidateFiles: cands.map(c => c.file), winnerVariant: win.variant,
+  stretch, pickNote: pickNote + (cands.length > shown.length ? ` The other ${cands.length - shown.length} seeded results are in <span class="tt">results/</span> (${cands.filter(c => !shown.includes(c)).map(c => `${c.variant}${c.seed}`).join(', ')}); none stands higher on the pick than the rows shown.` : ''),
+  candidateFiles: cands.map(c => c.file), winnerVariant: win.variant,
   sundayNote: `Sunday: ${sundayOut.after?.length ?? 5} December movements fall after the 23:25 finish (the last at 23:54, three of them arrivals) — the standing question on whether Sunday's window moves; the window is stored per design, so the proposal can be rebuilt to either answer.`,
   designRules: rules, alternatives, identity,
   openQuestions: PROPOSAL === 'QT' ? `<b>The weekend's two long turns.</b> The rule was no duty over 8h40, and every weekday duty here is 8h30 or under — but Saturday's 14:45–23:55 (9h10) and Sunday's 14:30–23:25 (8h55) are today's own turns, carried over from <i>Same Turns</i> unchanged. Shortening Saturday's closer to 8h40 leaves 7,004 minutes a weekday, which no table of today's turns reaches, so the cap is read here as governing what the proposal introduces; if it is meant to reach the weekend too, Saturday's table has to be redesigned, and that is a different proposal. <b>The openers' finish.</b> Moving the closer to 15:45 takes ${stretch?.closerShift ?? 30} minutes off three duties a day, and the contract is exact, so the two 06:20 openers run on — ${stretch ? stretch.turns.map(t => `${t.from.slice(0,5)} to ${t.to.split('-')[1]}`).join(' and ') : 'see page 3'}${stretch?.allOnToday ? ', which are Saturday’s own opening times' : ''}; the other ways of doing it are on page 7. <b>Late-turn length</b> is inherited from <i>Same Turns</i> and still not met. <b>Sunday's finish</b> — five December movements fall after 23:25; the proposal inherits today's window deliberately rather than deciding it.` : PROPOSAL === 'BB' ? `<b>Familiarity.</b> Every rule is met, and the price is that none of the 19 turns is one people work today — the earlies run to 9h30 and the closers start at 15:45–16:40 rather than 15:15. That is the trade between this family and <i>Same Turns</i>, and it is a people question rather than a rules one. <b>Sunday's finish</b> — five December movements fall after 23:25; the proposal inherits today's window deliberately rather than deciding it.` : `<b>Late-turn length.</b> The one December preference this proposal does not meet is the owner's own — lates slightly shorter than most earlies. Today's link has it the other way round (a 15:15–23:55 late is 8h40, a 06:20–14:20 early 8h00) and the brief was to keep today's times; meeting both is arithmetically impossible at 14 duties a day, because the day's minutes are fixed by the contract. The choice is between today's clock times and shorter lates paid for by longer earlies (the workspace default does this, with 9h25 earlies). <b>Sunday's finish</b> — five December movements fall after 23:25; the proposal inherits today's window deliberately rather than deciding it.`,

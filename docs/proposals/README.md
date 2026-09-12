@@ -11,14 +11,19 @@ and every figure in a PDF is computed from the cells it shows — nothing is typ
 |---|---|---|---|---|---|
 | **Same Turns** | `ST-24-B7 · d15e1b74` | Today's 20-line link widened to 24 in today's own shift times and week shapes | 1 (FF19, one jump) | 6 | 6 in 24 |
 | **By the Book** | `BB-24-D7 · 0f14abce` | The workspace's December duty table (the owner's rules in table form), the rotation searched for the ORR factors | **0** | 6 | 6 in 24 |
+| **Quarter To** | `QT-24-Q34 · 70cf9874` | *Same Turns* with the weekday closer at 15:45 and no duty over 8h40 — the two 06:20 openers run on to Saturday's own opening times to keep the contract, so the closer is the only time nobody works today | **0** | 6 | 6 in 24 |
 
-Both clear every hard rule — Chiltern's 13-day limit, twelve hours between duties, the exact
+All three clear every hard rule — Chiltern's 13-day limit, twelve hours between duties, the exact
 35-hour contracted week — and meet the December staffing shape (four to open, three through to
 the close and four on a Saturday, five still on at 22:00, fourteen on a Saturday, ten on a Sunday,
 four cover weeks at lines 1, 7, 13, 19). They differ on exactly one thing, and it is a people
 question rather than a rules one: *Same Turns* keeps 15 turns people already work and does not meet
 the late-shorter-than-early lever; *By the Book* meets every rule and none of its 19 turns is a
-time anyone works today. Each PDF states this on its page 5.
+time anyone works today. Each PDF states this on its page 5. *Quarter To* (12 Sep 2026) is *Same Turns*
+with two things asked for — the closer at 15:45, nothing over 8h40 — and it clears every fatigue factor
+where *Same Turns* has one present; its open question is the cap's reach, since Saturday's 14:45–23:55
+(9h10) and Sunday's 14:30–23:25 (8h55) are today's own turns carried over unchanged, and shortening
+Saturday's closer leaves 7,004 minutes a weekday that no table of today's turns reaches.
 
 **The code**: family (`ST` / `BB` / `QT`) · rotation length · duty table (`A`/`B` today's times, `D` the
 December default, `Q`/`R` table B with the closer at 15:45 and the two 06:20 openers run on to keep the
@@ -38,7 +43,7 @@ and the 13-day limit's policy citation is outstanding. Neither PDF is a recommen
 | `<Name>-<code>-import.txt` | line number then Sunday–Saturday, tab-separated — paste into **Links → Import** |
 | `<Name>-<code>.json` | the same rotation in the app's own `{ name, patterns }` shape — also importable |
 
-Both import forms are verified against `links-import.js` (24 lines, no warnings). Importing one
+Every import form is verified against `links-import.js` (24 lines, no warnings). Importing one
 makes the workspace's Design checks, hard limits, fatigue factors and coverage cards restate every
 figure in its PDF.
 
