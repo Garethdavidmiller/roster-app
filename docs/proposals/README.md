@@ -12,8 +12,9 @@ and every figure in a PDF is computed from the cells it shows — nothing is typ
 | **Same Turns** | `ST-24-B7 · d15e1b74` | Today's 20-line link widened to 24 in today's own shift times and week shapes | 1 (FF19, one jump) | 6 | 6 in 24 |
 | **By the Book** | `BB-24-D7 · 0f14abce` | The workspace's December duty table (the owner's rules in table form), the rotation searched for the ORR factors | **0** | 6 | 6 in 24 |
 | **Quarter To** | `QT-24-Q34 · 70cf9874` | *Same Turns* with the weekday closer at 15:45 and no duty over 8h40 — the two 06:20 openers run on to Saturday's own opening times to keep the contract, so the closer is the only time nobody works today | **0** | 6 | 6 in 24 |
+| **Eight Forty** | `EF-24-E21 · 0cf19f56` | *By the Book* with no duty over 8h40 — the December table re-solved under the same rules with the ceiling at 8h40 (its earlies had run to 9h30), then the rotation searched for the ORR factors as *By the Book* was | **0** | 6 | 6 in 24 |
 
-All three clear every hard rule — Chiltern's 13-day limit, twelve hours between duties, the exact
+All four clear every hard rule — Chiltern's 13-day limit, twelve hours between duties, the exact
 35-hour contracted week — and meet the December staffing shape (four to open, three through to
 the close and four on a Saturday, five still on at 22:00, fourteen on a Saturday, ten on a Sunday,
 four cover weeks at lines 1, 7, 13, 19). They differ on exactly one thing, and it is a people
@@ -23,7 +24,15 @@ time anyone works today. Each PDF states this on its page 5. *Quarter To* (12 Se
 with two things asked for — the closer at 15:45, nothing over 8h40 — and it clears every fatigue factor
 where *Same Turns* has one present; its open question is the cap's reach, since Saturday's 14:45–23:55
 (9h10) and Sunday's 14:30–23:25 (8h55) are today's own turns carried over unchanged, and shortening
-Saturday's closer leaves 7,004 minutes a weekday that no table of today's turns reaches.
+Saturday's closer leaves 7,004 minutes a weekday that no table of today's turns reaches. *Eight Forty*
+(12 Sep 2026) is *By the Book* under the cap, and the cap is not a trim there: 14 duties paying 7,000
+minutes average 8h20, so a ceiling twenty minutes above the mean forces every long early to 8h30–8h40 and
+every late to 7h45–8h25, and the owner's late-shorter-than-early lever shrinks to five minutes at the
+boundary. Two of *By the Book*'s pins gave way to arithmetic and the PDF says so on page 5: a Saturday
+cannot average its earlies more than 24 minutes longer than its lates (this table has 20; the rule asks
+30), and four distinct opener finishes cost twelve off-quarter times against *By the Book*'s three. Its
+weekday demand fit (75.3) is the worst of the four; its rotation matches *By the Book* and *Quarter To* on
+every rule figure.
 
 **The code**: family (`ST` / `BB` / `QT` / `EF`) · rotation length · duty table (`A`/`B` today's times, `D` the
 December default, `Q`/`R` table B with the closer at 15:45 and the two 06:20 openers run on to keep the
