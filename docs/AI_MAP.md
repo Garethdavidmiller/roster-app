@@ -333,6 +333,34 @@ Firestore override cache for `index.html` — extracted from `calendar-app.js` a
 - `hasOverrideAccess()` / `setOverrideAccessLostHandler(fn)` — the gate's read side, and the coordinator-injected callback fired when a read comes back `permission-denied`. Both are INJECTED rather than imported for the same reason the gate is: this module must not depend on the access layer it exists to back up.
 - `setOverrideAccess(granted)` — the gate. **A grant is a FRESH START (v20.41):** granting clears `fetchedMonths` and `_failureRepainted`. It has to, because a re-grant follows a re-lock — months claimed under the old session were still claimed under the new one, so every `ensureOverridesCached` no-opped and a re-unlocked Calendar never read anything again. With its knowledge forgotten at the same moment, that was a permanent "Checking this month" and a Try again that could not win. Revoking viewer tokens is a documented step of rotating the PIN, so this is the ordinary path. Revoking deliberately does NOT clear: a shut gate reads nothing regardless, and clearing there would let anything running in between re-claim months against it
 
+### `calendar-legend.js`
+The month legend, and the two questions it answers — which are easy to confuse and fail at different
+sizes. `legendVisibility({ types, isDispatcher, displayMonth, easterMonth })` returns element id →
+visible for the conditional keys (the five row-2 items, their container, nights, Christmas, Easter);
+`legendShown(display, isTeamViewMode)` answers whether the legend appears at all; `createLegend(deps)`
+paints both. Left `calendar-app.js` at v23.69, when that coordinator stood FIVE lines under its ratchet
+cap — the most saturated file in the repo, where the next fix would have had to buy its own room first.
+
+**The second question is the one with teeth.** The legend is a KEY to the grid and is derived from the
+BASE roster, so over a month whose read has not landed it will describe shift types perfectly
+confidently beside a panel saying we do not yet know them — a statement, in the app's own voice, about
+data nobody has. So an unrecognised display verdict fails CLOSED, and `'stale'` is deliberately on the
+showing side: a cached month IS a grid, and a grid gets its key.
+
+**`'stand-down'` is a third answer, not a spelling of `'hide'`.** Team View owns the legend element
+while it is active, so the correct behaviour there is to write NOTHING — not to write `none` and
+happen to agree. The two are indistinguishable today, because `applyTeamViewChrome` hides it anyway,
+which is exactly why collapsing them would pass every visual and behavioural check and surface only
+when Team View wants a legend of its own.
+
+**The v20.41 rule moved with the code.** The shown/hidden decision belongs to the legend UPDATE and not
+to a render: a swipe COMMIT calls the update and never `renderCalendar` (the incoming carousel panel
+simply becomes the live view), so putting it in the render broke both directions — swiping from a
+withheld month onto a good one left the legend hidden, and onto an unfetched one left it up over the
+wait panel. `e2e/calendar.spec.js` pins the swipe; the pure rules are pinned by
+`calendar-legend.test.mjs`. Imports nothing — every collaborator is injected, which keeps it
+Node-testable and avoids a cycle back into `calendar-state.js` / `calendar-overrides.js`.
+
 ### `calendar-data-state.js`
 What the Calendar KNOWS about a month's overrides, and what it is therefore allowed to show (v20.40). Pure — no DOM, no Firebase, no imports — so every branch is reachable from a Node test. `calendar-overrides.js` and `calendar-initial-fetch.js` RECORD; `calendar-renderer.js`, `calendar-team-view.js` and `calendar-app.js`'s page-ready metric READ. Tested by `calendar-data-state.test.mjs`.
 
@@ -349,10 +377,34 @@ What the Calendar KNOWS about a month's overrides, and what it is therefore allo
 
 **`cached` still renders its grid, and adds no banner.** Withholding it would be its own failure: a device with data and no network would be reduced to a spinner. A banner would be worse than useless — phase 1 marks `cached` and phase 2 overrules it a moment later on every single app open, so it would flash on every load and mean nothing. The sync chip already says "Updating…" and then "Couldn't update — tap to retry", which is the honest running commentary; this model's job is only to stop the two states that must show NO grid.
 
-### `overtime-app.js` / `overtime-boot.js` / `overtime-data.js` / `overtime-format.js` / `overtime-tips.js`
+### `overtime-app.js` / `overtime-boot.js` / `overtime-data.js` / `overtime-format.js` / `overtime-clock.js` / `overtime-tips.js`
 The Overtime availability page. `overtime-app.js` is the coordinator (body exported as `init()`, invoked by the boot shim); `overtime-data.js` owns every server call and the corrected clock; `isWithdrawn` and `withdrawnLine` live in `overtime-format.js` because the reviewer's browser reads participant documents directly, and the server holds a second copy of the first — pinned by `overtime-parity.test.mjs`, which asserts BOTH the parity and the outcome, since two copies that drift the same way agree perfectly and are both wrong; `overtime-format.js` is pure words and time arithmetic; `overtime-tips.js` is `?`-panel data. Server side: `functions/overtime.js` + `functions/overtime-core.js`. Feature design: `OVERTIME_AVAILABILITY.md`.
 - `correctedNow()` — the server-corrected clock. Only meaningful after `getMyOvertimeState` has returned, since that return is what sets the offset; there is deliberately no exported "is it ready" flag, because one that is structurally always true is worse than none.
 
+
+**`overtime-clock.js` — whether an action is still ALLOWED** (v23.69). Six exports left
+`overtime-format.js` when that module stood eleven lines under its ratchet cap, along a line its own
+header had already drawn: it turns a window, a phase and a day's answer into WORDS, and these six are
+not words. `SUBMIT_GRACE_MS`, `DEADLINE_SYNC_WINDOW_MS`, `clockOffset`, `submitDisposition`,
+`shouldResyncClock` and `canRestoreNow` are the DECISIONS a member's own device clock is permitted to
+make about a deadline, and each one can remove a control from somebody's screen. Being wrong in the
+words produces a sentence a member can query; being wrong here produces an ABSENCE — a Submit button
+that quietly is not there, on a phone whose clock nobody checked, for somebody who was in time.
+
+One rule governs all six and every branch states it: **the client never refuses what the server would
+accept.** It may offer more than the server will allow, because an extra request costs nothing, and it
+may never offer less than the member is owed. So the grace band answers `check-with-server` rather than
+`closed`, and `canRestoreNow` returns TRUE when it cannot tell — running deliberately opposite to its
+server twin, because a wrong refusal there puts a sentence on screen explaining a rule that may not
+apply, and a false explanation is believed in a way a refused tap is not.
+
+Three things the move must not undo, each in the module header: `overtime-format.js` **re-exports all
+six**, so all eight import sites and both existing suites are untouched (the device
+`admin-roster-upload.js` uses for `roster-review-states.js`); `canRestoreNow` still has a server twin
+that `overtime-parity.test.mjs` compares by behaviour; and the module **imports nothing**, which is
+what lets a deadline be tested at the minute either side of noon with no fixtures. Tested by
+`overtime-clock.test.mjs`, which pins what the extraction put at risk rather than restating the clock
+cases the re-export already carries.
 
 **`overtime-format.js` — the pure exports** (words, and the clock they are worded against). Added to this map at v21.63; the section had run on prose alone, so eleven of its exports were unroutable:
 - **Dates and labels:** `shortDate` / `longDate` (an ISO day, two lengths) · `weekLabel(weekEnding)` · `weekSpan(weekStart)` · `deadlineLabel` · `printedLabel` — all formatted through `Intl` in **Europe/London**, never the device's zone, so a phone left on holiday time still shows the deadline staff are held to. The last two differ by the **year**, and deliberately: a deadline is days away, so a year on it is noise, while `printedLabel` stamps a PRINTED sheet — a physical object that goes in a folder and must still be orderable against one printed a year earlier.
@@ -986,6 +1038,22 @@ field"); the decision simply never got carried to selects.
 - `openOptionSheet({ title, groups, current, subtitle?, onPick, onPreview? })` (v23.38; timing v23.61) — the sheet WITHOUT a select behind it, for a caller that holds the value itself: the Links grid's cell editor, whose control is a grid cell and which used to swap that cell for a native `<select>` per edit. `enhanceSelect`'s own popup, lifted out rather than copied, so the app still has exactly one dropdown. **`onPick` fires when the sheet's close has LANDED** — `createLightbox`'s `close()` promise: the fade done AND the `history.back()` echo arrived — because a dialog opened from the callback before that echo is popped by it (the Links grid editor opens `promptDialog` from this very callback). Until v23.61 that was a fixed 320 ms timer: 120 ms past the 200 ms fade on every pick, and under reduced motion a third of a second for nothing. **`onPreview` fires synchronously on the tap**; `enhanceSelect` uses it to paint the trigger's face at once while the value still waits for the landing, which is what makes a pick read as instant. Neither fires on a dismissal — a cancel is not a pick. Pinned by `select-sheet-pick.test.mjs`. Same split as `date-picker.js`'s `initDatePickers` / `openDatePicker`.
 - `widestOptionLabel(select, placeholder?)` (v23.39) — the LONGEST label the select could show, which is what the trigger is sized to. **A `<select>` sizes to its widest option and a button sizes to its own text**, so from v23.33 the Calendar's name picker changed width as you switched member and the whole control row re-centred around it — `← Prev`/`Next →` sliding under the reader's thumb. The trigger now carries a hidden copy of this string and is a one-cell grid, so its intrinsic width is the widest option exactly as the native control's was; the page's `max-width` cap still clamps and the face still ellipsises. Longest by CHARACTER COUNT, deliberately: an exact answer means measuring every option in the trigger's font on every font load, text-scale change and rebuild, and these lists are one face at one size. **The grid is load-bearing for HEIGHT, not width** — left in normal flow the sizer forms its own line box and the control is 64px instead of 44px (measured), which a width assertion alone does not see.
 - `shouldOfferSearch(count)` · `optionMatches(option, query)` · `filterGroups(groups, query)` (v23.68) — **the FILTER on a long sheet**, pure and therefore testable without a DOM. The box appears from 16 options and not before: a four-item selector is better without one, a ~50-name roster is materially worse (external review). It matches a SUBSTRING anywhere in the label **or the second line** — a reader types what they remember, and “Miller” is inside “G. Miller”, so a starts-with rule would fail every surname on this roster; a grade in the meta line is a reasonable thing to type. Case and diacritics are folded. A group that keeps nothing is DROPPED heading and all (a heading over no rows reads as a section that failed to draw), and no match returns an EMPTY list rather than the unfiltered one — falling back to everything reads as “search is broken” and lets a reader pick the wrong person from a list they believe is filtered. **Deliberately not `guide-search.js`**: that is a ranked, tokenised engine across five documents; this is a filter over a list already on screen, and reusing the tokeniser would stop “S. Sil” matching “S. Silva” and would reorder a roster somebody reads alphabetically. **The box never takes focus, on any platform** — a keyboard rising over the list the sheet just opened is worse than the scroll it saves, and this app's own rule is that pointer queries are unreliable on Android, so there is no branch. Tested by select-sheet.test.mjs (six mutations); the WIRING — box rendered, typing reaching the list, a filtered pick still setting the select, focus not taken — by e2e/calendar.spec.js
+- `searchLabelFor(title)` (v23.69, external review) — **what the box is CALLED to a screen reader.** A
+sheet title is an instruction and a search box is a thing, so `Search ${title}` welded the two into
+“Search choose a staff member”: a name that is present, satisfies every accessibility rule, and is not
+English. This drops a leading `Choose`/`Select`/`Pick` (+ article) and keeps the noun — “Search staff
+member”. It fires only on a recognised opener and only at the START, because inventing a name is worse
+than repeating one: “Tax year” is already a noun and is left alone, and an opener inside a name is part
+of that name. The class of defect is one no automated check raises, which is precisely why the rule is
+written down and tested rather than left to a reviewer's ear.
+- **THE BOX IS 16px, AND THAT IS NOT A STYLE CHOICE** (fixed v23.69, external review). It shipped at
+`var(--type-body)` = 14px with the comment stating the 16px iOS focus-zoom rule directly above the line
+breaking it. Nothing caught it: the `@a11y` sweep in `e2e/pages.spec.js` walks `input, select, textarea`
+on a page AT REST, and this input is built lazily when a long sheet opens, so a DOM scan is
+structurally unable to see it — as it would be for any control that appears on a tap. The stylesheet is
+now guarded statically by `type-scale-parity.test.mjs`, which laziness cannot dodge, and the wiring by
+`e2e/calendar.spec.js`. Set flat rather than via a `@media (pointer: coarse)` override, because that
+pattern has failed three times in this repo by being written above the rule it meant to beat.
 - `readGroups(select)` / `triggerLabel(select)` — the pure-ish readers, driven by a fake DOM in Node. `readGroups` also serves as the OPTIONS PARSER for `openOptionSheet`: a caller with an options string builds a detached `<select>` and hands it over, so one producer feeds both routes and `<optgroup>` labels become sheet headings for free.
 
 **Three things an edit can silently break.** The options are read on every OPEN, never cached — a

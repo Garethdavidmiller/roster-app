@@ -26,6 +26,7 @@ changed once.
 | **Arriving from outside** | `README.md` | What the app is, and which checks run with nothing installed — the front door, not a summary of this table |
 | **Repository conventions** | `CLAUDE.md` | Version bumping, the file tree, architecture decisions, wording conventions, change impact |
 | **Module routing** | `AI_MAP.md` | What every module is and what it exports |
+| **File routing** | `FILE_INDEX.md` | What every FILE is, one line each — the catalogue, moved out of `CLAUDE.md` on 11 Sep 2026 because a lookup table for ~430 files was 64% of a document loaded into every session |
 | **Authentication & sessions** | `AUTH_AND_SESSIONS.md` | Session ↔ identity ↔ claim, and the invariants across them |
 | **Credential lifecycle** | `CREDENTIAL_LIFECYCLE.md` | How a credential is issued, recovered and retired — and the ORDER those changes go in. Holds the one open decision about what retiring the surname should MEAN |
 | **Calendar truth** | `CALENDAR_DATA.md` | What may be shown, and when — knowledge states, the access gate |

@@ -47,6 +47,13 @@
    spacing changes only ever need one edit.
    ============================================================ */
 :root {
+    /* THE APP'S ONE DOWNWARD CHEVRON — the mark that says "this opens a picker" (v23.69).
+       Declared here because it is now used by three controls in two stylesheets: the `.fieldpick`
+       trigger, and the two WEEK LABELS (Team View and Admin's Change a Shift), which their own CSS
+       has always described as the same control. It was written out per-site before that, and the
+       navy is baked into the SVG's `stroke` where no token can reach it, so a third copy was the
+       point at which one of them would eventually diverge. Sized by the consumer. */
+    --caret-chevron: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23001e3c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
     /* ── Typeface ────────────────────────────────────────────────
        Inter first (self-hosted @font-face above), then the original
        system-font stack as graceful fallback. Every page sets its
@@ -1337,7 +1344,7 @@ button.lightbox-bug-link {
     cursor: pointer;
     text-align: left;
     min-width: 0;
-    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23001e3c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-image: var(--caret-chevron);
     background-repeat: no-repeat;
     background-position: right 10px center;
     background-size: 1em;
@@ -1420,8 +1427,13 @@ button.lightbox-bug-link {
     padding: 10px 12px;
     font-family: inherit;
     /* Never below 16px on a focusable field — iOS zooms the page on focus otherwise, and this one
-       is focused from inside a modal sheet, where a zoom is especially disorienting. */
-    font-size: var(--type-body);
+       is focused from inside a modal sheet, where a zoom is especially disorienting.
+       IT SHIPPED AT 14px (v23.68 → v23.69, external review): the comment above stated the rule and
+       the line below broke it, which is the one shape of comment worse than none. Note this is 16px
+       FLAT rather than the app's usual small-on-desktop + `@media (pointer: coarse)` override — the
+       override pattern has failed in this repo three times by being written above the rule it meant
+       to beat (see links.css), and a modal search field gains nothing from being 14px on a mouse. */
+    font-size: var(--type-medium);
     color: var(--text-dark);
     background-color: var(--field-bg);
     border: 2px solid var(--border-mid);

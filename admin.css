@@ -481,11 +481,23 @@
         @media (hover: hover) and (pointer: fine) {
             .week-nav-label:hover { border-color: var(--border-mid); }
         }
-        /* Calendar icon sits at the right edge of the label — the affordance that the week is
-           tappable. The label itself is the trigger. */
+        /* The affordance that the week is tappable — the label itself is the trigger. A CHEVRON
+           since v23.69, not the 📅 it carried before: Team View's week label is the same control
+           (this file and index.css have both said so), it gained an affordance in the same release,
+           and two identical controls wearing different marks is the drift worth spending a line to
+           avoid. The chevron is also what `.fieldpick` puts on every picker trigger, and what opens
+           here is a picker. `--caret-chevron` is declared once in shared.css. */
         .week-nav-label::after {
-            content: ' 📅';
-            font-size: var(--type-label);
+            content: '';
+            display: inline-block;
+            vertical-align: -0.1em;
+            width: 0.7em;
+            height: 0.7em;
+            margin-left: 5px;
+            background-image: var(--caret-chevron);
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: contain;
             opacity: 0.55;
         }
         /* Gold border + tinted fill when the displayed week is the current week (the comment said

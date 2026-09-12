@@ -193,7 +193,8 @@ const CAPS = {
     // the notification prompt strip and silent renewal (an IIFE that closed over nothing the
     // coordinator owns) left for calendar-notif-prompt.js, 1,346 down to 1,267. The ceiling comes
     // down with it rather than banking eighty lines as headroom, per the header's rule.
-    'calendar-app.js':         1320,
+    'calendar-app.js':         1310,
+                                       //   ← 1320 until v23.69, when the month LEGEND left for calendar-legend.js (1264 now)
     'roster-data.js':          1250,   // mostly data, not logic
     // 1360 → 1250 at v23.31, and this is the entry below FINISHING rather than another raise. That
     // note said the file's length "tracks HEADCOUNT, so it will cross again on a future starter,
@@ -306,7 +307,8 @@ const CAPS = {
     // needs raising, and this raise is the words: a printed availability sheet needed its own
     // timestamp shape (with a year, which a deadline must not carry), and a module whose whole job
     // is putting Overtime into words is where that belongs. Twelve lines of room, no bank.
-    'overtime-format.js':      1070,   // ← the words are the seam if this ever needs raising
+    'overtime-format.js':      1030,   // ← 1070 until v23.69, when the CLOCK left for overtime-clock.js
+                                       //   (977 now). The words are the seam if this needs raising again
     // 1200 → 1250 at v21.54, and this one is a RAISE rather than an extraction, which the note
     // above says must be argued rather than assumed. The growth is the same-week read guard from
     // the external review — a generation ticket around one `await`, so that a slow earlier read

@@ -190,6 +190,30 @@ const fold = (/** @type {string} */ s) =>
 export function shouldOfferSearch(count) { return count >= SEARCH_FROM; }
 
 /**
+ * What the search box is CALLED to a screen reader.
+ *
+ * A sheet title is an instruction — "Choose a staff member" — and a search box is a thing, so
+ * `Search ${title}` welded the two into "Search choose a staff member" (v23.68, external review).
+ * It passed every accessibility rule and still read like a machine, which is the class of defect
+ * no automated check will ever raise: the name is PRESENT, it is just not English.
+ *
+ * So the leading instruction verb is dropped and the noun kept — "Search staff member" — which is
+ * what a person would say. A title that is already a noun ("Tax year") is left alone; the rule only
+ * fires on a recognised opener, because inventing a name is worse than repeating one.
+ *
+ * @param {string} title  the sheet's own heading
+ * @returns {string}
+ */
+export function searchLabelFor(title) {
+    const t = String(title || '').trim();
+    if (!t) return 'Search';
+    // Only these openers, and only at the START — "Choose" inside a name is part of the name.
+    const noun = t.replace(/^(choose|select|pick)\s+(a|an|the)\s+/i, '')
+                  .replace(/^(choose|select|pick)\s+/i, '');
+    return `Search ${noun.toLowerCase()}`;
+}
+
+/**
  * A row matches if the typed text appears in its label OR its second line. Both, because the
  * meta is where a grade or a date lives and "dispatcher" is a reasonable thing to type.
  * @param {SheetOption} option @param {string} query
@@ -445,7 +469,7 @@ export function openOptionSheet(opts) {
     // A placeholder is not a label — it is the field's own content, and it disappears the moment
     // anything is typed. The name says WHAT is being filtered, because a screen-reader user meets
     // this control without the heading above it in view.
-    sheet.input.setAttribute('aria-label', `Search ${title.toLowerCase()}`);
+    sheet.input.setAttribute('aria-label', searchLabelFor(title));
     // Rebound on every open, and `oninput` rather than addEventListener so a sheet opened by a
     // different control can never still be filtered by the previous one's handler.
     sheet.input.oninput = searchable ? () => paint(sheet.input.value) : null;

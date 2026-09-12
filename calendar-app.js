@@ -33,6 +33,7 @@ import { initHuddleViewer } from './calendar-huddle-viewer.js';
 import { initDocViewer } from './calendar-doc-viewer.js';
 import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress, setOverrideAccess, setOverrideAccessLostHandler, monthKey, clearFetchedMonth } from './calendar-overrides.js';
 import { forget as forgetOverrideKnowledge, knowledgeOf, decideDisplay, showsRoster } from './calendar-data-state.js';
+import { createLegend } from './calendar-legend.js';
 import { initCalendarAccess, calendarAccessReady, calendarAuthReady, getAccessType, isViewerMode, lockCalendar, handleAccessLost } from './calendar-access.js';
 import { personalActionsAllowed } from './calendar-access-core.js';
 import { getCurrentMember, getSelectedMemberIndex, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName, isFirstRun } from './calendar-member.js';
@@ -291,71 +292,20 @@ function updateNavButtonState() {
     }
 }
 
-// updateLegend — shows/hides conditional legend items:
-//   Spare/RDW/AL/Absent(sick)/Other — only when that shift type actually appears this month
-//     (row 2 as a whole is hidden when none of them do)
-//   Night        — only for Dispatcher roster members
-//   🎄 Christmas — only in December
-//   🐣 Easter    — only in the month Easter Sunday falls in
-// Called inside renderCalendar() on every navigation.
-/** @param {any} id */
-function _legendEl(id) {
-    return document.getElementById(id);
-}
-
-function updateLegend() {
-    const member = getCurrentMember();
-
-    // Spare / RDW / AL — conditional on whether they appear this month
-    const typesThisMonth = member
-        ? getShiftTypesInMonth(member, getDisplayYear(), getDisplayMonth())
-        : new Set();
-    const setLegendItemVisible = /** @param {any} id @param {any} visible */ (id, visible) => { const legendItem = _legendEl(id); if (legendItem) legendItem.style.display = visible ? '' : 'none'; };
-    setLegendItemVisible('legend-spare', typesThisMonth.has('SPARE'));
-    setLegendItemVisible('legend-rdw',   typesThisMonth.has('RDW'));
-    setLegendItemVisible('legend-al',    typesThisMonth.has('AL'));
-    setLegendItemVisible('legend-sick',  typesThisMonth.has('SICK'));
-    setLegendItemVisible('legend-other',   typesThisMonth.has('OTHER'));
-    // Hide the whole row-2 if all five are absent
-    const row2 = _legendEl('legend-row-2');
-    if (row2) row2.style.display = (typesThisMonth.has('SPARE') || typesThisMonth.has('RDW') || typesThisMonth.has('AL') || typesThisMonth.has('SICK') || typesThisMonth.has('OTHER')) ? '' : 'none';
-
-    const isDispatcher = member && (/** @type {any} */ (member)).rosterType === 'dispatcher';
-    const nightItem = _legendEl('legend-night');
-    if (nightItem) nightItem.style.display = isDispatcher ? '' : 'none';
-
-    const christmasItem = _legendEl('legend-christmas');
-    if (christmasItem) christmasItem.style.display = getDisplayMonth() === 11 ? '' : 'none';
-
-    // Easter Sunday can fall in March or April — check which month it's in this year
-    const easterItem = _legendEl('legend-easter');
-    if (easterItem) {
-        const easterSunMonth = computeEaster(getDisplayYear()).getMonth();
-        easterItem.style.display = getDisplayMonth() === easterSunMonth ? '' : 'none';
-    }
-
-    // ── And whether the legend is shown AT ALL (v20.41) ─────────────────────────────────────────
-    //
-    // The legend is a KEY to the grid, so it goes when the grid does: with the month withheld it
-    // keys nothing, and being derived from the BASE roster it would go on announcing this month's
-    // shift types beside a panel saying we do not yet know them.
-    //
-    // HERE and not in renderCalendar, which is where v20.40 put it and where it was wrong. A swipe
-    // COMMIT calls updateLegend() but never renderCalendar() — the incoming carousel panel simply
-    // becomes the live view — so the decision was skipped on exactly the navigation people use most.
-    // Both directions were broken: swipe from a withheld month onto a good one and the legend stayed
-    // hidden until some later full render; swipe onto an unfetched one and it stayed up over the wait
-    // panel. `updateLegend` is the one function every path calls, which makes it the choke point,
-    // the same argument that put the grid gate in `buildCalendarContainer` rather than here.
-    //
-    // Team View owns the legend while it is active (applyTeamViewChrome hides it), so we stand down;
-    // exiting it calls renderCalendar, which comes back through here and settles the real answer.
-    const legendEl = /** @type {HTMLElement|null} */ (document.querySelector('.legend'));
-    if (legendEl && !teamView.isTeamViewMode()) {
-        const shown = decideDisplay(knowledgeOf(monthKey(getDisplayYear(), getDisplayMonth())));
-        legendEl.style.display = (shown === 'render' || shown === 'stale') ? '' : 'none';
-    }
-}
+// ── THE MONTH LEGEND ────────────────────────────────────────────────────────────────────────────
+// Left this coordinator at v23.69 for `calendar-legend.js`, which owns both of its decisions —
+// which keys apply, and whether the legend applies at all. The v20.41 rule that the shown/hidden
+// answer belongs to the legend UPDATE and not to a render moved with it, and is argued there.
+const legend = createLegend({
+    getCurrentMember,
+    getShiftTypesInMonth,
+    getDisplayYear,
+    getDisplayMonth,
+    computeEaster,
+    displayVerdict: () => decideDisplay(knowledgeOf(monthKey(getDisplayYear(), getDisplayMonth()))),
+    isTeamViewMode: () => teamView.isTeamViewMode(),
+});
+const updateLegend = () => legend.update();
 
 /**
  * Shows the one-time "stale member removed from roster" error banner.

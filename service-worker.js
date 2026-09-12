@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '23.68';
+const APP_VERSION = '23.69';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -123,13 +123,13 @@ const NETWORK_FIRST_FILES = [
     'index.css', 'admin.css', 'paycalc.css', 'operations.css', 'settings.css', 'links.css', 'overtime.css',
     'calendar-app.js', 'calendar-state.js', 'calendar-swipe.js',
     'calendar-overrides.js', 'calendar-member.js', 'calendar-renderer.js',
-    'calendar-access.js', 'calendar-lock-cards.js', 'calendar-access-core.js', 'calendar-data-state.js',
+    'calendar-access.js', 'calendar-lock-cards.js', 'calendar-access-core.js', 'calendar-data-state.js', 'calendar-legend.js',
     'calendar-al-lightbox.js', 'calendar-initial-fetch.js', 'calendar-keyboard.js', 'calendar-notices.js',
     'calendar-team-view.js', 'override-utils.js', 'calendar-huddle-viewer.js', 'huddle-table-grid.js', 'settings-status.js', 'calendar-doc-viewer.js',
     'admin-app.js', 'admin-boot.js', 'huddle.js', 'doc-upload.js', 'admin-auth.js', 'ls.js', 'nav-panel.js', 'nav-guide-search.js', 'guide-search.js', 'guide-index.js', 'install-prompt.js', 'calendar-notif-prompt.js', 'calendar-doc-access.js', 'calendar-lock-slot.js', 'text-scale.js', 'notif.js',
     'admin-roster-upload.js', 'roster-alignment.js', 'roster-cell-rules.js', 'roster-review-states.js', 'admin-period-dates.js', 'roster-entry-control.js', 'admin-overrides.js', 'admin-override-store.js', 'admin-override-coverage.js', 'admin-shift-types.js', 'admin-week-editor.js', 'admin-saved-changes.js', 'admin-shift-rules.js', 'admin-save-receipt.js', 'admin-rangepicker.js', 'admin-deep-link.js',
     'admin-al.js', 'al-entitlement.js', 'admin-al-year.js', 'admin-booked-periods.js', 'admin-sick.js', 'admin-range-booking.js', 'admin-week-swipe.js',
-    'operations-app.js', 'operations-boot.js', 'operations-reports.js', 'operations-errors.js', 'operations-usage.js', 'operations-speed.js', 'operations-attention.js', 'settings-app.js', 'settings-boot.js', 'overtime-app.js', 'overtime-boot.js', 'overtime-data.js', 'overtime-format.js', 'overtime-tips.js', 'overtime-form.js', 'overtime-roster.js', 'overtime-manager.js', 'overtime-review-controller.js', 'password-force.js', 'links-app.js', 'links-boot.js', 'links-design.js', 'links-seed.js', 'links-default-targets.js', 'links-target-sets.js', 'links-target-sets-store.js', 'links-target-hours.js', 'links-tips.js', 'links-design-doc.js',
+    'operations-app.js', 'operations-boot.js', 'operations-reports.js', 'operations-errors.js', 'operations-usage.js', 'operations-speed.js', 'operations-attention.js', 'settings-app.js', 'settings-boot.js', 'overtime-app.js', 'overtime-boot.js', 'overtime-data.js', 'overtime-format.js', 'overtime-clock.js', 'overtime-tips.js', 'overtime-form.js', 'overtime-roster.js', 'overtime-manager.js', 'overtime-review-controller.js', 'password-force.js', 'links-app.js', 'links-boot.js', 'links-design.js', 'links-seed.js', 'links-default-targets.js', 'links-target-sets.js', 'links-target-sets-store.js', 'links-target-hours.js', 'links-tips.js', 'links-design-doc.js',
     'links-design-naming.js', 'links-design-header.js', 'links-generator-targets.js', 'links-design-store.js', 'links-import.js', 'links-concurrency.js', 'links-deletion.js', 'links-fatigue.js', 'links-limits.js', 'links-window.js', 'links-demand.js', 'links-adjacency.js', 'links-analysis.js', 'links-compare.js',
     'overlay.js', 'select-sheet.js', 'session.js', 'auth-state-core.js', 'auth-state.js', 'auth-policy.js', 'sw-register.js', 'error-reporter.js', 'fetch-timeout.js', 'splash-watchdog.js',
     'usage-reporter.js', 'usage-stats.js', 'perf-reporter.js', 'perf-stats.js',
@@ -196,6 +196,7 @@ const CORE_ASSETS = [
     "./overtime-boot.js",
     "./overtime-data.js",
     "./overtime-format.js",
+    "./overtime-clock.js",
     "./overtime-tips.js",
     "./overtime-form.js",
     "./overtime-roster.js",
@@ -209,6 +210,7 @@ const CORE_ASSETS = [
     "./calendar-lock-cards.js",
     "./calendar-access-core.js",
     "./calendar-data-state.js",
+    "./calendar-legend.js",
     "./calendar-member.js",
     "./calendar-renderer.js",
     "./calendar-al-lightbox.js",

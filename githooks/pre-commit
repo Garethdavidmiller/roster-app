@@ -22,11 +22,14 @@ cd "$(git rev-parse --show-toplevel)"
 # the next reorganisation fails in the test suite rather than in somebody's terminal.
 export DOC_AI_MAP="docs/AI_MAP.md"
 export DOC_CLAUDE="CLAUDE.md"
+# The one-line-per-file catalogue left CLAUDE.md on 11 Sep 2026. The module check follows it —
+# grepping CLAUDE.md for a module name now finds nothing, which would refuse every commit.
+export DOC_FILE_INDEX="docs/FILE_INDEX.md"
 export DOC_OPERATIONS="docs/OPERATIONS_REFERENCE.md"
 export DOC_KNOWN_LIMITATIONS="docs/KNOWN_LIMITATIONS.md"
 export DOC_ROADMAP="docs/ROADMAP.md"
 
-for _doc in "$DOC_AI_MAP" "$DOC_CLAUDE" "$DOC_OPERATIONS" "$DOC_KNOWN_LIMITATIONS" "$DOC_ROADMAP"; do
+for _doc in "$DOC_AI_MAP" "$DOC_CLAUDE" "$DOC_FILE_INDEX" "$DOC_OPERATIONS" "$DOC_KNOWN_LIMITATIONS" "$DOC_ROADMAP"; do
   if [ ! -f "$_doc" ]; then
     echo "  pre-commit: $_doc does not exist — this hook cannot check what it cannot read."
     echo "  Fix the path at the top of githooks/pre-commit (and pre-commit-parity.test.mjs will agree)."
@@ -46,15 +49,15 @@ for f in *.js; do
     ERRORS=$((ERRORS + 1))
   fi
 
-  if ! grep -q "$f" "$DOC_CLAUDE" 2>/dev/null; then
-    echo "  doc-check: $f not listed in $DOC_CLAUDE"
+  if ! grep -q "$f" "$DOC_FILE_INDEX" 2>/dev/null; then
+    echo "  doc-check: $f not listed in $DOC_FILE_INDEX"
     ERRORS=$((ERRORS + 1))
   fi
 done
 
 if [ "$ERRORS" -gt 0 ]; then
   echo ""
-  echo "  Add the missing module(s) to $DOC_AI_MAP and $DOC_CLAUDE, then re-commit."
+  echo "  Add the missing module(s) to $DOC_AI_MAP and $DOC_FILE_INDEX, then re-commit."
   exit 1
 fi
 

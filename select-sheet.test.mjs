@@ -20,7 +20,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readGroups, triggerLabel, widestOptionLabel,
-         shouldOfferSearch, optionMatches, filterGroups } from './select-sheet.js';
+         shouldOfferSearch, optionMatches, filterGroups, searchLabelFor } from './select-sheet.js';
 
 /** A fake `<select>`; `children` is what readGroups walks, `options`/`selectedIndex` what the face reads. */
 function fakeSelect(spec) {
@@ -231,5 +231,37 @@ describe('filtering a long sheet — hiding a row that matches is the expensive 
         assert.equal(shouldOfferSearch(15), false);
         assert.equal(shouldOfferSearch(16), true);
         assert.equal(shouldOfferSearch(50), true);
+    });
+});
+
+// ── THE SEARCH BOX'S ACCESSIBLE NAME (v23.69, external review) ─────────────────────────────────
+//
+// The failure this replaces is one no automated check can raise: `Search ${title}` produced
+// "Search choose a staff member", which HAS a name, satisfies every accessibility rule, and is not
+// English. Only a person reading it aloud finds that — so the rule is written down here instead.
+describe('the search box is named in English', () => {
+    test('an instruction title loses its verb and keeps its noun', () => {
+        assert.equal(searchLabelFor('Choose a staff member'), 'Search staff member');
+        assert.equal(searchLabelFor('Choose an option'), 'Search option');
+        assert.equal(searchLabelFor('Select the design'), 'Search design');
+        assert.equal(searchLabelFor('Pick a member'), 'Search member');
+    });
+
+    test('a title that is ALREADY a noun is left alone', () => {
+        // The rule must not invent a name. Stripping a leading word from "Tax year" would leave
+        // "Search year", which is a different and wrong thing.
+        assert.equal(searchLabelFor('Tax year'), 'Search tax year');
+        assert.equal(searchLabelFor('Staff'), 'Search staff');
+    });
+
+    test('an opener INSIDE a name is part of the name', () => {
+        // Anchored at the start on purpose — this is the mistake a looser regex makes.
+        assert.equal(searchLabelFor('Who to choose a cover for'), 'Search who to choose a cover for');
+    });
+
+    test('no title still yields a usable name, never "Search undefined"', () => {
+        for (const bad of ['', '   ', null, undefined]) {
+            assert.equal(searchLabelFor(/** @type {any} */ (bad)), 'Search');
+        }
     });
 });
