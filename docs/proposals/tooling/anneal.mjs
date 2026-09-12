@@ -17,16 +17,19 @@ const WORK = []; for (let i = 1; i <= LINES; i++) if (!SPARE.has(i)) WORK.push(i
 const WEEKDAY = {
   A: [['06:20-13:45',2],['06:20-14:20',2],['08:00-16:30',2],['11:00-19:30',3],['14:00-22:30',2],['15:15-23:55',3]],
   B: [['06:20-13:45',2],['06:20-14:20',2],['08:00-16:30',3],['13:30-22:00',2],['14:00-22:30',2],['15:15-23:55',3]],
-  // Q and R (12 Sep 2026): table B with the CLOSING turn at 15:45, not 15:15 — the owner's ask. That
-  // takes 30 min off three duties a day, 450 a week, and the contract is exact; with today's turns
-  // alone no table pays 42,000 (0 of 200 candidate weekday tables × 122 Saturday tables). So ONE
-  // other turn is stretched at its end to put the 90 min a day back, and there are exactly four
-  // zero-drift ways to do it. Q lengthens the mid turn (08:00-16:30 → 17:00, three people, +30
-  // each); R lengthens the second late (14:00-22:30 → 23:15, two people, +45 each). Both keep the
-  // Saturday and Sunday tables of Same Turns unchanged. The other two (06:20-13:45 → 14:30,
-  // 06:20-14:20 → 15:05) fit the December curve no better than B and are not searched.
-  Q: [['06:20-13:45',2],['06:20-14:20',2],['08:00-17:00',3],['13:30-22:00',2],['14:00-22:30',2],['15:45-23:55',3]],
-  R: [['06:20-13:45',2],['06:20-14:20',2],['08:00-16:30',3],['13:30-22:00',2],['14:00-23:15',2],['15:45-23:55',3]],
+  // Q and R (12 Sep 2026): table B with the CLOSING turn at 15:45, not 15:15 — the owner's ask — and NO
+  // DUTY OVER 8h40, the owner's second rule. The later start takes 30 min off three duties a day, 450 a
+  // week, and the contract is exact; with today's turns alone no table pays 42,000 (0 of 200 weekday ×
+  // 122 Saturday tables). So the two 06:20 openers run on at their finish to put the 90 min a day back
+  // (table-late.mjs: 42 exact tables under the cap, three of them zero-drift, every duty ≤ 8h30).
+  //   Q: the openers become 06:20-14:00 and 06:20-14:50 — SATURDAY'S OWN opening turns — so the 15:45
+  //      closer is the only time on the sheet nobody works today.
+  //   R: 06:20-13:45 runs to 14:30 (one new time); the third, 14:15 + 14:35, adds two and is not searched.
+  // Saturday and Sunday are Same Turns' tables unchanged. Their 14:45-23:55 (9h10) and 14:30-23:25 (8h55)
+  // are today's own turns and above 8h40: shortening Saturday's closer leaves 7,004 min a weekday, which
+  // no table reaches — the cap is read as governing what this proposal INTRODUCES, and the PDF says so.
+  Q: [['06:20-14:00',2],['06:20-14:50',2],['08:00-16:30',3],['13:30-22:00',2],['14:00-22:30',2],['15:45-23:55',3]],
+  R: [['06:20-14:30',2],['06:20-14:20',2],['08:00-16:30',3],['13:30-22:00',2],['14:00-22:30',2],['15:45-23:55',3]],
 }[VARIANT] ?? null;   // null when imported for `evaluate` only
 const DEF = buildDefaultTargets().slots;
 const defRows = k => DEF.filter(r => r[k] > 0).map(r => [r.time, r[k]]);

@@ -19,11 +19,16 @@ function weekdayFit(p) {
   const D = hrs.reduce((a,h)=>a+cars[h]*frac(h),0), C = hrs.reduce((a,h)=>a+cov[h],0);
   return +hrs.reduce((a,h)=>a+((cars[h]*frac(h)/D)-(cov[h]/C))**2*1e4,0).toFixed(1);
 }
-const cands = files.map(f => ({ file: f, ...JSON.parse(readFileSync(f, 'utf8')) })).map(c => ({ ...c, fit: weekdayFit(c.patterns) }))
+// How many times on a candidate's sheet nobody works today — a tiebreak AFTER rules and fit, before the
+// search's own score (v23.70). Zero for every Same Turns candidate, equal across By the Book's, and the
+// thing that separates Quarter To's two tables: Q's stretched openers are Saturday's own times.
+const T0_ = today(); const todayTimes = new Set(assess(T0_.patterns, T0_.lines).tableRows.map(r => r.time));
+const newTimesOf = p => assess(p, 24).tableRows.filter(r => !todayTimes.has(r.time)).length;
+const cands = files.map(f => ({ file: f, ...JSON.parse(readFileSync(f, 'utf8')) })).map(c => ({ ...c, fit: weekdayFit(c.patterns), newTimes: newTimesOf(c.patterns) }))
   // THE PICK: rules first, then how the cover sits against the service, then the search's own feel score.
   .sort((a, b) => a.facts.turnarounds - b.facts.turnarounds || Math.max(0,a.facts.longest-6) - Math.max(0,b.facts.longest-6)
-    || a.facts.present - b.facts.present || b.facts.weekends - a.facts.weekends || a.fit - b.fit || a.cost - b.cost);
-console.log('candidates:'); for (const c of cands) console.log(`  ${c.file} ${c.variant} cost=${c.cost.toFixed(0)} fit=${c.fit} present=${c.facts.present} run=${c.facts.longest} wk=${c.facts.weekends} fam=${c.facts.famWeeks} iso=${c.facts.iso}`);
+    || a.facts.present - b.facts.present || b.facts.weekends - a.facts.weekends || a.fit - b.fit || a.newTimes - b.newTimes || a.cost - b.cost);
+console.log('candidates:'); for (const c of cands) console.log(`  ${c.file} ${c.variant} cost=${c.cost.toFixed(0)} fit=${c.fit} newTimes=${c.newTimes} present=${c.facts.present} run=${c.facts.longest} wk=${c.facts.weekends} fam=${c.facts.famWeeks} iso=${c.facts.iso}`);
 const win = cands[0];
 const re = tryAppReorder(win.patterns, evaluate);
 console.log('app reorder:', re.attempt === null ? 'no improvement — search order kept' : `attempt ${re.attempt} improved ${win.cost.toFixed(0)} → ${re.cost.toFixed(0)}`);
@@ -50,7 +55,7 @@ const identity = PROPOSAL === 'BB' ? {
 } : PROPOSAL === 'QT' ? {
   name: 'Quarter To', strap: "Same Turns, with the closing turn starting at quarter to four",
   code: codeFor(win), fingerprint: fingerprint(P.patterns), table: win.variant, seed: win.seed,
-  lineage: 'Family QT — “Same Turns” (ST-24-B7 · d15e1b74) with one change asked for: the weekday closing turn starts 15:45, not 15:15. That is thirty minutes off three duties a day, and the contract is exact, so one other turn is stretched at its end to put the minutes back; the table letter says which (Q the 08:00 turn to 17:00, R the 14:00 turn to 23:15). Saturday and Sunday are unchanged. Compare with “Same Turns” and “By the Book” (BB-24-D7 · 0f14abce).',
+  lineage: 'Family QT — “Same Turns” (ST-24-B7 · d15e1b74) with two things asked for: the weekday closing turn starts 15:45, not 15:15, and no duty runs over 8h40. The later start is thirty minutes off three duties a day, and the contract is exact, so the two 06:20 openers run on at their finish to put the minutes back; the table letter says how far (Q to 14:00 and 14:50, Saturday’s own opening times; R to 14:30). Saturday and Sunday are unchanged. Compare with “Same Turns” and “By the Book” (BB-24-D7 · 0f14abce).',
 } : {
   name: 'Same Turns', strap: "Today's link, widened to 24",
   code: codeFor(win), fingerprint: fingerprint(P.patterns), table: win.variant, seed: win.seed,
@@ -85,18 +90,21 @@ const rules = [
 ];
 
 const sundayOut = demand.movementsOutside(demand.movements.sun, 7*60+15, 23*60+25);
-// QT: which turn was stretched to keep the contract, READ from the finished table against Same Turns'
-// (table B, best-B-7.json), so the PDF cannot name a stretch the cells do not carry.
+// QT: which turns were stretched to keep the contract, READ from the finished table against Same Turns'
+// (table B, best-B-7.json) — so the PDF cannot name a stretch the cells do not carry — and, for each new
+// finish, whether it is a time somebody already works (Q's are Saturday's opening turns).
 const stretch = (() => {
   if (PROPOSAL !== 'QT') return null;
   const bFile = ['results/best-B-7.json', 'best-B-7.json'].find(existsSync); if (!bFile) return null;
   const B = assess(JSON.parse(readFileSync(bFile, 'utf8')).patterns, 24);
-  const gone = B.tableRows.filter(r => r.weekday > 0 && !P.tableRows.some(x => x.time === r.time)).map(r => r.time);
-  const came = P.tableRows.filter(r => r.weekday > 0 && !B.tableRows.some(x => x.time === r.time)).map(r => r.time);
-  const pair = (from, to) => from.slice(0,5) === to.slice(0,5) ? { from, to, people: P.tableRows.find(r => r.time === to).weekday, each: endMinutes(to) - endMinutes(from) } : null;
-  const st = gone.flatMap(g => came.map(c => pair(g, c))).find(Boolean);
-  const closer = { from: gone.find(t => t.endsWith('23:55')), to: came.find(t => t.endsWith('23:55')) };
-  return { ...st, closer, closerShift: closer.from && closer.to ? startMinutes(closer.to) - startMinutes(closer.from) : null, weekly: st ? st.people * st.each * 5 : null };
+  const wk = A => A.tableRows.filter(r => r.weekday > 0);
+  const gone = wk(B).filter(r => !wk(P).some(x => x.time === r.time)), came = wk(P).filter(r => !wk(B).some(x => x.time === r.time));
+  const closer = { from: gone.find(r => r.time.endsWith('23:55'))?.time, to: came.find(r => r.time.endsWith('23:55'))?.time };
+  const turns = came.filter(r => !r.time.endsWith('23:55')).map(r => {
+    const from = gone.find(g => g.time.slice(0,5) === r.time.slice(0,5) && !g.time.endsWith('23:55') && !came.some(c => c !== r && c.time.slice(0,5) === g.time.slice(0,5) && Math.abs(endMinutes(c.time) - endMinutes(g.time)) < Math.abs(endMinutes(r.time) - endMinutes(g.time))))?.time;
+    return { from, to: r.time, people: r.weekday, each: from ? endMinutes(r.time) - endMinutes(from) : null, onToday: todayTimes.has(r.time) };
+  }).filter(t => t.from);
+  return { closer, closerShift: closer.from && closer.to ? startMinutes(closer.to) - startMinutes(closer.from) : null, turns, weekly: turns.reduce((n, t) => n + t.people * t.each * 5, 0), allOnToday: turns.every(t => t.onToday) };
 })();
 // Which rule (or the fit) separated the winner from the runner-up — computed, so page 7 cannot claim a tie that was not one.
 const pickNote = (() => {
@@ -109,12 +117,12 @@ const pickNote = (() => {
 })();
 const meta = {
   date: PROPOSAL === 'QT' ? '12 September 2026' : '8 September 2026',
-  tables: PROPOSAL === 'QT' ? 59 : 81, steps: PROPOSAL === 'QT' ? '120,000' : '60,000', restarts: PROPOSAL === 'QT' ? 'six' : 'four',
+  tables: PROPOSAL === 'QT' ? 42 : 81, steps: PROPOSAL === 'QT' ? '100,000' : '60,000', restarts: PROPOSAL === 'QT' ? 'five' : 'four',
   runs: PROPOSAL === 'QT' ? 'four seeded runs per table, two tables' : PROPOSAL === 'BB' ? 'four seeded runs' : 'three seeded runs per table',
   stretch, pickNote, candidateFiles: cands.map(c => c.file), winnerVariant: win.variant,
   sundayNote: `Sunday: ${sundayOut.after?.length ?? 5} December movements fall after the 23:25 finish (the last at 23:54, three of them arrivals) — the standing question on whether Sunday's window moves; the window is stored per design, so the proposal can be rebuilt to either answer.`,
   designRules: rules, alternatives, identity,
-  openQuestions: PROPOSAL === 'QT' ? `<b>The stretched turn.</b> Moving the closer to 15:45 takes ${stretch?.closerShift ?? ''} minutes off three duties a day, and the 35-hour contract is exact, so those minutes have to go back somewhere. With today's turns alone no table does it; the proposal lengthens ${stretch ? `the ${stretch.from} turn to ${stretch.to.split('-')[1]} (${stretch.people} people, ${stretch.each} minutes each)` : 'one turn'} — a new finish time for those on it, and the question for the room is whether that is the right turn to carry it. The other three ways of doing it are on page 7. <b>Late-turn length</b> is inherited from <i>Same Turns</i> and still not met — lates longer than earlies, as today. <b>Sunday's finish</b> — five December movements fall after 23:25; the proposal inherits today's window deliberately rather than deciding it.` : PROPOSAL === 'BB' ? `<b>Familiarity.</b> Every rule is met, and the price is that none of the 19 turns is one people work today — the earlies run to 9h30 and the closers start at 15:45–16:40 rather than 15:15. That is the trade between this family and <i>Same Turns</i>, and it is a people question rather than a rules one. <b>Sunday's finish</b> — five December movements fall after 23:25; the proposal inherits today's window deliberately rather than deciding it.` : `<b>Late-turn length.</b> The one December preference this proposal does not meet is the owner's own — lates slightly shorter than most earlies. Today's link has it the other way round (a 15:15–23:55 late is 8h40, a 06:20–14:20 early 8h00) and the brief was to keep today's times; meeting both is arithmetically impossible at 14 duties a day, because the day's minutes are fixed by the contract. The choice is between today's clock times and shorter lates paid for by longer earlies (the workspace default does this, with 9h25 earlies). <b>Sunday's finish</b> — five December movements fall after 23:25; the proposal inherits today's window deliberately rather than deciding it.`,
+  openQuestions: PROPOSAL === 'QT' ? `<b>The weekend's two long turns.</b> The rule was no duty over 8h40, and every weekday duty here is 8h30 or under — but Saturday's 14:45–23:55 (9h10) and Sunday's 14:30–23:25 (8h55) are today's own turns, carried over from <i>Same Turns</i> unchanged. Shortening Saturday's closer to 8h40 leaves 7,004 minutes a weekday, which no table of today's turns reaches, so the cap is read here as governing what the proposal introduces; if it is meant to reach the weekend too, Saturday's table has to be redesigned, and that is a different proposal. <b>The openers' finish.</b> Moving the closer to 15:45 takes ${stretch?.closerShift ?? 30} minutes off three duties a day, and the contract is exact, so the two 06:20 openers run on — ${stretch ? stretch.turns.map(t => `${t.from.slice(0,5)} to ${t.to.split('-')[1]}`).join(' and ') : 'see page 3'}${stretch?.allOnToday ? ', which are Saturday’s own opening times' : ''}; the other ways of doing it are on page 7. <b>Late-turn length</b> is inherited from <i>Same Turns</i> and still not met. <b>Sunday's finish</b> — five December movements fall after 23:25; the proposal inherits today's window deliberately rather than deciding it.` : PROPOSAL === 'BB' ? `<b>Familiarity.</b> Every rule is met, and the price is that none of the 19 turns is one people work today — the earlies run to 9h30 and the closers start at 15:45–16:40 rather than 15:15. That is the trade between this family and <i>Same Turns</i>, and it is a people question rather than a rules one. <b>Sunday's finish</b> — five December movements fall after 23:25; the proposal inherits today's window deliberately rather than deciding it.` : `<b>Late-turn length.</b> The one December preference this proposal does not meet is the owner's own — lates slightly shorter than most earlies. Today's link has it the other way round (a 15:15–23:55 late is 8h40, a 06:20–14:20 early 8h00) and the brief was to keep today's times; meeting both is arithmetically impossible at 14 duties a day, because the day's minutes are fixed by the contract. The choice is between today's clock times and shorter lates paid for by longer earlies (the workspace default does this, with 9h25 earlies). <b>Sunday's finish</b> — five December movements fall after 23:25; the proposal inherits today's window deliberately rather than deciding it.`,
 };
 writeFileSync('proposal.json', JSON.stringify({ name: `${identity.name} — Dec 2026 (${identity.code} · ${identity.fingerprint})`, patterns: P.patterns }, null, 1));
 console.log('identity', JSON.stringify(identity));

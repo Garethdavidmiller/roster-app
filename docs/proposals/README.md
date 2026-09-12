@@ -20,8 +20,9 @@ question rather than a rules one: *Same Turns* keeps 15 turns people already wor
 the late-shorter-than-early lever; *By the Book* meets every rule and none of its 19 turns is a
 time anyone works today. Each PDF states this on its page 5.
 
-**The code**: family (`ST` / `BB`) · rotation length · duty table (`A`/`B` today's times, `D` the
-December default) · search seed. A trailing `p` (`BB-24-D21p`) is the rules-only run with no
+**The code**: family (`ST` / `BB` / `QT`) · rotation length · duty table (`A`/`B` today's times, `D` the
+December default, `Q`/`R` table B with the closer at 15:45 and the two 06:20 openers run on to keep the
+contract — `Q` to 14:00 and 14:50, Saturday's own opening times; `R` to 14:30) · search seed. A trailing `p` (`BB-24-D21p`) is the rules-only run with no
 week-coherence term, kept as a comparator. The fingerprint is the first eight hex characters of
 SHA-256 over the 24 × 7 cells in line order.
 
@@ -52,8 +53,11 @@ node table.mjs                       # every December table in today's times tha
 node fit.mjs                         # candidate day tables against the Dec 2026 demand curve
 MODE=feel  node anneal.mjs B 60000 4 7     # Same Turns family: table B, 60k steps x 4 restarts, seed 7 → best-B-7.json
 MODE=rules node anneal.mjs D 60000 4 7     # By the Book family: the December default table, fatigue-first
+node table-late.mjs                        # the 15:45-closer tables: none from today's turns alone; 42 under the 8h40 cap
+MODE=feel  node anneal.mjs Q 100000 5 7    # Quarter To family: tables Q and R, seeds 7 13 21 34
 PROPOSAL=ST node final.mjs results/best-A-*.json results/best-B-*.json           # pick, assess, render
 PROPOSAL=BB EXTRA=results/best-RDpure-21.json node final.mjs results/best-RD-*.json
+PROPOSAL=QT node final.mjs results/best-Q-*.json results/best-R-*.json
 node shots.mjs <rendered>.html       # A4 page screenshots + a height check against the printable page
 ```
 
