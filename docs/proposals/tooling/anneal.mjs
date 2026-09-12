@@ -17,6 +17,16 @@ const WORK = []; for (let i = 1; i <= LINES; i++) if (!SPARE.has(i)) WORK.push(i
 const WEEKDAY = {
   A: [['06:20-13:45',2],['06:20-14:20',2],['08:00-16:30',2],['11:00-19:30',3],['14:00-22:30',2],['15:15-23:55',3]],
   B: [['06:20-13:45',2],['06:20-14:20',2],['08:00-16:30',3],['13:30-22:00',2],['14:00-22:30',2],['15:15-23:55',3]],
+  // Q and R (12 Sep 2026): table B with the CLOSING turn at 15:45, not 15:15 — the owner's ask. That
+  // takes 30 min off three duties a day, 450 a week, and the contract is exact; with today's turns
+  // alone no table pays 42,000 (0 of 200 candidate weekday tables × 122 Saturday tables). So ONE
+  // other turn is stretched at its end to put the 90 min a day back, and there are exactly four
+  // zero-drift ways to do it. Q lengthens the mid turn (08:00-16:30 → 17:00, three people, +30
+  // each); R lengthens the second late (14:00-22:30 → 23:15, two people, +45 each). Both keep the
+  // Saturday and Sunday tables of Same Turns unchanged. The other two (06:20-13:45 → 14:30,
+  // 06:20-14:20 → 15:05) fit the December curve no better than B and are not searched.
+  Q: [['06:20-13:45',2],['06:20-14:20',2],['08:00-17:00',3],['13:30-22:00',2],['14:00-22:30',2],['15:45-23:55',3]],
+  R: [['06:20-13:45',2],['06:20-14:20',2],['08:00-16:30',3],['13:30-22:00',2],['14:00-23:15',2],['15:45-23:55',3]],
 }[VARIANT] ?? null;   // null when imported for `evaluate` only
 const DEF = buildDefaultTargets().slots;
 const defRows = k => DEF.filter(r => r[k] > 0).map(r => [r.time, r[k]]);
