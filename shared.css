@@ -1320,23 +1320,6 @@ button.lightbox-bug-link {
        overflow at 1024 and 1254px at 1440, on four paycalc widths and the Links generator.
        Caught by the branch's WebKit lane, which is the only one that sees Safari before release. */
     position: absolute !important;
-    /* PINNED, NOT LEFT AT ITS STATIC POSITION (v23.71). `position: absolute` with no `top`/`left`
-       places the box where it WOULD have been in flow — so this 1px value-holder sits wherever its
-       field was, roughly 500px down a long Settings card. That is harmless while the card is open
-       and is a page-height bug the moment it COLLAPSES: `overflow: hidden` only clips an
-       absolutely-positioned descendant when the clipping element is its containing block, and a
-       `position: static` card is not one. The select escapes the clip, keeps its old offset, and
-       holds the document open beneath a card that is visibly 56px tall.
-       Measured on the Pay Calculator with only Your Settings collapsed: 517px of empty navy below
-       the disclaimer, and hiding these selects alone took the document 2387px → 1956px. Reported
-       by the owner as "a large gap at the bottom".
-       `top`/`left` make it the containing block's origin instead, which cannot be below anything.
-       Where an ancestor IS positioned that is the ancestor's corner; where none is, the page's.
-       Either is invisible — this element is 1px, `opacity: 0`, `pointer-events: none` and
-       aria-hidden; its position carries no meaning, only consequences. The v23.35 note above is
-       the same defect's other half: that one was the WIDTH escaping, this one is the OFFSET. */
-    top: 0 !important;
-    left: 0 !important;
     width: 1px !important;
     height: 1px !important;
     min-width: 0 !important;

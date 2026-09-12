@@ -687,39 +687,44 @@ test('a `.value =` on an enhanced select announces itself, or rebuilds, or repai
 });
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
-// CONTRACT 12 — THE VALUE HOLDER IS PINNED, SO IT CANNOT HOLD THE PAGE OPEN
+// CONTRACT 12 — A BOX THAT COLLAPSES MUST BE A CONTAINING BLOCK
 //
-// `.fieldpick-native` is the real `<select>`, kept as a 1px `opacity: 0` value holder behind the
-// trigger. It is `position: absolute`, and an absolutely-positioned box with no `top`/`left` is
-// laid out where it WOULD have been in flow — so it sits wherever its field was, which on a long
-// card is several hundred pixels down.
+// Every enhanced picker keeps the real `<select>` as a 1px `opacity: 0` value holder at
+// `position: absolute`. `overflow: hidden` clips an absolutely-positioned descendant ONLY when the
+// clipping element is that descendant's CONTAINING BLOCK — and a `position: static` box is not one.
 //
-// That is harmless while the card is open, and a page-height bug the moment the card COLLAPSES.
-// `overflow: hidden` clips an absolutely-positioned descendant only when the clipping element is
-// its CONTAINING BLOCK, and a `position: static` card is not one — so the select escapes the clip,
-// keeps its old offset, and holds the document open beneath a card that is visibly 56px tall.
+// So a card that collapses with `max-height: 0; overflow: hidden` and no `position` does not
+// actually clip its selects. They escape, keep the offset they had while the card was open, and
+// hold the DOCUMENT open beneath a card that is visibly 56px tall. Measured on the Pay Calculator
+// with only Your Settings collapsed: 517px of empty navy below the disclaimer, the document 2,387px
+// against content ending at 1,870. Reported by the owner as "a large gap at the bottom".
 //
-// Measured on the Pay Calculator with only Your Settings collapsed: 517px of empty navy below the
-// disclaimer, the document 2,387px against content ending at 1,870. Reported by the owner as "a
-// large gap at the bottom". Pinning to the containing block's origin took it to 86px.
+// THE FIX THAT LOOKED RIGHT AND WAS NOT, recorded because it is the tempting one: pinning the
+// selects themselves with `top: 0; left: 0`. It cured the page height and moved the Calendar's
+// member select onto the ← Prev button — caught by `e2e/calendar.spec.js`'s overlap guard at six
+// widths and two projects. The defect is that the CLIP does not reach the select, not that the
+// select is in the wrong place, and the fix has to say so. `position: relative` moves nothing.
 //
-// THE v23.35 NOTE IN `shared.css` IS THE SAME DEFECT'S OTHER HALF — there the escaping property
-// was WIDTH (`width: 100%` of the initial containing block, doubling the page); here it is the
-// OFFSET. One rule, two ways to leak, and this is what keeps the second one shut.
-test('the enhanced select\'s value holder is pinned to its containing block', () => {
-    // COMMENTS STRIPPED FIRST. This rule's own comment contains `width: 100% }`, and a non-greedy
-    // `{([\s\S]*?)}` stops at that brace — so the "rule body" came back as the comment and the
-    // contract failed against a build that was correct. The same trap `type-scale-parity` records.
-    const css = readFileSync(new URL('./shared.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-    const rule = /\.fieldpick-native\s*\{([\s\S]*?)\}/.exec(css);
-    assert.ok(rule, '.fieldpick-native has no rule in shared.css — this contract is checking nothing');
-    const body = rule[1];
-    for (const prop of ['top', 'left']) {
-        assert.match(body, new RegExp(`(^|[;{\\s])${prop}\\s*:`, 'm'),
-            `.fieldpick-native declares no \`${prop}\`, so it is laid out at its STATIC position.\n`
-            + 'Inside a collapsed card that offset survives the clip and holds the document open —\n'
-            + 'the "large gap at the bottom" of the desktop Pay Calculator (v23.71). Pin it.');
+// Derived, not listed: any rule that collapses a box this way is found and required to position
+// itself, so a seventh collapsible card inherits the requirement without anybody remembering it.
+test('every box that collapses to zero height is a containing block', () => {
+    const files = ['shared.css', 'paycalc.css', 'admin.css', 'index.css', 'operations.css', 'settings.css', 'links.css'];
+    const offenders = [];
+    let examined = 0;
+    for (const f of files) {
+        const css = readFileSync(new URL('./' + f, import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+        for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+            const [sel, body] = [m[1].trim().replace(/\s+/g, ' '), m[2]];
+            if (!/max-height:\s*0/.test(body) || !/overflow:\s*hidden/.test(body)) continue;
+            examined++;
+            if (!/position:\s*(relative|absolute|sticky|fixed)/.test(body)) offenders.push(`${f}  ${sel.slice(0, 70)}`);
+        }
     }
-    assert.match(body, /position:\s*absolute/,
-        'the value holder must stay out of flow — in flow it would occupy real space in every field');
+    assert.ok(examined > 0, 'no collapse-to-zero rule found — this contract is checking nothing');
+    assert.deepEqual(offenders, [],
+        'these boxes collapse with `max-height: 0; overflow: hidden` but are `position: static`, so\n'
+        + 'the clip does NOT reach an absolutely-positioned descendant. Every enhanced picker leaves a\n'
+        + '1px `<select>` value holder inside one, and it escapes and holds the document open beneath\n'
+        + 'a card that looks collapsed — the v23.71 "large gap at the bottom". Add `position: relative`:\n  '
+        + offenders.join('\n  '));
 });

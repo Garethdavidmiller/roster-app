@@ -337,7 +337,12 @@
     .bd-btn:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
     .bd-arrow { font-size: var(--type-micro); transition: transform var(--dur-slow); display: inline-block; }
     .bd-btn.open .bd-arrow { transform: rotate(180deg); }
-    .bd-body { max-height: 0; overflow: hidden; transition: max-height 0.4s ease; }
+    .bd-body {
+    /* A containing block, for the reason `.collapsible-body` records above: `overflow: hidden`
+       does not clip an absolutely-positioned descendant unless the clipper is its containing
+       block, and every enhanced picker leaves a 1px `<select>` inside one. Found by the
+       contract rather than by a bug report, which is the point of deriving it. */
+    position: relative; max-height: 0; overflow: hidden; transition: max-height 0.4s ease; }
     /* 1400px is a deliberate finite cap so the open/close can ANIMATE (max-height:none can't
        transition). It is sized well above the tallest real content: the back-pay breakdown accrues
        at most one row per period in a single award tax year (≤ ~13 rows, capped at todaysPeriodNum
@@ -560,6 +565,11 @@
 
     /* Boxing Day banner */
     .boxing-banner {
+    /* A containing block, for the reason `.collapsible-body` records above: `overflow: hidden`
+       does not clip an absolutely-positioned descendant unless the clipper is its containing
+       block, and every enhanced picker leaves a 1px `<select>` inside one. Found by the
+       contract rather than by a bug report, which is the point of deriving it. */
+    position: relative;
       background: var(--primary-blue); color: white;
       font-size: var(--type-small); font-weight: 700;
       border-radius: var(--radius-sm); text-align: center;
@@ -784,7 +794,12 @@
     .hpp-toggle-btn:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
     .hpp-toggle-arrow { font-size: var(--type-micro); transition: transform var(--dur-slow); display: inline-block; }
     .hpp-toggle-btn.open .hpp-toggle-arrow { transform: rotate(180deg); }
-    .hpp-note-body { max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
+    .hpp-note-body {
+    /* A containing block, for the reason `.collapsible-body` records above: `overflow: hidden`
+       does not clip an absolutely-positioned descendant unless the clipper is its containing
+       block, and every enhanced picker leaves a 1px `<select>` inside one. Found by the
+       contract rather than by a bug report, which is the point of deriving it. */
+    position: relative; max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
     .hpp-note-body.open { max-height: 400px; }
 
     /* Actual HPP badge */
@@ -1326,6 +1341,21 @@
   .card-toggle-arrow:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: 3px; }
   .collapsible-body {
     max-height: 0; overflow: hidden;
+    /* A CONTAINING BLOCK, so the clip above actually reaches what is inside (v23.71).
+       `overflow: hidden` clips an absolutely-positioned descendant only when the clipping element
+       is that descendant's CONTAINING BLOCK — and a `position: static` box is not one. Every
+       enhanced picker keeps the real `<select>` as a 1px `opacity: 0` value holder at
+       `position: absolute`, so inside a collapsed card those selects escaped the clip, kept the
+       offset they had when the card was open, and held the DOCUMENT open beneath a card that is
+       visibly 56px tall. Measured with only Your Settings collapsed: 517px of empty navy below the
+       disclaimer, the document 2,387px against content ending at 1,870.
+       `position: relative` costs nothing — this box paints no background and positions no child of
+       its own — and it is the fix that does not MOVE anything. Pinning the selects to `top/left: 0`
+       was tried first and is why this comment exists: it cured the height and put the Calendar's
+       member select on top of the ← Prev button, which `e2e/calendar.spec.js`'s overlap guard
+       caught at six widths. The bug is that the clip does not reach the select, not that the select
+       is in the wrong place. */
+    position: relative;
     /* One duration for the whole reveal (v18.87). Height ran 0.4s while its own padding ran 0.3s,
        so the last 100ms of every card opening was height-only — the padding had already settled.
        Now all three share --dur-slower, matching .boxing-banner's reveal on the same page. */
