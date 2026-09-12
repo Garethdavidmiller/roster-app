@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: September 2026 — v23.60 · Updated every 0.10 version*
+*Last updated: September 2026 — v23.70 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -1666,6 +1666,8 @@ Holiday Pay Premium estimator and shared period decode helpers for `paycalc.html
 Fill this tax year from Calendar (v22.06).
 - `paycalc-fill-year.js` (pure, Node-loadable — which forced two re-homings: `HM_PAIRS` and `isDataEmpty` → paycalc-format.js (the zero-import home), re-exported from paycalc-roster-hint.js / paycalc-hpp.js + paycalc-form-data.js so no importer changed): `fillablePeriods({periods, now, proRateFactor, readSaved})` (the same paid+employed+empty test the "Not entered yet" list uses; corrupt periods separated, never eligible) · `fillYearFromCalendar({periods, member, now, deps})` (sequential — the suggestion module keeps one override map per fetch; deps injected: fetchOverrides/suggest/readSaved/write; a non-'loaded' fetch state SKIPS the period — no base-only fills into invisible periods) · `fillYearReceipt(r, fd)` (dates by name, four line kinds, an explicit all-clear).
 - `paycalc-year-card.js`: `initYearCard({afterFill})` (one delegated listener; afterFill = the coordinator reloading the visible form if filled, then recalculating) · `renderYearCard({ty, plan, pgLoan, slPaidOffFromP, bpLump})` — `_renderYearSoFar` moved from paycalc-app.js verbatim, plus the fill button beside "Not entered yet", the from-zero slim state, and the receipt block (kept per tax-year label until the year changes).
+- **A fill that THROWS restores the control and says so (v23.70).** Everything on the success path restores the button by REPLACING it — `afterFill` recalculates, which re-renders the block — so the failure path had no restore at all: `fillYearFromCalendar` wraps only `fetchOverrides`, so a throw from `suggest`, `readSaved` or `write` rejected straight out of a click handler that returns no promise. Nothing on screen, and a permanently disabled button still reading "Filling from your calendar…". `_runFill`'s `catch` re-renders from `_lastArgs`, which is both the restore and the message. **The wording may never claim nothing was written** — the loop writes period by period, so a throw part-way leaves earlier periods genuinely filled; same rule as the range writer's `partialCommit`
+- Tested by `paycalc-year-card.test.mjs` — which found that defect. `computeYearSoFar`, the period calendar, `readSavedPeriod` and the whole of `paycalc-fill-year.js` run REAL over an in-memory `localStorage`; only the two modules that reach Firebase and the hint bar are mocked
 
 ### `paycalc-year-summary.js`
 "This tax year so far" for the Year to Date Figures card (v18.41 — review item 11).
