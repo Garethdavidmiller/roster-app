@@ -1,7 +1,7 @@
 // Simulated annealing over the 24-line grid. Coverage per day is FIXED by the table and preserved by
 // every move (same-day swaps, whole-line swaps). The app's own modules judge every candidate;
 // the "feel" terms are the only thing added, and they are what "like today's roster" means in numbers.
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, readFileSync } from 'node:fs';
 import { runDesignChecks, startMinutes, DAYS } from '../../../links-design.js';
 import { assessFatigue } from '../../../links-fatigue.js';
 import { scoreOrder } from '../../../links-adjacency.js';
@@ -33,7 +33,11 @@ const WEEKDAY = {
 }[VARIANT] ?? null;   // null when imported for `evaluate` only
 const DEF = buildDefaultTargets().slots;
 const defRows = k => DEF.filter(r => r[k] > 0).map(r => [r.time, r[k]]);
-const SAT_ = VARIANT === 'D' ? defRows('sat') : null, SUN_ = VARIANT === 'D' ? defRows('sun') : null, WK_ = VARIANT === 'D' ? defRows('weekday') : null;
+// E (12 Sep 2026): "Eight Forty" — By the Book's rules with no duty over 8h40, the table re-searched by
+// table-book.mjs and read from its output so the anneal cannot drift from what that search found.
+const EF = VARIANT === 'E' ? JSON.parse(readFileSync(new URL('./eight-forty-table.json', import.meta.url), 'utf8')).slots : null;
+const efRows = k => EF.filter(r => r[k] > 0).map(r => [r.time, r[k]]);
+const SAT_ = VARIANT === 'D' ? defRows('sat') : EF ? efRows('sat') : null, SUN_ = VARIANT === 'D' ? defRows('sun') : EF ? efRows('sun') : null, WK_ = VARIANT === 'D' ? defRows('weekday') : EF ? efRows('weekday') : null;
 const SAT0 = [['06:20-14:00',1],['06:20-14:50',3],['08:00-16:30',2],['12:00-20:00',1],['14:30-22:00',2],['14:00-22:30',1],['14:45-23:55',4]];
 const SUN0 = [['07:15-15:45',4],['11:00-19:30',2],['13:00-21:00',1],['14:30-23:25',3]];
 const SAT = SAT_ ?? SAT0, SUN = SUN_ ?? SUN0; const WEEKDAY_ = WK_ ?? WEEKDAY;
