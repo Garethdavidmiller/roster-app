@@ -685,3 +685,41 @@ test('a `.value =` on an enhanced select announces itself, or rebuilds, or repai
         'dispatch an `input` event after writing .value, or call the paint handle enhanceSelect '
         + 'returned — otherwise the trigger keeps the old label over the new value');
 });
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// CONTRACT 12 — THE VALUE HOLDER IS PINNED, SO IT CANNOT HOLD THE PAGE OPEN
+//
+// `.fieldpick-native` is the real `<select>`, kept as a 1px `opacity: 0` value holder behind the
+// trigger. It is `position: absolute`, and an absolutely-positioned box with no `top`/`left` is
+// laid out where it WOULD have been in flow — so it sits wherever its field was, which on a long
+// card is several hundred pixels down.
+//
+// That is harmless while the card is open, and a page-height bug the moment the card COLLAPSES.
+// `overflow: hidden` clips an absolutely-positioned descendant only when the clipping element is
+// its CONTAINING BLOCK, and a `position: static` card is not one — so the select escapes the clip,
+// keeps its old offset, and holds the document open beneath a card that is visibly 56px tall.
+//
+// Measured on the Pay Calculator with only Your Settings collapsed: 517px of empty navy below the
+// disclaimer, the document 2,387px against content ending at 1,870. Reported by the owner as "a
+// large gap at the bottom". Pinning to the containing block's origin took it to 86px.
+//
+// THE v23.35 NOTE IN `shared.css` IS THE SAME DEFECT'S OTHER HALF — there the escaping property
+// was WIDTH (`width: 100%` of the initial containing block, doubling the page); here it is the
+// OFFSET. One rule, two ways to leak, and this is what keeps the second one shut.
+test('the enhanced select\'s value holder is pinned to its containing block', () => {
+    // COMMENTS STRIPPED FIRST. This rule's own comment contains `width: 100% }`, and a non-greedy
+    // `{([\s\S]*?)}` stops at that brace — so the "rule body" came back as the comment and the
+    // contract failed against a build that was correct. The same trap `type-scale-parity` records.
+    const css = readFileSync(new URL('./shared.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const rule = /\.fieldpick-native\s*\{([\s\S]*?)\}/.exec(css);
+    assert.ok(rule, '.fieldpick-native has no rule in shared.css — this contract is checking nothing');
+    const body = rule[1];
+    for (const prop of ['top', 'left']) {
+        assert.match(body, new RegExp(`(^|[;{\\s])${prop}\\s*:`, 'm'),
+            `.fieldpick-native declares no \`${prop}\`, so it is laid out at its STATIC position.\n`
+            + 'Inside a collapsed card that offset survives the clip and holds the document open —\n'
+            + 'the "large gap at the bottom" of the desktop Pay Calculator (v23.71). Pin it.');
+    }
+    assert.match(body, /position:\s*absolute/,
+        'the value holder must stay out of flow — in flow it would occupy real space in every field');
+});
