@@ -8,7 +8,7 @@
  */
 import { sessionReady } from './session.js';
 import { withClaimRetry, getPerfStats } from './firebase-client.js';
-import { SPEED_GROUPS, perfVerdict, summarisePerfBy, PERF_DIMENSIONS, summariseBootPhases, summariseStartMilestones, summariseReadySource, summariseUpdateOpens, summariseSwrCounts, summariseHeavySwrOpens, THIN_SAMPLE } from './perf-stats.js';
+import { SPEED_GROUPS, perfVerdict, summarisePerfBy, PERF_DIMENSIONS, summariseBootPhases, summariseStartMilestones, summariseReadySource, summariseUpdateOpens, summariseProvisionalOpens, summariseSwrCounts, summariseHeavySwrOpens, THIN_SAMPLE } from './perf-stats.js';
 import { escapeHtml } from './roster-data.js';
 import { PRIVACY_FOOTER, PAGE_META, _cardLoadError, _usageMonthLabel } from './operations-reports.js';
 
@@ -465,6 +465,62 @@ async function initPageSpeedCard() {
         return frag;
     };
 
+    /** OPENS THAT DID NOT WAIT FOR THE IDENTITY CHECK (v23.69) — the reading v22.97 shipped without.
+     *
+     *  The fast path shows a returning member their own saved roster while the server is still
+     *  confirming who they are. `LATENCY.md` predicted that would pull "Shifts shown" off
+     *  "Recognised" for cache-served starts; September 2026 showed no movement at all, and the card
+     *  could not say whether that is because the path rarely runs or because it does not help. Those
+     *  have opposite consequences, so the block states BOTH halves — the share in the note, the
+     *  speed in the row — and neither is left to be inferred from the other.
+     *
+     *  A SUBSET of "Shifts shown", exactly like the release block below, and the note says so for
+     *  the same reason: the block immediately above this one is a SPLIT, so a reader arriving in
+     *  order has just been taught the other arithmetic.
+     *  @param {Record<string, number>} samples @param {string} page */
+    const provisionalOpenRows = (samples, page) => {
+        const { rows } = summariseProvisionalOpens(samples, { page });
+        if (!rows.length) return null;
+        // The ladder's own `ready`, as every other subset block on this card does it, so no two
+        // blocks can disagree about what an open is. Absent ⇒ the share sentence is dropped rather
+        // than guessed — a percentage with an invented divisor is the one output worse than none.
+        const readyTotal = summariseStartMilestones(samples, { page }).rows
+            .find(r => r.metric === 'ready')?.total || 0;
+        const frag = document.createDocumentFragment();
+        const heading = document.createElement('p');
+        heading.className = 'usage-section-label speed-dim-label';
+        heading.textContent = 'Opens that did not wait for the sign-in check';
+        frag.appendChild(heading);
+        const share = readyTotal
+            ? ` That is ${Math.round((rows[0].total / readyTotal) * 100)}% of them.`
+            : '';
+        frag.appendChild(noteLine(
+            `A returning member is shown their own saved roster while the server confirms who they are. These opens are also counted in “Shifts shown” above, not separately.${share} If this row is no faster than that one, showing the roster early is not buying anything.`));
+
+        const list = document.createElement('div');
+        list.className = 'speed-rows';
+        const head = document.createElement('div');
+        head.className = 'speed-row speed-row--why speed-dual-head';
+        head.innerHTML = '<span></span><span></span>'
+            + '<span class="speed-dual-label">over 1s</span>'
+            + '<span class="speed-dual-label">opens</span>';
+        list.appendChild(head);
+        rows.forEach(r => {
+            const row = document.createElement('div');
+            row.className = 'speed-row speed-row--why';
+            const thin = r.total < THIN_SAMPLE;
+            row.innerHTML =
+                `<span class="speed-row-label"><span class="speed-row-name">${escapeHtml(r.label)}</span>`
+                    + `${thin ? '<span class="speed-thin">(few)</span>' : ''}</span>` +
+                `<span class="speed-bar" role="img" aria-label="${escapeHtml(r.sub)}: ${r.pctQuick}% quick, ${r.pctOk}% a moment, ${r.pctSlow}% slow">${segs(r)}</span>` +
+                `<span class="speed-row-count">${r.pctOver1s}%</span>` +
+                `<span class="speed-row-sub">${r.total.toLocaleString('en-GB')}</span>`;
+            list.appendChild(row);
+        });
+        frag.appendChild(list);
+        return frag;
+    };
+
     /** HOW MUCH THE SERVICE WORKER WAS DOING, and whether it cost the member anything (v23.00).
      *
      *  Two blocks because there are two questions, and the second is the one with a decision behind
@@ -649,6 +705,12 @@ async function initPageSpeedCard() {
         // Then the OTHER subset of that same rung — the opens a release caused. Beside the block
         // above because both split "Shifts shown", and after it because this one is rarer: it
         // renders only once updated devices have actually been reloaded by a release.
+        // Then the OTHER thing that can put a grid up early — the fast path, which paints before the
+        // identity is confirmed. Next to the source split because the two answer the same question
+        // from opposite sides: that one says WHAT served the grid, this one says whether the gate had
+        // finished when it did.
+        const fastPath = provisionalOpenRows(samples, busiest.page);
+        if (fastPath) { frag.appendChild(fastPath); any = true; }
         const updates = updateOpenRows(samples, busiest.page);
         if (updates) { frag.appendChild(updates); any = true; }
         // Then what the WORKER was doing while all that happened. After the release block because

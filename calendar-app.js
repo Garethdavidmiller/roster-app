@@ -28,7 +28,7 @@ import { initCalendarNotices } from './calendar-notices.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
-import { recordPageLatency, markPageReady, markMilestone } from './perf-reporter.js';
+import { recordPageLatency, markPageReady, markMilestone, noteProvisionalPaint } from './perf-reporter.js';
 import { initHuddleViewer } from './calendar-huddle-viewer.js';
 import { initDocViewer } from './calendar-doc-viewer.js';
 import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress, setOverrideAccess, setOverrideAccessLostHandler, monthKey, clearFetchedMonth } from './calendar-overrides.js';
@@ -1206,7 +1206,10 @@ initCalendarAccess({
     // out of the local cache, nothing from the server"; `null` is the ordinary full grant; `false`
     // means the provisional paint is being withdrawn because the identity did not confirm.
     onEveryGrant: (/** @type {string|null|false} */ scope = null) => {
-        if (scope === false) { setOverrideAccess(false); setDocumentAccess(false); _crossMemberControls(true); return; }
+        // `noteProvisionalPaint` BEFORE the render this grant triggers, so a paint inside the
+        // provisional window is attributed to it and one after the confirmation is not (v23.69).
+        if (scope === false) { noteProvisionalPaint(false); setOverrideAccess(false); setDocumentAccess(false); _crossMemberControls(true); return; }
+        noteProvisionalPaint(typeof scope === 'string');
         // Open the override reads BEFORE building the workspace. The reverse order would let the
         // first render's `ensureOverridesCached` run against a closed gate, silently claim nothing,
         // and leave the month unfetched for the session.

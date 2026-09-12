@@ -209,6 +209,16 @@ export function markMilestone(id) {
  * A page that does not know its source simply omits it and reports `ready` alone, which is the same
  * honesty rule the milestones follow: a thing that was not established is not given a value.
  *
+ * ── AND WHETHER THE GATE HAD FINISHED (v23.69) ──────────────────────────────────────────────────
+ *
+ * `provisional` says this grid went up under the v22.97 fast path — a returning member's own cached
+ * roster, painted while `accounts:lookup` was still in flight. It is written as `readyProvisional`,
+ * a SUBSET of `ready` in the `readyUpdate` mould, and it exists because the September 2026 reading
+ * could not tell two very different worlds apart: a fast path that rarely FIRES, and a fast path
+ * that fires and does not HELP. The first means the diagnosis stands and the eligible population is
+ * small; the second means `LATENCY.md`'s whole identity finding is wrong. Same number of samples,
+ * opposite conclusions — see `LATENCY.md` → "the verdict is withheld".
+ *
  * @param {'cached'|'fetched'} [source] what put this grid on screen, where the caller knows
  * @returns {void}
  */
@@ -220,6 +230,11 @@ export function markPageReady(source) {
         // attributing the FIRST grid's timing to the SECOND grid's source would report the whole
         // population as fetch-served and answer the question backwards.
         if (source === 'cached' || source === 'fetched') _readySource = source;
+        // Same rule, same reason: the grid this mark TIMES is the one whose provenance is recorded.
+        // A confirmation arriving a moment later re-renders under a full grant, and crediting that
+        // second render would report every fast-path open as an ordinary one — the exact direction
+        // that would make a working fast path look absent, which is the question this answers.
+        _readyProvisional = _provisionalNow;
         performance.mark(PAGE_READY_MARK);
         // Announce it as well as record it. `performance.mark()` returns the entry in modern
         // browsers and nothing in older ones, so the timestamp is read back the same way
@@ -231,6 +246,26 @@ export function markPageReady(source) {
 
 /** What served the first grid, when the page knew. @type {'cached'|'fetched'|null} */
 let _readySource = null;
+
+/** Was the first grid painted before the identity confirmed (v22.97's fast path)? @type {boolean} */
+let _readyProvisional = false;
+
+/** Is the Calendar's fast path open RIGHT NOW? Latched into `_readyProvisional` by the first
+ *  `markPageReady`. @type {boolean} */
+let _provisionalNow = false;
+
+/**
+ * The Calendar says whether its access grant is the PROVISIONAL one (v23.69) — a returning member's
+ * own cached roster, shown while `accounts:lookup` is still in flight.
+ *
+ * A setter rather than an argument to `markPageReady`, so the state sits beside `_readySource`,
+ * which follows the identical capture rule. It is called from the grant and never from a render:
+ * the grant is the one event that knows, and it always precedes the paint it authorises.
+ *
+ * @param {boolean} on true while a provisional paint is authorised; false on the full grant
+ * @returns {void}
+ */
+export function noteProvisionalPaint(on) { _provisionalNow = on === true; }
 
 /** Read non-identifying environment dimensions (PWA display mode + connection class). */
 function envContext() {
@@ -324,6 +359,13 @@ export function recordPageLatency(page, identity = null) {
             // counts divide: `readyUpdate` over `ready` IS the share of opens that followed a
             // release, which is the question v22.90 left unanswerable.
             if (afterUpdate) recordPerfSample({ page, metric: 'readyUpdate', bucket, mode, conn });
+            // And the same reading for the opens that took the FAST PATH — the returning member's
+            // cached roster, up before `accounts:lookup` returned. A SUBSET of `ready` like the row
+            // above and for the same arithmetic: its total over `ready`'s says how OFTEN the path
+            // fires, and its distribution against `ready`'s says whether those opens are any
+            // faster. Neither question was answerable in September 2026, and they have opposite
+            // consequences for `LATENCY.md`'s identity finding.
+            if (_readyProvisional) recordPerfSample({ page, metric: 'readyProvisional', bucket, mode, conn });
             // …and how much background work the worker did getting here. Two samples, because the
             // review asks two questions: how many revalidations a real boot carries (`swrCount`,
             // in COUNT bands), and whether a boot carrying a full sweep reaches the roster more

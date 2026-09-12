@@ -15,7 +15,8 @@ that. Phase 1 shipped. Phase 3 was priced at 4.6–52 ms against a wall of over 
 | Open item | What it is | Who / when |
 |---|---|---|
 | ~~**The identity round trip**~~ | **ANSWERED 5 Sep 2026 and SHIPPED (v22.97)** — see the section below | Gareth · done |
-| **The Phase 2 reading** | A NUMBER — the card's "What put the shifts on screen" split, read against the rule in the Phase 2 section | ~end September 2026, one full month after v21.99 |
+| ~~**The Phase 2 reading**~~ | **CLOSED 5 Sep, reconfirmed 12 Sep on 2.8× the sample** — 98.4% of attributed starts are cache-served | done |
+| **Did the fast path work?** | A NUMBER — the card's "Opens that did not wait for the sign-in check", read against the table in "THE FULL-MONTH READ" below. **The September aggregate could not answer it**, and the reason is recorded there rather than forgotten | ~mid-October 2026, one full month after v23.69 |
 
 **The close-out changed shape when the identity question was answered YES** (see below). The path
 this section anticipated — "no, the gate holds", and the plan closes recording the second as the
@@ -295,6 +296,109 @@ reading.
 32% (end August) → 35% (September). Recognised went 52% → 60% while the code-loading figures stayed
 flat. The complaint is real and the telemetry agrees with it, but nothing here supports reverting
 recent Calendar work — which was the fear this whole investigation started from.
+
+## THE FULL-MONTH READ — 12 September 2026
+
+The 5 Sep read above was taken on ~476 Calendar opens. This is the same card at **1,285**, and it
+settles three of the four readings `MAINTENANCE_CALENDAR.md` lists. The fourth — did the fast path
+work — is the one it cannot settle, and saying so is most of this entry.
+
+**The ladder (Calendar, cumulative, % over 1s):**
+
+| Rung | over 1s | opens | (5 Sep) |
+|---|---|---|---|
+| Recognised | 59% | 1,250 | 60% |
+| Unlocked | 62% | 1,265 | 58% |
+| **Roster found** | **77%** | 786 | — (rung added v22.95) |
+| Shifts shown | 78% | 1,302 | 78% |
+| Confirmed | 97% | 1,213 | 98% |
+
+Boot stages unchanged and still exonerating: Waking up 15% over ½s (1,162) · Loading code 20%
+(1,222) · **Getting ready 0%** (1,316).
+
+### 1. VAL-AUTH-006 is CLOSED — the signature is unmistakable on 2.6× the sample
+
+The check this plan nominated, split by connection class:
+
+| | 3G-like | 4G-like | Not reported |
+|---|---|---|---|
+| **Recognised**, over 1s | **91%** (22) | **68%** (644) | **48%** (584) |
+| **Getting ready**, over ½s | **0%** (21) | **0%** (681) | **0%** (614) |
+
+The network-dependent rung spreads across three connection groups; the code-loading stage is flat
+zero in every one of them. That is the predicted pattern, and it is now observed on live staff
+devices rather than inferred from an emulator. The 3G arm is thin (22 opens) and the finding does
+not rest on it: 68% against 48% on 644 and 584 opens is the spread, and the Getting-ready row is
+flat across the same split, which is what disposes of the "this is really a platform split"
+confound the 30 Aug read raised.
+
+### 2. `rosterCached` answers the eighteen-point question — it is STORAGE, not the gate
+
+The 5 Sep read could not say where the gap between Unlocked (58%) and Shifts shown (78%) went. The
+new rung does: **Unlocked 62% → Roster found 77% → Shifts shown 78%.** Almost all of it is the
+device's own saved copy coming back, and painting it afterwards is nearly free.
+
+Read with care in one respect — `Roster found` reports only on a real cache hit (786 opens against
+`ready`'s 1,302), so these are not the same population and the points do not subtract. The SHAPE is
+the finding, not an arithmetic split.
+
+### 3. Phase 2 stays closed, on 2.8× the sample
+
+**Saved copy 1,270 opens · The server 21** — 98.4% cached, against 98.3% on 462 when the phase was
+closed. Nothing has moved; the rule fires the same way and for the same reason.
+
+### 4. The service worker is NOT what staff are waiting for
+
+New this month, and a clean negative. A full sweep (31+ files) was running on **78% of opens (604)**,
+and the card's own rule is that this only matters if those boots are slower: **Worker busy 78% over
+1s (595) against Shifts shown 78%.** Identical. The revalidation storm is real and costs the member
+nothing measurable.
+
+### 5. Releases interrupt 14% of opens — the number v22.90 shipped without
+
+**176 of 1,285**, roughly one open in seven. That sizes the complaint v22.90 was fixing. It is
+76% over a second, and per the caveat that has to travel with it, on the Calendar that is a load
+running while the page is HIDDEN — the right question there is whether the deferred reload finished
+before the member came back, not what somebody waited for.
+
+### 6. The fast path — THE VERDICT IS WITHHELD, and the instrument is now on the card
+
+`Saved copy` went **78% over a second (Aug/early Sep) → 77% (this month)**, while `Getting ready`
+stayed at 0%. The prediction in "THE ANSWER" above was that the first figure should FALL, and its
+falsification clause says plainly: *"If it does not move, the diagnosis was wrong and this is the
+evidence."*
+
+**That clause is not being invoked, and the reason is not reluctance — it is that this reading
+cannot tell two opposite worlds apart.**
+
+- **The path rarely fires.** ~59% of September's Calendar opens ran a version at or past v22.97
+  (counted from the by-version rows), and of those, the fast path is refused for Team View, for a
+  stored selection naming a colleague, and for every PIN unlock — which is most Calendar reading on
+  the shared station PC. On that reading the aggregate is diluted to invisibility and the identity
+  finding is untouched.
+- **The path fires constantly and buys nothing.** On that reading, `LATENCY.md`'s central claim is
+  wrong, and a month of work rests on it.
+
+**Same number, opposite conclusions, and a further month of the same aggregate cannot separate
+them** — which is the one thing the 28 Sep deadline was written assuming it could. The separating
+quantity is how often the path actually TAKES, and nothing recorded it.
+
+`readyProvisional` now does (v23.69): written beside `ready`, from the same bucket on the same path,
+whenever the grid that fired `markPageReady` went up under a provisional grant. Rendered as **"Opens
+that did not wait for the sign-in check"**. Its TOTAL over `ready`'s answers how often; its
+DISTRIBUTION against `ready`'s answers whether those opens were any faster.
+
+**The rule for the next read, so it is fixed before the number arrives:**
+
+| The fast path fires on | and those opens are | Then |
+|---|---|---|
+| a small share of opens | — | **the September reading was diluted and says nothing about the diagnosis.** The identity finding stands. The open question becomes whether the path's eligibility is worth widening, which is an ACCESS decision (`CALENDAR_DATA.md` 13), not a latency one |
+| a substantial share | **faster** than `ready` overall | **the fix works and the diagnosis is confirmed.** Close this file |
+| a substantial share | **no faster** | **the diagnosis was wrong.** The wall is not the identity round trip, `VAL-AUTH-006` is reopened despite its field signature, and the September ladder's own shape — Roster found at 77% — is where to look next |
+
+**Read it no earlier than a full month after v23.69 ships**, for the reason the by-version tail
+above demonstrates rather than argues: this estate's devices run a long spread of versions, and a
+new metric reports only from the ones that have updated.
 
 ## Phase 2 — CLOSED on its own decision rule (5 Sep 2026)
 

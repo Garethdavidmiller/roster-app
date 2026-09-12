@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: September 2026 — v23.60 · Updated every 0.10 version*
+*Last updated: September 2026 — v23.70 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -2006,6 +2006,23 @@ Anonymous page-load latency recorder (Project 0 instrumentation, v14.89; FCP + a
   **`ready` is deliberately NOT the last rung** — it fires on a cached grid as readily as a confirmed
   one, which is right, but a device can show yesterday's roster instantly and take another two
   seconds to confirm it.
+- **`PROVISIONAL_OPENS` / `summariseProvisionalOpens`** (perf-stats.js, v23.69) answer the question
+  v22.97 shipped without, and it is a question with two incompatible answers fitting the same data.
+  The fast path shows a returning member their own cached roster while `accounts:lookup` is in
+  flight; `LATENCY.md` predicted that would pull `Shifts shown` off `Recognised` for cache-served
+  starts, and the September 2026 card showed **no movement — 78% over a second before, 77% after**.
+  Either the path rarely FIRES (most opens run a version without it, or are PIN unlocks and
+  colleagues' rosters, which it refuses by design), in which case the identity finding stands; or it
+  fires constantly and buys NOTHING, in which case that finding is wrong. **Only the share separates
+  them**, so `readyProvisional` is written beside `ready` — a SUBSET like `readyUpdate`, same bucket,
+  same path — and its total answers *how often* while its distribution answers *whether it helped*.
+  Rendered as "Opens that did not wait for the sign-in check", next to `READY_SOURCES` because the
+  two split the same rung from opposite sides. The flag reaches the reporter through
+  **`noteProvisionalPaint`**, called from the Calendar's access GRANT rather than from a render: the
+  grant is the one event that knows, and it always precedes the paint it authorises. Captured on the
+  first `markPageReady` only, by the same rule as `_readySource` and for the same reason — crediting
+  the confirmed re-render would report every fast-path open as ordinary, which is exactly the shape
+  that makes a working fast path look absent.
 
 - **The `ready` milestone (v20.80) — the one the other two cannot be.** `markPageReady()` writes a
   `myb-page-ready` performance mark at the moment a page's own content is genuinely on screen, and
