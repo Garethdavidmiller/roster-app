@@ -2,7 +2,7 @@
 /**
  * calendar-legend.js — WHICH KEYS THE MONTH LEGEND SHOWS, AND WHETHER IT SHOWS AT ALL.
  *
- * Left `calendar-app.js` at v23.70, when that coordinator stood FIVE lines under its ratchet cap —
+ * Left `calendar-app.js` at v23.69, when that coordinator stood FIVE lines under its ratchet cap —
  * the most saturated file in the repo, and the one where the next fix would have had to buy its own
  * room first, under whatever pressure that fix arrived with.
  *

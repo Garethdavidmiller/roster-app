@@ -338,7 +338,7 @@ The month legend, and the two questions it answers — which are easy to confuse
 sizes. `legendVisibility({ types, isDispatcher, displayMonth, easterMonth })` returns element id →
 visible for the conditional keys (the five row-2 items, their container, nights, Christmas, Easter);
 `legendShown(display, isTeamViewMode)` answers whether the legend appears at all; `createLegend(deps)`
-paints both. Left `calendar-app.js` at v23.70, when that coordinator stood FIVE lines under its ratchet
+paints both. Left `calendar-app.js` at v23.69, when that coordinator stood FIVE lines under its ratchet
 cap — the most saturated file in the repo, where the next fix would have had to buy its own room first.
 
 **The second question is the one with teeth.** The legend is a KEY to the grid and is derived from the

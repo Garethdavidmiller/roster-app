@@ -293,7 +293,7 @@ function updateNavButtonState() {
 }
 
 // ── THE MONTH LEGEND ────────────────────────────────────────────────────────────────────────────
-// Left this coordinator at v23.70 for `calendar-legend.js`, which owns both of its decisions —
+// Left this coordinator at v23.69 for `calendar-legend.js`, which owns both of its decisions —
 // which keys apply, and whether the legend applies at all. The v20.41 rule that the shown/hidden
 // answer belongs to the legend UPDATE and not to a render moved with it, and is argued there.
 const legend = createLegend({
