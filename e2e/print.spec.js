@@ -293,3 +293,51 @@ test('an open Daily Huddle is not printed, and says so @print', async ({ page })
     expect(seen.calendarVisible, 'the calendar is not silently substituted').toBe(false);
 });
 
+
+// ── A NAME IS NEVER ELLIPSISED ON PAPER (v23.71) ────────────────────────────────────────────────
+//
+// THE MEASUREMENT THAT MISSED THIS IS THE POINT. The v23.20 print review checked the team table by
+// reading each name cell's box and recorded "no cell over its box, no ellipsis in either
+// orientation". That was a reasonable test and it returned the wrong answer: with `overflow: hidden`
+// and `text-overflow: ellipsis`, a cell reports `scrollWidth === clientWidth` while the compositor
+// is drawing an ellipsis. Measured here before the fix — 157 === 157 on the very cell that printed
+// "R. Forrester-Black…". The rasterised sheet in `print-visual.spec.js` disagreed on sight.
+//
+// So this asserts the RULE rather than the geometry, because the geometry is what lied. On screen
+// the ellipsis is correct — the column is narrow so seven day columns fit a phone, and a member can
+// widen, scroll or tap. On paper none of that exists, and a truncated colleague is unrecoverable.
+//
+// It lives here, in the BLOCKING lane, deliberately: `print-visual.spec.js` found this and pins it
+// beautifully, but that lane is report-only by design, so a rule protected there alone is protected
+// by something that cannot fail a build.
+test('no team-view name is truncated on paper @print', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = Object.assign(w.__E2E || {}, { authUser: true });
+    });
+    await page.goto('/index.html');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('.team-week-text').first()).toBeVisible();
+
+    const cells = await inPrint(page, () => {
+        const out = [];
+        for (const c of document.querySelectorAll('.team-table tbody th.tv-name-col')) {
+            const cs = getComputedStyle(c);
+            out.push({
+                name: (c.textContent || '').trim(),
+                whiteSpace: cs.whiteSpace,
+                textOverflow: cs.textOverflow,
+                overflow: cs.overflowX,
+            });
+        }
+        return out;
+    });
+
+    expect(cells.length, 'the team table must have name cells to test').toBeGreaterThan(10);
+    // The longest active name is 23 characters and is the one that truncated. Assert the rule on
+    // EVERY row rather than on that name, so a longer starter is covered the day they join.
+    const clipped = cells.filter(c => c.whiteSpace === 'nowrap' || c.textOverflow === 'ellipsis');
+    expect(clipped.map(c => c.name), 'these names would print with an ellipsis and no way to read the rest').toEqual([]);
+});

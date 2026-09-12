@@ -618,6 +618,13 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
+      # `print-visual.spec.js` rasterises page 1 of the real generated PDF, and poppler is what
+      # does it. WITHOUT THIS STEP THE PRINT BASELINES WOULD SKIP ON EVERY RUN — loudly, the spec
+      # sees to that, but a baseline nobody compares is decoration. It is one apt package and it
+      # only affects this report-only job, so a bad day for the mirror cannot fail a gate.
+      - name: Install poppler (rasterises the printed sheet)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils
+
       # `|| true` as well as continue-on-error: the step's own exit code is what decides whether
       # the upload below runs, and a diff we cannot see is the one thing this job must not produce.
       # The outcome is now CAPTURED rather than only swallowed — `|| true` on its own discards the
