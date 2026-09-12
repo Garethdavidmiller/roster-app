@@ -1210,7 +1210,10 @@ if (typeof location !== 'undefined' &&
 }
 
 // G. Miller's real payslip actuals (MILLER_ACTUALS) were moved OUT of this served
-// module at v14.68 → test-fixtures/miller-actuals.js (privacy; Track 2 / Option A).
+// module at v14.68 → a hosting-excluded fixture (privacy; Track 2 / Option A), and out of the
+// repository entirely at v23.70 — the Pages mirror serves the repo root, so an ignore list could
+// not express the decision for both origins. It is now the gitignored
+// test-fixtures/payslip-actuals.local.js; see test-fixtures/payslip-actuals.example.js.
 // They are now a test-only fixture (excluded from Firebase Hosting). Do not re-add
 // real pay figures to any served file.
 /**

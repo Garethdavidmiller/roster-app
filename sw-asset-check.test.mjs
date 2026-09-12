@@ -704,7 +704,7 @@ test('index.html modulepreload hints match the calendar\'s real transitive modul
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Privacy guard: real payslip figures (MILLER_ACTUALS) must live ONLY in the test
-// fixture (test-fixtures/miller-actuals.js, excluded from Firebase Hosting), never
+// fixture (the gitignored test-fixtures/payslip-actuals.local.js), never
 // exported from served production JS. Moved out of roster-data.js at v14.68; this
 // asserts it can't creep back in.
 // ──────────────────────────────────────────────────────────────────────────────
@@ -715,6 +715,28 @@ test('roster-data.js does not export MILLER_ACTUALS (payslip data stays in the t
     assert.ok(
         !exportsDecl && !exportsList,
         'MILLER_ACTUALS must NOT be exported from roster-data.js — real payslip figures belong only in ' +
-        'test-fixtures/miller-actuals.js (excluded from Firebase Hosting), never in served production JS.',
+        'the gitignored test-fixtures/payslip-actuals.local.js, never in served production JS.',
     );
+});
+
+// THE GITIGNORE IS THE PROTECTION NOW, SO THE GITIGNORE IS WHAT HAS TO BE GUARDED (v23.70).
+//
+// `firebase.json`'s `test-fixtures/**` exclusion governs Firebase Hosting and cannot express a
+// decision for the GitHub Pages mirror, which publishes the repository root with no ignore list —
+// so while the payslip fixture was committed it was served there, measured at HTTP 200 against a
+// 404 on the canonical origin. Keeping the bytes out of the repository is the only rule BOTH
+// origins obey, and a deleted line in `.gitignore` would silently re-open it the next time
+// somebody ran `git add -A` on a machine that has the file.
+//
+// This cannot see whether a real fixture exists (it does not, on any checkout but the owner's).
+// What it can assert is that the rule protecting it is still written down.
+test('.gitignore still excludes the real payslip fixture', () => {
+    const gi = readFileSync(join(ROOT, '.gitignore'), 'utf8');
+    assert.ok(/^\*\.local\.js\s*$/m.test(gi),
+        'the `*.local.js` rule is gone from .gitignore. It is what keeps real payslip figures out of\n'
+        + 'the repository — and therefore off the GitHub Pages mirror, which serves the repo root and\n'
+        + 'obeys no ignore list. Restore it before committing anything from test-fixtures/.');
+    assert.ok(!existsSync(join(ROOT, 'test-fixtures', 'miller-actuals.js')),
+        'test-fixtures/miller-actuals.js is back. The real payslip figures left the tree at v23.70;\n'
+        + 'the local copy belongs at test-fixtures/payslip-actuals.local.js, which is gitignored.');
 });

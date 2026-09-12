@@ -182,7 +182,8 @@ A member who **only started this tax year** should not see earlier tax years in 
 **Principle:** the pay calculator is only useful if staff can find each figure on their actual
 Chiltern payslip. So every "Shows as … on your payslip" pointer, field label, and notice MUST use
 the payslip's own wording verbatim — never a paraphrase. The authoritative source is the real
-payslip; the figures used by the regression tests live in `test-fixtures/miller-actuals.js`
+payslip; the figures used by the regression tests live in the gitignored
+`test-fixtures/payslip-actuals.local.js`
 (`gross` = the payslip's **"Taxable Pay"** line). When the calculator gains a new pay item, find its
 exact payslip line name first and quote it.
 
