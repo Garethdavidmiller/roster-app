@@ -479,6 +479,18 @@ public unauthenticated endpoint rather than a client write.
 4. **Admin** actions it in Operations → Password Reset Requests (Reset, or Set up accounts if
    `provisioned` is false), then clears the row (`clearResetRequest`). Create/update is denied to every
    client **including the admin**; only the function writes.
+5. **The member is told, on their own devices** (v23.62). Until then the one person the reset was
+   about was the only person not told: their password had become the surname default and their other
+   devices were signed out, and they discovered both by failing to sign in. `resetMemberPassword`
+   sends `🔑 Password reset — set a new one` via `sendTargetedPush` to the uid it has just written,
+   deep-linking to `settings.html`, where the Password card opens itself. **The new password is
+   never in the payload** — a push renders on a lock screen, and the default is derived from a
+   surname that is on the roster.
+
+   Operationally the figure to read is **`notified`**, reported beside `revoked` and `stamped`: the
+   credential has already changed by that line, so a push failure never means the reset failed. A
+   member with no subscription is a legitimate `false`, and that case — signed out AND not told — is
+   the admin's cue to reach them another way.
 
 **Accepted cost:** an admin device that subscribed to push before v17.76 (when `owner` was first
 stamped on subscriptions) gets no notification until the bell is toggled off and on.

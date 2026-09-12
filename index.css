@@ -2263,6 +2263,31 @@
             .tv-cell { white-space: normal; }
             .team-table th.tv-name-col,
             .team-table td.tv-name-col { position: static; }
+            /* A NAME IS NEVER ELLIPSISED ON PAPER (v23.71).
+             *
+             * On screen the name column is `nowrap` + `text-overflow: ellipsis` and that is right:
+             * the column is deliberately narrow so seven day columns fit a phone, and a member who
+             * needs the full name can widen, scroll or tap. **Paper has none of those.** An ellipsis
+             * there is unrecoverable — the sheet names a colleague as "R. Forrester-Black…" and
+             * there is no way to ask it for the rest.
+             *
+             * It survived the v23.20 print review because the check was a DOM measurement, and a
+             * DOM measurement cannot see this: with `overflow: hidden` and `text-overflow: ellipsis`
+             * a cell reports `scrollWidth === clientWidth` even while the compositor is drawing an
+             * ellipsis, so "no cell over its box" came back true and the review recorded "no
+             * ellipsis in either orientation". The rasterised first sheet in
+             * `e2e/print-visual.spec.js` disagreed on sight, which is the argument for a picture of
+             * paper over a measurement of the DOM.
+             *
+             * Wrapping rather than widening: the column is auto-layout, so a wider `max-width` is a
+             * hint the table may ignore, and taking guaranteed width from seven day columns to suit
+             * one 23-character name is the wrong trade. Two lines for that row costs nothing. */
+            .team-table tbody th.tv-name-col {
+                white-space: normal;
+                overflow: visible;
+                text-overflow: clip;
+                max-width: none;
+            }
             .tv-early, .tv-late, .tv-night, .tv-spare, .tv-rdw, .tv-al, .tv-sick, .tv-other {
                 -webkit-print-color-adjust: exact; print-color-adjust: exact;
             }

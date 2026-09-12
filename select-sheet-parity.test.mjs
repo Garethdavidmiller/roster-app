@@ -685,3 +685,46 @@ test('a `.value =` on an enhanced select announces itself, or rebuilds, or repai
         'dispatch an `input` event after writing .value, or call the paint handle enhanceSelect '
         + 'returned — otherwise the trigger keeps the old label over the new value');
 });
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// CONTRACT 12 — A BOX THAT COLLAPSES MUST BE A CONTAINING BLOCK
+//
+// Every enhanced picker keeps the real `<select>` as a 1px `opacity: 0` value holder at
+// `position: absolute`. `overflow: hidden` clips an absolutely-positioned descendant ONLY when the
+// clipping element is that descendant's CONTAINING BLOCK — and a `position: static` box is not one.
+//
+// So a card that collapses with `max-height: 0; overflow: hidden` and no `position` does not
+// actually clip its selects. They escape, keep the offset they had while the card was open, and
+// hold the DOCUMENT open beneath a card that is visibly 56px tall. Measured on the Pay Calculator
+// with only Your Settings collapsed: 517px of empty navy below the disclaimer, the document 2,387px
+// against content ending at 1,870. Reported by the owner as "a large gap at the bottom".
+//
+// THE FIX THAT LOOKED RIGHT AND WAS NOT, recorded because it is the tempting one: pinning the
+// selects themselves with `top: 0; left: 0`. It cured the page height and moved the Calendar's
+// member select onto the ← Prev button — caught by `e2e/calendar.spec.js`'s overlap guard at six
+// widths and two projects. The defect is that the CLIP does not reach the select, not that the
+// select is in the wrong place, and the fix has to say so. `position: relative` moves nothing.
+//
+// Derived, not listed: any rule that collapses a box this way is found and required to position
+// itself, so a seventh collapsible card inherits the requirement without anybody remembering it.
+test('every box that collapses to zero height is a containing block', () => {
+    const files = ['shared.css', 'paycalc.css', 'admin.css', 'index.css', 'operations.css', 'settings.css', 'links.css'];
+    const offenders = [];
+    let examined = 0;
+    for (const f of files) {
+        const css = readFileSync(new URL('./' + f, import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+        for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+            const [sel, body] = [m[1].trim().replace(/\s+/g, ' '), m[2]];
+            if (!/max-height:\s*0/.test(body) || !/overflow:\s*hidden/.test(body)) continue;
+            examined++;
+            if (!/position:\s*(relative|absolute|sticky|fixed)/.test(body)) offenders.push(`${f}  ${sel.slice(0, 70)}`);
+        }
+    }
+    assert.ok(examined > 0, 'no collapse-to-zero rule found — this contract is checking nothing');
+    assert.deepEqual(offenders, [],
+        'these boxes collapse with `max-height: 0; overflow: hidden` but are `position: static`, so\n'
+        + 'the clip does NOT reach an absolutely-positioned descendant. Every enhanced picker leaves a\n'
+        + '1px `<select>` value holder inside one, and it escapes and holds the document open beneath\n'
+        + 'a card that looks collapsed — the v23.71 "large gap at the bottom". Add `position: relative`:\n  '
+        + offenders.join('\n  '));
+});

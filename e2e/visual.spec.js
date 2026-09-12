@@ -44,53 +44,13 @@
 
 import { test, expect, enableCalendarPin } from './fixtures.js';
 import { seedSession, seedMember, openRosterReview, openReference, stubPerfReads, openPinCard, sheetAction } from './helpers.js';
+import { FIXED_TIME, dismissOneTimeOverlays, prep, settle } from './visual-harness.js';
 import { ROTATING_LINES } from '../links-design.js';
 
-// A Wednesday inside G. Miller's rendered roster window — gives a stable "Today" cell and a
-// deterministic pay period without depending on the wall clock the suite runs on.
-const FIXED_TIME = new Date('2026-07-15T09:00:00Z');
-
-// Pre-dismiss every one-time overlay/notice so no lightbox floats over the captured layout.
-// Keys are the real localStorage flags each surface checks (kept in sync with the app).
-function dismissOneTimeOverlays(page) {
-    return page.addInitScript(() => {
-        const flags = {
-            'myb_pc_ytd_notice_2_shown': '1',  // paycalc Year-to-Date notice (run 2, v21.91)
-            'myb_pc_ns_migrated': '1',         // paycalc legacy data-ownership prompt
-            'myb_notif_prompt_done': '1',      // calendar notification prompt strip
-            'myb_links_welcome_seen': '1',        // links first-visit notice
-        };
-        for (const [k, v] of Object.entries(flags)) {
-            try { localStorage.setItem(k, v); } catch { /* iOS private mode — ignore */ }
-        }
-    });
-}
-
-// Common deterministic setup: pin the clock, size the viewport (tall enough to contain the
-// page — see CAPTURE STRATEGY above), seed a signed-in member, silence overlays.
-// setFixedTime (not clock.install) pins Date/now WITHOUT freezing the timer queue — install()
-// halts setTimeout, which stalls paycalc's timer-driven init (0 cards, never auth-ready).
-async function prep(page, { width, height }) {
-    await page.clock.setFixedTime(FIXED_TIME);
-    await page.setViewportSize({ width, height });
-    await seedSession(page, 'G. Miller');
-    await seedMember(page, 'G. Miller');
-    // The Calendar needs a restorable Firebase identity as well as a local session since v20.12 —
-    // `decideAccess` requires BOTH, so a baseline seeded with only the session would capture the
-    // staff-PIN card on every calendar surface instead of the roster.
-    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { authUser: true }); });
-    await dismissOneTimeOverlays(page);
-}
-
-// Wait for the app to settle DETERMINISTICALLY: the key element visible, network idle (stubbed
-// reads resolved), web fonts fully loaded (no FOUT metric shift), then two animation frames so
-// the final layout has painted before we capture.
-async function settle(page, ready) {
-    await expect(page.locator(ready).first()).toBeVisible();
-    await page.waitForLoadState('networkidle');
-    await page.evaluate(() => document.fonts.ready);
-    await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
-}
+// The determinism levers (clock, session, overlays, settle) live in `visual-harness.js`, shared
+// with print-visual.spec.js and visual-webkit.spec.js. Three copies of a settle recipe is the most
+// reliable way to get a flaky baseline, and a flaky baseline is worse than none — see the mobile
+// calendar note above, where that rule was acted on by DROPPING a surface.
 
 test('calendar — desktop 1280', async ({ page }) => {
     await prep(page, { width: 1280, height: 900 });
