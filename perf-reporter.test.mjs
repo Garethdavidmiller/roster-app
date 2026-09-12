@@ -509,6 +509,128 @@ describe('the `ready` sample says whether a release caused the open', () => {
 // issues a full sweep of conditional requests while the member waits on auth. A silent browser
 // recorded as 0 refutes that claim with its own instrument, reads as the reassuring answer, and
 // ends the investigation.
+describe('the `ready` sample says whether the sign-in check had finished', () => {
+    // Organised by what a wrong answer costs, and the two directions do not merely differ in size —
+    // they point at OPPOSITE conclusions about `LATENCY.md`'s central finding.
+    //
+    // The fast path (v22.97) shows a returning member their own cached roster while the server is
+    // still confirming who they are. September 2026 showed it buying nothing, and the card could not
+    // say whether that is because it rarely runs or because it does not work. Over-reporting says it
+    // runs constantly, which FALSIFIES a finding that took a month to establish; under-reporting
+    // excuses a broken fast path by making it look unused. Both are silent — the row renders
+    // plausibly either way — which is why the write is driven through the real production path here
+    // rather than asserted about the flag.
+    const load = async (/** @type {string} */ tag) => {
+        _marks.clear();
+        _samples.length = 0;
+        _ss.clear();
+        global.performance = /** @type {any} */ ({
+            getEntriesByType: () => [],
+            getEntriesByName: (/** @type {string} */ n) => (_marks.has(n) ? [_marks.get(n)] : []),
+            mark: (/** @type {string} */ n) => { _marks.set(n, { name: n, startTime: 410 }); },
+        });
+        return import(`./perf-reporter.js?fresh=prov-${tag}`);
+    };
+
+    test('a provisional paint records `readyProvisional` BESIDE `ready`, never instead of it', async () => {
+        // Beside, because the share is a division — `ready` has to keep counting every open or the
+        // denominator moves with the numerator and the percentage means nothing.
+        const { recordPageLatency, markPageReady, noteProvisionalPaint } = await load('beside');
+        noteProvisionalPaint(true);
+        recordPageLatency('calendar', 'S. Silva');
+        markPageReady('cached');
+        await Promise.resolve();
+        const metrics = _samples.map(s => s.metric);
+        assert.ok(metrics.includes('ready'), '`ready` still counts this open');
+        assert.ok(metrics.includes('readyCached'), 'the source split is unaffected');
+        assert.ok(metrics.includes('readyProvisional'));
+    });
+
+    test('both samples carry the SAME bucket, page and dimensions — one reading, two names', async () => {
+        // The card presents this row as a subset of "Shifts shown" and divides the two totals. If
+        // the bucket could differ, the comparison would be across two measurements.
+        const { recordPageLatency, markPageReady, noteProvisionalPaint } = await load('bucket');
+        noteProvisionalPaint(true);
+        recordPageLatency('calendar', 'S. Silva');
+        markPageReady('cached');
+        await Promise.resolve();
+        const ready = _samples.find(s => s.metric === 'ready');
+        const prov = _samples.find(s => s.metric === 'readyProvisional');
+        assert.ok(ready && prov);
+        assert.equal(prov.bucket, ready.bucket);
+        assert.equal(prov.page, ready.page);
+        assert.equal(prov.conn, ready.conn);
+        assert.equal(prov.mode, ready.mode);
+    });
+
+    test('an ordinary paint is NOT a fast-path open', async () => {
+        // The default has to be "no". A page that never calls `noteProvisionalPaint` has not told
+        // us the gate was still deciding, and inferring it would be the over-reporting direction —
+        // the one that falsifies. Every page but the Calendar is in exactly this state.
+        const { recordPageLatency, markPageReady } = await load('plain');
+        recordPageLatency('calendar', 'S. Silva');
+        markPageReady('cached');
+        await Promise.resolve();
+        assert.ok(_samples.some(s => s.metric === 'ready'));
+        assert.ok(!_samples.some(s => s.metric === 'readyProvisional'),
+            'nothing said the gate was still deciding, so nothing may claim it was');
+    });
+
+    test('the FULL grant is an answer, and the answer is no', async () => {
+        // `onEveryGrant(null)` is how an ordinary boot arrives, and how a provisional one ENDS. A
+        // truthiness slip here — latching on the call rather than its argument — would report every
+        // open on the page as fast-path, which is the falsifying direction.
+        const { recordPageLatency, markPageReady, noteProvisionalPaint } = await load('false');
+        noteProvisionalPaint(false);
+        recordPageLatency('calendar', 'S. Silva');
+        markPageReady('cached');
+        await Promise.resolve();
+        assert.ok(!_samples.some(s => s.metric === 'readyProvisional'));
+    });
+
+    test('the FIRST paint is what counts — a later confirmed re-render does not un-claim it', async () => {
+        // `markPageReady` is idempotent on the mark, and the flag has to follow it. The Calendar
+        // re-renders the instant phase 2 lands, under a full grant — so crediting the LAST call
+        // would report every fast-path open as an ordinary wait, which is exactly the shape that
+        // makes a working fast path look absent.
+        const { recordPageLatency, markPageReady, noteProvisionalPaint } = await load('first');
+        noteProvisionalPaint(true);
+        markPageReady('cached');
+        noteProvisionalPaint(false);
+        markPageReady('fetched');
+        recordPageLatency('calendar', 'S. Silva');
+        await Promise.resolve();
+        assert.ok(_samples.some(s => s.metric === 'readyProvisional'),
+            'the grid this mark timed went up before the check finished');
+        assert.ok(_samples.some(s => s.metric === 'readyCached'),
+            'and the first paint\u2019s source stands too, for the same reason');
+    });
+
+    test('…and the converse: an ordinary first paint is not re-labelled by a later provisional call', async () => {
+        // The mirror, because a one-sided capture rule passes the case above by ignoring the flag
+        // entirely. This cannot happen on the Calendar (the provisional grant precedes the full
+        // one), and it is asserted so the capture rule is pinned rather than the boot order.
+        const { recordPageLatency, markPageReady, noteProvisionalPaint } = await load('converse');
+        markPageReady('cached');
+        noteProvisionalPaint(true);
+        markPageReady('cached');
+        recordPageLatency('calendar', 'S. Silva');
+        await Promise.resolve();
+        assert.ok(!_samples.some(s => s.metric === 'readyProvisional'));
+    });
+
+    test('an ADMIN load is still excluded — the fast path is not a way round that', async () => {
+        // Every other sample on this path drops for a developer load, and a subset metric that did
+        // not would make the row the only one on the card measuring a different population.
+        const { recordPageLatency, markPageReady, noteProvisionalPaint } = await load('admin');
+        noteProvisionalPaint(true);
+        recordPageLatency('calendar', 'G. Miller');
+        markPageReady('cached');
+        await Promise.resolve();
+        assert.equal(_samples.length, 0);
+    });
+});
+
 describe('the boot records how much the service worker was doing', () => {
     const load = async (/** @type {string} */ tag) => {
         _marks.clear(); _samples.length = 0; _ss.clear();
