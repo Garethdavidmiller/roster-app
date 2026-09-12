@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '23.70';
+export const APP_VERSION = '23.71';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -1211,7 +1211,7 @@ if (typeof location !== 'undefined' &&
 
 // G. Miller's real payslip actuals (MILLER_ACTUALS) were moved OUT of this served
 // module at v14.68 → a hosting-excluded fixture (privacy; Track 2 / Option A), and out of the
-// repository entirely at v23.70 — the Pages mirror serves the repo root, so an ignore list could
+// repository entirely at v23.71 — the Pages mirror serves the repo root, so an ignore list could
 // not express the decision for both origins. It is now the gitignored
 // test-fixtures/payslip-actuals.local.js; see test-fixtures/payslip-actuals.example.js.
 // They are now a test-only fixture (excluded from Firebase Hosting). Do not re-add

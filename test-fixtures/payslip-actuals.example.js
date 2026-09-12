@@ -12,7 +12,7 @@
  * the calculator agrees with numbers this repo made up. A skipped test says "not verified here".
  * A passing test against invented data says "verified" and is wrong. Leave it unimported.
  *
- * ── WHY THE REAL ONE IS NOT IN THE TREE (v23.70, owner decision) ────────────────────────────────
+ * ── WHY THE REAL ONE IS NOT IN THE TREE (v23.71, owner decision) ────────────────────────────────
  *
  * The real file is thirteen of a named colleague's actual payslips — Taxable Pay, tax, National
  * Insurance, Student Loan, take-home. `firebase.json` has excluded `test-fixtures/**` since v14.68,
@@ -22,7 +22,7 @@
  * read it. A gitignore can, because it keeps the bytes out of the repository both origins serve.
  *
  * History is deliberately NOT rewritten (owner decision, same day): the figures remain in commits
- * up to v23.70, and in `roster-data.js` before v14.68. Removing them from the tree stops the live
+ * up to v23.71, and in `roster-data.js` before v14.68. Removing them from the tree stops the live
  * serving from the next deploy; scrubbing history would rewrite every SHA on `main`, break existing
  * clones and stale every commit link in these documents, and would not recall what GitHub has
  * already served. Recorded in KNOWN_LIMITATIONS.md rather than quietly accepted.

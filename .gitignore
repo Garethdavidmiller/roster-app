@@ -27,7 +27,7 @@ firestore-debug.log
 firebase-debug.log
 ui-debug.log
 
-# REAL PAYSLIP FIGURES NEVER ENTER THE TREE (v23.70).
+# REAL PAYSLIP FIGURES NEVER ENTER THE TREE (v23.71).
 # `test-fixtures/payslip-actuals.local.js` holds a member's actual payslips — the regression net
 # behind the pay maths. It is excluded from Firebase Hosting, but the GitHub Pages mirror serves the
 # repository root with no ignore list, so anything committed here is published there. A gitignore is

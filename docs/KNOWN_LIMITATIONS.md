@@ -135,15 +135,15 @@ worth knowing independently of any auth work, and (b) authenticated download wou
 viewing outright, because Microsoft cannot fetch an auth-gated URL. Any fix has to replace the Word
 rendering path at the same time.
 
-### Real payslip figures stay in git HISTORY (v23.70 — owner decision, recorded not accepted)
+### Real payslip figures stay in git HISTORY (v23.71 — owner decision, recorded not accepted)
 
 The pay-maths regression fixture — thirteen of a named colleague's actual payslips — **left the
-working tree at v23.70**: it is now the gitignored `test-fixtures/payslip-actuals.local.js`, and
+working tree at v23.71**: it is now the gitignored `test-fixtures/payslip-actuals.local.js`, and
 `sw-asset-check.test.mjs` guards the `.gitignore` rule that keeps it out. That closes the live
 exposure: the GitHub Pages mirror serves the repository root and obeys no ignore list, so from the
 next deploy the path 404s on both origins instead of only the canonical one.
 
-**It does not close the history.** The figures remain in every commit up to v23.70, and in the
+**It does not close the history.** The figures remain in every commit up to v23.71, and in the
 SERVED `roster-data.js` before v14.68 — so anyone who clones the public repository can still read
 them, and GitHub has already served them to whoever asked.
 

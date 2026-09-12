@@ -75,7 +75,7 @@ const UNNAMED_BY_DESIGN = {
     // ── NO GENUINE GAPS REMAIN ──────────────────────────────────────────────────────────────────
     // `paycalc-year-card.js` sat here from v23.69 as the one entry that was debt rather than a
     // decision, with the external reviewer's own ordering attached — test it eventually, but
-    // nowhere near above the Admin range writer. It was paid at v23.70 by
+    // nowhere near above the Admin range writer. It was paid at v23.71 by
     // `paycalc-year-card.test.mjs`, and writing that suite found a real defect (a fill that threw
     // left a dead, relabelled button and said nothing), which is the argument for this file in one
     // line: the module nobody had thought about was the module with the bug in it.

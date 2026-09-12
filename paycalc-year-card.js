@@ -160,7 +160,7 @@ async function _runFill(btn) {
         _afterFill?.(receipt);   // coordinator reloads the visible form if filled, then recalculates
         updateRosterHint();
     } catch (err) {
-        // A CONTROL THAT NEVER COMES BACK (v23.70). Everything above restores this button by being
+        // A CONTROL THAT NEVER COMES BACK (v23.71). Everything above restores this button by being
         // REPLACED — `_afterFill` recalculates, which re-renders the whole block. So the success
         // path needs no restore and the failure path had none: `fillYearFromCalendar` wraps only
         // `fetchOverrides`, so a throw from `suggest`, `readSaved` or `write` rejected straight out

@@ -719,7 +719,7 @@ test('roster-data.js does not export MILLER_ACTUALS (payslip data stays in the t
     );
 });
 
-// THE GITIGNORE IS THE PROTECTION NOW, SO THE GITIGNORE IS WHAT HAS TO BE GUARDED (v23.70).
+// THE GITIGNORE IS THE PROTECTION NOW, SO THE GITIGNORE IS WHAT HAS TO BE GUARDED (v23.71).
 //
 // `firebase.json`'s `test-fixtures/**` exclusion governs Firebase Hosting and cannot express a
 // decision for the GitHub Pages mirror, which publishes the repository root with no ignore list —
@@ -737,6 +737,6 @@ test('.gitignore still excludes the real payslip fixture', () => {
         + 'the repository — and therefore off the GitHub Pages mirror, which serves the repo root and\n'
         + 'obeys no ignore list. Restore it before committing anything from test-fixtures/.');
     assert.ok(!existsSync(join(ROOT, 'test-fixtures', 'miller-actuals.js')),
-        'test-fixtures/miller-actuals.js is back. The real payslip figures left the tree at v23.70;\n'
+        'test-fixtures/miller-actuals.js is back. The real payslip figures left the tree at v23.71;\n'
         + 'the local copy belongs at test-fixtures/payslip-actuals.local.js, which is gitignored.');
 });

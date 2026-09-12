@@ -8,7 +8,7 @@ import {
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod, PENSION_STEPS,
 } from './paycalc-calc.js';
-// ── THE REAL PAYSLIP FIXTURE IS OPTIONAL, AND ITS ABSENCE IS LOUD (v23.70) ──────────────────────
+// ── THE REAL PAYSLIP FIXTURE IS OPTIONAL, AND ITS ABSENCE IS LOUD (v23.71) ──────────────────────
 //
 // `test-fixtures/payslip-actuals.local.js` holds thirteen of a colleague's ACTUAL payslips. It is
 // gitignored (owner decision — `firebase.json` excluded it from Firebase Hosting, but the GitHub
@@ -1121,7 +1121,7 @@ describe('payslip integration (non-cumulative estimates against real payslips)',
   // Derived from the real payslip fixture (test-fixtures/payslip-actuals.local.js) — the single
   // source of truth for this regression net. These figures lived in MILLER_ACTUALS in the served
   // roster-data.js until v14.68, moved to a hosting-excluded fixture then, and left the tree
-  // entirely at v23.70 (the Pages mirror serves the repo root, so an ignore list could not
+  // entirely at v23.71 (the Pages mirror serves the repo root, so an ignore list could not
   // express the decision for both origins). Object insertion order is payday-ascending, preserved.
   if (!MILLER_ACTUALS) {
     test('SKIPPED — the thirteen real payslips are not on this checkout', (t) =>

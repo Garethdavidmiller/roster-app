@@ -39,7 +39,7 @@
  * ignore list at all, so both directories stay published there whatever this file says — measured
  * the same day, `.claude/settings.json` returns 200 on the mirror. That is the standing limitation
  * already recorded for the payslip fixture (AUTH_ARCHITECTURE.md → MILLER_ACTUALS) — which is why
- * that file left the repository altogether at v23.70 rather than relying on this list:
+ * that file left the repository altogether at v23.71 rather than relying on this list:
  * the exclusion list expresses a decision for Firebase Hosting and cannot express it for the
  * mirror. It goes when the mirror does.
  */

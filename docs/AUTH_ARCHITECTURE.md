@@ -216,7 +216,7 @@ app; a future "do not serve this" would be expressed there and would be half-tru
 knows the mirror exists as a file server either: `sw-asset-check`, `page-contract-parity` and the CSP
 suites all reason about the Firebase side.
 
-**CLOSED AT v23.70 BY A FOURTH ROUTE THE LIST DID NOT CONTAIN: the file left the repository.**
+**CLOSED AT v23.71 BY A FOURTH ROUTE THE LIST DID NOT CONTAIN: the file left the repository.**
 Owner decision, 12 Sep 2026, after a second external review kept Privacy at 7.5 while every other
 dimension moved. The three options above were (a) leave it, (b) synthesise, (c) retire the mirror —
 and the shape of the problem is in why none of them was taken.
@@ -242,7 +242,7 @@ existing, which is what a loop over an absent fixture would otherwise do: regist
 report a smaller green number that reads identically to a passing one.
 
 **History was deliberately not rewritten** (same decision): the figures remain in commits up to
-v23.70, and in the served `roster-data.js` before v14.68. A scrub rewrites every SHA on `main`,
+v23.71, and in the served `roster-data.js` before v14.68. A scrub rewrites every SHA on `main`,
 breaks existing clones, stales every commit link in these documents, and does not recall what GitHub
 has already served. Recorded in KNOWN_LIMITATIONS.md rather than quietly accepted.
 
