@@ -2,6 +2,7 @@
 // Run with: node --test paycalc.test.mjs
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION, AWARD_RATES, awardRatesFor, getRateForPeriod, capHours,
   awardFromForYear, isPreAwardPeriod,
@@ -24,21 +25,59 @@ import {
 // how to restore it. `test-fixtures/payslip-actuals.example.js` documents the shape and is
 // deliberately NOT used as a fallback: a green run against invented numbers would report the
 // payslip regression as PASSING while proving only that the calculator agrees with this repo.
+// ── ABSENT IS A SKIP; BROKEN IS A FAILURE (external review) ────────────────────────────────────
+//
+// The first cut of this wrapped the import in `try { … } catch { }`, which treats EVERY import error
+// as "not on this checkout". So a fixture that is present but malformed — a syntax error, a bad
+// nested import, a rename of the export — downgraded the most valuable verification in the repo to a
+// silent skip, on the ONE machine that has the data to run it. That is the exact failure this block
+// was written to prevent, reintroduced by the handler meant to prevent it.
+//
+// EXISTENCE IS TESTED ON THE FILESYSTEM, NOT INFERRED FROM AN ERROR CODE. The review suggested
+// catching `ERR_MODULE_NOT_FOUND` and rethrowing the rest, which is right in spirit and still too
+// loose: Node raises that same code when a module the FIXTURE imports is missing, so a genuinely
+// broken fixture would keep reading as an absent one. `existsSync` answers the actual question, and
+// the import then runs with NO catch at all — whatever it throws, the suite fails with the real
+// stack rather than a skip.
+const FIXTURE_SPEC = './test-fixtures/payslip-actuals.local.js';
+const FIXTURE_HERE = existsSync(new URL(FIXTURE_SPEC, import.meta.url));
+// `npm run test:payslip-local` sets this. The public lane must skip honestly; a pay-maths release
+// wants one command whose contract is "the real payslip comparison DEFINITELY ran" — a green run
+// that silently skipped is indistinguishable from one that verified, which is the whole problem.
+const FIXTURE_REQUIRED = process.env.PAYSLIP_FIXTURE_REQUIRED === '1';
+
 /** @type {Record<string, {gross:number,tax:number,ni:number,sl:number,net:number,varPay:number}>|null} */
 let MILLER_ACTUALS = null;
-try {
-  ({ MILLER_ACTUALS } = await import('./test-fixtures/payslip-actuals.local.js'));
-} catch { /* not on this checkout — handled by the announcement below */ }
+if (FIXTURE_HERE) {
+  ({ MILLER_ACTUALS } = await import(FIXTURE_SPEC));
+  // Present and importable is not the same as usable. A fixture whose export was renamed, or emptied,
+  // would otherwise sail past the checks below into the `!MILLER_ACTUALS` branch and report itself as
+  // ABSENT — the same silence, one step further in.
+  assert.ok(MILLER_ACTUALS && Object.keys(MILLER_ACTUALS).length > 0,
+    `${FIXTURE_SPEC} exists but exports no usable MILLER_ACTUALS. It is present, so this is a BROKEN `
+    + 'fixture, not a missing one — fix it rather than deleting it, or the payslip regression goes '
+    + 'quiet on the only checkout that can run it.');
+}
 
 if (!MILLER_ACTUALS) {
-  test('REAL PAYSLIP REGRESSION SKIPPED — the actuals fixture is not on this checkout', (t) => {
-    t.skip('test-fixtures/payslip-actuals.local.js is absent (gitignored — it holds real payslips).\n'
-      + 'NOT VERIFIED on this run: computeSL against every clean Plan 1 payslip deduction; tax within\n'
-      + '£1 and NI within 20p of thirteen real payslips; the cumulative-PAYE pair built from periods\n'
-      + '1 and 2; and the take-home reconciliation. Everything else in this file still ran.\n'
-      + 'To restore: copy test-fixtures/payslip-actuals.example.js to payslip-actuals.local.js and\n'
-      + 'fill it from real payslips. See that file for why it is not synthesised.');
-  });
+  const NOT_VERIFIED =
+      'NOT VERIFIED on this run: computeSL against every clean Plan 1 payslip deduction; tax within\n'
+    + '£1 and NI within 20p of thirteen real payslips; the cumulative-PAYE pair built from periods\n'
+    + '1 and 2; and the take-home reconciliation. Everything else in this file still ran.';
+  if (FIXTURE_REQUIRED) {
+    test('REAL PAYSLIP REGRESSION REQUIRED — but the actuals fixture is not on this checkout', () => {
+      assert.fail(`PAYSLIP_FIXTURE_REQUIRED=1 but ${FIXTURE_SPEC} is absent.\n${NOT_VERIFIED}\n`
+        + 'This lane exists to make the real comparison provable before a pay-maths release. Run the '
+        + 'ordinary `npm test` if you did not mean to require it.');
+    });
+  } else {
+    test('REAL PAYSLIP REGRESSION SKIPPED — the actuals fixture is not on this checkout', (t) => {
+      t.skip('test-fixtures/payslip-actuals.local.js is absent (gitignored — it holds real payslips).\n'
+        + NOT_VERIFIED + '\n'
+        + 'To restore: copy test-fixtures/payslip-actuals.example.js to payslip-actuals.local.js and\n'
+        + 'fill it from real payslips. See that file for why it is not synthesised.');
+    });
+  }
 }
 
 // Floating-point helper — within 1p is close enough for payroll
