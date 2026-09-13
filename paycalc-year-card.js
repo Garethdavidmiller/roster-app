@@ -159,6 +159,26 @@ async function _runFill(btn) {
         _receipt = { tyLabel: ty.label, lines: fillYearReceipt(receipt, fdShort) };
         _afterFill?.(receipt);   // coordinator reloads the visible form if filled, then recalculates
         updateRosterHint();
+    } catch (err) {
+        // A CONTROL THAT NEVER COMES BACK (v23.71). Everything above restores this button by being
+        // REPLACED — `_afterFill` recalculates, which re-renders the whole block. So the success
+        // path needs no restore and the failure path had none: `fillYearFromCalendar` wraps only
+        // `fetchOverrides`, so a throw from `suggest`, `readSaved` or `write` rejected straight out
+        // of a click handler that returns no promise. Nothing on screen, nothing in the console the
+        // member can see, and a permanently disabled button still reading "Filling from your
+        // calendar…". The only escape was to change an input and force a recalculate, which nothing
+        // tells anyone to do.
+        //
+        // Re-rendering is the restore AND the message: it rebuilds the block from `_lastArgs`, so
+        // the button comes back live and the missing list comes back ACCURATE — which is what the
+        // wording leans on. The loop writes period by period, so a throw part-way leaves earlier
+        // periods genuinely filled; claiming "nothing was changed" would be false exactly when it
+        // matters and would invite a retry against half-written data. Same rule as the range
+        // writer's `partialCommit`: a failure may never claim it did not happen.
+        console.error('[PayCalc] Fill year failed', err);
+        _receipt = { tyLabel: ty.label, lines: ["Couldn't finish filling from your calendar. "
+            + 'Any payslips it did fill have been saved; the others are untouched. Try again.'] };
+        if (_lastArgs) renderYearCard(_lastArgs);
     } finally {
         _filling = false;        // the re-render replaced the button; this guards the no-render error path
     }

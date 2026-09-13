@@ -29,7 +29,11 @@ const DEV = devServer(4001);
 
 export default defineConfig({
     testDir: './e2e',
-    testMatch: 'visual.spec.js',
+    // TWO specs, and the second locks PAPER rather than the screen. `print-visual.spec.js` renders
+    // the real PDF and rasterises page 1, so it belongs to this lane's tolerances and its
+    // report-only CI job rather than to the behavioural smoke run — and it must be named here,
+    // because a bare 'visual.spec.js' would have left it matched by nothing and run by nobody.
+    testMatch: ['visual.spec.js', 'print-visual.spec.js'],
     timeout: 30_000,
     expect: {
         timeout: 10_000,
