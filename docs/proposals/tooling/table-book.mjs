@@ -1,4 +1,6 @@
-// The duty TABLE for "Eight Forty" — By the Book's rules with NO DUTY OVER 8h40 (owner, 12 Sep 2026).
+// The duty TABLE for "Eight Forty" — By the Book's rules with NO DUTY OVER 8h40. The cap is a COMPARISON
+// BRIEF (owner, 12–13 Sep 2026): an example to set beside the other proposals, not a base rule — the pins in
+// links-default-targets.js (7h–9h30) stand, and nothing here is a reason to change them.
 //
 // By the Book's table (links-default-targets.js) runs earlies to 9h30, and five of its eleven Mon–Sat turns
 // are over 8h40 — so the cap is not a trim, it re-poses the whole table. Every rule that file's test pins is

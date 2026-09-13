@@ -17,8 +17,9 @@ const WORK = []; for (let i = 1; i <= LINES; i++) if (!SPARE.has(i)) WORK.push(i
 const WEEKDAY = {
   A: [['06:20-13:45',2],['06:20-14:20',2],['08:00-16:30',2],['11:00-19:30',3],['14:00-22:30',2],['15:15-23:55',3]],
   B: [['06:20-13:45',2],['06:20-14:20',2],['08:00-16:30',3],['13:30-22:00',2],['14:00-22:30',2],['15:15-23:55',3]],
-  // Q and R (12 Sep 2026): table B with the CLOSING turn at 15:45, not 15:15 — the owner's ask — and NO
-  // DUTY OVER 8h40, the owner's second rule. The later start takes 30 min off three duties a day, 450 a
+  // Q and R (12 Sep 2026): table B with the CLOSING turn at 15:45, not 15:15, and NO DUTY OVER 8h40. Both are
+  // a COMPARISON BRIEF, not base rules (owner, 13 Sep 2026) — examples to set beside the proposals, and no
+  // reason to touch the pins in links-default-targets.js. The later start takes 30 min off three duties a day, 450 a
   // week, and the contract is exact; with today's turns alone no table pays 42,000 (0 of 200 weekday ×
   // 122 Saturday tables). So the two 06:20 openers run on at their finish to put the 90 min a day back
   // (table-late.mjs: 42 exact tables under the cap, three of them zero-drift, every duty ≤ 8h30).

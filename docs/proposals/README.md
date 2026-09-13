@@ -20,7 +20,9 @@ the close and four on a Saturday, five still on at 22:00, fourteen on a Saturday
 four cover weeks at lines 1, 7, 13, 19). They differ on exactly one thing, and it is a people
 question rather than a rules one: *Same Turns* keeps 15 turns people already work and does not meet
 the late-shorter-than-early lever; *By the Book* meets every rule and none of its 19 turns is a
-time anyone works today. Each PDF states this on its page 5. *Quarter To* (12 Sep 2026) is *Same Turns*
+time anyone works today. Each PDF states this on its page 5. **The two 12 Sep proposals are comparison examples, not base rules** (owner, 13 Sep 2026): the 15:45
+closer and the 8h40 cap are briefs to set beside *Same Turns* and *By the Book*, and neither changes the
+December rules the workspace pins in `links-default-targets.js`. *Quarter To* (12 Sep 2026) is *Same Turns*
 with two things asked for — the closer at 15:45, nothing over 8h40 — and it clears every fatigue factor
 where *Same Turns* has one present; its open question is the cap's reach, since Saturday's 14:45–23:55
 (9h10) and Sunday's 14:30–23:25 (8h55) are today's own turns carried over unchanged, and shortening
