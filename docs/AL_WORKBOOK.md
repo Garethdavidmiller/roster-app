@@ -474,9 +474,21 @@ scan must not assume the `N/A <name>` shape — match the surname anywhere in th
 
 Every one of these is silent, and every one has been seen. [measured]
 
-1. **Duplicate person rows.** Some people appear twice in `New Marylebone Totals` with *different*
-   figures — one pair differs by exactly the over-quota day, so the two rows report a different
-   Remaining for the same person. One pair also spans grades (a CES listed once as CEA with zero
+1. **Duplicate person rows — THREE pairs, now enumerated** [measured, 14 Sep 2026]:
+
+   | Name | Rows | The two rows say |
+   |---|---|---|
+   | `Rotaru . G` | 6, 56 | **CEA** c/f 2, allow 32, E 2, used **0**, rem 32 ·· **CES** allow 34, E 3, used **24**, rem 7 |
+   | `Boyle . A` | 9, 18 | identical (0 used, 32 rem) |
+   | `F-Charles . C` | 10, 19 | differ by exactly the over-quota day — E 1 / rem 3 ·· E blank / rem 4 |
+
+   `Rotaru . G` is the cross-grade pair, and the CEA row's over-quota dates (`02/01`, `03/01`) are
+   the first half of the CES row's (`02/01 03/01`, `27/08`) — it reads as an abandoned row later
+   re-created under the right grade. It is also the row carrying the sheet's only live
+   carry-forward (defect 5), so it cannot simply be ignored.
+
+   The consequence is that **the two rows report a different Remaining for the same person**, and
+   a reader who finds one has no signal that the other exists (a CES listed once as CEA with zero
    days, evidently stale). **Always check whether a name appears more than once before quoting a
    figure.**
 
@@ -514,12 +526,32 @@ Every one of these is silent, and every one has been seen. [measured]
    of thing that becomes wrong when the sheet is extended.
 4. **The over-quota column is hand-typed.** It cannot be derived, checked or recomputed from
    anything else in the file. If the comment is missing, the date is gone.
-5. **Carry-forward is not used AT ALL on the live sheet.** [corrected, 14 Sep 2026 — this said
-   "barely used … only one row"] Column C of `New Marylebone Totals` is empty for **every one of
-   its 47 rows**. The c/f values that do exist — twelve of them, up to 13 days — are all on the
-   **2021** sheet (defect 7), which is what the earlier reading had half-seen. So the question §9
-   raises is sharper than it looked: the depot HAS tracked carry-forward historically and the
-   current register does not, and **the app has no concept of it either**.
+
+   **MEASURED, and it has happened once** [14 Sep 2026]: `Mohamed . F` (row 51, CES) has
+   **E = 2 and no comment at all**. Verified the careful way rather than off the library — this
+   sheet's threaded comments live in ONE file (`threadedComment15.xml`, resolved through the
+   worksheet rels per §6), and it carries E50, E52, E55 and E56 but nothing on E51. **Her answer
+   can be complete on the total and cannot be complete on the days.** Only the clerks can recover
+   them. Every other non-empty column E in the sheet does carry its dates.
+5. **Carry-forward is used on EXACTLY ONE live row — and finding it exposed a worse bug.**
+   [corrected TWICE on 14 Sep 2026] `Rotaru . G` row 6 carries **c/f = 2**; every other row on
+   `New Marylebone Totals` is blank. Twelve more c/f values, up to 13 days, sit on the **2021**
+   sheet (defect 7).
+
+   **The two wrong versions of this line are worth keeping, because the second was a code bug.**
+   It first said "barely used, one row, and it looks stale". It was then "corrected" to "empty for
+   every one of its 47 rows" — which was wrong, and wrong because **the check keyed a dictionary
+   by member NAME**. `Rotaru . G` appears twice (rows 6 and 56), so row 56 silently overwrote row 6
+   and took its carry-forward with it. The same bug undercounted the sheet: it has **50** named
+   rows, not 47.
+
+   > **NEVER KEY ANYTHING BY MEMBER NAME IN THIS WORKBOOK.** Three names are duplicated
+   > (`Rotaru . G`, `Boyle . A`, `F-Charles . C`), so a name-keyed dict, set or lookup drops rows
+   > silently and the total still looks plausible. Key by ROW.
+
+   §9's question stands and is sharper than either version made it look: the depot has tracked
+   carry-forward historically, the current register has all but stopped, and **the app has no
+   concept of it at all**.
 6. **An over-quota comment with no value beside it.** [measured, 14 Sep 2026] `Sumali . J` (row 17)
    carries the comment `10/04` on E17, but **E17 itself is empty**. Excel reads the blank as zero, so
    `=F17-(G17+E17)` computes 32 − (32 + 0) = **0 remaining** and nothing errors — where the comment
@@ -804,6 +836,8 @@ This is the record of the file getting better; an upload that taught nothing is 
 | 14 Sep 2026 | **THE FIRST ROW WHERE APP AND SHEET AGREE ON A NEGATIVE — and the cleanest test of the award question.** `Reen . C` is on the fixed Mon–Fri 12:00–19:00 line, so all 33 of her grid days are working days and every weekend is already a rest day. Column E empty AND uncommented, no duplicate row, no rest-day booking, no missing tag: the app will read −1 too. **There is no bookkeeping explanation available for her**, which makes her the sharpest case for §9's parked Employee-of-the-Month question — either she holds an extra day or she is genuinely one over. Her 15–31 Dec is **seventeen continuous days**, the longest in the file. She has no Sunday tags at all, which is RATIONAL on a Mon–Fri line (the tag exists to bridge an N/A Sunday row) rather than another instance of the discretionary tagging. | Owner asked for C. Reen's 2026 leave |
 | 14 Sep 2026 | **THE PRO-RATA CHECK PASSES A SECOND TIME, on a JOINER WITH A ROSTER CHANGE.** `Jedlinski . K`'s workbook allowance is **18**, and the app's `proRatedAL[2026]` is 18 — she started 3 Jun 2026 and also carries a `rosterChanges` entry moving her off the fixed Mon–Fri line to the main link on 28 Jun. §9 calls this the cheapest real check in the reconciliation; it has now passed on both joiners it has been run against (Okeke 24, Jedlinski 18). Her row is otherwise clean: 4 grid days, all working days, column E empty and uncommented, app agrees at 14. | Owner asked for K. Jedlinski's 2026 leave |
 | 14 Sep 2026 | **PRO-RATA PASSES A THIRD TIME, and a BILINGUAL-LINE-vs-CONTRACT case to watch.** `Melikian . I`: workbook allowance **13**, app `proRatedAL[2026]` **13**, started 10 Aug 2026. She has **no leave anywhere in the workbook** — her name appears exactly once in the entire file, on her totals row — and the zero is simply a five-week-old starter, so the app agrees at 13 with nothing to reconcile. **The watch item is January:** her `rosterChanges` moves her onto the BILINGUAL LINE on 13 Sep 2026, but she holds no `bilingualContract`, and the workbook correctly lists her `CEA` rather than `BLCEA`. Both systems agree today. When the allowance renews it must be **32, not 34** — the 34 follows the CONTRACT, which only `Irvine . D` and `Gherbi . T` hold. Anyone reading her LINE would give her the wrong figure. | Owner asked for I. Melikian's 2026 leave |
+| 14 Sep 2026 | **THE FULL COLUMN-E AUDIT — every value checked against its comment.** Sixteen rows carry a column-E value or a comment. Fifteen have their dates; **`Mohamed . F` (row 51) has E = 2 and NO comment**, so those two days are unrecoverable — §8.4 measured for the first time. Also surfaced: `Khalil . B`'s E is **15**, with the lump comment `A/L FROM PRE JUNE 2026` (§5's documented exception, and much larger than expected), and `Hared . A` carries three dates across two comments. | Owner asked for F. Mohamed's 2026 leave |
+| 14 Sep 2026 | **CORRECTION, and the cause was a CODE bug: never key by member name.** This file said c/f was empty on all "47" live rows. Both figures were wrong: the sheet has **50** named rows, and `Rotaru . G` row 6 carries **c/f = 2**. The check keyed a dict by NAME, and `Rotaru . G` is duplicated (rows 6 and 56), so the CES row overwrote the CEA row and took its carry-forward with it. §8.1 now enumerates all three duplicate pairs with their conflicting figures, and §8.5 carries the rule: **key by ROW, never by name.** The duplicate rows are not untidiness — they silently corrupt any lookup built over them. | Same |
 | 14 Sep 2026 | **A FOURTH unused balance.** 13 of 13 untaken with under four months left, as a brand-new starter who may not know she has them. With Jedlinski (14 of 18), Cooper (11) and Panchal (9) that is **47 days across four people**, and the two joiners are the ones least likely to ask. Still unanswered as a group. | Same |
 | 14 Sep 2026 | **A THIRD LARGE UNUSED BALANCE, and the starkest.** She has taken **4 of 18** — one six-day absence in late August — with under four months of the year left. Same shape as `Cooper . I` (11 left) and `Panchal . A` (9 left), which §12 logged as unanswered, but proportionally much worse: under a quarter of a PRO-RATED allowance used. Worth putting to the owner as a group rather than one at a time. | Same |
 | 14 Sep 2026 | **A SHORT SURNAME SUBSTRING-MATCHES A PLACE NAME.** Sweeping for `'reen'` reported `Reen . C` on the South Bucks sheets — which would have meant a member appearing at a second location. It is **"Beaconsfield & Seer Green"**. Caught by reading the cell before reporting it; §7 now says to confirm every cross-sheet hit that way, and notes that this workbook covers every Chiltern location rather than Marylebone alone. | Same |
