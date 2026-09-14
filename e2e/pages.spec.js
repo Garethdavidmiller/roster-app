@@ -7188,6 +7188,64 @@ for (const w of [320, 340, 359, 360, 414]) {
     });
 }
 
+// ── THE OVER-LIMIT MESSAGE IS NOT CLIPPED EITHER (v23.78) ───────────────────────────────────────
+// The guard above measures the four `.al-banner-stat` boxes and, with a member who is not over
+// limit, `#alBannerWarn` is not even rendered — so a FIFTH element on that row was never measured
+// by the test written to stop exactly this. It was a third flex item on a row whose stats refuse to
+// shrink, so at 390px it collapsed to a sliver and the card's `overflow-x: hidden` cut it: the owner
+// photographed "1 over limit" running one character per line down the right edge.
+//
+// This drives the real path — enough seeded leave to push the member genuinely negative — rather
+// than unhiding the element, because `updateALBanner` deciding to SHOW it is half of what broke.
+for (const w of [320, 360, 390]) {
+    test(`admin: the over-limit message is not clipped at ${w}px @layout`, async ({ page }) => {
+        await page.setViewportSize({ width: w, height: 900 });
+        await seedSession(page, 'G. Miller');
+        await page.addInitScript(() => {
+            // Every date in a three-month span; the ones that consume are well past any entitlement,
+            // and the app does its own filtering — so this needs no roster knowledge to stay true.
+            const docs = [];
+            for (let d = new Date(2026, 1, 2); d < new Date(2026, 4, 1); d.setDate(d.getDate() + 1)) {
+                const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                docs.push({ id: 'ol' + iso, memberName: 'G. Miller', date: iso, type: 'annual_leave', value: 'AL', note: '' });
+            }
+            /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, { docs });
+        });
+        await page.goto('/admin.html');
+        await expect(page.locator('#fieldMember')).toBeAttached();
+        await page.locator('#fieldMember').selectOption('G. Miller');
+        await page.evaluate(() => document.querySelectorAll('.card-body, [id$="Body"]')
+            .forEach(b => b.classList.add('open')));
+        await expect(page.locator('#alBanner')).toBeVisible();
+
+        // THE PREMISE, asserted rather than assumed: if the seeding stopped pushing him over, the
+        // message would be hidden and every check below would pass by not looking.
+        const remaining = Number(await page.locator('#alBannerRemaining').textContent());
+        expect(remaining, 'the fixture must put the member OVER limit, or this tests nothing')
+            .toBeLessThan(0);
+        const warn = page.locator('#alBannerWarn');
+        await expect(warn).toBeVisible();
+        await expect(warn).toHaveText(`${Math.abs(remaining)} over limit`);
+
+        const box = await page.evaluate(() => {
+            const card = document.getElementById('book-annual-leave');
+            const el = document.getElementById('alBannerWarn');
+            const r = el.getBoundingClientRect();
+            // One client rect per LINE BOX, which counts wrapped lines exactly. `lineHeight` computes
+            // to "normal" here, so dividing by it gives NaN — and NaN quietly fails every numeric
+            // comparison, which is how a check like this passes for the wrong reason.
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            return { over: Math.round(r.right - (card.getBoundingClientRect().left + card.clientWidth)),
+                     width: Math.round(r.width), lines: range.getClientRects().length };
+        });
+        expect(box.over, `the over-limit message is cut off by the card at ${w}px`).toBeLessThanOrEqual(0);
+        // A sliver is the shape of the defect: wide enough for the words, and on one line.
+        expect(box.width, 'the message was squeezed to a sliver').toBeGreaterThan(60);
+        expect(box.lines, 'the message wrapped instead of taking its own line').toBeLessThanOrEqual(1);
+    });
+}
+
 test('admin: the AL preview names a Spare day and says it costs one day of leave', async ({ page }) => {
     // THE WIRING, not the helper. `spareShiftNote` has its own unit test, and a unit test is exactly
     // what would NOT have caught the defect this replaces: the broken sentence lived in a template

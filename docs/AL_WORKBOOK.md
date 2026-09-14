@@ -77,7 +77,7 @@ account; Smith is not on it at all.
 | **`New Marylebone Totals`** | ✅ **yes** | One row per person: allowance, used, remaining. [measured] |
 | `Marylebone Calendar` | ❌ **no** | **A 2021 sheet.** Its dates begin 1 Jan 2021 and it holds people who have long left. It is the single easiest mistake to make in this workbook, because the name looks more canonical than the one you want. [measured] |
 | `Marylebone Totals` | ❌ no | The 2021 counterpart. Its over-quota column is headed **"AL over allocation"** — the older wording, and useful corroboration of what the column means. [measured] |
-| `Marylebone Block` | ⚠️ unexamined | A per-person Week 1–4 grid, same four-state legend. Purpose not established. [unknown] |
+| `Marylebone Block` | ⚠️ barely examined | A per-person Week 1–4 grid, same four-state legend. Purpose still not established [unknown] — but it names each person's LINE in the column beside them (`Boyle . A` → `MYB CSA`) [measured, 14 Sep 2026], and it carries the same duplicate rows the totals sheet does. |
 | Every other location's sheets | ❌ no | Other depots. |
 
 ---
@@ -155,6 +155,52 @@ repeating.
 > they are answering different questions, and a straight date-for-date comparison will report a
 > discrepancy that is not one.
 >
+> **COUNTED IN FULL, 14 Sep 2026 — and the running tally it replaces was WRONG** [measured].
+> Every free-text tag in the CEA block was extracted and classified against each person's own base
+> roster. **All 75 of them**, not the handful belonging to whoever was asked about that afternoon:
+>
+> | The member's base roster that Sunday | Tags | Share |
+> |---|---|---|
+> | a NAMED SHIFT | 31 | 41% |
+> | a SPARE day | 21 | 28% |
+> | a REST day | 23 | 31% |
+> | **contracted — named shift or spare** | **52** | **69%** |
+>
+> **The named-shift case is a MINORITY, and this file spent a day calling it a majority.** It was
+> written as "the ordinary case" off 4 tags, then "a majority" (6 of 8), then "eight of fourteen",
+> then "twelve of twenty-three" — four statements, each one drawn from the people who happened to
+> be asked about, and each one chasing the last downward. The full count is 41%. **Every
+> intermediate figure here was an artefact of the sample**, which is what a running tally built out
+> of answered questions is worth when the question is a population question.
+>
+> **ASK "was the member DUE AT WORK", not "was a shift named".** SPARE is contracted — the person
+> is expected at the station — so being away from one is being away from work exactly as a named
+> shift is. That reading gives **69%, better than two in three**, and it is the one that answers
+> the member's question. Keep the three-way split only for reconciling against the grid.
+>
+> **A tag can stand COMPLETELY ALONE, and a block can be missing one** [measured, 14 Sep 2026].
+> `Tuck . N`'s **Sun 22 Mar** and `Romiah`'s (= `F-Blackstock . R`) **Sun 15 Mar** are both tagged
+> with no grid day anywhere near them, in weeks of solid working shifts — one-day absences from a
+> rostered Sunday that neither the app nor the grid can show. The mirror is just as common:
+> Tuck's **Sun 6 Sep** and **Sun 15 Nov** are rostered and adjacent to leave and NOT tagged, and
+> `F-Blackstock . R` has five rostered or spare Sundays touching her blocks (1 Feb, 28 Feb–1 Mar
+> aside, 16 Aug, 6 Sep, 27 Dec) of which only some carry a tag. **Tagging is at the clerk's
+> discretion and is not applied consistently.** An absent tag is silence, not evidence the person
+> worked — §0 step 3 applies.
+>
+> The instruction is unchanged and is the point: **check the base roster every time**, because the
+> tag itself tells you nothing about which kind it is — and only the contracted kinds (a named
+> shift or a spare day) are days the member was away from actual work.
+>
+> **A tag can stand COMPLETELY ALONE, and a block can be missing one** [measured, 14 Sep 2026].
+> `Tuck . N`'s **Sun 22 Mar** is tagged with no grid day anywhere near it — her nearest bookings
+> are 9 Mar and 8 May — and every day from 18 to 23 Mar is a working shift, so the tag is a
+> one-day absence from a rostered Sunday and nothing else. The mirror appears on the same person:
+> **Sun 6 Sep** sits between a booked Sat 5 and a rest-day Mon 7, is rostered 07:15–15:45, and is
+> NOT tagged; nor is **Sun 15 Nov**, straight after 13–14 Nov. Either she worked those Sundays, or
+> the clerk tagged one block and not the others. **An absent tag is not evidence she worked** — it
+> is silence, and §0 step 3 applies: say so rather than pick.
+>
 > So: **do not assume a tagged Sunday is a rest day, and do not assume it is mid-block.** Check the
 > base roster. Where the person was rostered, say they were away from a shift and that it cost no
 > entitlement — do not silently drop it because the app has no way to hold it.
@@ -201,7 +247,8 @@ elsewhere. Read the comment before assuming the value means over-quota days.
 **A second worked example, and it corroborates the first.** [measured, 14 Sep 2026] `Cooper . I`'s
 comment reads `19/08`. On Wed 19 Aug 2026 the four CEA slots hold Mylla, Gherbi, F-Blackstock and
 F-Charles — full, exactly as on Davies's 24 Dec. `F-Charles . C`'s own over-quota day, `24/02`, is
-the same shape: Mylla, Irvine, Panchal and Miller hold all four slots. **Three for three**, which is
+the same shape: Mylla, Irvine, Panchal and Miller hold all four slots. **Four for four** since 14 Sep — `F-Blackstock . R`'s comment reads `29/12`, and on Tue 29 Dec
+the four CEA slots hold Davies, Reen, Mylla and Silva. That is
 as close to confirming the `[inferred]` meaning of column E as the file alone can get; it still
 wants the owner's word.
 
@@ -261,20 +308,44 @@ drops people.
 | `F-Blackstock . R` | `R. Forrester-Blackstock` |
 | `Sumali . J` | `J. Sumaili` (spelling differs too) |
 
+> ## ⚠️ THREE TAGS CARRY A FIRST NAME AND NOTHING ELSE — and a surname scan misses them entirely
+>
+> [measured, 14 Sep 2026] Of the 75 free-text Sunday tags in the CEA block, **three names appear as
+> a bare first name with no surname and no initial**: `N/A Romiah`, `N/A Csherrice`, `N/A Loreta`.
+> Every mechanical scan this file has recommended matches on the SURNAME, so all five of those
+> tags were invisible to it, and **two answers given on 14 Sep were short because of it** —
+> C. Francisco-Charles (3 and 10 May) and L. Atrakimaviciene (5 Jul).
+>
+> | Tag | Dates | Who, and the evidence |
+> |---|---|---|
+> | `Romiah` | 25 Jan, 1 Mar, 15 Mar, 2 Aug, 30 Aug | `F-Blackstock . R`. The other R on the roster, `Frimpong . R`, is tagged **by surname** (`N/A R Frimpong`, 15 Feb), and three of the five sit exactly where F-Blackstock's leave is — 1 Mar into her 2 Mar day, 2 Aug into her 3 Aug, 30 Aug into her 31 Aug–5 Sep |
+> | `Csherrice` | 3 May, 10 May | `F-Charles . C`. **Same SLOT COLUMN** as her bookings either side — slot D on Fri 1 and Mon 4 May, slot D again on Sat 9 and the Sunday between |
+> | `Loreta` | 5 Jul | `Atrakimaviciene . L`. Dead centre of her 3–9 Jul block and in her slot column (D) throughout |
+>
+> **The slot column is the identifier, not the text.** That is the technique to use when a tag
+> cannot be read: a leave block holds ONE slot letter for its whole run, so the Sunday cell in that
+> same column belongs to whoever holds the days either side. It resolved all three here.
+>
+> Two more spellings that break an exact match: **`Sumali . J` is also written `Sumaili . J`**
+> within the same sheet (12 and 19 Jul against 14 Jun), and one cell reads **`N/A L Springer NA`**
+> with the state repeated. **Match loosely, then confirm by slot column.**
+
 **Initials that disagree** — first name vs known-as, or an error; not established [unknown]:
 
 | Workbook | App | Grid days 2026 |
 |---|---|---|
 | `Lloyd . K` | `P. Lloyd` | 19 |
 | `Murray . T` | `A. Murray` | 15 |
-| `Boyle . A` | `S. Boyle` | 0 |
+| `Boyle . A` | `S. Boyle` | 0 | **SAME PERSON — owner-confirmed, 14 Sep 2026.** The zero is real and explained (long-term sickness, see §9), which settles the identity: the row is hers and only the INITIAL disagrees. That makes a known-as/legal-first-name difference the likeliest reading for the other two rows here as well, rather than an error. |
 
 **Management accounts are absent from the workbook, correctly** — they hold no roster line, so they
 have no quota slots. Do not read their absence as a gap.
 
 **The free-text Sunday tags are not a name source.** They are typed by hand and drift wildly —
 first-name-only forms, nicknames, and misspellings all appear. Use them to *locate* a Sunday inside
-a block, never to identify a person.
+a block, never to identify a person. **The WORD ORDER varies too** [measured, 14 Sep 2026]:
+`Okeke . M`'s 4 Oct tag reads `M Okeke N/A`, where every other tag puts `N/A` first. A mechanical
+scan must not assume the `N/A <name>` shape — match the surname anywhere in the cell.
 
 ---
 
@@ -295,6 +366,12 @@ Every one of these is silent, and every one has been seen. [measured]
    `F-Charles . C` again. Two independent typos would not land in the same order twice. Treat a
    duplicate as a sign that a BLOCK was copied, and check the rows either side of it rather than the
    one name you were asked about.
+
+   **AND IT SPANS SHEETS** [measured, 14 Sep 2026]. `Boyle . A` is duplicated on `Marylebone Block`
+   too, at rows 10 and 19 — the same relative positions as her totals rows 9 and 18, offset by that
+   sheet's extra header. So the duplication is structural to the workbook rather than a slip on one
+   tab, which is the strongest reason yet to check neighbours rather than the single name asked
+   about.
 
    **The over-quota pair, named** [measured, 14 Sep 2026]: `F-Charles . C` is at **row 10 and row
    19**. Both are CEA, both allowance 32, and both count the same 28 grid days through an identical
@@ -338,7 +415,7 @@ difference is.
 |---|---|---|
 | **Over-quota days** | app shows **more** remaining | The day is real leave but exists only in column E. The app cannot know about it unless somebody records it in Change a Shift. |
 | **Sundays inside a block** | agree (both exclude) | Both refuse leave on an uncontracted day. |
-| **Carry-forward** | app shows **less** entitlement | `getALEntitlement` has no c/f input. Currently near-theoretical; it stops being so the moment a c/f value appears on a live row. |
+| **Carry-forward** | app shows **less** entitlement | `getALEntitlement` has no c/f input. **This stops being theoretical in January 2027, and the row that will do it is already visible** [owner-confirmed, 14 Sep 2026]: `Boyle . A` has been off sick all year and has an untouched 32 of 32. Leave that could not be taken because of long-term sickness is normally carried over, so column C on her 2027 row is the c/f value this has been waiting for — at which point the app will state an entitlement lower than the workbook's for as long as the carry-over lasts. Worth deciding BEFORE it appears rather than discovering it as a discrepancy. |
 | **Pro-rated joining year** | should agree | The workbook's allowance for a joiner should equal the app's `proRatedAL[2026]`. Check it — this is the cheapest real check in the whole reconciliation. |
 | **Dispatcher lieu days** | check | The app adds one lieu day per bank holiday worked. Whether the workbook's allowance for a Dispatcher already includes them is **[unknown]**. |
 | **A SWAPPED working day booked off** | app shows **more** remaining | **The commonest real cause, ANSWERED BY THE OWNER 14 Sep 2026** — see below. |
@@ -474,5 +551,19 @@ This is the record of the file getting better; an upload that taught nothing is 
 | 14 Sep 2026 | **A SECOND duplicate pair (`Boyle . A`, rows 9 and 18), and the shape of both.** The same two names appear consecutively in both places — `Boyle . A` then `F-Charles . C` at 9–10 and again at 18–19 — which reads as a copied block rather than two typos. Also recorded: `Haque . J` and `Reen . C` both sit at **−1**, 33 used against 32. | Same |
 | 14 Sep 2026 | **The rest-day mismatch has a second, bigger instance.** Three of F-Charles's 28 grid days (4 Apr, 27 Apr, 23 Jul) are rest days on her current base roster, so `consumesEntitlement` refuses them and the app will say 6 remaining where the workbook says 3. SPARE days are NOT affected — `isRestShift` is RD/OFF only, so all seven of her spare-day bookings count on both sides. **ANSWERED the same day** — she swapped her working days and booked the swapped-in days off, so the workbook is right and the app is missing the swap. See §9. | Same |
 | 14 Sep 2026 | **ANSWERED: a rest-day AL booking is usually a SWAP, and the app can hold it.** Owner: *"she moved her shift days around."* `override-utils.js` already carries this rule from 26 Aug (VAL-AL-001) — an AL doc's `replacedType` of `shift` makes the day count — so the 6-vs-3 gap is missing swap DATA, not a defect. The two-write fix and its order are now in §9, measured rather than assumed. | Owner, on C. Francisco-Charles's 3 remaining |
+| 14 Sep 2026 | **The Sunday-tag finding goes from ONE instance to FOUR, and changes status.** `Mylla . O`'s three tags (11 Jan, 9 Aug, 27 Dec) ALL fall on days she was rostered to work, and 11 Jan opens its block. §4 recorded this as an exception off a single Panchal case; on four instances it looks like the ordinary shape, with a tagged Sunday that is genuinely a rest day as the variant. Her figures are otherwise clean: one row, column E empty AND no comment (checked for the §8.6 shape), 32 of 32 used, 0 remaining, and all 32 consume in the app. | Owner asked for O. Mylla's 2026 leave |
+| 14 Sep 2026 | **`Boyle . A` has NO leave anywhere in the 2026 grid** — zero mentions in any grade block, in any spelling, with column E empty and uncommented on both her rows. 0 of 32 used in mid-September. Three readings, none settled: she has genuinely booked nothing; a fixed-line person's leave is not recorded here (she moved off the rotating link to the Mon–Fri 09:00–16:00 line on 28 Jun 2026); or **§7's open question bites and `Boyle . A` is not `S. Boyle` at all**, in which case the app's S. Boyle has no row and the zero means nothing. The never-used row makes the third reading likelier than it looked. **RESOLVED the same day — owner: "She has been off sick all year so this makes sense."** Reading 1, and it settles §7's identity question as a by-product: the row IS hers, only the initial is wrong. It also promotes §9's carry-forward row from theoretical to a dated prediction. | Owner asked for S. Boyle's 2026 leave |
+| 14 Sep 2026 | **The duplicate-block theory confirmed across SHEETS.** `Boyle . A` is doubled on `Marylebone Block` at rows 10 and 19, the same relative positions as her totals rows 9 and 18. Structural, not a slip on one tab. Also the first fact about that sheet: it names each person's line (`MYB CSA`). | Same |
+| 14 Sep 2026 | **Carry-forward stops being theoretical in Jan 2027, and the row is already identifiable.** S. Boyle's untouched 32 of 32 after a year of sickness is exactly the c/f case §9 said it was waiting for. `getALEntitlement` takes no c/f input, so from her 2027 row the app will understate her entitlement for as long as the carry-over lasts. Better decided before it appears than met as a discrepancy. | Owner: "She has been off sick all year" |
+| 14 Sep 2026 | **CORRECTION: the Sunday-tag pattern was overstated the same day it was written.** Off Mylla's 3/3 plus Panchal it was recorded as "the ordinary case". `Haque . J`'s four tags split two rostered, one spare, one rest day — six of eight overall, a majority not a rule. The instruction (check the base roster every time) is unchanged; the claim around it is now the size of its evidence. | Owner asked for J. Haque's 2026 leave |
+| 14 Sep 2026 | **`Haque . J`'s −1 is REAL, and the obvious explanation was tested and disproved.** `COUNTIF` counts CELLS, so a name written twice on one date would inflate the total without a day being taken — but her 33 cells are 33 DISTINCT dates. Allowance agrees with the app at 32 and column C is empty, so she has genuinely taken 33 of 32 and the sheet reports it unclamped. For the clerks: a day granted over entitlement, or a 2025 carry-forward never entered in column C. **Unresolved.** Her empty autumn, unlike Cooper's and Panchal's, is explained by having nothing left. | Same |
+| 14 Sep 2026 | **The Sunday-tag ratio revised a SECOND time, to 8 of 14.** `Okeke . M`'s six tags are only two rostered. "Ordinary case" (4 tags) → "majority" (8) → "bare majority" (14) in one day, each revision forced by the next person looked at. Kept as a caution about generalising from one member; the instruction (check the base roster) is what has held. | Owner asked for M. Okeke's 2026 leave |
+| 14 Sep 2026 | **A clean positive for §9's pro-rata check, and a new tag variant.** `Okeke . M` joined 20 Apr 2026 and the workbook's allowance of 24 matches the app's `proRatedAL[2026]` exactly — the check §9 calls the cheapest real one, passing on the first joiner it has been run against. Her 4 Oct tag reverses the usual `N/A <name>` order. | Same |
 | 14 Sep 2026 | **CORRECTION, and a trap worth more than the case.** This file briefly said the app would read 6 remaining for F-Charles against the workbook's 3. It reads **4**: her three rest-day bookings already carry the swap and already count. The wrong figure came from calling `consumesEntitlement` with `ovByDate = null`, which the function's own docstring warns against — passing null MANUFACTURES a rest-day discrepancy. Never diagnose one without the override map. | Owner: "Still saying 4 remaining" |
 | 14 Sep 2026 | **The real one-day gap is `24/02`, and a second difference that cancels out.** App 28 days / 4 remaining vs workbook 29 / 3 — the whole gap is the over-quota day, exactly as §0 predicts. Separately, rendering the workbook's dates through the card's own merger proves the app holds **Sat 2 May** and the workbook holds **Thu 14 May**: nine days each, every total agreeing, two dates wrong somewhere. The argument for reporting DATES rather than counts, made by a live example. | Same |
+| 14 Sep 2026 | **The Sunday-tag ratio revised a THIRD time, and the question behind it changed.** `Tuck . N` carries **nine** tags, the most of anyone — four on a named shift, two on a SPARE Sunday, three on rest days — taking the running count to 12 of 23 on a named shift. Counting SPARE as what it is (a contracted day the member was expected at the station) gives **16 of 23**, which is the figure that actually answers "was she away from work" and is the one that has NOT fallen with each new person. §4 now reports the contracted reading and keeps the three-way split for grid reconciliation. | Owner asked for N. Tuck's 2026 leave |
+| 14 Sep 2026 | **A Sunday tag can stand completely alone — and a block can be missing one.** Her **Sun 22 Mar** tag has no grid day near it (nearest 9 Mar and 8 May) and sits in a week of solid working shifts: a one-day absence from a rostered Sunday, invisible to the app and to the grid alike. The mirror is on the same person — **Sun 6 Sep** (rostered, between a booked Sat and a rest-day Mon) and **Sun 15 Nov** (rostered, straight after 13–14 Nov) are both untagged. Recorded as §0 step 3 rather than resolved: an absent tag is silence, not evidence she worked. **Unresolved.** | Same |
+| 14 Sep 2026 | **A completely clean reconciliation, which is worth logging precisely because nothing was wrong.** N. Tuck: one totals row, column E empty AND uncommented, 26 grid cells on 26 distinct dates, 26 of 32 used, 6 remaining — and all 26 land on contracted days, so `consumesEntitlement` agrees with the sheet day for day with no swap data needed. The first member of the nine looked at today with no duplicate row, no over-quota day, no −1 and no rest-day gap. | Same |
+| 14 Sep 2026 | **THE SUNDAY-TAG RATIO, COUNTED IN FULL — and every earlier figure in this file was wrong.** All 75 CEA-block tags classified against each member's own base roster: **31 named shift (41%), 21 spare (28%), 23 rest day (31%)**; contracted = **52 of 75, 69%**. The named-shift case is a MINORITY. Four successive statements here ("the ordinary case", "a majority", "eight of fourteen", "twelve of twenty-three") were all artefacts of asking about whoever the owner happened to raise that day. **A population question is not answerable from a running tally of answered questions**, and the lesson is worth more than the ratio. | Owner asked for R. Forester-Blackstock's 2026 leave |
+| 14 Sep 2026 | **THREE TAGS CARRY A BARE FIRST NAME, and two answers given today were SHORT because of it.** `Romiah` (= `F-Blackstock . R`), `Csherrice` (= `F-Charles . C`) and `Loreta` (= `Atrakimaviciene . L`) appear with no surname and no initial, so every surname scan this file recommends missed them: **C. Francisco-Charles was away 3 and 10 May and L. Atrakimaviciene on 5 Jul**, and neither was listed. Resolved by SLOT COLUMN — a leave block keeps one slot letter, so the Sunday cell in that column belongs to whoever holds the days either side. `Romiah` is additionally pinned by `Frimpong . R` being tagged by surname. Also found: `Sumali . J` / `Sumaili . J` in one sheet, and `N/A L Springer NA`. | Same |
+| 14 Sep 2026 | **§5's mechanism is now FOUR for four.** `F-Blackstock . R`'s `29/12` lands on a Tue 29 Dec whose four CEA slots are full (Davies, Reen, Mylla, Silva) — the Davies / Cooper / F-Charles shape again. Her own figures reconcile exactly: one totals row, 25 grid days on 25 distinct dates, +1 over quota, 26 of 32 used, 6 remaining, and all 26 on contracted days so the app agrees day for day. | Same |
