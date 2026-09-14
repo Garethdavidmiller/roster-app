@@ -142,6 +142,23 @@ in `override-utils.js`).
 gap that does not exist in their life. This was got wrong once (8 Sep 2026) and is worth not
 repeating.
 
+> ## ⚠️ ADD THE TABLE UP BEFORE YOU SEND IT — blocks LOSE the isolated day
+>
+> [14 Sep 2026] Grouping the days into blocks of absence is right, and it has its own failure mode:
+> **a single day with nothing either side of it has no block to join, and drops out.**
+> `F-Blackstock . R`'s **Sat 31 Jan** did exactly that — she worked the Friday, the Sunday after is
+> a rostered shift with no tag, so the day stands alone, and it vanished between the extraction
+> (which had all 25) and the table (which showed 24 + the over-quota day).
+>
+> **The total was stated correctly beside the table that contradicted it**, which is what makes
+> this cheap to catch and embarrassing to miss. The check is one line:
+>
+> **Sum the deducted column. It must equal grid days + column E. If it does not, a row is missing.**
+>
+> Do it before sending, every time — the reader cannot perform it, because the grid total is not in
+> front of them. Note the asymmetry too: a lost day makes the answer look TIDIER, since an isolated
+> single day is the untidy row a summary wants to drop.
+
 > **A Sunday tag does not always sit INSIDE a block, and the day is not always a rest day.**
 > [measured, 14 Sep 2026] Both halves of the sentence above can fail at once. `Panchal . A` is
 > tagged `N/A A Panchal` on **Sun 15 Feb 2026**, which **opens** his absence — the next grid day is
@@ -620,5 +637,6 @@ This is the record of the file getting better; an upload that taught nothing is 
 | 14 Sep 2026 | **THE SUNDAY-TAG RATIO, COUNTED IN FULL — and every earlier figure in this file was wrong.** All 75 CEA-block tags classified against each member's own base roster: **31 named shift (41%), 21 spare (28%), 23 rest day (31%)**; contracted = **52 of 75, 69%**. The named-shift case is a MINORITY. Four successive statements here ("the ordinary case", "a majority", "eight of fourteen", "twelve of twenty-three") were all artefacts of asking about whoever the owner happened to raise that day. **A population question is not answerable from a running tally of answered questions**, and the lesson is worth more than the ratio. | Owner asked for R. Forester-Blackstock's 2026 leave |
 | 14 Sep 2026 | **OWNER CORRECTION: the census measures the PATTERN, not the published roster.** Told that F-Charles's 3/10 May and Atrakimaviciene's 5 Jul were missing from their answers, the owner replied they are *"already on the roster"* — `getBaseShift` returns the rotating pattern, and the week the depot publishes can change any day of it, with the roster import writing that into the app. So a tag on a pattern shift may be a day the app already shows as off, and **31 named-shift tags is an upper bound rather than a count**. Recorded against §4 with the exact check that would settle it (resolve each tag date through `resolveEffectiveShift` with the overrides loaded). It moves the conclusion further in the direction it already went. | Owner: "The last two away things are already on the roster" |
 | 14 Sep 2026 | **§0 CONFIRMED AGAINST THE APP, and it is worse than a short answer.** Owner read `F-Blackstock . R` off the app as **7 remaining** against the workbook's 6. The gap is exactly one day and it is her over-quota `29/12` — all 25 grid days consume, so nothing else can explain it. The consequence now recorded in §5: an over-quota day should be **RECORDED in the app**, or that member's balance stays a day generous for the rest of the year and the discrepancy returns every time anybody looks. **A one-day app-vs-sheet gap is column E until proved otherwise.** | Owner: "I have 7 remaining for Romiah, where is the other booked day" |
+| 14 Sep 2026 | **A DAY WAS LOST BETWEEN THE EXTRACTION AND THE TABLE — owner caught it.** `F-Blackstock . R`'s **Sat 31 Jan** stands alone (Friday worked, Sunday rostered and untagged), so it had no block to join and fell out of the grouped answer while the stated total, 26, stayed right. §4 now carries the check: **sum the deducted column and it must equal grid days + column E**. The reader cannot perform it, and the asymmetry is that losing a day makes the answer look TIDIER — an isolated single day is exactly the row a summary wants to drop. | Owner: "Where is the 31st of Jan is your original list you gave to me?" |
 | 14 Sep 2026 | **THREE TAGS CARRY A BARE FIRST NAME, and two answers given today were SHORT because of it.** `Romiah` (= `F-Blackstock . R`), `Csherrice` (= `F-Charles . C`) and `Loreta` (= `Atrakimaviciene . L`) appear with no surname and no initial, so every surname scan this file recommends missed them: **C. Francisco-Charles was away 3 and 10 May and L. Atrakimaviciene on 5 Jul**, and neither was listed. Resolved by SLOT COLUMN — a leave block keeps one slot letter, so the Sunday cell in that column belongs to whoever holds the days either side. `Romiah` is additionally pinned by `Frimpong . R` being tagged by surname. Also found: `Sumali . J` / `Sumaili . J` in one sheet, and `N/A L Springer NA`. | Same |
 | 14 Sep 2026 | **§5's mechanism is now FOUR for four.** `F-Blackstock . R`'s `29/12` lands on a Tue 29 Dec whose four CEA slots are full (Davies, Reen, Mylla, Silva) — the Davies / Cooper / F-Charles shape again. Her own figures reconcile exactly: one totals row, 25 grid days on 25 distinct dates, +1 over quota, 26 of 32 used, 6 remaining, and all 26 on contracted days so the app agrees day for day. | Same |
