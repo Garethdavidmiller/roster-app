@@ -463,8 +463,12 @@ Every one of these is silent, and every one has been seen. [measured]
    of thing that becomes wrong when the sheet is extended.
 4. **The over-quota column is hand-typed.** It cannot be derived, checked or recomputed from
    anything else in the file. If the comment is missing, the date is gone.
-5. **Carry-forward is barely used.** Only one row carries a c/f value, and it is on a row that looks
-   stale. **The app has no concept of carry-forward at all** — see §9.
+5. **Carry-forward is not used AT ALL on the live sheet.** [corrected, 14 Sep 2026 — this said
+   "barely used … only one row"] Column C of `New Marylebone Totals` is empty for **every one of
+   its 47 rows**. The c/f values that do exist — twelve of them, up to 13 days — are all on the
+   **2021** sheet (defect 7), which is what the earlier reading had half-seen. So the question §9
+   raises is sharper than it looked: the depot HAS tracked carry-forward historically and the
+   current register does not, and **the app has no concept of it either**.
 6. **An over-quota comment with no value beside it.** [measured, 14 Sep 2026] `Sumali . J` (row 17)
    carries the comment `10/04` on E17, but **E17 itself is empty**. Excel reads the blank as zero, so
    `=F17-(G17+E17)` computes 32 − (32 + 0) = **0 remaining** and nothing errors — where the comment
@@ -472,6 +476,29 @@ Every one of these is silent, and every one has been seen. [measured]
    their entitlement. It is the mirror of defect 4: there the date is lost and the deduction stands;
    here the date survives and the deduction is missing. **Read the comment even when the cell is
    blank** — a blank E is not evidence of no over-quota day.
+7. **THERE ARE TWO MARYLEBONE REGISTERS IN THIS FILE, AND THE STALE ONE IS FROM 2021.**
+   [measured, 14 Sep 2026] `Marylebone Totals` / `Marylebone Calendar` / `Marylebone Block` are a
+   **2021** register — the calendar's dates run 1 Jan 2021 to 1 Jan 2022 — left in the workbook
+   beside the live `New Marylebone *` sheets. A name search therefore returns **two totals rows for
+   one person**, and nothing on the row says which year it is:
+
+   | `Langley . S` | Used | Remaining |
+   |---|---|---|
+   | `New Marylebone Totals` (2026) | 23 | 9 |
+   | `Marylebone Totals` (2021) | **0** | **32** |
+
+   **The stale row is entirely plausible** — same `Surname . I` format, same 32 allowance, `MYB CSA`
+   beside it — so there is no tell except the sheet name. Its header differs slightly
+   (`AL over allocation`, not `AL over depot quota`; it also has `Location` and `Role` columns), and
+   it carries ten `Unused . 1`…`Unused . 10` placeholder rows. Only **20 of 51 names** appear on
+   both sheets, which is why this stayed hidden: most people asked about in Sep 2026 had not joined
+   in 2021.
+
+   **Always name the sheet.** Every figure in this document is from `New Marylebone Totals` and
+   `New Marylebone Calendar`; a script that iterates `wb.worksheets` looking for a surname will find
+   the 2021 one too, and §6 already warns about exactly this class of error for the threaded
+   comments.
+
 
 ---
 
@@ -638,5 +665,7 @@ This is the record of the file getting better; an upload that taught nothing is 
 | 14 Sep 2026 | **OWNER CORRECTION: the census measures the PATTERN, not the published roster.** Told that F-Charles's 3/10 May and Atrakimaviciene's 5 Jul were missing from their answers, the owner replied they are *"already on the roster"* — `getBaseShift` returns the rotating pattern, and the week the depot publishes can change any day of it, with the roster import writing that into the app. So a tag on a pattern shift may be a day the app already shows as off, and **31 named-shift tags is an upper bound rather than a count**. Recorded against §4 with the exact check that would settle it (resolve each tag date through `resolveEffectiveShift` with the overrides loaded). It moves the conclusion further in the direction it already went. | Owner: "The last two away things are already on the roster" |
 | 14 Sep 2026 | **§0 CONFIRMED AGAINST THE APP, and it is worse than a short answer.** Owner read `F-Blackstock . R` off the app as **7 remaining** against the workbook's 6. The gap is exactly one day and it is her over-quota `29/12` — all 25 grid days consume, so nothing else can explain it. The consequence now recorded in §5: an over-quota day should be **RECORDED in the app**, or that member's balance stays a day generous for the rest of the year and the discrepancy returns every time anybody looks. **A one-day app-vs-sheet gap is column E until proved otherwise.** | Owner: "I have 7 remaining for Romiah, where is the other booked day" |
 | 14 Sep 2026 | **A DAY WAS LOST BETWEEN THE EXTRACTION AND THE TABLE — owner caught it.** `F-Blackstock . R`'s **Sat 31 Jan** stands alone (Friday worked, Sunday rostered and untagged), so it had no block to join and fell out of the grouped answer while the stated total, 26, stayed right. §4 now carries the check: **sum the deducted column and it must equal grid days + column E**. The reader cannot perform it, and the asymmetry is that losing a day makes the answer look TIDIER — an isolated single day is exactly the row a summary wants to drop. | Owner: "Where is the 31st of Jan is your original list you gave to me?" |
+| 14 Sep 2026 | **TWO MARYLEBONE REGISTERS IN ONE FILE — the stale one is 2021.** `S. Langley` has a totals row on each, reading 23 used / 9 remaining on the live sheet and **0 used / 32 remaining** on `Marylebone Totals`, whose calendar runs 1 Jan 2021 – 1 Jan 2022. The stale row is indistinguishable from a live one without looking at the sheet name. Recorded as §8 defect 7. It also **corrects defect 5**: c/f is not "barely used", it is used on **none** of the live sheet's 47 rows, while twelve 2021 rows carry one — so §9's carry-forward question is sharper than it read (the depot has tracked it, the current register does not, and neither does the app). | Owner asked for S. Langley's 2026 leave |
+| 14 Sep 2026 | **S. Langley reconciles exactly.** 23 grid days on 23 distinct dates, column E empty AND uncommented, 9 of 32 remaining, all 23 on contracted days so the app agrees with no swap data. Four tags, three on a named shift and one on a spare. Her 24 Jul – 2 Aug absence is **ten continuous days** carrying only six deductions — the longest run yet seen, and a good illustration of why the answer gives days AWAY and marks which cost entitlement. | Same |
 | 14 Sep 2026 | **THREE TAGS CARRY A BARE FIRST NAME, and two answers given today were SHORT because of it.** `Romiah` (= `F-Blackstock . R`), `Csherrice` (= `F-Charles . C`) and `Loreta` (= `Atrakimaviciene . L`) appear with no surname and no initial, so every surname scan this file recommends missed them: **C. Francisco-Charles was away 3 and 10 May and L. Atrakimaviciene on 5 Jul**, and neither was listed. Resolved by SLOT COLUMN — a leave block keeps one slot letter, so the Sunday cell in that column belongs to whoever holds the days either side. `Romiah` is additionally pinned by `Frimpong . R` being tagged by surname. Also found: `Sumali . J` / `Sumaili . J` in one sheet, and `N/A L Springer NA`. | Same |
 | 14 Sep 2026 | **§5's mechanism is now FOUR for four.** `F-Blackstock . R`'s `29/12` lands on a Tue 29 Dec whose four CEA slots are full (Davies, Reen, Mylla, Silva) — the Davies / Cooper / F-Charles shape again. Her own figures reconcile exactly: one totals row, 25 grid days on 25 distinct dates, +1 over quota, 26 of 32 used, 6 remaining, and all 26 on contracted days so the app agrees day for day. | Same |
