@@ -240,6 +240,14 @@
         .al-banner {
             display: flex;
             align-items: center;
+            /* THE OVER-LIMIT MESSAGE NEEDS A LINE, NOT A GAP (v23.78). It is a third flex item on a
+               row whose four stats already refuse to shrink below their content (see the v23.45 note
+               below), so on a phone there was nothing left to give it: at 390px it collapsed to a
+               ~10px sliver and `#book-annual-leave`'s `overflow-x: hidden` cut it, rendering
+               "1 over limit" as one character per line, clipped. Wrapping lets it take its own line
+               under the figures — which is where it belongs anyway, since it qualifies REMAINING
+               rather than sitting beside it. Owner-reported on J. Haque's −1, 14 Sep 2026. */
+            flex-wrap: wrap;
             gap: 10px;
             background: var(--al-light);
             border: 1.5px solid var(--al);
@@ -301,7 +309,10 @@
             background: var(--al-warning-bg);
             border-radius: 4px;
             padding: 2px 7px;
-            margin-left: auto;
+            /* Its own full-width line beneath the figures. `margin-left: auto` pushed it to the right
+               of a row that had no room to give — the mechanism of the defect above. */
+            flex-basis: 100%;
+            text-align: center;
         }
 
         .field-group label {
