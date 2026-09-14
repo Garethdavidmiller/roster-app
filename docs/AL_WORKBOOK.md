@@ -77,7 +77,7 @@ account; Smith is not on it at all.
 | **`New Marylebone Totals`** | ✅ **yes** | One row per person: allowance, used, remaining. [measured] |
 | `Marylebone Calendar` | ❌ **no** | **A 2021 sheet.** Its dates begin 1 Jan 2021 and it holds people who have long left. It is the single easiest mistake to make in this workbook, because the name looks more canonical than the one you want. [measured] |
 | `Marylebone Totals` | ❌ no | The 2021 counterpart. Its over-quota column is headed **"AL over allocation"** — the older wording, and useful corroboration of what the column means. [measured] |
-| `Marylebone Block` | ⚠️ unexamined | A per-person Week 1–4 grid, same four-state legend. Purpose not established. [unknown] |
+| `Marylebone Block` | ⚠️ barely examined | A per-person Week 1–4 grid, same four-state legend. Purpose still not established [unknown] — but it names each person's LINE in the column beside them (`Boyle . A` → `MYB CSA`) [measured, 14 Sep 2026], and it carries the same duplicate rows the totals sheet does. |
 | Every other location's sheets | ❌ no | Other depots. |
 
 ---
@@ -303,6 +303,12 @@ Every one of these is silent, and every one has been seen. [measured]
    duplicate as a sign that a BLOCK was copied, and check the rows either side of it rather than the
    one name you were asked about.
 
+   **AND IT SPANS SHEETS** [measured, 14 Sep 2026]. `Boyle . A` is duplicated on `Marylebone Block`
+   too, at rows 10 and 19 — the same relative positions as her totals rows 9 and 18, offset by that
+   sheet's extra header. So the duplication is structural to the workbook rather than a slip on one
+   tab, which is the strongest reason yet to check neighbours rather than the single name asked
+   about.
+
    **The over-quota pair, named** [measured, 14 Sep 2026]: `F-Charles . C` is at **row 10 and row
    19**. Both are CEA, both allowance 32, and both count the same 28 grid days through an identical
    `COUNTIF`. Row 10 carries column E = 1 with the comment `24/02` and reports **3 remaining**; row
@@ -482,5 +488,7 @@ This is the record of the file getting better; an upload that taught nothing is 
 | 14 Sep 2026 | **The rest-day mismatch has a second, bigger instance.** Three of F-Charles's 28 grid days (4 Apr, 27 Apr, 23 Jul) are rest days on her current base roster, so `consumesEntitlement` refuses them and the app will say 6 remaining where the workbook says 3. SPARE days are NOT affected — `isRestShift` is RD/OFF only, so all seven of her spare-day bookings count on both sides. **ANSWERED the same day** — she swapped her working days and booked the swapped-in days off, so the workbook is right and the app is missing the swap. See §9. | Same |
 | 14 Sep 2026 | **ANSWERED: a rest-day AL booking is usually a SWAP, and the app can hold it.** Owner: *"she moved her shift days around."* `override-utils.js` already carries this rule from 26 Aug (VAL-AL-001) — an AL doc's `replacedType` of `shift` makes the day count — so the 6-vs-3 gap is missing swap DATA, not a defect. The two-write fix and its order are now in §9, measured rather than assumed. | Owner, on C. Francisco-Charles's 3 remaining |
 | 14 Sep 2026 | **The Sunday-tag finding goes from ONE instance to FOUR, and changes status.** `Mylla . O`'s three tags (11 Jan, 9 Aug, 27 Dec) ALL fall on days she was rostered to work, and 11 Jan opens its block. §4 recorded this as an exception off a single Panchal case; on four instances it looks like the ordinary shape, with a tagged Sunday that is genuinely a rest day as the variant. Her figures are otherwise clean: one row, column E empty AND no comment (checked for the §8.6 shape), 32 of 32 used, 0 remaining, and all 32 consume in the app. | Owner asked for O. Mylla's 2026 leave |
+| 14 Sep 2026 | **`Boyle . A` has NO leave anywhere in the 2026 grid** — zero mentions in any grade block, in any spelling, with column E empty and uncommented on both her rows. 0 of 32 used in mid-September. Three readings, none settled: she has genuinely booked nothing; a fixed-line person's leave is not recorded here (she moved off the rotating link to the Mon–Fri 09:00–16:00 line on 28 Jun 2026); or **§7's open question bites and `Boyle . A` is not `S. Boyle` at all**, in which case the app's S. Boyle has no row and the zero means nothing. The never-used row makes the third reading likelier than it looked. **Unresolved — for the owner.** | Owner asked for S. Boyle's 2026 leave |
+| 14 Sep 2026 | **The duplicate-block theory confirmed across SHEETS.** `Boyle . A` is doubled on `Marylebone Block` at rows 10 and 19, the same relative positions as her totals rows 9 and 18. Structural, not a slip on one tab. Also the first fact about that sheet: it names each person's line (`MYB CSA`). | Same |
 | 14 Sep 2026 | **CORRECTION, and a trap worth more than the case.** This file briefly said the app would read 6 remaining for F-Charles against the workbook's 3. It reads **4**: her three rest-day bookings already carry the swap and already count. The wrong figure came from calling `consumesEntitlement` with `ovByDate = null`, which the function's own docstring warns against — passing null MANUFACTURES a rest-day discrepancy. Never diagnose one without the override map. | Owner: "Still saying 4 remaining" |
 | 14 Sep 2026 | **The real one-day gap is `24/02`, and a second difference that cancels out.** App 28 days / 4 remaining vs workbook 29 / 3 — the whole gap is the over-quota day, exactly as §0 predicts. Separately, rendering the workbook's dates through the card's own merger proves the app holds **Sat 2 May** and the workbook holds **Thu 14 May**: nine days each, every total agreeing, two dates wrong somewhere. The argument for reporting DATES rather than counts, made by a live example. | Same |
