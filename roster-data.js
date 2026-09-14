@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '23.76';
+export const APP_VERSION = '23.77';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -689,8 +689,13 @@ export function isCutoffDate(date) {
 /** @param {any} date @param {any} _dateStr */
 export function getSpecialDayBadges(date, _dateStr) {
     const badges = [];
-    if (isBankHoliday(date))   badges.push({ icon: '⭐', title: 'Bank Holiday' });
-    if (isCutoffDate(date))    badges.push({ icon: '✂️', title: 'Cut-off date' });   // sentence case, matching calendar-renderer.js
+    // WORDED EXACTLY AS `dayMarkers` WORDS THEM (calendar-renderer.js). These are the same five
+    // markers on two surfaces, and both pairs had drifted: the Calendar said "Bank holiday" and
+    // "Cut-off date" while this said "Bank Holiday" and "Cut-off Date". Sentence case is right for
+    // a common noun and is what the member-facing surface already used. NOT the payslip's
+    // "Bank Holiday Rostered" — that is a line name and is exact.
+    if (isBankHoliday(date))   badges.push({ icon: '⭐', title: 'Bank holiday' });
+    if (isCutoffDate(date))    badges.push({ icon: '✂️', title: 'Cut-off date' });
     if (isPayday(date))        badges.push({ icon: '💷', title: 'Payday' });
     if (isChristmasDay(date))  badges.push({ icon: '🎄', title: 'Christmas Day' });
     if (isEasterSunday(date))  badges.push({ icon: '🐣', title: 'Easter Sunday' });
