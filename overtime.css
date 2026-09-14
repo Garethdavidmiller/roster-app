@@ -507,6 +507,50 @@ body {
     .ot-tabs { max-width: 420px; }
     .ot-week-row { padding: var(--space-4); }
     .ot-week-actions { flex-direction: row; align-items: center; }
+
+    /* THE ROW STOPS BEING A COLUMN (v23.82). A week row is a title, two deadlines, a count and a
+       state — five short facts written to stack under one another on a 390px phone, which is right
+       there. At 1280 the same stack sat in a 304px ribbon inside a 1068px row with the action
+       pinned at x=996: 692px of nothing, on every row, and a row 122px tall to hold four lines of
+       small text. Measured, not estimated.
+
+       The facts run across instead. Nothing is reworded and no separator is invented — which
+       matters, because both the deadlines ("Tue 14 Jul · 12:00") and the counts ("2 of 3 forms
+       received · 1 no response") already spend the middot, so a middot between the facts would
+       have read as part of them. The layout does the separating.
+
+       A GRID, NOT A FLEX ROW, and that distinction is the whole quality of it. Laid out with `gap`
+       alone each row sizes to its own content, so the state — the thing a reviewer scans DOWN the
+       list for — began at five different x positions in five rows: ragged in exactly the way
+       css-tokens.md describes for a value column. Every `.ot-week-main` is a separate grid, so only
+       DECLARED tracks can line them up; the same reasoning, and the same shape, as admin's
+       `--wg-base-col` / `--wg-time-col`, where two grids both saying `auto` meant two widths.
+
+       Both figures are measured against the worst case the data can produce rather than guessed:
+       272px for "Week ending Saturday 19 September 2026" (the longest month name on a two-digit
+       day) and 227px for "44 of 44 forms received · 0 no response" at full depot size. The tokens
+       carry a little over each.
+
+       `minmax(0, …)` on all three, so the tracks give way under a narrow container instead of
+       pushing the row wider than the card — the rule a whole admin page was once shaved by
+       ignoring. And `baseline`, not `center`: the meta runs to two or three lines against a
+       one-line title, and centring would set the title against the middle of a block it
+       introduces. */
+    .ot-week-list {
+        --ot-week-title-col: 276px;
+        --ot-week-meta-col: 240px;
+    }
+    .ot-week-main {
+        display: grid;
+        grid-template-columns:
+            minmax(0, var(--ot-week-title-col))
+            minmax(0, var(--ot-week-meta-col))
+            minmax(0, 1fr);
+        align-items: baseline;
+        column-gap: var(--space-5);
+    }
+    .ot-week-meta  { margin-top: 0; }
+    .ot-week-state { margin-top: 0; }
 }
 
 /* ── The day row goes horizontal, the way admin's does ───────────────────────
@@ -552,17 +596,31 @@ body {
         column-gap: var(--space-4);
         align-items: center;
     }
+    /* COLUMN 2 IS THE DEFAULT, AND THE HEAD IS THE ONE EXCEPTION (v23.82). This was a LIST of
+       every child that belongs beside the day label, with a comment asking the next person to
+       add to it. That list went stale twice.
+
+       `.ot-custom` was missed at v20.74 and pressing "Custom times" put the From/To inputs
+       bottom-left under the day label, in a column built to be 190px wide; v20.75 added the line
+       and wrote the instruction. Then `.ot-longday` (v21.24) and `.ot-release` (v23.81) were each
+       added to the day row without one, and auto-placement took them — which does not even put
+       them in the same place twice. It fills the implicit row left to right, so with the
+       willingness tick present it took column 1 and the Sunday request followed it into column 2;
+       on an unanswered day there is no tick, so the Sunday request took column 1 on its own.
+       Measured at 1280: the tick at x=122 inside a 224px label track, and the request moving
+       240px between two states of the same row. Nothing errors and nothing clips.
+
+       A list that must be edited in a second file every time the first one gains an element is
+       the hand-maintained-list failure CLAUDE.md names as a reason to distrust the arrangement,
+       not a reason to write the instruction more firmly. So the rule is inverted: everything in
+       the row goes to column 2, and the head — the only child that is genuinely the label —
+       claims column 1. A new element is then correct by default, and the two margin resets stay
+       per-class because they are about spacing, not placement. */
+    .ot-day > *    { grid-column: 2; }
     .ot-day-head   { grid-column: 1; grid-row: 1; margin-bottom: 0; }
-    .ot-modes      { grid-column: 2; grid-row: 1; }
-    /* Explicit, because auto-placement would drop these into column 1 under the
-       day name — beneath the label rather than beneath the answer they concern.
-       `.ot-custom` PROVED it (v20.75): it was missed from this list at v20.74, so
-       pressing "Custom times" at desktop put the From/To inputs bottom-left under
-       the day label, in a column built to be 190px wide. Every child of `.ot-day`
-       that is not the head belongs in column 2 — add new ones HERE. */
-    .ot-day-answer { grid-column: 2; }
-    .ot-day-stale  { grid-column: 2; margin-top: 0; }
-    .ot-custom     { grid-column: 2; margin-top: 0; }
+    .ot-modes      { grid-row: 1; }
+    .ot-day-stale  { margin-top: 0; }
+    .ot-custom     { margin-top: 0; }
 }
 
 /* ── Print ──────────────────────────────────────────────────────────────────
@@ -836,11 +894,24 @@ body {
    The nowrap was inherited from the short status badges it sits beside (EARLY, REST, RDW), which
    genuinely must not break mid-label. Those are a different thing: a fixed vocabulary of one or two
    words. This one is prose about a person's availability, and losing its tail loses the answer. */
+/* A CAPSULE WHEN IT IS A TOKEN, A ROUNDED BLOCK WHEN IT IS A SENTENCE (v23.82).
+   `--radius-pill` is 999px, which a browser resolves to half the box's height — so the shape is
+   whatever the content makes it. "Not available" is 20px tall and comes out a capsule, correctly.
+   "Available before 09:00 and after 17:00 · would work up to 12 hours" wraps on a phone, and at
+   34px the same rule returned a 17px radius: a fat green lozenge whose round ends bite into the
+   9px side padding and leave the first and last characters sitting in the curve. Measured at 390.
+
+   10px is that same capsule frozen at the ONE-LINE height, so a short chip is unchanged to the
+   pixel and a wrapped one becomes a rounded rectangle — which is what a two-line block of text
+   should have been. No JavaScript, no wrap detection, no second class: CSS cannot ask whether a
+   line broke, but it does not need to, because the only thing that changes is the height.
+   `overtime-answer-chip.test.mjs` holds both halves — still a capsule at one line, no longer one
+   at two — since a value like this is exactly what a later tidy-up rewrites back to the token. */
 .ot-answer {
     display: inline-flex;
     align-items: center;
     padding: 3px 9px;
-    border-radius: var(--radius-pill);
+    border-radius: 10px;
     font-size: var(--type-badge);
     font-weight: 700;
     max-width: 100%;
