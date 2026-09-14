@@ -60,3 +60,35 @@ export const PILL_TYPES = ['annual_leave', 'shift', 'rdw', 'sick', 'correction',
 // types plus the legacy-but-still-in-data ones (see CLAUDE.md → overrides `type`). (v16.19)
 export const WORKED_OVERRIDE_TYPES = new Set(['rdw', 'shift', 'spare_shift', 'allocated', 'overtime', 'swap']);
 
+
+/**
+ * What a Saved Changes row should PRINT for an override's raw value — or `''` when printing it would
+ * only repeat the badge beside it.
+ *
+ * ── WHY THIS EXISTS ────────────────────────────────────────────────────────────────────────────
+ *
+ * A row renders a type badge and then the stored value, which for a `fixed` type is DERIVED from
+ * that type and so says nothing new: the absence row read **“Absent  SICK”** and the leave row
+ * **“Annual Leave  AL”**. The first of those is worse than clutter — `SICK` is a word this app does
+ * not put in front of staff (CLAUDE.md's wording conventions: the reason for an absence is never
+ * stored, and "Absent" is the term), and it had been sitting on the Admin page's own list of
+ * everything ever recorded.
+ *
+ * The value is kept wherever it CARRIES something the badge cannot: a shift's times, an RDW's times,
+ * an Other day's flavour. So the test is not a list of types to hide but the same `fixed` flag that
+ * makes the value derivable in the first place — a type added later is handled by whichever answer
+ * its own declaration gives, rather than by somebody remembering this function exists.
+ *
+ * It fails toward SHOWING: an unknown type, or a value that does not match the fixed one it should
+ * have, is printed. A row whose data disagrees with its own type is exactly the row an admin needs
+ * to see, and hiding it would make a real inconsistency invisible.
+ *
+ * @param {string} type  the override's type
+ * @param {string} value the stored value
+ * @returns {string} the text to print, or `''` to print nothing
+ */
+export function rowValueText(type, value) {
+    const meta = TYPES[type];
+    if (meta && meta.fixed && meta.fixedValue === value) return '';
+    return value ?? '';
+}

@@ -10,6 +10,7 @@ import { getALEntitlement, getBaseShift, escapeHtml, projectAnnualLeaveOverage, 
 import { getAllOverrides, isWorkingDate, buildMemberDateMap } from './admin-overrides.js';
 import { countedAlDates, consumesEntitlement } from './al-entitlement.js';
 import { createRangeBookingSection } from './admin-range-booking.js';
+import { swapDecisionDates } from './al-swapped-days.js';
 import { spareShiftNote } from './admin-al-spare-note.js';
 
 const esc = escapeHtml;
@@ -142,6 +143,12 @@ export function initALSection({
         successToast:    (n, m) => `Recorded ${n} day${n > 1 ? 's' : ''} of Annual Leave for ${m}`,
         getCurrentUser, showInChangeAShift, showSuccess,
         beforePreview: () => hideALConfirm?.(),
+        // ASK ABOUT REST DAYS IN THE RANGE, AND REFUSE TO SAVE UNTIL EACH IS ANSWERED (v23.75).
+        // Leave on a rest day costs nothing unless the member was SWAPPED onto it, and only the
+        // person booking knows which. Deliberately AL-ONLY — `admin-sick.js` passes no
+        // `swapQuestion`, so an absence keeps skipping rest days silently: being off sick on a day
+        // you were not due to work is a different question, and not one this answers.
+        swapQuestion: ({ dates, memberObj, ovByDate }) => swapDecisionDates({ dates, memberObj, ovByDate }),
         afterDateChange: () => { updateALBanner(); updateALBookedBox(); },
         // The picker crossing into another year is a change of SUBJECT, not of selection: the
         // figures above it describe a year, and the reader is now looking at a different one.

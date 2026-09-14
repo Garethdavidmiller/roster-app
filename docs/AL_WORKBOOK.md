@@ -88,7 +88,7 @@ Each row of `New Marylebone Totals` is:
 
 | Col | Header | Source |
 |---|---|---|
-| A | Role | typed — `CEA` · `BLCEA` · `CES` · `DISP`. **`BLCEA` is the LINE, not the CONTRACT** [measured, 14 Sep 2026]: `Cooper . I` is `BLCEA` here with an allowance of **32**, and the app has them as a plain CEA with `bilingualContract: false` — which agrees. Read as a contract it predicts 34 (CLAUDE.md's bilingual entitlement) and reports a false disagreement against a workbook that is right. A plain CEA is routinely placed on a bilingual line until a CEA one frees up, so this column cannot answer the entitlement question; `bilingualContract` in the app can. |
+| A | Role | typed — `CEA` · `BLCEA` · `CES` · `DISP`. **`BLCEA` is the LINE, not the CONTRACT** [measured, 14 Sep 2026]: `Cooper . I` is `BLCEA` here with an allowance of **32**, and the app has them as a plain CEA with `bilingualContract: false` — which agrees. Read as a contract it predicts 34 (CLAUDE.md's bilingual entitlement) and reports a false disagreement against a workbook that is right. A plain CEA is routinely placed on a bilingual line until a CEA one frees up, so this column cannot answer the entitlement question; `bilingualContract` in the app can. **Corroborated across ALL SEVEN `BLCEA` rows, 14 Sep 2026** — five carry an allowance of 32 (Springer, Cooper, Panchal, Miller, Mylla) and two carry 34 (Gherbi, Irvine), and that split matches `bilingualContract` in the app exactly, 7/7. So the workbook and the app agree on who holds the contract; it is the ROLE COLUMN that does not answer the question. |
 | B | Name | typed — `Surname . I` (see §7) |
 | C | c/f previous year | typed |
 | D | AL allowance | typed |
@@ -288,6 +288,14 @@ Every one of these is silent, and every one has been seen. [measured]
    days, evidently stale). **Always check whether a name appears more than once before quoting a
    figure.**
 
+   **TWO pairs, and they look pasted rather than mistyped** [measured, 14 Sep 2026]. `Boyle . A` is
+   also duplicated, at **rows 9 and 18** — both 32/0/32, so harmless today and easy to miss. What
+   makes the shape worth recording is that **both pairs are the same two names, consecutive, in both
+   places**: rows 9–10 are `Boyle . A` then `F-Charles . C`, and rows 18–19 are `Boyle . A` then
+   `F-Charles . C` again. Two independent typos would not land in the same order twice. Treat a
+   duplicate as a sign that a BLOCK was copied, and check the rows either side of it rather than the
+   one name you were asked about.
+
    **The over-quota pair, named** [measured, 14 Sep 2026]: `F-Charles . C` is at **row 10 and row
    19**. Both are CEA, both allowance 32, and both count the same 28 grid days through an identical
    `COUNTIF`. Row 10 carries column E = 1 with the comment `24/02` and reports **3 remaining**; row
@@ -295,6 +303,12 @@ Every one of these is silent, and every one has been seen. [measured]
    person missing their over-quota day, so it overstates the balance by exactly one. Neither row is
    marked, and nothing in the sheet says which is live. A reader going top-down lands on the right
    one by luck; a search lands on whichever matches first.
+2. **Two people are at MINUS ONE.** [measured, 14 Sep 2026] `Haque . J` and `Reen . C` both show
+   33 days used against a 32 allowance, so Remaining reads `-1`. The formula is behaving — `F-(G+E)`
+   is not clamped, and the app's own `alPosition` deliberately reports a negative rather than
+   clamping too — but it means the grid holds a day neither of them had. Not investigated; it may be
+   a genuine over-booking the clerks allowed, or a name in one cell too many.
+
 2. **A person in the workbook who is not on the app roster** — `Barnard . M`, with real 2026
    bookings (1–5 Jun) and a matching name on the 2021 sheet. See §10.
 3. **An off-by-one COUNTIF range.** Two rows count `G2:H367` where their neighbours count
@@ -327,7 +341,62 @@ difference is.
 | **Carry-forward** | app shows **less** entitlement | `getALEntitlement` has no c/f input. Currently near-theoretical; it stops being so the moment a c/f value appears on a live row. |
 | **Pro-rated joining year** | should agree | The workbook's allowance for a joiner should equal the app's `proRatedAL[2026]`. Check it — this is the cheapest real check in the whole reconciliation. |
 | **Dispatcher lieu days** | check | The app adds one lieu day per bank holiday worked. Whether the workbook's allowance for a Dispatcher already includes them is **[unknown]**. |
+| **A SWAPPED working day booked off** | app shows **more** remaining | **The commonest real cause, ANSWERED BY THE OWNER 14 Sep 2026** — see below. |
 | **Leavers** | app may show a stale row | A leaver is `hidden` in the app but keeps their workbook row and figures. |
+
+### A rest-day AL booking is usually a SWAP, and the app can hold it
+
+**The case.** `F-Charles . C` has three grid days — 4 Apr, 27 Apr, 23 Jul 2026 — that are REST DAYS
+on her base roster. **A CHECK RUN WITHOUT THE OVERRIDE MAP SAID THE APP WOULD READ 6 REMAINING
+AGAINST THE WORKBOOK'S 3. THAT WAS WRONG — the app reads 4**, because all three days already
+carry the swap underneath them and already count. `consumesEntitlement(member, date, ovByDate)`
+says so in its own signature: *"Omit [ovByDate] only where there genuinely are none to hand —
+without it a swapped-in day reads as a rest day."* Passing `null` manufactures the very
+discrepancy this section is about, so **never diagnose a rest-day difference without the map**. The owner's answer: *"she moved her shift days around, hence those 3 days as
+AL, which would otherwise be on rest days."* The workbook is right. She swapped her working days and
+then booked the swapped-in day off, which is real leave on a day her base roster calls rest.
+
+**The app already models this exactly** — `override-utils.js` carries the owner's own confirmation
+from 26 Aug 2026 (VAL-AL-001): *annual leave reaches a rest day ONLY where a member has swapped
+working days and then books the swapped-in day off, which is `shift`.* An `annual_leave` doc carries
+`replacedType`, the only surviving record of what it covered, and a `replacedType` of `shift` makes
+the day count. **So this is a DATA gap, not a defect**: the swap was never recorded in the app, so
+there is nothing under the AL to say the day was contracted.
+
+**Her three dates needed no fixing.** The two-write recipe below is for a swap that was never
+recorded at all; hers were. Keep it for the next case.
+
+**Fixing such a date takes two writes, and the ORDER is the whole thing** [measured through
+`nextReplacedType` + `consumesEntitlement`, 14 Sep 2026]:
+
+| State | `replacedType` | Counts? |
+|---|---|---|
+| AL alone, on a rest-day base (what is on record now) | `null` | **no** |
+| …then record her swapped-in SHIFT on that date | `'annual_leave'` | yes |
+| …then record the AL again, over that shift | `'shift'` | **yes** ✓ |
+
+Recording only the AL again changes nothing; recording only the shift leaves the day showing as
+worked. **Shift first, then AL.**
+
+**WHAT THE ONE-DAY GAP ACTUALLY WAS** [measured, 14 Sep 2026, from the app's own recorded-dates
+card]. The app holds **28** days for her and reads **4 remaining**; the workbook holds 28 grid days
+**plus the 24 Feb over-quota day** and reads **3**. The whole difference is `24/02` — §0's rule,
+landing exactly where §0 says it will: invisible in the grid, present only in column E, and absent
+from the app because nobody recorded it. Recording AL on 24 Feb (a working day for her, 15:15–23:55)
+takes the app to 29 used and 3 remaining, and the two systems agree.
+
+**AND A DIFFERENCE THAT CANCELS ITSELF OUT, WHICH IS WORSE.** Rendering the workbook's 28 dates
+through the card's own merger does NOT reproduce the app's May: the workbook gives `Fri 1 May` +
+`Mon 4 – Thu 14 May`, the app shows one `Fri 1 – Wed 13 May, 9 DAYS`. The only date set that
+reproduces the app's card exactly has **Sat 2 May and no Thu 14 May** — so the app holds 2 May, the
+workbook holds 14 May, both count 9 days in May, and **every total on both sides agrees while two
+dates disagree**. Nothing flags it, in either system. This is the case §9's own reconciliation pass
+was written for: **report the DATES, never a count** — a count cannot see this, and a count is what
+everybody compares.
+
+**And it generalises**: any member who swaps days and books the swapped-in day off is under-counted
+by the app until the swap is recorded. That is worth knowing before reading any app-vs-workbook
+difference as an error.
 
 ### The monthly reconciliation pass — suggested shape
 
@@ -401,4 +470,9 @@ This is the record of the file getting better; an upload that taught nothing is 
 | 14 Sep 2026 | **§4 extended: a Sunday tag can OPEN a block, and can fall on a day the person was ROSTERED TO WORK.** `Panchal . A` is tagged on Sun 15 Feb 2026, which starts his absence, and his base roster has him on 07:15–15:45 that day. Because the app refuses an AL override on any Sunday, this is a day the WORKBOOK can hold and the APP structurally cannot — the mirror of the over-quota trap, and a date-for-date comparison reports it as a discrepancy when it is not. | Owner asked for A. Panchal's 2026 leave |
 | 14 Sep 2026 | **Two members have nothing booked in the remainder of the year while the grid is busy.** I. Cooper's last day is 30 Sep with 11 remaining; A. Panchal's is 1 Aug with 9 remaining. The CEA block carries bookings on 68 dates from 1 Oct onward, so the clerks have not simply stopped filling it in. Put to the owner as a question (§0 step 3) rather than resolved — the app may hold bookings the workbook has not caught up with. **Unanswered.** | Owner: "Are his future booked days not on there?" |
 | 14 Sep 2026 | **§8.1's duplicate pair named: `F-Charles . C`, rows 10 and 19.** Row 10 carries the over-quota day and reports 3 remaining; row 19 omits it and reports 4. Row 10 is correct. Also **§5's mechanism now has three worked examples** — Davies 24/12, Cooper 19/08 and F-Charles 24/02 all land on a date whose four CEA slots are full. | Owner asked for C. Francisco-Charles's 2026 leave |
-| 14 Sep 2026 | **The rest-day mismatch has a second, bigger instance.** Three of F-Charles's 28 grid days (4 Apr, 27 Apr, 23 Jul) are rest days on her current base roster, so `consumesEntitlement` refuses them and the app will say 6 remaining where the workbook says 3. SPARE days are NOT affected — `isRestShift` is RD/OFF only, so all seven of her spare-day bookings count on both sides. **Unresolved:** whether the roster moved after booking or these are stray like M. Robson's 5 Dec. | Same |
+| 14 Sep 2026 | **§3's `BLCEA` rule corroborated 7/7, not 1/1.** Five BLCEA rows carry a 32 allowance and two carry 34, and the split matches `bilingualContract` in the app exactly. The workbook and the app AGREE on who holds a bilingual contract; it is the Role column that cannot answer it. | Owner: "The workbook says C. Francisco-Charles only has 3 AL days remaining?" |
+| 14 Sep 2026 | **A SECOND duplicate pair (`Boyle . A`, rows 9 and 18), and the shape of both.** The same two names appear consecutively in both places — `Boyle . A` then `F-Charles . C` at 9–10 and again at 18–19 — which reads as a copied block rather than two typos. Also recorded: `Haque . J` and `Reen . C` both sit at **−1**, 33 used against 32. | Same |
+| 14 Sep 2026 | **The rest-day mismatch has a second, bigger instance.** Three of F-Charles's 28 grid days (4 Apr, 27 Apr, 23 Jul) are rest days on her current base roster, so `consumesEntitlement` refuses them and the app will say 6 remaining where the workbook says 3. SPARE days are NOT affected — `isRestShift` is RD/OFF only, so all seven of her spare-day bookings count on both sides. **ANSWERED the same day** — she swapped her working days and booked the swapped-in days off, so the workbook is right and the app is missing the swap. See §9. | Same |
+| 14 Sep 2026 | **ANSWERED: a rest-day AL booking is usually a SWAP, and the app can hold it.** Owner: *"she moved her shift days around."* `override-utils.js` already carries this rule from 26 Aug (VAL-AL-001) — an AL doc's `replacedType` of `shift` makes the day count — so the 6-vs-3 gap is missing swap DATA, not a defect. The two-write fix and its order are now in §9, measured rather than assumed. | Owner, on C. Francisco-Charles's 3 remaining |
+| 14 Sep 2026 | **CORRECTION, and a trap worth more than the case.** This file briefly said the app would read 6 remaining for F-Charles against the workbook's 3. It reads **4**: her three rest-day bookings already carry the swap and already count. The wrong figure came from calling `consumesEntitlement` with `ovByDate = null`, which the function's own docstring warns against — passing null MANUFACTURES a rest-day discrepancy. Never diagnose one without the override map. | Owner: "Still saying 4 remaining" |
+| 14 Sep 2026 | **The real one-day gap is `24/02`, and a second difference that cancels out.** App 28 days / 4 remaining vs workbook 29 / 3 — the whole gap is the over-quota day, exactly as §0 predicts. Separately, rendering the workbook's dates through the card's own merger proves the app holds **Sat 2 May** and the workbook holds **Thu 14 May**: nine days each, every total agreeing, two dates wrong somewhere. The argument for reporting DATES rather than counts, made by a live example. | Same |

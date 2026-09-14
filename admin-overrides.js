@@ -30,6 +30,7 @@ export { initOverrideStore, getAllOverrides, setAllOverrides, removeFromCache,
          loadOverrides, ensureMemberLoaded };
 import { sessionReady } from './session.js';
 import { parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
+import { replacedTypeForSwap } from './al-swapped-days.js';
 import { checkShiftRules } from './admin-shift-rules.js';
 import { buildSaveReceipt } from './admin-save-receipt.js';
 
@@ -149,7 +150,9 @@ export function initOverrides({ currentUser, currentIsAdmin, currentIsManager = 
 /**
  * Writes a batch of override changes to Firestore and updates the in-memory cache.
  * Disables the Save button while running; re-enables in the finally block.
- * @param {Array<{memberName:string, date:string, type:string, value:string, note:string, existingId:string}>} toSave
+ * @param {Array<{memberName:string, date:string, type:string, value:string, note:string, existingId:string,
+ *                swapped?:boolean}>} toSave  `swapped` is an INSTRUCTION, not a field: it marks a rest day the
+ *        admin has declared a swapped-in working day, and is stripped before the Firestore write (v23.75).
  * @param {string[]} toDelete  Firestore document IDs to delete
  */
 export async function executeSave(toSave, toDelete = []) {
@@ -215,10 +218,18 @@ export async function executeSave(toSave, toDelete = []) {
             toSave.forEach(entry => {
                 // Read BEFORE the delete on the next line, which is what destroys it: on a swapped-in
                 // day this is the only record that the member was contracted to work it.
-                const replacedType = nextReplacedType(
-                    entry.existingId ? byId.get(entry.existingId) : null, entry.type);
+                const _under = entry.existingId ? byId.get(entry.existingId) : null;
+                // A row the admin answered "swapped" records `shift` — the type the swapped-in day
+                // would have carried had anybody entered the swap — so the entitlement check can see
+                // it was contracted work (v23.75).
+                const replacedType = entry.swapped
+                    ? replacedTypeForSwap(_under, entry.type)
+                    : nextReplacedType(_under, entry.type);
                 if (entry.existingId) batch.delete(doc(db, COLLECTIONS.overrides, entry.existingId));
-                const { existingId: _, ...data } = entry;
+                // `swapped` is stripped HERE, with `existingId`: both are instructions to this
+                // function, and the rest of `entry` is spread straight into the document. A stray
+                // key reaches `hasOnly()` in firestore.rules and permission-denies the whole save.
+                const { existingId: _, swapped: _swapped, ...data } = entry;
                 const newRef = doc(collection(db, COLLECTIONS.overrides));
                 const fields = { ...data, source: 'manual', changedBy: _currentUser, replacedType };
                 batch.set(newRef, buildOverrideWrite(fields, serverTimestamp()));
@@ -361,7 +372,8 @@ export function validateShiftRules(toSave, memberName, toDelete = []) {
 // ── RANGE ABSENCE SAVE ───────────────────────────────────────────────────────
 /**
  * Writes a batch of AL or absence overrides for a date range.
- * Filters out rest days and Sundays; writes RD corrections for Sundays that
+ * Filters out rest days and Sundays — EXCEPT rest days passed in `swappedDates`, which the admin
+ * has declared swapped-in working days; writes RD corrections for Sundays that
  * have a worked base shift. Updates the in-memory cache and re-renders the
  * table and week grid.
  *
@@ -374,10 +386,13 @@ export function validateShiftRules(toSave, memberName, toDelete = []) {
  * @param {string}   opts.memberName
  * @param {string[]} opts.dates       Full date range including rest days
  * @param {string}   opts.changedBy   Written to the Firestore changedBy field
+ * @param {string[]} [opts.swappedDates] Rest days the admin has DECLARED swapped-in working days
+ *        (v23.75). Written as leave that COSTS a day, carrying `replacedType: 'shift'`. Only the AL
+ *        card supplies these — absence keeps the old skip-every-rest-day behaviour.
  * @returns {Promise<{workingCount: number, sundayCount: number}>}
  * @throws {Error} 'auth/session-expired' if no Firebase Auth session, or Firestore error
  */
-export async function recordRangeOverrides({ type, value, memberName, dates, changedBy }) {
+export async function recordRangeOverrides({ type, value, memberName, dates, changedBy, swappedDates = [] }) {
     // Wait for the Firebase Auth session to be (re-)established before the currentUser check —
     // mirrors executeSave(). A returning user has a valid LOCAL session but auth.currentUser is null
     // for a moment while Firebase restores; without this await an AL/sick save fired in that window
@@ -400,8 +415,13 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     // shouldReplaceOverride() so manual overrides beat roster_import entries.
     const ovByDate = buildMemberDateMap(memberName);
 
+    // Rest days the admin has DECLARED swapped-in working days (v23.75). They fail `isWorkingDate` —
+    // that is why the question was asked — so they are unioned in here rather than filtered by it,
+    // and they carry a forced `replacedType` below so the entitlement check can see what they are.
+    // A Sunday can never be one: it holds no annual leave at all, for any grade.
+    const swapped = new Set((Array.isArray(swappedDates) ? swappedDates : []).filter(d => !isSunday(d)));
     const workingDates = memberObj
-        ? dates.filter(dateStr => isWorkingDate(memberObj, dateStr, ovByDate)) // single-source rule (Sundays non-contracted per CLAUDE.md)
+        ? dates.filter(dateStr => isWorkingDate(memberObj, dateStr, ovByDate) || swapped.has(dateStr)) // single-source rule (Sundays non-contracted per CLAUDE.md)
         : [];
 
     // Sundays within the range that have a worked base shift need an explicit RD correction
@@ -463,7 +483,13 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
                     const existing = ovByDate.get(op.date);
                     // Read BEFORE the delete: this is the only record that a swapped-in day was
                     // contracted work, and the delete below is what destroys it.
-                    const replacedType = nextReplacedType(existing, op.type);
+                    // A declared swap has nothing to carry forward — the day held no contracted
+                    // override, which is precisely why it needed asking about — so it records
+                    // `shift`, the type the swapped-in day would have had if the swap had been
+                    // entered. Everything else carries forward as it always did.
+                    const replacedType = swapped.has(op.date)
+                        ? replacedTypeForSwap(existing, op.type)
+                        : nextReplacedType(existing, op.type);
                     if (existing) { batch.delete(doc(db, COLLECTIONS.overrides, existing.id)); delIds.add(existing.id); }
                     const newRef = doc(collection(db, COLLECTIONS.overrides));
                     const fields = { memberName, date: op.date, type: op.type, value: op.value, note: '', source: 'manual', changedBy, replacedType };

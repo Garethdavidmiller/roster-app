@@ -702,6 +702,17 @@ export function init() {
             // misses). 'shift' and 'rdw' share the same timed value composition, so this flows cleanly.
             if (type === 'shift' && isSunday(date)) type = 'rdw';
 
+            // ── THE SWAPPED-DAY ANSWER IS REQUIRED (v23.75) ──────────────────────────────────
+            // AL on a base REST day costs nothing unless the member was SWAPPED onto it, and only
+            // the person recording it knows which. Until v23.75 this path wrote the leave and let it
+            // cost nothing, silently — three of one member's days went missing that way and were
+            // found only by comparing against the depot's workbook. The row asks; this refuses to
+            // save it unanswered, which is the owner's rule and the whole point (al-swapped-days.js).
+            if (type === 'annual_leave' && row.dataset.baseIsRd === '1' && !row.dataset.alSwap) {
+                row.classList.add('row-error');
+                errors.push(`${formatDisplay(date)}: say whether this rest day was a swapped working day`);
+                return;
+            }
             // Sundays are uncontracted — AL and sick cannot be saved on a Sunday regardless of how it was set
             if (type === 'annual_leave' && isSunday(date)) {
                 row.classList.add('row-error');
@@ -796,7 +807,10 @@ export function init() {
                 value = `${s}-${e}`;
             }
 
-            toSave.push({ memberName, date, type, value, note, existingId: row.dataset.existingId || null });
+            // `swapped` is a WRITE INSTRUCTION, not a field — admin-overrides.js strips it before the
+            // Firestore set, because `hasOnly()` in the rules would refuse a document carrying it.
+            toSave.push({ memberName, date, type, value, note, existingId: row.dataset.existingId || null,
+                          ...(type === 'annual_leave' && row.dataset.alSwap === 'yes' ? { swapped: true } : {}) });
         });
 
         if (errors.length)                    return showError("Can't save — " + errors.join(' · '));
