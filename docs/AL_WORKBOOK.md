@@ -161,15 +161,34 @@ repeating.
 > On those four this note said the rostered case was "the ordinary" one and a rest-day tag "the
 > variant". `Haque . J`'s four tags then split: **two rostered (11 Jan, 22 Mar), one on a SPARE
 > Sunday (15 Mar), one on a rest day (29 Mar)**, and `Okeke . M`'s six split **two rostered (20 Sep, 20 Dec), one spare (4 Oct), three rest
-> days**. **Eight of fourteen** measured tags sit on a rostered shift,
-> a bare majority that has FALLEN at every new person. Treat the two kinds as roughly equally
-> likely and do not guess. The claim has been revised twice in one day — "the ordinary case" (4
-> tags) → "a majority" (8) → this (14) — each time forced by the next person looked at. That is
-> what a generalisation drawn from one member is worth.
+> days**, and `Tuck . N`'s nine split **four rostered (8 Feb, 8 Mar, 22 Mar, 13 Sep), two spare
+> (10 May, 14 Jun), three rest days**. **Twelve of twenty-three** measured tags sit on a named
+> shift, a bare majority that has FALLEN at every new person. Treat the two kinds as roughly
+> equally likely and do not guess. The claim has been revised three times in one day — "the
+> ordinary case" (4 tags) → "a majority" (8) → "a bare majority" (14) → this (23) — each time
+> forced by the next person looked at. That is what a generalisation drawn from one member is
+> worth.
+>
+> **ASK "was the member DUE AT WORK", not "was a shift named"** [14 Sep 2026]. The split above
+> keeps SPARE as a third category, which is right for describing the sheet and wrong for answering
+> the member's question: a spare day is contracted, the person is expected at the station, and
+> being away from one is being away from work exactly as a named shift is. Under that reading the
+> figure is **sixteen of twenty-three on a contracted day** — and unlike the named-shift count it
+> has not fallen. Report the contracted reading; keep the three-way split for reconciling against
+> the grid.
 >
 > The instruction is unchanged and is the point: **check the base roster every time**, because the
-> tag itself tells you nothing about which kind it is — and only the rostered kind is a day the
-> member was away from actual work.
+> tag itself tells you nothing about which kind it is — and only the contracted kinds (a named
+> shift or a spare day) are days the member was away from actual work.
+>
+> **A tag can stand COMPLETELY ALONE, and a block can be missing one** [measured, 14 Sep 2026].
+> `Tuck . N`'s **Sun 22 Mar** is tagged with no grid day anywhere near it — her nearest bookings
+> are 9 Mar and 8 May — and every day from 18 to 23 Mar is a working shift, so the tag is a
+> one-day absence from a rostered Sunday and nothing else. The mirror appears on the same person:
+> **Sun 6 Sep** sits between a booked Sat 5 and a rest-day Mon 7, is rostered 07:15–15:45, and is
+> NOT tagged; nor is **Sun 15 Nov**, straight after 13–14 Nov. Either she worked those Sundays, or
+> the clerk tagged one block and not the others. **An absent tag is not evidence she worked** — it
+> is silence, and §0 step 3 applies: say so rather than pick.
 >
 > So: **do not assume a tagged Sunday is a rest day, and do not assume it is mid-block.** Check the
 > base roster. Where the person was rostered, say they were away from a shift and that it cost no
@@ -508,3 +527,6 @@ This is the record of the file getting better; an upload that taught nothing is 
 | 14 Sep 2026 | **A clean positive for §9's pro-rata check, and a new tag variant.** `Okeke . M` joined 20 Apr 2026 and the workbook's allowance of 24 matches the app's `proRatedAL[2026]` exactly — the check §9 calls the cheapest real one, passing on the first joiner it has been run against. Her 4 Oct tag reverses the usual `N/A <name>` order. | Same |
 | 14 Sep 2026 | **CORRECTION, and a trap worth more than the case.** This file briefly said the app would read 6 remaining for F-Charles against the workbook's 3. It reads **4**: her three rest-day bookings already carry the swap and already count. The wrong figure came from calling `consumesEntitlement` with `ovByDate = null`, which the function's own docstring warns against — passing null MANUFACTURES a rest-day discrepancy. Never diagnose one without the override map. | Owner: "Still saying 4 remaining" |
 | 14 Sep 2026 | **The real one-day gap is `24/02`, and a second difference that cancels out.** App 28 days / 4 remaining vs workbook 29 / 3 — the whole gap is the over-quota day, exactly as §0 predicts. Separately, rendering the workbook's dates through the card's own merger proves the app holds **Sat 2 May** and the workbook holds **Thu 14 May**: nine days each, every total agreeing, two dates wrong somewhere. The argument for reporting DATES rather than counts, made by a live example. | Same |
+| 14 Sep 2026 | **The Sunday-tag ratio revised a THIRD time, and the question behind it changed.** `Tuck . N` carries **nine** tags, the most of anyone — four on a named shift, two on a SPARE Sunday, three on rest days — taking the running count to 12 of 23 on a named shift. Counting SPARE as what it is (a contracted day the member was expected at the station) gives **16 of 23**, which is the figure that actually answers "was she away from work" and is the one that has NOT fallen with each new person. §4 now reports the contracted reading and keeps the three-way split for grid reconciliation. | Owner asked for N. Tuck's 2026 leave |
+| 14 Sep 2026 | **A Sunday tag can stand completely alone — and a block can be missing one.** Her **Sun 22 Mar** tag has no grid day near it (nearest 9 Mar and 8 May) and sits in a week of solid working shifts: a one-day absence from a rostered Sunday, invisible to the app and to the grid alike. The mirror is on the same person — **Sun 6 Sep** (rostered, between a booked Sat and a rest-day Mon) and **Sun 15 Nov** (rostered, straight after 13–14 Nov) are both untagged. Recorded as §0 step 3 rather than resolved: an absent tag is silence, not evidence she worked. **Unresolved.** | Same |
+| 14 Sep 2026 | **A completely clean reconciliation, which is worth logging precisely because nothing was wrong.** N. Tuck: one totals row, column E empty AND uncommented, 26 grid cells on 26 distinct dates, 26 of 32 used, 6 remaining — and all 26 land on contracted days, so `consumesEntitlement` agrees with the sheet day for day with no swap data needed. The first member of the nine looked at today with no duplicate row, no over-quota day, no −1 and no rest-day gap. | Same |
