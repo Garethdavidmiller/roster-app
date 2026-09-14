@@ -2,6 +2,8 @@
 
 *Started 8 Sep 2026. Not version-stamped; not a runtime asset.*
 
+**Reached by `/al-workbook`**, which is the trigger that should bring you here when the workbook is uploaded or somebody's leave is asked about. The skill holds no knowledge of its own — it exists because §0 was broken twice by sessions that had this file and read it too late.
+
 > ## ⚠️ THIS IS A WORK IN PROGRESS, NOT A SPECIFICATION
 >
 > **Nothing here is a definitive reading of the workbook.** It is what one session worked out by

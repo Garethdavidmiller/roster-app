@@ -839,6 +839,8 @@ KNOWN_LIMITATIONS.md task #2.
 
 **New starter:** invoke `/new-starter` — the skill has the full 3-step checklist, mid-year field reference, and pro-rata formula invariant.
 
+**The depot annual-leave workbook (the roster clerks' Excel file):** invoke `/al-workbook` the moment one is uploaded, or any question is asked about somebody's leave, allowance or days remaining. It is a TRIGGER, not a checklist — it sends you to `docs/AL_WORKBOOK.md` §0 and requires the learnings to be written back in the same session. **The rule in §0 has been broken twice on the same person by two different sessions**, both of which had the document available and read it only after being corrected: a person's `AL over depot quota` days are real leave, invisible in the calendar grid, and belong in any list of their annual leave. Answering from the spreadsheet before reading that file is the failure mode.
+
 **Removing a staff member:** invoke `/leaver` — the ordered checklist, including the step everybody gets wrong (**upload their final roster PDF FIRST**: `hidden` also drops them from the AI-parsing name list, and a later upload then reports their row as `missingMembers`, which reads exactly like a genuine absence) and the verification step that closes it (the Staff Login Accounts audit, v22.53 — every other failure in the sequence is silent). The reasoning, and what it deliberately does not do (Overtime weeks are frozen; their data stays), is OPERATIONS_REFERENCE.md → "Removing a staff member"; the skill routes there rather than restating it.
 
 Email/password convention: **see `OPERATIONS_REFERENCE.md`**.
