@@ -35,7 +35,7 @@ import { setStatus } from './status-text.js';
  * @param {string}            cfg.logLabel        console.error prefix ('AL' | 'Sick').
  * @param {(dates: string[]) => (string|null)} cfg.validateRange  Range-length rule → error msg or null.
  * @param {(ctx: { member: string, dates: string[], memberObj: any, memberOvByDate: Map<string, any>|null,
- *   rangeStr: string, workDays: number, restCount: number }) => string} cfg.renderReady  Ready-state innerHTML.
+ *   rangeStr: string, workDays: number, restCount: number, projection?: any }) => string} cfg.renderReady  Ready-state innerHTML.
  * @param {(workingCount: number, member: string) => string} cfg.successFeedback  Inline ✓ feedback text.
  * @param {(workingCount: number, member: string) => string} cfg.successToast     Bottom-toast text.
  * @param {() => (string|null)} cfg.getCurrentUser  Live getter for the logged-in user name.
@@ -47,7 +47,13 @@ import { setStatus } from './status-text.js';
  * @param {Function}          [cfg.afterSave]     Runs after a successful save (refresh banner/boxes).
  * @param {Function}          [cfg.onClick]       Runs at the very top of the save click, before the member/dates
  *   guard (AL: captures + resets the over-limit-confirmed flag, exactly as the old top-of-handler code did).
- * @param {(ctx: { member: string, dates: string[], memberObj: any }) => boolean} [cfg.preSave]  Runs after the
+ * @param {(ctx: { member: string, dates: string[], memberObj: any, ovByDate: Map<string, any>|null,
+ *   swapAnswers: Map<string, boolean> }) => any} [cfg.project]  WHAT THIS SAVE WILL DO (v23.79, AL only) —
+ *   given the stored state AND the admin's current swap answers. Its result is handed to `renderReady`
+ *   as `projection` so the preview can describe the save truthfully rather than describing the roster.
+ *   Omit it (the absence card does) and `projection` is null.
+ * @param {(ctx: { member: string, dates: string[], memberObj: any, swapAnswers: Map<string, boolean> })
+ *   => boolean} [cfg.preSave]  Runs after the
  *   member/dates guard; return true to abort the save (AL: the over-entitlement check that shows the confirm bar).
  * @param {(ctx: { dates: string[], memberObj: any, ovByDate: Map<string, any>|null }) => string[]} [cfg.swapQuestion]
  *   THE SWAPPED-DAY QUESTION (v23.75, AL only). Returns the dates in the range whose base roster says REST and
@@ -137,17 +143,29 @@ export function createRangeBookingSection(cfg) {
         }
         const workDays = dates.length - restCount;
 
-        previewEl.className = cfg.previewClass + ' ready';
-        previewEl.innerHTML = cfg.renderReady({ member, dates, memberObj, memberOvByDate, rangeStr, workDays, restCount });
-
         // ── THE SWAPPED-DAY QUESTION ───────────────────────────────────────────────────────────
         // Asked ONLY when the range actually contains such a day (the owner's rule 1) — no rest
         // days, no block, and the section behaves exactly as it did before v23.75.
+        //
+        // RESOLVED BEFORE THE PREVIEW IS RENDERED (v23.79). It used to run after, so `renderReady`
+        // described the range from the STORED state alone and could say "1 rest day skipped" about a
+        // day the admin had just declared swapped — a day Save was about to count. Nothing may call
+        // a date skipped when it is going to be recorded, so the answers are settled first and the
+        // projection built from them is what the preview is given.
         if (member !== swapAnswersFor) { resetSwapAnswers(); swapAnswersFor = member; }
         const pending = cfg.swapQuestion
             ? cfg.swapQuestion({ dates, memberObj, ovByDate: memberOvByDate })
             : [];
         for (const d of [...swapAnswers.keys()]) if (!pending.includes(d)) swapAnswers.delete(d);
+
+        const projection = cfg.project
+            ? cfg.project({ member, dates, memberObj, ovByDate: memberOvByDate, swapAnswers })
+            : null;
+
+        previewEl.className = cfg.previewClass + ' ready';
+        previewEl.innerHTML = cfg.renderReady({
+            member, dates, memberObj, memberOvByDate, rangeStr, workDays, restCount, projection,
+        });
         if (pending.length) previewEl.insertAdjacentHTML('beforeend', _swapBlock(pending));
 
         const answered = pending.filter(d => swapAnswers.has(d)).length;
@@ -211,7 +229,14 @@ export function createRangeBookingSection(cfg) {
         const dates  = getDates();
         if (!member || !dates || !dates.length) return;
 
-        if (cfg.preSave && cfg.preSave({ member, dates, memberObj: teamMembers.find(m => m.name === member) })) return;
+        // `swapAnswers` goes WITH the dates (v23.79). The over-entitlement check has to project what
+        // this save will do, and until the write runs a declared swap exists nowhere else — the
+        // override map still says REST, so a check built on it alone warns about the wrong number of
+        // days. Passed as a copy: the check must not be able to edit the admin's answers.
+        if (cfg.preSave && cfg.preSave({
+            member, dates, memberObj: teamMembers.find(m => m.name === member),
+            swapAnswers: new Map(swapAnswers),
+        })) return;
 
         feedbackEl.className = 'feedback';
         saveBtn.disabled    = true;

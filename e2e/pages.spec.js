@@ -7295,7 +7295,7 @@ test('admin: the AL preview names a Spare day and says it costs one day of leave
     await cell.click();
 
     const preview = page.locator('#alPreview');
-    await expect(preview).toContainText('1 working day');
+    await expect(preview).toContainText('1 day of Annual Leave');   // v23.79 wording — see the range test below
     // What the owner ruled on 14 Sep 2026: a day is a day.
     await expect(preview).toContainText('This is a Spare day');
     await expect(preview).toContainText('It still uses 1 day of annual leave.');
@@ -7469,7 +7469,13 @@ test('admin: a range with no rest days asks nothing at all', async ({ page }) =>
     await cell.click();
     await cell.click();
 
-    await expect(page.locator('#alPreview')).toContainText('working day');
+    // "1 day of Annual Leave", not "1 working day" (v23.79): the preview describes what the save
+    // will RECORD, not what the roster says about the date. The old wording read as a count of
+    // working days and was computed like one, which is how it came to say "rest day skipped" about
+    // a day the admin had just declared swapped.
+    await expect(page.locator('#alPreview')).toContainText('1 day of Annual Leave');
+    await expect(page.locator('#alPreview'), 'nothing is skipped in a range with no rest days')
+        .not.toContainText('skipped');
     await expect(page.locator('#alPreview .swapday-ask'), 'no rest day, no question').toHaveCount(0);
     await expect(page.locator('#alSaveBtn'), 'an ordinary booking is unaffected').toBeEnabled();
 });

@@ -243,15 +243,6 @@ repeating.
 > tag itself tells you nothing about which kind it is — and only the contracted kinds (a named
 > shift or a spare day) are days the member was away from actual work.
 >
-> **A tag can stand COMPLETELY ALONE, and a block can be missing one** [measured, 14 Sep 2026].
-> `Tuck . N`'s **Sun 22 Mar** is tagged with no grid day anywhere near it — her nearest bookings
-> are 9 Mar and 8 May — and every day from 18 to 23 Mar is a working shift, so the tag is a
-> one-day absence from a rostered Sunday and nothing else. The mirror appears on the same person:
-> **Sun 6 Sep** sits between a booked Sat 5 and a rest-day Mon 7, is rostered 07:15–15:45, and is
-> NOT tagged; nor is **Sun 15 Nov**, straight after 13–14 Nov. Either she worked those Sundays, or
-> the clerk tagged one block and not the others. **An absent tag is not evidence she worked** — it
-> is silence, and §0 step 3 applies: say so rather than pick.
->
 > So: **do not assume a tagged Sunday is a rest day, and do not assume it is mid-block.** Check the
 > base roster. Where the person was rostered, say they were away from a shift and that it cost no
 > entitlement — do not silently drop it because the app has no way to hold it.

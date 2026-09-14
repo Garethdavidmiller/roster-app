@@ -37,6 +37,18 @@
 // So the question is asked on exactly the days where `consumesEntitlement` would fall through to the
 // base roster AND find a rest day — which is the same condition, read from the same helpers, so the
 // two can never drift apart.
+//
+// ── BOTH SURFACES ASK THIS, AND THEY DID NOT ALWAYS ────────────────────────────────────────────
+//
+// The week grid used to decide for itself, on `baseIsRd` alone: "the base roster says rest, so ask".
+// That re-asks a question an existing `replacedType: 'shift'` has already answered — and worse, the
+// answer could not take effect, because `replacedTypeForSwap` rightly keeps a stronger record than
+// its own reconstruction, so a manager choosing "Rest day — free" there changed nothing. The range
+// card, reading this function, never asked in the first place.
+//
+// Since v23.79 the grid sets `row.dataset.alSwapAsk` from `swapDecisionDates` for its one date, so
+// both surfaces ask about the same days for the same reason. A UI that offers a choice it cannot
+// honour is worse than one that does not offer it. (External review of v23.78.)
 
 import { isSunday, getBaseShift, parseISODate } from './roster-data.js';
 import { isRestShift, isContractedWorkOverride, nextReplacedType } from './override-utils.js';
