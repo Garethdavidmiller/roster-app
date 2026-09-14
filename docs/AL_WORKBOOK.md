@@ -153,20 +153,26 @@ appearing in the calendar.
 **Where the dates live — and the trap.** Each column-E value carries a **threaded comment naming the
 date(s)**. The comment count matches the value in every case checked. [measured]
 
-> **`openpyxl` does not show these.** `cell.comment.text` returns Excel's legacy placeholder
-> ("Your version of Excel allows you to read this threaded comment…"). The real text is in
-> `xl/threadedComments/*.xml` inside the .xlsx. See §6 for the recipe. **Not knowing this produced a
-> confident, wrong "there is no explanation anywhere in the workbook".**
+> **`openpyxl` DOES show these — the earlier note here was wrong.** [measured, 14 Sep 2026,
+> openpyxl 3.1.5] `cell.comment.text` returns Excel's legacy placeholder *and then the body*, as
+> `…Learn more: <url>\n\nComment:\n    24/12`, with any replies appended as `Reply:\n    …`.
+> Checked against `xl/threadedComments/` for all sixteen column-E comments on the totals sheet: the
+> text matches, including the multi-date and reply cases. So a one-liner scan is enough to FIND the
+> dates, and §6's XML route is the cross-check rather than the only way in.
+>
+> The original claim ("returns only the placeholder") is what produced a confident, wrong "there is
+> no explanation anywhere in the workbook" on 8 Sep. Keep the lesson, drop the mechanism: **the
+> danger was answering without looking, not the library.**
 
 **Worked example — J. Davies, 2026.** Allowance 20, grid days 19, over-quota 1, remaining 0.
-His comment reads `24/12`, and the grid says why:
+Their comment reads `24/12`, and the grid says why:
 
 | Thu 24 Dec 2026 | slot C | D | E | F |
 |---|---|---|---|---|
 | | Reen . C | Sumali . J | Silva . S | Okeke . M |
 
 All four CEA slots taken. Davies is booked 22 and 23 Dec, then 28 and 29 Dec — Christmas Eve sits in
-the middle of one continuous absence and was granted as a fifth person, over quota. His year is
+the middle of one continuous absence and was granted as a fifth person, over quota. Their year is
 **20 days: 19 in the grid + 24 Dec.**
 
 **The exception to the pattern.** One value is a lump with no dates: a comment reading
@@ -198,8 +204,20 @@ for fn in glob.glob('xl/threadedComments/*.xml'):
         print(c.get('ref'), persons.get(c.get('personId')), ''.join(c.itertext()).strip())
 ```
 
-There is one comment file per sheet and they are **not** named after the sheet. Identify the totals
-sheet's file by the cell refs it contains (column E rows in the 6–75 range).
+There is one comment file per sheet and they are **not** named after the sheet.
+
+> **SCOPE THEM TO THE SHEET, OR THE WORKBOOK WILL INVENT LEAVE.** [measured, 14 Sep 2026] Reading
+> every `threadedComment*.xml` into one dict keyed by cell ref merges all 23 sheets, and the CALENDAR
+> sheets carry hundreds of their own comments in the same columns. `E22` then came back as
+> `['24/12', '27/02']` — which reads as two over-quota days for J. Davies against a column value of
+> **1**, and would have put a day of leave in February that nobody took. Scoped properly,
+> `Totals!E22` is `['24/12']` alone; the `27/02` belongs to a calendar sheet.
+>
+> The reliable mapping is through the relationships, not by guessing from the refs:
+> `xl/workbook.xml` + `xl/_rels/workbook.xml.rels` give sheet NAME → `sheetN.xml`, and
+> `xl/worksheets/_rels/sheetN.xml.rels` names that sheet's `threadedCommentM.xml`. For this upload
+> the totals sheet is `sheet22.xml` → `threadedComment15.xml`, but do not hardcode that — it is a
+> property of the file, not of the workbook.
 
 ---
 
@@ -252,6 +270,13 @@ Every one of these is silent, and every one has been seen. [measured]
    anything else in the file. If the comment is missing, the date is gone.
 5. **Carry-forward is barely used.** Only one row carries a c/f value, and it is on a row that looks
    stale. **The app has no concept of carry-forward at all** — see §9.
+6. **An over-quota comment with no value beside it.** [measured, 14 Sep 2026] `Sumali . J` (row 17)
+   carries the comment `10/04` on E17, but **E17 itself is empty**. Excel reads the blank as zero, so
+   `=F17-(G17+E17)` computes 32 − (32 + 0) = **0 remaining** and nothing errors — where the comment
+   implies 33 days against 32, i.e. **−1**. The row therefore hides that this person is already over
+   their entitlement. It is the mirror of defect 4: there the date is lost and the deduction stands;
+   here the date survives and the deduction is missing. **Read the comment even when the cell is
+   blank** — a blank E is not evidence of no over-quota day.
 
 ---
 
@@ -332,3 +357,7 @@ This is the record of the file getting better; an upload that taught nothing is 
 | 8 Sep 2026 | First pass. The quota-grid framing, the 2021 decoy sheet, the Remaining formula, the per-grade COUNTIF ranges, the Sunday free-text tags, the name mapping and the workbook's own defects — all `[measured]`. The meaning of `AL over depot quota` recorded as `[inferred]`. | Owner asked for M. Robson's and then J. Davies's 2026 leave |
 | 8 Sep 2026 | **Correction.** An earlier answer reported J. Davies's leave from the grid alone and omitted his over-quota day. §0 exists because of it. | Owner: "You need to provide the full list of days even if it is out of quota" |
 | 8 Sep 2026 | **Correction.** Column E's dates were reported as living nowhere, on the strength of `openpyxl` returning Excel's placeholder for a threaded comment. They are in `xl/threadedComments/`. | Owner: "I need that J. Davies issue explaining more clearly" |
+| 14 Sep 2026 | **§0 was broken again, by a session that had not read this file.** J. Davies reported as 19 days from the grid alone — the same person, the same missing 24 Dec, six days after §0 was written to prevent exactly it. The rule was sound; it was never consulted. **Read §0 before answering, not after being corrected.** | Owner: "Remember to look for those hidden days in future. We have an area in an md file for this kind of information" |
+| 14 Sep 2026 | **Correction to §5.** `openpyxl` DOES return threaded-comment text (3.1.5), verified against the XML for all sixteen totals-sheet comments. The old note sent readers down the zip route as the only option and implied the dates were unreachable without it. | Re-deriving Davies's over-quota day from scratch |
+| 14 Sep 2026 | **New trap recorded (§6).** Threaded comments keyed by cell ref across all sheets conflate them: `E22` merged the totals row with a calendar sheet and produced a second, non-existent over-quota date (`27/02`). Caught before it reached an answer. Reliable sheet→comment-file mapping via the `_rels` added. | Same |
+| 14 Sep 2026 | **New workbook defect (§8.6).** `Sumali . J` has an over-quota comment (`10/04`) with an EMPTY column E, so the deduction never happens and Remaining reads 0 where it should read −1. | Auditing every column-E comment against its value |
