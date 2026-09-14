@@ -160,8 +160,12 @@ repeating.
 > on days she was ROSTERED to work, with 11 Jan opening its block exactly as Panchal's 15 Feb does.
 > On those four this note said the rostered case was "the ordinary" one and a rest-day tag "the
 > variant". `Haque . J`'s four tags then split: **two rostered (11 Jan, 22 Mar), one on a SPARE
-> Sunday (15 Mar), one on a rest day (29 Mar)**. Six of eight measured tags sit on a rostered shift,
-> which is a majority and not a rule.
+> Sunday (15 Mar), one on a rest day (29 Mar)**, and `Okeke . M`'s six split **two rostered (20 Sep, 20 Dec), one spare (4 Oct), three rest
+> days**. **Eight of fourteen** measured tags sit on a rostered shift,
+> a bare majority that has FALLEN at every new person. Treat the two kinds as roughly equally
+> likely and do not guess. The claim has been revised twice in one day — "the ordinary case" (4
+> tags) → "a majority" (8) → this (14) — each time forced by the next person looked at. That is
+> what a generalisation drawn from one member is worth.
 >
 > The instruction is unchanged and is the point: **check the base roster every time**, because the
 > tag itself tells you nothing about which kind it is — and only the rostered kind is a day the
@@ -286,7 +290,9 @@ have no quota slots. Do not read their absence as a gap.
 
 **The free-text Sunday tags are not a name source.** They are typed by hand and drift wildly —
 first-name-only forms, nicknames, and misspellings all appear. Use them to *locate* a Sunday inside
-a block, never to identify a person.
+a block, never to identify a person. **The WORD ORDER varies too** [measured, 14 Sep 2026]:
+`Okeke . M`'s 4 Oct tag reads `M Okeke N/A`, where every other tag puts `N/A` first. A mechanical
+scan must not assume the `N/A <name>` shape — match the surname anywhere in the cell.
 
 ---
 
@@ -498,5 +504,7 @@ This is the record of the file getting better; an upload that taught nothing is 
 | 14 Sep 2026 | **Carry-forward stops being theoretical in Jan 2027, and the row is already identifiable.** S. Boyle's untouched 32 of 32 after a year of sickness is exactly the c/f case §9 said it was waiting for. `getALEntitlement` takes no c/f input, so from her 2027 row the app will understate her entitlement for as long as the carry-over lasts. Better decided before it appears than met as a discrepancy. | Owner: "She has been off sick all year" |
 | 14 Sep 2026 | **CORRECTION: the Sunday-tag pattern was overstated the same day it was written.** Off Mylla's 3/3 plus Panchal it was recorded as "the ordinary case". `Haque . J`'s four tags split two rostered, one spare, one rest day — six of eight overall, a majority not a rule. The instruction (check the base roster every time) is unchanged; the claim around it is now the size of its evidence. | Owner asked for J. Haque's 2026 leave |
 | 14 Sep 2026 | **`Haque . J`'s −1 is REAL, and the obvious explanation was tested and disproved.** `COUNTIF` counts CELLS, so a name written twice on one date would inflate the total without a day being taken — but her 33 cells are 33 DISTINCT dates. Allowance agrees with the app at 32 and column C is empty, so she has genuinely taken 33 of 32 and the sheet reports it unclamped. For the clerks: a day granted over entitlement, or a 2025 carry-forward never entered in column C. **Unresolved.** Her empty autumn, unlike Cooper's and Panchal's, is explained by having nothing left. | Same |
+| 14 Sep 2026 | **The Sunday-tag ratio revised a SECOND time, to 8 of 14.** `Okeke . M`'s six tags are only two rostered. "Ordinary case" (4 tags) → "majority" (8) → "bare majority" (14) in one day, each revision forced by the next person looked at. Kept as a caution about generalising from one member; the instruction (check the base roster) is what has held. | Owner asked for M. Okeke's 2026 leave |
+| 14 Sep 2026 | **A clean positive for §9's pro-rata check, and a new tag variant.** `Okeke . M` joined 20 Apr 2026 and the workbook's allowance of 24 matches the app's `proRatedAL[2026]` exactly — the check §9 calls the cheapest real one, passing on the first joiner it has been run against. Her 4 Oct tag reverses the usual `N/A <name>` order. | Same |
 | 14 Sep 2026 | **CORRECTION, and a trap worth more than the case.** This file briefly said the app would read 6 remaining for F-Charles against the workbook's 3. It reads **4**: her three rest-day bookings already carry the swap and already count. The wrong figure came from calling `consumesEntitlement` with `ovByDate = null`, which the function's own docstring warns against — passing null MANUFACTURES a rest-day discrepancy. Never diagnose one without the override map. | Owner: "Still saying 4 remaining" |
 | 14 Sep 2026 | **The real one-day gap is `24/02`, and a second difference that cancels out.** App 28 days / 4 remaining vs workbook 29 / 3 — the whole gap is the over-quota day, exactly as §0 predicts. Separately, rendering the workbook's dates through the card's own merger proves the app holds **Sat 2 May** and the workbook holds **Thu 14 May**: nine days each, every total agreeing, two dates wrong somewhere. The argument for reporting DATES rather than counts, made by a live example. | Same |
