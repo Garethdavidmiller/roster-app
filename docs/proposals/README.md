@@ -11,17 +11,35 @@ and every figure in a PDF is computed from the cells it shows — nothing is typ
 |---|---|---|---|---|---|
 | **Same Turns** | `ST-24-B7 · d15e1b74` | Today's 20-line link widened to 24 in today's own shift times and week shapes | 1 (FF19, one jump) | 6 | 6 in 24 |
 | **By the Book** | `BB-24-D7 · 0f14abce` | The workspace's December duty table (the owner's rules in table form), the rotation searched for the ORR factors | **0** | 6 | 6 in 24 |
+| **Quarter To** | `QT-24-Q34 · 70cf9874` | *Same Turns* with the weekday closer at 15:45 and no duty over 8h40 — the two 06:20 openers run on to Saturday's own opening times to keep the contract, so the closer is the only time nobody works today | **0** | 6 | 6 in 24 |
+| **Eight Forty** | `EF-24-E21 · 0cf19f56` | *By the Book* with no duty over 8h40 — the December table re-solved under the same rules with the ceiling at 8h40 (its earlies had run to 9h30), then the rotation searched for the ORR factors as *By the Book* was | **0** | 6 | 6 in 24 |
 
-Both clear every hard rule — Chiltern's 13-day limit, twelve hours between duties, the exact
+All four clear every hard rule — Chiltern's 13-day limit, twelve hours between duties, the exact
 35-hour contracted week — and meet the December staffing shape (four to open, three through to
 the close and four on a Saturday, five still on at 22:00, fourteen on a Saturday, ten on a Sunday,
 four cover weeks at lines 1, 7, 13, 19). They differ on exactly one thing, and it is a people
 question rather than a rules one: *Same Turns* keeps 15 turns people already work and does not meet
 the late-shorter-than-early lever; *By the Book* meets every rule and none of its 19 turns is a
-time anyone works today. Each PDF states this on its page 5.
+time anyone works today. Each PDF states this on its page 5. **The two 12 Sep proposals are comparison examples, not base rules** (owner, 13 Sep 2026): the 15:45
+closer and the 8h40 cap are briefs to set beside *Same Turns* and *By the Book*, and neither changes the
+December rules the workspace pins in `links-default-targets.js`. *Quarter To* (12 Sep 2026) is *Same Turns*
+with two things asked for — the closer at 15:45, nothing over 8h40 — and it clears every fatigue factor
+where *Same Turns* has one present; its open question is the cap's reach, since Saturday's 14:45–23:55
+(9h10) and Sunday's 14:30–23:25 (8h55) are today's own turns carried over unchanged, and shortening
+Saturday's closer leaves 7,004 minutes a weekday that no table of today's turns reaches. *Eight Forty*
+(12 Sep 2026) is *By the Book* under the cap, and the cap is not a trim there: 14 duties paying 7,000
+minutes average 8h20, so a ceiling twenty minutes above the mean forces every long early to 8h30–8h40 and
+every late to 7h45–8h25, and the owner's late-shorter-than-early lever shrinks to five minutes at the
+boundary. Two of *By the Book*'s pins gave way to arithmetic and the PDF says so on page 5: a Saturday
+cannot average its earlies more than 24 minutes longer than its lates (this table has 20; the rule asks
+30), and four distinct opener finishes cost twelve off-quarter times against *By the Book*'s three. Its
+weekday demand fit (75.3) is the worst of the four; its rotation matches *By the Book* and *Quarter To* on
+every rule figure.
 
-**The code**: family (`ST` / `BB`) · rotation length · duty table (`A`/`B` today's times, `D` the
-December default) · search seed. A trailing `p` (`BB-24-D21p`) is the rules-only run with no
+**The code**: family (`ST` / `BB` / `QT` / `EF`) · rotation length · duty table (`A`/`B` today's times, `D` the
+December default, `Q`/`R` table B with the closer at 15:45 and the two 06:20 openers run on to keep the
+contract — `Q` to 14:00 and 14:50, Saturday's own opening times; `R` to 14:30; `E` the December rules
+re-solved with no duty over 8h40, `tooling/eight-forty-table.json`) · search seed. A trailing `p` (`BB-24-D21p`) is the rules-only run with no
 week-coherence term, kept as a comparator. The fingerprint is the first eight hex characters of
 SHA-256 over the 24 × 7 cells in line order.
 
@@ -37,7 +55,7 @@ and the 13-day limit's policy citation is outstanding. Neither PDF is a recommen
 | `<Name>-<code>-import.txt` | line number then Sunday–Saturday, tab-separated — paste into **Links → Import** |
 | `<Name>-<code>.json` | the same rotation in the app's own `{ name, patterns }` shape — also importable |
 
-Both import forms are verified against `links-import.js` (24 lines, no warnings). Importing one
+Every import form is verified against `links-import.js` (24 lines, no warnings). Importing one
 makes the workspace's Design checks, hard limits, fatigue factors and coverage cards restate every
 figure in its PDF.
 
@@ -52,8 +70,14 @@ node table.mjs                       # every December table in today's times tha
 node fit.mjs                         # candidate day tables against the Dec 2026 demand curve
 MODE=feel  node anneal.mjs B 60000 4 7     # Same Turns family: table B, 60k steps x 4 restarts, seed 7 → best-B-7.json
 MODE=rules node anneal.mjs D 60000 4 7     # By the Book family: the December default table, fatigue-first
+node table-late.mjs                        # the 15:45-closer tables: none from today's turns alone; 42 under the 8h40 cap
+MODE=feel  node anneal.mjs Q 100000 5 7    # Quarter To family: tables Q and R, seeds 7 13 21 34
+node table-book.mjs 300000 10 7            # Eight Forty's table: the December rules under an 8h40 cap → eight-forty-table.json
+MODE=rules node anneal.mjs E 100000 5 7    # Eight Forty family: table E, seeds 7 13 21 34
 PROPOSAL=ST node final.mjs results/best-A-*.json results/best-B-*.json           # pick, assess, render
 PROPOSAL=BB EXTRA=results/best-RDpure-21.json node final.mjs results/best-RD-*.json
+PROPOSAL=QT node final.mjs results/best-Q-*.json results/best-R-*.json
+PROPOSAL=EF node final.mjs results/best-RE-*.json
 node shots.mjs <rendered>.html       # A4 page screenshots + a height check against the printable page
 ```
 

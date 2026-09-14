@@ -1,7 +1,7 @@
 // Simulated annealing over the 24-line grid. Coverage per day is FIXED by the table and preserved by
 // every move (same-day swaps, whole-line swaps). The app's own modules judge every candidate;
 // the "feel" terms are the only thing added, and they are what "like today's roster" means in numbers.
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, readFileSync } from 'node:fs';
 import { runDesignChecks, startMinutes, DAYS } from '../../../links-design.js';
 import { assessFatigue } from '../../../links-fatigue.js';
 import { scoreOrder } from '../../../links-adjacency.js';
@@ -17,10 +17,28 @@ const WORK = []; for (let i = 1; i <= LINES; i++) if (!SPARE.has(i)) WORK.push(i
 const WEEKDAY = {
   A: [['06:20-13:45',2],['06:20-14:20',2],['08:00-16:30',2],['11:00-19:30',3],['14:00-22:30',2],['15:15-23:55',3]],
   B: [['06:20-13:45',2],['06:20-14:20',2],['08:00-16:30',3],['13:30-22:00',2],['14:00-22:30',2],['15:15-23:55',3]],
+  // Q and R (12 Sep 2026): table B with the CLOSING turn at 15:45, not 15:15, and NO DUTY OVER 8h40. Both are
+  // a COMPARISON BRIEF, not base rules (owner, 13 Sep 2026) — examples to set beside the proposals, and no
+  // reason to touch the pins in links-default-targets.js. The later start takes 30 min off three duties a day, 450 a
+  // week, and the contract is exact; with today's turns alone no table pays 42,000 (0 of 200 weekday ×
+  // 122 Saturday tables). So the two 06:20 openers run on at their finish to put the 90 min a day back
+  // (table-late.mjs: 42 exact tables under the cap, three of them zero-drift, every duty ≤ 8h30).
+  //   Q: the openers become 06:20-14:00 and 06:20-14:50 — SATURDAY'S OWN opening turns — so the 15:45
+  //      closer is the only time on the sheet nobody works today.
+  //   R: 06:20-13:45 runs to 14:30 (one new time); the third, 14:15 + 14:35, adds two and is not searched.
+  // Saturday and Sunday are Same Turns' tables unchanged. Their 14:45-23:55 (9h10) and 14:30-23:25 (8h55)
+  // are today's own turns and above 8h40: shortening Saturday's closer leaves 7,004 min a weekday, which
+  // no table reaches — the cap is read as governing what this proposal INTRODUCES, and the PDF says so.
+  Q: [['06:20-14:00',2],['06:20-14:50',2],['08:00-16:30',3],['13:30-22:00',2],['14:00-22:30',2],['15:45-23:55',3]],
+  R: [['06:20-14:30',2],['06:20-14:20',2],['08:00-16:30',3],['13:30-22:00',2],['14:00-22:30',2],['15:45-23:55',3]],
 }[VARIANT] ?? null;   // null when imported for `evaluate` only
 const DEF = buildDefaultTargets().slots;
 const defRows = k => DEF.filter(r => r[k] > 0).map(r => [r.time, r[k]]);
-const SAT_ = VARIANT === 'D' ? defRows('sat') : null, SUN_ = VARIANT === 'D' ? defRows('sun') : null, WK_ = VARIANT === 'D' ? defRows('weekday') : null;
+// E (12 Sep 2026): "Eight Forty" — By the Book's rules with no duty over 8h40, the table re-searched by
+// table-book.mjs and read from its output so the anneal cannot drift from what that search found.
+const EF = VARIANT === 'E' ? JSON.parse(readFileSync(new URL('./eight-forty-table.json', import.meta.url), 'utf8')).slots : null;
+const efRows = k => EF.filter(r => r[k] > 0).map(r => [r.time, r[k]]);
+const SAT_ = VARIANT === 'D' ? defRows('sat') : EF ? efRows('sat') : null, SUN_ = VARIANT === 'D' ? defRows('sun') : EF ? efRows('sun') : null, WK_ = VARIANT === 'D' ? defRows('weekday') : EF ? efRows('weekday') : null;
 const SAT0 = [['06:20-14:00',1],['06:20-14:50',3],['08:00-16:30',2],['12:00-20:00',1],['14:30-22:00',2],['14:00-22:30',1],['14:45-23:55',4]];
 const SUN0 = [['07:15-15:45',4],['11:00-19:30',2],['13:00-21:00',1],['14:30-23:25',3]];
 const SAT = SAT_ ?? SAT0, SUN = SUN_ ?? SUN0; const WEEKDAY_ = WK_ ?? WEEKDAY;
