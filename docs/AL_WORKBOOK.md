@@ -298,10 +298,12 @@ elsewhere. Read the comment before assuming the value means over-quota days.
 **A second worked example, and it corroborates the first.** [measured, 14 Sep 2026] `Cooper . I`'s
 comment reads `19/08`. On Wed 19 Aug 2026 the four CEA slots hold Mylla, Gherbi, F-Blackstock and
 F-Charles — full, exactly as on Davies's 24 Dec. `F-Charles . C`'s own over-quota day, `24/02`, is
-the same shape: Mylla, Irvine, Panchal and Miller hold all four slots. **SIX FOR SIX** as of
+the same shape: Mylla, Irvine, Panchal and Miller hold all four slots. **NINE FOR NINE** as of
 14 Sep — `F-Blackstock . R`'s `29/12` lands on a Tuesday whose four slots hold Davies, Reen, Mylla
 and Silva, `Silva . S`'s own `02/01` on a Friday holding Mylla, Miller, Reen and F-Blackstock, and
-`Sumali . J`'s `10/04` on a Friday holding Robson, Gherbi, Nsuala and Miller.
+`Sumali . J`'s `10/04` on a Friday holding Robson, Gherbi, Nsuala and Miller, and all THREE of
+`Bibi . T`'s (`16/04` — Gherbi, Cooper, Nsuala, Langley; `19/08` — Mylla, Gherbi, F-Blackstock,
+F-Charles; `20/08` — Atrakimaviciene, Gherbi, F-Blackstock, Cooper).
 **Every over-quota date checked so far falls on a date whose four CEA slots are full, with no
 exceptions.** That is as close to confirming the `[inferred]` meaning of column E as the file alone
 can get; it still wants the owner's word.
@@ -337,6 +339,16 @@ can get; it still wants the owner's word.
 >   Worth clearing in one pass rather than one question at a time.
 > - Where the pattern makes the day a REST day, recording it hits the v23.75 swap question
 >   (`al-swapped-days.js`) and the answer is that it was a working day taken as leave.
+
+> **A COLUMN-E CELL CAN HOLD SEVERAL DATES, AS A COMMENT THREAD** [measured, 14 Sep 2026].
+> `Bibi . T`'s E14 is **3**, and the comment is a thread: the body reads `16/04` and two REPLIES add
+> `20/08` and `19.08`. **Read the replies, not just the body** — taking the first line alone would
+> have found one date for a cell worth three, and the answer would have been two days short with
+> nothing to show for it.
+>
+> **And the punctuation varies inside one thread.** That third reply is `19.08`, with a full stop
+> where the other two use a slash. Same `DD/MM` order, different separator, in the same cell. Any
+> mechanical read of these comments must accept both; a human reading them will not notice.
 
 **Nothing in the grid marks an over-quota day.** It is only in column E and its comment. Do not go
 hunting for a fifth name on a date — there isn't one.
@@ -762,6 +774,7 @@ This is the record of the file getting better; an upload that taught nothing is 
 | 14 Sep 2026 | **THE WORKBOOK CANNOT SETTLE A REST-DAY BOOKING, and that is structural.** Asked what `Sumali . J`'s 13–14 May actually show, the answer is: a plain booking in slot F, identical to the days either side, no marker of any kind — the tail of one run from 8 to 14 May. The sheet allocates QUOTA SLOTS and has no concept of a rest day, so a rest-day booking is invisible in it by design and nothing looks wrong. Recorded against §10.11 with what turns on it: a swap means she is genuinely at 33 of 32; genuine rest days mean two days were deducted that cost her nothing and she is at 31 with a day in hand. **The same mechanism could explain any of the three −1 rows.** Also noted: Sun 10 May carries no tag for her although her block runs through it — more evidence that a missing tag means nothing. | Owner: "But the 13th and 14th of May are showing what in the spreadsheet?" |
 | 14 Sep 2026 | **THE CHECK ADDED AN HOUR EARLIER WAS ITSELF TOO WEAK — owner caught it.** §4 said "sum the deducted column", and that passed on a `Sumali . J` table that had **dropped 21 May and duplicated 23 Dec**: an omission and a duplicate cancel, so the total read 33 and the arithmetic endorsed an answer containing two errors. The rule is now **compare the SET of distinct dates**, under which a duplicate is as visible as a gap. Two failures of the same family in one hour, on consecutive members — and the second was caught by the reader, not the check. | Owner: "Why do you have 20th and 21st of May in one table and only 20th of May in the other?" |
 | 14 Sep 2026 | **OWNER FACT, PARKED: Employee of the Month earns ONE EXTRA AL DAY.** Neither system holds it — the workbook's allowance column is a flat 32 for every CEA and `getALEntitlement` returns a flat 32 too. **It may explain the −1 rows**: a person with an award is entitled to 33, so taking 33 is correct and the negative is an artefact of a column that cannot express the award, not an overdraw. Recorded in §9 beside carry-forward, which is the same shape — a real, owner-known entitlement adjustment with nowhere to live. Explicitly **not actioned**: *"We will revisit that thought another day."* | Owner, unprompted, on the −1 rows |
+| 14 Sep 2026 | **A COLUMN-E CELL CAN HOLD SEVERAL DATES, AS A COMMENT THREAD — and the separator varies inside it.** `Bibi . T`'s E14 is 3, and its comment body reads `16/04` with two REPLIES adding `20/08` and `19.08` — note the full stop in the third. Reading the body alone would have found one date for a cell worth three. All three verified full on the day (nine for nine overall), so the app will read **3** against the sheet's 0, the largest of these gaps yet. Recorded in §5. Her own row reconciles exactly: 29 grid days, 3 over quota, 32 of 32, 0 remaining, none on a rest day. One Sunday tag all year despite heavy leave, with rostered Sundays 11 and 18 Oct sitting inside her October block untagged. | Owner asked for T. Bibi's 2026 leave |
 | 14 Sep 2026 | **S. Langley reconciles exactly.** 23 grid days on 23 distinct dates, column E empty AND uncommented, 9 of 32 remaining, all 23 on contracted days so the app agrees with no swap data. Four tags, three on a named shift and one on a spare. Her 24 Jul – 2 Aug absence is **ten continuous days** carrying only six deductions — the longest run yet seen, and a good illustration of why the answer gives days AWAY and marks which cost entitlement. | Same |
 | 14 Sep 2026 | **THREE TAGS CARRY A BARE FIRST NAME, and two answers given today were SHORT because of it.** `Romiah` (= `F-Blackstock . R`), `Csherrice` (= `F-Charles . C`) and `Loreta` (= `Atrakimaviciene . L`) appear with no surname and no initial, so every surname scan this file recommends missed them: **C. Francisco-Charles was away 3 and 10 May and L. Atrakimaviciene on 5 Jul**, and neither was listed. Resolved by SLOT COLUMN — a leave block keeps one slot letter, so the Sunday cell in that column belongs to whoever holds the days either side. `Romiah` is additionally pinned by `Frimpong . R` being tagged by surname. Also found: `Sumali . J` / `Sumaili . J` in one sheet, and `N/A L Springer NA`. | Same |
 | 14 Sep 2026 | **§5's mechanism is now FOUR for four.** `F-Blackstock . R`'s `29/12` lands on a Tue 29 Dec whose four CEA slots are full (Davies, Reen, Mylla, Silva) — the Davies / Cooper / F-Charles shape again. Her own figures reconcile exactly: one totals row, 25 grid days on 25 distinct dates, +1 over quota, 26 of 32 used, 6 remaining, and all 26 on contracted days so the app agrees day for day. | Same |
