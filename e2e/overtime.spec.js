@@ -2026,6 +2026,31 @@ test('every control on the member form meets the app\'s touch target', async ({ 
             const c = l.control || l.querySelector('input, select, textarea, button');
             return !!c && !(/** @type {any} */ (c).disabled);
         };
+        // AND AN APP-DRAWN TICK IS REACHED THROUGH ITS ROW, WHICH IS THE THING TO MEASURE (v23.81).
+        // Since v23.50 the app draws its own checkboxes and radios, and the recipe's rule — stated
+        // in .claude/rules/css-tokens.md — is "the ROW is the touch target, the box is what you
+        // see": a 20px box (22px on a coarse pointer) inside a label carrying the 44px, so that
+        // anywhere on the row toggles it. Measuring the box alone reports 20px and calls the
+        // documented pattern a failure.
+        //
+        // This is the same allowance the `::before` arithmetic above makes for `.btn-card-tips`,
+        // whose painted circle is 20px and whose hit area is 44px — the target is not always the
+        // border box, and a test that assumes it is will fail correct code.
+        //
+        // It went unnoticed until v23.81 only because of WHICH controls this page renders: the one
+        // other app-drawn tick here, `.ot-longday-box`, appears only on a day that has been
+        // ANSWERED, and this test's fixture answers none. The Sunday request is offered before any
+        // answer, so it was the first one the measurement ever saw. The hole was three releases old.
+        //
+        // The guard is not loosened: the LABEL still has to be 44px. A tick whose row is short
+        // fails exactly as it did before.
+        const target = (/** @type {Element} */ el) => {
+            const box = el.getBoundingClientRect();
+            const input = /** @type {any} */ (el);
+            if (el.tagName !== 'INPUT' || !/^(checkbox|radio)$/.test(input.type)) return box;
+            const label = input.labels && input.labels[0];
+            return label ? label.getBoundingClientRect() : box;
+        };
         return els
             .filter(activates)
             // A control with no box has nothing to measure. The visually-hidden checkbox behind
@@ -2034,7 +2059,7 @@ test('every control on the member form meets the app\'s touch target', async ({ 
             .filter(el => el.getBoundingClientRect().height > 0)
             .map(el => ({
                 what: (el.className || el.tagName) + ' · ' + (el.textContent || '').trim().slice(0, 40),
-                h: Math.round(el.getBoundingClientRect().height
+                h: Math.round(target(el).height
                     + Math.max(grown(el, '::before'), grown(el, '::after'))),
             }))
             .filter(x => x.h < 44);
