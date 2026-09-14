@@ -1214,13 +1214,16 @@ export function init() {
     // ============================================
     // ANNUAL LEAVE BOOKING  (logic in admin-al.js)
     // ============================================
-    // The four dropdowns on this page open the app's own sheet, not the OS one (v23.33). The three
-    // member selects are the same ~50-name list the Calendar's was; the month filter joins them so
-    // the page has one kind of dropdown rather than two.
+    // The TWO dropdowns on this page open the app's own sheet, not the OS one (v23.33). `alMember`
+    // and `sickMember` were in this list until v23.74 and must not come back: they are `hidden`
+    // value holders, not controls — the member is chosen ONCE, in the top bar — and enhancing them
+    // built a second, fully operable member picker inside each card. Picking a name there moved the
+    // value the SAVE reads while every visible label stayed on the previous member, so the card
+    // could record leave against one person under another's name and entitlement. One member
+    // control on the page is the whole point of the top bar; see select-sheet.js's hidden-select
+    // note, and `select-sheet-parity.test.mjs`, which now refuses a hidden id in this list.
     initSelectSheets([
         { id: 'fieldMember',          title: 'Which member are you working on?' },
-        { id: 'alMember',             title: 'Book annual leave for' },
-        { id: 'sickMember',           title: 'Record an absence for' },
         { id: 'overridesMonthFilter', title: 'Show which month?' },
     ], { createLightbox });
 

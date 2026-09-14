@@ -292,6 +292,25 @@ function ensureSheet() {
 export function enhanceSelect(select, opts = {}) {
     if (opts.createLightbox) _createLightbox = opts.createLightbox;
     if (!select || select.dataset.sheetEnhanced) return () => {};
+
+    // ── A HIDDEN SELECT IS A VALUE HOLDER, NOT A CONTROL ───────────────────────────────────────
+    //
+    // Enhancing one used to CREATE a visible control where the page had deliberately removed it:
+    // the trigger is a new element and inherits nothing from the select but its classes, so
+    // `hidden` did not carry. Admin's `#alMember` and `#sickMember` are exactly that — retired
+    // dropdowns kept only so the save path has something to read, with the member set once from
+    // the top bar — and from v23.33 each card grew a second member picker that LOOKED like the
+    // page's own field and pointed nowhere. Picking a name in it moved `alMember.value`, which is
+    // what the save writes to, while the top bar, "Recording for", the AL banner, the week grid and
+    // Saved Changes all stayed on the previous member: the card would have recorded leave against
+    // one person under another person's name and entitlement figures. Reported by the owner,
+    // 14 Sep 2026.
+    //
+    // Refusing outright would be the wrong guard — a page may legitimately hide a real field and
+    // reveal it later — so the trigger simply mirrors the state it is standing in for, here and on
+    // every later change. A hidden select shows a hidden trigger; reveal the select and the control
+    // appears. `select-sheet-parity.test.mjs` separately refuses a hidden select in an
+    // `initSelectSheets` list, because a control nobody can see is not one worth building.
     select.dataset.sheetEnhanced = '1';
 
     const title = opts.title || select.getAttribute('data-sheet-title') || 'Choose an option';
@@ -335,6 +354,8 @@ export function enhanceSelect(select, opts = {}) {
         sizer.textContent = widestOptionLabel(select, opts.placeholder);
         btn.setAttribute('aria-label', `${title}. ${label}`);
         btn.disabled = select.disabled || select.options.length === 0;
+        // The trigger stands in for the select, so it is present exactly when the select is.
+        btn.hidden = select.hidden;
     };
 
     select.parentNode?.insertBefore(btn, select);
@@ -354,6 +375,11 @@ export function enhanceSelect(select, opts = {}) {
     // have a helper built on it — `_setSelectPeriod` (paycalc-periods.js) and `_setSelectValue`
     // (admin-app.js) — because iOS Safari ignores `.value` on a select with `<optgroup>`s. Those
     // helpers now say so by dispatching `input`; this is the ear for it.
+    // WHAT IT LOOKS LIKE WHEN THIS IS MISSING (v23.42, moved here from CLAUDE.md's row when that
+    // row hit its length cap): the trigger keeps the label of the PREVIOUS value while the select
+    // holds the new one. The pay-period picker named the wrong TAX YEAR, and the AL and Absence
+    // pickers named the wrong PERSON — three controls stating something false, with nothing
+    // thrown and nothing to see in any test.
     select.addEventListener('input', paint);
     // AND on any rebuild or disable, because those do NOT fire `change`. Half these selects are
     // repopulated after boot and several are disabled by an access change; without this the face
@@ -362,7 +388,7 @@ export function enhanceSelect(select, opts = {}) {
     // call at each site: the promise this module makes is that consumers do not change, and a
     // consumer that has to remember to call `refresh()` is a consumer that has changed.
     if (typeof MutationObserver === 'function') {
-        new MutationObserver(paint).observe(select, { childList: true, attributes: true, attributeFilter: ['disabled'] });
+        new MutationObserver(paint).observe(select, { childList: true, attributes: true, attributeFilter: ['disabled', 'hidden'] });
     }
     paint();
 
