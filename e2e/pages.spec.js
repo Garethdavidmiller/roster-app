@@ -7308,3 +7308,166 @@ test('select-sheet: a hidden select gets a hidden trigger, and revealing it reve
     expect(states.whileHidden, 'a hidden select must not produce a visible control').toBe(true);
     expect(states.afterReveal, 'revealing the select must reveal its trigger').toBe(false);
 });
+
+test('admin: AL on a rest day asks whether it was a swap, and will not save unanswered', async ({ page }) => {
+    // OWNER-REPORTED, 14 Sep 2026. Leave on a base-roster rest day costs nothing unless the member
+    // was SWAPPED onto it, and the app decided that silently — the AL card skipped such days, the
+    // week grid wrote them costing nothing. Three of one member's days were missing from her balance
+    // and the only way to find out was to compare against the depot's workbook by hand.
+    //
+    // The two rules are the owner's: ask ONLY when a day is affected, and REQUIRE an answer. The
+    // second is a save-path property — `al-swapped-days.test.mjs` can prove which days qualify, but
+    // only this can prove the button stays disabled — which is the half that makes it non-silent.
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    // A member and a range found from the roster, not written down: a pattern edit must not be able
+    // to turn this into a test of nothing.
+    // THE RANGE MUST HOLD A WORKING DAY *AND* A REST DAY, and that is not fussiness. A rest-day-only
+    // range is unsaveable either way — nothing to write — so it cannot tell "blocked because
+    // unanswered" from "blocked because empty". Deleting the unanswered guard left an earlier
+    // version of this test green; with a working day in the range, only the guard can disable Save.
+    const pick = await page.evaluate(async () => {
+        const [rd, ou] = await Promise.all([import('./roster-data.js'), import('./override-utils.js')]);
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const rest = (/** @type {any} */ m, /** @type {Date} */ d) =>
+            d.getDay() !== 0 && ou.isRestShift(rd.getBaseShift(m, d));
+        const work = (/** @type {any} */ m, /** @type {Date} */ d) =>
+            d.getDay() !== 0 && !ou.isRestShift(rd.getBaseShift(m, d));
+        for (const m of rd.teamMembers) {
+            if (m.hidden || m.managerOnly) continue;
+            for (let i = 1; i <= 120; i++) {
+                const a = new Date(today); a.setDate(a.getDate() + i);
+                const b = new Date(a);     b.setDate(b.getDate() + 1);
+                if (!work(m, a) || !rest(m, b)) continue;
+                if (a.getMonth() !== b.getMonth()) continue;   // keep both cells on one picker page
+                return { name: m.name, work: iso(a), rest: iso(b),
+                         monthsAhead: (a.getFullYear() - today.getFullYear()) * 12 + (a.getMonth() - today.getMonth()) };
+            }
+        }
+        return null;
+    });
+    expect(pick, 'no member has a working day followed by a rest day in the next 120 days').not.toBeNull();
+    const p = /** @type {any} */ (pick);
+
+    await page.locator('#fieldMember').selectOption(p.name);
+    await page.locator('#alToggleHeader').click();
+    await expect(page.locator('#alRangePicker')).toBeVisible();
+    for (let i = 0; i < p.monthsAhead; i++) { await page.locator('#alRpNext').click(); await page.waitForTimeout(60); }
+
+    await page.locator(`#alRpGrid .rp-day[data-iso="${p.work}"]`).click();
+    await page.locator(`#alRpGrid .rp-day[data-iso="${p.rest}"]`).click();
+
+    const ask  = page.locator('#alPreview .swapday-ask');
+    const save = page.locator('#alSaveBtn');
+    await expect(ask, 'a rest day in the range must raise the question').toBeVisible();
+    await expect(ask).toContainText('rest day');
+    // THE DECISIVE ASSERTION: there IS a working day to record, so the only thing that can be
+    // holding Save is the unanswered question.
+    await expect(save, 'unanswered means unsaveable — no default').toBeDisabled();
+
+    await page.locator(`.swapday-opt[data-answer="no"][data-date="${p.rest}"]`).click();
+    await expect(page.locator(`.swapday-opt[data-answer="no"][data-date="${p.rest}"]`)).toHaveAttribute('aria-pressed', 'true');
+    await expect(save, 'answered — the working day is recordable').toBeEnabled();
+
+    // The other answer, and the pressed state moving with it.
+    await page.locator(`.swapday-opt[data-answer="yes"][data-date="${p.rest}"]`).click();
+    await expect(page.locator(`.swapday-opt[data-answer="yes"][data-date="${p.rest}"]`)).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator(`.swapday-opt[data-answer="no"][data-date="${p.rest}"]`)).toHaveAttribute('aria-pressed', 'false');
+    await expect(save).toBeEnabled();
+});
+
+test('admin: a range with no rest days asks nothing at all', async ({ page }) => {
+    // The owner's rule 1, and the reason it matters: a question on every booking would be noise, and
+    // noise is how a question stops being read. No affected day, no block.
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    const pick = await page.evaluate(async () => {
+        const [rd, ou] = await Promise.all([import('./roster-data.js'), import('./override-utils.js')]);
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        for (const m of rd.teamMembers) {
+            if (m.hidden || m.managerOnly) continue;
+            for (let i = 1; i <= 120; i++) {
+                const a = new Date(today); a.setDate(a.getDate() + i);
+                if (a.getDay() === 0 || ou.isRestShift(rd.getBaseShift(m, a))) continue;
+                return { name: m.name, work: iso(a),
+                         monthsAhead: (a.getFullYear() - today.getFullYear()) * 12 + (a.getMonth() - today.getMonth()) };
+            }
+        }
+        return null;
+    });
+    expect(pick).not.toBeNull();
+    const p = /** @type {any} */ (pick);
+
+    await page.locator('#fieldMember').selectOption(p.name);
+    await page.locator('#alToggleHeader').click();
+    for (let i = 0; i < p.monthsAhead; i++) { await page.locator('#alRpNext').click(); await page.waitForTimeout(60); }
+    const cell = page.locator(`#alRpGrid .rp-day[data-iso="${p.work}"]`);
+    await cell.click();
+    await cell.click();
+
+    await expect(page.locator('#alPreview')).toContainText('working day');
+    await expect(page.locator('#alPreview .swapday-ask'), 'no rest day, no question').toHaveCount(0);
+    await expect(page.locator('#alSaveBtn'), 'an ordinary booking is unaffected').toBeEnabled();
+});
+
+test('admin: the week grid asks the swap question too, and refuses to save it unanswered', async ({ page }) => {
+    // THE OTHER DOOR, and the one the reported defect actually came through. The AL card skipped rest
+    // days; the week grid WROTE the leave and let it cost nothing. Fixing only the card would have
+    // left the original route silent — "the rule tested, the wiring not", in product form.
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    // Find a member with a rest day in the week the grid is showing, from the roster rather than a
+    // written-down date.
+    const target = await page.evaluate(async () => {
+        const [rd, ou] = await Promise.all([import('./roster-data.js'), import('./override-utils.js')]);
+        const rows = [...document.querySelectorAll('.day-row')].map(r => /** @type {any} */ (r).dataset.date);
+        for (const m of rd.teamMembers) {
+            if (m.hidden || m.managerOnly) continue;
+            for (const d of rows) {
+                if (!d) continue;
+                const dt = new Date(d + 'T00:00:00');
+                if (dt.getDay() === 0) continue;               // a Sunday is a different rule entirely
+                if (ou.isRestShift(rd.getBaseShift(m, dt))) return { name: m.name, date: d };
+            }
+        }
+        return null;
+    });
+    expect(target, 'no member has a rest day in the displayed week').not.toBeNull();
+    const t = /** @type {any} */ (target);
+
+    await page.locator('#fieldMember').selectOption(t.name);
+    await page.waitForTimeout(400);
+    const row = page.locator(`.day-row[data-date="${t.date}"]`);
+    await expect(row).toHaveCount(1);
+
+    // The question is hidden until AL is the chosen type — it is a question about annual leave.
+    const ask = row.locator('.col-al-swap');
+    await expect(ask, 'nothing is asked before a type is picked').toBeHidden();
+    await clickInView(row.locator('.type-pill-btn[data-type="annual_leave"]'));
+    await expect(ask, 'AL on a rest-day row must ask').toBeVisible();
+
+    // Unanswered → the save refuses THIS ROW by name rather than writing a day that costs nothing.
+    await clickInView(page.locator('#saveBtn'));
+    await expect(row).toHaveClass(/row-error/);
+    await expect(page.locator('#weekGridFeedback, .feedback').filter({ hasText: 'swapped working day' }).first())
+        .toBeVisible();
+
+    // Answering clears the refusal.
+    await clickInView(row.locator('.al-swap-btn[data-swap="no"]'));
+    await expect(row.locator('.al-swap-btn[data-swap="no"]')).toHaveAttribute('aria-pressed', 'true');
+
+    // Switching away from AL forgets the answer — it described a booking that no longer exists.
+    await clickInView(row.locator('.type-pill-btn[data-type="rdw"]'));
+    await expect(ask).toBeHidden();
+    await clickInView(row.locator('.type-pill-btn[data-type="annual_leave"]'));
+    await expect(row.locator('.al-swap-btn[data-swap="no"]'), 'a stale answer must not survive a type change')
+        .toHaveAttribute('aria-pressed', 'false');
+});

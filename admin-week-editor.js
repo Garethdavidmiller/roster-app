@@ -232,6 +232,17 @@ export function buildWeekGridInto(container, dateStr) {
                 <span class="time-error-msg" id="${timeErrId}" role="alert">Use HH:MM format (e.g. 07:00)</span>
             </div>
             <div class="col-rd-hint" hidden>Base roster: Rest Day — use <strong>RDW</strong> if this was overtime</div>
+            <!-- THE SWAPPED-DAY QUESTION (v23.75). Revealed only when AL is chosen on a base REST day —
+                 the one case where leave on a rest day is real is a member SWAPPED onto it. Two buttons
+                 and no pre-pressed state, because an unanswered day must not be able to look answered;
+                 the save refuses until one is pressed. Reasoning: al-swapped-days.js. -->
+            <div class="col-al-swap" role="group" aria-label="Is this a swapped working day?" hidden>
+                <span class="al-swap-q">Rest day on the roster — was this a <strong>swapped</strong> working day?</span>
+                <span class="al-swap-opts">
+                    <button type="button" class="al-swap-btn" data-swap="yes" aria-pressed="false">Swapped — counts</button>
+                    <button type="button" class="al-swap-btn" data-swap="no" aria-pressed="false">Rest day — free</button>
+                </span>
+            </div>
             <div class="other-opts" hidden>
                 <span class="other-flavour-group" role="group" aria-label="Type of day">
                     ${Object.entries(OTHER_FLAVOURS).map(([k, f]) =>
@@ -362,6 +373,18 @@ export function buildWeekGridInto(container, dateStr) {
                 // Show RD hint when Shift is chosen on a base-rest day
                 const rdHint = /** @type {HTMLElement|null} */ (row.querySelector('.col-rd-hint'));
                 if (rdHint) rdHint.hidden = !(type === 'shift' && row.dataset.baseIsRd === '1' && !already);
+                // Same shape, the other type: AL on a base rest day has to be asked about (v23.75).
+                const alSwap = /** @type {HTMLElement|null} */ (row.querySelector('.col-al-swap'));
+                if (alSwap) {
+                    const ask = type === 'annual_leave' && row.dataset.baseIsRd === '1';
+                    alSwap.hidden = !ask;
+                    // Leaving the type resets the answer: it described a booking that no longer exists,
+                    // and a stale `yes` would silently charge a day on whatever is picked next.
+                    if (!ask) {
+                        delete row.dataset.alSwap;
+                        row.querySelectorAll('.al-swap-btn').forEach(b => b.setAttribute('aria-pressed', 'false'));
+                    }
+                }
                 _markChanged();
                 updateSaveBtn();
             });
@@ -397,6 +420,17 @@ export function buildWeekGridInto(container, dateStr) {
 
         // Other-family sub-controls: flavour is a single-select toggle; the RDW tick marks an
         // Other rest-day. Both mark the grid changed like any other edit.
+        row.querySelectorAll('.al-swap-btn').forEach(btnEl => {
+            btnEl.addEventListener('click', () => {
+                const answer = /** @type {HTMLElement} */ (btnEl).dataset.swap || '';
+                row.dataset.alSwap = answer;
+                row.querySelectorAll('.al-swap-btn').forEach(b =>
+                    b.setAttribute('aria-pressed', String(/** @type {HTMLElement} */ (b).dataset.swap === answer)));
+                _markChanged();
+                updateSaveBtn();
+            });
+        });
+
         row.querySelectorAll('.other-flavour-btn').forEach(btnEl => {
             const btn = /** @type {HTMLButtonElement} */ (btnEl);
             btn.addEventListener('click', () => {

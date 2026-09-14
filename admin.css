@@ -1009,6 +1009,43 @@
         }
         .col-rd-hint[hidden] { display: none; }
 
+        /* The swapped-day question on a week-grid row (v23.75) — the same question the AL card asks,
+           on the other door into the same write. Spans the row like .col-rd-hint above it, and the
+           `[hidden]` rule is load-bearing for exactly the reason that one's is: `display: flex`
+           out-specifies the hidden attribute, so the group would draw on every row. */
+        .col-al-swap {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px 10px;
+            padding: 6px 8px;
+            border-radius: 4px;
+            background: var(--al-light);
+            color: var(--al-deep);
+            font-size: var(--type-badge);
+            line-height: 1.5;
+        }
+        .col-al-swap[hidden] { display: none !important; }
+        .al-swap-opts { display: flex; gap: 6px; flex-wrap: wrap; }
+        .al-swap-btn {
+            min-height: 44px;
+            padding: 5px 10px;
+            border: 1px solid color-mix(in oklch, var(--al-deep) 38%, transparent);
+            border-radius: var(--radius-button);
+            background: var(--surface);
+            color: var(--al-deep);
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .al-swap-btn[aria-pressed="true"] {
+            background: var(--al-deep);
+            color: var(--surface);
+            border-color: var(--al-deep);
+        }
+        .al-swap-btn:active { scale: var(--press-scale); }
+
 
 
         /* "Has override" badge — shown when a day already has a saved override.
@@ -1794,6 +1831,47 @@
         .al-preview.empty { color: var(--text-light); }
         .al-preview.ready { background: var(--al-light); color: var(--al-deep); }
         .al-preview.error { background: var(--error-bg); color: var(--error-text); }
+
+        /* ---- The swapped-day question (v23.75) ----------------------------------------------
+           Sits INSIDE the ready preview, directly above Save, because it is a condition of saving
+           rather than an aside. Two buttons per day and no pre-pressed state: an unanswered day must
+           not be able to look answered, which is why this is a choice between two readings and not a
+           checkbox somebody can leave untouched. Colours come from the AL palette the preview is
+           already painted in, so the block reads as part of it. */
+        .swapday-ask {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid color-mix(in oklch, var(--al-deep) 22%, transparent);
+        }
+        .swapday-lead { margin: 0 0 8px; font-weight: 600; line-height: 1.45; }
+        .swapday-row {
+            display: flex;
+            flex-wrap: wrap;          /* the two options drop below the date on a narrow phone */
+            align-items: center;
+            gap: 6px 10px;
+            padding: 5px 0;
+        }
+        .swapday-date { font-weight: 700; min-width: 7.5em; }
+        .swapday-opts { display: flex; gap: 6px; flex-wrap: wrap; }
+        .swapday-opt {
+            min-height: 44px;         /* the app's touch target, same as every other control here */
+            padding: 6px 12px;
+            border: 1px solid color-mix(in oklch, var(--al-deep) 38%, transparent);
+            border-radius: var(--radius-button);
+            background: var(--surface);
+            color: var(--al-deep);
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background var(--dur-fast) var(--ease-standard),
+                        border-color var(--dur-fast) var(--ease-standard);
+        }
+        .swapday-opt[aria-pressed="true"] {
+            background: var(--al-deep);
+            color: var(--surface);
+            border-color: var(--al-deep);
+        }
+        .swapday-opt:active { scale: var(--press-scale); }
 
         /* Absence preview — reuses al-preview layout */
         .sick-preview.ready { background: var(--absence-light); color: var(--absence-text); }
