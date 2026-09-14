@@ -155,12 +155,17 @@ repeating.
 > they are answering different questions, and a straight date-for-date comparison will report a
 > discrepancy that is not one.
 >
-> **FOUR INSTANCES NOW, NOT ONE** [measured, 14 Sep 2026]. `Mylla . O` carries three Sunday tags —
-> 11 Jan, 9 Aug, 27 Dec — and **every one of them falls on a day she was ROSTERED to work**
-> (14:30–23:25, 07:15–15:45, 07:15–15:45), with 11 Jan opening its block exactly as Panchal's
-> 15 Feb does. So this is not the exception the Panchal entry was written as; on the evidence so
-> far it is the ORDINARY case, and a tagged Sunday that happens to be a rest day is the variant.
-> Check the base roster every time.
+> **COMMON, BUT NOT A RULE — and the first version of this note overstated it** [measured,
+> 14 Sep 2026]. `Mylla . O` carries three Sunday tags — 11 Jan, 9 Aug, 27 Dec — and all three fall
+> on days she was ROSTERED to work, with 11 Jan opening its block exactly as Panchal's 15 Feb does.
+> On those four this note said the rostered case was "the ordinary" one and a rest-day tag "the
+> variant". `Haque . J`'s four tags then split: **two rostered (11 Jan, 22 Mar), one on a SPARE
+> Sunday (15 Mar), one on a rest day (29 Mar)**. Six of eight measured tags sit on a rostered shift,
+> which is a majority and not a rule.
+>
+> The instruction is unchanged and is the point: **check the base roster every time**, because the
+> tag itself tells you nothing about which kind it is — and only the rostered kind is a day the
+> member was away from actual work.
 >
 > So: **do not assume a tagged Sunday is a rest day, and do not assume it is mid-block.** Check the
 > base roster. Where the person was rostered, say they were away from a shift and that it cost no
@@ -491,5 +496,7 @@ This is the record of the file getting better; an upload that taught nothing is 
 | 14 Sep 2026 | **`Boyle . A` has NO leave anywhere in the 2026 grid** — zero mentions in any grade block, in any spelling, with column E empty and uncommented on both her rows. 0 of 32 used in mid-September. Three readings, none settled: she has genuinely booked nothing; a fixed-line person's leave is not recorded here (she moved off the rotating link to the Mon–Fri 09:00–16:00 line on 28 Jun 2026); or **§7's open question bites and `Boyle . A` is not `S. Boyle` at all**, in which case the app's S. Boyle has no row and the zero means nothing. The never-used row makes the third reading likelier than it looked. **RESOLVED the same day — owner: "She has been off sick all year so this makes sense."** Reading 1, and it settles §7's identity question as a by-product: the row IS hers, only the initial is wrong. It also promotes §9's carry-forward row from theoretical to a dated prediction. | Owner asked for S. Boyle's 2026 leave |
 | 14 Sep 2026 | **The duplicate-block theory confirmed across SHEETS.** `Boyle . A` is doubled on `Marylebone Block` at rows 10 and 19, the same relative positions as her totals rows 9 and 18. Structural, not a slip on one tab. Also the first fact about that sheet: it names each person's line (`MYB CSA`). | Same |
 | 14 Sep 2026 | **Carry-forward stops being theoretical in Jan 2027, and the row is already identifiable.** S. Boyle's untouched 32 of 32 after a year of sickness is exactly the c/f case §9 said it was waiting for. `getALEntitlement` takes no c/f input, so from her 2027 row the app will understate her entitlement for as long as the carry-over lasts. Better decided before it appears than met as a discrepancy. | Owner: "She has been off sick all year" |
+| 14 Sep 2026 | **CORRECTION: the Sunday-tag pattern was overstated the same day it was written.** Off Mylla's 3/3 plus Panchal it was recorded as "the ordinary case". `Haque . J`'s four tags split two rostered, one spare, one rest day — six of eight overall, a majority not a rule. The instruction (check the base roster every time) is unchanged; the claim around it is now the size of its evidence. | Owner asked for J. Haque's 2026 leave |
+| 14 Sep 2026 | **`Haque . J`'s −1 is REAL, and the obvious explanation was tested and disproved.** `COUNTIF` counts CELLS, so a name written twice on one date would inflate the total without a day being taken — but her 33 cells are 33 DISTINCT dates. Allowance agrees with the app at 32 and column C is empty, so she has genuinely taken 33 of 32 and the sheet reports it unclamped. For the clerks: a day granted over entitlement, or a 2025 carry-forward never entered in column C. **Unresolved.** Her empty autumn, unlike Cooper's and Panchal's, is explained by having nothing left. | Same |
 | 14 Sep 2026 | **CORRECTION, and a trap worth more than the case.** This file briefly said the app would read 6 remaining for F-Charles against the workbook's 3. It reads **4**: her three rest-day bookings already carry the swap and already count. The wrong figure came from calling `consumesEntitlement` with `ovByDate = null`, which the function's own docstring warns against — passing null MANUFACTURES a rest-day discrepancy. Never diagnose one without the override map. | Owner: "Still saying 4 remaining" |
 | 14 Sep 2026 | **The real one-day gap is `24/02`, and a second difference that cancels out.** App 28 days / 4 remaining vs workbook 29 / 3 — the whole gap is the over-quota day, exactly as §0 predicts. Separately, rendering the workbook's dates through the card's own merger proves the app holds **Sat 2 May** and the workbook holds **Thu 14 May**: nine days each, every total agreeing, two dates wrong somewhere. The argument for reporting DATES rather than counts, made by a live example. | Same |
