@@ -151,6 +151,13 @@ const CAPS = {
     // 1727 → 486 (v21.38): the store, the week editor, the Saved Changes list and the shift-type
     // table all moved out. Re-set to its new size plus the usual room — a cap left at 1800 over a
     // 486-line file is the "quietly generous" case this suite's own last check refuses.
+    // NEW TO THE TABLE at v23.81, which is the deliberate act this suite asks for rather than a
+    // silent crossing. The member's availability form reached 922 lines when it gained the
+    // Sunday-release control; the RULE that control needs went into `overtime-sunday-release.js`
+    // (which is where its reasoning lives too), so what grew here is wiring — a render branch, a
+    // change handler and a focus helper — and there is no second rule left to pull out. Bring this
+    // down the moment anything else leaves the file.
+    'overtime-form.js':        1000,
     'admin-overrides.js':      560,
     'admin-week-editor.js':    950,
     'admin-saved-changes.js':  460,
