@@ -2569,12 +2569,28 @@ test('admin: scrolling the date picker into another year moves the list with the
         /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
             docs: [
                 { id: 'a1', memberName: 'G. Miller', date: '2026-03-02', type: 'annual_leave', value: 'AL', note: '' },
-                { id: 'a2', memberName: 'G. Miller', date: '2027-06-22', type: 'annual_leave', value: 'AL', note: '' },
+                // BOTH DATES MUST BE WORKING DAYS ON HIS LINE. The list only shows leave that
+                // spends entitlement (v23.72), so a fixture date that happens to fall on a rest day
+                // is dropped — and this test then fails for a reason that has nothing to do with
+                // what it checks. It did: this was 22 Jun 2027, which is a rest day for G. Miller,
+                // so the 2027 chip vanished and the failure read like a broken year selector.
+                // 8 Jun is a working day, and the premise is asserted below rather than trusted.
+                { id: 'a2', memberName: 'G. Miller', date: '2027-06-08', type: 'annual_leave', value: 'AL', note: '' },
             ],
         });
     });
     await page.goto('/admin.html');
     await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    // The premise, so a roster edit that moves his line fails loudly here instead of quietly
+    // deleting the year this test is about.
+    const bothWork = await page.evaluate(async () => {
+        const [rd, al] = await Promise.all([import('./roster-data.js'), import('./al-entitlement.js')]);
+        const m = rd.teamMembers.find(x => x.name === 'G. Miller');
+        return ['2026-03-02', '2027-06-08'].map(d => al.consumesEntitlement(m, d, null));
+    });
+    expect(bothWork, 'both seeded AL dates must be working days for G. Miller').toEqual([true, true]);
+
     await page.locator('#fieldMember').selectOption('G. Miller');
     await page.locator('#alToggleHeader').click();
     await page.locator('#alBookedToggle').click();
