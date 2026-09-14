@@ -54,6 +54,31 @@ describe('projectAlBooking — a declared swap reaches every layer', () => {
         assert.equal(consumesEntitlement(reen, SAT, NO_OV), false);
     });
 
+    test('WRITING is every day the save will touch, and a FREE answer is not one of them', () => {
+        // Added by the v23.82 regression sweep, which found this half of the contract unasserted:
+        // making `writing.push` conditional on the day having been ASKED left all eleven tests
+        // green. Nothing in production reads `writing` today — it is declared output and a count —
+        // so that was a contract gap rather than a live defect, and the cheap moment to close it is
+        // before somebody builds on it.
+        //
+        // WRITTEN AND CHARGED ARE TWO QUESTIONS, and the three answers here are all different.
+        // MON is contracted: written, and it costs a day. SAT is a base rest day answered "no swap",
+        // and the save writes NOTHING on it — the rule al-swapped-days.js exists for, since a stray
+        // booking on a genuine rest day is what the whole question is there to stop. SUN is skipped
+        // for a different reason again: Sundays cannot hold annual leave at all.
+        //
+        // The first draft of this test asserted SAT into `writing`, on the reading that a free day
+        // is recorded and merely costs nothing. It is not, and the suite said so.
+        const p = projectAlBooking({
+            member: reen, dates: [MON, SAT, SUN], ovByDate: NO_OV,
+            swapAnswers: new Map([[SAT, false]]),
+        });
+        assert.deepEqual(p.writing, [MON], 'only the contracted day is written');
+        assert.equal(p.counts.writing, 1);
+        assert.deepEqual(p.skipped.sort(), [SAT, SUN].sort(), 'both free days are written nowhere');
+        assert.deepEqual(p.freeWritten, [], 'nothing here is written free of charge');
+    });
+
     test('answered FREE: the rest day is skipped and costs nothing', () => {
         const p = projectAlBooking({
             member: reen, dates: [MON, SAT], ovByDate: NO_OV,
