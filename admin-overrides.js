@@ -31,6 +31,7 @@ export { initOverrideStore, getAllOverrides, setAllOverrides, removeFromCache,
 import { sessionReady } from './session.js';
 import { parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
 import { replacedTypeForSwap } from './al-swapped-days.js';
+import { isWorkingDate } from './al-entitlement.js';
 import { checkShiftRules } from './admin-shift-rules.js';
 import { buildSaveReceipt } from './admin-save-receipt.js';
 
@@ -71,28 +72,12 @@ export function buildMemberDateMap(memberName) {
     return map;
 }
 
-/**
- * SINGLE SOURCE: is `dateStr` a WORKING day for the member? Used by every AL/absence range
- * operation — the two previews (AL/sick rest-day counts) AND the save/entitlement/write paths.
- * Rule (Sunday -> override -> base): Sundays are never worked (uncontracted, CLAUDE.md); an existing
- * override decides the day (worked iff its value is not a rest shift, so a non-rest override like
- * RDW on a base-RD day IS worked); otherwise the base shift decides.
- *
- * Previously reimplemented four times: the AL/sick PREVIEWS used an older fall-through form that
- * counted a base-RD day with a non-rest (RDW) override as a REST day, while the save/entitlement
- * paths counted it as WORKED - so the preview under-reported vs what the booking actually wrote.
- * Consolidating onto this (the save/write rule) fixes that drift.
- * @param {any} memberObj  teamMembers entry
- * @param {string} dateStr  YYYY-MM-DD
- * @param {Map<string, any>} ovByDate  from buildMemberDateMap
- * @returns {boolean}
- */
-export function isWorkingDate(memberObj, dateStr, ovByDate) {
-    if (isSunday(dateStr)) return false;
-    const ov = ovByDate.get(dateStr);
-    if (ov) return !isRestShift(ov.value);
-    return !isRestShift(getBaseShift(memberObj, parseISODate(dateStr)));
-}
+// `isWorkingDate` now lives in `al-entitlement.js` (v23.79), beside `consumesEntitlement` — the two
+// answer the two halves of the same question ("is it written?" / "does it cost a day?") and were in
+// different modules, one of which cannot be imported outside a browser. It is RE-EXPORTED here so
+// every existing call site is unchanged.
+export { isWorkingDate } from './al-entitlement.js';
+
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 /**

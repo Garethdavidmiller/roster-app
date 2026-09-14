@@ -142,6 +142,31 @@ in `override-utils.js`).
 gap that does not exist in their life. This was got wrong once (8 Sep 2026) and is worth not
 repeating.
 
+> ## ⚠️ ADD THE TABLE UP BEFORE YOU SEND IT — blocks LOSE the isolated day
+>
+> [14 Sep 2026] Grouping the days into blocks of absence is right, and it has its own failure mode:
+> **a single day with nothing either side of it has no block to join, and drops out.**
+> `F-Blackstock . R`'s **Sat 31 Jan** did exactly that — she worked the Friday, the Sunday after is
+> a rostered shift with no tag, so the day stands alone, and it vanished between the extraction
+> (which had all 25) and the table (which showed 24 + the over-quota day).
+>
+> **The total was stated correctly beside the table that contradicted it**, which is what makes
+> this cheap to catch and embarrassing to miss. The check is one line:
+>
+> **Count the DISTINCT dates in the answer. The set must equal the grid days plus column E — not
+> just the total, the SET.**
+>
+> Do it before sending, every time — the reader cannot perform it, because the grid total is not in
+> front of them. Note the asymmetry too: a lost day makes the answer look TIDIER, since an isolated
+> single day is the untidy row a summary wants to drop.
+>
+> **A TOTAL IS NOT ENOUGH, and this rule was written too weakly the first time** [14 Sep 2026]. It
+> originally said "sum the deducted column", and that check then PASSED on a `Sumali . J` table
+> which had **dropped 21 May and listed 23 Dec twice** — an omission and a duplicate net to zero, so
+> the total still read 33 and the arithmetic confirmed an answer with two errors in it. Compare the
+> SET of dates, and a duplicate is as visible as a gap. Both failures have now happened within an
+> hour of each other, on consecutive members.
+
 > **A Sunday tag does not always sit INSIDE a block, and the day is not always a rest day.**
 > [measured, 14 Sep 2026] Both halves of the sentence above can fail at once. `Panchal . A` is
 > tagged `N/A A Panchal` on **Sun 15 Feb 2026**, which **opens** his absence — the next grid day is
@@ -173,6 +198,32 @@ repeating.
 > intermediate figure here was an artefact of the sample**, which is what a running tally built out
 > of answered questions is worth when the question is a population question.
 >
+> **⚠️ THE CENSUS IS AGAINST THE PATTERN, NOT AGAINST WHAT WAS PUBLISHED — so a "named shift"
+> here is not proof the person was rostered one.** [owner, 14 Sep 2026] Told that
+> `F-Charles . C`'s 3 and 10 May and `Atrakimaviciene . L`'s 5 Jul were days I had failed to list,
+> the owner's answer was that they are **"already on the roster"**. `getBaseShift` returns the
+> member's ROTATING PATTERN; the roster the depot actually publishes each week can change any day
+> of it, and the roster import writes those changes into the app as overrides. So a tag can sit on
+> a pattern shift that the published week had already made a rest day — the person is off, the app
+> shows it, and nothing is missing from anybody's answer.
+>
+> Two consequences, and the first is the one that bites:
+>
+> - **A tagged Sunday is NOT automatically a hole in the app.** Before reporting one as a day the
+>   app structurally cannot hold, check whether the published roster already covers it. This file
+>   has twice described tagged Sundays as invisible to the app; that is true only where the
+>   published week really did roster the person a shift.
+> - **The 31 "named shift" tags are an UPPER BOUND on the rostered case**, not a count of it. Some
+>   number of them were changed on the published roster. The 23 rest-day tags are firmer — a
+>   pattern rest day is rarely turned into work without an RDW — so if anything the true
+>   named-shift share is **below** 41%, which moves the conclusion further in the direction it
+>   already went.
+>
+> **Settling it needs the OVERRIDES, not the pattern**, which means reading Firestore rather than
+> `roster-data.js`. That is the check to run the next time this is in front of somebody who can:
+> resolve each of the 75 tag dates through `resolveEffectiveShift` with the override map loaded,
+> and the census becomes exact. Until then, report the tag and the pattern, and say which it is.
+
 > **ASK "was the member DUE AT WORK", not "was a shift named".** SPARE is contracted — the person
 > is expected at the station — so being away from one is being away from work exactly as a named
 > shift is. That reading gives **69%, better than two in three**, and it is the one that answers
@@ -191,15 +242,6 @@ repeating.
 > The instruction is unchanged and is the point: **check the base roster every time**, because the
 > tag itself tells you nothing about which kind it is — and only the contracted kinds (a named
 > shift or a spare day) are days the member was away from actual work.
->
-> **A tag can stand COMPLETELY ALONE, and a block can be missing one** [measured, 14 Sep 2026].
-> `Tuck . N`'s **Sun 22 Mar** is tagged with no grid day anywhere near it — her nearest bookings
-> are 9 Mar and 8 May — and every day from 18 to 23 Mar is a working shift, so the tag is a
-> one-day absence from a rostered Sunday and nothing else. The mirror appears on the same person:
-> **Sun 6 Sep** sits between a booked Sat 5 and a rest-day Mon 7, is rostered 07:15–15:45, and is
-> NOT tagged; nor is **Sun 15 Nov**, straight after 13–14 Nov. Either she worked those Sundays, or
-> the clerk tagged one block and not the others. **An absent tag is not evidence she worked** — it
-> is silence, and §0 step 3 applies: say so rather than pick.
 >
 > So: **do not assume a tagged Sunday is a rest day, and do not assume it is mid-block.** Check the
 > base roster. Where the person was rostered, say they were away from a shift and that it cost no
@@ -247,10 +289,58 @@ elsewhere. Read the comment before assuming the value means over-quota days.
 **A second worked example, and it corroborates the first.** [measured, 14 Sep 2026] `Cooper . I`'s
 comment reads `19/08`. On Wed 19 Aug 2026 the four CEA slots hold Mylla, Gherbi, F-Blackstock and
 F-Charles — full, exactly as on Davies's 24 Dec. `F-Charles . C`'s own over-quota day, `24/02`, is
-the same shape: Mylla, Irvine, Panchal and Miller hold all four slots. **Four for four** since 14 Sep — `F-Blackstock . R`'s comment reads `29/12`, and on Tue 29 Dec
-the four CEA slots hold Davies, Reen, Mylla and Silva. That is
-as close to confirming the `[inferred]` meaning of column E as the file alone can get; it still
-wants the owner's word.
+the same shape: Mylla, Irvine, Panchal and Miller hold all four slots. **TEN FOR TEN** as of
+14 Sep — `F-Blackstock . R`'s `29/12` lands on a Tuesday whose four slots hold Davies, Reen, Mylla
+and Silva, `Silva . S`'s own `02/01` on a Friday holding Mylla, Miller, Reen and F-Blackstock, and
+`Sumali . J`'s `10/04` on a Friday holding Robson, Gherbi, Nsuala and Miller, and all THREE of
+`Bibi . T`'s (`16/04` — Gherbi, Cooper, Nsuala, Langley; `19/08` — Mylla, Gherbi, F-Blackstock,
+F-Charles; `20/08` — Atrakimaviciene, Gherbi, F-Blackstock, Cooper), and `Gherbi . T`'s `23/02` on a
+Monday holding Mylla, Irvine, Panchal and Miller.
+**Every over-quota date checked so far falls on a date whose four CEA slots are full, with no
+exceptions.** That is as close to confirming the `[inferred]` meaning of column E as the file alone
+can get; it still wants the owner's word.
+
+> ## ✅ §0 CONFIRMED AGAINST THE APP'S OWN FIGURE — the first time, 14 Sep 2026
+>
+> Everything above was reasoning: column E is deducted, so an answer built from the grid alone is
+> short by exactly those days. The owner then read `F-Blackstock . R`'s balance off the **app** and
+> got **7 remaining** where the workbook says **6**.
+>
+> ```
+> app:       32 allowance − 25 grid days                  = 7
+> workbook:  32 allowance − (25 grid days + 1 over quota)  = 6
+> ```
+>
+> **The gap is one day and it is the over-quota day** — `29/12`, exactly as the comment says, on a
+> Tuesday whose four CEA slots are full. No other explanation fits: all 25 of her grid days land on
+> contracted days, so the app counts all 25 and cannot be short for any other reason.
+>
+> **This is the failure mode §0 exists to prevent, caught from the other end.** It is not merely
+> that an ANSWER is short — the APP is short too, permanently, because nothing ever writes the
+> over-quota day into it. So:
+>
+> - **An over-quota day should be RECORDED in the app as annual leave**, not just mentioned in the
+>   answer. Until it is, that member's balance stays one day generous for the rest of the year and
+>   the discrepancy re-appears every time anybody checks.
+> - **A one-day gap between the app and the sheet is column E until proved otherwise.** It is the
+>   first thing to check, not the last, and it will usually be the whole difference.
+> - **It is not a one-off.** `Silva . S` is the same case one member later — 19 grid days against a
+>   column E of 1, so the app will read **13** where the sheet says 12, and the missing day is her
+>   `02/01`. **Every member carrying a column-E value is in this state until somebody enters it**,
+>   which as of 14 Sep is at least five people (Davies, Cooper, F-Charles, F-Blackstock, Silva).
+>   Worth clearing in one pass rather than one question at a time.
+> - Where the pattern makes the day a REST day, recording it hits the v23.75 swap question
+>   (`al-swapped-days.js`) and the answer is that it was a working day taken as leave.
+
+> **A COLUMN-E CELL CAN HOLD SEVERAL DATES, AS A COMMENT THREAD** [measured, 14 Sep 2026].
+> `Bibi . T`'s E14 is **3**, and the comment is a thread: the body reads `16/04` and two REPLIES add
+> `20/08` and `19.08`. **Read the replies, not just the body** — taking the first line alone would
+> have found one date for a cell worth three, and the answer would have been two days short with
+> nothing to show for it.
+>
+> **And the punctuation varies inside one thread.** That third reply is `19.08`, with a full stop
+> where the other two use a slash. Same `DD/MM` order, different separator, in the same cell. Any
+> mechanical read of these comments must accept both; a human reading them will not notice.
 
 **Nothing in the grid marks an over-quota day.** It is only in column E and its comment. Do not go
 hunting for a fifth name on a date — there isn't one.
@@ -322,6 +412,13 @@ drops people.
 > | `Csherrice` | 3 May, 10 May | `F-Charles . C`. **Same SLOT COLUMN** as her bookings either side — slot D on Fri 1 and Mon 4 May, slot D again on Sat 9 and the Sunday between |
 > | `Loreta` | 5 Jul | `Atrakimaviciene . L`. Dead centre of her 3–9 Jul block and in her slot column (D) throughout |
 >
+> **⚠️ A SHORT SURNAME SUBSTRING-MATCHES PLACE NAMES** [14 Sep 2026]. Sweeping the workbook for
+> `'reen'` reported hits on `South Bucks Totals` and `South Bucks Calendar`, which looked like
+> `Reen . C` working at a second location — a significant finding if true. It is
+> **"Beaconsfield & Seer Green"**. Checked before reporting; it would have been a confident,
+> completely wrong claim. **Confirm any cross-sheet hit by reading the actual cell**, and remember
+> the workbook holds every Chiltern location, not just Marylebone.
+>
 > **The slot column is the identifier, not the text.** That is the technique to use when a tag
 > cannot be read: a leave block holds ONE slot letter for its whole run, so the Sunday cell in that
 > same column belongs to whoever holds the days either side. It resolved all three here.
@@ -329,6 +426,21 @@ drops people.
 > Two more spellings that break an exact match: **`Sumali . J` is also written `Sumaili . J`**
 > within the same sheet (12 and 19 Jul against 14 Jun), and one cell reads **`N/A L Springer NA`**
 > with the state repeated. **Match loosely, then confirm by slot column.**
+>
+> ## ⚠️ A REVERSED TAG READS AS A BOOKING — measured, by catching a scan out
+>
+> [14 Sep 2026] `Irvine . D`'s Sun 9 Aug cell reads **`D Irvine N/A`**, name before state. A scan
+> that tells a tag from a booking by testing `startswith("N/A")` — which is what this file's own
+> examples encourage — files it as a **booked day**, and the answer gains a day the member never
+> took, **on a Sunday**, the one day that cannot hold annual leave. It happened in this session.
+>
+> `Okeke . M`'s 4 Oct tag (`M Okeke N/A`) is the same shape, recorded above as a curiosity; this is
+> it doing damage. **Test for the state ANYWHERE in the cell, not at the start** — and cross-check
+> the count against the row's `COUNTIF`, which looks for the exact `Surname . I` string and is
+> therefore immune: it correctly counted 32 while the scan said 33.
+>
+> **And a cell can hold whitespace that is neither empty nor a value** — slot E on that same
+> 9 Aug row contains twenty spaces. `is None` does not catch it; strip before testing.
 
 **Initials that disagree** — first name vs known-as, or an error; not established [unknown]:
 
@@ -353,9 +465,21 @@ scan must not assume the `N/A <name>` shape — match the surname anywhere in th
 
 Every one of these is silent, and every one has been seen. [measured]
 
-1. **Duplicate person rows.** Some people appear twice in `New Marylebone Totals` with *different*
-   figures — one pair differs by exactly the over-quota day, so the two rows report a different
-   Remaining for the same person. One pair also spans grades (a CES listed once as CEA with zero
+1. **Duplicate person rows — THREE pairs, now enumerated** [measured, 14 Sep 2026]:
+
+   | Name | Rows | The two rows say |
+   |---|---|---|
+   | `Rotaru . G` | 6, 56 | **CEA** c/f 2, allow 32, E 2, used **0**, rem 32 ·· **CES** allow 34, E 3, used **24**, rem 7 |
+   | `Boyle . A` | 9, 18 | identical (0 used, 32 rem) |
+   | `F-Charles . C` | 10, 19 | differ by exactly the over-quota day — E 1 / rem 3 ·· E blank / rem 4 |
+
+   `Rotaru . G` is the cross-grade pair, and the CEA row's over-quota dates (`02/01`, `03/01`) are
+   the first half of the CES row's (`02/01 03/01`, `27/08`) — it reads as an abandoned row later
+   re-created under the right grade. It is also the row carrying the sheet's only live
+   carry-forward (defect 5), so it cannot simply be ignored.
+
+   The consequence is that **the two rows report a different Remaining for the same person**, and
+   a reader who finds one has no signal that the other exists (a CES listed once as CEA with zero
    days, evidently stale). **Always check whether a name appears more than once before quoting a
    figure.**
 
@@ -393,8 +517,32 @@ Every one of these is silent, and every one has been seen. [measured]
    of thing that becomes wrong when the sheet is extended.
 4. **The over-quota column is hand-typed.** It cannot be derived, checked or recomputed from
    anything else in the file. If the comment is missing, the date is gone.
-5. **Carry-forward is barely used.** Only one row carries a c/f value, and it is on a row that looks
-   stale. **The app has no concept of carry-forward at all** — see §9.
+
+   **MEASURED, and it has happened once** [14 Sep 2026]: `Mohamed . F` (row 51, CES) has
+   **E = 2 and no comment at all**. Verified the careful way rather than off the library — this
+   sheet's threaded comments live in ONE file (`threadedComment15.xml`, resolved through the
+   worksheet rels per §6), and it carries E50, E52, E55 and E56 but nothing on E51. **Her answer
+   can be complete on the total and cannot be complete on the days.** Only the clerks can recover
+   them. Every other non-empty column E in the sheet does carry its dates.
+5. **Carry-forward is used on EXACTLY ONE live row — and finding it exposed a worse bug.**
+   [corrected TWICE on 14 Sep 2026] `Rotaru . G` row 6 carries **c/f = 2**; every other row on
+   `New Marylebone Totals` is blank. Twelve more c/f values, up to 13 days, sit on the **2021**
+   sheet (defect 7).
+
+   **The two wrong versions of this line are worth keeping, because the second was a code bug.**
+   It first said "barely used, one row, and it looks stale". It was then "corrected" to "empty for
+   every one of its 47 rows" — which was wrong, and wrong because **the check keyed a dictionary
+   by member NAME**. `Rotaru . G` appears twice (rows 6 and 56), so row 56 silently overwrote row 6
+   and took its carry-forward with it. The same bug undercounted the sheet: it has **50** named
+   rows, not 47.
+
+   > **NEVER KEY ANYTHING BY MEMBER NAME IN THIS WORKBOOK.** Three names are duplicated
+   > (`Rotaru . G`, `Boyle . A`, `F-Charles . C`), so a name-keyed dict, set or lookup drops rows
+   > silently and the total still looks plausible. Key by ROW.
+
+   §9's question stands and is sharper than either version made it look: the depot has tracked
+   carry-forward historically, the current register has all but stopped, and **the app has no
+   concept of it at all**.
 6. **An over-quota comment with no value beside it.** [measured, 14 Sep 2026] `Sumali . J` (row 17)
    carries the comment `10/04` on E17, but **E17 itself is empty**. Excel reads the blank as zero, so
    `=F17-(G17+E17)` computes 32 − (32 + 0) = **0 remaining** and nothing errors — where the comment
@@ -402,6 +550,49 @@ Every one of these is silent, and every one has been seen. [measured]
    their entitlement. It is the mirror of defect 4: there the date is lost and the deduction stands;
    here the date survives and the deduction is missing. **Read the comment even when the cell is
    blank** — a blank E is not evidence of no over-quota day.
+
+   **CONFIRMED, not merely suspected** [measured, 14 Sep 2026]: **Fri 10 Apr 2026 is a real
+   over-quota day.** It is a working day on her roster (08:00–16:30), it sits in the middle of her
+   4–11 Apr absence, and that Friday's four CEA slots hold Robson, Gherbi, Nsuala and Miller —
+   full, exactly like the five other over-quota dates. **E17 should read 1**, and her true position
+   is 33 days against 32.
+
+   **Her row is the worst case this file has: THREE systems, THREE answers, none of them right
+   together.**
+
+   | Source | Says | Why |
+   |---|---|---|
+   | the workbook's formula | **0** | `=F17-(G17+E17)` with E17 blank |
+   | the comment | **−1** | 33 days used against 32 |
+   | the app | **2** | it counts 30, refusing two rest-day bookings (below) |
+
+   **And the spelling scare was checked and is clear.** The name appears as both `Sumali . J` and
+   `Sumaili . J` in this workbook, which would break `COUNTIF` silently if it reached the grid —
+   **all 32 grid cells say `Sumali . J`**; only the 14 Jun free-text tag says `Sumaili`. The formula
+   is not dropping days. Worth re-checking if anybody edits the grid, because nothing would say so.
+7. **THERE ARE TWO MARYLEBONE REGISTERS IN THIS FILE, AND THE STALE ONE IS FROM 2021.**
+   [measured, 14 Sep 2026] `Marylebone Totals` / `Marylebone Calendar` / `Marylebone Block` are a
+   **2021** register — the calendar's dates run 1 Jan 2021 to 1 Jan 2022 — left in the workbook
+   beside the live `New Marylebone *` sheets. A name search therefore returns **two totals rows for
+   one person**, and nothing on the row says which year it is:
+
+   | `Langley . S` | Used | Remaining |
+   |---|---|---|
+   | `New Marylebone Totals` (2026) | 23 | 9 |
+   | `Marylebone Totals` (2021) | **0** | **32** |
+
+   **The stale row is entirely plausible** — same `Surname . I` format, same 32 allowance, `MYB CSA`
+   beside it — so there is no tell except the sheet name. Its header differs slightly
+   (`AL over allocation`, not `AL over depot quota`; it also has `Location` and `Role` columns), and
+   it carries ten `Unused . 1`…`Unused . 10` placeholder rows. Only **20 of 51 names** appear on
+   both sheets, which is why this stayed hidden: most people asked about in Sep 2026 had not joined
+   in 2021.
+
+   **Always name the sheet.** Every figure in this document is from `New Marylebone Totals` and
+   `New Marylebone Calendar`; a script that iterates `wb.worksheets` looking for a surname will find
+   the 2021 one too, and §6 already warns about exactly this class of error for the threaded
+   comments.
+
 
 ---
 
@@ -419,7 +610,41 @@ difference is.
 | **Pro-rated joining year** | should agree | The workbook's allowance for a joiner should equal the app's `proRatedAL[2026]`. Check it — this is the cheapest real check in the whole reconciliation. |
 | **Dispatcher lieu days** | check | The app adds one lieu day per bank holiday worked. Whether the workbook's allowance for a Dispatcher already includes them is **[unknown]**. |
 | **A SWAPPED working day booked off** | app shows **more** remaining | **The commonest real cause, ANSWERED BY THE OWNER 14 Sep 2026** — see below. |
+| **Employee of the Month** | **BOTH may show less entitlement** | **One extra AL day per award** [owner, 14 Sep 2026]. Neither system holds it: the workbook's allowance column reads a flat 32 for every CEA, and `getALEntitlement` returns a flat 32 too. **PARKED at the owner's request** — see below. |
 | **Leavers** | app may show a stale row | A leaver is `hidden` in the app but keeps their workbook row and figures. |
+
+### Employee of the Month — one extra day, held nowhere [owner, 14 Sep 2026] — **PARKED**
+
+> **Do not act on this section.** The owner raised it and said explicitly: *"We will revisit that
+> thought another day."* It is recorded so the next session starts from the fact rather than
+> rediscovering it, not because anything is waiting to be built.
+
+**The fact:** the Employee of the Month gets **one extra day of annual leave**.
+
+**Why it matters more than it sounds.** It changes what a NEGATIVE remaining means. Three rows
+currently sit at −1 — `Sumali . J`, `Haque . J` and `Reen . C` — and this file has been treating
+that as an overdraw, an error, or an unrecorded carry-forward. **A person with one award has an
+entitlement of 33, so taking 33 days is exactly correct and the −1 is an artefact of an allowance
+column that cannot express it.** That is a completely different conclusion from "this person has
+taken more leave than they are owed", and it is the kind of thing that should never be guessed at
+in front of a member.
+
+**Neither system can hold it today:**
+
+- The workbook's **AL allowance** column is a flat 32 for every CEA row measured.
+- The app's `getALEntitlement` returns a flat 32 for a CEA, with `proRatedAL[year]` the only
+  adjustment it accepts, and that is for a joining year rather than an award.
+
+**It is the same SHAPE as carry-forward** (the row above), and the two should be thought about
+together when this is picked up: both are real, owner-known adjustments to an individual's
+entitlement that neither the sheet nor the app has anywhere to put. Up to twelve awards a year
+across the depot is not a rounding error.
+
+**What would need deciding, when it IS revisited:** whether the award is recorded per member and
+per year, whether it carries the CEA/CES/Dispatcher base or sits on top of it, and whether the
+workbook or the app is the system of record — because if the allowance column starts reading 33 for
+some people, every reconciliation in this document has to read it rather than assume the grade
+default.
 
 ### A rest-day AL booking is usually a SWAP, and the app can hold it
 
@@ -505,6 +730,27 @@ them change what a figure MEANS, so an unanswered one is not a tidiness problem.
    pre-June lump a separate, deliberate use of the same column?
 8. **Who owns the file** — is the copy uploaded here always current, and does anybody edit it
    besides the roster clerks?
+9. **`Sumali . J`'s E17 should read 1** — §8.6's defect is now confirmed (the `10/04` comment names
+   a real over-quota day), so the cell is simply missing its value and her row understates by one.
+   Is that a correction for the clerks to make in the workbook? Until it is made, her Remaining
+   reads 0 where the true figure is −1.
+10. **Is anybody tracking the people at −1?** Three now — `Sumali . J`, `Haque . J` and `Reen . C`
+   — read as having taken more than their entitlement. **A LIKELY EXPLANATION ARRIVED 14 Sep 2026
+   and is PARKED:** Employee of the Month earns one extra day, which no allowance column can
+   express, so a person with an award is entitled to 33 and the −1 is an artefact rather than an
+   overdraw (§9). Do not describe any of these three as over their entitlement until it is
+   settled.
+11. **`Sumali . J`'s 13 and 14 May** are rest days on her rotating pattern, so the app refuses them
+   while the workbook counts them. Swapped working days (the F-Charles case), or did the published
+   roster that week differ from the pattern? **The workbook CANNOT answer this** [measured,
+   14 Sep 2026]: both cells hold a plain `Sumali . J` in slot F, identical to 11 and 12 May, same
+   fill, no comment, no marker — the tail of one continuous run from 8 to 14 May. **The sheet has
+   no concept of a rest day**; it allocates quota slots, and a slot is a slot. So nothing in it
+   looks wrong, and the evidence has to come from the published roster for that week or from her.
+   **The two answers are materially different:** a swap means the sheet is right and she really is
+   at 33 of 32; genuine rest days mean the clerks deducted two days that cost her nothing and she
+   is at 31, with a day in hand rather than an overdraw. **Worth asking of the other −1 rows too**
+   — the same mechanism could explain any of them.
 
 ---
 
@@ -565,5 +811,29 @@ This is the record of the file getting better; an upload that taught nothing is 
 | 14 Sep 2026 | **A Sunday tag can stand completely alone — and a block can be missing one.** Her **Sun 22 Mar** tag has no grid day near it (nearest 9 Mar and 8 May) and sits in a week of solid working shifts: a one-day absence from a rostered Sunday, invisible to the app and to the grid alike. The mirror is on the same person — **Sun 6 Sep** (rostered, between a booked Sat and a rest-day Mon) and **Sun 15 Nov** (rostered, straight after 13–14 Nov) are both untagged. Recorded as §0 step 3 rather than resolved: an absent tag is silence, not evidence she worked. **Unresolved.** | Same |
 | 14 Sep 2026 | **A completely clean reconciliation, which is worth logging precisely because nothing was wrong.** N. Tuck: one totals row, column E empty AND uncommented, 26 grid cells on 26 distinct dates, 26 of 32 used, 6 remaining — and all 26 land on contracted days, so `consumesEntitlement` agrees with the sheet day for day with no swap data needed. The first member of the nine looked at today with no duplicate row, no over-quota day, no −1 and no rest-day gap. | Same |
 | 14 Sep 2026 | **THE SUNDAY-TAG RATIO, COUNTED IN FULL — and every earlier figure in this file was wrong.** All 75 CEA-block tags classified against each member's own base roster: **31 named shift (41%), 21 spare (28%), 23 rest day (31%)**; contracted = **52 of 75, 69%**. The named-shift case is a MINORITY. Four successive statements here ("the ordinary case", "a majority", "eight of fourteen", "twelve of twenty-three") were all artefacts of asking about whoever the owner happened to raise that day. **A population question is not answerable from a running tally of answered questions**, and the lesson is worth more than the ratio. | Owner asked for R. Forester-Blackstock's 2026 leave |
+| 14 Sep 2026 | **OWNER CORRECTION: the census measures the PATTERN, not the published roster.** Told that F-Charles's 3/10 May and Atrakimaviciene's 5 Jul were missing from their answers, the owner replied they are *"already on the roster"* — `getBaseShift` returns the rotating pattern, and the week the depot publishes can change any day of it, with the roster import writing that into the app. So a tag on a pattern shift may be a day the app already shows as off, and **31 named-shift tags is an upper bound rather than a count**. Recorded against §4 with the exact check that would settle it (resolve each tag date through `resolveEffectiveShift` with the overrides loaded). It moves the conclusion further in the direction it already went. | Owner: "The last two away things are already on the roster" |
+| 14 Sep 2026 | **§0 CONFIRMED AGAINST THE APP, and it is worse than a short answer.** Owner read `F-Blackstock . R` off the app as **7 remaining** against the workbook's 6. The gap is exactly one day and it is her over-quota `29/12` — all 25 grid days consume, so nothing else can explain it. The consequence now recorded in §5: an over-quota day should be **RECORDED in the app**, or that member's balance stays a day generous for the rest of the year and the discrepancy returns every time anybody looks. **A one-day app-vs-sheet gap is column E until proved otherwise.** | Owner: "I have 7 remaining for Romiah, where is the other booked day" |
+| 14 Sep 2026 | **A DAY WAS LOST BETWEEN THE EXTRACTION AND THE TABLE — owner caught it.** `F-Blackstock . R`'s **Sat 31 Jan** stands alone (Friday worked, Sunday rostered and untagged), so it had no block to join and fell out of the grouped answer while the stated total, 26, stayed right. §4 now carries the check: **sum the deducted column and it must equal grid days + column E**. The reader cannot perform it, and the asymmetry is that losing a day makes the answer look TIDIER — an isolated single day is exactly the row a summary wants to drop. | Owner: "Where is the 31st of Jan is your original list you gave to me?" |
+| 14 Sep 2026 | **TWO MARYLEBONE REGISTERS IN ONE FILE — the stale one is 2021.** `S. Langley` has a totals row on each, reading 23 used / 9 remaining on the live sheet and **0 used / 32 remaining** on `Marylebone Totals`, whose calendar runs 1 Jan 2021 – 1 Jan 2022. The stale row is indistinguishable from a live one without looking at the sheet name. Recorded as §8 defect 7. It also **corrects defect 5**: c/f is not "barely used", it is used on **none** of the live sheet's 47 rows, while twelve 2021 rows carry one — so §9's carry-forward question is sharper than it read (the depot has tracked it, the current register does not, and neither does the app). | Owner asked for S. Langley's 2026 leave |
+| 14 Sep 2026 | **§5 is FIVE for five, and the app-is-short case is not a one-off.** `Silva . S`'s `02/01` lands on a Friday whose four CEA slots hold Mylla, Miller, Reen and F-Blackstock. Her 19 grid days against a column E of 1 mean **the app will read 13 where the sheet says 12** — the second instance of the gap F-Blackstock's 7-vs-6 exposed, one member later. Recorded in §5: every member carrying a column-E value is in this state until it is entered, which is at least five people. Her own figures otherwise reconcile exactly: 19 distinct dates, all contracted, 20 of 32 used, 12 remaining. Also the longest absence seen yet — **16–28 Jun, thirteen continuous days for six deductions**, which is the case for giving days AWAY rather than a count. | Owner asked for S. Silva's 2026 leave |
+| 14 Sep 2026 | **§8.6 CONFIRMED — `Sumali . J`'s `10/04` is a real over-quota day**, and two new §10 questions raised from it. A working day for her, mid-absence, on a Friday whose four CEA slots are full (Robson, Gherbi, Nsuala, Miller): the same shape as the other five, so **§5 is six for six** and **E17 should read 1**. Her row is the file's worst case — the formula says 0, the comment says −1, and the app says 2, because two of her booked days (**13 and 14 May**) are rest days on her pattern and `consumesEntitlement` refuses them. The `Sumali`/`Sumaili` spelling was checked for silent COUNTIF loss and is CLEAR: all 32 grid cells use one spelling, only a tag uses the other. Third person at −1, with Haque and Reen. | Owner asked for J. Sumaili's 2026 leave |
+| 14 Sep 2026 | **THE WORKBOOK CANNOT SETTLE A REST-DAY BOOKING, and that is structural.** Asked what `Sumali . J`'s 13–14 May actually show, the answer is: a plain booking in slot F, identical to the days either side, no marker of any kind — the tail of one run from 8 to 14 May. The sheet allocates QUOTA SLOTS and has no concept of a rest day, so a rest-day booking is invisible in it by design and nothing looks wrong. Recorded against §10.11 with what turns on it: a swap means she is genuinely at 33 of 32; genuine rest days mean two days were deducted that cost her nothing and she is at 31 with a day in hand. **The same mechanism could explain any of the three −1 rows.** Also noted: Sun 10 May carries no tag for her although her block runs through it — more evidence that a missing tag means nothing. | Owner: "But the 13th and 14th of May are showing what in the spreadsheet?" |
+| 14 Sep 2026 | **THE CHECK ADDED AN HOUR EARLIER WAS ITSELF TOO WEAK — owner caught it.** §4 said "sum the deducted column", and that passed on a `Sumali . J` table that had **dropped 21 May and duplicated 23 Dec**: an omission and a duplicate cancel, so the total read 33 and the arithmetic endorsed an answer containing two errors. The rule is now **compare the SET of distinct dates**, under which a duplicate is as visible as a gap. Two failures of the same family in one hour, on consecutive members — and the second was caught by the reader, not the check. | Owner: "Why do you have 20th and 21st of May in one table and only 20th of May in the other?" |
+| 14 Sep 2026 | **OWNER FACT, PARKED: Employee of the Month earns ONE EXTRA AL DAY.** Neither system holds it — the workbook's allowance column is a flat 32 for every CEA and `getALEntitlement` returns a flat 32 too. **It may explain the −1 rows**: a person with an award is entitled to 33, so taking 33 is correct and the negative is an artefact of a column that cannot express the award, not an overdraw. Recorded in §9 beside carry-forward, which is the same shape — a real, owner-known entitlement adjustment with nowhere to live. Explicitly **not actioned**: *"We will revisit that thought another day."* | Owner, unprompted, on the −1 rows |
+| 14 Sep 2026 | **A COLUMN-E CELL CAN HOLD SEVERAL DATES, AS A COMMENT THREAD — and the separator varies inside it.** `Bibi . T`'s E14 is 3, and its comment body reads `16/04` with two REPLIES adding `20/08` and `19.08` — note the full stop in the third. Reading the body alone would have found one date for a cell worth three. All three verified full on the day (nine for nine overall), so the app will read **3** against the sheet's 0, the largest of these gaps yet. Recorded in §5. Her own row reconciles exactly: 29 grid days, 3 over quota, 32 of 32, 0 remaining, none on a rest day. One Sunday tag all year despite heavy leave, with rostered Sundays 11 and 18 Oct sitting inside her October block untagged. | Owner asked for T. Bibi's 2026 leave |
+| 14 Sep 2026 | **A SECOND COMPLETELY CLEAN ROW, and the longest absence in the file.** `Nsuala . T`: one totals row, no 2021 row, column E empty AND uncommented, one consistent spelling, 29 grid days on 29 distinct dates, all on contracted days — so the app agrees at 3 remaining with nothing to reconcile and no swap question. Her **7–20 Apr is fourteen continuous days for eight days' leave**, the longest run yet, bracketed by rest days and spanning two tagged Sundays. She is also the first member whose tags are **all on non-working days** (three rest, one spare, none on a named shift) — an example of the 59% the full census says is the majority case. | Owner asked for T. Nsuala's 2026 leave |
+| 14 Sep 2026 | **A REVERSED TAG READ AS A BOOKING — caught in this session, on `Irvine . D`.** Her Sun 9 Aug cell is `D Irvine N/A`, name before state, so a `startswith("N/A")` test filed it as a 33rd booked day — adding a day she never took, on the one weekday that cannot hold AL. `Okeke . M`'s 4 Oct tag is the same shape and was logged as a curiosity; this is it doing damage. §7 now says to test for the state ANYWHERE in the cell and to cross-check against the row's `COUNTIF`, which is immune (it correctly said 32). Also found there: a cell holding **twenty spaces**, which `is None` does not catch. | Owner asked for D. Irvine's 2026 leave |
+| 14 Sep 2026 | **THE BILINGUAL CHECK IS NOW COMPLETE — both members, both systems, agreed.** `bilingualContract: true` is set on exactly two people in the app (`D. Irvine`, `T. Gherbi`), and BOTH carry `BLCEA` with a **34** allowance in the workbook. That is the whole bilingual population, so §3's rule is as tested as it can be. | Owner asked for T. Gherbi's 2026 leave |
+| 14 Sep 2026 | **THE FIRST ROW WHERE APP AND SHEET AGREE ON A NEGATIVE — and the cleanest test of the award question.** `Reen . C` is on the fixed Mon–Fri 12:00–19:00 line, so all 33 of her grid days are working days and every weekend is already a rest day. Column E empty AND uncommented, no duplicate row, no rest-day booking, no missing tag: the app will read −1 too. **There is no bookkeeping explanation available for her**, which makes her the sharpest case for §9's parked Employee-of-the-Month question — either she holds an extra day or she is genuinely one over. Her 15–31 Dec is **seventeen continuous days**, the longest in the file. She has no Sunday tags at all, which is RATIONAL on a Mon–Fri line (the tag exists to bridge an N/A Sunday row) rather than another instance of the discretionary tagging. | Owner asked for C. Reen's 2026 leave |
+| 14 Sep 2026 | **THE PRO-RATA CHECK PASSES A SECOND TIME, on a JOINER WITH A ROSTER CHANGE.** `Jedlinski . K`'s workbook allowance is **18**, and the app's `proRatedAL[2026]` is 18 — she started 3 Jun 2026 and also carries a `rosterChanges` entry moving her off the fixed Mon–Fri line to the main link on 28 Jun. §9 calls this the cheapest real check in the reconciliation; it has now passed on both joiners it has been run against (Okeke 24, Jedlinski 18). Her row is otherwise clean: 4 grid days, all working days, column E empty and uncommented, app agrees at 14. | Owner asked for K. Jedlinski's 2026 leave |
+| 14 Sep 2026 | **PRO-RATA PASSES A THIRD TIME, and a BILINGUAL-LINE-vs-CONTRACT case to watch.** `Melikian . I`: workbook allowance **13**, app `proRatedAL[2026]` **13**, started 10 Aug 2026. She has **no leave anywhere in the workbook** — her name appears exactly once in the entire file, on her totals row — and the zero is simply a five-week-old starter, so the app agrees at 13 with nothing to reconcile. **The watch item is January:** her `rosterChanges` moves her onto the BILINGUAL LINE on 13 Sep 2026, but she holds no `bilingualContract`, and the workbook correctly lists her `CEA` rather than `BLCEA`. Both systems agree today. When the allowance renews it must be **32, not 34** — the 34 follows the CONTRACT, which only `Irvine . D` and `Gherbi . T` hold. Anyone reading her LINE would give her the wrong figure. | Owner asked for I. Melikian's 2026 leave |
+| 14 Sep 2026 | **THE FULL COLUMN-E AUDIT — every value checked against its comment.** Sixteen rows carry a column-E value or a comment. Fifteen have their dates; **`Mohamed . F` (row 51) has E = 2 and NO comment**, so those two days are unrecoverable — §8.4 measured for the first time. Also surfaced: `Khalil . B`'s E is **15**, with the lump comment `A/L FROM PRE JUNE 2026` (§5's documented exception, and much larger than expected), and `Hared . A` carries three dates across two comments. | Owner asked for F. Mohamed's 2026 leave |
+| 14 Sep 2026 | **CORRECTION, and the cause was a CODE bug: never key by member name.** This file said c/f was empty on all "47" live rows. Both figures were wrong: the sheet has **50** named rows, and `Rotaru . G` row 6 carries **c/f = 2**. The check keyed a dict by NAME, and `Rotaru . G` is duplicated (rows 6 and 56), so the CES row overwrote the CEA row and took its carry-forward with it. §8.1 now enumerates all three duplicate pairs with their conflicting figures, and §8.5 carries the rule: **key by ROW, never by name.** The duplicate rows are not untidiness — they silently corrupt any lookup built over them. | Same |
+| 14 Sep 2026 | **A FOURTH unused balance.** 13 of 13 untaken with under four months left, as a brand-new starter who may not know she has them. With Jedlinski (14 of 18), Cooper (11) and Panchal (9) that is **47 days across four people**, and the two joiners are the ones least likely to ask. Still unanswered as a group. | Same |
+| 14 Sep 2026 | **A THIRD LARGE UNUSED BALANCE, and the starkest.** She has taken **4 of 18** — one six-day absence in late August — with under four months of the year left. Same shape as `Cooper . I` (11 left) and `Panchal . A` (9 left), which §12 logged as unanswered, but proportionally much worse: under a quarter of a PRO-RATED allowance used. Worth putting to the owner as a group rather than one at a time. | Same |
+| 14 Sep 2026 | **A SHORT SURNAME SUBSTRING-MATCHES A PLACE NAME.** Sweeping for `'reen'` reported `Reen . C` on the South Bucks sheets — which would have meant a member appearing at a second location. It is **"Beaconsfield & Seer Green"**. Caught by reading the cell before reporting it; §7 now says to confirm every cross-sheet hit that way, and notes that this workbook covers every Chiltern location rather than Marylebone alone. | Same |
+| 14 Sep 2026 | **§5 reaches TEN for ten, and a SEVENTH member the app is generous for.** `Gherbi . T`'s `23/02` lands on a Monday whose four CEA slots hold Mylla, Irvine, Panchal and Miller. Her 30 grid days are all contracted, so the app will read **4** against the sheet's 3. Running total of column-E days missing from the app: **nine, across seven members** (Davies, Cooper, F-Charles, F-Blackstock, Silva, Bibi×3, Gherbi). Four more untagged Sundays sit inside or beside her leave (22 Feb, 5 Apr, 12 Apr, 16 Aug), consistent with the census finding that tagging is discretionary. | Same |
+| 14 Sep 2026 | **A clean positive for the BLCEA rule, and a third clean row.** `Irvine . D` is `BLCEA` with an allowance of **34**, and the app returns 34 for her because `bilingualContract: true` — §3's rule holding on another member. No over-quota day, no duplicate row, no 2021 row, 32 grid days all on contracted days, so the app agrees at 2 remaining. Her **7–21 Jun is fifteen continuous days for seven days' leave**, the longest absence in the file, displacing Nsuala's fourteen. | Same |
+| 14 Sep 2026 | **S. Langley reconciles exactly.** 23 grid days on 23 distinct dates, column E empty AND uncommented, 9 of 32 remaining, all 23 on contracted days so the app agrees with no swap data. Four tags, three on a named shift and one on a spare. Her 24 Jul – 2 Aug absence is **ten continuous days** carrying only six deductions — the longest run yet seen, and a good illustration of why the answer gives days AWAY and marks which cost entitlement. | Same |
 | 14 Sep 2026 | **THREE TAGS CARRY A BARE FIRST NAME, and two answers given today were SHORT because of it.** `Romiah` (= `F-Blackstock . R`), `Csherrice` (= `F-Charles . C`) and `Loreta` (= `Atrakimaviciene . L`) appear with no surname and no initial, so every surname scan this file recommends missed them: **C. Francisco-Charles was away 3 and 10 May and L. Atrakimaviciene on 5 Jul**, and neither was listed. Resolved by SLOT COLUMN — a leave block keeps one slot letter, so the Sunday cell in that column belongs to whoever holds the days either side. `Romiah` is additionally pinned by `Frimpong . R` being tagged by surname. Also found: `Sumali . J` / `Sumaili . J` in one sheet, and `N/A L Springer NA`. | Same |
 | 14 Sep 2026 | **§5's mechanism is now FOUR for four.** `F-Blackstock . R`'s `29/12` lands on a Tue 29 Dec whose four CEA slots are full (Davies, Reen, Mylla, Silva) — the Davies / Cooper / F-Charles shape again. Her own figures reconcile exactly: one totals row, 25 grid days on 25 distinct dates, +1 over quota, 26 of 32 used, 6 remaining, and all 26 on contracted days so the app agrees day for day. | Same |

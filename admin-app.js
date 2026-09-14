@@ -14,7 +14,7 @@
  *   notifications, pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, MONTH_ABB, getALEntitlement, formatISO, isSunday, parseISODate, TIME_RE, projectAnnualLeaveOverage } from './roster-data.js';
+import { CONFIG, teamMembers, MONTH_ABB, formatISO, isSunday, parseISODate, TIME_RE } from './roster-data.js';
 import { addDays, isRestGap, fmtPeriodDate, fmtPeriodRange } from './admin-period-dates.js';
 import { db, auth, doc, writeBatch, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
@@ -35,7 +35,8 @@ import { initPasswordForce } from './password-force.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { computePeriodDeleteIds, mergeBookedPeriods, composeOtherValue } from './override-utils.js';
-import { alPosition, countedAlDates, consumesEntitlement, dispatcherBreakdown } from './al-entitlement.js';
+import { alPosition, consumesEntitlement, dispatcherBreakdown, winningEntriesOfType } from './al-entitlement.js';
+import { willConsume, projectAlOverage } from './admin-al-projection.js';
 import { createBookedPeriods } from './admin-booked-periods.js';
 import { alFigureYear } from './admin-al-year.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -708,7 +709,7 @@ export function init() {
             // cost nothing, silently — three of one member's days went missing that way and were
             // found only by comparing against the depot's workbook. The row asks; this refuses to
             // save it unanswered, which is the owner's rule and the whole point (al-swapped-days.js).
-            if (type === 'annual_leave' && row.dataset.baseIsRd === '1' && !row.dataset.alSwap) {
+            if (type === 'annual_leave' && row.dataset.alSwapAsk === '1' && !row.dataset.alSwap) {
                 row.classList.add('row-error');
                 errors.push(`${formatDisplay(date)}: say whether this rest day was a swapped working day`);
                 return;
@@ -840,49 +841,32 @@ export function init() {
         const ruleErrors = validateShiftRules(toSave, memberName, toDelete);
         if (ruleErrors.length) return showError(ruleErrors.join(' · '));
 
-        // Annual leave entitlement warning
+        // Annual leave entitlement warning — the SAME projection the AL card uses
+        // (admin-al-projection.js), so the two surfaces cannot warn about different numbers of days.
         const alInBatch = toSave.filter(e => e.type === 'annual_leave');
         if (alInBatch.length > 0) {
-            const member      = /** @type {any} */ (teamMembers.find(m => m.name === memberName));
-            const overwriteDates  = new Set(alInBatch.filter(e => e.existingId).map(e => e.date));
-            const deletedALDates  = new Set(
-                getAllOverrides()
-                    .filter(o => toDelete.includes(o.id) && o.type === 'annual_leave')
-                    .map(o => o.date)
-            );
-            // Check EVERY calendar year the batch touches, not just the first entry's — a week grid
-            // spanning New Year (Dec/Jan) writes AL into two years, each with its own entitlement.
-            const years = [...new Set(alInBatch.map(e => e.date.substring(0, 4)))];
-            for (const yearStr of years) {
-                const entitlement = getALEntitlement(member, parseInt(yearStr, 10), getAllOverrides());
-                // No entitlement on record → no cap to project against, so ask nothing (v22.45).
-                // The alternative is a confirm bar built on a number this app does not have, which
-                // is worse than no bar: it would teach a manager that the warning means something.
-                // The WRITE still goes ahead — refusing to judge is not refusing to record.
-                if (entitlement === null) continue;
-                // Existing AL for the year, less the dates this batch OVERWRITES or DELETES (they
-                // are re-accounted via newALDates, or removed). The Sunday and rest-day rules live
-                // in al-entitlement.js so this can not drift from the banner or admin-al.js.
-                const existingALDates = countedAlDates({
-                    overrides: getAllOverrides(),
-                    member,
-                    year: yearStr,
-                    exclude: new Set([...overwriteDates, ...deletedALDates]),
-                });
-                // Both halves of the projection must apply the SAME rule, or a rest day already on
-                // record is free while the identical day being booked now is not — a confirm bar
-                // for leave the member is not spending.
-                // The map is what makes a SWAPPED-IN day cost a day: its `shift` override is
-                // still on record at this point (the AL that replaces it has not been written
-                // yet), and without it the base roster would report a rest day and charge nothing.
-                const ovByDate = buildMemberDateMap(memberName);
-                const newALDates = [...new Set(alInBatch.map(e => e.date)
-                    .filter(d => d.startsWith(yearStr) && consumesEntitlement(member, d, ovByDate)))];
-                const overage = projectAnnualLeaveOverage({ name: memberName, year: yearStr, existingALDates, newALDates, entitlement });
-                if (overage) {
-                    showALConfirm(overage.headline, overage.detail, toSave, toDelete);
-                    return;
-                }
+            const member = /** @type {any} */ (teamMembers.find(m => m.name === memberName));
+            // The map is what makes a SWAPPED-IN day already on record cost a day: its `shift`
+            // override is still there at this point (the AL replacing it has not been written yet).
+            const ovByDate = buildMemberDateMap(memberName);
+            // `e.swapped` is THIS SAVE'S answer, and nothing else knows it yet (v23.79). Without it
+            // the projection filtered the day out as REST and a member with one day left could be
+            // booked two with no bar — then the write charged both. Found by external review.
+            const consuming = [...new Set(alInBatch
+                .filter(e => willConsume({ member, date: e.date, ovByDate, swapped: e.swapped === true }))
+                .map(e => e.date))];
+            // Existing AL for the year, less the dates this batch OVERWRITES or DELETES — they are
+            // re-accounted through `consuming`, or removed outright.
+            const exclude = new Set([
+                ...alInBatch.filter(e => e.existingId).map(e => e.date),
+                ...getAllOverrides().filter(o => toDelete.includes(o.id) && o.type === 'annual_leave').map(o => o.date),
+            ]);
+            const overage = projectAlOverage({
+                member, memberName, overrides: getAllOverrides(), consuming, exclude,
+            });
+            if (overage) {
+                showALConfirm(overage.headline, overage.detail, toSave, toDelete);
+                return;
             }
         }
 
@@ -1357,9 +1341,9 @@ export function init() {
     // Every handle it needs is passed in here; nothing about the list is decided in this file.
     const _bookedPeriods = createBookedPeriods({
         doc: document,
-        getEntries: (memberName, type) => getAllOverrides()
-            .filter(o => o.memberName === memberName && o.type === type && o.date)
-            .sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0),
+        // THE WINNER MAP, not a filter over every historical document (v23.79) — resolve which doc
+        // owns the date first, then ask what it is. Why it matters: al-entitlement.js.
+        getEntries: (memberName, type) => winningEntriesOfType(getAllOverrides(), memberName, type),
         hasAuthority: hasOverrideAuthorityFor,
         memberFor:    name => teamMembers.find(m => m.name === name),
         isSunday,

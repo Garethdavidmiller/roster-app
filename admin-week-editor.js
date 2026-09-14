@@ -29,6 +29,7 @@
 
 import { teamMembers, getBaseShift, getShiftBadge, getSpecialDayBadges, formatISO, isSunday,
          DAY_NAMES, MONTH_ABB, escapeHtml, TIME_RE, parseISODate } from './roster-data.js';
+import { swapDecisionDates } from './al-swapped-days.js';
 import { isRestShift, isForbiddenOnSunday, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
 import { TYPES, PILL_TYPES } from './admin-shift-types.js';
 import { hasOverrideAuthorityFor, loadFailedFor, loadOverrides } from './admin-override-store.js';
@@ -212,6 +213,7 @@ export function buildWeekGridInto(container, dateStr) {
         row.className   = 'day-row' + (existing ? ' has-override' : '') + (isToday ? ' today' : '');
         row.dataset.date = dateISO;
         row.dataset.baseIsRd = isRestShift(baseShift) ? '1' : '';
+        row.dataset.alSwapAsk = swapDecisionDates({ dates: [dateISO], memberObj: member, ovByDate: memberDateMap }).length ? '1' : '';
         if (existing) row.dataset.existingId = existing.id;
 
         row.innerHTML = `
@@ -375,7 +377,7 @@ export function buildWeekGridInto(container, dateStr) {
                 // Same shape, the other type: AL on a base rest day is asked about (v23.75).
                 const alSwap = /** @type {HTMLElement|null} */ (row.querySelector('.col-al-swap'));
                 if (alSwap) {
-                    const ask = type === 'annual_leave' && row.dataset.baseIsRd === '1';
+                    const ask = type === 'annual_leave' && row.dataset.alSwapAsk === '1';
                     alSwap.hidden = !ask;
                     // Leaving the type resets the answer — a stale `yes` would charge the next pick.
                     if (!ask) {

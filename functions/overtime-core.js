@@ -675,6 +675,46 @@ const AVAILABILITY_MODES = Object.freeze({
  */
 const OPTIONAL_DAY_FIELDS = Object.freeze(['fullTwelve']);
 
+/**
+ * ASK TO BE TAKEN OFF A ROSTERED SUNDAY (v23.80, owner) — the one field that may accompany ANY
+ * answer, including `unavailable`.
+ *
+ * ── WHAT IT IS, AND WHAT IT IS NOT ──────────────────────────────────────────────────────────────
+ *
+ * Every other field on this schema is about OVERTIME: extra work the member is offering. This one is
+ * about their CONTRACTED work — a Sunday they are rostered to and would like to be released from.
+ * The two are independent, which is why it is a field beside the answer rather than a mode competing
+ * with it: "I can work Monday evening, and please take me off Sunday" is one coherent statement, and
+ * so is "I am not available at all that week, and please take me off Sunday".
+ *
+ * **It is a REQUEST and nothing more.** It changes no roster, writes no override, and consumes no
+ * annual leave. Sundays stay uncontracted for leave (`SUNDAY_FORBIDDEN_TYPES`, override-utils.js) and
+ * nothing here touches that. The roster team decides; this records what was asked, in the place the
+ * member is already telling them about that week.
+ *
+ * ── WHY IT EXISTS ───────────────────────────────────────────────────────────────────────────────
+ *
+ * The depot's leave workbook has always been able to say "this person was away for their Sunday
+ * duty" — it writes a free-text `N/A <name>` tag in the Sunday row — and the app could not represent
+ * it at all. An external review (v23.78) proposed a new non-entitlement absence type; the owner's
+ * answer was better, because it puts the fact where it is actually decided: a member ASKS through
+ * the form they already fill in for that week, rather than the app inventing a kind of absence.
+ *
+ * ── ALLOWED ON EVERY MODE, UNLIKE `fullTwelve` ──────────────────────────────────────────────────
+ *
+ * `fullTwelve` is refused on `unavailable` because a willingness to work long cannot mean anything
+ * beside "I cannot work". This one is the opposite case: a member unavailable all week is exactly
+ * somebody who may need to be taken off a Sunday duty, so refusing it there would remove it from the
+ * people most likely to want it.
+ *
+ * ── STORED ONLY WHEN TRUE ───────────────────────────────────────────────────────────────────────
+ *
+ * Same rule as `fullTwelve`, for the same reason: an absent field is the absence of a request, not a
+ * declared "no". Answers written before this field and after it stay comparable, and no historical
+ * answer acquires an opinion it never gave.
+ */
+const REQUEST_DAY_FIELDS = Object.freeze(['releaseRequested']);
+
 /** @returns {{ok:true, day:object}|{ok:false, error:string}} */
 function normaliseDay(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, error: 'day-not-object' };
@@ -686,7 +726,9 @@ function normaliseDay(raw) {
     // know about is a version mismatch, and silently discarding it would store an answer the member
     // did not give.
     const optional = mode === 'unavailable' ? [] : OPTIONAL_DAY_FIELDS;
-    const extra = Object.keys(raw).filter(k => k !== 'mode' && !fields.includes(k) && !optional.includes(k));
+    // `REQUEST_DAY_FIELDS` is allowed on every mode — see its own block for why it is not `optional`.
+    const allowed = [...optional, ...REQUEST_DAY_FIELDS];
+    const extra = Object.keys(raw).filter(k => k !== 'mode' && !fields.includes(k) && !allowed.includes(k));
     if (extra.length) return { ok: false, error: 'unknown-field' };
 
     /** @type {Record<string, any>} */
@@ -697,6 +739,15 @@ function normaliseDay(raw) {
     if (raw.fullTwelve !== undefined) {
         if (typeof raw.fullTwelve !== 'boolean') return { ok: false, error: 'bad-full-twelve' };
         if (raw.fullTwelve) day.fullTwelve = true;
+    }
+
+    // The request to be taken off a rostered Sunday. Type-checked like everything else, written only
+    // when true, and NOT validated against the roster here — the server has no roster, and a request
+    // the member made is a fact about what they asked even if their shift changes afterwards. The
+    // client offers it only where it means something; see REQUEST_DAY_FIELDS.
+    if (raw.releaseRequested !== undefined) {
+        if (typeof raw.releaseRequested !== 'boolean') return { ok: false, error: 'bad-release-requested' };
+        if (raw.releaseRequested) day.releaseRequested = true;
     }
     for (const f of fields) {
         const v = raw[f];
@@ -1023,6 +1074,7 @@ module.exports = {
     MAX_PARTICIPANTS_PER_WINDOW,
     AUDIENCES,
     AVAILABILITY_MODES,
+    REQUEST_DAY_FIELDS,
     OPTIONAL_DAY_FIELDS,
     // clock
     londonOffsetMinutes,
