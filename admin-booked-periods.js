@@ -138,6 +138,7 @@ export function pickBookedYear({ pinned, preferred, years }) {
  *   isRestGap: (iso: string, memberObj: any) => boolean,
  *   addDays: (iso: string, n: number) => string,
  *   monthAbb: string[],
+ *   memberDateMap?: (name: string) => Map<string, any>,
  *   fmtDate: (iso: string) => string,
  *   fmtRange: (start: string, end: string) => string,
  *   onDelete: (type: string, memberName: string, start: string, end: string, feedbackEl: any, btn: any) => (void | Promise<void>),
@@ -153,7 +154,13 @@ export function createBookedPeriods(deps) {
     function resetPinned() { for (const k of Object.keys(pinned)) delete pinned[k]; }
 
     /**
+     * `consumes` is optional and per-list: the predicate deciding whether a recorded date actually
+     * counts as a day. The AL card passes `consumesEntitlement` so the list and the banner answer
+     * with one rule; omit it and every non-Sunday recorded date is listed, which is what the
+     * absence card still does.
+     *
      * @param {{ type: string, memberName: string, boxId: string, bodyId: string,
+     *           consumes?: (memberObj: any, dateStr: string, ovByDate: Map<string, any>|null) => boolean,
      *           countFn: (n: number) => string, countClass: string, feedbackId: string,
      *           preferredYear?: string|null }} cfg
      */
@@ -174,7 +181,27 @@ export function createBookedPeriods(deps) {
         if (!entries.length) return hide();
 
         const memberObj = deps.memberFor(memberName);
-        const dateList  = [...new Set(entries.map(e => e.date))].filter(d => !deps.isSunday(d)).sort();
+        // WHAT THE LIST COUNTS MUST BE WHAT THE ENTITLEMENT COUNTS (v23.72). This filtered Sundays
+        // and nothing else, so a day the member was not contracted to work — a REST DAY carrying an
+        // AL override — was listed and counted, while `consumesEntitlement` (which the AL banner
+        // above it uses) correctly ignored it. One card, two disagreeing counts of the same thing:
+        // M. Robson's chips summed to 33 against a banner reading 32 of 32, and his December period
+        // began a day before his leave did. Reported by the owner from the roster office's own
+        // spreadsheet, which agreed with the banner.
+        //
+        // `cfg.consumes` is the ENTITLEMENT rule itself, injected rather than re-derived, so the two
+        // can no longer drift. It is per-list because the question is not the same for both: for
+        // annual leave it is "does this day spend entitlement", and the absence list has no
+        // entitlement to spend — so that list passes no predicate and is unchanged here.
+        //
+        // The map is built ONCE per render. `consumesEntitlement` needs it to read `replacedType`,
+        // which is the only surviving record of what an AL doc replaced — without it a swapped-in
+        // day reads as a rest day and would be filtered out of a list it belongs in.
+        const ovByDate  = deps.memberDateMap ? deps.memberDateMap(memberName) : null;
+        const dateList  = [...new Set(entries.map(e => e.date))]
+            .filter(d => !deps.isSunday(d))
+            .filter(d => !cfg.consumes || cfg.consumes(memberObj, d, ovByDate))
+            .sort();
         if (!dateList.length) return hide();
         const periods = deps.mergePeriods(dateList,
             d => deps.isRestGap(d, memberObj), d => deps.addDays(d, 1));

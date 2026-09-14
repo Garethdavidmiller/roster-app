@@ -1350,6 +1350,10 @@ export function init() {
         isRestGap,
         addDays,
         monthAbb:     MONTH_ABB,
+        // Built once per render and handed to `cfg.consumes`. `consumesEntitlement` reads
+        // `replacedType` off it, which is the only surviving record of what an AL doc replaced —
+        // without it a swapped-in working day reads as a rest day and drops out of the list.
+        memberDateMap: buildMemberDateMap,
         fmtDate:      fmtPeriodDate,
         fmtRange:     fmtPeriodRange,
         onDelete:     deletePeriodOverrides,
@@ -1449,6 +1453,10 @@ export function init() {
             memberName: alMember.value,
             boxId:      'alBookedBox',
             bodyId:     'alBookedBody',
+            // THE SAME RULE THE BANNER ABOVE USES. Not a copy of it — the function itself, so the
+            // list and the entitlement cannot answer differently about the same day. A rest day
+            // carrying an AL override spends nothing, and used to be listed and counted anyway.
+            consumes:   consumesEntitlement,
             // "3 days", not "3 days AL" — the card is titled Recorded Annual Leave dates and the
             // pill is AL-green. The two dropped words are what let the date, the count and the
             // delete control share ONE line at 375px instead of stacking into two.
