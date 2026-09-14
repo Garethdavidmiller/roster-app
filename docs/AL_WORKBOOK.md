@@ -278,6 +278,33 @@ the four CEA slots hold Davies, Reen, Mylla and Silva. That is
 as close to confirming the `[inferred]` meaning of column E as the file alone can get; it still
 wants the owner's word.
 
+> ## ✅ §0 CONFIRMED AGAINST THE APP'S OWN FIGURE — the first time, 14 Sep 2026
+>
+> Everything above was reasoning: column E is deducted, so an answer built from the grid alone is
+> short by exactly those days. The owner then read `F-Blackstock . R`'s balance off the **app** and
+> got **7 remaining** where the workbook says **6**.
+>
+> ```
+> app:       32 allowance − 25 grid days                  = 7
+> workbook:  32 allowance − (25 grid days + 1 over quota)  = 6
+> ```
+>
+> **The gap is one day and it is the over-quota day** — `29/12`, exactly as the comment says, on a
+> Tuesday whose four CEA slots are full. No other explanation fits: all 25 of her grid days land on
+> contracted days, so the app counts all 25 and cannot be short for any other reason.
+>
+> **This is the failure mode §0 exists to prevent, caught from the other end.** It is not merely
+> that an ANSWER is short — the APP is short too, permanently, because nothing ever writes the
+> over-quota day into it. So:
+>
+> - **An over-quota day should be RECORDED in the app as annual leave**, not just mentioned in the
+>   answer. Until it is, that member's balance stays one day generous for the rest of the year and
+>   the discrepancy re-appears every time anybody checks.
+> - **A one-day gap between the app and the sheet is column E until proved otherwise.** It is the
+>   first thing to check, not the last, and it will usually be the whole difference.
+> - Where the pattern makes the day a REST day, recording it hits the v23.75 swap question
+>   (`al-swapped-days.js`) and the answer is that it was a working day taken as leave.
+
 **Nothing in the grid marks an over-quota day.** It is only in column E and its comment. Do not go
 hunting for a fifth name on a date — there isn't one.
 
@@ -592,5 +619,6 @@ This is the record of the file getting better; an upload that taught nothing is 
 | 14 Sep 2026 | **A completely clean reconciliation, which is worth logging precisely because nothing was wrong.** N. Tuck: one totals row, column E empty AND uncommented, 26 grid cells on 26 distinct dates, 26 of 32 used, 6 remaining — and all 26 land on contracted days, so `consumesEntitlement` agrees with the sheet day for day with no swap data needed. The first member of the nine looked at today with no duplicate row, no over-quota day, no −1 and no rest-day gap. | Same |
 | 14 Sep 2026 | **THE SUNDAY-TAG RATIO, COUNTED IN FULL — and every earlier figure in this file was wrong.** All 75 CEA-block tags classified against each member's own base roster: **31 named shift (41%), 21 spare (28%), 23 rest day (31%)**; contracted = **52 of 75, 69%**. The named-shift case is a MINORITY. Four successive statements here ("the ordinary case", "a majority", "eight of fourteen", "twelve of twenty-three") were all artefacts of asking about whoever the owner happened to raise that day. **A population question is not answerable from a running tally of answered questions**, and the lesson is worth more than the ratio. | Owner asked for R. Forester-Blackstock's 2026 leave |
 | 14 Sep 2026 | **OWNER CORRECTION: the census measures the PATTERN, not the published roster.** Told that F-Charles's 3/10 May and Atrakimaviciene's 5 Jul were missing from their answers, the owner replied they are *"already on the roster"* — `getBaseShift` returns the rotating pattern, and the week the depot publishes can change any day of it, with the roster import writing that into the app. So a tag on a pattern shift may be a day the app already shows as off, and **31 named-shift tags is an upper bound rather than a count**. Recorded against §4 with the exact check that would settle it (resolve each tag date through `resolveEffectiveShift` with the overrides loaded). It moves the conclusion further in the direction it already went. | Owner: "The last two away things are already on the roster" |
+| 14 Sep 2026 | **§0 CONFIRMED AGAINST THE APP, and it is worse than a short answer.** Owner read `F-Blackstock . R` off the app as **7 remaining** against the workbook's 6. The gap is exactly one day and it is her over-quota `29/12` — all 25 grid days consume, so nothing else can explain it. The consequence now recorded in §5: an over-quota day should be **RECORDED in the app**, or that member's balance stays a day generous for the rest of the year and the discrepancy returns every time anybody looks. **A one-day app-vs-sheet gap is column E until proved otherwise.** | Owner: "I have 7 remaining for Romiah, where is the other booked day" |
 | 14 Sep 2026 | **THREE TAGS CARRY A BARE FIRST NAME, and two answers given today were SHORT because of it.** `Romiah` (= `F-Blackstock . R`), `Csherrice` (= `F-Charles . C`) and `Loreta` (= `Atrakimaviciene . L`) appear with no surname and no initial, so every surname scan this file recommends missed them: **C. Francisco-Charles was away 3 and 10 May and L. Atrakimaviciene on 5 Jul**, and neither was listed. Resolved by SLOT COLUMN — a leave block keeps one slot letter, so the Sunday cell in that column belongs to whoever holds the days either side. `Romiah` is additionally pinned by `Frimpong . R` being tagged by surname. Also found: `Sumali . J` / `Sumaili . J` in one sheet, and `N/A L Springer NA`. | Same |
 | 14 Sep 2026 | **§5's mechanism is now FOUR for four.** `F-Blackstock . R`'s `29/12` lands on a Tue 29 Dec whose four CEA slots are full (Davies, Reen, Mylla, Silva) — the Davies / Cooper / F-Charles shape again. Her own figures reconcile exactly: one totals row, 25 grid days on 25 distinct dates, +1 over quota, 26 of 32 used, 6 remaining, and all 26 on contracted days so the app agrees day for day. | Same |
