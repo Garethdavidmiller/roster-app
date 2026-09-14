@@ -42,6 +42,7 @@ import {
     answerAnchorStale, submitDisposition, modesFor, offersFullTwelve, submitFailureCopy,
     sameAnswer, receiptLine, unfinishedDates, reconcileVerdict, conflictIsOurs,
 } from './overtime-format.js';
+import { offersSundayRelease, SUNDAY_RELEASE_LABEL, SUNDAY_RELEASE_ASKED } from './overtime-sunday-release.js';
 
 /**
  * Button labels per mode. `before`/`after` get their boundary spliced in at render.
@@ -323,6 +324,24 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             focusFullTwelve(date);
             updateSubmitState();
         }));
+        daysHost.querySelectorAll('[data-release]').forEach(box => box.addEventListener('change', () => {
+            const date = String(box.getAttribute('data-release'));
+            // NO ANSWER REQUIRED, unlike the willingness tick above. This asks about CONTRACTED work,
+            // so it stands on its own — and a member who is unavailable all week is exactly somebody
+            // who may need taking off a Sunday duty. The day is created here if it does not exist so
+            // the request survives on its own; `unavailable` is the honest mode for "I have said
+            // nothing about overtime", and it is what the member is asserting by not choosing one.
+            const cur = answers[date] || (answers[date] = { mode: 'unavailable' });
+            // Written only when TRUE and DELETED rather than set false — the client mirrors the
+            // stored shape exactly (REQUEST_DAY_FIELDS in functions/overtime-core.js). Writing
+            // `false` would make an unticked answer structurally different from the one the server
+            // stores, and `sameAnswer` would report a saved form as changed for ever.
+            if (/** @type {HTMLInputElement} */ (box).checked) cur.releaseRequested = true;
+            else delete cur.releaseRequested;
+            paintDays();
+            focusRelease(date);
+            updateSubmitState();
+        }));
         daysHost.querySelectorAll('.ot-custom-input').forEach(inp => inp.addEventListener('change', () => {
             const date = String(inp.getAttribute('data-date'));
             const which = String(inp.getAttribute('data-which'));
@@ -394,12 +413,15 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
                     <span class="ot-day-roster"><span class="visually-hidden">Rostered: </span>${rosterBadge(c)}</span>
                 </div>
                 ${closed
-                    ? `<div class="ot-day-answer"><span class="ot-answer ot-answer--${answerTone(a)}">${esc(answerCopy(a))}</span></div>`
+                    ? `<div class="ot-day-answer"><span class="ot-answer ot-answer--${answerTone(a)}">${esc(answerCopy(a))}</span>${
+                        a?.releaseRequested === true
+                            ? `<span class="ot-release-chip">${esc(SUNDAY_RELEASE_ASKED)}</span>` : ''}</div>`
                     : `<div class="ot-modes" role="radiogroup" aria-label="Availability on ${esc(shortDate(date))}">
                         ${modes.map((m, i) => modeButton(date, m, c, a, i)).join('')}
                        </div>
                        ${a?.mode === 'custom' ? customRow(date, a) : ''}
                        ${fullTwelveRow(date, c, a)}
+                       ${sundayReleaseRow(date, c, a)}
                        ${answerAnchorStale(a, c) ? `
                         <p class="ot-day-stale" role="status">Your shift has changed since you
                         answered. Your answer still says <strong>${esc(answerCopy(a))}</strong> —
@@ -487,6 +509,28 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     }
 
     /**
+     * ASK TO BE TAKEN OFF A ROSTERED SUNDAY (v23.81, owner). Why it exists and what it may never
+     * claim: `overtime-sunday-release.js`. Unlike the willingness tick it needs no availability
+     * answer first — a member unavailable all week is exactly who may need taking off a Sunday duty.
+     *
+     * **The class attribute is STATIC and the checked state is a CSS `:has()`.** An interpolated
+     * `class="..."` is read by `native-surface-parity.test.mjs` as a list of class names, so the
+     * template's punctuation becomes junk "classes", one of which compiles to a regex matching
+     * almost any selector — the guard then reports violations in files this never touched.
+     * @param {string} date @param {any} c @param {any} a
+     */
+    function sundayReleaseRow(date, c, a) {
+        if (!offersSundayRelease(date, c)) return '';
+        const on = a?.releaseRequested === true;
+        return `
+            <label class="ot-release">
+                <input type="checkbox" class="ot-release-box" data-release="${esc(date)}"${on ? ' checked' : ''}>
+                <span>${esc(SUNDAY_RELEASE_LABEL)}</span>
+            </label>
+            ${on ? `<p class="ot-release-said" role="status">${esc(SUNDAY_RELEASE_ASKED)}</p>` : ''}`;
+    }
+
+    /**
      * What a member typed, in the shape the rest of the app stores. Accepts `0600`, `6:00` and
      * `06:00`; anything else comes back unchanged and then fails `isClockTime`, which is what
      * leaves the day unfinished rather than guessing at an intention.
@@ -558,6 +602,12 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     function focusFullTwelve(date) {
         /** @type {HTMLElement|null} */ (daysHost?.querySelector(
             `[data-fulltwelve="${CSS.escape(date)}"]`))?.focus();
+    }
+
+    /** Keep the keyboard where the member left it — the row is repainted on every change. */
+    function focusRelease(/** @type {string} */ date) {
+        /** @type {HTMLElement|null} */ (daysHost.querySelector(
+            `[data-release="${CSS.escape(date)}"]`))?.focus();
     }
 
     /** @param {string} date */

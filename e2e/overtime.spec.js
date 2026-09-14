@@ -261,6 +261,48 @@ test.describe('member surface', () => {
         await expect(page.locator('.ot-day .ot-day-roster .shift-badge')).toHaveCount(7);
     });
 
+    test('a rostered Sunday can ask to be taken off — and a rest day cannot', async ({ page }) => {
+        // THE WIRING, not the predicate. `overtime-sunday-release.test.mjs` proves which days
+        // qualify; only a browser can prove the control is actually rendered on the right one, from
+        // the roster the page really resolved. The week starts on Sunday 30 Aug 2026, so the first
+        // card is the one under test — and the member is chosen from the ROSTER rather than written
+        // down here, so a pattern edit turns this test red instead of leaving it asserting nothing.
+        // A page must be loaded before `import()` has a base URL to resolve against.
+        await page.goto('/overtime.html');
+        const pick = await page.evaluate(async () => {
+            const { teamMembers, getBaseShift, parseISODate } = await import('/roster-data.js');
+            const { isRestShift } = await import('/override-utils.js');
+            const sun = '2026-08-30';
+            const works = teamMembers.find(m => !m.hidden && !m.managerOnly
+                && !isRestShift(getBaseShift(m, parseISODate(sun))));
+            return works ? works.name : null;
+        });
+        expect(pick, 'no visible member is rostered on Sun 30 Aug 2026').not.toBeNull();
+
+        await seedSession(page, /** @type {string} */ (pick));
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-day')).toHaveCount(7);
+
+        const sunday = page.locator('.ot-day[data-day="2026-08-30"]');
+        const ask = sunday.locator('.ot-release-box');
+        await expect(ask, 'a Sunday they are rostered to work offers it').toHaveCount(1);
+
+        // Exactly one day in the week may offer it — it is a Sunday question, and there is only one.
+        await expect(page.locator('.ot-release-box'), 'only the Sunday asks').toHaveCount(1);
+
+        // It needs NO availability answer first, unlike the willingness tick: a member unavailable
+        // all week is exactly who may need taking off a Sunday duty.
+        await expect(sunday.locator('.ot-longday-box'), 'the willingness tick waits for an answer')
+            .toHaveCount(0);
+        await ask.check();
+        await expect(sunday.locator('.ot-release-said'))
+            .toContainText('the roster team will decide');
+        // And it must never read as granted — the promise the wording makes is the whole feature.
+        await expect(sunday).not.toContainText('approved');
+        await expect(sunday).not.toContainText('granted');
+    });
+
     test('a saved answer keeps the time it was SAVED with when the shift later moves', async ({ page }) => {
         // The stored schema keeps concrete clock times precisely so a roster change cannot re-point
         // a declaration — and the button label was undoing that, because it was always built from

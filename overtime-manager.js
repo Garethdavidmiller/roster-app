@@ -49,6 +49,7 @@ import {
     isUnavailable, isAvailableAnswer, asAtLine, rosterBadge, sameAnswer, answerAnchorStale,
     declaredAgo, isWithdrawn, withdrawnLine, canRestoreNow, weekAvailabilitySummary, reminderLine,
 } from './overtime-format.js';
+import { releaseRequestLine } from './overtime-sunday-release.js';
 
 /**
  * Render the workspace into `host`.
@@ -575,6 +576,10 @@ function personRow(p, day, history, ctx = null, initialDay = null, meta = {}, up
                 // carried one.
                 : `<span class="ot-person-roster"><span class="visually-hidden">Rostered: </span>${rosterBadge(ctx)}</span>`}
             ${day ? `<span class="ot-answer ot-answer--${answerTone(day)}">${esc(answerCopy(day))}</span>` : ''}
+            <!-- BESIDE the answer, never merged into it (invariant 1, and 14): the overtime answer
+                 and a request to come off a contracted Sunday are two different things the member
+                 said about one day, and collapsing them would lose one of them. -->
+            ${releaseRequestLine(day) ? `<span class="ot-release-flag">${esc(releaseRequestLine(day))}</span>` : ''}
             ${age ? `<span class="ot-person-age"><span class="visually-hidden">Said </span>${esc(age)}</span>` : ''}
             ${meta.stopAsking
                 ? `<button type="button" class="ot-person-btn" data-stop-asking="${esc(p.memberName)}">Stop asking</button>`

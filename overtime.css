@@ -873,6 +873,58 @@ body {
     cursor: pointer;
 }
 
+/* ASK TO BE TAKEN OFF A ROSTERED SUNDAY (v23.81) — a REQUEST about contracted work, sitting under an
+   answer about overtime. It borrows the willingness tick's restraint for the same reason (it is not
+   an eighth pill) and then departs from it in one way: once asked, the row gains a quiet AL-teal
+   left edge, because the member needs to see that they have asked something of somebody. The tint
+   is `--al`, the colour the whole app already uses for leave, so it reads as "about being
+   away" rather than as a new status colour nobody has met. */
+.ot-release {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 44px;
+    margin-top: 2px;
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    cursor: pointer;
+}
+
+.ot-release:has(.ot-release-box:checked) {
+    /* Not a fill: the row is still a control, and a filled row in a card of pills reads as selected
+       state on the wrong thing. An edge marks it without competing with the answer above. */
+    border-left: 3px solid var(--al);
+    padding-left: var(--space-2);
+    margin-left: -3px;
+}
+
+/* What was asked, said back. `role="status"` on the element, so it is announced once when it
+   appears rather than on every repaint of the day. */
+.ot-release-said {
+    margin: 0 0 var(--space-2);
+    padding-left: var(--space-2);
+    border-left: 3px solid var(--al);
+    margin-left: -3px;
+    font-size: var(--type-small);
+    color: var(--text-mid);
+}
+
+/* The closed-week chip, and the reviewer's flag. Both are the same fact in a list of other facts,
+   so they take the app's quiet-status weight (600) rather than a label's 700 — .claude/rules
+   css-tokens.md names the three tiers. */
+.ot-release-chip,
+.ot-release-flag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+    background: var(--al-light);
+    color: var(--al-text);
+    font-size: var(--type-badge);
+    font-weight: 600;
+}
+
+.ot-release-flag { margin-left: var(--space-2); }
+
 .ot-custom-label {
     display: flex;
     flex-direction: column;
