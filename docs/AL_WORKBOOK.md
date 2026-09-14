@@ -155,27 +155,38 @@ repeating.
 > they are answering different questions, and a straight date-for-date comparison will report a
 > discrepancy that is not one.
 >
-> **COMMON, BUT NOT A RULE — and the first version of this note overstated it** [measured,
-> 14 Sep 2026]. `Mylla . O` carries three Sunday tags — 11 Jan, 9 Aug, 27 Dec — and all three fall
-> on days she was ROSTERED to work, with 11 Jan opening its block exactly as Panchal's 15 Feb does.
-> On those four this note said the rostered case was "the ordinary" one and a rest-day tag "the
-> variant". `Haque . J`'s four tags then split: **two rostered (11 Jan, 22 Mar), one on a SPARE
-> Sunday (15 Mar), one on a rest day (29 Mar)**, and `Okeke . M`'s six split **two rostered (20 Sep, 20 Dec), one spare (4 Oct), three rest
-> days**, and `Tuck . N`'s nine split **four rostered (8 Feb, 8 Mar, 22 Mar, 13 Sep), two spare
-> (10 May, 14 Jun), three rest days**. **Twelve of twenty-three** measured tags sit on a named
-> shift, a bare majority that has FALLEN at every new person. Treat the two kinds as roughly
-> equally likely and do not guess. The claim has been revised three times in one day — "the
-> ordinary case" (4 tags) → "a majority" (8) → "a bare majority" (14) → this (23) — each time
-> forced by the next person looked at. That is what a generalisation drawn from one member is
-> worth.
+> **COUNTED IN FULL, 14 Sep 2026 — and the running tally it replaces was WRONG** [measured].
+> Every free-text tag in the CEA block was extracted and classified against each person's own base
+> roster. **All 75 of them**, not the handful belonging to whoever was asked about that afternoon:
 >
-> **ASK "was the member DUE AT WORK", not "was a shift named"** [14 Sep 2026]. The split above
-> keeps SPARE as a third category, which is right for describing the sheet and wrong for answering
-> the member's question: a spare day is contracted, the person is expected at the station, and
-> being away from one is being away from work exactly as a named shift is. Under that reading the
-> figure is **sixteen of twenty-three on a contracted day** — and unlike the named-shift count it
-> has not fallen. Report the contracted reading; keep the three-way split for reconciling against
-> the grid.
+> | The member's base roster that Sunday | Tags | Share |
+> |---|---|---|
+> | a NAMED SHIFT | 31 | 41% |
+> | a SPARE day | 21 | 28% |
+> | a REST day | 23 | 31% |
+> | **contracted — named shift or spare** | **52** | **69%** |
+>
+> **The named-shift case is a MINORITY, and this file spent a day calling it a majority.** It was
+> written as "the ordinary case" off 4 tags, then "a majority" (6 of 8), then "eight of fourteen",
+> then "twelve of twenty-three" — four statements, each one drawn from the people who happened to
+> be asked about, and each one chasing the last downward. The full count is 41%. **Every
+> intermediate figure here was an artefact of the sample**, which is what a running tally built out
+> of answered questions is worth when the question is a population question.
+>
+> **ASK "was the member DUE AT WORK", not "was a shift named".** SPARE is contracted — the person
+> is expected at the station — so being away from one is being away from work exactly as a named
+> shift is. That reading gives **69%, better than two in three**, and it is the one that answers
+> the member's question. Keep the three-way split only for reconciling against the grid.
+>
+> **A tag can stand COMPLETELY ALONE, and a block can be missing one** [measured, 14 Sep 2026].
+> `Tuck . N`'s **Sun 22 Mar** and `Romiah`'s (= `F-Blackstock . R`) **Sun 15 Mar** are both tagged
+> with no grid day anywhere near them, in weeks of solid working shifts — one-day absences from a
+> rostered Sunday that neither the app nor the grid can show. The mirror is just as common:
+> Tuck's **Sun 6 Sep** and **Sun 15 Nov** are rostered and adjacent to leave and NOT tagged, and
+> `F-Blackstock . R` has five rostered or spare Sundays touching her blocks (1 Feb, 28 Feb–1 Mar
+> aside, 16 Aug, 6 Sep, 27 Dec) of which only some carry a tag. **Tagging is at the clerk's
+> discretion and is not applied consistently.** An absent tag is silence, not evidence the person
+> worked — §0 step 3 applies.
 >
 > The instruction is unchanged and is the point: **check the base roster every time**, because the
 > tag itself tells you nothing about which kind it is — and only the contracted kinds (a named
@@ -236,7 +247,8 @@ elsewhere. Read the comment before assuming the value means over-quota days.
 **A second worked example, and it corroborates the first.** [measured, 14 Sep 2026] `Cooper . I`'s
 comment reads `19/08`. On Wed 19 Aug 2026 the four CEA slots hold Mylla, Gherbi, F-Blackstock and
 F-Charles — full, exactly as on Davies's 24 Dec. `F-Charles . C`'s own over-quota day, `24/02`, is
-the same shape: Mylla, Irvine, Panchal and Miller hold all four slots. **Three for three**, which is
+the same shape: Mylla, Irvine, Panchal and Miller hold all four slots. **Four for four** since 14 Sep — `F-Blackstock . R`'s comment reads `29/12`, and on Tue 29 Dec
+the four CEA slots hold Davies, Reen, Mylla and Silva. That is
 as close to confirming the `[inferred]` meaning of column E as the file alone can get; it still
 wants the owner's word.
 
@@ -295,6 +307,28 @@ drops people.
 | `F-Charles . C` | `C. Francisco-Charles` |
 | `F-Blackstock . R` | `R. Forrester-Blackstock` |
 | `Sumali . J` | `J. Sumaili` (spelling differs too) |
+
+> ## ⚠️ THREE TAGS CARRY A FIRST NAME AND NOTHING ELSE — and a surname scan misses them entirely
+>
+> [measured, 14 Sep 2026] Of the 75 free-text Sunday tags in the CEA block, **three names appear as
+> a bare first name with no surname and no initial**: `N/A Romiah`, `N/A Csherrice`, `N/A Loreta`.
+> Every mechanical scan this file has recommended matches on the SURNAME, so all five of those
+> tags were invisible to it, and **two answers given on 14 Sep were short because of it** —
+> C. Francisco-Charles (3 and 10 May) and L. Atrakimaviciene (5 Jul).
+>
+> | Tag | Dates | Who, and the evidence |
+> |---|---|---|
+> | `Romiah` | 25 Jan, 1 Mar, 15 Mar, 2 Aug, 30 Aug | `F-Blackstock . R`. The other R on the roster, `Frimpong . R`, is tagged **by surname** (`N/A R Frimpong`, 15 Feb), and three of the five sit exactly where F-Blackstock's leave is — 1 Mar into her 2 Mar day, 2 Aug into her 3 Aug, 30 Aug into her 31 Aug–5 Sep |
+> | `Csherrice` | 3 May, 10 May | `F-Charles . C`. **Same SLOT COLUMN** as her bookings either side — slot D on Fri 1 and Mon 4 May, slot D again on Sat 9 and the Sunday between |
+> | `Loreta` | 5 Jul | `Atrakimaviciene . L`. Dead centre of her 3–9 Jul block and in her slot column (D) throughout |
+>
+> **The slot column is the identifier, not the text.** That is the technique to use when a tag
+> cannot be read: a leave block holds ONE slot letter for its whole run, so the Sunday cell in that
+> same column belongs to whoever holds the days either side. It resolved all three here.
+>
+> Two more spellings that break an exact match: **`Sumali . J` is also written `Sumaili . J`**
+> within the same sheet (12 and 19 Jul against 14 Jun), and one cell reads **`N/A L Springer NA`**
+> with the state repeated. **Match loosely, then confirm by slot column.**
 
 **Initials that disagree** — first name vs known-as, or an error; not established [unknown]:
 
@@ -530,3 +564,6 @@ This is the record of the file getting better; an upload that taught nothing is 
 | 14 Sep 2026 | **The Sunday-tag ratio revised a THIRD time, and the question behind it changed.** `Tuck . N` carries **nine** tags, the most of anyone — four on a named shift, two on a SPARE Sunday, three on rest days — taking the running count to 12 of 23 on a named shift. Counting SPARE as what it is (a contracted day the member was expected at the station) gives **16 of 23**, which is the figure that actually answers "was she away from work" and is the one that has NOT fallen with each new person. §4 now reports the contracted reading and keeps the three-way split for grid reconciliation. | Owner asked for N. Tuck's 2026 leave |
 | 14 Sep 2026 | **A Sunday tag can stand completely alone — and a block can be missing one.** Her **Sun 22 Mar** tag has no grid day near it (nearest 9 Mar and 8 May) and sits in a week of solid working shifts: a one-day absence from a rostered Sunday, invisible to the app and to the grid alike. The mirror is on the same person — **Sun 6 Sep** (rostered, between a booked Sat and a rest-day Mon) and **Sun 15 Nov** (rostered, straight after 13–14 Nov) are both untagged. Recorded as §0 step 3 rather than resolved: an absent tag is silence, not evidence she worked. **Unresolved.** | Same |
 | 14 Sep 2026 | **A completely clean reconciliation, which is worth logging precisely because nothing was wrong.** N. Tuck: one totals row, column E empty AND uncommented, 26 grid cells on 26 distinct dates, 26 of 32 used, 6 remaining — and all 26 land on contracted days, so `consumesEntitlement` agrees with the sheet day for day with no swap data needed. The first member of the nine looked at today with no duplicate row, no over-quota day, no −1 and no rest-day gap. | Same |
+| 14 Sep 2026 | **THE SUNDAY-TAG RATIO, COUNTED IN FULL — and every earlier figure in this file was wrong.** All 75 CEA-block tags classified against each member's own base roster: **31 named shift (41%), 21 spare (28%), 23 rest day (31%)**; contracted = **52 of 75, 69%**. The named-shift case is a MINORITY. Four successive statements here ("the ordinary case", "a majority", "eight of fourteen", "twelve of twenty-three") were all artefacts of asking about whoever the owner happened to raise that day. **A population question is not answerable from a running tally of answered questions**, and the lesson is worth more than the ratio. | Owner asked for R. Forester-Blackstock's 2026 leave |
+| 14 Sep 2026 | **THREE TAGS CARRY A BARE FIRST NAME, and two answers given today were SHORT because of it.** `Romiah` (= `F-Blackstock . R`), `Csherrice` (= `F-Charles . C`) and `Loreta` (= `Atrakimaviciene . L`) appear with no surname and no initial, so every surname scan this file recommends missed them: **C. Francisco-Charles was away 3 and 10 May and L. Atrakimaviciene on 5 Jul**, and neither was listed. Resolved by SLOT COLUMN — a leave block keeps one slot letter, so the Sunday cell in that column belongs to whoever holds the days either side. `Romiah` is additionally pinned by `Frimpong . R` being tagged by surname. Also found: `Sumali . J` / `Sumaili . J` in one sheet, and `N/A L Springer NA`. | Same |
+| 14 Sep 2026 | **§5's mechanism is now FOUR for four.** `F-Blackstock . R`'s `29/12` lands on a Tue 29 Dec whose four CEA slots are full (Davies, Reen, Mylla, Silva) — the Davies / Cooper / F-Charles shape again. Her own figures reconcile exactly: one totals row, 25 grid days on 25 distinct dates, +1 over quota, 26 of 32 used, 6 remaining, and all 26 on contracted days so the app agrees day for day. | Same |
