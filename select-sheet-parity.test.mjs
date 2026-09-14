@@ -115,6 +115,21 @@ const NATIVE_BY_DECISION = {
     // full-bleed radio sheet at v23.33, while the sign-in page — the FIRST dropdown anybody touches,
     // the same roster, on all six protected pages plus the Calendar's front door — still did.
 
+    'admin.html#alMember':
+        'NOT A CONTROL — a `hidden` value holder the save path reads. The member is chosen ONCE, in '
+        + 'the top bar; `.al-member-field` has been `display:none` since the member context bar '
+        + 'existed, for the same reason. It WAS enhanced, v23.33 to v23.74, and that built a second, '
+        + 'fully operable member picker inside the card: picking a name there moved the value the '
+        + 'SAVE writes to while the top bar, "Recording for", the AL banner, the week grid and Saved '
+        + 'Changes all stayed on the previous member, so the card would have recorded leave against '
+        + 'one person under another person\'s name and entitlement. Owner-reported, 14 Sep 2026. '
+        + 'Enhancing it again re-creates that; delete the select instead, if its consumers ever stop '
+        + 'needing a value to read.',
+    'admin.html#sickMember':
+        'The Absence card\'s half of the same pair, hidden and native for the same reason — and it '
+        + 'carried the identical phantom picker, just one card further down where it was less likely '
+        + 'to be noticed first.',
+
     'links-generator-targets.js.gen-slot-time':
         'One per shift slot, inside the generator target TABLE — a dense grid of times a designer '
         + 'sets in a run, not fields read one at a time. Replacing every cell of a table with a '
@@ -345,6 +360,42 @@ test('a page whose enhanced selects carry no class of their own names .fieldpick
 // ────────────────────────────────────────────────────────────────────────────────────────────────
 // Contract 6 — nothing may FOCUS an enhanced select
 // ────────────────────────────────────────────────────────────────────────────────────────────────
+
+test('no ENHANCED select is `hidden` — a hidden select is a value holder, not a control', () => {
+    // THE DEFECT THIS EXISTS FOR, reported by the owner on 14 Sep 2026 and reproduced before fixing.
+    //
+    // `enhanceSelect` builds a NEW element for the trigger, so it inherits the select's classes and
+    // nothing else — `hidden` did not carry. Admin's `#alMember` and `#sickMember` are `hidden` on
+    // purpose: they are retired dropdowns kept only so the save path has a value to read, the member
+    // being chosen once in the top bar. v23.33 put both in the `initSelectSheets` list, and each card
+    // grew a second member picker that looked exactly like one of the page's own fields.
+    //
+    // It was not merely cosmetic. Picking a name there moved `alMember.value` — WHAT THE SAVE WRITES
+    // TO — while the top bar, "Recording for", the AL banner, the week grid and Saved Changes all
+    // stayed on the previous member. The card would have recorded somebody's leave against another
+    // person's name and entitlement figures, and every label on screen agreed with each other and
+    // with the wrong answer.
+    //
+    // `enhanceSelect` now mirrors `hidden` onto its trigger, so this can no longer produce a phantom
+    // control. This test refuses the situation one step earlier: a hidden select in an enhancement
+    // list is a control nobody can see, which means it was either hidden by mistake or enhanced by
+    // mistake. Neither is worth shipping, and the fix is to decide which.
+    const { ids } = findEnhanced();
+    const offenders = [];
+    for (const page of APP_PAGES) {
+        const src = strip(read(page));
+        for (const tag of src.match(/<select\b[^>]*>/g) || []) {
+            const id = tag.match(/\bid=["']([^"']+)["']/)?.[1];
+            if (!id || !ids.has(id)) continue;
+            if (/\bhidden\b(?!\s*=\s*["']false)/.test(tag)) {
+                offenders.push(`${page}#${id} — enhanced, but the markup hides it`);
+            }
+        }
+    }
+    assert.deepEqual(offenders, [],
+        'a hidden <select> must not be enhanced: either drop it from the initSelectSheets list '
+        + '(it is a value holder) or stop hiding it (it is a real control)');
+});
 
 test('no module calls .focus() on a select that is enhanced', () => {
     // An enhanced select is 1px, transparent, `pointer-events: none`, `tabindex="-1"` and

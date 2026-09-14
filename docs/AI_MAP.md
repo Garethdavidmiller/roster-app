@@ -1034,6 +1034,21 @@ field"); the decision simply never got carried to selects.
 - `enhanceSelect(select, { title, placeholder })` → a `refresh()`. Inserts a trigger button before
   the select, hides the select (`.fieldpick-native`, `aria-hidden`, `tabindex=-1`) but KEEPS it as
   the value holder, and opens one shared `createLightbox` sheet of `.picker-opt` rows.
+- **A `hidden` select is a value holder, not a control, and the trigger mirrors it** (v23.74). The
+  trigger is a NEW element: it inherits the select's classes and nothing else, so `hidden` did not
+  carry, and enhancing a deliberately-hidden select CREATED a visible control where the page had
+  removed one. Admin's `#alMember`/`#sickMember` are exactly that — retired pickers kept so the save
+  path has a value to read, the member being chosen once in the top bar — and from v23.33 each card
+  grew a second member picker that looked like one of the page's own fields. **It was not cosmetic:**
+  picking a name there moved the value the SAVE writes to, while the top bar, "Recording for", the AL
+  banner, the week grid and Saved Changes all stayed on the previous member, so the card would have
+  recorded leave against one person under another person's name and entitlement figures.
+  Owner-reported, 14 Sep 2026. Refusing to enhance a hidden select would be the wrong guard (a page
+  may hide a real field and reveal it later), so `paint()` sets `btn.hidden = select.hidden` and the
+  MutationObserver watches `hidden` as well as `disabled` — hide the select, the control goes; reveal
+  it, the control returns. `select-sheet-parity.test.mjs` separately refuses a hidden id in an
+  `initSelectSheets` list, and `e2e/pages.spec.js` drives the mirror itself, which no static scan can
+  see.
 - `initSelectSheets(specs)` — several by id; a missing id is skipped, not an error. **Not for a select built after boot**: the id is looked up once, so a control the page creates later is skipped in silence — enhance it at the point it is created (Operations' `#acctGradeFilter`, built after two Firestore reads, does this).
 - `openOptionSheet({ title, groups, current, subtitle?, onPick, onPreview? })` (v23.38; timing v23.61) — the sheet WITHOUT a select behind it, for a caller that holds the value itself: the Links grid's cell editor, whose control is a grid cell and which used to swap that cell for a native `<select>` per edit. `enhanceSelect`'s own popup, lifted out rather than copied, so the app still has exactly one dropdown. **`onPick` fires when the sheet's close has LANDED** — `createLightbox`'s `close()` promise: the fade done AND the `history.back()` echo arrived — because a dialog opened from the callback before that echo is popped by it (the Links grid editor opens `promptDialog` from this very callback). Until v23.61 that was a fixed 320 ms timer: 120 ms past the 200 ms fade on every pick, and under reduced motion a third of a second for nothing. **`onPreview` fires synchronously on the tap**; `enhanceSelect` uses it to paint the trigger's face at once while the value still waits for the landing, which is what makes a pick read as instant. Neither fires on a dismissal — a cancel is not a pick. Pinned by `select-sheet-pick.test.mjs`. Same split as `date-picker.js`'s `initDatePickers` / `openDatePicker`.
 - `widestOptionLabel(select, placeholder?)` (v23.39) — the LONGEST label the select could show, which is what the trigger is sized to. **A `<select>` sizes to its widest option and a button sizes to its own text**, so from v23.33 the Calendar's name picker changed width as you switched member and the whole control row re-centred around it — `← Prev`/`Next →` sliding under the reader's thumb. The trigger now carries a hidden copy of this string and is a one-cell grid, so its intrinsic width is the widest option exactly as the native control's was; the page's `max-width` cap still clamps and the face still ellipsises. Longest by CHARACTER COUNT, deliberately: an exact answer means measuring every option in the trigger's font on every font load, text-scale change and rebuild, and these lists are one face at one size. **The grid is load-bearing for HEIGHT, not width** — left in normal flow the sizer forms its own line box and the control is 64px instead of 44px (measured), which a width assertion alone does not see.
