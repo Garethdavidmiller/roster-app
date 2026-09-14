@@ -1009,6 +1009,21 @@
         }
         .col-rd-hint[hidden] { display: none; }
 
+        /* What the day markers mean (v23.76). One quiet row under the grid, listing only the icons
+           this week actually carries — the meaning used to exist solely in an aria-label, which told
+           a screen reader "Cut-off Date" and left everybody else with a pair of scissors. */
+        .week-badge-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px 14px;
+            padding: 8px 10px 2px;
+            font-size: var(--type-badge);
+            color: var(--text-mid);
+            line-height: 1.5;
+        }
+        .wbl-item { display: inline-flex; align-items: center; gap: 5px; }
+        .wbl-icon { font-size: 1.05em; }
+
         /* The swapped-day question on a week-grid row (v23.75) — the same question the AL card asks,
            on the other door into the same write. Spans the row like .col-rd-hint above it, and the
            `[hidden]` rule is load-bearing for exactly the reason that one's is: `display: flex`
@@ -1079,6 +1094,22 @@
         .day-row.today .col-day .day-name { color: var(--primary-blue); font-weight: 800; }
         .day-row.today .col-day .day-date { color: var(--primary-blue); }
         .day-row.today:not(.active):not(.has-override):not(.selected) { background: var(--today-print); }
+
+        /* TODAY IS NOT SAID IN COLOUR ALONE (v23.76). The row was blue text on a pale band and
+           nothing else — no word anywhere, so the one thing it was telling you was exactly the thing
+           a colour-blind reader, a printed page or a stranger to the page could not receive. */
+        .day-today-tag {
+            display: inline-block;
+            margin-left: 6px;
+            padding: 1px 6px;
+            border-radius: 999px;
+            background: var(--primary-blue);
+            color: var(--surface);
+            font-size: var(--type-micro);
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            vertical-align: 1px;
+        }
 
         /* Row with a validation error (e.g. time not filled) — highlighted red */
         .day-row.row-error { background: var(--error-bg) !important; border-left: 4px solid var(--error-red) !important; }

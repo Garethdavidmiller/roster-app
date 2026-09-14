@@ -1432,6 +1432,7 @@ The shift-type table (v21.38). Pure data, no imports — which is what lets ever
 - `TYPES` — per-type metadata (label, pill, fixed, fixedValue)
 - `PILL_TYPES` — the ONE ordered declaration of which pills exist; both pill rows are generated from it
 - `WORKED_OVERRIDE_TYPES` — the types a Sunday RD-correction must never overwrite
+- `rowValueText(type, value)` → the text a Saved Changes row should print for the stored value, or `''` when printing it would only repeat the badge beside it (v23.76). The absence row read **“Absent  SICK”** and the leave row **“Annual Leave  AL”**; the first is worse than clutter, because `SICK` is a word this app does not put in front of staff (the reason for an absence is never stored) and it sat on the Admin page's list of everything ever recorded. The test is the same `fixed` flag that makes the value derivable, not a list of types to hide, so a type added later is handled by its own declaration. **It fails toward SHOWING** — an unknown type, or a value that disagrees with the fixed one it should have, is printed, because a row whose data contradicts its own type is exactly the row an admin needs to see.
 
 ### `admin-week-editor.js`
 The seven-day grid and everything staged but not saved (v21.38, extracted from `admin-overrides.js`).

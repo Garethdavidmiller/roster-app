@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '23.75';
+export const APP_VERSION = '23.76';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -690,7 +690,7 @@ export function isCutoffDate(date) {
 export function getSpecialDayBadges(date, _dateStr) {
     const badges = [];
     if (isBankHoliday(date))   badges.push({ icon: '⭐', title: 'Bank Holiday' });
-    if (isCutoffDate(date))    badges.push({ icon: '✂️', title: 'Cut-off Date' });
+    if (isCutoffDate(date))    badges.push({ icon: '✂️', title: 'Cut-off date' });   // sentence case, matching calendar-renderer.js
     if (isPayday(date))        badges.push({ icon: '💷', title: 'Payday' });
     if (isChristmasDay(date))  badges.push({ icon: '🎄', title: 'Christmas Day' });
     if (isEasterSunday(date))  badges.push({ icon: '🐣', title: 'Easter Sunday' });
