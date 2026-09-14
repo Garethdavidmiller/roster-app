@@ -290,9 +290,10 @@ elsewhere. Read the comment before assuming the value means over-quota days.
 **A second worked example, and it corroborates the first.** [measured, 14 Sep 2026] `Cooper . I`'s
 comment reads `19/08`. On Wed 19 Aug 2026 the four CEA slots hold Mylla, Gherbi, F-Blackstock and
 F-Charles — full, exactly as on Davies's 24 Dec. `F-Charles . C`'s own over-quota day, `24/02`, is
-the same shape: Mylla, Irvine, Panchal and Miller hold all four slots. **FIVE FOR FIVE** as of
+the same shape: Mylla, Irvine, Panchal and Miller hold all four slots. **SIX FOR SIX** as of
 14 Sep — `F-Blackstock . R`'s `29/12` lands on a Tuesday whose four slots hold Davies, Reen, Mylla
-and Silva, and `Silva . S`'s own `02/01` on a Friday holding Mylla, Miller, Reen and F-Blackstock.
+and Silva, `Silva . S`'s own `02/01` on a Friday holding Mylla, Miller, Reen and F-Blackstock, and
+`Sumali . J`'s `10/04` on a Friday holding Robson, Gherbi, Nsuala and Miller.
 **Every over-quota date checked so far falls on a date whose four CEA slots are full, with no
 exceptions.** That is as close to confirming the `[inferred]` meaning of column E as the file alone
 can get; it still wants the owner's word.
@@ -483,6 +484,26 @@ Every one of these is silent, and every one has been seen. [measured]
    their entitlement. It is the mirror of defect 4: there the date is lost and the deduction stands;
    here the date survives and the deduction is missing. **Read the comment even when the cell is
    blank** — a blank E is not evidence of no over-quota day.
+
+   **CONFIRMED, not merely suspected** [measured, 14 Sep 2026]: **Fri 10 Apr 2026 is a real
+   over-quota day.** It is a working day on her roster (08:00–16:30), it sits in the middle of her
+   4–11 Apr absence, and that Friday's four CEA slots hold Robson, Gherbi, Nsuala and Miller —
+   full, exactly like the five other over-quota dates. **E17 should read 1**, and her true position
+   is 33 days against 32.
+
+   **Her row is the worst case this file has: THREE systems, THREE answers, none of them right
+   together.**
+
+   | Source | Says | Why |
+   |---|---|---|
+   | the workbook's formula | **0** | `=F17-(G17+E17)` with E17 blank |
+   | the comment | **−1** | 33 days used against 32 |
+   | the app | **2** | it counts 30, refusing two rest-day bookings (below) |
+
+   **And the spelling scare was checked and is clear.** The name appears as both `Sumali . J` and
+   `Sumaili . J` in this workbook, which would break `COUNTIF` silently if it reached the grid —
+   **all 32 grid cells say `Sumali . J`**; only the 14 Jun free-text tag says `Sumaili`. The formula
+   is not dropping days. Worth re-checking if anybody edits the grid, because nothing would say so.
 7. **THERE ARE TWO MARYLEBONE REGISTERS IN THIS FILE, AND THE STALE ONE IS FROM 2021.**
    [measured, 14 Sep 2026] `Marylebone Totals` / `Marylebone Calendar` / `Marylebone Block` are a
    **2021** register — the calendar's dates run 1 Jan 2021 to 1 Jan 2022 — left in the workbook
@@ -609,6 +630,16 @@ them change what a figure MEANS, so an unanswered one is not a tidiness problem.
    pre-June lump a separate, deliberate use of the same column?
 8. **Who owns the file** — is the copy uploaded here always current, and does anybody edit it
    besides the roster clerks?
+9. **`Sumali . J`'s E17 should read 1** — §8.6's defect is now confirmed (the `10/04` comment names
+   a real over-quota day), so the cell is simply missing its value and her row understates by one.
+   Is that a correction for the clerks to make in the workbook? Until it is made, her Remaining
+   reads 0 where the true figure is −1.
+10. **Is anybody tracking the people at −1?** Three now — `Sumali . J`, `Haque . J` and `Reen . C`
+   — have taken more than their entitlement. Whether that is a granted overdraw, an unrecorded
+   carry-forward, or an error is not visible in the file, and the sheet reports it without comment.
+11. **`Sumali . J`'s 13 and 14 May** are rest days on her rotating pattern, so the app refuses them
+   while the workbook counts them. Swapped working days (the F-Charles case), or did the published
+   roster that week differ from the pattern?
 
 ---
 
@@ -674,6 +705,7 @@ This is the record of the file getting better; an upload that taught nothing is 
 | 14 Sep 2026 | **A DAY WAS LOST BETWEEN THE EXTRACTION AND THE TABLE — owner caught it.** `F-Blackstock . R`'s **Sat 31 Jan** stands alone (Friday worked, Sunday rostered and untagged), so it had no block to join and fell out of the grouped answer while the stated total, 26, stayed right. §4 now carries the check: **sum the deducted column and it must equal grid days + column E**. The reader cannot perform it, and the asymmetry is that losing a day makes the answer look TIDIER — an isolated single day is exactly the row a summary wants to drop. | Owner: "Where is the 31st of Jan is your original list you gave to me?" |
 | 14 Sep 2026 | **TWO MARYLEBONE REGISTERS IN ONE FILE — the stale one is 2021.** `S. Langley` has a totals row on each, reading 23 used / 9 remaining on the live sheet and **0 used / 32 remaining** on `Marylebone Totals`, whose calendar runs 1 Jan 2021 – 1 Jan 2022. The stale row is indistinguishable from a live one without looking at the sheet name. Recorded as §8 defect 7. It also **corrects defect 5**: c/f is not "barely used", it is used on **none** of the live sheet's 47 rows, while twelve 2021 rows carry one — so §9's carry-forward question is sharper than it read (the depot has tracked it, the current register does not, and neither does the app). | Owner asked for S. Langley's 2026 leave |
 | 14 Sep 2026 | **§5 is FIVE for five, and the app-is-short case is not a one-off.** `Silva . S`'s `02/01` lands on a Friday whose four CEA slots hold Mylla, Miller, Reen and F-Blackstock. Her 19 grid days against a column E of 1 mean **the app will read 13 where the sheet says 12** — the second instance of the gap F-Blackstock's 7-vs-6 exposed, one member later. Recorded in §5: every member carrying a column-E value is in this state until it is entered, which is at least five people. Her own figures otherwise reconcile exactly: 19 distinct dates, all contracted, 20 of 32 used, 12 remaining. Also the longest absence seen yet — **16–28 Jun, thirteen continuous days for six deductions**, which is the case for giving days AWAY rather than a count. | Owner asked for S. Silva's 2026 leave |
+| 14 Sep 2026 | **§8.6 CONFIRMED — `Sumali . J`'s `10/04` is a real over-quota day**, and two new §10 questions raised from it. A working day for her, mid-absence, on a Friday whose four CEA slots are full (Robson, Gherbi, Nsuala, Miller): the same shape as the other five, so **§5 is six for six** and **E17 should read 1**. Her row is the file's worst case — the formula says 0, the comment says −1, and the app says 2, because two of her booked days (**13 and 14 May**) are rest days on her pattern and `consumesEntitlement` refuses them. The `Sumali`/`Sumaili` spelling was checked for silent COUNTIF loss and is CLEAR: all 32 grid cells use one spelling, only a tag uses the other. Third person at −1, with Haque and Reen. | Owner asked for J. Sumaili's 2026 leave |
 | 14 Sep 2026 | **S. Langley reconciles exactly.** 23 grid days on 23 distinct dates, column E empty AND uncommented, 9 of 32 remaining, all 23 on contracted days so the app agrees with no swap data. Four tags, three on a named shift and one on a spare. Her 24 Jul – 2 Aug absence is **ten continuous days** carrying only six deductions — the longest run yet seen, and a good illustration of why the answer gives days AWAY and marks which cost entitlement. | Same |
 | 14 Sep 2026 | **THREE TAGS CARRY A BARE FIRST NAME, and two answers given today were SHORT because of it.** `Romiah` (= `F-Blackstock . R`), `Csherrice` (= `F-Charles . C`) and `Loreta` (= `Atrakimaviciene . L`) appear with no surname and no initial, so every surname scan this file recommends missed them: **C. Francisco-Charles was away 3 and 10 May and L. Atrakimaviciene on 5 Jul**, and neither was listed. Resolved by SLOT COLUMN — a leave block keeps one slot letter, so the Sunday cell in that column belongs to whoever holds the days either side. `Romiah` is additionally pinned by `Frimpong . R` being tagged by surname. Also found: `Sumali . J` / `Sumaili . J` in one sheet, and `N/A L Springer NA`. | Same |
 | 14 Sep 2026 | **§5's mechanism is now FOUR for four.** `F-Blackstock . R`'s `29/12` lands on a Tue 29 Dec whose four CEA slots are full (Davies, Reen, Mylla, Silva) — the Davies / Cooper / F-Charles shape again. Her own figures reconcile exactly: one totals row, 25 grid days on 25 distinct dates, +1 over quota, 26 of 32 used, 6 remaining, and all 26 on contracted days so the app agrees day for day. | Same |
