@@ -46,6 +46,8 @@ module beside the code.
 | 12 | **A withdrawn member is withdrawn on BOTH sides.** `getMyOvertimeState` omits the window and `submitOvertimeAvailability` refuses with its own code (`withdrawn`, distinct from `not-a-participant` — one was never asked, the other was and has been stood down). Hiding the window is the courtesy; refusing the write is the half that matters, because a page opened before the withdrawal still has the form and the button. | `functions/overtime.js` |
 | 13 | **Creation is conditional; the daily top-up is not.** "Nothing due" is the NORMAL state — the horizon is pre-created — so an early return on it would run the top-up only on the one day a week a new week enters the horizon, and a member invited on any other day would have no form on any already-open week until then. | `functions/overtime.js` (`autoCreateOvertimeWindows`) |
 
+| 14 | **A release request is a REQUEST, on CONTRACTED work, and it grants nothing.** `releaseRequested` asks the roster team to take the member off a Sunday they are rostered to. It writes no override, changes no roster and consumes no annual leave — Sundays stay uncontracted for leave. No surface may word it as granted, and it must never be merged with the day's overtime answer, which is about different work entirely. | `functions/overtime-core.js` (`REQUEST_DAY_FIELDS`) |
+
 Reviewing is not participating — that one is an authorisation rule and lives in
 `AUTH_AND_SESSIONS.md` invariant 14, with the rest of the claim model.
 

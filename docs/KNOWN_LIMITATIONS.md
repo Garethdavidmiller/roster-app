@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: September 2026 — v23.70 · Updated every 0.10 version*
+*Last updated: September 2026 — v23.80 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -1363,6 +1363,24 @@ never contingent on the beta label, and dropping it does not make any of them go
 
 Design: `OVERTIME_AVAILABILITY.md`. Operating: OPERATIONS_REFERENCE.md. These are the things the
 feature deliberately does NOT do yet, so that a reader stops looking for them.
+
+- **The SUNDAY-RELEASE REQUEST is server-side only as of v23.80** — the field exists, nothing writes
+  it, and no surface shows it. That is deliberate sequencing rather than an unfinished feature:
+  `normaliseDay` rejects unknown fields outright, and the hosting and functions deploys fire in
+  parallel with no ordering guarantee, so a client shipped in the same push would have its whole
+  week of availability refused by a server that had not learned the field yet. The form half follows
+  once this deploy is confirmed. Until then a member still cannot tell anyone, through the app, that
+  they need taking off a rostered Sunday — which is the gap below, still open.
+
+- **The app cannot yet record "away for a rostered Sunday duty", and this is the gap v23.80 starts
+  closing.** Sundays are uncontracted for every grade, so annual leave and absence cannot be written
+  on one (`SUNDAY_FORBIDDEN_TYPES`) — correct, and it is what stops a Sunday costing somebody a day
+  they do not owe. The consequence is that a fact the depot's workbook has always been able to state
+  — a free-text `N/A <name>` tag in the Sunday row, used on **52 of its 75 tagged Sundays**, every
+  one a day the person was otherwise contracted — has no representation in the app at all. An
+  external review (v23.78) proposed a new non-entitlement absence type; **the owner's answer was a
+  request through the Overtime availability form instead**, which puts it where it is actually
+  decided and invents no new kind of absence. Do NOT loosen the AL rule to close this.
 
 - **No expiry purge.** Windows past `retentionUntil` (13 weeks) are filtered out of both read
   endpoints, so they are invisible and inert — but the documents stay in Firestore. Enforcement is
