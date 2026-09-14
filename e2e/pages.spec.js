@@ -7166,3 +7166,64 @@ for (const w of [320, 340, 359, 360, 414]) {
         expect(errors, 'uncaught JS on admin').toHaveLength(0);
     });
 }
+
+test('admin: the AL preview names a Spare day and says it costs one day of leave', async ({ page }) => {
+    // THE WIRING, not the helper. `spareShiftNote` has its own unit test, and a unit test is exactly
+    // what would NOT have caught the defect this replaces: the broken sentence lived in a template
+    // literal inside `admin-al.js`, which imports Firebase, so nothing in Node could render it and
+    // nothing did — it shipped ungrammatical from v11.35 to v23.72 and was found by the owner
+    // reading it off a phone. This drives the real card and reads the real banner.
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    // The note renders only for CEA/CES, and only on a day whose BASE shift is SPARE — so the date
+    // is found from the roster rather than written down here, where a pattern edit would silently
+    // turn it into an ordinary working day and leave this test asserting nothing.
+    const pick = await page.evaluate(async () => {
+        const rd = await import('./roster-data.js');
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        for (const m of rd.teamMembers) {
+            if (m.hidden || m.managerOnly) continue;
+            if (m.role !== 'CEA' && m.role !== 'CES') continue;
+            for (let i = 1; i <= 200; i++) {
+                const d = new Date(today); d.setDate(d.getDate() + i);
+                if (rd.getBaseShift(m, d) !== 'SPARE') continue;
+                return {
+                    name: m.name,
+                    iso: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+                    monthsAhead: (d.getFullYear() - today.getFullYear()) * 12 + (d.getMonth() - today.getMonth()),
+                };
+            }
+        }
+        return null;
+    });
+    expect(pick, 'no CEA/CES member has a Spare day in the next 200 days — that is a roster problem, not a copy one')
+        .not.toBeNull();
+
+    await page.locator('#fieldMember').selectOption(/** @type {any} */ (pick).name);
+    await page.locator('#alToggleHeader').click();
+    await expect(page.locator('#alRangePicker')).toBeVisible();
+
+    for (let i = 0; i < /** @type {any} */ (pick).monthsAhead; i++) {
+        await page.locator('#alRpNext').click();
+        await page.waitForTimeout(60);
+    }
+    // Twice on the same cell is a one-day range: the first click sets the start, the second the end.
+    const cell = page.locator(`#alRpGrid .rp-day[data-iso="${/** @type {any} */ (pick).iso}"]`);
+    await expect(cell, 'the picker did not reach the month holding the Spare day').toHaveCount(1);
+    await cell.click();
+    await cell.click();
+
+    const preview = page.locator('#alPreview');
+    await expect(preview).toContainText('1 working day');
+    // What the owner ruled on 14 Sep 2026: a day is a day.
+    await expect(preview).toContainText('This is a Spare day');
+    await expect(preview).toContainText('It still uses 1 day of annual leave.');
+
+    const text = (await preview.textContent()) ?? '';
+    expect(text, 'the singular branch shipped as "1 of these day is" for four months').not.toMatch(/these day\b/);
+    expect(text, 'a one-day booking has no "these" to be one of').not.toMatch(/of these/);
+    expect(text, 'the hours claim is wrong and was removed — the app charges whole days')
+        .not.toMatch(/hours|more than 1 AL day/i);
+});

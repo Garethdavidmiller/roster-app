@@ -10,6 +10,7 @@ import { getALEntitlement, getBaseShift, escapeHtml, projectAnnualLeaveOverage, 
 import { getAllOverrides, isWorkingDate, buildMemberDateMap } from './admin-overrides.js';
 import { countedAlDates, consumesEntitlement } from './al-entitlement.js';
 import { createRangeBookingSection } from './admin-range-booking.js';
+import { spareShiftNote } from './admin-al-spare-note.js';
 
 const esc = escapeHtml;
 
@@ -117,9 +118,9 @@ export function initALSection({
         const label    = workDays === 1 ? '1 working day' : `${workDays} working day${workDays !== 1 ? 's' : ''}`;
         const restNote = restCount > 0 ? ` <em>(+ ${restCount} rest day${restCount > 1 ? 's' : ''} skipped)</em>` : '';
         const isSpareRole = memberObj && (memberObj.role === 'CEA' || memberObj.role === 'CES');
-        const spareNote = (isSpareRole && spareCount > 0)
-            ? `<br><em>⚠ ${spareCount} of these day${spareCount !== 1 ? 's are' : ' is'} an unconfirmed "Spare" shift. If the actual shift ends up longer than 7 hours, it may use more than 1 AL day — check with your manager if unsure.</em>`
-            : '';
+        // Wording, and why a Spare day costs exactly one: admin-al-spare-note.js's header.
+        const noteText  = isSpareRole ? spareShiftNote(spareCount, dates.length) : '';
+        const spareNote = noteText ? `<br><em>${esc(noteText)}</em>` : '';
         return `🏖️ <strong>${label}</strong> of Annual Leave for ${esc(member)}: ${rangeStr}${restNote}${spareNote}`;
     }
 
