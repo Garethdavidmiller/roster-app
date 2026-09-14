@@ -88,7 +88,7 @@ Each row of `New Marylebone Totals` is:
 
 | Col | Header | Source |
 |---|---|---|
-| A | Role | typed — `CEA` · `BLCEA` · `CES` · `DISP` |
+| A | Role | typed — `CEA` · `BLCEA` · `CES` · `DISP`. **`BLCEA` is the LINE, not the CONTRACT** [measured, 14 Sep 2026]: `Cooper . I` is `BLCEA` here with an allowance of **32**, and the app has them as a plain CEA with `bilingualContract: false` — which agrees. Read as a contract it predicts 34 (CLAUDE.md's bilingual entitlement) and reports a false disagreement against a workbook that is right. A plain CEA is routinely placed on a bilingual line until a CEA one frees up, so this column cannot answer the entitlement question; `bilingualContract` in the app can. |
 | B | Name | typed — `Surname . I` (see §7) |
 | C | c/f previous year | typed |
 | D | AL allowance | typed |
@@ -363,3 +363,6 @@ This is the record of the file getting better; an upload that taught nothing is 
 | 14 Sep 2026 | **Correction to §5.** `openpyxl` DOES return threaded-comment text (3.1.5), verified against the XML for all sixteen totals-sheet comments. The old note sent readers down the zip route as the only option and implied the dates were unreachable without it. | Re-deriving Davies's over-quota day from scratch |
 | 14 Sep 2026 | **New trap recorded (§6).** Threaded comments keyed by cell ref across all sheets conflate them: `E22` merged the totals row with a calendar sheet and produced a second, non-existent over-quota date (`27/02`). Caught before it reached an answer. Reliable sheet→comment-file mapping via the `_rels` added. | Same |
 | 14 Sep 2026 | **New workbook defect (§8.6).** `Sumali . J` has an over-quota comment (`10/04`) with an EMPTY column E, so the deduction never happens and Remaining reads 0 where it should read −1. | Auditing every column-E comment against its value |
+| 14 Sep 2026 | **`/al-workbook` created**, because the knowledge being written down was not enough on its own: §0 was broken twice by sessions that had this file and read it late. The skill is the TRIGGER — it fires on an upload or a leave question and sends the reader here. It deliberately summarises nothing. | Owner: "claude really needs to read that area of the md file … We also need to add learnings to that file" |
+| 14 Sep 2026 | **§3's Role column resolved: `BLCEA` is the LINE, not the CONTRACT.** `Cooper . I` is `BLCEA` with a 32 allowance, and the app has them as a plain CEA with `bilingualContract: false`. The two AGREE. Reading the column as a contract would predict 34 and report a false disagreement — the first reconciliation trap that makes a correct workbook look wrong. | Owner asked for I. Cooper's 2026 leave |
+| 14 Sep 2026 | **First answer given through the skill, and it worked as designed.** I. Cooper: column E read FIRST, `19/08` found, and it sits INSIDE the 18–21 Aug block — the Davies shape again (an answer from the grid alone would have read "Tue 18 Aug, then Thu 20 – Fri 21 Aug"). 21 deducted of 32, 11 remaining, matching the sheet's own formula. A Sunday tag on 19 Apr also resolved a gap that looked real: 17–19 Apr are all rest days, so 13–22 Apr is ONE ten-day absence. | Same |
