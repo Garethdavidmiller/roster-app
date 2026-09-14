@@ -552,7 +552,41 @@ difference is.
 | **Pro-rated joining year** | should agree | The workbook's allowance for a joiner should equal the app's `proRatedAL[2026]`. Check it — this is the cheapest real check in the whole reconciliation. |
 | **Dispatcher lieu days** | check | The app adds one lieu day per bank holiday worked. Whether the workbook's allowance for a Dispatcher already includes them is **[unknown]**. |
 | **A SWAPPED working day booked off** | app shows **more** remaining | **The commonest real cause, ANSWERED BY THE OWNER 14 Sep 2026** — see below. |
+| **Employee of the Month** | **BOTH may show less entitlement** | **One extra AL day per award** [owner, 14 Sep 2026]. Neither system holds it: the workbook's allowance column reads a flat 32 for every CEA, and `getALEntitlement` returns a flat 32 too. **PARKED at the owner's request** — see below. |
 | **Leavers** | app may show a stale row | A leaver is `hidden` in the app but keeps their workbook row and figures. |
+
+### Employee of the Month — one extra day, held nowhere [owner, 14 Sep 2026] — **PARKED**
+
+> **Do not act on this section.** The owner raised it and said explicitly: *"We will revisit that
+> thought another day."* It is recorded so the next session starts from the fact rather than
+> rediscovering it, not because anything is waiting to be built.
+
+**The fact:** the Employee of the Month gets **one extra day of annual leave**.
+
+**Why it matters more than it sounds.** It changes what a NEGATIVE remaining means. Three rows
+currently sit at −1 — `Sumali . J`, `Haque . J` and `Reen . C` — and this file has been treating
+that as an overdraw, an error, or an unrecorded carry-forward. **A person with one award has an
+entitlement of 33, so taking 33 days is exactly correct and the −1 is an artefact of an allowance
+column that cannot express it.** That is a completely different conclusion from "this person has
+taken more leave than they are owed", and it is the kind of thing that should never be guessed at
+in front of a member.
+
+**Neither system can hold it today:**
+
+- The workbook's **AL allowance** column is a flat 32 for every CEA row measured.
+- The app's `getALEntitlement` returns a flat 32 for a CEA, with `proRatedAL[year]` the only
+  adjustment it accepts, and that is for a joining year rather than an award.
+
+**It is the same SHAPE as carry-forward** (the row above), and the two should be thought about
+together when this is picked up: both are real, owner-known adjustments to an individual's
+entitlement that neither the sheet nor the app has anywhere to put. Up to twelve awards a year
+across the depot is not a rounding error.
+
+**What would need deciding, when it IS revisited:** whether the award is recorded per member and
+per year, whether it carries the CEA/CES/Dispatcher base or sits on top of it, and whether the
+workbook or the app is the system of record — because if the allowance column starts reading 33 for
+some people, every reconciliation in this document has to read it rather than assume the grade
+default.
 
 ### A rest-day AL booking is usually a SWAP, and the app can hold it
 
@@ -643,8 +677,11 @@ them change what a figure MEANS, so an unanswered one is not a tidiness problem.
    Is that a correction for the clerks to make in the workbook? Until it is made, her Remaining
    reads 0 where the true figure is −1.
 10. **Is anybody tracking the people at −1?** Three now — `Sumali . J`, `Haque . J` and `Reen . C`
-   — have taken more than their entitlement. Whether that is a granted overdraw, an unrecorded
-   carry-forward, or an error is not visible in the file, and the sheet reports it without comment.
+   — read as having taken more than their entitlement. **A LIKELY EXPLANATION ARRIVED 14 Sep 2026
+   and is PARKED:** Employee of the Month earns one extra day, which no allowance column can
+   express, so a person with an award is entitled to 33 and the −1 is an artefact rather than an
+   overdraw (§9). Do not describe any of these three as over their entitlement until it is
+   settled.
 11. **`Sumali . J`'s 13 and 14 May** are rest days on her rotating pattern, so the app refuses them
    while the workbook counts them. Swapped working days (the F-Charles case), or did the published
    roster that week differ from the pattern? **The workbook CANNOT answer this** [measured,
@@ -724,6 +761,7 @@ This is the record of the file getting better; an upload that taught nothing is 
 | 14 Sep 2026 | **§8.6 CONFIRMED — `Sumali . J`'s `10/04` is a real over-quota day**, and two new §10 questions raised from it. A working day for her, mid-absence, on a Friday whose four CEA slots are full (Robson, Gherbi, Nsuala, Miller): the same shape as the other five, so **§5 is six for six** and **E17 should read 1**. Her row is the file's worst case — the formula says 0, the comment says −1, and the app says 2, because two of her booked days (**13 and 14 May**) are rest days on her pattern and `consumesEntitlement` refuses them. The `Sumali`/`Sumaili` spelling was checked for silent COUNTIF loss and is CLEAR: all 32 grid cells use one spelling, only a tag uses the other. Third person at −1, with Haque and Reen. | Owner asked for J. Sumaili's 2026 leave |
 | 14 Sep 2026 | **THE WORKBOOK CANNOT SETTLE A REST-DAY BOOKING, and that is structural.** Asked what `Sumali . J`'s 13–14 May actually show, the answer is: a plain booking in slot F, identical to the days either side, no marker of any kind — the tail of one run from 8 to 14 May. The sheet allocates QUOTA SLOTS and has no concept of a rest day, so a rest-day booking is invisible in it by design and nothing looks wrong. Recorded against §10.11 with what turns on it: a swap means she is genuinely at 33 of 32; genuine rest days mean two days were deducted that cost her nothing and she is at 31 with a day in hand. **The same mechanism could explain any of the three −1 rows.** Also noted: Sun 10 May carries no tag for her although her block runs through it — more evidence that a missing tag means nothing. | Owner: "But the 13th and 14th of May are showing what in the spreadsheet?" |
 | 14 Sep 2026 | **THE CHECK ADDED AN HOUR EARLIER WAS ITSELF TOO WEAK — owner caught it.** §4 said "sum the deducted column", and that passed on a `Sumali . J` table that had **dropped 21 May and duplicated 23 Dec**: an omission and a duplicate cancel, so the total read 33 and the arithmetic endorsed an answer containing two errors. The rule is now **compare the SET of distinct dates**, under which a duplicate is as visible as a gap. Two failures of the same family in one hour, on consecutive members — and the second was caught by the reader, not the check. | Owner: "Why do you have 20th and 21st of May in one table and only 20th of May in the other?" |
+| 14 Sep 2026 | **OWNER FACT, PARKED: Employee of the Month earns ONE EXTRA AL DAY.** Neither system holds it — the workbook's allowance column is a flat 32 for every CEA and `getALEntitlement` returns a flat 32 too. **It may explain the −1 rows**: a person with an award is entitled to 33, so taking 33 is correct and the negative is an artefact of a column that cannot express the award, not an overdraw. Recorded in §9 beside carry-forward, which is the same shape — a real, owner-known entitlement adjustment with nowhere to live. Explicitly **not actioned**: *"We will revisit that thought another day."* | Owner, unprompted, on the −1 rows |
 | 14 Sep 2026 | **S. Langley reconciles exactly.** 23 grid days on 23 distinct dates, column E empty AND uncommented, 9 of 32 remaining, all 23 on contracted days so the app agrees with no swap data. Four tags, three on a named shift and one on a spare. Her 24 Jul – 2 Aug absence is **ten continuous days** carrying only six deductions — the longest run yet seen, and a good illustration of why the answer gives days AWAY and marks which cost entitlement. | Same |
 | 14 Sep 2026 | **THREE TAGS CARRY A BARE FIRST NAME, and two answers given today were SHORT because of it.** `Romiah` (= `F-Blackstock . R`), `Csherrice` (= `F-Charles . C`) and `Loreta` (= `Atrakimaviciene . L`) appear with no surname and no initial, so every surname scan this file recommends missed them: **C. Francisco-Charles was away 3 and 10 May and L. Atrakimaviciene on 5 Jul**, and neither was listed. Resolved by SLOT COLUMN — a leave block keeps one slot letter, so the Sunday cell in that column belongs to whoever holds the days either side. `Romiah` is additionally pinned by `Frimpong . R` being tagged by surname. Also found: `Sumali . J` / `Sumaili . J` in one sheet, and `N/A L Springer NA`. | Same |
 | 14 Sep 2026 | **§5's mechanism is now FOUR for four.** `F-Blackstock . R`'s `29/12` lands on a Tue 29 Dec whose four CEA slots are full (Davies, Reen, Mylla, Silva) — the Davies / Cooper / F-Charles shape again. Her own figures reconcile exactly: one totals row, 25 grid days on 25 distinct dates, +1 over quota, 26 of 32 used, 6 remaining, and all 26 on contracted days so the app agrees day for day. | Same |
