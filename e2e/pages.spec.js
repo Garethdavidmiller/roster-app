@@ -2248,6 +2248,69 @@ test('admin: a member whose leave could not be read gets no balance, not a full 
     expect(visible, 'no readable balance over a read that failed').not.toMatch(/AL left:/i);
 });
 
+// ── THE LIST COUNTS WHAT THE ENTITLEMENT COUNTS (v23.72, owner report) ─────────────────────────
+//
+// The owner compared the app against the roster office's own leave spreadsheet and found M. Robson
+// a day apart: the app's December period read "Sat 5 – Fri 11 Dec · 6 days", the spreadsheet said
+// Mon 7 – Fri 11, and his chips summed to 33 against an allowance of 32.
+//
+// SAT 5 DEC 2026 IS A REST DAY on his line, and an AL override had been recorded on it. The
+// entitlement maths was already right — `consumesEntitlement` returns false for a rest day, so his
+// banner correctly read 32 of 32 — but the recorded-dates list filtered SUNDAYS and nothing else,
+// counted the rest day, and started the period a day before his leave did. One card, two
+// disagreeing counts of the same thing, with the wrong one next to the ✕ that deletes it.
+//
+// REAL MEMBER, REAL ROSTER, REAL DATES. The fix is to hand the list the entitlement rule itself
+// rather than a second copy of it, so this test is worth nothing unless it runs against a genuine
+// rest day: `getBaseShift(M. Robson, 2026-12-05)` is 'RD' because of where his week-4 main line
+// falls, which no fixture here asserts and a roster edit could change. The first assertion below
+// therefore pins the PREMISE — if his line moves, this fails loudly as a stale test rather than
+// passing while measuring nothing.
+test('admin: an AL day on a REST day is not listed and does not count', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            docs: [
+                // Sat 5 Dec — the rest day. Recorded, and spends nothing.
+                { id: 'r1', memberName: 'M. Robson', date: '2026-12-05', type: 'annual_leave', value: 'AL', note: '' },
+                // Mon 7 – Fri 11 — the leave he actually took.
+                { id: 'r2', memberName: 'M. Robson', date: '2026-12-07', type: 'annual_leave', value: 'AL', note: '' },
+                { id: 'r3', memberName: 'M. Robson', date: '2026-12-08', type: 'annual_leave', value: 'AL', note: '' },
+                { id: 'r4', memberName: 'M. Robson', date: '2026-12-09', type: 'annual_leave', value: 'AL', note: '' },
+                { id: 'r5', memberName: 'M. Robson', date: '2026-12-10', type: 'annual_leave', value: 'AL', note: '' },
+                { id: 'r6', memberName: 'M. Robson', date: '2026-12-11', type: 'annual_leave', value: 'AL', note: '' },
+            ],
+        });
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    // THE PREMISE, asserted before anything is measured against it.
+    const premise = await page.evaluate(async () => {
+        const rd = await import('./roster-data.js');
+        const m = rd.teamMembers.find(x => x.name === 'M. Robson');
+        return { five: String(rd.getBaseShift(m, rd.parseISODate('2026-12-05'))),
+                 seven: String(rd.getBaseShift(m, rd.parseISODate('2026-12-07'))) };
+    });
+    expect(premise.five, 'Sat 5 Dec 2026 must be a REST day on M. Robson\'s line, or this test proves nothing')
+        .toMatch(/^(RD|OFF)$/);
+    expect(premise.seven, 'Mon 7 Dec 2026 must be a working day, or the expected period is wrong')
+        .not.toMatch(/^(RD|OFF)$/);
+
+    await page.locator('#fieldMember').selectOption('M. Robson');
+    await page.locator('#alToggleHeader').click();
+    await expect(page.locator('#alBookedBox')).toBeVisible();
+    await page.locator('#alBookedToggle').click();
+    await expect(page.locator('#alBookedBody')).toBeVisible();
+
+    const rows = page.locator('#alBookedBody .al-period-row');
+    await expect(rows).toHaveCount(1);
+    // The range STARTS on the Monday — a period opening on the rest day is the defect, and it is
+    // visible in the dates even when the count happens to be right.
+    await expect(rows.first().locator('.al-period-dates')).toHaveText('Mon 7 – Fri 11 Dec');
+    await expect(rows.first().locator('.al-period-count')).toHaveText('5 days');
+});
+
 // ── THE RECORDED-DATES LIST IS PER YEAR (v23.09, owner report) ──────────────────────────────────
 //
 // The owner's own card ran January 2026 to June 2027 in one scroll — fifteen bookings, every month
@@ -2506,12 +2569,28 @@ test('admin: scrolling the date picker into another year moves the list with the
         /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
             docs: [
                 { id: 'a1', memberName: 'G. Miller', date: '2026-03-02', type: 'annual_leave', value: 'AL', note: '' },
-                { id: 'a2', memberName: 'G. Miller', date: '2027-06-22', type: 'annual_leave', value: 'AL', note: '' },
+                // BOTH DATES MUST BE WORKING DAYS ON HIS LINE. The list only shows leave that
+                // spends entitlement (v23.72), so a fixture date that happens to fall on a rest day
+                // is dropped — and this test then fails for a reason that has nothing to do with
+                // what it checks. It did: this was 22 Jun 2027, which is a rest day for G. Miller,
+                // so the 2027 chip vanished and the failure read like a broken year selector.
+                // 8 Jun is a working day, and the premise is asserted below rather than trusted.
+                { id: 'a2', memberName: 'G. Miller', date: '2027-06-08', type: 'annual_leave', value: 'AL', note: '' },
             ],
         });
     });
     await page.goto('/admin.html');
     await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    // The premise, so a roster edit that moves his line fails loudly here instead of quietly
+    // deleting the year this test is about.
+    const bothWork = await page.evaluate(async () => {
+        const [rd, al] = await Promise.all([import('./roster-data.js'), import('./al-entitlement.js')]);
+        const m = rd.teamMembers.find(x => x.name === 'G. Miller');
+        return ['2026-03-02', '2027-06-08'].map(d => al.consumesEntitlement(m, d, null));
+    });
+    expect(bothWork, 'both seeded AL dates must be working days for G. Miller').toEqual([true, true]);
+
     await page.locator('#fieldMember').selectOption('G. Miller');
     await page.locator('#alToggleHeader').click();
     await page.locator('#alBookedToggle').click();

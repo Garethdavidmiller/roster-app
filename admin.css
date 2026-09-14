@@ -1661,9 +1661,19 @@
             background: var(--bg-faint);
             border-bottom: 1px solid var(--border-light);
         }
+        /* NEVER WRAPS — the date text wraps INSTEAD of the controls (v23.72).
+           `flex-wrap: wrap` was here, and it is why the `min-width: 0` below could never do its
+           job. A flex container breaks lines on its items' HYPOTHETICAL sizes, before any
+           shrinking happens: the dates span asked for its full content width, the chip and the
+           44px button no longer fit beside it, and the button dropped to a second line — so the
+           ellipsis the comment below promised had no opportunity to fire. Measured on the real
+           page: broken at 360px at the DEFAULT text size, and at 412px from Android's "Largest"
+           (1.3x) upward, where the row went 46px to 72px with the delete control orphaned
+           underneath. With `nowrap` the shrink runs, and every width and text scale keeps the
+           chip and the ✕ on the row. */
         .al-period-row {
             display: flex;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
             align-items: center;
             gap: 4px 8px;
             min-height: 46px;
@@ -1673,20 +1683,29 @@
         .al-period-month-hdr + .al-period-row { border-top: none; }
         .al-period-dates {
             flex: 1 1 auto;
-            /* `min-width: 0` so a long range ellipsises instead of forcing the row wider than the
-               card — the confirm state widens the button under it, and this is what absorbs that. */
+            /* `min-width: 0` so a long range shrinks instead of forcing the row wider than the
+               card — the confirm state widens the button under it, and this is what absorbs that.
+               It only actually shrinks now that the row is `nowrap`; see the note there.
+
+               AND IT WRAPS RATHER THAN ELLIPSISING. Both were measured against the real card, and
+               the ellipsis loses the wrong thing: at 360px "Fri 24 Apr – Wed 6 May" cuts to
+               "Fri 24 Apr – Wed 6 M…", so the END of the range — the half that says how long the
+               booking is — is the half that disappears, on the row whose ✕ deletes it. Wrapping
+               keeps every character; two lines of 13px text still fit the 46px row, so at 412px
+               and Android's "Largest" the row does not even grow. `overflow: hidden` stays as the
+               backstop for a single unbreakable token. */
             min-width: 0;
             overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+            white-space: normal;
+            overflow-wrap: break-word;
             font-size: var(--type-label);
             font-weight: 700;            /* the same weight as Saved Changes' date (.oc-date) */
             color: var(--text-dark);
             font-variant-numeric: tabular-nums;
         }
         /* The tail or head of a booking that crossed the year end (v23.11). Inline after the
-           dates, muted and small, so the row still reads as one line at 375px; the dates span
-           ellipsises as one unit if the two together outgrow the column. */
+           dates, muted and small, so the row still reads as one line at 375px; the marker wraps
+           with the dates as one unit if the two together outgrow the column. */
         .al-period-cont {
             margin: 0 8px;
             font-size: var(--type-label);
