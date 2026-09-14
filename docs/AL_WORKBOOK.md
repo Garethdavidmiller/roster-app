@@ -173,6 +173,32 @@ repeating.
 > intermediate figure here was an artefact of the sample**, which is what a running tally built out
 > of answered questions is worth when the question is a population question.
 >
+> **⚠️ THE CENSUS IS AGAINST THE PATTERN, NOT AGAINST WHAT WAS PUBLISHED — so a "named shift"
+> here is not proof the person was rostered one.** [owner, 14 Sep 2026] Told that
+> `F-Charles . C`'s 3 and 10 May and `Atrakimaviciene . L`'s 5 Jul were days I had failed to list,
+> the owner's answer was that they are **"already on the roster"**. `getBaseShift` returns the
+> member's ROTATING PATTERN; the roster the depot actually publishes each week can change any day
+> of it, and the roster import writes those changes into the app as overrides. So a tag can sit on
+> a pattern shift that the published week had already made a rest day — the person is off, the app
+> shows it, and nothing is missing from anybody's answer.
+>
+> Two consequences, and the first is the one that bites:
+>
+> - **A tagged Sunday is NOT automatically a hole in the app.** Before reporting one as a day the
+>   app structurally cannot hold, check whether the published roster already covers it. This file
+>   has twice described tagged Sundays as invisible to the app; that is true only where the
+>   published week really did roster the person a shift.
+> - **The 31 "named shift" tags are an UPPER BOUND on the rostered case**, not a count of it. Some
+>   number of them were changed on the published roster. The 23 rest-day tags are firmer — a
+>   pattern rest day is rarely turned into work without an RDW — so if anything the true
+>   named-shift share is **below** 41%, which moves the conclusion further in the direction it
+>   already went.
+>
+> **Settling it needs the OVERRIDES, not the pattern**, which means reading Firestore rather than
+> `roster-data.js`. That is the check to run the next time this is in front of somebody who can:
+> resolve each of the 75 tag dates through `resolveEffectiveShift` with the override map loaded,
+> and the census becomes exact. Until then, report the tag and the pattern, and say which it is.
+
 > **ASK "was the member DUE AT WORK", not "was a shift named".** SPARE is contracted — the person
 > is expected at the station — so being away from one is being away from work exactly as a named
 > shift is. That reading gives **69%, better than two in three**, and it is the one that answers
@@ -565,5 +591,6 @@ This is the record of the file getting better; an upload that taught nothing is 
 | 14 Sep 2026 | **A Sunday tag can stand completely alone — and a block can be missing one.** Her **Sun 22 Mar** tag has no grid day near it (nearest 9 Mar and 8 May) and sits in a week of solid working shifts: a one-day absence from a rostered Sunday, invisible to the app and to the grid alike. The mirror is on the same person — **Sun 6 Sep** (rostered, between a booked Sat and a rest-day Mon) and **Sun 15 Nov** (rostered, straight after 13–14 Nov) are both untagged. Recorded as §0 step 3 rather than resolved: an absent tag is silence, not evidence she worked. **Unresolved.** | Same |
 | 14 Sep 2026 | **A completely clean reconciliation, which is worth logging precisely because nothing was wrong.** N. Tuck: one totals row, column E empty AND uncommented, 26 grid cells on 26 distinct dates, 26 of 32 used, 6 remaining — and all 26 land on contracted days, so `consumesEntitlement` agrees with the sheet day for day with no swap data needed. The first member of the nine looked at today with no duplicate row, no over-quota day, no −1 and no rest-day gap. | Same |
 | 14 Sep 2026 | **THE SUNDAY-TAG RATIO, COUNTED IN FULL — and every earlier figure in this file was wrong.** All 75 CEA-block tags classified against each member's own base roster: **31 named shift (41%), 21 spare (28%), 23 rest day (31%)**; contracted = **52 of 75, 69%**. The named-shift case is a MINORITY. Four successive statements here ("the ordinary case", "a majority", "eight of fourteen", "twelve of twenty-three") were all artefacts of asking about whoever the owner happened to raise that day. **A population question is not answerable from a running tally of answered questions**, and the lesson is worth more than the ratio. | Owner asked for R. Forester-Blackstock's 2026 leave |
+| 14 Sep 2026 | **OWNER CORRECTION: the census measures the PATTERN, not the published roster.** Told that F-Charles's 3/10 May and Atrakimaviciene's 5 Jul were missing from their answers, the owner replied they are *"already on the roster"* — `getBaseShift` returns the rotating pattern, and the week the depot publishes can change any day of it, with the roster import writing that into the app. So a tag on a pattern shift may be a day the app already shows as off, and **31 named-shift tags is an upper bound rather than a count**. Recorded against §4 with the exact check that would settle it (resolve each tag date through `resolveEffectiveShift` with the overrides loaded). It moves the conclusion further in the direction it already went. | Owner: "The last two away things are already on the roster" |
 | 14 Sep 2026 | **THREE TAGS CARRY A BARE FIRST NAME, and two answers given today were SHORT because of it.** `Romiah` (= `F-Blackstock . R`), `Csherrice` (= `F-Charles . C`) and `Loreta` (= `Atrakimaviciene . L`) appear with no surname and no initial, so every surname scan this file recommends missed them: **C. Francisco-Charles was away 3 and 10 May and L. Atrakimaviciene on 5 Jul**, and neither was listed. Resolved by SLOT COLUMN — a leave block keeps one slot letter, so the Sunday cell in that column belongs to whoever holds the days either side. `Romiah` is additionally pinned by `Frimpong . R` being tagged by surname. Also found: `Sumali . J` / `Sumaili . J` in one sheet, and `N/A L Springer NA`. | Same |
 | 14 Sep 2026 | **§5's mechanism is now FOUR for four.** `F-Blackstock . R`'s `29/12` lands on a Tue 29 Dec whose four CEA slots are full (Davies, Reen, Mylla, Silva) — the Davies / Cooper / F-Charles shape again. Her own figures reconcile exactly: one totals row, 25 grid days on 25 distinct dates, +1 over quota, 26 of 32 used, 6 remaining, and all 26 on contracted days so the app agrees day for day. | Same |
