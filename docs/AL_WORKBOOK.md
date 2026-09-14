@@ -155,6 +155,13 @@ repeating.
 > they are answering different questions, and a straight date-for-date comparison will report a
 > discrepancy that is not one.
 >
+> **FOUR INSTANCES NOW, NOT ONE** [measured, 14 Sep 2026]. `Mylla . O` carries three Sunday tags —
+> 11 Jan, 9 Aug, 27 Dec — and **every one of them falls on a day she was ROSTERED to work**
+> (14:30–23:25, 07:15–15:45, 07:15–15:45), with 11 Jan opening its block exactly as Panchal's
+> 15 Feb does. So this is not the exception the Panchal entry was written as; on the evidence so
+> far it is the ORDINARY case, and a tagged Sunday that happens to be a rest day is the variant.
+> Check the base roster every time.
+>
 > So: **do not assume a tagged Sunday is a rest day, and do not assume it is mid-block.** Check the
 > base roster. Where the person was rostered, say they were away from a shift and that it cost no
 > entitlement — do not silently drop it because the app has no way to hold it.
@@ -474,5 +481,6 @@ This is the record of the file getting better; an upload that taught nothing is 
 | 14 Sep 2026 | **A SECOND duplicate pair (`Boyle . A`, rows 9 and 18), and the shape of both.** The same two names appear consecutively in both places — `Boyle . A` then `F-Charles . C` at 9–10 and again at 18–19 — which reads as a copied block rather than two typos. Also recorded: `Haque . J` and `Reen . C` both sit at **−1**, 33 used against 32. | Same |
 | 14 Sep 2026 | **The rest-day mismatch has a second, bigger instance.** Three of F-Charles's 28 grid days (4 Apr, 27 Apr, 23 Jul) are rest days on her current base roster, so `consumesEntitlement` refuses them and the app will say 6 remaining where the workbook says 3. SPARE days are NOT affected — `isRestShift` is RD/OFF only, so all seven of her spare-day bookings count on both sides. **ANSWERED the same day** — she swapped her working days and booked the swapped-in days off, so the workbook is right and the app is missing the swap. See §9. | Same |
 | 14 Sep 2026 | **ANSWERED: a rest-day AL booking is usually a SWAP, and the app can hold it.** Owner: *"she moved her shift days around."* `override-utils.js` already carries this rule from 26 Aug (VAL-AL-001) — an AL doc's `replacedType` of `shift` makes the day count — so the 6-vs-3 gap is missing swap DATA, not a defect. The two-write fix and its order are now in §9, measured rather than assumed. | Owner, on C. Francisco-Charles's 3 remaining |
+| 14 Sep 2026 | **The Sunday-tag finding goes from ONE instance to FOUR, and changes status.** `Mylla . O`'s three tags (11 Jan, 9 Aug, 27 Dec) ALL fall on days she was rostered to work, and 11 Jan opens its block. §4 recorded this as an exception off a single Panchal case; on four instances it looks like the ordinary shape, with a tagged Sunday that is genuinely a rest day as the variant. Her figures are otherwise clean: one row, column E empty AND no comment (checked for the §8.6 shape), 32 of 32 used, 0 remaining, and all 32 consume in the app. | Owner asked for O. Mylla's 2026 leave |
 | 14 Sep 2026 | **CORRECTION, and a trap worth more than the case.** This file briefly said the app would read 6 remaining for F-Charles against the workbook's 3. It reads **4**: her three rest-day bookings already carry the swap and already count. The wrong figure came from calling `consumesEntitlement` with `ovByDate = null`, which the function's own docstring warns against — passing null MANUFACTURES a rest-day discrepancy. Never diagnose one without the override map. | Owner: "Still saying 4 remaining" |
 | 14 Sep 2026 | **The real one-day gap is `24/02`, and a second difference that cancels out.** App 28 days / 4 remaining vs workbook 29 / 3 — the whole gap is the over-quota day, exactly as §0 predicts. Separately, rendering the workbook's dates through the card's own merger proves the app holds **Sat 2 May** and the workbook holds **Thu 14 May**: nine days each, every total agreeing, two dates wrong somewhere. The argument for reporting DATES rather than counts, made by a live example. | Same |
