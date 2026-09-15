@@ -1113,6 +1113,122 @@ test('EVERY child of the day row sits beside the day label at desktop, not under
         'the Sunday request sits in the same column either way').toBeLessThan(8);
 });
 
+// ── 360px UNDER 1.3× OS TEXT (v23.88, external review of v23.85) ────────────────────────────────
+//
+// PREVENTATIVE, and the review said so: nothing here is known to be broken. The point is that this
+// page was restructured more heavily than any other surface across v23.82–v23.87 — a new head built
+// from surfaces, a state chip, named deadline values, badges that now carry their time inside them,
+// a Sunday-release row — while its own responsive coverage stayed at 390×844, one width and one
+// text size. The Calendar earned its 320/360/390/412 × text-scale matrix by shipping three separate
+// overflows to older Samsungs; this takes the one case that combines the narrow width with the
+// scaling those phones actually apply.
+//
+// WHAT "1.3× TEXT" MEANS HERE. Android scales every font and leaves the viewport alone, so the seam
+// states the scale (text-scale.js reads it) AND the type tokens are multiplied to match — the two
+// halves of what a real phone does at once. Reading the tokens from the page rather than writing
+// them down means a change to the scale in shared.css cannot leave this test measuring the old one.
+//
+// The assertions are deliberately about CONTAINMENT, not pixels: no element of the form may sit
+// outside the viewport, no text may run out of its own box (a chip capped by `max-width` with
+// `nowrap` still overflows — the v23.86 defect, one page over), and the page may not scroll
+// sideways. A baseline holds the appearance; this holds the property that it still fits.
+test('the member form fits at 360px under 1.3× text — band, deadlines, badges, options, the Sunday row and Submit', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { ...(/** @type {any} */ (window).__E2E || {}), textScale: 1.3 };
+    });
+
+    // A member the roster says WORKS the Sunday, so the release row is on screen — it is one of the
+    // six surfaces the review named, and it only renders for somebody rostered that day.
+    await page.goto('/overtime.html');
+    const pick = await page.evaluate(async () => {
+        const { teamMembers, getBaseShift, parseISODate } = await import('/roster-data.js');
+        const { isRestShift } = await import('/override-utils.js');
+        const works = teamMembers.find(m => !m.hidden && !m.managerOnly
+            && !isRestShift(getBaseShift(m, parseISODate('2026-08-30'))));
+        return works ? works.name : null;
+    });
+    expect(pick, 'no visible member is rostered on Sun 30 Aug 2026').not.toBeNull();
+
+    await seedSession(page, /** @type {string} */ (pick));
+    // THE LONGEST ROSTER BADGE ON EVERY ROW. A night shift is the widest of the three — the owl and
+    // the word, plus the time the badge has carried inside it since v23.85 — and seeding all seven
+    // days means the measurement does not depend on which shifts this member's week happens to hold.
+    const dates = weekDates(W.weekStart);
+    await page.addInitScript((rows) => {
+        /** @type {any} */ (window).__E2E = { ...(/** @type {any} */ (window).__E2E || {}), docs: rows };
+    }, dates.map(d => ({ id: `ot-360-${d}`, memberName: /** @type {string} */ (pick), date: d,
+        type: 'shift', value: '22:00-06:00', note: '', source: 'manual' })));
+    await stubOvertime(page, { windows: [openWindow()] });
+    await page.goto('/overtime.html');
+    await expect(page.locator('.ot-day')).toHaveCount(7);
+
+    // Scale the type the way the OS would. The tokens are READ from the page and multiplied, so this
+    // cannot drift from shared.css — and `!important` because `:root` is where they are declared.
+    const before = await page.evaluate(() =>
+        parseFloat(getComputedStyle(/** @type {Element} */ (document.querySelector('.ot-day-roster .shift-badge'))).fontSize));
+    await page.evaluate((scale) => {
+        const names = ['--type-micro', '--type-badge', '--type-small', '--type-label', '--type-body',
+                       '--type-button', '--type-medium', '--type-large', '--type-xl'];
+        const cs = getComputedStyle(document.documentElement);
+        const css = names.map(n => {
+            const px = parseFloat(cs.getPropertyValue(n));
+            return Number.isFinite(px) ? `${n}: ${Math.round(px * scale * 10) / 10}px !important;` : '';
+        }).join(' ');
+        const style = document.createElement('style');
+        style.textContent = `:root { ${css} }`;
+        document.head.appendChild(style);
+    }, 1.3);
+    await page.waitForTimeout(300);
+
+    // GUARD ON THE GUARD: the scaling must have LANDED, or this is a plain 360px test wearing the
+    // name of a stress case. Measured as a ratio on a real element rather than against a written-down
+    // px value, so a token renamed in shared.css fails here instead of silently scaling nothing.
+    const after = await page.evaluate(() =>
+        parseFloat(getComputedStyle(/** @type {Element} */ (document.querySelector('.ot-day-roster .shift-badge'))).fontSize));
+    expect(after / before, `the type did not scale (${before}px → ${after}px) — this would be a 360px test, not a 1.3x one`)
+        .toBeGreaterThan(1.25);
+
+    const report = await page.evaluate(() => {
+        const vw = document.documentElement.clientWidth;
+        /** @type {string[]} */ const out = [];
+        const SURFACES = [
+            ['.ot-week-band', 'the week band'],
+            ['.ot-form-when-value', 'a deadline value'],
+            ['.ot-phase-chip', 'the phase chip'],
+            ['.ot-day-roster .shift-badge', 'a roster badge'],
+            ['.ot-mode', 'an availability option'],
+            ['.ot-release', 'the Sunday release row'],
+            ['.ot-submit', 'the Submit button'],
+        ];
+        for (const [sel, name] of SURFACES) {
+            const els = [...document.querySelectorAll(sel)];
+            if (!els.length) { out.push(`${name} (${sel}) did not render at all`); continue; }
+            els.forEach((el, i) => {
+                const r = el.getBoundingClientRect();
+                const where = els.length > 1 ? `${name} #${i + 1}` : name;
+                if (r.right > vw + 0.5)  out.push(`${where} runs past the right edge: ${Math.round(r.right)} > ${vw}`);
+                if (r.left  < -0.5)      out.push(`${where} starts left of the screen: ${Math.round(r.left)}`);
+                // The box can sit inside while its TEXT runs out of it — exactly the v23.86 defect
+                // on the Pay Calculator, which no geometry check could see.
+                if (el.scrollWidth > el.clientWidth + 1) {
+                    out.push(`${where} has text wider than itself: ${el.scrollWidth} > ${el.clientWidth}`);
+                }
+            });
+        }
+        const doc = document.documentElement;
+        if (doc.scrollWidth > doc.clientWidth + 1) {
+            out.push(`the page scrolls sideways: ${doc.scrollWidth} > ${doc.clientWidth}`);
+        }
+        return out;
+    });
+    expect(report, 'the Overtime form at 360px under 1.3× text').toEqual([]);
+
+    // And Submit is still reachable: a sticky bar that has grown past the fold with the text is a
+    // form nobody can send.
+    await expect(page.locator('.ot-submit')).toBeInViewport();
+});
+
 test('the planning horizon runs its facts across the row at desktop, not down a ribbon', async ({ page }) => {
     // MEASURED BEFORE AND AFTER (v23.82): at 1280 a week row was 1068px wide with its text ending
     // at x=304 and its button starting at x=996 — 692px of nothing, on every row, and 122px tall to
