@@ -214,7 +214,12 @@
            Gold, not the AL or absence colour: it is a statement about WHO, shared by two cards with
            different palettes, and it must not read as part of the banner it sits above. The name
            wraps rather than truncating (`overflow-wrap: anywhere`) — the longest roster name is 23
-           characters and an ellipsised person is not identified. */
+           characters and an ellipsised person is not identified. That length is also why the row is
+           NOT in the `.card-header-actions` cluster: beside the AL-left chip, the `?` and the chevron
+           it would either wrap the title or ellipsise to something that no longer names a person.
+           And it sits OUTSIDE `#alBanner` deliberately — the banner hides itself when the entitlement
+           is unknown, and the state where a manager most needs the name must not be the state that
+           removes it. Both cards share this ONE component on purpose: they ask the same question. */
         .card-member-for {
             display: flex;
             align-items: baseline;
@@ -226,6 +231,8 @@
             padding: 7px 11px;
             margin-bottom: 12px;
         }
+        /* Load-bearing: `display: flex` above out-specifies the `hidden` ATTRIBUTE, so without this the
+           row draws empty and nothing throws — the `page-visibility-parity.test.mjs` trap. */
         .card-member-for[hidden] { display: none !important; }
         .card-member-for .cmf-label {
             font-size: var(--type-micro); font-weight: 700; color: var(--text-mid);

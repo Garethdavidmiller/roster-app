@@ -9,6 +9,32 @@
  *
  * Call initErrorReporter() once per page after the Firebase Auth session is
  * established — the Firestore write requires request.auth != null.
+ *
+ * ── THE THREE CANONICAL CALL SITES (v13.78) ─────────────────────────────────────────────────
+ *
+ * NEVER call this bare. Without an auth context every write is silently rejected by the rules, so
+ * the error log looks HEALTHY because it is broken — which is the one failure mode a reporter must
+ * not have. There are three shapes, and they differ because the pages establish identity
+ * differently:
+ *
+ *   1. `calendar-app.js` — the page that may have no named user at all. Wait for auth persistence,
+ *      run `reconcileExpiredIdentity()` (sign out a lingering EXPIRED named identity), and sign in
+ *      anonymously ONLY if no named user remains:
+ *
+ *          authReady.then(() => reconcileExpiredIdentity())
+ *                   .then(() => auth.currentUser ? null : signInAnonymously(auth).catch(() => {}))
+ *                   .catch(() => {}).finally(() => initErrorReporter())
+ *
+ *      The ordering is the point: it PRESERVES a valid named identity instead of racing with or
+ *      replacing it.
+ *   2. **Authenticated pages that expose `sessionReady`** — `admin-app.js`, `settings-app.js`,
+ *      `operations-app.js`, `links-app.js`: `sessionReady.then(() => initErrorReporter())`.
+ *   3. `paycalc-app.js`, which has no `sessionReady`:
+ *      `ensureNamedSession(name).catch(() => {}).finally(afterAuth)`, where `afterAuth` runs this
+ *      alongside `recordUsage`/`recordPageLatency`. The no-member `else` branch calls `afterAuth()`
+ *      directly.
+ *
+ * `AUTH_AND_SESSIONS.md` invariant 13 states the rule; this is where the shapes live.
  */
 
 import { APP_VERSION } from './roster-data.js';

@@ -3,6 +3,8 @@
  * refusal that follows from it.
  *
  * CommonJS, like every file under functions/. Tested by roster-geometry.test.mjs (test:functions).
+ * The pipeline's contract — every other defence, and where this one sits among them — is
+ * `.claude/rules/roster-import.md`.
  *
  * ── THE PROBLEM THIS IS THE ONLY ANSWER TO ──────────────────────────────────────────────────────
  *

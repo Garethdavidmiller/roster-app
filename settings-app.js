@@ -121,8 +121,13 @@ export function init() {
     /** @type {any} */
     let openAboutLightbox = null;
 
-    // Nav panel. Always initialised — even when not signed in — so the user can navigate to Calendar or
-    // Admin rather than being stranded. onSignOut is null when not authenticated, which hides the footer.
+    // Nav panel. NOT wired at module scope for a signed-out visitor while `CONFIG.INPLACE_LOGIN.settings`
+    // is on — see the call site below, which defers it to initAuthorised() so the drawer renders ONCE
+    // with the signed-in identity. (This comment said "always initialised … so the user can navigate
+    // rather than being stranded" for as long as that had been untrue, which is the sentence a reader
+    // would have restored the two-identity double render from. A signed-out visitor is not stranded:
+    // the full-screen login overlay carries its own "← Back to roster" — login-overlay.js.)
+    // onSignOut is null when not authenticated, which hides the footer.
     function wireNavPanel() {
         initNavPanel({
         // Drawer Circular/Newsletter read waits for the session (AUTH_PLAN.md → E1).
