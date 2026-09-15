@@ -1504,7 +1504,12 @@
   .roster-row-icon  { font-size: var(--type-body); flex-shrink: 0; width: 20px; text-align: center; }
   .roster-row-label { font-size: var(--type-small); font-weight: 600; color: var(--text-dark); white-space: nowrap; flex-shrink: 0; }
   .roster-row-total { font-size: var(--type-small); font-weight: 700; color: var(--primary-blue); min-width: 52px; flex-shrink: 0; }
-  .roster-row-meta  { font-size: var(--type-micro); color: var(--text-faint); flex: 1; min-width: 0; }
+  /* The meta column is a WRAPPING flex row (v23.86): its text ("3 days" / "Calendar: 8h") and the
+     confidence chip are siblings, so when the column is too narrow for both the chip drops to its
+     own line whole, instead of a separator dangling at the end of one line and the chip breaking
+     mid-phrase on the next. There is deliberately no " · " between them any more — the chip's own
+     fill is the separator, and a typed one was the thing left dangling. */
+  .roster-row-meta  { font-size: var(--type-micro); color: var(--text-faint); flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
   .roster-cat-arrow { font-size: var(--type-small); font-weight: 700; color: var(--primary-blue); flex-shrink: 0; }
   @media (hover: hover) and (pointer: fine) {
     .roster-row:hover { background: var(--bg-faint); }
@@ -1515,7 +1520,17 @@
   .roster-cat-match { font-size: var(--type-small); font-weight: 700; color: var(--row-matched-text); flex-shrink: 0; }
   .roster-row--differs .roster-row-total { color: var(--chip-ot-bg); }
   .roster-cat-arrow--differs { color: var(--chip-ot-bg); }
-  .conf-badge { display: inline-block; font-size: var(--type-micro); padding: 1px 5px; border-radius: 3px; font-weight: 600; vertical-align: middle; line-height: 1.6; white-space: nowrap; }
+  /* The chip WRAPS inside its column (v23.86). It was `white-space: nowrap`, and the meta column it
+     sits in is ~110px wide on a phone once the icon, label, a "16h 30m entered" total and the arrow
+     have taken theirs — so the longest chip, "Includes an 8h estimate — check", ran clean off the
+     right edge of the row and the card (owner screenshot, 15 Sep 2026). Nothing failed: an overflow
+     paints. `white-space: normal` is the whole fix: as a flex item of the wrapping column above the
+     chip may shrink to its longest word, and normal lets the text wrap inside it. (A `max-width:
+     100%` was tried alongside and MEASURED redundant — deleting it changed nothing on either
+     project — so it is not here to be mistaken for load-bearing.) Pinned by e2e/paycalc.spec.js
+     ("chip wraps inside its row"), which reads scrollWidth as well as the box: with `nowrap` the
+     box can be capped while the text still runs out of it. */
+  .conf-badge { display: inline-block; font-size: var(--type-micro); padding: 1px 5px; border-radius: 3px; font-weight: 600; vertical-align: middle; line-height: 1.6; white-space: normal; }
   .conf-recorded { background: var(--conf-recorded-bg); color: var(--conf-recorded-text); }
   .conf-possible { background: var(--conf-possible-bg); color: var(--conf-possible-text); }
   .roster-card-note {

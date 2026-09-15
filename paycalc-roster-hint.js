@@ -223,24 +223,27 @@ export function updateRosterHint() {
       const conf     = _confBadge(r.cat, r.fromOv, !!(s.defaulted8h && s.defaulted8h[r.cat]));
       const confHtml = conf ? `<span class="conf-badge ${conf.cls}">${conf.text}</span>` : '';
 
+      // The meta column is a wrapping flex row (paycalc.css .roster-row-meta), so its text and the
+      // chip are SIBLINGS with no typed separator: when the column is too narrow for both, the chip
+      // drops to its own line whole. A " · " here used to be the thing left dangling (v23.86).
       let rowClass, totalText, metaText, arrowHtml, ariaLabel;
       if (enteredMins === null) {
         rowClass  = 'roster-row';
         totalText = fmtH(r.h, r.m);
-        metaText  = confHtml ? `${dayStr} · ${confHtml}` : dayStr;
+        metaText  = `<span>${dayStr}</span>${confHtml}`;
         arrowHtml = `<span class="roster-cat-arrow" aria-hidden="true">→</span>`;
         ariaLabel = `Fill ${r.label} hours from your calendar`;
       } else if (enteredMins === suggestMins) {
         rowClass  = 'roster-row roster-row--matched';
         totalText = fmtH(r.h, r.m);
-        metaText  = dayStr;
+        metaText  = `<span>${dayStr}</span>`;
         arrowHtml = `<span class="roster-cat-match" aria-hidden="true">✓</span>`;
         ariaLabel = `${r.label} matches your calendar: ${fmtH(r.h, r.m)}`;
       } else {
         const entH = Math.floor(enteredMins / 60), entM = enteredMins % 60;
         rowClass  = 'roster-row roster-row--differs';
         totalText = `${fmtH(entH, entM)} entered`;
-        metaText  = confHtml ? `Calendar: ${fmtH(r.h, r.m)} · ${confHtml}` : `Calendar: ${fmtH(r.h, r.m)}`;
+        metaText  = `<span>Calendar: ${fmtH(r.h, r.m)}</span>${confHtml}`;
         arrowHtml = `<span class="roster-cat-arrow roster-cat-arrow--differs" aria-hidden="true">→</span>`;
         ariaLabel = `${r.label}: you have ${fmtH(entH, entM)}, your calendar says ${fmtH(r.h, r.m)}. Tap to use calendar values`;
       }
