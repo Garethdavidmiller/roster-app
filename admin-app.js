@@ -36,7 +36,7 @@ import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { computePeriodDeleteIds, mergeBookedPeriods, composeOtherValue } from './override-utils.js';
 import { alPosition, consumesEntitlement, dispatcherBreakdown, winningEntriesOfType } from './al-entitlement.js';
-import { projectAlBooking, projectAlOverage } from './admin-al-projection.js';
+import { planAlWeekSave } from './admin-al-week-save.js';
 import { createBookedPeriods } from './admin-booked-periods.js';
 import { alFigureYear } from './admin-al-year.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -844,38 +844,21 @@ export function init() {
         const ruleErrors = validateShiftRules(toSave, memberName, toDelete);
         if (ruleErrors.length) return showError(ruleErrors.join(' · '));
 
-        // Annual leave — ONE projection decides both what this save WRITES and whether it over-books
-        // (admin-al-projection.js), so the grid and the AL card cannot mean different things by the
-        // same answer. It read only `willConsume` until v23.88, and a rest day answered "rest day —
-        // free" was written here as leave costing nothing while the card wrote nothing at all.
-        let alInBatch = toSave.filter(e => e.type === 'annual_leave');
-        if (alInBatch.length > 0) {
-            const member = /** @type {any} */ (teamMembers.find(m => m.name === memberName));
-            // The map is what makes a SWAPPED-IN day already on record cost a day: its `shift`
-            // override is still there at this point (the AL replacing it has not been written yet).
-            const ovByDate = buildMemberDateMap(memberName);
-            // `swapAnswers` is THIS SAVE'S answers, and nothing else knows them yet (v23.79).
-            const proj = projectAlBooking({ member, dates: alInBatch.map(e => e.date), ovByDate, swapAnswers });
-            if (proj.answeredFree.length) {
-                const free = new Set(proj.answeredFree);
-                toSave     = toSave.filter(e => !(e.type === 'annual_leave' && free.has(e.date)));
-                alInBatch  = alInBatch.filter(e => !free.has(e.date));
-                _alPendingSkipped = proj.answeredFree;   // the receipt names them: never a silent drop
-            }
-            // Existing AL for the year, less the dates this batch OVERWRITES or DELETES — they are
-            // re-accounted through `consuming`, or removed outright. Read AFTER the drop above: a day
-            // left alone is not a day this batch overwrites.
-            const exclude = new Set([
-                ...alInBatch.filter(e => e.existingId).map(e => e.date),
-                ...getAllOverrides().filter(o => toDelete.includes(o.id) && o.type === 'annual_leave').map(o => o.date),
-            ]);
-            const overage = projectAlOverage({
-                member, memberName, overrides: getAllOverrides(), consuming: proj.consuming, exclude,
-            });
-            if (overage) {
-                showALConfirm(overage.headline, overage.detail, toSave, toDelete);
-                return;
-            }
+        // ANNUAL LEAVE: what this save writes, what it leaves alone, and whether it over-books —
+        // decided in one place, `admin-al-week-save.js`, which is pure and takes the record rather
+        // than reading it. `buildMemberDateMap` is what makes a SWAPPED-IN day already on record cost
+        // a day: its `shift` override is still there at this point, the leave replacing it not yet
+        // written. What stays here is the DOM half — the bar, or the commit.
+        const alPlan = planAlWeekSave({
+            member: /** @type {any} */ (teamMembers.find(m => m.name === memberName)),
+            memberName, toSave, toDelete,
+            ovByDate: buildMemberDateMap(memberName), swapAnswers, overrides: getAllOverrides(),
+        });
+        toSave = alPlan.toSave;
+        _alPendingSkipped = alPlan.skipped;   // the receipt names them: never a silent drop
+        if (alPlan.overage) {
+            showALConfirm(alPlan.overage.headline, alPlan.overage.detail, toSave, toDelete);
+            return;
         }
 
         await executeSave(toSave, toDelete, _alPendingSkipped);
