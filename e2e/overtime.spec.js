@@ -114,6 +114,41 @@ test.describe('member surface', () => {
             els.map(e => parseFloat(getComputedStyle(e).fontSize)));
         expect(sizes.length, 'both dates are on screen').toBe(2);
         expect(sizes[0], 'the live deadline is the larger of the two').toBeGreaterThan(sizes[1]);
+
+        // THE WEEK IS AN OBJECT, AND IT WEARS ITS STATE (v23.84). The head sits in a band that
+        // carries the horizon's row-card recipe — a coloured left edge — and a chip that names
+        // the same state, so colour is never the only carrier. Asserted on the COMPUTED edge, not
+        // the class: a class can be present and out-specified.
+        const band = page.locator('.ot-week-band');
+        await expect(band).toHaveCount(1);
+        await expect(band.locator('.ot-phase-chip')).toHaveText('Open');
+        const edge = await band.evaluate(el => {
+            const cs = getComputedStyle(el);
+            return { width: cs.borderLeftWidth, color: cs.borderLeftColor, top: cs.borderTopColor };
+        });
+        expect(edge.width, 'the band carries the horizon\'s 4px state edge').toBe('4px');
+        // THE EDGE IS THE APP'S GREEN, MEASURED AGAINST ITSELF. The first draft compared it to the
+        // page's navy and called anything else "a state colour" — so a neutral grey edge passed,
+        // which the mutation tool showed on the first run. A state colour has to be tied to a token
+        // the page renders elsewhere: the chosen "yes" option wears `--success-green` as its fill,
+        // so choose one and compare. Same token, same computed string; swap the edge to a neutral
+        // and they part.
+        await page.locator('.ot-day').first().locator('.ot-mode--yes').first().click();
+        const yesFill = await page.locator('.ot-mode--yes[aria-checked="true"]').first()
+            .evaluate(el => getComputedStyle(el).backgroundColor);
+        expect(edge.color, 'the open week\'s edge is the same green a chosen option wears').toBe(yesFill);
+        expect(edge.color, 'and not the band\'s own neutral border').not.toBe(edge.top);
+        // The ordinary open state no longer prints its sentence — the chip and the named
+        // deadline say it. The FINAL_OPEN warning still does (asserted where that phase renders).
+        await expect(page.locator('.ot-form-phase')).toHaveCount(0);
+
+        // THE PAGE LEADS WITH WHO, LIKE ADMIN. The identity bar sits on the canvas ABOVE the card,
+        // not inside it — the placement the owner accepted on admin and rejected inside a card.
+        const barBox  = await page.locator('#otMineIdentity').boundingBox();
+        const cardBox = await page.locator('#otMineCard').boundingBox();
+        expect(barBox.y + barBox.height, 'the identity bar is above the card').toBeLessThanOrEqual(cardBox.y + 1);
+        // And the beta strip is gone (owner, 15 Sep 2026: everyone on the beta knows).
+        await expect(page.locator('.ot-beta')).toHaveCount(0);
     });
 
     test('a submitted form carries a standing receipt, not just green rows', async ({ page }) => {
@@ -1745,6 +1780,10 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
         // The head TOOK the new phase — so this is not passing merely because the resync never ran.
         await expect(page.locator('.ot-form-dates')).toContainText('Answers were due');
+        // The final window is the one phase whose sentence is a WARNING, so it is the one that
+        // still prints one (v23.84). The chip turns with it.
+        await expect(page.locator('.ot-form-phase')).toContainText('may not fit');
+        await expect(page.locator('.ot-phase-chip')).toHaveText('Still open');
         expect(calls, 'the server was genuinely re-read').toBeGreaterThanOrEqual(2);
         // …and the five answers are still there.
         await expect(page.locator('.ot-submit')).toContainText('2 days still to answer');

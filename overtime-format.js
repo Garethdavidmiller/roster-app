@@ -29,6 +29,11 @@
  *     least produces a true message.
  */
 
+// WHERE THE WEEK STANDS moved to overtime-phase.js at v23.84 (this file had hit its ratchet again).
+// Re-exported here so nothing that imports from overtime-format.js had to change, and imported back
+// for the three lines in this file that still print a deadline.
+import { deadlineLabel } from './overtime-phase.js';
+export { deadlineLabel, phaseCopy, phaseChip, phaseTone, deadlineLines } from './overtime-phase.js';
 import { getShiftBadge } from './roster-data.js';
 
 // THE CLOCK LEFT THIS MODULE at v23.69 — the six decisions a member's own clock may make about a
@@ -228,31 +233,6 @@ export function weekSpan(weekStart, weekEnding) {
 }
 
 /**
- * A deadline instant, in London wall-clock words: "Tue 18 Aug · 12:00".
- *
- * Formatted through `Intl` in Europe/London rather than the device's own zone, so a phone left on
- * holiday time still shows staff the deadline the roster office means.
- * @param {number} ms
- */
-export function deadlineLabel(ms) {
-    if (!ms) return '';
-    // The comma `en-GB` inserts ("Tue, 18 Aug") reads as a stray separator beside the app's own
-    // "·" dividers, so it goes. The weekday still leads, because a deadline staff act on is named
-    // by its day of the week first.
-    const d = new Intl.DateTimeFormat('en-GB', {
-        timeZone: 'Europe/London', weekday: 'short', day: 'numeric', month: 'short',
-    }).format(new Date(ms)).replace(',', '')
-        // en-GB abbreviates September to FOUR letters ("Sept") and every other month to three, so
-        // a column of deadlines came out ragged — "Tue 25 Aug" above "Tue 1 Sept". One month
-        // behaving differently reads as a mistake in a list, so it is trimmed to match.
-        .replace(/\bSept\b/, 'Sep');
-    const t = new Intl.DateTimeFormat('en-GB', {
-        timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-    }).format(new Date(ms));
-    return `${d} · ${t}`;
-}
-
-/**
  * When a printed sheet came out of the tray: "Tue 8 Sep 2026 · 14:07".
  *
  * Its own formatter rather than a `deadlineLabel` with a flag, because the two answer opposite
@@ -298,109 +278,6 @@ export function asAtLine(nowMs) {
     // page. Positional references are a standing hazard here, because this line is authored for a
     // layout it is never seen in.
     return `Availability as at ${deadlineLabel(nowMs)} — it can change until the final deadline.`;
-}
-
-/**
- * Staff-facing copy for a submission phase. Calm and factual — never a countdown.
- *
- * ── IT MAY NOT NAME A DOCUMENT THE MEMBER NEVER SEES ────────────────────────────────────────────
- *
- * This said "your answers go to the draft roster" and "the draft roster has been planned", and the
- * second one was read — correctly — as wrong. The DATES were right: for a week ending Sat 22 Aug the
- * draft is Thu 6 Aug and the final roster Thu 13 Aug, so on 11 Aug the draft genuinely had been
- * planned. The problem is that "the draft roster" is an internal artefact of the roster office. Staff
- * do not receive it. What they call "the roster" is the one that comes out on Thursday — the FINAL
- * one — so a line announcing that the roster has been planned, five days before they see anything,
- * reads as a straightforward untruth about the document they are waiting for.
- *
- * So these lines now describe the MEMBER'S OWN POSITION and name nothing they cannot see:
- *
- *   before the first deadline   answering now gets you counted from the start
- *   after it, before the final  you can still change it, and later is worse
- *
- * "Planning has started" is safe to say because that is the definition of the first deadline, not a
- * claim about any document. The lines beneath state the dates, so this one names none — and that
- * rule still holds after v20.86 added the second date: what it forbids is two lines naming the SAME
- * Tuesday, which is how a member stops reading either.
- * @param {string} phase
- */
-export function phaseCopy(phase) {
-    if (phase === 'INITIAL_OPEN') return 'Open — answer now to be included when this week is planned';
-    if (phase === 'FINAL_OPEN')   return 'Still open — planning has started, so a change now may not fit';
-    return 'Closed';
-}
-
-/**
- * Every line a member's form head carries about time, in order.
- *
- * ── THE DEADLINE THAT MATTERS WAS THE ONE NOT ON SCREEN ─────────────────────────────────────────
- *
- * A window has two deadlines and they are eleven and eighteen days out, a week apart. Until v20.86
- * the form printed the FINAL one — "Closes Tue 25 Aug · 12:00" — and left the first to be inferred
- * from "answer now to be included when this week is planned". So the only date on the page was the
- * later one, and a member reading it would reasonably conclude they had until then.
- *
- * They do, technically: a submission at the final deadline is accepted. But it arrives after the
- * week has been planned, which is the whole distinction the two deadlines exist to draw, and the
- * page was quietly pointing at the wrong one. An answer that is accepted and too late to be used is
- * the worst outcome this feature can produce — everyone believes it worked.
- *
- * Both dates now show, in the order they arrive, with the live one first. After the first deadline
- * the same line stays and turns past-tense rather than vanishing: "answers were due" tells a member
- * where they stand, where dropping the line would leave them thinking they had never missed
- * anything. Neither line is a countdown, and neither names a document (see phaseCopy).
- *
- * @param {string} phase
- * @param {number} initialDeadlineAt
- * @param {number} finalDeadlineAt
- * ── A DATE NEEDS A NAME BESIDE IT, NOT A SENTENCE AROUND IT (v23.83) ────────────────────────────
- *
- * Reported from a phone: "this section is not good at all. Where is the clarity." The card head was
- * eight lines of near-identical grey text — week title, date span, a phase sentence, two deadlines,
- * a standing 12-hour rule, a question, a button — before the member reached the first day. The one
- * fact they came for was bold in the middle of that stack, which makes the bolding read as
- * arbitrary rather than as emphasis.
- *
- * So each line now carries its own `label` and `value` as well as the `text` it always had. The
- * renderer sets the label as a micro eyebrow above the value, which is the app's existing idiom for
- * a named figure (`.field-eyebrow`), and gets hierarchy from structure rather than from weight.
- * NOTHING IS REWORDED: `text` is still exactly `label + ' ' + value`, so every rule pinned against
- * it — both dates present, one `lead`, "were due" once it has passed, "Closed" on a closed week,
- * and the v20.70 no-named-document rule — holds unchanged, and the split is additive.
- *
- * The phase sentence keeps no label, because it is a sentence rather than a named value. It is
- * rendered BELOW the dates now instead of above them: it explains the deadline, so it reads as a
- * caption to one rather than as another fact competing with it.
- *
- * @param {string} phase
- * @param {number} initialDeadlineAt
- * @param {number} finalDeadlineAt
- * @returns {{ text: string, lead: boolean, label?: string, value?: string }[]} `lead` marks the date
- *   that is still to come — the one the member can still act on, which is the ONLY one worth
- *   emphasising. A line with no `label` is prose; one with a label is a named date.
- */
-export function deadlineLines(phase, initialDeadlineAt, finalDeadlineAt) {
-    // One place builds all three, so `text` can never drift from the label and value it is made of.
-    const dated = (/** @type {string} */ label, /** @type {number} */ at, /** @type {boolean} */ lead) => {
-        const value = deadlineLabel(at);
-        return { text: `${label} ${value}`, label, value, lead };
-    };
-    if (phase === 'CLOSED') {
-        return [dated('Closed', finalDeadlineAt, false)];
-    }
-    const prose = { text: phaseCopy(phase), lead: false };
-    if (phase === 'FINAL_OPEN') {
-        return [
-            dated('Answers were due', initialDeadlineAt, false),
-            dated('Changes close', finalDeadlineAt, true),
-            prose,
-        ];
-    }
-    return [
-        dated('Answers due', initialDeadlineAt, true),
-        dated('Changes close', finalDeadlineAt, false),
-        prose,
-    ];
 }
 
 /**
