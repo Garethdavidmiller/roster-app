@@ -654,8 +654,14 @@ export function isAvailableAnswer(day) {
  */
 export function rosterBadge(ctx) {
     if (!ctx) return `<span class="ot-day-unknown">Roster unavailable</span>`;
-    return getShiftBadge(ctx.shift)
-        + (ctx.hasTime ? `<span class="ot-day-time">${ctx.start}–${ctx.end}</span>` : '');
+    // ADMIN'S BADGE, NOT THE CALENDAR'S (v23.85, owner: "notice the difference in how shift times
+    // are handled?"). This row was built to mirror admin's Change-a-Shift row, and then drew the
+    // Calendar's badge — the classification WORD in the pill ("☀️ EARLY") with the times floating
+    // beside it as plain text. Two objects for one fact, and the word is redundant when the time is
+    // right there. Admin puts the TIME in the pill (`showTime`), one object, and the options beside
+    // this badge are "Before 06:20 / After 14:20" — the time is the whole point of the row. Same
+    // option, same raw string admin passes, so the two pages cannot render one shift two ways.
+    return getShiftBadge(ctx.shift, { showTime: true });
 }
 
 /**

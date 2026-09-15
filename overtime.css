@@ -569,7 +569,13 @@ body {
            fixed track holds its maximum whenever there is room, so the extra 20px was reserved on
            every row of every week and used by none of them — and the column it was taken from is
            the one holding seven capsules that do not fit. */
-        grid-template-columns: minmax(190px, 224px) minmax(0, 1fr);
+        /* RE-MEASURED AT v23.85, when the badge changed shape. The 224px above was the widest head
+           the OLD grammar produced — "Wed 23 Sep" + "☀️ EARLY 06:20–13:35", badge and floating
+           time. With the time INSIDE a 110px badge the widest head is 186px ("Wed 23 Sep" + the
+           badge; the night badge adds ~4). A fixed track holds its maximum whenever there is room,
+           so the old figure reserved ~38px on every row for a head that no longer exists — the
+           exact fault the paragraph above was written about. */
+        grid-template-columns: minmax(160px, 190px) minmax(0, 1fr);
         column-gap: var(--space-4);
         align-items: center;
     }
@@ -858,12 +864,20 @@ body {
     flex-shrink: 0;
 }
 
-.ot-day-time {
-    font-size: var(--type-badge);
-    font-weight: 700;
-    color: var(--text-mid);
+/* THE BADGE IS ADMIN'S: the time INSIDE the pill, one object, on one width (v23.85). `.ot-day-time`
+   — the separate plain-text time that used to float beside a "☀️ EARLY" badge — is gone with the
+   grammar that needed it. The fixed width is admin's rule for the same column (css-tokens.md, "give
+   every chip in it one width"): badges are what the eye runs down a week by, and content-sized
+   pills put REST, a spare and a timed shift at three different widths. The figure is MEASURED
+   against the widest variant this row can hold, not copied from admin: every badge rendered into
+   this row with the width removed — 🦉 22:00-06:00 is the widest at 109.7px, the two day shifts
+   105.7, REST 62.6, SPARE 69.9. That is admin's 109.6 reproduced from the other page, which is
+   what one shared recipe should do. */
+.ot-day-roster { --ot-badge-col: 110px; }
+.ot-day-roster .shift-badge {
+    min-width: var(--ot-badge-col);
+    justify-content: center;
     font-variant-numeric: tabular-nums;
-    white-space: nowrap;
 }
 
 .ot-day-unknown {
@@ -1402,12 +1416,6 @@ body {
     align-items: center;
     gap: 4px;
 }
-.ot-person-roster .ot-day-time {
-    color: var(--text-light);
-    font-size: var(--type-badge);
-    white-space: nowrap;
-}
-
 /* Left-aligned on its own line, NOT pushed right (v23.27). `margin-left: auto` was right when this
    was a short chip on the same line as the name; once it wraps to its own row the auto margin
    right-aligns a full sentence against nothing, which is why the short answers looked arbitrarily
