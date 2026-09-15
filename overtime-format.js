@@ -353,25 +353,53 @@ export function phaseCopy(phase) {
  * @param {string} phase
  * @param {number} initialDeadlineAt
  * @param {number} finalDeadlineAt
- * @returns {{ text: string, lead: boolean }[]} `lead` marks the date that is still to come — the
- *   one the member can still act on, which is the ONLY one worth emphasising
+ * ── A DATE NEEDS A NAME BESIDE IT, NOT A SENTENCE AROUND IT (v23.83) ────────────────────────────
+ *
+ * Reported from a phone: "this section is not good at all. Where is the clarity." The card head was
+ * eight lines of near-identical grey text — week title, date span, a phase sentence, two deadlines,
+ * a standing 12-hour rule, a question, a button — before the member reached the first day. The one
+ * fact they came for was bold in the middle of that stack, which makes the bolding read as
+ * arbitrary rather than as emphasis.
+ *
+ * So each line now carries its own `label` and `value` as well as the `text` it always had. The
+ * renderer sets the label as a micro eyebrow above the value, which is the app's existing idiom for
+ * a named figure (`.field-eyebrow`), and gets hierarchy from structure rather than from weight.
+ * NOTHING IS REWORDED: `text` is still exactly `label + ' ' + value`, so every rule pinned against
+ * it — both dates present, one `lead`, "were due" once it has passed, "Closed" on a closed week,
+ * and the v20.70 no-named-document rule — holds unchanged, and the split is additive.
+ *
+ * The phase sentence keeps no label, because it is a sentence rather than a named value. It is
+ * rendered BELOW the dates now instead of above them: it explains the deadline, so it reads as a
+ * caption to one rather than as another fact competing with it.
+ *
+ * @param {string} phase
+ * @param {number} initialDeadlineAt
+ * @param {number} finalDeadlineAt
+ * @returns {{ text: string, lead: boolean, label?: string, value?: string }[]} `lead` marks the date
+ *   that is still to come — the one the member can still act on, which is the ONLY one worth
+ *   emphasising. A line with no `label` is prose; one with a label is a named date.
  */
 export function deadlineLines(phase, initialDeadlineAt, finalDeadlineAt) {
+    // One place builds all three, so `text` can never drift from the label and value it is made of.
+    const dated = (/** @type {string} */ label, /** @type {number} */ at, /** @type {boolean} */ lead) => {
+        const value = deadlineLabel(at);
+        return { text: `${label} ${value}`, label, value, lead };
+    };
     if (phase === 'CLOSED') {
-        return [{ text: `Closed ${deadlineLabel(finalDeadlineAt)}`, lead: false }];
+        return [dated('Closed', finalDeadlineAt, false)];
     }
     const prose = { text: phaseCopy(phase), lead: false };
     if (phase === 'FINAL_OPEN') {
         return [
+            dated('Answers were due', initialDeadlineAt, false),
+            dated('Changes close', finalDeadlineAt, true),
             prose,
-            { text: `Answers were due ${deadlineLabel(initialDeadlineAt)}`, lead: false },
-            { text: `Changes close ${deadlineLabel(finalDeadlineAt)}`, lead: true },
         ];
     }
     return [
+        dated('Answers due', initialDeadlineAt, true),
+        dated('Changes close', finalDeadlineAt, false),
         prose,
-        { text: `Answers due ${deadlineLabel(initialDeadlineAt)}`, lead: true },
-        { text: `Changes close ${deadlineLabel(finalDeadlineAt)}`, lead: false },
     ];
 }
 

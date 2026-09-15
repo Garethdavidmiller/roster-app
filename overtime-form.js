@@ -182,8 +182,6 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
                      and now it sets the ceiling the tick refers to — so "a full 12-hour day" on a
                      row below means something exact rather than inviting a guess. Both sentences
                      are still about the same number, which is why they belong in one line. -->
-                <p class="ot-cap-note">A working day is never planned past 12 hours in total,
-                whatever you answer below.</p>
                 <!-- The all-week shortcut (v22.05). Answering "Not available" seven separate times,
                      every week, teaches exactly the people the data most needs to hear from to stop
                      answering at all. This PRE-FILLS — it never submits: the member still sees seven
@@ -203,7 +201,14 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
                 <div class="ot-bulk-row">
                     <span class="ot-bulk-q">Not available at all this week?</span>
                     <button type="button" class="ot-bulk-unavailable">Mark all seven days Not available</button>
-                </div>`}
+                </div>
+                <!-- MOVED DOWN HERE AT v23.83, so it sits against what it qualifies. It is a
+                     standing rule about answering a DAY, and it had been in the card head among
+                     this week's dates, reading as a fifth fact about the week rather than as the
+                     ceiling the rows below refer to. It stays INSIDE the not-closed branch: it
+                     says "whatever you answer below", and a closed form has nothing to answer. -->
+                <p class="ot-cap-note">A working day is never planned past 12 hours in total,
+                whatever you answer below.</p>`}
             <div class="ot-days"></div>
             ${closed ? `
                 <div class="ot-closed-note">
@@ -232,13 +237,45 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         const receipt = receiptLine(win.submission);
         return `
             <div class="ot-form-week">${esc(weekLabel(win.weekEnding))}</div>
+            <div class="ot-form-span">${esc(weekSpan(win.weekStart, win.weekEnding))}</div>
             ${receipt ? `<div class="ot-form-receipt"><span aria-hidden="true">✓</span> ${esc(receipt)}</div>` : ''}
-            <div class="ot-form-meta">
-                ${esc(weekSpan(win.weekStart, win.weekEnding))}<br>
-                ${deadlineLines(win.phase, win.initialDeadlineAt, win.finalDeadlineAt)
-                    .map(l => `<span class="ot-form-when${l.lead ? ' ot-form-when--lead' : ''}">${esc(l.text)}</span>`)
-                    .join('<br>')}
-            </div>`;
+            ${deadlineBlock(win)}`;
+    }
+
+    /**
+     * The two deadlines, as NAMED VALUES rather than a stack of sentences (v23.83).
+     *
+     * Reported from a phone — "this section is not good at all. Where is the clarity" — and the
+     * screenshot is the argument: week title, date span, a phase sentence, two deadlines, a
+     * standing 12-hour rule, a question and a button, all in the same 12–14px grey, eight lines
+     * deep before the first day. The member's actual question is "by when must I answer", and its
+     * answer was bold in the middle of that, which makes the weight read as arbitrary.
+     *
+     * Each date gets a micro eyebrow label above it — the app's `.field-eyebrow` idiom, already
+     * used wherever a figure needs naming — so the hierarchy comes from STRUCTURE. The live one
+     * (`lead`) is the larger, darker value; its partner stays small beside it as context, which is
+     * the distinction v20.86 drew in weight alone and which weight alone could not carry.
+     *
+     * The phase sentence has no label because it is not a named value, and it now sits BELOW the
+     * dates rather than above them: it explains the deadline, so it reads as a caption to one
+     * instead of as a third fact competing with two.
+     *
+     * @param {any} win the window being rendered
+     * @returns {string}
+     */
+    function deadlineBlock(win) {
+        const lines = deadlineLines(win.phase, win.initialDeadlineAt, win.finalDeadlineAt);
+        const dates = lines.filter(l => l.label);
+        const prose = lines.filter(l => !l.label);
+        return `
+            <div class="ot-form-dates">
+                ${dates.map(l => `
+                    <div class="ot-form-when${l.lead ? ' ot-form-when--lead' : ''}">
+                        <span class="ot-form-when-label">${esc(l.label)}</span>
+                        <span class="ot-form-when-value">${esc(l.value)}</span>
+                    </div>`).join('')}
+            </div>
+            ${prose.map(l => `<p class="ot-form-phase">${esc(l.text)}</p>`).join('')}`;
     }
 
     function paintHead() {

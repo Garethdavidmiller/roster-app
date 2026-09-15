@@ -92,7 +92,7 @@ test.describe('member surface', () => {
         await seedSession(page, 'G. Miller');
         await stubOvertime(page, { windows: [openWindow()] });
         await page.goto('/overtime.html');
-        const meta = page.locator('.ot-form-meta');
+        const meta = page.locator('.ot-form-dates');
         await expect(meta).toContainText('Answers due');
         await expect(meta).toContainText('18 Aug');       // the initial deadline
         await expect(meta).toContainText('25 Aug');       // the final one, still stated
@@ -100,6 +100,20 @@ test.describe('member surface', () => {
         // working out which applies today, which is the job this is meant to be doing for them.
         await expect(page.locator('.ot-form-when--lead')).toHaveCount(1);
         await expect(page.locator('.ot-form-when--lead')).toContainText('18 Aug');
+
+        // EACH DATE IS A NAMED VALUE, not a sentence (v23.83 — reported from a phone as "where is
+        // the clarity"). The label and the date are separate elements, so the hierarchy survives
+        // being read at a glance; when both were sentences in one grey stack, the only thing
+        // separating the live deadline from its partner was font-weight, and that is what failed.
+        const lead = page.locator('.ot-form-when--lead');
+        await expect(lead.locator('.ot-form-when-label')).toHaveText('Answers due');
+        await expect(lead.locator('.ot-form-when-value')).toHaveText(/18 Aug/);
+        // And the emphasis is real, not merely declared: the live date is drawn larger than the
+        // one beside it. Measured, because a weight or colour change alone is what this replaces.
+        const sizes = await page.locator('.ot-form-when-value').evaluateAll(els =>
+            els.map(e => parseFloat(getComputedStyle(e).fontSize)));
+        expect(sizes.length, 'both dates are on screen').toBe(2);
+        expect(sizes[0], 'the live deadline is the larger of the two').toBeGreaterThan(sizes[1]);
     });
 
     test('a submitted form carries a standing receipt, not just green rows', async ({ page }) => {
@@ -1730,7 +1744,7 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
 
         await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
         // The head TOOK the new phase — so this is not passing merely because the resync never ran.
-        await expect(page.locator('.ot-form-meta')).toContainText('Answers were due');
+        await expect(page.locator('.ot-form-dates')).toContainText('Answers were due');
         expect(calls, 'the server was genuinely re-read').toBeGreaterThanOrEqual(2);
         // …and the five answers are still there.
         await expect(page.locator('.ot-submit')).toContainText('2 days still to answer');
