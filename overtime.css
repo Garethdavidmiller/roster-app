@@ -640,8 +640,70 @@ body {
     color: var(--text-dark);
 }
 
-.ot-form-meta {
+/* The week's own date span — quiet, directly under the title it qualifies. */
+.ot-form-span {
     margin-top: 2px;
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    line-height: 1.45;
+}
+
+/* ── THE TWO DEADLINES, AS NAMED VALUES (v23.83) ──────────────────────────────────────────────
+   Reported from a phone: "this section is not good at all. Where is the clarity." The head was
+   eight lines of near-identical 12–14px grey — title, span, a phase sentence, two deadlines, a
+   standing 12-hour rule, a question, a button — before the first day row. The one fact the member
+   came for was bold in the middle of it, which makes weight read as arbitrary rather than as
+   emphasis, and weight was the ONLY thing distinguishing it.
+
+   Structure carries it instead: a micro eyebrow naming each date, in the app's existing
+   `.field-eyebrow` idiom, with the value beneath. Two named things beat five unnamed lines.
+
+   FLEX, NOT GRID, and that was measured rather than assumed. The first attempt was
+   `repeat(auto-fit, minmax(0, fit-content(50%)))`, reasoning that the tracks should hug two short
+   values — but a `minmax` whose minimum is 0 lets auto-fit resolve to a single column, so both
+   pairs stacked at 390px AND at 1280px and the head saved nothing. Flex wrapping does what the
+   grid was meant to: the pair sits side by side wherever the two fit, and drops to two rows only
+   when it genuinely cannot. Each item hugs its own content, so neither date is stretched across a
+   column twice its width. */
+.ot-form-dates {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-2) var(--space-5);
+    margin-top: var(--space-3);
+}
+
+.ot-form-when-label {
+    display: block;
+    font-size: var(--type-micro);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-light);
+}
+
+.ot-form-when-value {
+    display: block;
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    line-height: 1.35;
+    /* The dates line up under their labels rather than jittering by digit width. */
+    font-variant-numeric: tabular-nums;
+}
+
+/* THE ONE STILL TO COME. It was distinguished by weight alone (v20.86) inside a stack of similar
+   lines, which is what failed. Now it is the larger, darker value of a labelled pair — so the
+   difference survives being read at a glance rather than needing the two to be compared. */
+.ot-form-when--lead .ot-form-when-value {
+    font-size: var(--type-medium);
+    font-weight: 700;
+    color: var(--text-dark);
+}
+
+/* The phase sentence. Below the dates, not above them: it explains the deadline, so it reads as a
+   caption to one rather than as a third fact competing with two. */
+.ot-form-phase {
+    margin: var(--space-2) 0 0;
     font-size: var(--type-small);
     color: var(--text-mid);
     line-height: 1.45;
@@ -652,10 +714,9 @@ body {
    the member would still have to work out which applies today. `--lead` is the live one; its
    partner stays muted alongside as context. Weight and colour, not a colour alone: the muted line
    must still be comfortably readable, so the contrast between them cannot be carried by lightness. */
-.ot-form-when--lead {
-    font-weight: 700;
-    color: var(--text-dark);
-}
+/* Retired at v23.83 — the lead date is now distinguished by the size and colour of its VALUE
+   (`.ot-form-when--lead .ot-form-when-value` above), because weight alone is what failed. The class
+   stays as the hook; it carries no styling of its own. */
 
 /* The standing receipt. Green because it is the same "recorded" state the day rows wear once
    saved — one vocabulary for one fact, so a member scanning the card sees the head and the rows

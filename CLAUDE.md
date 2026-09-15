@@ -92,6 +92,26 @@ breakage".
 > caught collision looks like from afterwards. Do not reuse one to close it up; the version only
 > ever increases, and a number that briefly named two different trees should never name a third.
 >
+> **⚠️ "BOTH RUNS GREEN" IS USUALLY ONE RUN GREEN AND ONE CANCELLED — read it that way** (measured
+> 15 Sep 2026). The two runs share a concurrency group, so the `push` run is normally cancelled
+> within seconds of the `pull_request` run starting on the same commit: on v23.82's head the PR run
+> carried all 14 jobs green and the push run was cancelled after four seconds. That is the designed
+> behaviour, not a failure, and the rule below still holds in substance — what it is warning against
+> is reporting green off a run that did not include the `version` job. So check WHICH run completed
+> and that none FAILED; do not go looking for a second full green run that the concurrency group
+> will not let exist.
+>
+> **⚠️ DO NOT STACK A BRANCH ON AN UNMERGED ONE.** `main` squash-merges, so a child branch cannot be
+> rebased once its parent lands — every commit replays and conflicts, and the only way out is to cut
+> a fresh branch from `main` and cherry-pick. That cost three branches and one closed-as-superseded
+> PR across v23.79→v23.82. Either wait for the parent to merge before opening the next PR, or accept
+> the rebuild deliberately. The backend-first rule above forces a split in TIME, not in branches.
+>
+> **⚠️ ONE PLAYWRIGHT RUN AT A TIME, AND DO NOT SWITCH BRANCHES UNDER ONE.** The suites share a dev
+> server and `test-results/`; two concurrent runs produced a false red (14 Sep), and checking out
+> another branch mid-run invalidated a 13-minute e2e pass that then had to be redone. Neither shows
+> up as anything but a confusing failure.
+
 > **⚠️ A RED `version` JOB ON A RELEASE THAT SHIPPED FINE IS PROBABLY THE TWO-RUNS TRAP.** Every PR
 > gets **two** CI runs — one for `push`, one for `pull_request` — and the second fires when the PR is
 > OPENED. Merge promptly and that run's `version` job compares the branch against a main which by
@@ -260,8 +280,15 @@ every suite green. So, for anything that moves money, decides access, or names a
 
 - **Test the entry point, not only the helper.** At least one test that runs the real production path
   through to the resulting behaviour — the rendered £, the written payload, the sent audience.
-- **Mutate before you claim a guard.** Delete or invert the line and re-run. If nothing fails, the
-  rule is documented, not protected. Say which line you deleted and what stayed green.
+- **Mutate before you claim a guard, and use `scripts/mutate.mjs` to do it.** Delete or invert the
+  line and re-run. If nothing fails, the rule is documented, not protected. Say which line you
+  deleted and what stayed green. **A hand-rolled `sed`/`replace` has a silent failure mode that has
+  now produced two false "no teeth" findings in one session** (15 Sep 2026): the search string
+  carried a comment the source did not have, so the edit was a no-op; and a three-line CSS block
+  that appears three times in one file took a replace-first onto the wrong rule. Both look exactly
+  like a green run, and both argue for WEAKENING a test that is fine — the worst direction for an
+  error here. The script refuses an absent target, refuses an ambiguous one (`--in` narrows to a
+  rule or a function), refuses an edit that changed nothing, and restores the file even on a crash.
 - **A harness that discards is a harness that cannot see.** The admin batch mock returned `set: () => {}`
   for years; nothing could assert on a payload until it recorded them.
 - **Access context is a dimension.** Safe-for-a-member is not safe-for-every-unlock-mode.
