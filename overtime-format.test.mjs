@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
     clockOffset, submitDisposition, shouldResyncClock, SUBMIT_GRACE_MS, DEADLINE_SYNC_WINDOW_MS,
-    shortDate, longDate, weekLabel, weekSpan, printedLabel, rowStateCopy,
+    shortDate, longDate, weekLabel, weekSpan, printedLabel, rowStateCopy, rosterBadge,
     countsCopy, answerCopy, answerTone, answerAnchorStale, isUnavailable, isAvailableAnswer,
     weekSummary, asAtLine,
     modesFor, offersFullTwelve, submitFailureCopy, shiftSpanMinutes, sameAnswer, receiptLine,
@@ -528,6 +528,34 @@ const ROW_STATES = (() => {
     assert.ok(m, 'could not read windowRowState\'s return type — has it been renamed?');
     return m[1].split('|').map(x => x.replace(/'/g, ''));
 })();
+
+describe('the roster badge is ADMIN\'S badge (v23.85)', () => {
+    // Owner, with two screenshots side by side: "notice the difference in how shift times are
+    // handled?" Admin puts the time INSIDE the pill; this row put the classification word in the
+    // pill and the time beside it as plain text. One shift, two grammars. The row was modelled on
+    // admin's, so it takes admin's badge — the same `showTime` option on the same builder.
+    test('a timed shift carries its TIME in the pill, and nothing floats beside it', () => {
+        const html = rosterBadge({ shift: '06:20-14:20', hasTime: true, start: '06:20', end: '14:20' });
+        assert.match(html, /class="shift-badge badge-early"/);
+        assert.match(html, /06:20-14:20/, 'the time is in the badge');
+        // The WORD leaves the visible body and lands in the accessible label — so the test reads
+        // the body, not the whole string: a plain /early/i would fail on the aria-label that is
+        // there on purpose, which is exactly what the first draft of this assertion did.
+        const bodies = [...html.matchAll(/<span>([^<]*)<\/span>/g)].map(m => m[1]);
+        assert.deepEqual(bodies, ['06:20-14:20'], 'the visible body is the time and only the time');
+        assert.doesNotMatch(html, /ot-day-time/, 'no second object beside the pill');
+        // What the word said is still said — to a screen reader, on the badge itself.
+        assert.match(html, /aria-label="Early shift, 06:20 to 14:20"/);
+    });
+    test('an untimed day keeps its word — there is no time to trade for', () => {
+        assert.match(rosterBadge({ shift: 'RD', hasTime: false }), /REST/i);
+        assert.match(rosterBadge({ shift: 'SPARE', hasTime: false }), /SPARE/i);
+    });
+    test('an unreadable roster says so rather than drawing a badge', () => {
+        assert.match(rosterBadge(null), /Roster unavailable/);
+        assert.doesNotMatch(rosterBadge(null), /shift-badge/);
+    });
+});
 
 describe('states in words', () => {
     test('each phase has calm, factual copy and no countdown', () => {
