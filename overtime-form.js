@@ -38,7 +38,7 @@ import { confirmDialog } from './overlay.js';
 import { loadRosterContext, rosterBadge } from './overtime-roster.js';
 import { isClockTime } from './override-utils.js';
 import {
-    weekLabel, weekSpan, shortDate, answerCopy, answerTone, deadlineLines,
+    weekLabel, weekSpan, shortDate, answerCopy, answerTone, deadlineLines, phaseChip, phaseTone,
     answerAnchorStale, submitDisposition, modesFor, offersFullTwelve, submitFailureCopy,
     sameAnswer, receiptLine, unfinishedDates, reconcileVerdict, conflictIsOurs,
 } from './overtime-format.js';
@@ -236,10 +236,15 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     function headInner() {
         const receipt = receiptLine(win.submission);
         return `
-            <div class="ot-form-week">${esc(weekLabel(win.weekEnding))}</div>
-            <div class="ot-form-span">${esc(weekSpan(win.weekStart, win.weekEnding))}</div>
-            ${receipt ? `<div class="ot-form-receipt"><span aria-hidden="true">✓</span> ${esc(receipt)}</div>` : ''}
-            ${deadlineBlock(win)}`;
+            <div class="ot-week-band ot-week-band--${esc(phaseTone(win.phase))}">
+                <div class="ot-form-week">${esc(weekLabel(win.weekEnding))}</div>
+                <div class="ot-form-span">
+                    <span>${esc(weekSpan(win.weekStart, win.weekEnding))}</span>
+                    <span class="ot-phase-chip ot-phase-chip--${esc(phaseTone(win.phase))}">${esc(phaseChip(win.phase))}</span>
+                </div>
+                ${deadlineBlock(win)}
+                ${receipt ? `<div class="ot-form-receipt"><span aria-hidden="true">✓</span> ${esc(receipt)}</div>` : ''}
+            </div>`;
     }
 
     /**
@@ -266,7 +271,9 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     function deadlineBlock(win) {
         const lines = deadlineLines(win.phase, win.initialDeadlineAt, win.finalDeadlineAt);
         const dates = lines.filter(l => l.label);
-        const prose = lines.filter(l => !l.label);
+        // Only prose that is a WARNING reaches the head (v23.84 — see phaseChip). The ordinary
+        // open state is the chip; its sentence would be a paragraph about the normal case.
+        const prose = lines.filter(l => !l.label && l.warn);
         return `
             <div class="ot-form-dates">
                 ${dates.map(l => `

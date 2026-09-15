@@ -78,8 +78,7 @@ body {
        ~64–72ch on desktop; forms, tables and grids take the full column). */
     .card .hint,
     .ot-explainer,
-    .ot-privacy,
-    .ot-beta p { max-width: 68ch; }
+    .ot-privacy { max-width: 68ch; }
 }
 
 .app-header { margin-bottom: 4px; }
@@ -115,44 +114,12 @@ body {
    two lines above. Two titles is not emphasis, it is a page that has not decided
    where its name lives. */
 
-/* ── BETA · Live use ────────────────────────────────────────────────────────
-   Restrained by design. The data really is operational, so this must read as
-   "still being refined", never as "test data" — which would be false, and would
-   invite somebody to submit availability they do not mean. */
-
-/* A LINE, not a band. It was a bordered box with a gold chip, which made it the
-   third full-width slab between the header and the first card — and gold is the
-   Calendar's accent, so the loudest thing on the page pointed somewhere else.
-   The message still has to be here (staff must know the data is real), so it stays;
-   it just stops competing with the content it is a caveat about. */
-.ot-beta {
-    display: flex;
-    align-items: baseline;
-    gap: var(--space-2);
-    margin: 0 0 var(--space-3);
-    padding-left: var(--space-3);
-    border-left: 2px solid rgba(255, 255, 255, 0.22);
-}
-
-.ot-beta p {
-    margin: 0;
-    color: rgba(255, 255, 255, 0.72);
-    font-size: var(--type-small);
-    line-height: 1.5;
-}
-
-.ot-beta-chip {
-    flex-shrink: 0;
-    color: rgba(255, 255, 255, 0.9);
-    font-size: var(--type-micro);
-    /* 800 = the IDENTITY tier (css-tokens.md): this badge names the state of the whole page, the
-       way a period or grade badge names its figure. The letter-spacing joins the app's one
-       uppercase value; 0.06em here was a third variant of it. */
-    font-weight: 800;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    white-space: nowrap;
-}
+/* ── BETA strip: REMOVED at v23.84 (owner decision, 15 Sep 2026) ────────────
+   "Everyone on the beta knows it is a beta." It had already been cut from a gold
+   band to a quiet line; the line was still the first thing on the page, above the
+   member's own name, and the page's one job here is the form. The fact it carried
+   — that submitted availability is real and may be used — is what the card's hint
+   and the ? panel say. */
 
 /* ── Tabs ───────────────────────────────────────────────────────────────── */
 
@@ -241,27 +208,27 @@ body {
     color: var(--text-mid);
 }
 
-/* WHOSE answers these are (v21.57; admin's locked member field since v21.58, restyled to the
-   IN-CARD variant at v21.59). The form is always "you", and on a shared device "you" is whoever
-   forgot to sign out — the submission lands on the SIGNED-IN member, so the name belongs on the
-   card, not behind the burger. First cut copied admin's page-level context bar VERBATIM — navy
-   wrapper included — but that bar earns its navy by sitting on the navy page background; inside a
-   light card it read as a bolted-on lozenge (owner: "looks very weird"). Admin's own in-card
-   member selectors (the AL and absence cards) are a plain label beside a field-styled select, so
-   that is the recipe now — same control, card-native chrome. The select stays disabled-but-
-   normal-looking (enabled sunken fill, dark text, opacity 1), exactly admin's #fieldMember
-   treatment: locked is not broken. */
+/* WHOSE answers these are — ADMIN'S BAR, ON THE PAGE (v21.57 · v21.58 · v21.59 · v23.84).
+   The history matters, because it looks like indecision and is not. v21.58 copied admin's navy bar
+   verbatim INTO the light card and the owner called it "very weird"; v21.59's diagnosis was exactly
+   right — that bar earns its navy by sitting on the navy page, and inside a card it is a lozenge —
+   and restyled it as an in-card field. v23.84 keeps the diagnosis and changes the placement: the
+   bar now sits where admin's does, above the card on the canvas, so it takes admin's recipe back
+   without the thing that made it wrong. A member arriving from admin sees the same first line. */
 .member-context-bar {
     display: flex;
     align-items: center;
     gap: 12px;
-    margin: 0 0 var(--space-4);
+    margin: 0 0 var(--space-3);
+    padding: 6px 12px;
+    background: var(--primary-blue);
+    border-radius: var(--radius-md);
 }
 .member-context-bar[hidden] { display: none; }
 .member-context-bar label {
     font-size: var(--type-small);
     font-weight: 700;
-    color: var(--text-light);
+    color: rgba(255, 255, 255, 0.65);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     white-space: nowrap;
@@ -271,35 +238,45 @@ body {
 }
 .member-context-bar select {
     flex: 1;
-    min-width: 0;   /* a long name must shrink, never push past the card edge */
+    min-width: 0;   /* a long name must shrink, never push past the canvas edge */
     -webkit-appearance: none;
     appearance: none;
     background-color: white;
-    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23001e3c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-image: var(--caret-chevron);
     background-repeat: no-repeat;
     background-position: right 8px center;
     background-size: 1em;
-    border: 1.5px solid var(--border-light);
+    border: 1.5px solid transparent;
     color: var(--text-dark);
     border-radius: var(--radius-xs);
     padding: 4px 26px 4px 8px;
+    font-family: var(--font-sans);
     font-size: var(--type-medium);
     font-weight: 600;
 }
+/* Locked is not broken: the same white field, dark text, full opacity — admin's #fieldMember. */
 .member-context-bar select:disabled {
-    background-color: var(--field-bg);
+    background-color: white;
     color: var(--text-dark);
     cursor: default;
     opacity: 1;
 }
 
-.ot-privacy {
+/* ── The two things this form is NOT, at the foot (v23.84) ─────────────────── */
+.ot-explainer {
     margin: var(--space-4) 0 0;
     padding-top: var(--space-3);
     border-top: 1px solid var(--border-light);
     font-size: var(--type-small);
     line-height: 1.5;
-    color: var(--text-light);
+    color: var(--text-mid);
+}
+
+.ot-privacy {
+    margin: var(--space-2) 0 0;
+    font-size: var(--type-small);
+    line-height: 1.5;
+    color: var(--text-mid);
 }
 
 /* ── Week rows — the page's one structural idea ─────────────────────────── */
@@ -640,13 +617,58 @@ body {
     color: var(--text-dark);
 }
 
-/* The week's own date span — quiet, directly under the title it qualifies. */
+/* ── THE WEEK BAND — one week, one shape (v23.84) ─────────────────────────────────────────────
+   Owner, from a phone: "it looks wordy because of the design of the top … perhaps it lacks the use
+   of colour to break it up like admin." Set beside admin at 390 the difference is not colour so
+   much as SURFACES: admin gives every group its own — a navy identity strip, a tinted week nav, a
+   sunken bulk panel — and this card gave none, so eleven lines of the same grey ran into each
+   other. Named dates (v23.83) helped; they were still floating in prose.
+
+   The reviewer's planning horizon already draws a week as an object: the row-card recipe, with the
+   4px LEFT EDGE carrying state (`.ot-week-row`). The member's week is the same thing seen from the
+   other side, so it wears the same recipe and the same tones — `ok` open, `warn` final window,
+   `done` closed — and a manager who is also a member meets one grammar on both tabs. The chip names
+   what the edge colours; colour alone never carries a state here. */
+.ot-week-band {
+    margin-top: var(--space-3);
+    padding: var(--space-3);
+    background: var(--surface);
+    border: 1px solid var(--border-light);
+    border-left: 4px solid var(--border-mid);
+    border-radius: var(--radius);
+}
+.ot-week-band--ok   { border-left-color: var(--success-green); }
+.ot-week-band--warn { border-left-color: var(--al-low); }
+.ot-week-band--done { border-left-color: var(--border-mid); }
+
+/* The week's own date span, with the state chip beside it. The chip sits on THIS line rather than
+   the title's so the title keeps its full measure — "Week ending Saturday 17 October 2026" already
+   wraps at 390, and a chip in its corner would force a second line on every week. */
 .ot-form-span {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px var(--space-2);
     margin-top: 2px;
     font-size: var(--type-small);
     color: var(--text-mid);
     line-height: 1.45;
 }
+
+/* The state, worn not said. Quiet-status weight (600 — css-tokens.md's third tier): a receipt of
+   where the week stands, not a label to scan for. Tinted fill with the tone's text colour, so it
+   reads on the band's off-white without shouting over the date it sits beside. */
+.ot-phase-chip {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: var(--radius-pill);
+    font-size: var(--type-badge);
+    font-weight: 600;
+    line-height: 1.5;
+}
+.ot-phase-chip--ok   { background: var(--success-green-bg); color: var(--success-text); }
+.ot-phase-chip--warn { background: var(--al-warning-bg);    color: var(--al-low); }
+.ot-phase-chip--done { background: var(--bg-faint);         color: var(--text-light); }
 
 /* ── THE TWO DEADLINES, AS NAMED VALUES (v23.83) ──────────────────────────────────────────────
    Reported from a phone: "this section is not good at all. Where is the clarity." The head was
@@ -722,7 +744,7 @@ body {
    saved — one vocabulary for one fact, so a member scanning the card sees the head and the rows
    agree rather than reading two separate reassurances. */
 .ot-form-receipt {
-    margin-top: 3px;
+    margin-top: var(--space-2);
     font-size: var(--type-small);
     font-weight: 600;
     color: var(--success-text);
@@ -1619,7 +1641,6 @@ body {
 
     /* Chrome that never prints, on either view. */
     .app-header,
-    .ot-beta,
     .ot-tabs,
     .ot-confirm-bar,
     .nav-panel,

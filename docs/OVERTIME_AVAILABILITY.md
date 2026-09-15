@@ -629,8 +629,13 @@ missed would ship a half-launched feature. Work through ALL of them; each names 
 2. **Drop `CONFIG.OVERTIME_BETA`** from `roster-data.js` and regenerate — participation then follows
    eligibility alone. The nav pill and page policy already gate on `canOpenOvertime`, which needs no
    change (auth-policy.js keeps the reviewer/participant split).
-3. **Remove the beta banner** (`.ot-beta` in `overtime.html`) and the "restricted live beta" wording
-   in the page's tips (`overtime-tips.js`).
+3. ~~**Remove the beta banner**~~ — **done early, at v23.84**, by owner decision rather than as a
+   launch step ("everyone on the beta knows it is a beta"): `.ot-beta` is gone from `overtime.html`
+   and `overtime.css`, and `e2e/overtime.spec.js` asserts its absence. Checked at the same time:
+   `overtime-tips.js` no longer carries any beta wording, and the two reviewer-side "Beta audience"
+   labels (`overtime-manager.js`, `overtime-review-controller.js`) read `w.audience === 'restricted'`
+   from the data, so they retire THEMSELVES the moment item 1 widens the audience. Nothing here is
+   left to do by hand at launch.
 4. **Arm the retention purge** — `purgeArmed` in `functions/index.js`, after reading a dry run
    (`EXC-002`; evidence row `VAL-OT-001`, dated in `MAINTENANCE_CALENDAR.md`).
 5. **Re-check the reviewer workspace at scale** — the By-day view renders every participant under

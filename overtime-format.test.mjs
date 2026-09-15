@@ -18,14 +18,18 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
     clockOffset, submitDisposition, shouldResyncClock, SUBMIT_GRACE_MS, DEADLINE_SYNC_WINDOW_MS,
-    shortDate, longDate, weekLabel, weekSpan, deadlineLabel, printedLabel, phaseCopy, rowStateCopy,
+    shortDate, longDate, weekLabel, weekSpan, printedLabel, rowStateCopy,
     countsCopy, answerCopy, answerTone, answerAnchorStale, isUnavailable, isAvailableAnswer,
     weekSummary, asAtLine,
-    modesFor, offersFullTwelve, submitFailureCopy, shiftSpanMinutes, sameAnswer, deadlineLines, receiptLine,
+    modesFor, offersFullTwelve, submitFailureCopy, shiftSpanMinutes, sameAnswer, receiptLine,
     declaredAgo, deriveHistory,
     dayUnfinished, unfinishedDates, reconcileVerdict, conflictIsOurs,
     weekAvailabilitySummary, reminderLine,
 } from './overtime-format.js';
+// WHERE THE WEEK STANDS lives in overtime-phase.js since v23.84 (extracted at the ratchet). Imported
+// from where it is defined, not through overtime-format.js's re-export, so the module is named by
+// the test estate and a rename or a dropped re-export fails here rather than in a browser.
+import { deadlineLabel, phaseCopy, phaseChip, phaseTone, deadlineLines } from './overtime-phase.js';
 
 describe('the corrected clock', () => {
     test('a zero-latency exchange gives the raw difference', () => {
@@ -535,6 +539,43 @@ describe('states in words', () => {
         for (const p of ['INITIAL_OPEN', 'FINAL_OPEN', 'CLOSED']) {
             assert.equal(/!/.test(phaseCopy(p)), false, 'no exclamation marks — the app is calm');
         }
+    });
+
+    test('the phase CHIP is two words at most, and agrees with the sentence it replaces (v23.84)', () => {
+        // The head wears the state as a badge now, the way admin does — so the chip has to stay
+        // short enough to be one, and must never disagree with `phaseCopy` about whether the
+        // week is open. Both open phases say open; closed says closed; nothing shouts.
+        for (const p of ['INITIAL_OPEN', 'FINAL_OPEN', 'CLOSED']) {
+            const chip = phaseChip(p);
+            assert.ok(chip.split(/\s+/).length <= 2, `"${chip}" is not a chip`);
+            assert.doesNotMatch(chip, /[!—]/, 'a chip carries no punctuation');
+            assert.equal(/open/i.test(chip), /open/i.test(phaseCopy(p)),
+                `chip and sentence disagree about "open" for ${p}`);
+        }
+        assert.equal(phaseChip('CLOSED'), 'Closed');
+        assert.notEqual(phaseChip('INITIAL_OPEN'), phaseChip('FINAL_OPEN'),
+            'the two open phases are different states and must read differently');
+    });
+
+    test('the phase TONE speaks the horizon\'s vocabulary, and only the final window warns', () => {
+        // ok / warn / done are the classes the reviewer's week rows already wear, so one week is
+        // coloured the same on both surfaces. `bad` is not reachable here: a missed week has no form.
+        assert.equal(phaseTone('INITIAL_OPEN'), 'ok');
+        assert.equal(phaseTone('FINAL_OPEN'), 'warn');
+        assert.equal(phaseTone('CLOSED'), 'done');
+    });
+
+    test('only the FINAL_OPEN sentence is a WARNING the head should print', () => {
+        // The ordinary open state is the chip; its sentence is a paragraph about the normal case
+        // and no longer reaches the head. The final-window sentence says a change may not fit,
+        // which is a warning, and a warning earns a line. Pinned so the asymmetry is deliberate.
+        const I = Date.parse('2026-08-18T11:00:00Z'), F = Date.parse('2026-08-25T11:00:00Z');
+        const prose = (/** @type {string} */ p) => deadlineLines(p, I, F).filter(l => !l.label);
+        assert.equal(prose('INITIAL_OPEN').length, 1);
+        assert.equal(prose('INITIAL_OPEN')[0].warn, undefined, 'the normal state does not warn');
+        assert.equal(prose('FINAL_OPEN').length, 1);
+        assert.equal(prose('FINAL_OPEN')[0].warn, true, 'the final window does');
+        assert.equal(prose('CLOSED').length, 0, 'a closed week has a note of its own, not a sentence here');
     });
 
     test('the printed sheet states when the data was READ, not when it was printed', () => {
