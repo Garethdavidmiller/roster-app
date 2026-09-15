@@ -927,6 +927,158 @@ test('the member form fills the desktop band, and the day row goes horizontal in
         'and on the same line as it').toBeLessThan(12);
 });
 
+test('EVERY child of the day row sits beside the day label at desktop, not under it', async ({ page }) => {
+    // THE DEFECT THIS REPLACES A COMMENT WITH (v23.82). The desktop grid used to LIST the children
+    // that belong in column 2, with a note asking the next person to add to it. The list went stale
+    // twice — `.ot-custom` at v20.74, then `.ot-longday` and `.ot-release` — and the second time it
+    // was not even consistent: auto-placement fills the implicit row left to right, so the Sunday
+    // request took column 2 when the willingness tick was present and column 1 when it was not.
+    // The SAME control, 240px apart, depending on whether the member had answered the day.
+    //
+    // Nothing errored, nothing clipped and nothing was unreachable, so only a measurement can see
+    // it. Written against the CONTAINER rather than a list of classes, because a list here would
+    // be the same hand-maintained thing that failed — a child added tomorrow is covered by this
+    // test on the day it is added.
+    await page.setViewportSize({ width: 1280, height: 1200 });
+
+    // The Sunday must be one the member is rostered to work, or the release control never renders
+    // and the row that exercises the most children is the one the test skips. Picked from the
+    // roster, like the wiring test above, so a pattern edit fails this rather than hollowing it.
+    await page.goto('/overtime.html');
+    const pick = await page.evaluate(async () => {
+        const { teamMembers, getBaseShift, parseISODate } = await import('/roster-data.js');
+        const { isRestShift } = await import('/override-utils.js');
+        const sun = '2026-08-30';
+        const works = teamMembers.find(m => !m.hidden && !m.managerOnly
+            && !isRestShift(getBaseShift(m, parseISODate(sun))));
+        return works ? works.name : null;
+    });
+    expect(pick, 'no visible member is rostered on Sun 30 Aug 2026').not.toBeNull();
+    await seedSession(page, /** @type {string} */ (pick));
+    await stubOvertime(page, { windows: [openWindow()] });
+    await page.goto('/overtime.html');
+
+    const sunday = page.locator('.ot-day[data-day="2026-08-30"]');
+    await sunday.locator('.ot-mode').first().waitFor();
+
+    // Both states of the row, because the bug lived in the difference between them: unanswered
+    // (no willingness tick), then answered with the Sunday request ticked (every child present).
+    const columns = async (label) => {
+        const seen = await sunday.evaluate(row => {
+            const head = row.querySelector('.ot-day-head').getBoundingClientRect();
+            return [...row.children].map(el => ({
+                cls: el.className.split(' ')[0],
+                left: Math.round(el.getBoundingClientRect().left),
+                headLeft: Math.round(head.left),
+                headRight: Math.round(head.right),
+            }));
+        });
+        expect(seen.length, `${label}: the row has children to place`).toBeGreaterThan(1);
+        for (const c of seen) {
+            if (c.cls === 'ot-day-head') continue;
+            expect(c.left, `${label}: ${c.cls} starts after the day label, not under it`)
+                .toBeGreaterThanOrEqual(c.headRight);
+        }
+        return seen;
+    };
+
+    const unanswered = await columns('unanswered');
+    expect(unanswered.some(c => c.cls === 'ot-release'), 'the Sunday request is on the row').toBe(true);
+
+    await sunday.locator('.ot-release-box').check();
+    await sunday.locator('.ot-mode').nth(1).click();
+    await sunday.locator('.ot-longday-box').waitFor();
+    const answered = await columns('answered');
+    expect(answered.some(c => c.cls === 'ot-longday'), 'the willingness tick is on the row').toBe(true);
+
+    // And the request has not MOVED COLUMN between the two states — the half of the bug that a
+    // per-class rule added to only one of them would still have left in place.
+    //
+    // Not an exact equality: ticked, `.ot-release` gains its 3px AL left edge on a -3px margin, so
+    // the box legitimately starts 3px further left than it does unticked. The defect this guards
+    // was 240px. Anything inside a few pixels is the edge; anything beyond it is a column change.
+    const leftOf = (rows) => rows.find(c => c.cls === 'ot-release').left;
+    expect(Math.abs(leftOf(answered) - leftOf(unanswered)),
+        'the Sunday request sits in the same column either way').toBeLessThan(8);
+});
+
+test('the planning horizon runs its facts across the row at desktop, not down a ribbon', async ({ page }) => {
+    // MEASURED BEFORE AND AFTER (v23.82): at 1280 a week row was 1068px wide with its text ending
+    // at x=304 and its button starting at x=996 — 692px of nothing, on every row, and 122px tall to
+    // stack four lines of small text that a phone stacks for a reason a desktop does not have.
+    //
+    // The numbers below are deliberately loose. This is a composition property, not a pixel
+    // contract: it must fail if the facts go back to stacking, and it must not fail because a
+    // deadline string gained a word. The visual baseline holds the appearance; this holds the shape.
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    await seedSession(page, 'H. Croft');
+    await stubOvertime(page, { weeks: sixWeeks() });
+    await page.goto('/overtime.html');
+    const row = page.locator('.ot-week-row').first();
+    await row.waitFor();
+
+    const shape = await row.evaluate(el => {
+        const box = el.getBoundingClientRect();
+        const rect = (sel) => {
+            const c = el.querySelector(sel);
+            return c ? c.getBoundingClientRect() : null;
+        };
+        const title = rect('.ot-week-title');
+        const meta  = rect('.ot-week-meta');
+        const state = rect('.ot-week-state');
+        return {
+            height: Math.round(box.height),
+            titleRight: title ? Math.round(title.right - box.left) : null,
+            metaLeft:   meta  ? Math.round(meta.left  - box.left) : null,
+            stateLeft:  state ? Math.round(state.left - box.left) : null,
+            sameLine: title && meta ? Math.abs(title.top - meta.top) < 12 : null,
+        };
+    });
+
+    expect(shape.metaLeft, 'the deadlines sit beside the week title, not under it')
+        .toBeGreaterThan(shape.titleRight);
+    expect(shape.sameLine, 'and on its line').toBe(true);
+    expect(shape.stateLeft, 'the state follows them across the row')
+        .toBeGreaterThan(shape.metaLeft);
+    expect(shape.height, 'so the row is no longer four stacked lines tall').toBeLessThan(100);
+
+    // AND THE COLUMNS LINE UP DOWN THE LIST, which is the difference between a grid and a flex row
+    // and the reason this is the former. A reviewer scans this list for the state, so the state has
+    // to start at the same x in every row; laid out by content each row picked its own, and the six
+    // seeded here span every state the horizon can show, with deliberately different meta lengths
+    // (a closed week carries a counts line, a not-created week does not).
+    const lefts = await page.locator('.ot-week-row').evaluateAll(rows => rows.map(r => {
+        const box = r.getBoundingClientRect();
+        const at = (/** @type {string} */ sel) => {
+            const el = r.querySelector(sel);
+            return el ? Math.round(el.getBoundingClientRect().left - box.left) : null;
+        };
+        return { meta: at('.ot-week-meta'), state: at('.ot-week-state') };
+    }));
+    expect(lefts.length, 'rows to compare').toBeGreaterThan(2);
+    for (const key of ['meta', 'state']) {
+        const seen = [...new Set(lefts.map(r => r[key]).filter(x => x !== null))];
+        expect(seen, `the ${key} column starts at one x down the whole list`).toHaveLength(1);
+    }
+});
+
+test('and on a phone the horizon row still stacks, where the width is not there', async ({ page }) => {
+    // The other half. A `min-width` query is easy to write and easy to write at the wrong number,
+    // and the failure is invisible from the desktop the change was made on.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedSession(page, 'H. Croft');
+    await stubOvertime(page, { weeks: sixWeeks() });
+    await page.goto('/overtime.html');
+    const row = page.locator('.ot-week-row').first();
+    await row.waitFor();
+    const stacked = await row.evaluate(el => {
+        const title = el.querySelector('.ot-week-title').getBoundingClientRect();
+        const meta  = el.querySelector('.ot-week-meta').getBoundingClientRect();
+        return meta.top >= title.bottom - 1;
+    });
+    expect(stacked, 'the deadlines sit under the week title').toBe(true);
+});
+
 test('and on a phone the day row is still stacked, where there is no room for anything else', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await seedSession(page, 'G. Miller');
@@ -2109,6 +2261,62 @@ test('a long answer chip stays inside its row, on every width', async ({ page })
     // without a single glyph being lost. Anything beyond that is a chip wider than its row.
     }).filter(x => x.over > 1));
     expect(overflowing, 'a chip wider than the row it sits in is a truncated answer').toEqual([]);
+});
+
+test('the answer chip is a capsule while it is a token, and stops being one when it wraps', async ({ page }) => {
+    // THE OTHER HALF OF THE CHIP ABOVE (v23.82). That test made the long answer fit; this one is
+    // about what it looks like once it does.
+    //
+    // `--radius-pill` is 999px, which a browser resolves to HALF THE BOX HEIGHT — so the shape is
+    // decided by the content, not by the rule. "Not available" is 20px tall and comes out a proper
+    // capsule. The long answer wraps to two lines on a phone, and at 34px the same declaration
+    // returned a 17px radius: a fat lozenge whose round ends curve through the 9px of side padding
+    // and leave the first and last characters sitting inside the arc.
+    //
+    // 10px is that capsule frozen at the one-line height. So the assertions are a pair, and both
+    // are needed — pinning only the second would be satisfied by a square chip, and pinning only
+    // the first by going back to the token.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedSession(page, 'H. Croft');
+    const dates = weekDates(W.weekStart);
+    await page.addInitScript((rows) => {
+        window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: rows };
+    }, [
+        { id: 'G. Miller', memberName: 'G. Miller', grade: 'CEA', rosterOrder: 1,
+          currentRevision: 1, firstAcceptedAt: NOW - 3_600_000, updatedAt: NOW - 3_600_000,
+          days: Object.fromEntries(dates.map(d => [d, {
+              mode: 'before_after', until: '09:00', from: '17:00', fullTwelve: true }])) },
+        // The short answer, so both shapes are on screen in one render and the comparison is
+        // between two chips of the same family rather than between a chip and a remembered number.
+        { id: 'R. Forrester-Blackstock', memberName: 'R. Forrester-Blackstock', grade: 'CEA',
+          rosterOrder: 2, currentRevision: 1, firstAcceptedAt: NOW - 3_600_000,
+          updatedAt: NOW - 3_600_000,
+          days: Object.fromEntries(dates.map(d => [d, { mode: 'unavailable' }])) },
+    ]);
+    await stubOvertime(page, { weeks: [{ ...W, exists: true, state: 'created', canCreate: false,
+        expected: 2, received: 2, noResponse: 0 }] });
+    await page.goto('/overtime.html');
+    await page.locator('.ot-day-panel').first().waitFor();
+
+    const shape = async (sel) => page.locator(sel).first().evaluate(el => {
+        const r = el.getBoundingClientRect();
+        // The USED radius, which is the only number that matters — a browser reports 999px back
+        // from `getComputedStyle` while painting half the height, so reading the declaration
+        // would tell you nothing about either state.
+        const declared = parseFloat(getComputedStyle(el).borderTopLeftRadius);
+        return { h: Math.round(r.height), used: Math.min(declared, r.height / 2) };
+    });
+
+    const short = await shape('.ot-answer--no');
+    const long  = await shape('.ot-answer--yes');
+    expect(long.h, 'the long answer must actually be wrapping, or this test proves nothing')
+        .toBeGreaterThan(short.h + 8);
+
+    expect(short.used, 'a one-line chip is still a full capsule').toBe(short.h / 2);
+    expect(long.used, 'a wrapped chip is a rounded block, not a lozenge')
+        .toBeLessThan(long.h / 2);
+    // And not a square either: the corner is still the app's, it is just no longer half the height.
+    expect(long.used, 'but it keeps a real corner').toBeGreaterThanOrEqual(8);
 });
 
 test.describe('an invitation that lands after the week was made', () => {

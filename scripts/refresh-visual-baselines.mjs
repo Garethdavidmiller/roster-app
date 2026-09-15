@@ -59,4 +59,13 @@ console.log(`${after.length} baseline${after.length === 1 ? '' : 's'} updated:\n
 after.forEach(f => console.log(`    ${f}`));
 console.log('\nEach one is a claim that the new pixels are RIGHT. Open them before committing —');
 console.log('a baseline is the only test in the repo that cannot tell you what it is asserting.\n');
+// AND SAY WHAT THIS RUN COULD NOT SEE. Updating only the FAILED baselines is the right default
+// (the header argues it), but it makes this list silently incomplete for a change that stayed
+// inside the tolerance — measured at v23.82, where a control moved 240px, the comparison passed,
+// and two of the release's three stale baselines were never named here. Somebody who has just
+// changed a layout needs to know that before they read this list as the whole answer.
+console.log('Changed WHERE something sits rather than what it says? A small element can move a long');
+console.log('way and still pass the ratio, and this run updates only the baselines that FAILED.');
+console.log('Re-check those pages with:  npx playwright test --config=playwright.visual.mjs \\');
+console.log('                              --update-snapshots=all -g "<the page>"\n');
 process.exit(0);

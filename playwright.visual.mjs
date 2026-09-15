@@ -50,6 +50,20 @@ export default defineConfig({
             // environment produces BYTE-IDENTICAL PNGs — the noise floor here is zero, not 0.3% —
             // so 0.1% is still ~100× headroom for the sub-pixel shimmer the threshold above already
             // absorbs. Regenerate baselines if the rendering environment changes (see the header).
+            //
+            // AND A PASSING COMPARISON IS NOT "NOTHING MOVED" — measured v23.82, and worth knowing
+            // before trusting this lane with a layout change. A control was moved 240px into the
+            // correct grid column on the overtime member form and the comparison PASSED: the moved
+            // thing is a 20px tick and a short label, so its inked pixels — counted twice, once
+            // where they left and once where they arrived — came in under 1,536, which is what
+            // 0.001 of a 1280×1200 frame buys. Two of that release's three baselines were in this
+            // state, so `npm run test:visual:refresh`, which by design updates only the baselines
+            // that FAIL, left both stale and said so about neither.
+            //
+            // The ratio is a good regression alarm for a page that reflows and a poor one for a
+            // small element that relocates. Where the point of a change is WHERE something sits,
+            // assert the geometry (e2e/overtime.spec.js does) and re-baseline with
+            // `--update-snapshots=all`; do not read a green lane as agreement.
             threshold: 0.15,
             maxDiffPixelRatio: 0.001,
             animations: 'disabled',
