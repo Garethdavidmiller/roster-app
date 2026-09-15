@@ -7536,6 +7536,66 @@ test('admin: the week grid asks the swap question too, and refuses to save it un
         .toHaveAttribute('aria-pressed', 'false');
 });
 
+test('admin: a skip-only save leaves the row showing the record that is still there (v23.89)', async ({ page }) => {
+    // FOUND IN THE v23.88 REGRESSION READ, not by a failing test. When every staged day resolves to
+    // "rest day — free" there is nothing to commit, so the save reports and returns early — and that
+    // early return called `resetStagedRows()` without the re-render the normal path does afterwards.
+    // `resetStagedRows` only DEACTIVATES a row; it does not restore what a prefilled row was showing.
+    // So a rest day that already held an ABSENCE came back blank, and the one thing the receipt had
+    // just promised — that nothing was recorded and nothing was removed — was contradicted by the
+    // grid underneath it.
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { ...(/** @type {any} */ (window).__E2E || {}), authUser: true };
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    const target = await page.evaluate(async () => {
+        const [rd, ou] = await Promise.all([import('./roster-data.js'), import('./override-utils.js')]);
+        const rows = [...document.querySelectorAll('.day-row')].map(r => /** @type {any} */ (r).dataset.date);
+        for (const m of rd.teamMembers) {
+            if (m.hidden || m.managerOnly) continue;
+            for (const d of rows) {
+                if (!d) continue;
+                const dt = new Date(d + 'T00:00:00');
+                if (dt.getDay() === 0) continue;
+                if (ou.isRestShift(rd.getBaseShift(m, dt))) return { name: m.name, date: d };
+            }
+        }
+        return null;
+    });
+    expect(target, 'no member has a rest day in the displayed week').not.toBeNull();
+    const t = /** @type {any} */ (target);
+
+    // An ABSENCE already on that rest day. It is what the row is prefilled with, and it is what must
+    // still be there afterwards — the save is told to record leave and answers that it recorded none.
+    await page.addInitScript((row) => {
+        /** @type {any} */ (window).__E2E = { ...(/** @type {any} */ (window).__E2E || {}), docs: [row] };
+    }, { id: 'sick-1', memberName: t.name, date: t.date, type: 'sick', value: 'SICK', note: '', source: 'manual' });
+    await page.goto('/admin.html');
+    await page.locator('#fieldMember').selectOption(t.name);
+    await page.waitForTimeout(400);
+
+    const row = page.locator(`.day-row[data-date="${t.date}"]`);
+    await expect(row.locator('.type-pill-btn[data-type="sick"]'), 'the row starts prefilled with the absence')
+        .toHaveAttribute('aria-pressed', 'true');
+
+    await clickInView(row.locator('.type-pill-btn[data-type="annual_leave"]'));
+    await clickInView(row.locator('.al-swap-btn[data-swap="no"]'));
+    await clickInView(page.locator('#saveBtn'));
+
+    await expect(page.locator('.feedback, #weekGridFeedback').filter({ hasText: 'no leave recorded' }).first())
+        .toBeVisible();
+    // Nothing was written…
+    const writes = await page.evaluate(() => (/** @type {any} */ (window).__E2E?.batchWrites || []));
+    expect(writes.filter((/** @type {any} */ w) => w.date === t.date), 'nothing may be written for a free rest day')
+        .toHaveLength(0);
+    // …and nothing was removed, which the row has to keep SAYING.
+    await expect(page.locator(`.day-row[data-date="${t.date}"] .type-pill-btn[data-type="sick"]`),
+        'the absence is still on record, so the row must still show it').toHaveAttribute('aria-pressed', 'true');
+});
+
 test('admin: the week grid writes NOTHING for a rest day answered free, and names the day (v23.88)', async ({ page }) => {
     // THE TWO SURFACES MEANT DIFFERENT THINGS BY ONE ANSWER (external review of v23.85). The AL card
     // wrote nothing for a rest day answered "Rest day — free"; the week grid wrote annual leave that
