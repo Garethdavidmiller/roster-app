@@ -139,8 +139,10 @@ export function initOverrides({ currentUser, currentIsAdmin, currentIsManager = 
  *                swapped?:boolean}>} toSave  `swapped` is an INSTRUCTION, not a field: it marks a rest day the
  *        admin has declared a swapped-in working day, and is stripped before the Firestore write (v23.75).
  * @param {string[]} toDelete  Firestore document IDs to delete
+ * @param {string[]} [skipped]  dates staged but deliberately NOT written — see buildSaveReceipt. With
+ *        nothing else to write this still reports, rather than being a Save that did nothing silently.
  */
-export async function executeSave(toSave, toDelete = []) {
+export async function executeSave(toSave, toDelete = [], skipped = []) {
     const fieldMember = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
     const fieldDate   = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
     const saveBtn     = /** @type {HTMLButtonElement|null} */ (document.getElementById('saveBtn'));
@@ -153,6 +155,19 @@ export async function executeSave(toSave, toDelete = []) {
     // The per-kind counters went with the summary line they fed — the receipt names the DAYS, so
     // "2 added, 1 updated" had nobody left to tell (v21.38).
     const total       = toSave.length + toDelete.length;
+
+    // NOTHING TO WRITE IS STILL AN OUTCOME (v23.88). Every staged day can resolve to a rest day the
+    // admin answered "free", which the projection leaves alone — so this is reached with an empty
+    // batch, and the one thing it must not be is a Save button that did nothing and said nothing.
+    // No Firestore round trip: there is no document to touch, and the days are named instead.
+    if (!total && skipped.length) {
+        const only = buildSaveReceipt({ toSave: [], removed: [], memberName: memberName ?? '',
+            formatDate: formatDisplay, skipped, describe: () => '' });   // never called: nothing written
+        _showSuccess(only.summary, only.lines);
+        resetStagedRows();
+        updateSaveBtn();
+        return;
+    }
 
     // Disable the button BEFORE awaiting sessionReady (v16.23). While sessionReady is still
     // pending (early after a slow-auth page load), a double-tap could pass the collector twice —
@@ -229,7 +244,7 @@ export async function executeSave(toSave, toDelete = []) {
         // (a bulk apply that caught the wrong days, a grid left on last week) produces a perfectly
         // plausible count. The days are known before the commit, so this costs nothing.
         const receipt = buildSaveReceipt({
-            toSave, removed: removedRows, memberName: memberName ?? '',
+            toSave, removed: removedRows, memberName: memberName ?? '', skipped,
             formatDate: formatDisplay,
             // An Other day's value is the raw grammar `FLAVOUR[" RDW"][" HH:MM-HH:MM"]`, so printing it
             // gave "Other TRG RDW 09:00-17:00" — internal spelling in the one line that tells a

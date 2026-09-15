@@ -73,6 +73,18 @@ export function willConsume({ member, date, ovByDate = null, swapped = false }) 
  *                   overtime is not leave).
  *   `skipped`     — not written at all: Sundays, and rest days answered "free".
  *
+ * And one SUBSET of the last, because the two surfaces need different halves of it:
+ *
+ *   `answeredFree` — asked, and answered "rest day — free". Nothing is written on either surface:
+ *                    the day is a rest day, the leave costs nothing, and there is nothing to record.
+ *
+ * The two halves of `skipped` are decided by different things, which is why the subset is named.
+ * `answeredFree` is an ANSWER the surface asked for and got; the rest is a rule about days nobody
+ * was asked about — a Sunday, or a rest day whose own record already settles it. The week grid is a
+ * per-day edit and acts on the answer: it drops `answeredFree` from its batch and writes everything
+ * else it was told to write. Reading `skipped` instead would let a rule about RANGES decide what a
+ * single deliberate row edit does, and would change silently the next time that rule moves.
+ *
  * `skipped` is the one that must never include a date from `consuming`, which is exactly the bug
  * this module was written for: nothing may say "skipped" about a day Save is about to count.
  *
@@ -83,12 +95,12 @@ export function willConsume({ member, date, ovByDate = null, swapped = false }) 
  * @param {Map<string, boolean>|null} [args.swapAnswers] date → `true` (swapped, counts) /
  *        `false` (genuine rest, free). A date ABSENT is unanswered, which is a state, not a default.
  * @returns {{asked: string[], unanswered: string[], consuming: string[], freeWritten: string[],
- *            skipped: string[], writing: string[],
+ *            skipped: string[], answeredFree: string[], writing: string[],
  *            counts: {asked:number, unanswered:number, consuming:number, freeWritten:number,
- *                     skipped:number, writing:number}}}
+ *                     skipped:number, answeredFree:number, writing:number}}}
  */
 export function projectAlBooking({ member, dates, ovByDate = null, swapAnswers = null }) {
-    const empty = { asked: [], unanswered: [], consuming: [], freeWritten: [], skipped: [], writing: [] };
+    const empty = { asked: [], unanswered: [], consuming: [], freeWritten: [], skipped: [], answeredFree: [], writing: [] };
     if (!member || !Array.isArray(dates)) return { ...empty, counts: _counts(empty) };
 
     const all = [...new Set(dates)].sort();
@@ -99,6 +111,7 @@ export function projectAlBooking({ member, dates, ovByDate = null, swapAnswers =
     /** @type {string[]} */ const consuming = [];
     /** @type {string[]} */ const freeWritten = [];
     /** @type {string[]} */ const skipped = [];
+    /** @type {string[]} */ const answeredFree = [];
     /** @type {string[]} */ const writing = [];
 
     for (const date of all) {
@@ -106,7 +119,9 @@ export function projectAlBooking({ member, dates, ovByDate = null, swapAnswers =
         if (askedSet.has(date)) {
             const answer = swapAnswers && typeof swapAnswers.get === 'function' ? swapAnswers.get(date) : undefined;
             if (answer === undefined) { unanswered.push(date); continue; }
-            if (answer !== true) { skipped.push(date); continue; }   // "rest day — free": not written
+            // "rest day — free": not written, by either surface. `answeredFree` is the half of
+            // `skipped` that is an ANSWER rather than a range rule — see the block comment above.
+            if (answer !== true) { skipped.push(date); answeredFree.push(date); continue; }
             swapped = true;
         } else if (!isWorkingDate(member, date, /** @type {any} */ (ovByDate))) {
             // Not asked and not worked: a Sunday, or a rest day the record already settled.
@@ -119,7 +134,7 @@ export function projectAlBooking({ member, dates, ovByDate = null, swapAnswers =
         (willConsume({ member, date, ovByDate, swapped }) ? consuming : freeWritten).push(date);
     }
 
-    const out = { asked, unanswered, consuming, freeWritten, skipped, writing };
+    const out = { asked, unanswered, consuming, freeWritten, skipped, answeredFree, writing };
     return { ...out, counts: _counts(out) };
 }
 
@@ -128,7 +143,8 @@ function _counts(sets) {
     return {
         asked: sets.asked.length, unanswered: sets.unanswered.length,
         consuming: sets.consuming.length, freeWritten: sets.freeWritten.length,
-        skipped: sets.skipped.length, writing: sets.writing.length,
+        skipped: sets.skipped.length, answeredFree: sets.answeredFree.length,
+        writing: sets.writing.length,
     };
 }
 

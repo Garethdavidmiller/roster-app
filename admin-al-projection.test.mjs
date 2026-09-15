@@ -159,3 +159,68 @@ describe('projectAlOverage — the warning the manager did not get', () => {
         }), null);
     });
 });
+
+describe('answeredFree — the half of `skipped` that is an ANSWER (v23.88, external review)', () => {
+    // The week grid wrote annual leave on a rest day answered "rest day — free" and let it cost
+    // nothing, while the AL card wrote nothing at all: one answer, two meanings, and a Calendar
+    // showing AL on a day the manager had just called a genuine rest day. The grid now drops those
+    // dates from its batch — and it must read THIS set rather than `skipped`, which also holds days
+    // nobody was asked about.
+    test('a rest day answered "free" is answeredFree, is skipped, and is not written', () => {
+        const p = projectAlBooking({ member: reen, dates: [SAT], ovByDate: NO_OV,
+            swapAnswers: new Map([[SAT, false]]) });
+        assert.deepEqual(p.answeredFree, [SAT]);
+        assert.deepEqual(p.skipped, [SAT]);
+        assert.deepEqual(p.writing, []);
+        assert.deepEqual(p.consuming, []);
+        assert.equal(p.counts.answeredFree, 1);
+    });
+
+    test('answered "swapped" is in neither — it is written, and it costs a day', () => {
+        const p = projectAlBooking({ member: reen, dates: [SAT], ovByDate: NO_OV,
+            swapAnswers: new Map([[SAT, true]]) });
+        assert.deepEqual(p.answeredFree, []);
+        assert.deepEqual(p.writing, [SAT]);
+        assert.deepEqual(p.consuming, [SAT]);
+    });
+
+    test('an UNANSWERED rest day is neither — it blocks the save instead', () => {
+        const p = projectAlBooking({ member: reen, dates: [SAT], ovByDate: NO_OV, swapAnswers: new Map() });
+        assert.deepEqual(p.unanswered, [SAT]);
+        assert.deepEqual(p.answeredFree, []);
+        assert.deepEqual(p.skipped, []);
+    });
+
+    test('a SUNDAY is skipped and is NOT answeredFree — nobody was asked about it', () => {
+        const p = projectAlBooking({ member: reen, dates: [SUN], ovByDate: NO_OV, swapAnswers: new Map() });
+        assert.deepEqual(p.skipped, [SUN]);
+        assert.deepEqual(p.answeredFree, [], 'a day nobody was asked about is not an answer');
+    });
+
+    // NOT EVERY UNASKED REST DAY IS SKIPPED, which is the other half of the distinction. A rest day
+    // carrying an `rdw` override is voluntary work, so the question is never asked (al-swapped-days.js)
+    // — but it IS a worked day, so both surfaces write the leave, and `willConsume` is what stops it
+    // costing anything. A grid that dropped its write would make a deliberate tap do nothing.
+    test('a rest day carrying rdw is WRITTEN and costs nothing — asked about by nobody, skipped by nobody', () => {
+        const ov = new Map([[SAT, { type: 'rdw', value: '08:00-16:00', date: SAT }]]);
+        const p = projectAlBooking({ member: reen, dates: [SAT], ovByDate: ov, swapAnswers: new Map() });
+        assert.deepEqual(p.asked, [], 'voluntary work is never asked about');
+        assert.deepEqual(p.writing, [SAT]);
+        assert.deepEqual(p.freeWritten, [SAT]);
+        assert.deepEqual(p.consuming, []);
+        assert.deepEqual(p.answeredFree, [], 'nothing was asked, so nothing was answered');
+        assert.deepEqual(p.skipped, []);
+    });
+
+    test('a mixed booking separates them, and every set stays disjoint from consuming', () => {
+        const p = projectAlBooking({ member: reen, dates: [MON, SAT, SUN], ovByDate: NO_OV,
+            swapAnswers: new Map([[SAT, false]]) });
+        assert.deepEqual(p.consuming, [MON]);
+        assert.deepEqual(p.answeredFree, [SAT]);
+        assert.deepEqual(p.skipped, [SAT, SUN]);
+        assert.deepEqual(p.writing, [MON]);
+        for (const d of p.answeredFree) assert.equal(p.consuming.includes(d), false);
+        assert.equal(p.counts.answeredFree, 1);
+        assert.equal(p.counts.skipped, 2);
+    });
+});

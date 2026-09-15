@@ -7535,3 +7535,69 @@ test('admin: the week grid asks the swap question too, and refuses to save it un
     await expect(row.locator('.al-swap-btn[data-swap="no"]'), 'a stale answer must not survive a type change')
         .toHaveAttribute('aria-pressed', 'false');
 });
+
+test('admin: the week grid writes NOTHING for a rest day answered free, and names the day (v23.88)', async ({ page }) => {
+    // THE TWO SURFACES MEANT DIFFERENT THINGS BY ONE ANSWER (external review of v23.85). The AL card
+    // wrote nothing for a rest day answered "Rest day — free"; the week grid wrote annual leave that
+    // cost nothing — so the Calendar showed AL on a day the manager had just called a genuine rest
+    // day, and `admin-al-projection.js` said "skipped" about a document that existed.
+    //
+    // The write is the assertion. `batchWrites` records every set() payload, so this can tell "no
+    // document" from "a document that happens to cost nothing" — which the receipt text alone
+    // cannot, and which is the entire difference the fix is about.
+    await seedSession(page, 'G. Miller');
+    // A SAVE THAT CANNOT WRITE WOULD PASS THE FIRST HALF FOR THE WRONG REASON. Without this the
+    // fixture's auth has no current user, `executeSave` refuses with "you've been signed out", and
+    // `batchWrites` is empty whatever the rule does. The control at the end is the proof it is not.
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { ...(/** @type {any} */ (window).__E2E || {}), authUser: true };
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    const target = await page.evaluate(async () => {
+        const [rd, ou] = await Promise.all([import('./roster-data.js'), import('./override-utils.js')]);
+        const rows = [...document.querySelectorAll('.day-row')].map(r => /** @type {any} */ (r).dataset.date);
+        for (const m of rd.teamMembers) {
+            if (m.hidden || m.managerOnly) continue;
+            for (const d of rows) {
+                if (!d) continue;
+                const dt = new Date(d + 'T00:00:00');
+                if (dt.getDay() === 0) continue;               // a Sunday is a different rule entirely
+                if (ou.isRestShift(rd.getBaseShift(m, dt))) return { name: m.name, date: d };
+            }
+        }
+        return null;
+    });
+    expect(target, 'no member has a rest day in the displayed week').not.toBeNull();
+    const t = /** @type {any} */ (target);
+
+    await page.locator('#fieldMember').selectOption(t.name);
+    await page.waitForTimeout(400);
+    const row = page.locator(`.day-row[data-date="${t.date}"]`);
+    await expect(row).toHaveCount(1);
+
+    // ── "Rest day — free": nothing is recorded, and the receipt says which day ──────────────────
+    await clickInView(row.locator('.type-pill-btn[data-type="annual_leave"]'));
+    await clickInView(row.locator('.al-swap-btn[data-swap="no"]'));
+    await clickInView(page.locator('#saveBtn'));
+
+    await expect(page.locator('.feedback, #weekGridFeedback').filter({ hasText: 'no leave recorded' }).first(),
+        'a save that records nothing must still say what it did').toBeVisible();
+    const afterFree = await page.evaluate(() => (/** @type {any} */ (window).__E2E?.batchWrites || []));
+    expect(afterFree.filter((/** @type {any} */ w) => w.type === 'annual_leave' && w.date === t.date),
+        'a rest day answered free must produce no annual leave document at all').toHaveLength(0);
+
+    // ── THE CONTROL: the same row answered "Swapped — counts" IS written ────────────────────────
+    // Without it the fix could be "the grid stopped writing annual leave", which is not the fix.
+    await clickInView(row.locator('.type-pill-btn[data-type="annual_leave"]'));
+    await clickInView(row.locator('.al-swap-btn[data-swap="yes"]'));
+    await clickInView(page.locator('#saveBtn'));
+    await expect(page.locator('.feedback, #weekGridFeedback').first(),
+        'the control must actually save — otherwise the "no write" half above proves nothing')
+        .toContainText(/saved for/);
+    await expect.poll(async () => {
+        const w = await page.evaluate(() => (/** @type {any} */ (window).__E2E?.batchWrites || []));
+        return w.filter((/** @type {any} */ x) => x.type === 'annual_leave' && x.date === t.date).length;
+    }, { message: 'a declared swap is real leave and must be written' }).toBe(1);
+});
