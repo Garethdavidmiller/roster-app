@@ -670,11 +670,11 @@ export function init() {
 
         // Clear any previous row-level errors
         weekGrid.querySelectorAll('.day-row.row-error').forEach(r => r.classList.remove('row-error'));
+        _alPendingSkipped = [];   // and the last save's skipped days: this one answers for itself
 
         /** @type {any[]} */
         let toSave = [];
         const swapAnswers = new Map();   // date → was this rest day a swapped working day? (this save's)
-        _alPendingSkipped = [];
         /** @type {any[]} */
         const toDelete = [];
         /** @type {any[]} */

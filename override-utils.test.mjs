@@ -976,7 +976,8 @@ describe('what may not be recorded on a Sunday', () => {
     // extraction throws if the code it names moves.
     describe('LAYER 6 EXECUTED — the single-row save on a Sunday', () => {
         const adminSrc = readFileSync(new URL('./admin-app.js', import.meta.url), 'utf8');
-        const SLICE_START = '        /** @type {any[]} */\n        const toSave = [];';
+        // `let`, not `const`, since v23.88: the AL projection filters the batch before it is written.
+        const SLICE_START = '        /** @type {any[]} */\n        let toSave = [];';
         const SLICE_END   = '        if (errors.length)';
         const _a = adminSrc.indexOf(SLICE_START);
         const _b = adminSrc.indexOf(SLICE_END, _a);
