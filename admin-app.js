@@ -36,7 +36,7 @@ import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { computePeriodDeleteIds, mergeBookedPeriods, composeOtherValue } from './override-utils.js';
 import { alPosition, consumesEntitlement, dispatcherBreakdown, winningEntriesOfType } from './al-entitlement.js';
-import { willConsume, projectAlOverage } from './admin-al-projection.js';
+import { projectAlBooking, projectAlOverage } from './admin-al-projection.js';
 import { createBookedPeriods } from './admin-booked-periods.js';
 import { alFigureYear } from './admin-al-year.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -672,7 +672,9 @@ export function init() {
         weekGrid.querySelectorAll('.day-row.row-error').forEach(r => r.classList.remove('row-error'));
 
         /** @type {any[]} */
-        const toSave = [];
+        let toSave = [];
+        const swapAnswers = new Map();   // date → was this rest day a swapped working day? (this save's)
+        _alPendingSkipped = [];
         /** @type {any[]} */
         const toDelete = [];
         /** @type {any[]} */
@@ -714,6 +716,7 @@ export function init() {
                 errors.push(`${formatDisplay(date)}: say whether this rest day was a swapped working day`);
                 return;
             }
+            if (type === 'annual_leave' && row.dataset.alSwap) swapAnswers.set(date, row.dataset.alSwap === 'yes');
             // Sundays are uncontracted — AL and sick cannot be saved on a Sunday regardless of how it was set
             if (type === 'annual_leave' && isSunday(date)) {
                 row.classList.add('row-error');
@@ -841,28 +844,33 @@ export function init() {
         const ruleErrors = validateShiftRules(toSave, memberName, toDelete);
         if (ruleErrors.length) return showError(ruleErrors.join(' · '));
 
-        // Annual leave entitlement warning — the SAME projection the AL card uses
-        // (admin-al-projection.js), so the two surfaces cannot warn about different numbers of days.
-        const alInBatch = toSave.filter(e => e.type === 'annual_leave');
+        // Annual leave — ONE projection decides both what this save WRITES and whether it over-books
+        // (admin-al-projection.js), so the grid and the AL card cannot mean different things by the
+        // same answer. It read only `willConsume` until v23.88, and a rest day answered "rest day —
+        // free" was written here as leave costing nothing while the card wrote nothing at all.
+        let alInBatch = toSave.filter(e => e.type === 'annual_leave');
         if (alInBatch.length > 0) {
             const member = /** @type {any} */ (teamMembers.find(m => m.name === memberName));
             // The map is what makes a SWAPPED-IN day already on record cost a day: its `shift`
             // override is still there at this point (the AL replacing it has not been written yet).
             const ovByDate = buildMemberDateMap(memberName);
-            // `e.swapped` is THIS SAVE'S answer, and nothing else knows it yet (v23.79). Without it
-            // the projection filtered the day out as REST and a member with one day left could be
-            // booked two with no bar — then the write charged both. Found by external review.
-            const consuming = [...new Set(alInBatch
-                .filter(e => willConsume({ member, date: e.date, ovByDate, swapped: e.swapped === true }))
-                .map(e => e.date))];
+            // `swapAnswers` is THIS SAVE'S answers, and nothing else knows them yet (v23.79).
+            const proj = projectAlBooking({ member, dates: alInBatch.map(e => e.date), ovByDate, swapAnswers });
+            if (proj.answeredFree.length) {
+                const free = new Set(proj.answeredFree);
+                toSave     = toSave.filter(e => !(e.type === 'annual_leave' && free.has(e.date)));
+                alInBatch  = alInBatch.filter(e => !free.has(e.date));
+                _alPendingSkipped = proj.answeredFree;   // the receipt names them: never a silent drop
+            }
             // Existing AL for the year, less the dates this batch OVERWRITES or DELETES — they are
-            // re-accounted through `consuming`, or removed outright.
+            // re-accounted through `consuming`, or removed outright. Read AFTER the drop above: a day
+            // left alone is not a day this batch overwrites.
             const exclude = new Set([
                 ...alInBatch.filter(e => e.existingId).map(e => e.date),
                 ...getAllOverrides().filter(o => toDelete.includes(o.id) && o.type === 'annual_leave').map(o => o.date),
             ]);
             const overage = projectAlOverage({
-                member, memberName, overrides: getAllOverrides(), consuming, exclude,
+                member, memberName, overrides: getAllOverrides(), consuming: proj.consuming, exclude,
             });
             if (overage) {
                 showALConfirm(overage.headline, overage.detail, toSave, toDelete);
@@ -870,7 +878,7 @@ export function init() {
             }
         }
 
-        await executeSave(toSave, toDelete);
+        await executeSave(toSave, toDelete, _alPendingSkipped);
         } catch (err) {
             console.error('[Admin] Save handler error:', err);
             showError('Unexpected error — please reload and try again.');
@@ -1145,6 +1153,7 @@ export function init() {
     // ---- AL over-limit confirm bar ----
     /** @type {any} */ let _alPendingSave   = null;
     /** @type {any[]} */ let _alPendingDelete = [];
+    /** @type {string[]} */ let _alPendingSkipped = [];   // staged days the projection leaves alone
     const alConfirmBar       = /** @type {HTMLElement} */ (document.getElementById('alConfirmBar'));
     const alConfirmMsg       = /** @type {HTMLElement} */ (document.getElementById('alConfirmMsg'));
     const alConfirmSub       = /** @type {HTMLElement} */ (document.getElementById('alConfirmSub'));
@@ -1174,6 +1183,7 @@ export function init() {
         alConfirmBar.classList.remove('visible');
         _alPendingSave   = null;
         _alPendingDelete = [];
+        _alPendingSkipped = [];
         // Disarm the button too: the slide-out keeps the bar hit-testable for 0.25s, and with
         // _alPendingSave just nulled a tap in that window would fall through to the AL-booking
         // branch (an entitlement-unchecked booking). showALConfirm re-arms it. (v16.69)
@@ -1191,8 +1201,9 @@ export function init() {
             // Week editor path — toSave is an array of override entries
             const toSave   = _alPendingSave;
             const toDelete = _alPendingDelete;
+            const skipped  = _alPendingSkipped;
             hideALConfirm();
-            await executeSave(toSave, toDelete);
+            await executeSave(toSave, toDelete, skipped);
         } else {
             // AL booking path — delegate to admin-al.js which owns the save button and flag
             hideALConfirm();

@@ -39,10 +39,14 @@
  * @param {(dateISO: string) => string} args.formatDate display form, e.g. `13 Jul`
  * @param {(entry: {type: string, value: string}) => string} args.describe what a day now is, in the
  *   app's own words — injected because that vocabulary lives with the type table, not here
+ * @param {string[]} [args.skipped] dates that were STAGED and deliberately not written — annual
+ *   leave on a rest day the admin answered "rest day — free" (v23.88). Named in the lines, never
+ *   counted as a change: nothing was written, and a save that quietly dropped a row would be the
+ *   silent decision the swapped-day question exists to end.
  * @returns {{ summary: string, lines: string[] }} `summary` is the headline; `lines` is one per day,
  *   in date order. `lines` is empty only when nothing changed, which callers already guard against.
  */
-export function buildSaveReceipt({ toSave, removed, memberName, formatDate, describe }) {
+export function buildSaveReceipt({ toSave, removed, memberName, formatDate, describe, skipped = [] }) {
     /** @type {Array<{ date: string, text: string }>} */
     const rows = [];
 
@@ -64,9 +68,22 @@ export function buildSaveReceipt({ toSave, removed, memberName, formatDate, desc
             : { date: '\uffff', text: 'A change was removed (its date could not be read)' });
     });
 
+    // A DAY DELIBERATELY LEFT ALONE IS PART OF WHAT HAPPENED (v23.88). Annual leave on a rest day
+    // the admin answered "rest day — free" is not written at all — it costs nothing and there is
+    // nothing to record — and a save that quietly dropped a staged row would be the silent decision
+    // this whole area exists to end. It is named, and it is NOT counted as a change.
+    skipped.forEach(date => {
+        rows.push({ date, text: `${formatDate(date)} — rest day, no leave recorded` });
+    });
+
     rows.sort((a, b) => a.date.localeCompare(b.date));
 
     const changed = toSave.length + removed.length;
-    const summary = `${changed} ${changed === 1 ? 'change' : 'changes'} saved for ${memberName}`;
+    // Every staged day resolved to a rest day: nothing was written, and the headline has to say so
+    // rather than report "0 changes saved", which reads as a failure. Only when something WAS left
+    // alone — an empty save with nothing skipped keeps the count it always had.
+    const summary = (!changed && skipped.length)
+        ? `Nothing to record for ${memberName}`
+        : `${changed} ${changed === 1 ? 'change' : 'changes'} saved for ${memberName}`;
     return { summary, lines: rows.map(r => r.text) };
 }
