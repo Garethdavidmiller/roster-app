@@ -3,6 +3,11 @@
 // Handles: file selection, Cloud Function call, AI-parsed shift review,
 // conflict detection, and Firestore batch write.
 // Called by operations-app.js via initRosterUpload().
+//
+// READ FIRST: `.claude/rules/roster-import.md` — the contract for this whole pipeline. It holds the
+// review's unreadable-cell control, the `UNKNOWN|<raw>` sentinel, the day-drift defence and why its
+// three "layers" are not three witnesses, the geometry gate, and what a blank cell means on each
+// day. Every rule in it is there because a week was written onto the wrong days, or nearly was.
 
 import { teamMembers, MONTH_ABB, getShiftBadge, escapeHtml, formatISO, isSunday, parseISODate } from './roster-data.js';
 import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';

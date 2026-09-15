@@ -7,6 +7,8 @@
  * Does NOT own: the parse (functions/roster-parse-helpers.js), the review states or the writes
  *   (admin-roster-upload.js), or the review markup.
  * Edit here for: the drift detector, the block threshold, or how a batch signature is judged.
+ * Read first: `.claude/rules/roster-import.md` — the import's whole contract, including why this
+ *   module is the only INDEPENDENT witness among the day-drift defences.
  *
  * ── WHY THIS IS ITS OWN MODULE (v22.16, external review) ───────────────────────────────────────
  *

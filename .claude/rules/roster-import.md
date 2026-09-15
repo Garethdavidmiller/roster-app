@@ -9,6 +9,8 @@ paths:
   - "roster-parse-helpers.test.mjs"
   - "roster-prompt-parity.test.mjs"
   - "functions/roster-*.js"
+  - "roster-parse-helpers.js"
+  - "roster-geometry.js"
 ---
 
 # Weekly roster import — the parse, and every defence against a wrong week
@@ -18,6 +20,14 @@ Roster Upload" section until 15 Sep 2026, and it was moved for the reason the fi
 before it: it is 8,000 characters of parser reasoning that only a session touching the import needs,
 and `CLAUDE.md` is loaded into EVERY session. The `paths:` list above brings it back the moment
 anybody opens one of these files. `CLAUDE.md` keeps the pipeline in four lines and points here.
+
+> **The `paths:` list is deliberately BELT AND BRACES, and the duplicates are not an oversight.**
+> Two of these files live under `functions/`, and no other rules file in this repo globs into a
+> subdirectory — so whether the matcher reads a path or a basename has never been exercised here.
+> Getting it wrong is SILENT: nothing errors, the contract simply never loads, and somebody edits
+> the parser without it. Both spellings are listed so one of them matches either way. **The real
+> safety net is not the glob**: each of these modules names this file in its own header, so a
+> reader who opens the code is told the contract exists even if nothing auto-loaded it.
 
 Request/response format and the review pipeline: **`docs/OPERATIONS_REFERENCE.md`**. What the
 geometry gate still cannot see: **`docs/KNOWN_LIMITATIONS.md`**.
