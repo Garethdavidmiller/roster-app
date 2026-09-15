@@ -207,12 +207,12 @@ export function init() {
                 title: 'Record Annual Leave',
                 sections: [
                     { items: [
-                        { icon: '🏖️', html: 'Choose the <strong>staff member at the top of the page</strong>, then a date range. Rest days and Sundays inside it are skipped automatically.', adminOnly: true },
-                        { icon: '🏖️', html: 'Select a date range. Rest days and Sundays inside it are skipped automatically.', staffOnly: true },
+                        { icon: '🏖️', html: 'Choose the <strong>staff member at the top of the page</strong>, then a date range. Sundays never use a leave day. A <strong>rest day</strong> in the range is asked about rather than assumed — it only counts if the member had swapped a working day onto it.', adminOnly: true },
+                        { icon: '🏖️', html: 'Select a date range. Sundays never use a leave day. A <strong>rest day</strong> in the range is asked about rather than assumed — it only counts if you had swapped a working day onto it.', staffOnly: true },
                         // It does NOT list the days — the preview is a COUNT and the span ("3 working days
                         // … 1 Jul – 5 Jul"). Saying otherwise invited an admin to check something
                         // that is not on the screen, on the one card that writes leave.
-                        { icon: '👀', html: 'Before you save you are told <strong>how many working days</strong> the range comes to and the dates it spans, with rest days and Sundays already taken out of that count. Check the number against what you meant to book.' },
+                        { icon: '👀', html: 'Before you save you are told <strong>how many working days</strong> the range comes to and the dates it spans. Sundays are never in that count; a rest day is in it only where you have said it was a swapped working day. Check the number against what you meant to book.' },
                         { icon: '⚠️', html: 'If the booking would take somebody past their entitlement for the year you are told, and asked to confirm. It does not stop you — sometimes that is the right answer.' },
                     ]},
                 ],
@@ -1439,10 +1439,10 @@ export function init() {
         lsSet(SELECTED_MEMBER, currentUser);
 
         // Reword card hints to use first-person language for self-service users
-        const alHint   = document.querySelector('#alToggleHeader .hint');
         const sickHint = document.querySelector('#sickToggleHeader .hint');
         const savedHint = document.querySelector('#overridesToggleHeader .hint');
-        if (alHint)    alHint.textContent   = 'Select a date range — rest days and Sundays are skipped automatically';
+        // NO AL hint here (v23.90): admin.html's own text is already audience-neutral, and this line
+        // overwrote it with the pre-v23.75 rule. One sentence, one home — al-copy-parity.test.mjs.
         if (sickHint)  sickHint.textContent = 'Record your own absence days — for any reason';
         if (savedHint) savedHint.textContent = 'Your saved changes — tap any row to edit or delete';
 
