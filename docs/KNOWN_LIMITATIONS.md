@@ -1364,23 +1364,31 @@ never contingent on the beta label, and dropping it does not make any of them go
 Design: `OVERTIME_AVAILABILITY.md`. Operating: OPERATIONS_REFERENCE.md. These are the things the
 feature deliberately does NOT do yet, so that a reader stops looking for them.
 
-- **The SUNDAY-RELEASE REQUEST is server-side only as of v23.80** — the field exists, nothing writes
-  it, and no surface shows it. That is deliberate sequencing rather than an unfinished feature:
-  `normaliseDay` rejects unknown fields outright, and the hosting and functions deploys fire in
-  parallel with no ordering guarantee, so a client shipped in the same push would have its whole
-  week of availability refused by a server that had not learned the field yet. The form half follows
-  once this deploy is confirmed. Until then a member still cannot tell anyone, through the app, that
-  they need taking off a rostered Sunday — which is the gap below, still open.
+- **The SUNDAY-RELEASE REQUEST is recorded, and it is only ever a request.** Since v23.81 a member
+  rostered to work a Sunday can tick "Ask to be taken off this Sunday" on that week's availability
+  form (`overtime-sunday-release.js`), the reviewer's list flags it (`releaseRequestLine`), and the
+  server stores it as `releaseRequested: true` on that day's answer (`REQUEST_DAY_FIELDS`). What it
+  still does NOT do, deliberately: it writes no override, changes no roster and consumes no annual
+  leave, and no surface words it as granted — `OVERTIME_AVAILABILITY.md` invariant 14. The roster
+  team decides, outside the app, and the app records nothing about their decision. The server also
+  checks no roster when accepting one (it has none; a request is a fact about what was asked and
+  stays true if the shift later moves) — it checks the CALENDAR instead, and refuses the field on any
+  day but a Sunday (v23.87). This bullet said "server-side only … nothing writes it, and no surface
+  shows it" from v23.80 until v23.87, a release after both halves had shipped; the sequencing it
+  described (rules first, form once the functions deploy was confirmed) is recorded in
+  OVERTIME_AVAILABILITY.md → "First-release deploy ordering".
 
-- **The app cannot yet record "away for a rostered Sunday duty", and this is the gap v23.80 starts
-  closing.** Sundays are uncontracted for every grade, so annual leave and absence cannot be written
-  on one (`SUNDAY_FORBIDDEN_TYPES`) — correct, and it is what stops a Sunday costing somebody a day
-  they do not owe. The consequence is that a fact the depot's workbook has always been able to state
-  — a free-text `N/A <name>` tag in the Sunday row, used on **52 of its 75 tagged Sundays**, every
-  one a day the person was otherwise contracted — has no representation in the app at all. An
-  external review (v23.78) proposed a new non-entitlement absence type; **the owner's answer was a
-  request through the Overtime availability form instead**, which puts it where it is actually
-  decided and invents no new kind of absence. Do NOT loosen the AL rule to close this.
+- **"Away for a rostered Sunday duty" is therefore a REQUEST in the app, not an absence.** Sundays
+  are uncontracted for every grade, so annual leave and absence cannot be written on one
+  (`SUNDAY_FORBIDDEN_TYPES`) — correct, and it is what stops a Sunday costing somebody a day they do
+  not owe. The consequence was that a fact the depot's workbook has always been able to state — a
+  free-text `N/A <name>` tag in the Sunday row, used on **52 of its 75 tagged Sundays**, every one a
+  day the person was otherwise contracted — had no representation in the app. An external review
+  (v23.78) proposed a new non-entitlement absence type; **the owner's answer was the request above**,
+  which puts it where it is actually decided and invents no new kind of absence. Do NOT loosen the AL
+  rule to close the remaining gap, which is that the DECISION is not recorded: once the roster team
+  has taken somebody off, the calendar still shows the Sunday duty until the roster PDF for that week
+  is imported or the shift is changed in Admin.
 
 - **No expiry purge.** Windows past `retentionUntil` (13 weeks) are filtered out of both read
   endpoints, so they are invisible and inert — but the documents stay in Firestore. Enforcement is

@@ -796,6 +796,15 @@ function normaliseDays(days, expectedDates) {
         if (!Object.prototype.hasOwnProperty.call(days, date)) return { ok: false, error: 'missing-day', date };
         const r = normaliseDay(days[date]);
         if (!r.ok) return { ok: false, error: r.error, date };
+        // The release request is a question about a SUNDAY duty and nothing else (v23.87, external
+        // review). The server still checks no roster — it has none, and a request is a fact about
+        // what was asked — but it does know the calendar, and the client only ever offers the control
+        // on a Sunday, so a request on any other date is a client this server does not recognise.
+        // Without this a manipulated payload could put "Asked to come off this Sunday" under a
+        // Monday on the reviewer's screen.
+        if (r.day.releaseRequested === true && isoDayOfWeek(date) !== 0) {
+            return { ok: false, error: 'release-not-sunday', date };
+        }
         out[date] = r.day;
     }
     return { ok: true, days: out };

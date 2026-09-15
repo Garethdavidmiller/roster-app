@@ -43,6 +43,7 @@ import {
     sameAnswer, receiptLine, unfinishedDates, reconcileVerdict, conflictIsOurs,
 } from './overtime-format.js';
 import { offersSundayRelease, SUNDAY_RELEASE_LABEL, SUNDAY_RELEASE_ASKED } from './overtime-sunday-release.js';
+import { withMode, withFullTwelve, withRelease } from './overtime-answer.js';
 
 /**
  * Button labels per mode. `before`/`after` get their boundary spliced in at render.
@@ -316,7 +317,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         daysHost.querySelectorAll('[data-mode]').forEach(btn => btn.addEventListener('click', () => {
             const date = String(btn.getAttribute('data-date'));
             const mode = String(btn.getAttribute('data-mode'));
-            answers[date] = buildAnswer(mode, ctx.byDate[date], answers[date]);
+            answers[date] = withMode(answers[date], mode, ctx.byDate[date]);
             paintDays();
             updateSubmitState();
             // PUT THE KEYBOARD BACK ON THE OPTION THAT WAS JUST CHOSEN.
@@ -344,21 +345,16 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             const group = [.../** @type {any} */ (btn.parentElement).querySelectorAll('[data-mode]')];
             const next = group[(group.indexOf(btn) + step + group.length) % group.length];
             const date = String(next.getAttribute('data-date'));
-            answers[date] = buildAnswer(String(next.getAttribute('data-mode')), ctx.byDate[date], answers[date]);
+            answers[date] = withMode(answers[date], String(next.getAttribute('data-mode')), ctx.byDate[date]);
             paintDays();
             updateSubmitState();
             focusMode(date, String(next.getAttribute('data-mode')));
         }));
         daysHost.querySelectorAll('[data-fulltwelve]').forEach(box => box.addEventListener('change', () => {
             const date = String(box.getAttribute('data-fulltwelve'));
-            const cur = answers[date];
-            if (!cur || cur.mode === 'unavailable') return;
-            // Written only when TRUE, and DELETED rather than set false — the client mirrors the
-            // stored shape exactly (see OPTIONAL_DAY_FIELDS in functions/overtime-core.js). If it
-            // wrote `false`, an untick would produce an answer structurally different from the one
-            // the server stores, and `sameAnswer` would report a saved form as changed for ever.
-            if (/** @type {HTMLInputElement} */ (box).checked) cur.fullTwelve = true;
-            else delete cur.fullTwelve;
+            // The shape rules (written only when true, deleted rather than set false, nothing on an
+            // unavailable day) live in overtime-answer.js with the other two transitions.
+            setAnswer(date, withFullTwelve(answers[date], /** @type {HTMLInputElement} */ (box).checked));
             // REPAINT, like every other control here. Skipping it looks harmless — the checkbox is
             // already in the state the member put it in — but the row's state tint is computed at
             // paint time, so a tick that changed a SAVED answer would leave the row still reading
@@ -370,18 +366,15 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         }));
         daysHost.querySelectorAll('[data-release]').forEach(box => box.addEventListener('change', () => {
             const date = String(box.getAttribute('data-release'));
-            // NO ANSWER REQUIRED, unlike the willingness tick above. This asks about CONTRACTED work,
-            // so it stands on its own — and a member who is unavailable all week is exactly somebody
-            // who may need taking off a Sunday duty. The day is created here if it does not exist so
-            // the request survives on its own; `unavailable` is the honest mode for "I have said
-            // nothing about overtime", and it is what the member is asserting by not choosing one.
-            const cur = answers[date] || (answers[date] = { mode: 'unavailable' });
-            // Written only when TRUE and DELETED rather than set false — the client mirrors the
-            // stored shape exactly (REQUEST_DAY_FIELDS in functions/overtime-core.js). Writing
-            // `false` would make an unticked answer structurally different from the one the server
-            // stores, and `sameAnswer` would report a saved form as changed for ever.
-            if (/** @type {HTMLInputElement} */ (box).checked) cur.releaseRequested = true;
-            else delete cur.releaseRequested;
+            // NO ANSWER REQUIRED, unlike the willingness tick above — this asks about CONTRACTED
+            // work, so it stands on its own. And it ANSWERS NOTHING: on a day with no availability
+            // answer the working copy holds `{ releaseRequested: true }` with no mode, which
+            // `dayUnfinished` still counts as unanswered. Until v23.87 this line wrote
+            // `{ mode: 'unavailable' }` underneath, reasoning that it was "the honest mode for I have
+            // said nothing" — the one answer this feature must never invent, and the completeness
+            // check then stopped asking for the Sunday (external review of v23.85). The rules are
+            // overtime-answer.js's; this is only the wiring.
+            setAnswer(date, withRelease(answers[date], /** @type {HTMLInputElement} */ (box).checked));
             paintDays();
             focusRelease(date);
             updateSubmitState();
@@ -442,7 +435,10 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         // they had said. Their declaration stands until they change it; the UI must show it.
         const modes = modesFor(c);
         if (a?.mode && !modes.includes(a.mode)) modes.push(a.mode);
-        const answered = !!a;
+        // A day is ANSWERED when it has a mode — not when it has an object. A Sunday-release request
+        // alone is `{ releaseRequested: true }` with no mode (overtime-answer.js, rule 1), and until
+        // v23.87 `!!a` would have tinted that row as answered while Submit still counted it.
+        const answered = !!a?.mode;
         const state = dayState(a, date);
         // "Sun 30 Aug" splits into admin's two-part day label — the bold day, the lighter date —
         // so the two week-of-days surfaces read identically.
@@ -663,53 +659,20 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     // ── Answers ─────────────────────────────────────────────────────────────────────────────────
 
     /**
-     * Turn a mode press into a stored answer, carrying concrete boundaries from the roster.
-     * "Available after 15:00" stores `15:00` — never a reference to the shift, which may change.
+     * Put a transition's result back, deleting the day when nothing is left of it — `withRelease`
+     * returns `undefined` for an unticked request on an otherwise unanswered day, and a key holding
+     * `undefined` would still be a key to `Object.keys`, the submit payload and the dirty-guard.
      *
-     * ── RE-PRESSING THE SELECTED MODE KEEPS THE SAVED ANSWER, FOR EVERY MODE ────────────────────
-     *
-     * Custom always had this rule (re-pressing must not wipe typed times); the anchored modes did
-     * not, and the gap was a corruption path: a saved "Before 15:15" on a day whose roster has
-     * since become a rest day still shows its button (a saved answer always does), and the stale
-     * note beside it says "change it if that no longer suits" — inviting a tap on that very
-     * button. Rebuilding from the CURRENT roster then produced `until: ''`, a day that still
-     * rendered as answered, and a submit the server refused (`bad-time`). Verified end-to-end at
-     * v20.75: the request carried the empty boundary. Keeping `previous` verbatim is also simply
-     * what the press MEANS — "this, the thing already selected".
+     * The transitions themselves — a mode press (with the v20.75 rule that re-pressing the selected
+     * mode keeps the saved answer verbatim, and the v21.24 rule that the willingness tick survives a
+     * change of window), the willingness tick and the Sunday-release request — live in
+     * overtime-answer.js, one module, tested against each other, because the form editing them in
+     * three places is how two of them came to forget the third (v23.87).
+     * @param {string} date @param {any} next
      */
-    /**
-     * ── THE WILLINGNESS TICK SURVIVES A CHANGE OF WINDOW (v21.24) ────────────────────────────────
-     *
-     * The whole point of the split is that the two answers are independent, so moving the window
-     * from "all day" to "after my duty" must not silently retract "and I would go long" — the
-     * member said that about the DAY, and nothing they just pressed contradicts it. A silent reset
-     * is the class of defect this form is most careful about elsewhere.
-     *
-     * The exception is `unavailable`, where it cannot mean anything and the server refuses it
-     * outright. Dropping it there is what keeps the client incapable of building a payload the
-     * server would reject.
-     * @param {string} mode @param {any} c @param {any} previous
-     */
-    function buildAnswer(mode, c, previous) {
-        if (previous?.mode === mode) return previous;
-        const keep = mode !== 'unavailable' && previous?.fullTwelve === true ? { fullTwelve: true } : {};
-        switch (mode) {
-            case 'unavailable':
-                return { mode };
-            case 'all_day':
-            case 'twelve_hours':
-                return { mode, ...keep };
-            case 'before':
-                return { mode, until: c?.start || '', ...keep };
-            case 'after':
-                return { mode, from: c?.end || '', ...keep };
-            case 'before_after':
-                return { mode, until: c?.start || '', from: c?.end || '', ...keep };
-            case 'custom':
-                return { mode, start: '', end: '', nextDay: false, ...keep };
-            default:
-                return { mode, ...keep };
-        }
+    function setAnswer(date, next) {
+        if (next === undefined) delete answers[date];
+        else answers[date] = next;
     }
 
     /**
@@ -751,7 +714,9 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             confirmLabel: 'Fill all seven days',
         });
         if (!ok) return;
-        for (const d of dates) answers[d] = buildAnswer('unavailable', ctx.byDate[d], answers[d]);
+        // A mode change on every day at once, through the same transition as a single press — so a
+        // staged Sunday-release request survives it (overtime-answer.js, rule 2). Until v23.87 it did not.
+        for (const d of dates) answers[d] = withMode(answers[d], 'unavailable', ctx.byDate[d]);
         paintDays();
         updateSubmitState();
         say('All seven days set to Not available — press Submit to send your answer.', 'ok');

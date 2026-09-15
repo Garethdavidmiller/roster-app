@@ -352,6 +352,68 @@ test.describe('member surface', () => {
         await expect(sunday).not.toContainText('granted');
     });
 
+    test('the Sunday request answers nothing, and nothing answered can remove it (v23.87)', async ({ page }) => {
+        // THE WIRING of overtime-answer.js, in a browser. An external review of v23.85 found the two
+        // defects this pins: ticking the request wrote `{ mode: 'unavailable' }` under an unanswered
+        // Sunday — so the completeness count dropped to six and a clerk could read a "Not available"
+        // the member never gave — and choosing a mode (or the bulk fill) rebuilt the answer without
+        // the request. The unit tests prove the transitions; only the page can prove the form calls
+        // them, and reads the result back into the Submit button and the row.
+        await page.goto('/overtime.html');
+        const pick = await page.evaluate(async () => {
+            const { teamMembers, getBaseShift, parseISODate } = await import('/roster-data.js');
+            const { isRestShift } = await import('/override-utils.js');
+            const sun = '2026-08-30';
+            const works = teamMembers.find(m => !m.hidden && !m.managerOnly
+                && !isRestShift(getBaseShift(m, parseISODate(sun))));
+            return works ? works.name : null;
+        });
+        expect(pick, 'no visible member is rostered on Sun 30 Aug 2026').not.toBeNull();
+        await seedSession(page, /** @type {string} */ (pick));
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        const submit = page.locator('.ot-submit');
+        const sunday = page.locator('.ot-day[data-day="2026-08-30"]');
+        const ask = sunday.locator('.ot-release-box');
+        const chosen = sunday.locator('.ot-mode[aria-checked="true"]');
+        await expect(submit).toContainText('7 days still to answer');
+
+        // 1. ASKING IS NOT ANSWERING. The count stays at seven and no option is selected.
+        await ask.check();
+        await expect(sunday.locator('.ot-release-said')).toBeVisible();
+        await expect(submit, 'the Sunday is still to answer').toContainText('7 days still to answer');
+        await expect(chosen, 'no availability option was chosen for the member').toHaveCount(0);
+        await expect(sunday, 'and the row does not read as answered').not.toHaveClass(/ot-day--answered/);
+
+        // 2. CHOOSING A MODE KEEPS THE REQUEST.
+        await sunday.locator('.ot-mode[data-mode="all_day"]').click();
+        await expect(sunday.locator('.ot-mode[data-mode="all_day"]')).toHaveAttribute('aria-checked', 'true');
+        await expect(submit).toContainText('6 days still to answer');
+        await expect(ask, 'the request survived the mode press').toBeChecked();
+
+        // 3. THE BULK FILL IS A MODE CHANGE ON EVERY DAY — SAME RULE.
+        await page.locator('.ot-bulk-unavailable').click();
+        await page.getByRole('button', { name: 'Fill all seven days' }).click();
+        await expect(page.locator('.ot-day--answered')).toHaveCount(7);
+        await expect(sunday.locator('.ot-mode[data-mode="unavailable"]')).toHaveAttribute('aria-checked', 'true');
+        await expect(ask, 'the request survived the bulk fill').toBeChecked();
+
+        // 4. UNTICKING REMOVES ONLY THE REQUEST. The Sunday's answer is untouched.
+        await ask.uncheck();
+        await expect(ask).not.toBeChecked();
+        await expect(sunday.locator('.ot-release-said')).toHaveCount(0);
+        await expect(sunday.locator('.ot-mode[data-mode="unavailable"]')).toHaveAttribute('aria-checked', 'true');
+        await expect(page.locator('.ot-day--answered')).toHaveCount(7);
+
+        // 5. AND A REQUEST TICKED THEN UNTICKED ON AN UNANSWERED DAY LEAVES IT EXACTLY UNANSWERED —
+        //    not answered "Not available". Fresh page, so nothing above leaks in.
+        await page.goto('/overtime.html');
+        await ask.check();
+        await ask.uncheck();
+        await expect(submit).toContainText('7 days still to answer');
+        await expect(chosen).toHaveCount(0);
+    });
+
     test('a saved answer keeps the time it was SAVED with when the shift later moves', async ({ page }) => {
         // The stored schema keeps concrete clock times precisely so a roster change cannot re-point
         // a declaration — and the button label was undoing that, because it was always built from
