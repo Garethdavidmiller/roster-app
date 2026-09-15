@@ -38,6 +38,7 @@ changed once.
 | **CSS tokens & surfaces** | `.claude/rules/css-tokens.md` | Colour, type, spacing, focus, overlays |
 | **Notifications** | `.claude/rules/notifications.md` | Push payload grammar and the single builder |
 | **Roster data shape** | `.claude/rules/roster-data.md` | Member fields, cycles, entitlement |
+| **Roster PDF import** | `.claude/rules/roster-import.md` | The parse, the review states, and every defence against a week written onto the wrong days — the day-drift layers and why they are not three witnesses, the geometry gate, what a blank cell means. Split out of `CLAUDE.md` 15 Sep 2026 |
 | **Operations & ingest** | `OPERATIONS_REFERENCE.md` | Huddle ingest, roster upload, account conventions, PIN rotation |
 | **Disaster recovery** | `RECOVERY_RUNBOOK.md` | Backups, rollback, incident playbooks, standing GCP prerequisites |
 | **The depot AL workbook** | `AL_WORKBOOK.md` | The roster clerks' annual-leave quota spreadsheet — what its sheets are, how a person's figure is built, and where it and the app legitimately disagree. Not an app subject: an EXTERNAL source the owner reconciles against |

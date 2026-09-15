@@ -1001,6 +1001,13 @@ test('the CLAUDE.md file tree stays a routing table', () => {
 // Same two limits as CONTRACT 3, for the same reason. A row may stay long enough to state a
 // decision; past ~1,600 characters it has stopped being a decision and become a retrospective, and
 // the argument belongs in the module header where an editor is already looking.
+// RATCHETED 1,600 -> 1,300 (15 Sep 2026). The comment above predicted the pathology and the table then
+// demonstrated it: the five longest rows stood at 1594, 1584, 1574, 1546 and 1520 against a cap of
+// 1,600 — packed against the ceiling, exactly as the tree had been at 887/885/884/882/881 against 900.
+// A cap with slack is a cap nobody meets. The pass that moved those five out left the longest row at
+// 1,249, so this sits just above the survivor rather than at a round number, and the next pass should
+// bring it toward ~900 to match the tree.
+const ARCH_ROW_CAP = 1_300;
 test('the CLAUDE.md architecture table states decisions, not retrospectives', () => {
     const lines = CLAUDE.split('\n');
     const start = lines.findIndex(l => l.includes('Architecture decisions — never change'));
@@ -1010,7 +1017,7 @@ test('the CLAUDE.md architecture table states decisions, not retrospectives', ()
     assert.ok(rows.length > 40, `expected the full table, found ${rows.length} rows`);
 
     const tooLong = rows
-        .filter(l => l.length > 1600)
+        .filter(l => l.length > ARCH_ROW_CAP)
         .map(l => `${(l.split('|')[1] || '').replace(/\*/g, '').trim().slice(0, 60)} (${l.length} chars)`);
     assert.deepEqual(tooLong, [],
         'these rows have stopped stating a decision and become design retrospectives. Move the\n' +
@@ -1059,7 +1066,16 @@ test('the CLAUDE.md architecture table states decisions, not retrospectives', ()
 // bottom, and no session needs all ~430 entries to do one task. CLAUDE.md is now ~128k; this leaves
 // room for a section, not for another catalogue. The same rules apply: shrinking is free, raising is
 // a decision defended in the commit that raises it.
-const CLAUDE_MD_CAP = 140_000;
+// **RATCHETED DOWN 140,000 -> 125,000 on 15 Sep 2026**, which is what a successful pass looks like from
+// afterwards — the same move the tree cap made at 1,600 -> 900. An external review named the file as
+// sitting at 134,877 against 140,000 and asked for the headroom to be found by MOVING content out
+// rather than by raising the number. It was: the architecture table gave up 5,700 characters to module
+// headers, `admin.css`, `error-reporter.js`, `DECISIONS.md` and `AUTH_AND_SESSIONS.md` (two of which
+// were pointing BACK at CLAUDE.md, so the reader went in a circle), and the whole roster-import section
+// left for `.claude/rules/roster-import.md`, which `paths:`-globs the parser and so costs nothing to a
+// session doing anything else. Leaving the cap at 140,000 afterwards would have banked the saving as
+// permission to spend it again, which is the deterioration this ratchet exists to prevent.
+const CLAUDE_MD_CAP = 125_000;
 test('CLAUDE.md stays affordable — it is loaded into every session', () => {
     const chars = CLAUDE.length;
     assert.ok(chars > 100_000, 'CLAUDE.md was not read — this test is checking nothing');

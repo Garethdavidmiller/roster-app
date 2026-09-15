@@ -324,3 +324,45 @@ button would mean a different reserve per engine, measured on hardware this repo
 
 `native-surface-parity.test.mjs` fails a `title` attribute anywhere served, so the next one has to be
 argued for rather than typed.
+
+## No build step — the trade, and the two things that would reopen it
+
+**Status:** Standing (the architecture table's "no bundler" rule) · **Triggers named below; neither
+has fired.** Moved here from `CLAUDE.md` on 15 Sep 2026, where it had grown into the table's
+third-longest row. The rule stays there in one line; the argument is here, because this is a
+decision with a trigger and that is what this file is for.
+
+The no-build rule buys three things — zero toolchain, direct debuggability, and no
+build-supply-chain — and pays for them in hand-maintained work a bundler would do for free:
+
+- the `modulepreload` lists (index, paycalc and links have the deepest graphs; the other four pages
+  carry only the three fixed gstatic SDK tags every page has, which name one URL each and so cannot
+  fall behind a graph). CI-locked by `sw-asset-check.test.mjs`.
+- the service worker's precache list,
+- the two-location version bump,
+- the `generate-*` codegen,
+- the CSP `*-boot.js` shims,
+- the pure-helper splits that keep `firebase-client.js` testable in Node,
+- and the `normaliseSurname` browser/functions duplication.
+
+**The cost side is COUNTED FROM THE FILESYSTEM, never written down.** `doc-parity.test.mjs` derives
+those totals and fails on a stale figure. It has to: at v21.62 all five written figures were wrong,
+two by about 80%, and **every one of them understated the cost** — that is, all five errors ran in
+the direction that makes this trade look cheaper than it is. A threshold that nobody re-measures
+decays toward the day it was written, and this is precisely the row where being wrong changes an
+architectural decision.
+
+**Revisit — do not auto-adopt — when either:**
+
+1. **You want real TypeScript types.** `tsc --noEmit` already runs the checker without the emit, so
+   this is about types in the source, not about checking. Note the scope limit: not over `functions/`
+   or the service worker (`typecheck-scope.test.mjs`).
+2. **A bug is traced to drift in a hand-maintained list.** That is the failure the lists' CI locks
+   exist to prevent; one getting through is evidence the locks are not enough.
+
+Until one of those, the trade favours no build.
+
+**A third input, measured, and deliberately NOT a trigger.** The Calendar's cold parse-and-execute
+cost under 6× CPU throttling is in `LATENCY.md` → Phase 3, beside the ladder reading that would
+justify acting on it. It is not a reason to adopt a bundler by itself: the assets are
+service-worker-cached and the cost is one-off per version.
