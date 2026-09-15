@@ -165,6 +165,11 @@ export async function executeSave(toSave, toDelete = [], skipped = []) {
             formatDate: formatDisplay, skipped, describe: () => '' });   // never called: nothing written
         _showSuccess(only.summary, only.lines);
         resetStagedRows();
+        // …AND RE-RENDER, exactly as the path below does. `resetStagedRows` only DEACTIVATES a row:
+        // it clears the pills and the times and does not put back what a PREFILLED row was showing
+        // before the admin staged over it. A rest day answered "free" can be a day that already
+        // holds an override — an absence, say — and a blank row would say that record had gone.
+        if (fieldMember?.value && fieldDate?.value) renderWeekGrid();
         updateSaveBtn();
         return;
     }
