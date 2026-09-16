@@ -228,6 +228,167 @@ test('every coordinator that signs a member in also runs the forced set-password
     assert.deepEqual(missing, [], 'coordinators that sign a member in but never run initPasswordForce');
 });
 
+// ── The after-auth wiring: the calls whose failure is INVISIBLE ────────────────────────────────
+//
+// Three writers run once per page from its coordinator, and all three are fire-and-forget writes to
+// Firestore collections whose rules require `request.auth != null`. Called before an identity
+// exists, every write is silently rejected — so the ERROR LOG LOOKS HEALTHY BECAUSE IT IS BROKEN,
+// the Usage card simply under-reports, and the latency samples thin out. None of those failures
+// raises anything, appears in the UI, or turns a test red. CLAUDE.md gives `initErrorReporter` its
+// own architecture row saying "never call it bare"; AUTH_AND_SESSIONS.md makes it invariant 13.
+//
+// NOTHING CHECKED ANY OF IT until this block. Measured, not assumed (16 Sep 2026): deleting
+// `initErrorReporter();` from `calendar-app.js` left the whole unit estate green, and every chromium
+// test in `e2e/calendar.spec.js` with it. e2e cannot see it — the page renders identically whether
+// the reporter is installed or not, which is the entire problem.
+//
+// So this pins two things: that each coordinator calls all three, and that the call sits INSIDE
+// that page's auth barrier rather than at module scope. The second half is what makes it a wiring
+// test and not a spelling test — moving the call one line above the barrier keeps the string
+// present and breaks the behaviour, which is the shape every defect in this area has taken.
+const WIRED_AFTER_AUTH = ['initErrorReporter', 'recordUsage', 'recordPageLatency'];
+
+/**
+ * The promise each page hangs that wiring on. Written down per page rather than inferred, because
+ * "some promise" is exactly the assertion that would pass on the wrong one — and the pages really
+ * do differ. Five use `sessionReady`; the Calendar has no Auth session of its own and uses
+ * `calendarAuthReady` (NOT `calendarAccessReady` — in `open` mode those are different instants, and
+ * gating on access alone fires the writes into a window with no token, which is the v20.22 bug).
+ *
+ * `paycalc.html` is the one `soft` page: it owns its auth chain locally and has no `sessionReady`,
+ * so its barrier is the `afterAuth` closure that `ensureNamedSession(...).finally()` invokes. That
+ * indirection is checked rather than trusted by the test below, which is the whole reason this
+ * entry may name a local closure at all.
+ */
+const COORDINATOR_AUTH_BARRIER = {
+    'index.html':      'calendarAuthReady',
+    'admin.html':      'sessionReady',
+    'settings.html':   'sessionReady',
+    'operations.html': 'sessionReady',
+    'links.html':      'sessionReady',
+    'overtime.html':   'sessionReady',
+    'paycalc.html':    'afterAuth',
+};
+
+const coordinatorFor = (/** @type {string} */ page) =>
+    page === 'index.html' ? 'calendar-app.js' : page.replace(/\.html$/, '-app.js');
+
+/** Blank out comments and strings, preserving every byte offset, so a call named in prose or in a
+ *  message string is never mistaken for a call site. */
+function codeOnly(/** @type {string} */ src) {
+    const out = src.split('');
+    let i = 0;
+    while (i < src.length) {
+        const two = src.slice(i, i + 2);
+        if (two === '//') { while (i < src.length && src[i] !== '\n') out[i++] = ' '; continue; }
+        if (two === '/*') { const end = src.indexOf('*/', i + 2); const stop = end === -1 ? src.length : end + 2;
+            while (i < stop) { if (src[i] !== '\n') out[i] = ' '; i++; } continue; }
+        const q = src[i];
+        if (q === '"' || q === "'" || q === '`') {
+            out[i++] = ' ';
+            while (i < src.length && src[i] !== q) { if (src[i] === '\\') { out[i++] = ' '; if (i < src.length) out[i++] = ' '; continue; }
+                if (src[i] !== '\n') out[i] = ' '; i++; }
+            if (i < src.length) out[i++] = ' ';
+            continue;
+        }
+        i++;
+    }
+    return out.join('');
+}
+
+const CLOSERS = { ')': '(', ']': '[', '}': '{' };
+
+/** The offset of the innermost `{` enclosing `i`, or -1 at module scope. */
+function enclosingBrace(/** @type {string} */ src, /** @type {number} */ i) {
+    let depth = 0;
+    for (let j = i; j >= 0; j--) {
+        if (src[j] === '}') depth++;
+        else if (src[j] === '{') { if (depth === 0) return j; depth--; }
+    }
+    return -1;
+}
+
+/**
+ * The head of the statement that position `i` sits in, walking backwards and skipping balanced
+ * bracket groups whole. Skipping is what lets a call in a CHAINED link find its root: Overtime's
+ * `recordPageLatency` lives in a `.finally()` several links along from `sessionReady.then(`, and a
+ * walk that stopped at the first `}` it met would never reach the barrier that owns the chain.
+ */
+function statementHead(/** @type {string} */ src, /** @type {number} */ i) {
+    let j = i;
+    while (j >= 0) {
+        const c = src[j];
+        if (c in CLOSERS) {
+            const open = CLOSERS[/** @type {keyof typeof CLOSERS} */ (c)];
+            let depth = 0;
+            for (; j >= 0; j--) {
+                if (src[j] === c) depth++;
+                else if (src[j] === open) { depth--; if (depth === 0) break; }
+            }
+            j--; continue;
+        }
+        if (c === ';' || c === '{' || c === '}') break;
+        j--;
+    }
+    return src.slice(j + 1, i + 1);
+}
+
+/** Every offset at which `name(` is CALLED (not imported) in already-comment-stripped source. */
+function callSites(/** @type {string} */ code, /** @type {string} */ name) {
+    /** @type {number[]} */ const hits = [];
+    const re = new RegExp(`\\b${name}\\s*\\(`, 'g');
+    for (let m; (m = re.exec(code)); ) hits.push(m.index);
+    return hits;
+}
+
+test('every app page coordinator installs the error reporter and both telemetry writers', () => {
+    /** @type {string[]} */ const missing = [];
+    for (const page of APP_PAGES) {
+        const file = coordinatorFor(page);
+        assert.ok(existsSync(new URL(file, import.meta.url)), `${page} has no coordinator ${file}`);
+        const code = codeOnly(read(`./${file}`));
+        for (const fn of WIRED_AFTER_AUTH) {
+            if (!callSites(code, fn).length) missing.push(`${file} never calls ${fn}()`);
+        }
+    }
+    assert.deepEqual(missing, [], 'coordinators missing a fire-and-forget writer whose absence nothing else can detect');
+});
+
+test('each after-auth writer runs INSIDE its page\'s auth barrier, never bare', () => {
+    // AT LEAST ONE call site per writer must sit inside the barrier — not every one. A second,
+    // deliberate call on another path is legitimate and exists today: `paycalc-app.js` records a
+    // page view from `_showUnsupportedRole`, the withheld-calculator branch, which is a real view by
+    // a real member and should be counted. Requiring EVERY site to be barrier-enclosed would fail on
+    // that and invite someone to loosen this test rather than look — the outcome CLAUDE.md warns
+    // about. What must never happen is the barrier-enclosed site ceasing to exist.
+    /** @type {string[]} */ const bare = [];
+    for (const page of APP_PAGES) {
+        const file    = coordinatorFor(page);
+        const barrier = COORDINATOR_AUTH_BARRIER[/** @type {keyof typeof COORDINATOR_AUTH_BARRIER} */ (page)];
+        assert.ok(barrier, `${page} declares no auth barrier — add one to COORDINATOR_AUTH_BARRIER with its reason`);
+        const code = codeOnly(read(`./${file}`));
+        for (const fn of WIRED_AFTER_AUTH) {
+            const inside = callSites(code, fn).some((at) => {
+                const brace = enclosingBrace(code, at);
+                if (brace === -1) return false;                       // module scope: bare by definition
+                return statementHead(code, brace - 1).includes(barrier);
+            });
+            if (!inside) bare.push(`${file}: ${fn}() never runs inside ${barrier}`);
+        }
+    }
+    assert.deepEqual(bare, [], 'after-auth writers called outside the page\'s auth barrier — every write they make will be rejected by the rules, silently');
+});
+
+test('paycalc\'s local barrier is itself driven by the session, not merely named that', () => {
+    // The one entry in COORDINATOR_AUTH_BARRIER that names a local closure instead of a shared
+    // promise. `afterAuth` is a variable name and a variable name proves nothing, so the indirection
+    // is checked here: it must be handed to `ensureNamedSession(...)`. Without this, renaming any
+    // arrow function to `afterAuth` would satisfy the test above.
+    const code = codeOnly(read('./paycalc-app.js'));
+    assert.match(code, /ensureNamedSession\([^)]*\)[\s\S]{0,400}?\.finally\(\s*afterAuth\s*\)/,
+        'paycalc-app.js no longer hands afterAuth to ensureNamedSession — the barrier named in COORDINATOR_AUTH_BARRIER is not a barrier');
+});
+
 test('every app page has a nav pill, so the drawer is a complete map', () => {
     // The drawer renders the CURRENT page as an inert pill rather than omitting it, which is what
     // keeps the row the same shape everywhere. A page with no entry breaks that on its own surface.
