@@ -7640,8 +7640,17 @@ test('admin: a rest day that ALREADY holds leave is not reported as "no leave re
     await expect(row.locator('.type-pill-btn[data-type="annual_leave"]'), 'the row starts prefilled with the leave')
         .toHaveAttribute('aria-pressed', 'true');
 
-    // Re-stage it and answer "Rest day — free" — the manager saying this was a genuine rest day.
+    // RE-STAGING IS TWO TAPS, AND THE FIRST CUT OF THIS TEST GOT IT WRONG — worth recording,
+    // because the wrong version fails in a way that looks like the feature is broken. Tapping the
+    // ALREADY-PRESSED pill DEACTIVATES the row and stages a REMOVAL, so the save reported "1 change
+    // saved … removed" and never reached the swap question at all. An untouched prefilled row is
+    // not collected either (`prefilled-existing`). The reachable path is to leave the type and come
+    // back to it: that re-selects annual leave, reveals the question (`alSwapAsk`), and stages the
+    // row WITH its `existingId` — which is the state this whole test is about.
+    await clickInView(row.locator('.type-pill-btn[data-type="sick"]'));
     await clickInView(row.locator('.type-pill-btn[data-type="annual_leave"]'));
+    await expect(row.locator('.col-al-swap'), 'the swap question must be asked on a legacy record')
+        .toBeVisible();
     await clickInView(row.locator('.al-swap-btn[data-swap="no"]'));
     await clickInView(page.locator('#saveBtn'));
 
