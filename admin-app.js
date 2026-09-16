@@ -671,6 +671,7 @@ export function init() {
         // Clear any previous row-level errors
         weekGrid.querySelectorAll('.day-row.row-error').forEach(r => r.classList.remove('row-error'));
         _alPendingSkipped = [];   // and the last save's skipped days: this one answers for itself
+        _alPendingKept    = [];
 
         /** @type {any[]} */
         let toSave = [];
@@ -855,13 +856,14 @@ export function init() {
             ovByDate: buildMemberDateMap(memberName), swapAnswers, overrides: getAllOverrides(),
         });
         toSave = alPlan.toSave;
-        _alPendingSkipped = alPlan.skipped;   // the receipt names them: never a silent drop
+        _alPendingSkipped = alPlan.skipped;      // the receipt names them: never a silent drop
+        _alPendingKept    = alPlan.keptLeave;    // …and which of them the reader will still see leave on
         if (alPlan.overage) {
             showALConfirm(alPlan.overage.headline, alPlan.overage.detail, toSave, toDelete);
             return;
         }
 
-        await executeSave(toSave, toDelete, _alPendingSkipped);
+        await executeSave(toSave, toDelete, _alPendingSkipped, _alPendingKept);
         } catch (err) {
             console.error('[Admin] Save handler error:', err);
             showError('Unexpected error — please reload and try again.');
@@ -1137,6 +1139,7 @@ export function init() {
     /** @type {any} */ let _alPendingSave   = null;
     /** @type {any[]} */ let _alPendingDelete = [];
     /** @type {string[]} */ let _alPendingSkipped = [];   // staged days the projection leaves alone
+    /** @type {string[]} */ let _alPendingKept    = [];   // …of those, the ones that still hold leave
     const alConfirmBar       = /** @type {HTMLElement} */ (document.getElementById('alConfirmBar'));
     const alConfirmMsg       = /** @type {HTMLElement} */ (document.getElementById('alConfirmMsg'));
     const alConfirmSub       = /** @type {HTMLElement} */ (document.getElementById('alConfirmSub'));
@@ -1167,6 +1170,7 @@ export function init() {
         _alPendingSave   = null;
         _alPendingDelete = [];
         _alPendingSkipped = [];
+        _alPendingKept    = [];
         // Disarm the button too: the slide-out keeps the bar hit-testable for 0.25s, and with
         // _alPendingSave just nulled a tap in that window would fall through to the AL-booking
         // branch (an entitlement-unchecked booking). showALConfirm re-arms it. (v16.69)
@@ -1185,8 +1189,9 @@ export function init() {
             const toSave   = _alPendingSave;
             const toDelete = _alPendingDelete;
             const skipped  = _alPendingSkipped;
+            const kept     = _alPendingKept;
             hideALConfirm();
-            await executeSave(toSave, toDelete, skipped);
+            await executeSave(toSave, toDelete, skipped, kept);
         } else {
             // AL booking path — delegate to admin-al.js which owns the save button and flag
             hideALConfirm();

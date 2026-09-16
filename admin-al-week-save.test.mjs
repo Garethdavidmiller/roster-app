@@ -15,8 +15,14 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { teamMembers } from './roster-data.js';
+import { teamMembers, getBaseShift } from './roster-data.js';
 import { planAlWeekSave } from './admin-al-week-save.js';
+// The cross-layer block at the foot needs the surfaces the review named, not just the planner:
+// what the Calendar draws, what the entitlement costs, and what the receipt says.
+import { buildSaveReceipt } from './admin-save-receipt.js';
+import { resolveEffectiveShift } from './override-utils.js';
+import { consumesEntitlement } from './al-entitlement.js';
+import { swapDecisionDates } from './al-swapped-days.js';
 
 // C. Reen's fixed Mon–Fri line: every weekend is a rest day and every weekday is worked, so
 // "working day" and "rest day" are unambiguous with no override at all.
@@ -167,5 +173,94 @@ describe('ORDERING: the drop happens before `exclude` is built', () => {
             ovByDate: NO_OV, overrides: [...oneDayLeft, recordedSat],
         });
         assert.equal(plan.overage, null, 'deleting one day and booking another is a net nil');
+    });
+});
+
+describe('LEGACY DATA: a rest day that already holds leave, answered "rest day — free"', () => {
+    // THE REVIEWER'S ASK (external review of v23.92), and it turned out to be a defect rather than
+    // just an untested path. Answering "free" writes nothing and leaves the existing document
+    // alone — which is right, because answering a question is not an instruction to delete and the
+    // untick path owns removal. But the Calendar goes on showing 🏖️ AL, and the receipt used to
+    // report that day in the same words as a genuinely empty one: "rest day, no leave recorded".
+    //
+    // It is reachable with real data, not hypothetical: every annual-leave document the WEEK GRID
+    // wrote onto a rest day before v23.88 carries no `replacedType`, which is exactly the shape
+    // `al-swapped-days.js` re-asks about.
+    //
+    // So this pins the three layers the review named — what stays in Firestore, what the Calendar
+    // shows, what the receipt says — together, in one test, because the defect was that they
+    // disagreed while each was individually fine.
+    const legacyAl = { id: 'legacy-al', memberName: 'C. Reen', type: 'annual_leave', date: SAT, value: 'AL' };
+    const heldLegacy = new Map([[SAT, legacyAl]]);
+    const answeredFree = new Map([[SAT, false]]);
+
+    /** The staged row: the admin taps AL on a day that already shows it. */
+    const restage = () => [al(SAT, { existingId: 'legacy-al' })];
+
+    test('the question IS asked — legacy data has no provenance to settle it', () => {
+        assert.deepEqual(swapDecisionDates({ dates: [SAT], memberObj: reen, ovByDate: heldLegacy }), [SAT],
+            'a record with no replacedType cannot answer the swap question on its own');
+    });
+
+    test('FIRESTORE: nothing is written and nothing is deleted — the record stands', () => {
+        const plan = planAlWeekSave({ member: reen, memberName: 'C. Reen', toSave: restage(),
+            ovByDate: heldLegacy, swapAnswers: answeredFree, overrides: [legacyAl] });
+        assert.deepEqual(plan.toSave, [], 'answering free must not write leave');
+        assert.deepEqual(plan.skipped, [SAT]);
+        assert.deepEqual(plan.keptLeave, [SAT], 'the day still holds leave, and the save must say so');
+    });
+
+    test('CALENDAR: the surviving record still displays as leave', () => {
+        // The half that made the old receipt wrong. Nothing in the save path changes this.
+        const base = getBaseShift(reen, new Date(SAT + 'T00:00:00'));
+        assert.equal(base, 'RD', 'fixture check: this is a base rest day');
+        assert.equal(resolveEffectiveShift(legacyAl, base, false).shift, 'AL',
+            'the reader will still see leave on this day');
+    });
+
+    test('ENTITLEMENT: and it goes on costing nothing — the three layers agree on the money', () => {
+        assert.equal(consumesEntitlement({ member: reen, date: SAT, override: legacyAl }), false);
+    });
+
+    test('RECEIPT: the line says the leave was left, and how to clear it', () => {
+        const plan = planAlWeekSave({ member: reen, memberName: 'C. Reen', toSave: restage(),
+            ovByDate: heldLegacy, swapAnswers: answeredFree, overrides: [legacyAl] });
+        const receipt = buildSaveReceipt({ toSave: [], removed: [], memberName: 'C. Reen',
+            formatDate: d => d, describe: () => '', skipped: plan.skipped, keptLeave: plan.keptLeave });
+        const line = receipt.lines.find(l => l.includes(SAT));
+        assert.ok(line, 'the day must still be named');
+        assert.match(line, /left as it is/, 'the receipt must not imply the day is now clear');
+        assert.match(line, /untick/, 'and must say how to remove what remains');
+        assert.doesNotMatch(line, /no leave recorded/,
+            'that is the wording for an EMPTY day — using it here contradicts the Calendar');
+    });
+
+    test('THE CONTROL: with no existing record the wording is unchanged', () => {
+        // Without this the fix could be "every skipped day now says leave was left", which would be
+        // the same defect pointing the other way.
+        const plan = planAlWeekSave({ member: reen, memberName: 'C. Reen', toSave: [al(SAT)],
+            ovByDate: NO_OV, swapAnswers: answeredFree });
+        assert.deepEqual(plan.keptLeave, []);
+        const receipt = buildSaveReceipt({ toSave: [], removed: [], memberName: 'C. Reen',
+            formatDate: d => d, describe: () => '', skipped: plan.skipped, keptLeave: plan.keptLeave });
+        assert.match(receipt.lines[0], /rest day, no leave recorded/);
+    });
+
+    test('a record being DELETED in the same save is not "kept"', () => {
+        const plan = planAlWeekSave({ member: reen, memberName: 'C. Reen', toSave: restage(),
+            toDelete: ['legacy-al'], ovByDate: heldLegacy, swapAnswers: answeredFree,
+            overrides: [legacyAl] });
+        assert.deepEqual(plan.keptLeave, [],
+            'the document is going — reporting it as left in place would be the inverse lie');
+    });
+
+    test('an ABSENCE on that day is not leave, so the wording stays "no leave recorded"', () => {
+        // Deliberate. The claim the line makes is about LEAVE, and it is true here: none was
+        // recorded. The absence is still visible in the grid, which re-renders for exactly this
+        // reason (v23.89), and the swap question is never wired to the Absence card.
+        const absence = { id: 'sick-1', memberName: 'C. Reen', type: 'sick', date: SAT, value: 'SICK' };
+        const plan = planAlWeekSave({ member: reen, memberName: 'C. Reen', toSave: restage(),
+            ovByDate: new Map([[SAT, absence]]), swapAnswers: answeredFree, overrides: [absence] });
+        assert.deepEqual(plan.keptLeave, []);
     });
 });

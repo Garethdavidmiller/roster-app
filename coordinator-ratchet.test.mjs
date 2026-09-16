@@ -159,6 +159,13 @@ const CAPS = {
     // down the moment anything else leaves the file.
     'overtime-form.js':        1000,
     'admin-overrides.js':      560,
+    // **950 IS ABSOLUTE, AND THE FILE IS AT IT** (external review of v23.92, 16 Sep 2026). Zero
+    // headroom is not a coincidence to be relieved with a bigger number — it is the signal this
+    // ratchet exists to produce. The reviewer's instruction, adopted: *the next meaningful
+    // week-editor responsibility triggers an extraction; do not raise this ceiling because the next
+    // feature needs twenty lines.* v23.91 is the worked example — the AL save decision left for
+    // `admin-al-week-save.js` and `admin-app.js` went DOWN rather than up. Raising this costs the
+    // repo the one mechanism that has actually been shrinking Admin.
     'admin-week-editor.js':    950,
     'admin-saved-changes.js':  460,
     // 1800 → 1700 at v21.89. The week-grid swipe left for admin-week-swipe.js — 1,783 down to
