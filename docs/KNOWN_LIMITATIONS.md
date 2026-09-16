@@ -159,6 +159,50 @@ happen before that migration (OPERATIONS_REFERENCE → "Which address staff are 
 it has got). Until then this is the honest state, written down rather than implied by a fixture
 that is no longer there.
 
+### No evidence in the repo that any Firestore backup exists (found 16 Sep 2026, deep review)
+
+**Status: an OPEN QUESTION for the owner, not a finding about code.** One command answers it:
+`gcloud firestore backups schedules list --database='(default)' --project=myb-roster`.
+
+`RECOVERY_RUNBOOK.md` opens its preventative section with its own words: *"These are the difference
+between 'restored in minutes' and 'gone'. **None exist by default.**"* It then documents three things
+to switch on — Point-in-Time Recovery, managed backup schedules, and a portable GCS export.
+
+**Nothing anywhere records that any of them were.** Every later reference in that runbook is
+conditional — *"if PITR is on"*, *"with PITR on"*. There is no CI job, no maintenance-calendar entry,
+and no completion marker, which is notable because this repo DOES mark completions when they happen
+(`CLAUDE.md`: *"A2 complete: the old SA JSON key and the `FIREBASE_SERVICE_ACCOUNT` GitHub secret
+have both been deleted"*).
+
+So the restore playbooks are written against snapshots that may not be being taken. What is at stake
+is every staff member's leave, absence, overrides, overtime declarations, password-reset requests and
+saved work emails — none of which is reconstructable from the repository, because the repository
+holds the base roster and nothing else.
+
+This is recorded rather than fixed because it cannot be verified or changed from a session: it is
+GCP console/CLI state. **If the answer is "they are on", replace this entry with the date checked.**
+
+### `docs/AL_WORKBOOK.md` publishes named colleagues' leave figures (found 16 Sep 2026, deep review)
+
+**Status: recorded, owner's decision.** The file carries **28 named individuals with specific leave
+figures** — e.g. *"Worked example — J. Davies, 2026. Allowance 20, grid days 19, over-quota 1,
+remaining 0."* The repository is public, so this is readable at github.com; the Pages mirror serves
+it too (`200`, while Firebase correctly `404`s, its ignore list covering `docs/`).
+
+Two things make it worth recording rather than assuming it is inside an existing decision:
+
+- **The public classification was reasoned about SHIFT PATTERNS** — *"shift patterns are on the
+  station's own printed rosters"* (`AUTH_PLAN.md` §2). A leave balance is not on a printed roster,
+  and it is a different class of personal data about a third party.
+- **`public-data-classification.test.mjs` does not inspect `docs/` at all.** The guard covers
+  `roster-data.js`, the other world-readable surface; nothing covers this one, so the same class of
+  content can grow there silently.
+
+The document's VALUE is its rules — how a quota grid is read, where the app and the spreadsheet
+legitimately disagree — not who the worked examples are about. Anonymising the examples would keep
+all of that and remove the personal data; it is not done here because it is a judgement about what
+should be public, which is the owner's to make.
+
 ### Admin/manager password is surname-derived (F-SEC-1) — scoped July 2026, owner chose leave-as-is
 
 Every account's Firebase Auth password is the member's surname (lowercased, non-alpha stripped,
