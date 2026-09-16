@@ -141,8 +141,10 @@ export function initOverrides({ currentUser, currentIsAdmin, currentIsManager = 
  * @param {string[]} toDelete  Firestore document IDs to delete
  * @param {string[]} [skipped]  dates staged but deliberately NOT written — see buildSaveReceipt. With
  *        nothing else to write this still reports, rather than being a Save that did nothing silently.
+ * @param {string[]} [keptLeave]  the subset of `skipped` that still holds leave afterwards (v23.93),
+ *        so the receipt does not call a day clear that the Calendar is about to show leave on.
  */
-export async function executeSave(toSave, toDelete = [], skipped = []) {
+export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave = []) {
     const fieldMember = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
     const fieldDate   = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
     const saveBtn     = /** @type {HTMLButtonElement|null} */ (document.getElementById('saveBtn'));
@@ -162,7 +164,7 @@ export async function executeSave(toSave, toDelete = [], skipped = []) {
     // No Firestore round trip: there is no document to touch, and the days are named instead.
     if (!total && skipped.length) {
         const only = buildSaveReceipt({ toSave: [], removed: [], memberName: memberName ?? '',
-            formatDate: formatDisplay, skipped, describe: () => '' });   // never called: nothing written
+            formatDate: formatDisplay, skipped, keptLeave, describe: () => '' });   // describe never called: nothing written
         _showSuccess(only.summary, only.lines);
         resetStagedRows();
         // …AND RE-RENDER, exactly as the path below does. `resetStagedRows` only DEACTIVATES a row:
@@ -249,7 +251,7 @@ export async function executeSave(toSave, toDelete = [], skipped = []) {
         // (a bulk apply that caught the wrong days, a grid left on last week) produces a perfectly
         // plausible count. The days are known before the commit, so this costs nothing.
         const receipt = buildSaveReceipt({
-            toSave, removed: removedRows, memberName: memberName ?? '', skipped,
+            toSave, removed: removedRows, memberName: memberName ?? '', skipped, keptLeave,
             formatDate: formatDisplay,
             // An Other day's value is the raw grammar `FLAVOUR[" RDW"][" HH:MM-HH:MM"]`, so printing it
             // gave "Other TRG RDW 09:00-17:00" — internal spelling in the one line that tells a

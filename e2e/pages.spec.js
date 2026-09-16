@@ -7596,6 +7596,78 @@ test('admin: a skip-only save leaves the row showing the record that is still th
         'the absence is still on record, so the row must still show it').toHaveAttribute('aria-pressed', 'true');
 });
 
+test('admin: a rest day that ALREADY holds leave is not reported as "no leave recorded" (v23.93)', async ({ page }) => {
+    // THE WIRING HALF of admin-al-week-save.test.mjs's legacy-data block (external review of v23.92).
+    // The pure test proves the planner and the receipt builder agree; only this proves the page
+    // actually passes `keptLeave` from one to the other. Deleting that argument at either call site
+    // leaves every unit test green — which is the seam this repo keeps naming.
+    //
+    // The record seeded here is the LEGACY shape: annual leave on a base rest day with no
+    // `replacedType`, which is what the week grid wrote before v23.88 and what the swap question
+    // therefore re-asks about.
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { ...(/** @type {any} */ (window).__E2E || {}), authUser: true };
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    const target = await page.evaluate(async () => {
+        const [rd, ou] = await Promise.all([import('./roster-data.js'), import('./override-utils.js')]);
+        const rows = [...document.querySelectorAll('.day-row')].map(r => /** @type {any} */ (r).dataset.date);
+        for (const m of rd.teamMembers) {
+            if (m.hidden || m.managerOnly) continue;
+            for (const d of rows) {
+                if (!d) continue;
+                const dt = new Date(d + 'T00:00:00');
+                if (dt.getDay() === 0) continue;               // Sundays are a different rule entirely
+                if (ou.isRestShift(rd.getBaseShift(m, dt))) return { name: m.name, date: d };
+            }
+        }
+        return null;
+    });
+    expect(target, 'no member has a rest day in the displayed week').not.toBeNull();
+    const t = /** @type {any} */ (target);
+
+    await page.addInitScript((row) => {
+        /** @type {any} */ (window).__E2E = { ...(/** @type {any} */ (window).__E2E || {}), docs: [row] };
+    }, { id: 'legacy-al', memberName: t.name, date: t.date, type: 'annual_leave', value: 'AL', note: '', source: 'manual' });
+    await page.goto('/admin.html');
+    await page.locator('#fieldMember').selectOption(t.name);
+    await page.waitForTimeout(400);
+
+    const row = page.locator(`.day-row[data-date="${t.date}"]`);
+    await expect(row.locator('.type-pill-btn[data-type="annual_leave"]'), 'the row starts prefilled with the leave')
+        .toHaveAttribute('aria-pressed', 'true');
+
+    // RE-STAGING IS TWO TAPS, AND THE FIRST CUT OF THIS TEST GOT IT WRONG — worth recording,
+    // because the wrong version fails in a way that looks like the feature is broken. Tapping the
+    // ALREADY-PRESSED pill DEACTIVATES the row and stages a REMOVAL, so the save reported "1 change
+    // saved … removed" and never reached the swap question at all. An untouched prefilled row is
+    // not collected either (`prefilled-existing`). The reachable path is to leave the type and come
+    // back to it: that re-selects annual leave, reveals the question (`alSwapAsk`), and stages the
+    // row WITH its `existingId` — which is the state this whole test is about.
+    await clickInView(row.locator('.type-pill-btn[data-type="sick"]'));
+    await clickInView(row.locator('.type-pill-btn[data-type="annual_leave"]'));
+    await expect(row.locator('.col-al-swap'), 'the swap question must be asked on a legacy record')
+        .toBeVisible();
+    await clickInView(row.locator('.al-swap-btn[data-swap="no"]'));
+    await clickInView(page.locator('#saveBtn'));
+
+    const feedback = page.locator('.feedback, #weekGridFeedback').first();
+    await expect(feedback, 'the receipt must say the existing leave was left alone')
+        .toContainText(/left as it is/);
+    await expect(feedback, 'and must not use the wording for a day that is genuinely clear')
+        .not.toContainText('no leave recorded');
+
+    // …and the three layers still agree: nothing written, nothing deleted, the record still drawn.
+    const writes = await page.evaluate(() => (/** @type {any} */ (window).__E2E?.batchWrites || []));
+    expect(writes.filter((/** @type {any} */ w) => w.date === t.date),
+        'answering free must not write leave').toHaveLength(0);
+    await expect(row.locator('.type-pill-btn[data-type="annual_leave"]'),
+        'the leave is still on record, so the row must still show it').toHaveAttribute('aria-pressed', 'true');
+});
+
 test('admin: the week grid writes NOTHING for a rest day answered free, and names the day (v23.88)', async ({ page }) => {
     // THE TWO SURFACES MEANT DIFFERENT THINGS BY ONE ANSWER (external review of v23.85). The AL card
     // wrote nothing for a rest day answered "Rest day — free"; the week grid wrote annual leave that

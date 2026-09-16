@@ -41,6 +41,19 @@
 //
 // The days it leaves alone are RETURNED rather than dropped, because a save that silently discards a
 // staged row is the defect this whole area exists to end — the receipt names them (v23.88).
+//
+// ── AND "LEFT ALONE" IS TWO DIFFERENT DAYS (v23.93, external review of v23.92) ──────────────────
+//
+// A day answered "rest day — free" may already HOLD leave. That is not hypothetical: every
+// annual-leave document the week grid wrote onto a rest day before v23.88 is a record with no
+// `replacedType` provenance, which `al-swapped-days.js` correctly re-asks about. Answer "free" and
+// nothing is written — right, because answering a question is not an instruction to delete, and the
+// untick path owns removal — but the document stands, and the Calendar goes on showing 🏖️ AL.
+//
+// Reported as one list, that day and a genuinely empty one both came back as "no leave recorded",
+// so the receipt contradicted the calendar the manager was about to look at. `keptLeave` is the
+// subset that still holds leave, so the receipt can say which is which. It is a SUBSET of `skipped`,
+// not a replacement for it: every answered-free day is still named, exactly as before.
 
 import { projectAlBooking, projectAlOverage } from './admin-al-projection.js';
 
@@ -55,19 +68,23 @@ import { projectAlBooking, projectAlOverage } from './admin-al-projection.js';
  * @param {Map<string, any>|null} [args.ovByDate] the member's overrides in play, keyed by date
  * @param {Map<string, boolean>|null} [args.swapAnswers] THIS SAVE's answers: date → swapped?
  * @param {any[]} [args.overrides] every override on record, for the year's existing leave
- * @returns {{toSave: any[], skipped: string[], overage: any}}
+ * @returns {{toSave: any[], skipped: string[], keptLeave: string[], overage: any}}
  *   `toSave` is the batch to write — the SAME array when nothing was dropped. `skipped` are the
- *   dates deliberately left alone, in date order. `overage` is the confirmation message, or `null`.
+ *   dates deliberately left alone, in date order. `keptLeave` is the SUBSET of those that still hold
+ *   a leave record afterwards, so the receipt can avoid telling a manager a day is clear when the
+ *   Calendar is about to show leave on it. `overage` is the confirmation message, or `null`.
  */
 export function planAlWeekSave({ member, memberName, toSave, toDelete = [],
                                 ovByDate = null, swapAnswers = null, overrides = [] }) {
     let alInBatch = toSave.filter(e => e.type === 'annual_leave');
-    if (!alInBatch.length) return { toSave, skipped: [], overage: null };
+    if (!alInBatch.length) return { toSave, skipped: [], keptLeave: [], overage: null };
 
     const proj = projectAlBooking({ member, dates: alInBatch.map(e => e.date), ovByDate, swapAnswers });
 
     /** @type {string[]} */
     let skipped = [];
+    /** @type {string[]} */
+    let keptLeave = [];
     let batch = toSave;
     if (proj.answeredFree.length) {
         const free = new Set(proj.answeredFree);
@@ -76,6 +93,13 @@ export function planAlWeekSave({ member, memberName, toSave, toDelete = [],
         batch     = toSave.filter(e => !(e.type === 'annual_leave' && free.has(e.date)));
         alInBatch = alInBatch.filter(e => !free.has(e.date));
         skipped   = proj.answeredFree;
+        // Which of them the reader will still see leave on. Read from the record in play rather
+        // than from the batch: the batch is what this save proposed, and what survives the save is
+        // what was already there. A date being DELETED in the same save is not kept.
+        keptLeave = skipped.filter(date => {
+            const held = ovByDate?.get(date);
+            return !!held && held.type === 'annual_leave' && !toDelete.includes(held.id);
+        });
     }
 
     // Existing leave for the year, less the dates this batch OVERWRITES or DELETES — they are
@@ -89,6 +113,7 @@ export function planAlWeekSave({ member, memberName, toSave, toDelete = [],
     return {
         toSave: batch,
         skipped,
+        keptLeave,
         overage: projectAlOverage({ member, memberName, overrides, consuming: proj.consuming, exclude }),
     };
 }
