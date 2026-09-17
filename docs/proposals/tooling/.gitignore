@@ -1,0 +1,12 @@
+# Per-run outputs of the proposal tooling. Every one of these is rewritten by the next
+# `final.mjs` / `supplied.mjs` run, and the copy that matters is the one placed beside the PDF in
+# docs/proposals/. Committing them would mean a dirty tree after every render and a second, stale
+# copy of each proposal's cells — the drift this repo already has a rule about.
+#
+# `results/` is NOT here and must not be: the annealer's candidates are committed on purpose —
+# `final.mjs` is driven from them, so they are the searched proposals' record, not scratch.
+*.html
+proposal.json
+proposal-import.txt
+supplied.json
+supplied-import.txt

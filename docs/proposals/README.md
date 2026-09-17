@@ -11,6 +11,7 @@ and every figure in a PDF is computed from the cells it shows — nothing is typ
 |---|---|---|---|---|---|
 | **Same Turns** | `ST-24-B7 · d15e1b74` | Today's 20-line link widened to 24 in today's own shift times and week shapes | 1 (FF19, one jump) | 6 | 6 in 24 |
 | **By the Book** | `BB-24-D7 · 0f14abce` | The workspace's December duty table (the owner's rules in table form), the rotation searched for the ORR factors | **0** | 6 | 6 in 24 |
+| **Weekday Lates** | `WL-24-EXT · a52ec588` | **Supplied as a Word table**, not searched — weekday lates at 16:25, Saturdays left alone | 5 (as today's link) | 9 | 6 in 24 |
 
 Both clear every hard rule — Chiltern's 13-day limit, twelve hours between duties, the exact
 35-hour contracted week — and meet the December staffing shape (four to open, three through to
@@ -19,6 +20,16 @@ four cover weeks at lines 1, 7, 13, 19). They differ on exactly one thing, and i
 question rather than a rules one: *Same Turns* keeps 15 turns people already work and does not meet
 the late-shorter-than-early lever; *By the Book* meets every rule and none of its 19 turns is a
 time anyone works today. Each PDF states this on its page 5.
+
+**`EXT` is not a search code.** *Weekday Lates* arrived from outside the workspace as a Word table and
+was assessed here; there is no table variant, no seed and nothing to reproduce, which is what the `EXT`
+suffix says and what its method page states instead of claiming a search. Everything else is identical —
+the same modules judge it, and its PDF's figures are computed from its own cells like the other two.
+**It clears every hard gate** (35h to the minute, no rest under 12h, longest run 9 against the 13-day
+limit, no unstaffed hour in the window) and **every one of its 18 turns is a time people already work**.
+Three things it does not meet, each stated on its own pages rather than omitted: lates run longer than
+earlies, it carries four cover weeks rather than five, and its weekdays are not equal — Mon 6,225 minutes
+against Thu 7,780, though Mon–Sat still totals exactly 42,000.
 
 **The code**: family (`ST` / `BB`) · rotation length · duty table (`A`/`B` today's times, `D` the
 December default) · search seed. A trailing `p` (`BB-24-D21p`) is the rules-only run with no
