@@ -15,6 +15,7 @@ and every figure in a PDF is computed from the cells it shows — nothing is typ
 | **Fifteen Turns** | `FT-24-EXT · 9a028392` | **Supplied as a grid**, not searched — the shortest turn table yet and a perfect cover spread, but **it does not clear two gates** | 7 | 9 | 2 in 24 |
 | **Fifteen Turns Repaired** | `FT-24-R21 · b76bf9e1` | The same design with both gates **repaired** and the rotation re-searched — every duty, headcount and coverage hour unchanged | **1** | 6 | 6 in 24 |
 | **Weekday Lates 2** | `WL2-24-R21 · 33f70893` | Weekday Lates with the `08:30–17:00` turns re-timed into the evening to cover the 17:00 peak, then re-searched | **1** | 6 | 6 in 24 |
+| **Weekday Lates 3** | `WL3-24-F7 · a6234195` | The same evening fix with **weeks 13–17 kept exactly as written**, then searched fatigue-first | **1** (FF19, at its floor) | 6 | 4 in 24 |
 
 Both clear every hard rule — Chiltern's 13-day limit, twelve hours between duties, the exact
 35-hour contracted week — and meet the December staffing shape (four to open, three through to
@@ -89,6 +90,27 @@ contracted week is still paid to the minute and both lines stay one-turn weeks. 
 re-searched. **17:00–21:00 goes 6, 6, 7, 9, 8 → 8, 8, 9, 10, 9** and **08:00–11:00 falls 7, 9, 8, 7, 8
 → 5, 7, 6, 6, 7** — at a fixed 35-hour week an hour added to the evening comes from somewhere, and both
 directions are on its pages. Monday morning at five is the thinnest point and the thing to weigh.
+
+**Weekday Lates 3** answers "protect weeks 13–17 and get the factors to zero". Zero is not
+reachable, and the reason is arithmetic rather than effort: the survivor is **FF19**, successive
+start times varying by more than two hours, and **no rotation containing both early and late weeks
+can score zero on it** — going round the cycle you must cross from earlies to lates and back, and
+each crossing is by definition a jump over two hours. Two is the floor for this mix of turns; three
+is the fewest three seeds found, down from seven. Everything else cleared.
+
+**The five weeks are kept to the letter and MOVED**: 13, 14, 15, 16 and 17 are now lines 21, 3, 6,
+24 and 1, every one unedited. That move is what made it possible. Week 13 works Tue–Sat and week 14
+Sun–Mon, so pinned adjacent they form one 58.9-hour seven-day window that nothing else in the grid
+can break and MRSF's 55-hour row can never clear; separated, it drops to 51.1. **If those weeks must
+also stay at lines 13–17, the floor is two factors, not one** — that is a property of the block, not
+a limit of the search, and `optimise.mjs`'s `FREEZE_POS` switch is what distinguishes the two
+readings of "protect".
+
+**What protecting them cost is stated rather than glossed:** full weekends off are **4 in 24** here
+against 6 in Weekday Lates, because the search had five fewer weeks to arrange around. And week 16
+holds three of the nine `08:30–17:00` turns, so the evening fill came from line 9's week and line 6's
+Friday alone — 17:00 reaches 7, 7, 8, 10, 10 where Weekday Lates 2, free to move week 16, reached
+8, 8, 9, 10, 9.
 
 **The code**: family (`ST` / `BB`) · rotation length · duty table (`A`/`B` today's times, `D` the
 December default) · search seed. A trailing `p` (`BB-24-D21p`) is the rules-only run with no
