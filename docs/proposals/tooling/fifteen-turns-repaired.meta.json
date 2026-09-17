@@ -15,15 +15,15 @@
  "extraAlternatives": [
   {
    "label": "FT-24-R7 — seed 7, same search",
-   "file": "fifteen-fixed-optimised.json"
+   "file": "fifteen-turns-alt-seed7.json"
   },
   {
    "label": "FT-24-R13 — seed 13, same search",
-   "file": "seed13-optimised.json"
+   "file": "fifteen-turns-alt-seed13.json"
   },
   {
    "label": "FT-24-R34 — seed 34, same search (lowest blended score)",
-   "file": "seed34-optimised.json"
+   "file": "fifteen-turns-alt-seed34.json"
   },
   {
    "label": "FT-24-EXT — the design AS SUPPLIED, before repair",

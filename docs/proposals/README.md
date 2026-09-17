@@ -14,6 +14,7 @@ and every figure in a PDF is computed from the cells it shows — nothing is typ
 | **Weekday Lates** | `WL-24-EXT · a52ec588` | **Supplied as a Word table**, not searched — weekday lates at 16:25, Saturdays left alone | 5 (as today's link) | 9 | 6 in 24 |
 | **Fifteen Turns** | `FT-24-EXT · 9a028392` | **Supplied as a grid**, not searched — the shortest turn table yet and a perfect cover spread, but **it does not clear two gates** | 7 | 9 | 2 in 24 |
 | **Fifteen Turns Repaired** | `FT-24-R21 · b76bf9e1` | The same design with both gates **repaired** and the rotation re-searched — every duty, headcount and coverage hour unchanged | **1** | 6 | 6 in 24 |
+| **Weekday Lates 2** | `WL2-24-R21 · 33f70893` | Weekday Lates with the `08:30–17:00` turns re-timed into the evening to cover the 17:00 peak, then re-searched | **1** | 6 | 6 in 24 |
 
 Both clear every hard rule — Chiltern's 13-day limit, twelve hours between duties, the exact
 35-hour contracted week — and meet the December staffing shape (four to open, three through to
@@ -28,7 +29,13 @@ was assessed here; there is no table variant, no seed and nothing to reproduce, 
 suffix says and what its method page states instead of claiming a search. Everything else is identical —
 the same modules judge it, and its PDF's figures are computed from its own cells like the other two.
 **It clears every hard gate** (35h to the minute, no rest under 12h, longest run 9 against the 13-day
-limit, no unstaffed hour in the window) and **every one of its 18 turns is a time people already work**.
+limit, no unstaffed hour in the window) and **13 of its 18 turns are times people already work** — the
+other five (`07:00-15:30`, `08:00-16:00`, `08:30-17:00`, `10:30-19:00`, `16:25-23:55`) are new.
+*(Corrected 17 Sep 2026: this said "every one of its 18 turns", on the strength of a page-1 tile that
+read `distinctTimes of T.distinctTimes` — this design's turn COUNT over today's — under the caption
+"shift times are today's". The two counts were both 18, so the tile printed "18 of 18" and the claim
+looked checked. It was the same shape as the hardcoded badge row: true by coincidence. The tile now
+counts the actual intersection, and every PDF here has been re-rendered.)*
 Three things it does not meet, each stated on its own pages rather than omitted: lates run longer than
 earlies, it carries four cover weeks rather than five, and its weekdays are not equal — Mon 6,225 minutes
 against Thu 7,780, though Mon–Sat still totals exactly 42,000.
@@ -72,6 +79,16 @@ than safety. Seed 34 scores lowest on the blended objective (a gentler 2h21 step
 seventh weekend off; **seed 21 is the only one that also clears FF15**, leaving one factor present,
 and that is the one kept — fewer factors present is what the ORR panel reports and what a reader
 acts on. All four are in that PDF's own alternatives table with what each costs.
+
+**Weekday Lates 2** (`WL2-24-R21 · 33f70893`) answers a gap the owner found in Weekday Lates: nine
+duties ran `08:30–17:00` and all nine finished at the same moment, so weekday cover fell from eight
+to ten people at 16:00 to **six** from 17:00 — at the hour the December curve peaks (≈140 cars against
+110 at 16:00). Cover was falling as demand rose. Line 9's week moved to `12:30–21:00` and line 16's
+Mon–Wed to `14:00–22:30`; both replacements are 8h30, the same length as the turn they replace, so the
+contracted week is still paid to the minute and both lines stay one-turn weeks. Then the shape was
+re-searched. **17:00–21:00 goes 6, 6, 7, 9, 8 → 8, 8, 9, 10, 9** and **08:00–11:00 falls 7, 9, 8, 7, 8
+→ 5, 7, 6, 6, 7** — at a fixed 35-hour week an hour added to the evening comes from somewhere, and both
+directions are on its pages. Monday morning at five is the thinnest point and the thing to weigh.
 
 **The code**: family (`ST` / `BB`) · rotation length · duty table (`A`/`B` today's times, `D` the
 December default) · search seed. A trailing `p` (`BB-24-D21p`) is the rules-only run with no

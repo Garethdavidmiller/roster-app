@@ -162,7 +162,17 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
    <span class="sum-chip sum-chip--${P.fatigue.present?'warn':'ok'}">${P.fatigue.present?'⚠':'✓'} <strong>${P.fatigue.present}</strong> fatigue factor${P.fatigue.present===1?'':'s'} present <span class="muted">(today: ${T.fatigue.present})</span></span></div>
   <div class="tiles">
     ${BB ? `<div class="tile"><b>${P.feel.distinctTimes} turns</b><span class="l">in the December duty table</span><span class="s">searched against the timetable; lates shorter than earlies; on the quarter hour except the open and close</span></div>`
-         : `<div class="tile"><b>${P.feel.distinctTimes} of ${T.feel.distinctTimes}</b><span class="l">shift times are today's</span><span class="s">every time on the sheet is one people already work — nothing new to learn</span></div>`}
+         : (() => {
+             // COUNT THE INTERSECTION. This read `${P.feel.distinctTimes} of ${T.feel.distinctTimes}`
+             // — this design's turn count over TODAY'S — which is only the same sentence while every
+             // turn here is also one of today's. Weekday Lates 2 introduces 12:30–21:00 and the tile
+             // printed "19 of 18". Same shape as the hardcoded badge row: true by coincidence for
+             // the designs that happened to be subsets, and nonsense for the first that was not.
+             const todays = new Set(T.tableRows.map(r => r.time));
+             const mine = P.tableRows.map(r => r.time);
+             const shared = mine.filter(t => todays.has(t)).length;
+             return `<div class="tile"><b>${shared} of ${mine.length}</b><span class="l">shift times are today's</span><span class="s">${shared === mine.length ? 'every time on the sheet is one people already work — nothing new to learn' : `${mine.length - shared} ${mine.length - shared === 1 ? 'time is new' : 'times are new'}; the rest are turns people already work`}</span></div>`;
+           })()}
     <div class="tile"><b>${P.checks.longestStretch} days</b><span class="l">longest run of worked days</span><span class="s">today's link reaches ${T.checks.longestStretch}; Chiltern's limit is ${MAX_CONSECUTIVE_WORKED_DAYS}</span></div>
     ${BB ? `<div class="tile"><b>${P.fatigue.present} of 25</b><span class="l">fatigue factors present</span><span class="s">today's link has ${T.fatigue.present}; every other factor is clear or does not apply</span></div>`
          : `<div class="tile"><b>${P.feel.oneTurn} of ${P.feel.workingLines}</b><span class="l">working weeks are one turn</span><span class="s">same clock time all week, as ${T.feel.oneTurn} of today's ${T.feel.workingLines} are</span></div>`}

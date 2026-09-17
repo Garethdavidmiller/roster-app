@@ -11,9 +11,10 @@ proposal-import.txt
 supplied.json
 supplied-import.txt
 
-# Search scratch: the per-seed starting copies and their results. The CHOSEN result is committed
-# under its own name (fifteen-turns-repaired.json) and the rest are reproducible from the same
-# seeds, so keeping them would be four stale copies of one rotation.
+# Search scratch: the per-seed STARTING copies and the optimiser's raw output. Anything a rendered
+# PDF cites in its alternatives table is copied to a stable name and committed instead — a document
+# that names a candidate has to be reproducible, and a gitignored candidate makes it not.
 seed*.json
+wl2-s*.json
 best-so-far.json
 *-optimised.json
