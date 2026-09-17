@@ -12,6 +12,7 @@ and every figure in a PDF is computed from the cells it shows — nothing is typ
 | **Same Turns** | `ST-24-B7 · d15e1b74` | Today's 20-line link widened to 24 in today's own shift times and week shapes | 1 (FF19, one jump) | 6 | 6 in 24 |
 | **By the Book** | `BB-24-D7 · 0f14abce` | The workspace's December duty table (the owner's rules in table form), the rotation searched for the ORR factors | **0** | 6 | 6 in 24 |
 | **Weekday Lates** | `WL-24-EXT · a52ec588` | **Supplied as a Word table**, not searched — weekday lates at 16:25, Saturdays left alone | 5 (as today's link) | 9 | 6 in 24 |
+| **Fifteen Turns** | `FT-24-EXT · 9a028392` | **Supplied as a grid**, not searched — the shortest turn table yet and a perfect cover spread, but **it does not clear two gates** | 7 | 9 | 2 in 24 |
 
 Both clear every hard rule — Chiltern's 13-day limit, twelve hours between duties, the exact
 35-hour contracted week — and meet the December staffing shape (four to open, three through to
@@ -30,6 +31,22 @@ limit, no unstaffed hour in the window) and **every one of its 18 turns is a tim
 Three things it does not meet, each stated on its own pages rather than omitted: lates run longer than
 earlies, it carries four cover weeks rather than five, and its weekdays are not equal — Mon 6,225 minutes
 against Thu 7,780, though Mon–Sat still totals exactly 42,000.
+
+**Fifteen Turns is the first proposal here that is NOT runnable as drawn**, and it is listed anyway
+because a refused design is evidence too. Two gates: one rest of **11h15** (line 7's Saturday
+12:00–20:00 into line 8's Sunday 07:15–15:45) and **60 minutes over** the contracted week — Mon–Sat
+totals 42,060 minutes against 20 × 35h = 42,000, and the contract is an equality rather than a floor.
+Both are refusals in the workspace, not findings. What it does better than anything else: **fifteen
+distinct turns** (against 18 and 19), cover weeks **perfectly even at 6, 6, 6, 6**, and a week-to-week
+step of 2h16. It is worth keeping as the shape to aim at once those two are repaired.
+
+**It also found a real defect in this tooling.** Page 1's badge row was hardcoded to
+`0 hard-limit breaches` / `0 rests under 12h` / *"exactly the contract"*, and the first four proposals
+all happened to satisfy every one — so a green tick was indistinguishable from a checked one. This
+design does not, and the page asserted both gates it fails as met. Every chip is now derived, the
+surplus is computed from MINUTES (`exSunday` is rounded to 2dp, and 0.01h is 14 minutes on a 24-line
+rotation), and the 12-hour row goes amber when it is breached. Re-checked: the other four still read
+*exactly the contract*, at 0 minutes each.
 
 **The code**: family (`ST` / `BB`) · rotation length · duty table (`A`/`B` today's times, `D` the
 December default) · search seed. A trailing `p` (`BB-24-D21p`) is the rules-only run with no

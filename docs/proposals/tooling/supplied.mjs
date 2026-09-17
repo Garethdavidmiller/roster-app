@@ -17,6 +17,10 @@ import { reorderLines, applyOrder, OBJECTIVES } from '../../../links-adjacency.j
 
 const [file, NAME, STRAP, CODE] = process.argv.slice(2);
 const patterns = JSON.parse(readFileSync(file, 'utf8'));
+// Optional per-design copy: <patterns>.meta.json. Any key here overrides the defaults below, so a
+// second supplied design does not mean a second copy of this script.
+const OVER = existsSync(file.replace(/\.json$/, '.meta.json'))
+  ? JSON.parse(readFileSync(file.replace(/\.json$/, '.meta.json'), 'utf8')) : {};
 
 function weekdayFit(p) {
   const cov = calcHourlyCoverage(p, 24).tue.hours, cars = demand.profile.weekday.cars;
@@ -111,6 +115,6 @@ const meta = {
 writeFileSync('supplied-import.txt', Array.from({ length: 24 }, (_, i) => `${i+1}\t${DAYS.map(d => P.patterns[String(i+1)][d] === 'SPARE' ? 'SP' : P.patterns[String(i+1)][d]).join('\t')}`).join('\n'));
 writeFileSync('supplied.json', JSON.stringify({ name: `${NAME} — Dec 2026 (${CODE} · ${fingerprint(patterns)})`, patterns }, null, 1));
 const out = process.env.OUT ?? `${process.cwd()}/${NAME.replace(/ /g,'-')}-${CODE}-${fingerprint(patterns)}.pdf`;
-await renderPdf({ today: T, prop: P, meta, demand }, out);
+await renderPdf({ today: T, prop: P, meta: { ...meta, ...OVER }, demand }, out);
 console.log('rendered ->', out);
 console.log('facts:', JSON.stringify({ hoursExSun: P.hours.exSunday, run: P.checks.longestStretch, turnarounds: P.checks.turnarounds.length, weekends: P.checks.weekendsOff, present: P.fatigue.present, fingerprint: fingerprint(patterns) }));

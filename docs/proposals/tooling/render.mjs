@@ -132,8 +132,32 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
   <div class="meta">Prepared ${meta.date} · built for the December 2026 timetable and assessed by the workspace's own rule modules · figures on this page are computed, not typed</div></div></div>
   <div class="ident"><div class="ident-main"><div class="ident-eyebrow">Proposal</div><div class="ident-name">${esc(meta.identity.name)}</div><div class="ident-strap">${esc(meta.identity.strap)}</div></div>
    <div class="ident-side"><div class="ident-row"><span class="ident-k">Code</span><span class="ident-v tt">${esc(meta.identity.code)}</span></div><div class="ident-row"><span class="ident-k">Fingerprint</span><span class="ident-v tt">${esc(meta.identity.fingerprint)}</span></div><div class="ident-row"><span class="ident-k">Built from</span><span class="ident-v">duty table ${esc(meta.identity.table)} · seed ${esc(String(meta.identity.seed))} · 24 lines · 4 cover weeks</span></div><div class="ident-row"><span class="ident-k">Lineage</span><span class="ident-v">${esc(meta.identity.lineage)}</span></div></div></div>
-  <div class="strip"><span class="sum-chip sum-chip--ok">✓ <strong>24</strong> lines designed</span><span class="sum-chip sum-chip--ok">✓ <strong>${hmFromHours(P.hours.exSunday)}</strong> a week, exactly the contract</span>
-   <span class="sum-chip sum-chip--ok">✓ <strong>0</strong> hard-limit breaches</span><span class="sum-chip sum-chip--ok">✓ <strong>0</strong> rests under 12h</span>
+  <div class="strip">${(() => {
+    // EVERY CHIP IS DERIVED. These four were hardcoded to "24 / exactly the contract / 0 / 0" until
+    // 17 Sep 2026, and the first four proposals all happened to satisfy them, so a green tick was
+    // indistinguishable from a checked one. The fifth did not — 60 minutes over contract and one
+    // 11h15 turnaround, both of which the page asserted as met, in bold, with a tick. That is the
+    // "never hardcode a status" rule from links-fatigue.js, broken in the one document that leaves
+    // the building.
+    const chip = (ok, txt) => `<span class="sum-chip sum-chip--${ok ? 'ok' : 'warn'}">${ok ? '✓' : '⚠'} ${txt}</span>`;
+    const lines   = Object.keys(P.patterns).length;
+    // Derived from MINUTES, never from `exSunday` — that is rounded to 2dp, and on a 24-line
+    // rotation 0.01h is 14 minutes, so a real 60-minute surplus reads as 48. A cover week counts as
+    // a full contracted week (v20.98), so it is credited here exactly as weeklyHours credits it.
+    const target  = P.hours.target ?? 35;
+    const overMin = Math.round(P.hours.exSundayHours * 60 + P.hours.coverLines * target * 60
+                               - P.hours.lines * target * 60);
+    const rests   = P.checks.turnarounds.length;
+    const breach  = P.hard.checks.filter(c => c.status === 'breach' || c.status === 'over').length;
+    const unknown = P.hard.checks.some(c => c.status === 'unknown');
+    return [
+      chip(P.checks.unfilledLines.length === 0, `<strong>${lines}</strong> lines designed`),
+      chip(overMin === 0, `<strong>${hmFromHours(P.hours.exSunday)}</strong> a week — ${overMin === 0 ? 'exactly the contract'
+            : `${overMin > 0 ? 'over' : 'under'} the contract by ${Math.abs(overMin)} min`}`),
+      chip(breach === 0 && !unknown, `<strong>${unknown ? '—' : breach}</strong> hard-limit breach${breach === 1 ? '' : 'es'}${unknown ? ' (not assessable)' : ''}`),
+      chip(rests === 0, `<strong>${rests}</strong> rest${rests === 1 ? '' : 's'} under 12h`),
+    ].join('');
+  })()}
    <span class="sum-chip sum-chip--${P.fatigue.present?'warn':'ok'}">${P.fatigue.present?'⚠':'✓'} <strong>${P.fatigue.present}</strong> fatigue factor${P.fatigue.present===1?'':'s'} present <span class="muted">(today: ${T.fatigue.present})</span></span></div>
   <div class="tiles">
     ${BB ? `<div class="tile"><b>${P.feel.distinctTimes} turns</b><span class="l">in the December duty table</span><span class="s">searched against the timetable; lates shorter than earlies; on the quarter hour except the open and close</span></div>`
@@ -216,7 +240,7 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
   <h2>Hard limits <span class="muted" style="font-weight:400;font-size:10px">— a design either meets these or cannot be run</span></h2>
   <div class="check-rows">
     <div class="check-row ${hard.status==='ok'?'check-good':'check-bad'}"><span class="check-icon ${hard.status==='ok'?'check-tick':'check-cross'}">${hard.status==='ok'?'✓':'✕'}</span><div class="check-body"><b>${esc(hard.title)}</b> — longest possible run <b>${hard.value}</b> days (today: ${hardT.value})<div class="check-sub">${esc(hard.detail)}<br><span class="muted">Basis: ${esc(hard.basis)}. Configured from Chiltern practice; the policy citation is outstanding, so this is stated as the app states it.</span></div></div></div>
-    <div class="check-row check-good"><span class="check-icon check-tick">✓</span><div class="check-body"><b>At least 12 hours between duties</b> — <b>${P.checks.turnarounds.length}</b> rests under 12h anywhere in the rotation, Saturday-into-Sunday and line-into-line included (today: ${T.checks.turnarounds.length})<div class="check-sub">The generator refuses a design it cannot repair to this; the search here never produced one.</div></div></div>
+    <div class="check-row ${P.checks.turnarounds.length ? 'check-warn-row' : 'check-good'}"><span class="check-icon ${P.checks.turnarounds.length ? '' : 'check-tick'}">${P.checks.turnarounds.length ? '⚠' : '✓'}</span><div class="check-body"><b>At least 12 hours between duties</b> — <b>${P.checks.turnarounds.length}</b> rests under 12h anywhere in the rotation, Saturday-into-Sunday and line-into-line included (today: ${T.checks.turnarounds.length})<div class="check-sub">The generator refuses a design it cannot repair to this; the search here never produced one.</div></div></div>
     <div class="check-row check-good"><span class="check-icon check-tick">✓</span><div class="check-body"><b>The contracted week, exactly</b> — <b>${hmFromHours(P.hours.exSunday)}</b> average Mon–Sat over the 24 lines, cover weeks counted as contracted weeks<div class="check-sub">700h of duty a week across 20 working lines. Sundays (${P.hours.sundayHours.toFixed(2)}h) sit on top as RDW, as they do today. Individual weeks range ${hm(Math.min(...P.totals.rows.filter(r=>!r.assumed).map(r=>r.exSundayMinutes)))}–${hm(Math.max(...P.totals.rows.map(r=>r.exSundayMinutes)))}; only the average is the contract.</div></div></div>
   </div>
   <h2>December design figures <span class="muted" style="font-weight:400;font-size:10px">— the staffing shape agreed for the new timetable</span></h2>
