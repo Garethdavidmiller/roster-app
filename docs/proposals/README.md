@@ -16,6 +16,7 @@ and every figure in a PDF is computed from the cells it shows — nothing is typ
 | **Fifteen Turns Repaired** | `FT-24-R21 · b76bf9e1` | The same design with both gates **repaired** and the rotation re-searched — every duty, headcount and coverage hour unchanged | **1** | 6 | 6 in 24 |
 | **Weekday Lates 2** | `WL2-24-R21 · 33f70893` | Weekday Lates with the `08:30–17:00` turns re-timed into the evening to cover the 17:00 peak, then re-searched | **1** | 6 | 6 in 24 |
 | **Weekday Lates 3** | `WL3-24-F7 · a6234195` | The same evening fix with **weeks 13–17 kept exactly as written**, then searched fatigue-first | **1** (FF19, at its floor) | 6 | 4 in 24 |
+| **Weeks 17-18 Swapped** | `WS-24-EXT · 0bebb675` | **Supplied as a grid**, not searched — cover week moved to 18, midday turn at `12:00–20:30`. Clears every hard gate; not yet shape-searched | 5 | 9 | 6 in 24 |
 
 Both clear every hard rule — Chiltern's 13-day limit, twelve hours between duties, the exact
 35-hour contracted week — and meet the December staffing shape (four to open, three through to
@@ -111,6 +112,22 @@ against 6 in Weekday Lates, because the search had five fewer weeks to arrange a
 holds three of the nine `08:30–17:00` turns, so the evening fill came from line 9's week and line 6's
 Friday alone — 17:00 reaches 7, 7, 8, 10, 10 where Weekday Lates 2, free to move week 16, reached
 8, 8, 9, 10, 9.
+
+**Weeks 17-18 Swapped** is supplied rather than searched, and its duty table matches **none** of the
+others here — it is its own design, not a rearrangement of one. It clears every hard gate (35h to the
+minute, no rest under 12 hours, no hard-limit breach, worst-case run 9 inside the 13-day limit), and
+its re-timed midday turn already lifts the evening to 7, 7, 8, 10, 9 across Monday to Friday.
+
+What it carries is advisory and unusually heavy: **five factors present, with FF11 at 16** — the
+highest of any design assessed here, against 14 for Weekday Lates and 10–11 for the searched ones —
+and **MRSF at 60.6 hours**. Only **6 of its 20 working lines are a single turn**, so most weeks ask
+somebody to hold more than one start time, which is what drives FF19 to seven.
+
+**None of that requires a duty to change.** Every one is a property of which week sits beside which,
+and on the two designs already run through `optimise.mjs` the same work took the factors from five to
+one and the run from nine to six with the coverage curve asserted identical. Its cover spread is also
+one line out (7, 6, 5, 6), which that search fixes for free. It is listed un-searched deliberately,
+so the baseline it was supplied at stays on the record.
 
 **The code**: family (`ST` / `BB`) · rotation length · duty table (`A`/`B` today's times, `D` the
 December default) · search seed. A trailing `p` (`BB-24-D21p`) is the rules-only run with no
