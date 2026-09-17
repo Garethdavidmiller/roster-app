@@ -27,7 +27,26 @@ const START = JSON.parse(readFileSync(FILE, 'utf8'));
 const LINES = Object.keys(START).length;
 const KEYS = Array.from({ length: LINES }, (_, i) => String(i + 1));
 const SPARE = new Set(KEYS.filter(k => START[k].mon === 'SPARE'));
-const WORK = KEYS.filter(k => !SPARE.has(k));
+// FREEZE=13-18 or FREEZE=3,9,14 — lines held at both their content and their POSITION. A frozen line
+// is excluded from every move, so the search cannot reach the result by quietly editing it. Asserted
+// at the end against the starting grid rather than trusted to the move set.
+const FREEZE = new Set((process.env.FREEZE ?? '').split(',').filter(Boolean).flatMap(part => {
+  const m = part.match(/^(\d+)\s*-\s*(\d+)$/);
+  if (!m) return [part.trim()];
+  const out = []; for (let i = +m[1]; i <= +m[2]; i++) out.push(String(i));
+  return out;
+}));
+// FREEZE_POS=0 protects a frozen line's PATTERN but lets it move in the rotation: it can be swapped
+// whole with another working line, never edited. That distinction decides real cases — Weekday Lates'
+// line 13 runs Tue–Sat and line 14 Sun–Mon, so while both are pinned in place they form one 58.9h
+// seven-day window that nothing else in the grid can break.
+const FREEZE_POS = process.env.FREEZE_POS !== '0';
+const WORK = KEYS.filter(k => !SPARE.has(k) && !FREEZE.has(k));
+/** Lines a whole-line swap may move: the working set, plus frozen lines when only content is held. */
+const SWAPPABLE = FREEZE_POS ? WORK : KEYS.filter(k => !SPARE.has(k));
+// RULES=1 charges every factor PRESENT over and above its size, which is what anneal.mjs's own
+// rules mode does. Use it when the goal is "no factors present" rather than the softest rotation.
+const RULES = process.env.RULES === '1';
 const family = t => { const s = startMinutes(t); return s === null ? null : s < 9 * 60 ? 'E' : 'L'; };
 const clone = p => { const q = {}; for (const k in p) q[k] = { ...p[k] }; return q; };
 
@@ -53,6 +72,7 @@ function evaluate(p) {
     for (const d of ['sat','sun']) if (row[d] !== 'RD' && domFam && family(row[d]) !== domFam) varMis++;
   }
   const terms = {
+    present: RULES ? f.present * 50000 : 0,
     turnarounds: c.turnarounds.length * 1e9,
     stretch: Math.max(0, c.longestStretch - 6) * 2e6 + (c.longestStretch > 13 ? 1e9 : 0),
     ff11: (v('FF11') > 13 ? 1e6 : 0) + Math.max(0, v('FF11') - 12) * 20000,
@@ -71,15 +91,23 @@ function evaluate(p) {
 }
 
 const pick = a => a[Math.floor(rnd() * a.length)];
+/** Frozen PATTERNS, by content. Under FREEZE_POS=0 a frozen line may move, so "which positions must
+ *  not be edited" has to be recomputed from the current grid — freezing position numbers instead is
+ *  what let a moved pattern be edited by a later day-swap, which the end-of-run assertion caught. */
+const FROZEN_PATTERNS = new Set([...FREEZE].map(k => JSON.stringify(START[k])));
+const editable = p => (FREEZE_POS ? WORK : KEYS.filter(k => !SPARE.has(k)))
+  .filter(k => !FROZEN_PATTERNS.has(JSON.stringify(p[k])));
+
 function move(p) {
   const q = clone(p);
-  if (rnd() < 0.72) {                       // swap one day's duty between two working lines
-    const d = pick(DAYS); let x = pick(WORK), y = pick(WORK);
-    while (y === x) y = pick(WORK);
+  const ed = editable(p);
+  if (rnd() < 0.72 && ed.length > 1) {      // swap one day's duty between two EDITABLE lines
+    const d = pick(DAYS); let x = pick(ed), y = pick(ed);
+    while (y === x) y = pick(ed);
     [q[x][d], q[y][d]] = [q[y][d], q[x][d]];
-  } else {                                  // swap two whole working lines (pure reorder)
-    let x = pick(WORK), y = pick(WORK);
-    while (y === x) y = pick(WORK);
+  } else {                                  // swap two whole lines (pure reorder, patterns intact)
+    let x = pick(SWAPPABLE), y = pick(SWAPPABLE);
+    while (y === x) y = pick(SWAPPABLE);
     const t = q[x]; q[x] = q[y]; q[y] = t;
   }
   return q;
@@ -100,13 +128,13 @@ function polish(p) {
   let cur = p, curC = evaluate(cur).cost, moved = true;
   while (moved) {
     moved = false;
-    for (const d of DAYS) for (let i = 0; i < WORK.length; i++) for (let j = i + 1; j < WORK.length; j++) {
-      if (p[WORK[i]] === undefined) continue;
-      const q = clone(cur); [q[WORK[i]][d], q[WORK[j]][d]] = [q[WORK[j]][d], q[WORK[i]][d]];
+    const ed = editable(cur);
+    for (const d of DAYS) for (let i = 0; i < ed.length; i++) for (let j = i + 1; j < ed.length; j++) {
+      const q = clone(cur); [q[ed[i]][d], q[ed[j]][d]] = [q[ed[j]][d], q[ed[i]][d]];
       const c = evaluate(q).cost; if (c < curC - 1e-9) { cur = q; curC = c; moved = true; }
     }
-    for (let i = 0; i < WORK.length; i++) for (let j = i + 1; j < WORK.length; j++) {
-      const q = clone(cur); const t = q[WORK[i]]; q[WORK[i]] = q[WORK[j]]; q[WORK[j]] = t;
+    for (let i = 0; i < SWAPPABLE.length; i++) for (let j = i + 1; j < SWAPPABLE.length; j++) {
+      const q = clone(cur); const t = q[SWAPPABLE[i]]; q[SWAPPABLE[i]] = q[SWAPPABLE[j]]; q[SWAPPABLE[j]] = t;
       const c = evaluate(q).cost; if (c < curC - 1e-9) { cur = q; curC = c; moved = true; }
     }
   }
@@ -131,5 +159,12 @@ if (dayMulti(START) !== dayMulti(best.p)) throw new Error('a day column changed 
 const h0 = weeklyHours(START, LINES), h1 = weeklyHours(best.p, LINES);
 if (h0.exSundayHours !== h1.exSundayHours) throw new Error('contracted hours moved');
 if (JSON.stringify(Object.keys(best.p).filter(k => best.p[k].mon === 'SPARE')) !== JSON.stringify([...SPARE])) throw new Error('cover weeks moved');
-console.log('invariants hold: day duties, contracted hours and cover weeks all unchanged');
+if (FREEZE_POS) { for (const k of FREEZE) if (JSON.stringify(START[k]) !== JSON.stringify(best.p[k]))
+    throw new Error(`frozen line ${k} was changed — the freeze is not holding`); }
+else { // content-only: every frozen pattern must still be somewhere in the grid, unedited
+  const present = new Set(Object.values(best.p).map(r => JSON.stringify(r)));
+  for (const k of FREEZE) if (!present.has(JSON.stringify(START[k])))
+    throw new Error(`frozen line ${k}'s pattern is no longer in the rotation — the freeze is not holding`); }
+console.log('invariants hold: day duties, contracted hours and cover weeks all unchanged'
+  + (FREEZE.size ? `; lines ${[...FREEZE].join(', ')} ${FREEZE_POS ? 'untouched' : 'kept as patterns (position free)'}` : ''));
 writeFileSync(FILE.replace(/\.json$/, '-optimised.json'), JSON.stringify(best.p, null, 0));
