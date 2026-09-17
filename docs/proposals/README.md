@@ -13,6 +13,7 @@ and every figure in a PDF is computed from the cells it shows — nothing is typ
 | **By the Book** | `BB-24-D7 · 0f14abce` | The workspace's December duty table (the owner's rules in table form), the rotation searched for the ORR factors | **0** | 6 | 6 in 24 |
 | **Weekday Lates** | `WL-24-EXT · a52ec588` | **Supplied as a Word table**, not searched — weekday lates at 16:25, Saturdays left alone | 5 (as today's link) | 9 | 6 in 24 |
 | **Fifteen Turns** | `FT-24-EXT · 9a028392` | **Supplied as a grid**, not searched — the shortest turn table yet and a perfect cover spread, but **it does not clear two gates** | 7 | 9 | 2 in 24 |
+| **Fifteen Turns Repaired** | `FT-24-R21 · b76bf9e1` | The same design with both gates **repaired** and the rotation re-searched — every duty, headcount and coverage hour unchanged | **1** | 6 | 6 in 24 |
 
 Both clear every hard rule — Chiltern's 13-day limit, twelve hours between duties, the exact
 35-hour contracted week — and meet the December staffing shape (four to open, three through to
@@ -47,6 +48,30 @@ design does not, and the page asserted both gates it fails as met. Every chip is
 surplus is computed from MINUTES (`exSunday` is rounded to 2dp, and 0.01h is 14 minutes on a 24-line
 rotation), and the 12-hour row goes amber when it is breached. Re-checked: the other four still read
 *exactly the contract*, at 0 minutes each.
+
+**Repairing Fifteen Turns took one duty.** `12:00–20:00` on line 7's Saturday is the only place that
+turn appears anywhere in the rotation, and it sat in BOTH failures; shortening it to `12:00–19:00`
+removes exactly the 60 surplus minutes and lifts the 11h15 rest to 12h15. Saturday cover at 19:00
+goes from seven to six and nothing else in the table moves.
+
+Then the SHAPE was searched and the staffing was not — `tooling/optimise.mjs`, whose only two moves
+(swap two lines' duty within one day column, swap two whole lines) leave each day's multiset of
+duties exactly as it was. Coverage, headcounts, the duty table and the contracted week are therefore
+invariant **by construction**, and the script asserts all three rather than trusting the argument;
+the hour-by-hour heat map is identical to the design as supplied. Result: run 9→6 (inside the design
+target of 7, not merely the 13-day limit), weekends off 2→6, one-turn weeks 12→16, and fatigue
+factors present **7→1**.
+
+It deliberately does NOT reuse `anneal.mjs`'s `evaluate`, which fixes the cover weeks at lines 1, 7,
+13 and 19: this design has them at 6, 12, 18, 24, and scoring it with the wrong spare set reads four
+cover weeks as working lines. The WEIGHTS are anneal's, unchanged; only the working set is derived.
+
+**Four seeds gave four answers and the lowest score was not taken.** All four clear every hard gate
+and all four keep the coverage curve identical, so the choice was between advisory outcomes rather
+than safety. Seed 34 scores lowest on the blended objective (a gentler 2h21 step) and seed 7 gives a
+seventh weekend off; **seed 21 is the only one that also clears FF15**, leaving one factor present,
+and that is the one kept — fewer factors present is what the ORR panel reports and what a reader
+acts on. All four are in that PDF's own alternatives table with what each costs.
 
 **The code**: family (`ST` / `BB`) · rotation length · duty table (`A`/`B` today's times, `D` the
 December default) · search seed. A trailing `p` (`BB-24-D21p`) is the rules-only run with no

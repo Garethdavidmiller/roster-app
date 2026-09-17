@@ -10,3 +10,10 @@ proposal.json
 proposal-import.txt
 supplied.json
 supplied-import.txt
+
+# Search scratch: the per-seed starting copies and their results. The CHOSEN result is committed
+# under its own name (fifteen-turns-repaired.json) and the rest are reproducible from the same
+# seeds, so keeping them would be four stale copies of one rotation.
+seed*.json
+best-so-far.json
+*-optimised.json

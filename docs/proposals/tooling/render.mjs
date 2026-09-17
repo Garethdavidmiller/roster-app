@@ -124,6 +124,7 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
 .kept td:nth-child(1) { width: 38%; } .kept td:nth-child(2), .kept td:nth-child(3) { width: 24%; white-space: nowrap; } .kept td:nth-child(4) { display: none; } .kept th:nth-child(4) { display: none; }
 .changed td:nth-child(1) { width: 46%; } .changed td.num { width: 13%; } .changed td.num { white-space: nowrap; }
 .alts td, .alts th { white-space: nowrap; padding: 3px 8px; } .alts td:first-child { white-space: normal; width: 42%; }
+.alts-dense td, .alts-dense th { padding: 0 5px; font-size: 8px; line-height: 1.18; }
 </style></head><body>
 
 <section class="page cover">
@@ -272,10 +273,11 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
   <p class="muted">Links → Import, then paste the block on page 8. Line number, then Sunday to Saturday; SP is a cover week. The workspace re-runs every check on these pages from the pasted cells, so nothing here has to be taken on trust — and the two designers can edit it there like any other design.</p>
   <p class="muted">The same rotation is also supplied as <span class="tt">proposal-import.txt</span> (tab-separated, pastes directly) and <span class="tt">proposal.json</span> (the app's own format).</p>
   <h2>Alternatives measured</h2>
-  <table class="t alts"><thead><tr><th>Design</th><th class="num">Run</th><th class="num">FF present</th><th class="num">Wkends</th><th class="num">One-turn</th><th class="num">Step</th><th class="num">Wk fit</th><th class="num">Score</th></tr></thead><tbody>
+  <table class="t alts${meta.denseAlts ? ' alts-dense' : ''}"><thead><tr><th>Design</th><th class="num">Run</th><th class="num">FF present</th><th class="num">Wkends</th><th class="num">One-turn</th><th class="num">Step</th><th class="num">Wk fit</th><th class="num">Score</th></tr></thead><tbody>
   ${meta.alternatives.map(a => `<tr${a.chosen?' style="font-weight:700"':''}><td>${a.name}</td><td class="num">${a.run}</td><td class="num">${a.present}</td><td class="num">${a.weekends}</td><td class="num">${a.oneTurn}</td><td class="num">${a.step}</td><td class="num">${a.fit}</td><td class="num">${a.score}</td></tr>`).join('')}
   </tbody></table>
-  <p class="muted"><b>How the winner was picked:</b> rules first (rest, run, fatigue factors present, weekends off), then <i>Wk fit</i> — how evenly the weekday cover follows the December traffic curve (lower is better; today's link scores what it scores). ${BB ? 'All four candidates clear every factor and share one table, so the fit is identical; full weekends off decided it (6 against 5), and the runner-up is named so it can be asked for. The rules-only row shows what the coherence term cost against the factors: nothing.' : 'Two candidates tied on every rule; the fit decided it, and the runner-up is named so it can be asked for.'} Score is the search's own feel objective (lower is better) and is not a verdict. The workspace default is the app's own December table, generated and reordered with every switch on — a good design by every panel, and not one that resembles today's.</p>
+  ${meta.pickNote ?? `<p class="muted"><b>How the winner was picked:</b> rules first (rest, run, fatigue factors present, weekends off), then <i>Wk fit</i> — how evenly the weekday cover follows the December traffic curve (lower is better; today's link scores what it scores). ${BB ? 'All four candidates clear every factor and share one table, so the fit is identical; full weekends off decided it (6 against 5), and the runner-up is named so it can be asked for. The rules-only row shows what the coherence term cost against the factors: nothing.' : 'Two candidates tied on every rule; the fit decided it, and the runner-up is named so it can be asked for.'} Score is the search's own feel objective (lower is better) and is not a verdict. The workspace default is the app's own December table, generated and reordered with every switch on — a good design by every panel, and not one that resembles today's.</p>`}
+
   <div class="foot"><span>Page 7 of 8 — Method</span><span class="foot-id"><b>${esc(meta.identity.name)}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
 </section>
 

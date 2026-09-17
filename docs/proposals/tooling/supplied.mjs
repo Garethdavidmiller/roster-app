@@ -51,6 +51,15 @@ for (const [f, label] of [['../Same-Turns-ST-24-B7.json', 'Same Turns'], ['../By
   const j = JSON.parse(readFileSync(f, 'utf8')); const pp = j.patterns ?? j;
   alternatives.push(alt(`${label} · ${fingerprint(pp)} — the searched proposal`, assess(pp, 24), false, pp));
 }
+// Other candidates this design was chosen OVER — named in the meta file as {label, file}. The
+// point of listing them is the repo's own "switches, not a formula": show what the pick cost,
+// rather than hide four different answers behind one score.
+for (const x of (OVER.extraAlternatives ?? [])) {
+  if (!existsSync(x.file)) continue;
+  const j = JSON.parse(readFileSync(x.file, 'utf8'));
+  const pp = j.patterns ?? j;
+  alternatives.push(alt(`${x.label} · ${fingerprint(pp)}`, assess(pp, 24), false, pp));
+}
 alternatives.push(alt(`Workspace default · ${fingerprint(gp)} (Dec 2026 table, generated)`, assess(gp, 24), false, gp));
 const tp24 = {}; for (let i = 1; i <= 24; i++) tp24[i] = T.patterns[String(((i-1)%20)+1)];
 alternatives.push(alt("Today's 20-line link (for scale)", T, false, null));
@@ -115,6 +124,10 @@ const meta = {
 writeFileSync('supplied-import.txt', Array.from({ length: 24 }, (_, i) => `${i+1}\t${DAYS.map(d => P.patterns[String(i+1)][d] === 'SPARE' ? 'SP' : P.patterns[String(i+1)][d]).join('\t')}`).join('\n'));
 writeFileSync('supplied.json', JSON.stringify({ name: `${NAME} — Dec 2026 (${CODE} · ${fingerprint(patterns)})`, patterns }, null, 1));
 const out = process.env.OUT ?? `${process.cwd()}/${NAME.replace(/ /g,'-')}-${CODE}-${fingerprint(patterns)}.pdf`;
-await renderPdf({ today: T, prop: P, meta: { ...meta, ...OVER }, demand }, out);
+// `identity` is merged rather than replaced: a per-design file should be able to correct the
+// lineage without having to restate the code, and above all without restating the FINGERPRINT,
+// which must stay computed from the cells.
+await renderPdf({ today: T, prop: P,
+  meta: { ...meta, ...OVER, identity: { ...meta.identity, ...(OVER.identity ?? {}) } }, demand }, out);
 console.log('rendered ->', out);
 console.log('facts:', JSON.stringify({ hoursExSun: P.hours.exSunday, run: P.checks.longestStretch, turnarounds: P.checks.turnarounds.length, weekends: P.checks.weekendsOff, present: P.fatigue.present, fingerprint: fingerprint(patterns) }));
