@@ -166,7 +166,11 @@ const CAPS = {
     // feature needs twenty lines.* v23.91 is the worked example — the AL save decision left for
     // `admin-al-week-save.js` and `admin-app.js` went DOWN rather than up. Raising this costs the
     // repo the one mechanism that has actually been shrinking Admin.
-    'admin-week-editor.js':    950,
+    // 950 -> 830 at v23.98. The ratchet only ever comes DOWN, and it came down here because the
+    // file was AT its cap with zero headroom — which makes the next change to the Admin week grid
+    // pay for an extraction before it can start, under a hard stop, where the cheapest cut wins.
+    // `admin-week-row-state.js` took the cluster that needed no injected dependencies at all.
+    'admin-week-editor.js':    830,
     'admin-saved-changes.js':  460,
     // 1800 → 1700 at v21.89. The week-grid swipe left for admin-week-swipe.js — 1,783 down to
     // 1,638 — taking a pointer state machine with no business rule in it. What a week change MEANS

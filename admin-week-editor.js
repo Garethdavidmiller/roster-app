@@ -33,7 +33,11 @@ import { swapDecisionDates } from './al-swapped-days.js';
 import { isRestShift, isForbiddenOnSunday, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
 import { TYPES, PILL_TYPES } from './admin-shift-types.js';
 import { hasOverrideAuthorityFor, loadFailedFor, loadOverrides } from './admin-override-store.js';
-import { setStatus } from './status-text.js';
+// The row's own appearance rules — moved out at v23.98 when this file hit its ratchet cap with no
+// headroom. Same names, so every call site below is unchanged; see that module's header for why
+// this cluster was the seam and the bulk bar was not.
+import { _syncOtherRdwWarn, _syncOtherSpareMode, _activateRow, _syncOverwriteBadge, _deactivateRow }
+    from './admin-week-row-state.js';
 
 // ── INJECTED ──────────────────────────────────────────────────────────────────
 let _currentIsAdmin = false;
@@ -527,142 +531,6 @@ export function renderWeekGrid() {
     resetBulkPills();
     updateSaveBtn();
     _updateBulkSelCount();
-}
-
-/**
- * Show the "originally rostered" warning only when the RDW tick is ON for a day whose
- * base roster is NOT a rest day (owner decision, Jul 2026: allow it — the admin may know
- * the roster is wrong — but say plainly that a real rostered shift is being repaid as RDW).
- * Rest-day rows never warn (the tick is the normal state there, pre-ticked).
- * @param {HTMLElement} row
- */
-function _syncOtherRdwWarn(row) {
-    const warn = /** @type {HTMLElement|null} */ (row.querySelector('.other-rdw-warn'));
-    if (!warn) return;
-    const cb = /** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb'));
-    const optsVisible = !(/** @type {HTMLElement|null} */ (row.querySelector('.other-opts'))?.hidden);
-    warn.hidden = !(optsVisible && cb?.checked && row.dataset.baseIsRd !== '1');
-}
-
-/**
- * Reflect a "Spare" choice inside the Other submenu (v15.57 — Spare moved under Other).
- * Spare is a fixed placeholder: no RDW, no times. Reuse the `.fixed-type` machinery to hide
- * the time inputs (and show "No time needed"), and `.other-spare` to hide the RDW tick + hint.
- * Picking any Other-family flavour clears it (Other days keep their optional times). The collector
- * reads the active flavour and, when it's SPARE, writes a `spare_shift`/'SPARE' override.
- * @param {HTMLElement} row
- */
-function _syncOtherSpareMode(row) {
-    const spareActive = !!row.querySelector('.other-flavour-btn.active[data-flavour="SPARE"]');
-    row.classList.toggle('other-spare', spareActive);
-    row.classList.toggle('fixed-type',  spareActive);
-    const s = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start'));
-    const e = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end'));
-    if (s) s.tabIndex = spareActive ? -1 : 0;
-    if (e) e.tabIndex = spareActive ? -1 : 0;
-    _syncOtherRdwWarn(row);
-}
-
-/**
- * @param {HTMLElement} row
- * @param {HTMLInputElement|null} checkbox
- * @param {NodeListOf<Element>} pills
- * @param {HTMLInputElement|null} startEl
- * @param {HTMLInputElement|null} endEl
- * @param {string} type
- */
-function _activateRow(row, checkbox, pills, startEl, endEl, type) {
-    if (checkbox) checkbox.checked = true;
-    row.classList.add('active');
-    row.classList.remove('selected');
-    pills.forEach(p => {
-        const on = (/** @type {HTMLElement} */ (p)).dataset.type === type;
-        p.classList.toggle('active', on);
-        p.setAttribute('aria-pressed', String(on));
-    });
-    if (TYPES[type]?.fixed) {
-        row.classList.add('fixed-type');
-        if (startEl) startEl.tabIndex = -1;
-        if (endEl) endEl.tabIndex = -1;
-    } else {
-        row.classList.remove('fixed-type');
-        if (startEl) startEl.tabIndex = 0;
-        if (endEl) endEl.tabIndex = 0;
-    }
-    row.classList.remove('other-spare');   // clear any stale Spare-mode when (re)activating a type
-    row.dataset.type = type;
-    // Other-family options strip: visible only while the Other pill is active. The RDW tick
-    // pre-ticks itself when the day's base roster is a rest day (OTHER_DAYS.md decision 8)
-    // — smart default, still adjustable. Runs on BOTH the pill and bulk-apply paths.
-    const otherOpts = /** @type {HTMLElement|null} */ (row.querySelector('.other-opts'));
-    if (otherOpts) {
-        otherOpts.hidden = type !== 'other';
-        if (type === 'other') {
-            const cb = /** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb'));
-            if (cb && row.dataset.baseIsRd === '1') cb.checked = true;
-        }
-        _syncOtherRdwWarn(row);
-    }
-    _syncOverwriteBadge(row);
-}
-
-/**
- * Sync a day-row's overwrite badge to its state, relative to the override it was loaded with:
- *   • prefilled-existing (loaded, untouched) → "✓ Saved"    — already recorded, no change staged
- *   • active with a type   (a change staged)  → "⚠ Updating" — will overwrite the saved one on Save
- *   • deactivated          (unticked)         → "⚠ Removing" — the saved override is deleted on Save
- * No-op on rows with no saved override (they have no .overwrite-badge).
- * @param {HTMLElement} row
- */
-function _syncOverwriteBadge(row) {
-    const badge = row.querySelector('.overwrite-badge');
-    if (!badge) return;
-    // setStatus, not a bare assignment (v21.94): the badge's initial markup already wraps its
-    // glyph in an `aria-hidden` span, and repainting it here used to replace that with a bare
-    // '⚠ Updating' — so the row announced "warning sign Updating" from the second paint onwards.
-    setStatus(badge, row.classList.contains('prefilled-existing') ? '✓ Saved'
-        : row.dataset.type ? '⚠ Updating'
-        : '⚠ Removing');
-}
-
-/**
- * @param {HTMLElement} row
- * @param {HTMLInputElement|null} checkbox
- * @param {NodeListOf<Element>} pills
- * @param {HTMLInputElement|null} startEl
- * @param {HTMLInputElement|null} endEl
- */
-function _deactivateRow(row, checkbox, pills, startEl, endEl) {
-    if (checkbox) checkbox.checked = false;
-    row.classList.remove('active', 'fixed-type', 'selected', 'row-error', 'other-spare');
-    pills.forEach(p => { p.classList.remove('active'); p.setAttribute('aria-pressed', 'false'); });
-    if (startEl) {
-        startEl.value = '';
-        startEl.classList.remove('input-error');
-        startEl.removeAttribute('aria-invalid');
-        startEl.tabIndex = -1;
-    }
-    if (endEl) {
-        endEl.value = '';
-        endEl.classList.remove('input-error');
-        endEl.removeAttribute('aria-invalid');
-        endEl.tabIndex = -1;
-    }
-    delete row.dataset.type;
-    // Reset the Other sub-controls: NO flavour selected (an explicit pick is required —
-    // no silent Training default), no RDW, hidden.
-    const otherOpts = /** @type {HTMLElement|null} */ (row.querySelector('.other-opts'));
-    if (otherOpts) {
-        otherOpts.hidden = true;
-        row.querySelectorAll('.other-flavour-btn').forEach(b => {
-            b.classList.remove('active');
-            b.setAttribute('aria-pressed', 'false');
-        });
-        const cb = /** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb'));
-        if (cb && !cb.disabled) cb.checked = false;   // rest-day rows keep their baked tick (RDW is automatic)
-        _syncOtherRdwWarn(row);
-    }
-    _syncOverwriteBadge(row);
 }
 
 export function updateSaveBtn() {
