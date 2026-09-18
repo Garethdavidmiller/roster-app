@@ -79,6 +79,7 @@ live anchors:
 | `ROADMAP_HISTORY.md` | Historical | **The archive.** Everything `ROADMAP.md` used to say about the past |
 | `DECISIONS.md` | Historical | **The closed decisions.** Features declined, and choices recorded so they are not re-argued |
 | `A11Y_BASELINE.md` | Live baseline | The axe triage the gate is measured against |
+| `IPHONE_RELEASE_CHECKLIST.md` | Release pass | The iOS checks no test here can run — run by hand, on four real devices |
 
 **So the archive already exists and is called `ROADMAP_HISTORY.md`.** If a plan above genuinely dies,
 move its content there — do not create a second archive.

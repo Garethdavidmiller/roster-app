@@ -6,6 +6,15 @@
 This is the proof behind the roster-import direction in `ROADMAP.md`. It is **not a CI gate** and
 not a runtime asset: it tests a PDF, not us, and it needs a dependency the app does not carry.
 
+> **A NAME IN HERE IS PUBLISHED.** This file is committed and the GitHub Pages mirror serves the
+> repository root, so it reaches the open web exactly as `roster-data.js` does. That is fine for a
+> name ALREADY on the published roster — the base roster being public is a deliberate
+> classification, `AUTH_PLAN.md` §2 — and it is not fine for anybody else. A **temporary** member
+> is the case that catches you out: they work the roster and appear on the sheet, and the app does
+> not publish them. Two measurements here named one, and the fix is the one to copy — the
+> observation is what matters, so keep the count and drop the attribution ("one CEA Wednesday", not
+> a name). Where a name is load-bearing, check it against `teamMembers` in `roster-data.js` first.
+
 ## Why it was run
 
 The import's day-drift defence rests on three channels — the AI's row read, its `sundayScan` and
@@ -67,7 +76,7 @@ different question from how many cells the witness can speak for.)
 | Sundays holding a timed duty — the negative case's control | **12** |
 | Sundays holding a code (`SC`, `SP`) | **3** |
 | rows with all seven cells filled | **15** |
-| cells no deterministic rule reads | **1** — `S. Fayombo` Wed, `"07:00-16:00 CEA BL 1"` (missing the `\|` separator the others carry) |
+| cells no deterministic rule reads | **1** — one CEA Wednesday, `"07:00-16:00 CEA BL 1"` (missing the `\|` separator the others carry) |
 
 Both directions matter. An emptiness claim is only useful if worked Sundays are equally visible,
 and they are.
@@ -221,7 +230,7 @@ The first two are decisive, and the second is the strongest evidence yet that re
 **The third one is where the number moved, and it matters.** Blank weekdays are not spread thinly —
 they are almost entirely one roster type and a handful of people:
 
-    CEA          1 blank weekday cell  in 678   (S. Fayombo, one Friday)
+    CEA          1 blank weekday cell  in 678   (one person, one Friday)
     Supervisors  0                     in 240
     Dispatch    48                     in 324   = 15%, across four people
                  S. Horsman 19 · S Faure 18 · P. Prashanthan 6 · F. Mohamed 5
