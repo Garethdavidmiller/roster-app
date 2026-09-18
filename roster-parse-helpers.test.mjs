@@ -183,7 +183,7 @@ describe('normaliseShift', () => {
     test('whitespace-only string → RD (genuinely blank, not flagged)', () => {
         assert.equal(normaliseShift('   '), 'RD');
     });
-    test('paid-absence codes HA (hospital appointment), OD, ML (maternity leave), CL → SICK, case-insensitive, never UNKNOWN', () => {
+    test('paid-absence codes HA (hospital appointment), OD, ML (maternity leave), CL (compassionate leave) → SICK, case-insensitive, never UNKNOWN', () => {
         assert.equal(normaliseShift('HA'), 'SICK');
         assert.equal(normaliseShift('OD'), 'SICK');
         assert.equal(normaliseShift('ML'), 'SICK');   // maternity leave

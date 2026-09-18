@@ -90,8 +90,10 @@ function normaliseShift(raw) {
     // Paid-absence roster codes (owner, Jul 2026; CL added Sep 2026): HA = Hospital Appointment (a
     // day off on full pay); OD = paid absence, often used as a blanket Mon–Fri marking for
     // long-term sickness; SC = sick on a booked turn; ML = Maternity leave (a long paid-absence
-    // block); CL = paid absence. All become the app's Absent day ('SICK' — the reason is never
-    // stored, GDPR, which is also why the five collapse to ONE value rather than five). The prompt
+    // block); CL = Compassionate leave (a paid absence). All become the app's Absent day ('SICK' —
+    // the reason is never stored, GDPR, which is also why the five collapse to ONE value rather
+    // than five, and why CL in particular must not reach a staff-facing surface as itself: a
+    // bereavement is the most sensitive thing on this list). The prompt
     // already tells the AI to return SICK for these, but if it echoes the RAW code the server must
     // still map it — otherwise a real absence surfaced as an UNREADABLE cell instead of Absent.
     // Dots/slashes are stripped first so the punctuated paper-roster forms ("O.D.", "O/D", "H.A",
