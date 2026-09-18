@@ -573,7 +573,45 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     .country-jump,
     .btn-primary,
     .btn-secondary,
+    .btn-print-country,
     .btn-text-link { display: none !important; }
+
+    /* ── PRINT THIS COUNTRY (v24.06) ──────────────────────────────────────────────────────
+       ROADMAP print item 1. One country's card instead of the 25-sheet book, because that is
+       what a traveller checking a coupon before a trip is after.
+
+       A CSS STATE rather than a DOM edit: `fip-guide.js` marks the chosen card and stamps
+       `data-print-country` on <body>, and these rules do the rest. Nothing is removed and
+       nothing has to be put back, so an interrupted print cannot leave the page short of a
+       country — which is the exact failure the expand/restore machinery in that file exists
+       to prevent, and it is not worth re-creating a second way in.
+
+       The HEADER stays. A sheet naming one country and nothing else could be from any
+       railway's staff handbook; the banner is what says which guide it came out of, and it
+       is the same identity line the full print carries. Everything between the header and
+       the countries goes: the general chapters are the book this button exists to skip.
+
+       ONE RULE OVER EVERY CHILD, not a list of the things to hide. `.content` is a flat run of
+       ~90 mixed children — intros, section labels, cards, boxes, two-ups, a general <details>
+       that is not a country, and the 32 country cards — so a list of classes to suppress is a
+       hand-maintained inventory that silently lets a new kind of block through. The first cut
+       of this was exactly that list and it printed SIX sheets instead of one. Saying "keep the
+       target, hide its siblings" cannot go stale as the guide grows.
+
+       `:not()` on the marker class rather than an `[id]` match, so the rule reads as what it
+       means. It also beats the `[id^="country-"][hidden] { display: block }` un-hide above on
+       specificity, which is what lets a reader print a country the finder had filtered out
+       while the other 31 stay down. */
+    body[data-print-country] > .content > *:not(.is-print-country) { display: none !important; }
+
+    /* THE COUNTRY IS NAMED ON ITS OWN SHEET. `summary { display: none }` above is right for the
+       full print — 32 disclosure headings on an expanded guide are chrome, and the section labels
+       already carry the structure — and it is exactly wrong here: the first cut printed the banner
+       and then went straight into tag pills, so a France sheet and a Serbia sheet were told apart
+       only by reading the operator name in the body. That is the same "says nothing about what it
+       is" this section is for. The chevron goes: it is a disclosure affordance on paper. */
+    body[data-print-country] .is-print-country > summary { display: block !important; }
+    body[data-print-country] .is-print-country > summary .chevron { display: none; }
 
     body { background: white; font-size: 13px; }
 
@@ -631,3 +669,20 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     line-height: 1.6;
 }
 .foot-disclaimer-link { color: inherit; }
+
+/* ── PRINT THIS COUNTRY (v24.06) ─────────────────────────────────────────────
+   The control itself; the @media print block above takes it off the paper, since
+   it must not print on the very sheet it produced. */
+.btn-print-country {
+    display: block;
+    margin: 14px 0 0;
+    padding: 7px 12px;
+    font: inherit;
+    font-size: 13px;
+    color: var(--navy);
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+}
+.btn-print-country:hover { border-color: var(--navy); }

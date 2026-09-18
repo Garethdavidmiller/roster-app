@@ -10,6 +10,7 @@
  */
 
 import { CONFIG, weeklyRoster, escapeHtml } from './roster-data.js';
+import { printedStamp, formatClock, formatDayMonthYear } from './date-format.js';
 import { db, doc, getDoc, setDoc, addDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
 import { initNavPanel, resetNavPanel, archiveNotice } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
@@ -2041,9 +2042,13 @@ export function init() {
         // a perfectly reasonable thing to want (v19.62).
         const unsaved = dirty ? ' · includes unsaved changes' : '';
         const saved = entry?.updatedBy
-            ? `Last saved by ${entry.updatedBy}${when ? ` · ${when.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}${unsaved}`
+            ? `Last saved by ${entry.updatedBy}${when ? ` · ${formatDayMonthYear(when)}` : ''}${unsaved}`
             : `Not saved yet${unsaved}`;
-        const printed = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        // The TIME matters more here than anywhere: a design is edited and reprinted repeatedly
+        // on the way to a proposal, and the assessing manager may be holding two of them. See
+        // roster-data.js → "the provenance line every printable surface closes on".
+        const printedNow = new Date();
+        const printed = printedStamp(printedNow, formatClock(printedNow));
         // The printed sheet states the window it was designed to (v19.54). A circulated sheet is
         // read away from the app, so without this a proposal built to a moved Sunday finish is
         // indistinguishable from one built to the standard hours.
@@ -2051,7 +2056,7 @@ export function init() {
         const moved = isDefaultWindow(design.window) ? '' : ' (moved)';
         el.innerHTML =
             `<span class="print-design-title">${escapeHtml(design.name || 'Link design')}</span>` +
-            `<span class="print-design-meta">${escapeHtml(saved)} · Printed ${escapeHtml(printed)}</span>` +
+            `<span class="print-design-meta">${escapeHtml(saved)} · ${escapeHtml(printed)}</span>` +
             `<span class="print-design-meta">Staffed window: ${escapeHtml(win + moved)}</span>`;
     }
     // Re-stamp on the way to the printer so the "Printed" date is the real one.

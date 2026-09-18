@@ -7,6 +7,7 @@
  * card by id; it touches no coordinator state and no other card.
  */
 import { sessionReady } from './session.js';
+import { formatDayMonthYear, formatClock } from './date-format.js';
 import { withClaimRetry, getClientErrors, resolveClientError } from './firebase-client.js';
 import { _cardLoadError, _relativeTime } from './operations-reports.js';
 
@@ -237,12 +238,8 @@ async function initErrorLog(opts = {}) {
 
 /** Build the plain-text block that gets pasted into Claude for diagnosis. */
 function _formatForClaude(/** @type {any} */ err) {
-    const when = err.timestamp?.toDate
-        ? err.timestamp.toDate().toLocaleString('en-GB', {
-            day: 'numeric', month: 'short', year: 'numeric',
-            hour: '2-digit', minute: '2-digit',
-          })
-        : 'unknown';
+    const at = err.timestamp?.toDate ? err.timestamp.toDate() : null;
+    const when = at ? `${formatDayMonthYear(at)}, ${formatClock(at)}` : 'unknown';
     return [
         '🐛 App error — please diagnose',
         '',

@@ -35,6 +35,7 @@
 import { deadlineLabel } from './overtime-phase.js';
 export { deadlineLabel, phaseCopy, phaseChip, phaseTone, deadlineLines } from './overtime-phase.js';
 import { getShiftBadge } from './roster-data.js';
+import { printedStamp, londonDate, londonClock } from './date-format.js';
 
 // THE CLOCK LEFT THIS MODULE at v23.69 — the six decisions a member's own clock may make about a
 // deadline, as against the words this module puts a deadline into. Re-exported here so every
@@ -248,16 +249,13 @@ export function weekSpan(weekStart, weekEnding) {
  */
 export function printedLabel(ms) {
     if (!ms) return '';
-    const d = new Intl.DateTimeFormat('en-GB', {
-        timeZone: 'Europe/London', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
-    }).format(new Date(ms)).replace(/,/g, '')
-        // Same four-letter September trim as deadlineLabel — a printed sheet sits beside the
-        // deadline lines on the page, so the two must abbreviate identically.
-        .replace(/\bSept\b/, 'Sep');
-    const t = new Intl.DateTimeFormat('en-GB', {
-        timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-    }).format(new Date(ms));
-    return `${d} · ${t}`;
+    // `printedStamp` owns the WHOLE line including the word "Printed" (v24.06). The template used
+    // to supply that word, which meant the four other printable surfaces each supplied their own
+    // and could word it differently — and three of them did. One function, one line.
+    //
+    // London for both halves, via `londonClock` rather than `formatClock`: this sheet is a
+    // roster-office document, and it sits beside the deadline lines above it, which are London too.
+    return printedStamp(londonDate(ms), londonClock(ms));
 }
 
 /**

@@ -80,6 +80,7 @@
  */
 
 import { avatarInitials, avatarHue } from './roster-data.js';
+import { formatDayMonth, formatDayMonthYear } from './date-format.js';
 import { nameConflict } from './links-design-naming.js';
 
 /**
@@ -160,10 +161,7 @@ export function saveButtonLabel({ saved, dirty }) {
 
 /** @param {Date} when @param {Date} now */
 function shortDate(when, now) {
-    const opts = when.getFullYear() === now.getFullYear()
-        ? { day: 'numeric', month: 'short' }
-        : { day: 'numeric', month: 'short', year: 'numeric' };
-    return when.toLocaleDateString('en-GB', /** @type {any} */ (opts));
+    return when.getFullYear() === now.getFullYear() ? formatDayMonth(when) : formatDayMonthYear(when);
 }
 /** @param {Date} when @param {Date} now */
 function sameDay(when, now) {
@@ -209,7 +207,7 @@ export function whoCopy({ saved, updatedBy, currentUser }) {
  * @param {Date} [now]
  */
 export function proposeNewDesignName(currentUser, existing = [], now = new Date()) {
-    const base = `${(currentUser || 'Design').trim()} · ${now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`;
+    const base = `${(currentUser || 'Design').trim()} · ${formatDayMonth(now)}`;
     if (!nameConflict(base, existing)) return base;
     for (let n = 2; n < 1000; n++) {
         const candidate = `${base} ${n}`;

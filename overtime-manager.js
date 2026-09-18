@@ -256,7 +256,7 @@ function build(win, data, { dates, now, grade, day = 'ALL', canRefresh = false }
                      taken from snapshots that may share it; the printed-at line is what orders them.
                      The stamp carries the YEAR, which the deadline lines deliberately do not — a
                      deadline is days away, a printout goes in a folder. -->
-                <div class="ot-print-printed">Printed ${esc(printedLabel(Date.now()))}</div>
+                <div class="ot-print-printed">${esc(printedLabel(Date.now()))}</div>
                 <!-- The grade filter IS carried into print, unlike the day filter — printing one
                      grade's availability is a real thing to want. That makes stating it mandatory:
                      a sheet showing four CEAs with no scope line reads as the whole team. -->

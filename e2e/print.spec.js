@@ -341,3 +341,67 @@ test('no team-view name is truncated on paper @print', async ({ page }) => {
     const clipped = cells.filter(c => c.whiteSpace === 'nowrap' || c.textOverflow === 'ellipsis');
     expect(clipped.map(c => c.name), 'these names would print with an ellipsis and no way to read the rest').toEqual([]);
 });
+
+// ── PRINT THIS COUNTRY (v24.06) ─────────────────────────────────────────────────────────────────
+// ROADMAP print item 1: "Most readers want France, not the book." The guide is 25 sheets and a
+// traveller checking one coupon before a trip needs one card.
+//
+// These assert the OUTCOME — how many sheets, carrying which country — by counting pages in the
+// real PDF, not by checking which classes are on which element. The first cut of the CSS was a
+// list of the block types to suppress and it passed every structural check while printing SIX
+// sheets, because `.content` is a flat run of ~90 mixed children and the list was four of them.
+// Only the page count could see that.
+test('printing one country prints one country @print', async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', 'page.pdf() is Chromium-only');
+    await page.goto('/fip-guide.html');
+
+    const sheets = async () => {
+        const buf = await page.pdf({ preferCSSPageSize: true, printBackground: true });
+        return (buf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
+    };
+    const whole = await sheets();
+    expect(whole, 'the full guide has to be long for this feature to mean anything').toBeGreaterThan(15);
+
+    await page.evaluate(() => { window.print = () => {}; });
+    // The control lives INSIDE the card, so the card has to be open — which is the real flow: you
+    // open a country to read it, and the print offer is at the bottom of what you just read. That
+    // is also why there is no header control: a header button would have to guess which country.
+    await page.locator('#country-fr > summary').click();
+    await page.locator('#country-fr .btn-print-country').click();
+
+    // These come BEFORE the page count, and the ordering is load-bearing: `page.pdf()` fires a real
+    // `afterprint`, which is the app doing the right thing — the print is over, so the guide comes
+    // back — but it means one render is all the state gets.
+    await page.emulateMedia({ media: 'print' });
+    // The sheet has to SAY which country. `summary { display: none }` is right for the full print
+    // and exactly wrong here — without the override a France sheet and a Serbia sheet differ only
+    // by the operator name buried in the body.
+    expect(await page.locator('#country-fr > summary').isVisible()).toBe(true);
+    expect(await page.locator('#country-be').isVisible(), 'the other 31 stay off the sheet').toBe(false);
+    expect(await page.locator('.page-header').isVisible(), 'the banner says which guide it came from').toBe(true);
+    expect(await page.locator('#country-fr .btn-print-country').isVisible(),
+        'the button must not print on the sheet it produced').toBe(false);
+    await page.emulateMedia({ media: null });
+
+    expect(await sheets(), 'one country should be one sheet, not the book').toBeLessThan(3);
+
+    // AND IT MUST COME BACK. The state is a class plus a body attribute, so a print that is
+    // cancelled — or an engine that never fires `afterprint`, which is the one most of this station
+    // reads on — would otherwise leave the guide showing one country for good. The dispatch below
+    // is the belt-and-braces path (visibilitychange covers the engine that sends nothing); by this
+    // line the real `afterprint` from the render above has usually already done it, so this asserts
+    // the restore is IDEMPOTENT as well as that it happened.
+    await page.evaluate(() => { window.dispatchEvent(new Event('afterprint')); });
+    expect(await sheets(), 'the whole guide is back after the print').toBe(whole);
+});
+
+test('every country card offers its own print, named @print', async ({ page }) => {
+    await page.goto('/fip-guide.html');
+    const labels = await page.locator('.btn-print-country').evaluateAll(
+        els => els.map(e => (e.textContent || '').trim()));   // present in the DOM even while collapsed
+    expect(labels.length, 'every FIP country card carries one').toBeGreaterThan(25);
+    // NAMED, not 30 copies of "Print this country" — which reads fine in place and badly in a
+    // screen reader's element list, where the label is all there is to tell them apart.
+    expect(new Set(labels).size, 'the labels name their country').toBe(labels.length);
+    expect(labels).toContain('⤓ Print France');
+});

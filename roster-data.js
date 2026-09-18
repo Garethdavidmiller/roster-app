@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '24.05';
+export const APP_VERSION = '24.09';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -394,8 +394,11 @@ const DAY_KEYS    = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
 /** HH:MM 24-hour validator (00:00–23:59) — single source for admin time-input validation. */
 export const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
-export const DAY_NAMES   = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-export const MONTH_ABB   = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// DAY_NAMES and MONTH_ABB live in `date-format.js` and are re-exported here (v24.06) — they are
+// the app's date VOCABULARY, and they belong beside the composers that spell with them. Everything
+// that already reads them from this module keeps working; nothing needs to change import.
+// `MONTH_NAMES` stays here: it is the FULL register, used by headings rather than by any composer.
+export { DAY_NAMES, MONTH_ABB } from './date-format.js';
 export const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 export const TEAM_GRADES = ['CEA', 'CES', 'Dispatcher'];
 

@@ -14,6 +14,7 @@
 
 import { enhanceSelect } from './select-sheet.js';
 import { CONFIG, MONTH_NAMES, computeEaster, getPaydaysAndCutoffs, formatISO } from './roster-data.js';
+import { formatDayMonth, formatClock, printedStamp } from './date-format.js';
 import { authReady, authBootstrap } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
 import { getSession, clearSession, ensureNamedSession } from './session.js';   // reconcileExpiredIdentity now runs inside calendar-access.js
@@ -644,7 +645,18 @@ document.getElementById('payBtn')?.addEventListener('click', () => {
     }
     if (!period) return;
 
-    const fmt    = /** @param {any} d */ d => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/London' });
+    // THE DEVICE'S OWN CALENDAR, not London (v24.08). These are local-calendar Dates, built at
+    // local NOON by `getPaydaysAndCutoffs` and advanced in whole days — they are not instants, so
+    // there is no zone to convert them to. Reading them through `Europe/London` is the same defect
+    // `paycalc-format.js` records having fixed and reverted: at UTC+12 and beyond, local noon is
+    // the previous day in UTC, so the strip printed the day before. Measured before the fix: 26 of
+    // 2026's 52 payday and cut-off dates shifted at UTC+14, 10 at UTC+12, 16 at UTC−11.
+    //
+    // The tell was that the LABEL and the LINK disagreed. The `?payday=` below is `formatISO`,
+    // which reads the local getters — so a member tapping "paid 28 Aug" could land the calculator
+    // on the 29th. One of the two had to be wrong, and it was never going to be the one the
+    // Calendar grid above it also uses.
+    const fmt    = /** @param {any} d */ d => formatDayMonth(d);
     const payISO = formatISO(period.payday);
     strip.innerHTML = `Pay period: <a class="pay-period-link" href="./paycalc.html?payday=${payISO}">${fmt(period.start)} – ${fmt(period.cutoff)}</a> · paid ${fmt(period.payday)}`;
     strip.style.display = '';
@@ -1021,10 +1033,14 @@ try {
 // eagerly on load. The beforeprint handler is kept for desktop browsers, where it
 // updates both attributes to the moment of printing.
 function stampPrintDate() {
-    const now    = new Date().toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' });
+    // `printedStamp`, not a `dateStyle: 'long'` locale string: this sheet is printed from the same
+    // app as the Team View one beside it in the folder, and the two used to spell the same day
+    // differently ("18 September 2026 at 14:23" against "18 Sep 2026"). roster-data.js → "the
+    // provenance line every printable surface closes on" has the argument and the other four.
+    const now    = new Date();
     const header = document.querySelector('.header');
     if (!header) return;
-    header.setAttribute('data-print-date', `Printed: ${now}`);
+    header.setAttribute('data-print-date', printedStamp(now, formatClock(now)));
     // First run (no member picked yet): don't stamp a default member onto the print header —
     // this also runs on `beforeprint`, so without the guard it would re-add the name that
     // showFirstRunPrompt() cleared. (H1)
