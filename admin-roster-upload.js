@@ -14,7 +14,7 @@ import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp
 import { parseOtherValue, buildOverrideWrite, nextReplacedType } from './override-utils.js';
 import { entryControlHtml, patchEntryRow, commitEntry, redrawEntry, toggleEntry, entryClick } from './roster-entry-control.js';
 import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
-import { computeCellStates, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown } from './roster-review-states.js';
+import { computeCellStates, guardCopy, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown } from './roster-review-states.js';
 // RE-EXPORTED, not re-implemented: the first three moved to roster-cell-rules.js (v22.17/v22.18),
 // computeCellStates to roster-review-states.js (v23.52), and several call sites (and their tests)
 // name this module. The alternative was a rename sweep across three test files for no behavioural
@@ -698,9 +698,16 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
             const changedDates = dates.filter(/** @param {any} d */ d => {
                 const s = cellStates.get(`${entry.memberName}|${d}`);
-                return s && (s.state === 'DIFF' || s.state === 'REMOVE_IMPORT' || s.state === 'CONFLICT' || s.state === 'UNREADABLE');
+                return s && (s.state === 'DIFF' || s.state === 'REMOVE_IMPORT' || s.state === 'CONFLICT'
+                          || s.state === 'UNREADABLE' || s.state === 'GUARDED');
             });
             if (changedDates.length === 0) continue;
+            // THE BADGE COUNTS CHANGES; A GUARDED ROW IS A NOTICE (v23.97). It is rendered in this
+            // person's list so the day is not invisible, but nothing about it is pending — counting
+            // it would inflate "3" on a week with two real changes and one day the app declined to
+            // record, and the admin would go looking for a third thing to approve.
+            const pendingCount = changedDates.filter(/** @param {any} d */ d =>
+                cellStates.get(`${entry.memberName}|${d}`)?.state !== 'GUARDED').length;
 
             const section = document.createElement('div');
             section.className = 'roster-person-section' + (alignment.blocked ? ' roster-blocked' : '');
@@ -710,7 +717,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             section.innerHTML = `
                 <div class="roster-person-header">
                     <span class="roster-person-name">${esc(entry.memberName)}</span>
-                    <span class="roster-change-badge">${changedDates.length}</span>
+                    <span class="roster-change-badge">${pendingCount}</span>
                     <button class="roster-skip-all-btn" data-member="${esc(entry.memberName)}" aria-pressed="false">Skip all</button>
                 </div>`;
 
@@ -773,6 +780,24 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                             <span class="roster-remove-note">no longer on the roster</span>
                         </div>
                         <span class="roster-act act-clear">Clear old</span>`;
+                } else if (s.state === 'GUARDED') {
+                    // THE PDF SAID SOMETHING THIS APP WILL NOT RECORD ON THAT DAY (v23.97).
+                    // No tick, because there is nothing to approve: the day keeps exactly what the
+                    // base roster has, which is what the overpay guard has always done. What is new
+                    // is that the admin is TOLD — so a day the member really did swap onto can be
+                    // recorded by hand, instead of disappearing between the PDF and the calendar.
+                    row.classList.add('roster-change-guarded');
+                    row.innerHTML = `
+                        <span class="roster-guard-icon" aria-hidden="true">i</span>
+                        <div class="roster-chg-day">
+                            <span class="roster-day-abbr">${dayName}</span>
+                            <span class="roster-day-date">${dateStr}</span>
+                        </div>
+                        <div class="roster-chg-vals">
+                            <span class="roster-from-val">${shiftDisplay(s.parsedShift, date)}</span>
+                            <span class="roster-guard-note">${guardCopy(s.guarded)}</span>
+                        </div>
+                        <span class="roster-act act-none">Not recorded</span>`;
                 } else if (s.state === 'UNREADABLE' && s.options) {
                     // The two reads disagreed and we know BOTH readings — offer them rather than a
                     // dead end (owner, Jul 2026: "there is no way to choose the correct option from

@@ -58,7 +58,17 @@ const stripRdw     = /** @param {any} v */ v => v.slice(RDW_PREFIX.length);
  * @param {string} rawShift  parsed value, possibly "RDW|HH:MM-HH:MM"
  * @param {string} baseShift the member's base roster value for that date
  * @param {string} date      "YYYY-MM-DD"
- * @returns {{ value: string, display: string }}
+ * @returns {{ value: string, display: string, guarded: 'sunday'|'rest-day'|null }}
+ *
+ * `guarded` NAMES THE GUARD THAT CHANGED THE VALUE, and exists so the review can say so (v23.97).
+ * Both guards silently rewrite a real thing the PDF said into `RD`, and until now the only record
+ * of that was the rewrite itself — the classifier compared the RESULT against the base roster,
+ * found `RD === RD`, and called the cell a MATCH. Deriving it a second time at the call site was
+ * the alternative and is the pattern this module exists to prevent: two copies of a rule, one of
+ * which eventually stops agreeing. Returning it is one authority, still pure.
+ *
+ * Sunday wins when both could apply, because it runs first and leaves nothing for the rest-day
+ * guard to act on — so the reported guard is always the one that actually moved the value.
  */
 export function normaliseCellValue(rawShift, baseShift, date) {
     const parsedValue = isRdwEncoded(rawShift) ? stripRdw(rawShift) : rawShift;
@@ -67,9 +77,11 @@ export function normaliseCellValue(rawShift, baseShift, date) {
     const normRest = /** @param {any} s */ s => (s === 'OFF' ? 'RD' : s);
     const restSafe = ((normRest(sundaySafe) === 'SICK' || normRest(sundaySafe) === 'AL') && normRest(baseShift) === 'RD')
         ? 'RD' : sundaySafe;
+    const sundayGuarded = sundaySafe !== parsedValue;
     return {
         value:   normRest(restSafe),
         display: (isRdwEncoded(rawShift) && restSafe !== 'RD') ? `${RDW_PREFIX}${restSafe}` : restSafe,
+        guarded: sundayGuarded ? 'sunday' : (restSafe !== sundaySafe ? 'rest-day' : null),
     };
 }
 
