@@ -1410,6 +1410,30 @@ What an Annual Leave booking WILL do, decided once and read by every surface (v2
 - `projectAlOverage` takes the caller's `consuming` list rather than re-deriving it, which is the point: the range card builds it from `projectAlBooking`, the week grid from its batch plus each row's answer, and both therefore warn about exactly what they are about to write. A `null` entitlement skips the year rather than raising a bar against a figure the app does not have (v22.45) — the write still goes ahead.
 - Consumed by `admin-al.js` (the `project` and `preSave` hooks) and `admin-app.js`, whose week-grid save reads `consuming` for the over-entitlement bar AND `answeredFree` for what to write — one call, so the two cannot disagree. Tested by `admin-al-projection.test.mjs`, including the regression the review specified — one day remaining, one working day and one newly declared swapped rest day must raise the bar — and teeth-verified by two mutations.
 
+### `admin-week-row-state.js`
+
+The Admin week grid's per-ROW appearance, extracted from `admin-week-editor.js` at v23.98 — not
+because the code changed, but because that file was AT its ratchet cap with zero headroom, and the
+next change to the week grid would have had to choose an extraction under a hard stop. Under a hard
+stop the cheapest cut wins, which is the failure this pre-empts.
+
+**Two candidates were measured and the obvious one lost.** The bulk bar looks like the seam — its
+own UI strip, its own `bulk*` ids, its own state — but moving it needs SEVEN injected dependencies
+for 181 lines. A boundary that has to be told about seven things is a cut, not a boundary. This
+cluster needs none: 129 lines importing `TYPES` and `setStatus` and nothing else, every function
+taking a row element and reading the DOM beneath it. The proof it was clean: `setStatus` became
+unused in the editor and moved here whole.
+
+Names are unchanged, so every call site in the editor reads exactly as before.
+
+- `_activateRow(row, checkbox, pills, startEl, endEl, type)` / `_deactivateRow(row, checkbox, pills, startEl, endEl)` — a row's two states. Deactivating clears `dataset.type`, which is what stages a DELETE of a saved doc — see the warning at its one bulk-bar call site.
+- `_syncOtherRdwWarn(row)` — the "originally rostered" warning, shown only when the RDW tick is on for a day whose base roster is NOT a rest day.
+- `_syncOtherSpareMode(row)` — Spare hides the RDW tick and the times; the other Other-family flavours restore them.
+- `_syncOverwriteBadge(row)` — keeps the badge in step with the row's current state.
+
+**Keep it dependency-free.** If something here starts needing the editor's state or its injected
+services, the seam has moved and this is the wrong home for it.
+
 ### `admin-al-week-save.js`
 What ONE week-grid save does about the annual leave in it (v23.91, external review of v23.89). Pure — one function, no DOM, no Firestore.
 - `planAlWeekSave({ member, memberName, toSave, toDelete, ovByDate, swapAnswers, overrides })` → `{ toSave, skipped, overage }`. `toSave` is the batch to write, the SAME array when nothing was dropped; `skipped` the dates deliberately left alone, for the receipt; `overage` the confirmation message or `null`.
