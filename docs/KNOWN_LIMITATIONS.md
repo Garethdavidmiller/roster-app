@@ -1526,11 +1526,42 @@ production.
   skip), a SILENT non-push, and a write that should not exist. Teeth-verified by six mutations.
   This entry said the DECISION to send was what remained untested; it is now the covered part.
 
-Also still untested: the coordinator wiring in `calendar-app.js` / `admin-app.js` (the extracted
-`calendar-renderer.js` / `calendar-*` state modules have unit tests; the coordinators themselves do
-not — e2e covers their page-load) and the Firestore read/write layer in the page modules (behind the
-gstatic-CDN import). Before adding new untested behaviour in these modules, consider whether a unit
-or integration test can be added first.
+**The coordinators have no unit tests, and that is mostly a DECISION rather than a gap** (restated
+16 Sep 2026 — this entry previously read as an open item and understated what covers them). A
+coordinator is what remains once the pure logic has been extracted out, so `calendar-app.js` and
+`admin-app.js` are DOM-bound by construction and a unit harness for either would be a mock of the
+whole page. Their decisive seams are wiring-tested instead, deliberately, in e2e — and the tests say
+so in their own headers: `e2e/calendar.spec.js` (`day detail:` block) pins `personalActionsAllowed`
+at its call site and records the mutation that justified it, and `e2e/pages.spec.js` does the same
+for `_syncMemberFor`. **Do not read "only e2e covers it" as a shortfall here. That IS the wiring
+test** the "rule tested, the wiring not" risk in CLAUDE.md asks for.
+
+**One real hole sat inside that framing, and it is now closed** (16 Sep 2026). Three fire-and-forget
+writers run once per page from its coordinator — `initErrorReporter`, `recordUsage` and
+`recordPageLatency` — and every one writes to a collection whose rules require `request.auth != null`.
+Called before an identity exists, each write is rejected in silence: **the error log looks healthy
+because it is broken**, the Usage card under-reports, and the latency samples thin out. Nothing
+raises, nothing renders differently, and nothing went red. Measured rather than argued: deleting
+`initErrorReporter();` from `calendar-app.js` left the entire unit estate green, and every chromium
+test in `e2e/calendar.spec.js` with it. e2e could never have seen it — the page renders identically either way.
+
+That mattered more than an ordinary coverage gap because of what depends on it. `recordPageLatency`
+is the wire the **mid-October latency reading** runs on (MAINTENANCE_CALENDAR; `LATENCY.md` → THE
+FULL-MONTH READ → item 6), including `readyProvisional`, the measurement added at v23.70 to separate
+the two readings of the fast path that the aggregate cannot. A regression there would not look like
+an error — it would look like a thinner sample that still reads as data.
+
+`page-contract-parity.test.mjs` now pins all seven coordinators: each calls all three, and each call
+sits inside that page's declared auth barrier rather than at module scope. All seven were correctly
+wired when the guard was written, so this closes no defect — it protects a rule that was obeyed
+everywhere and checked nowhere. Verified by four mutations (a deleted call; a call kept but hoisted
+out of the barrier; Overtime's chained `.finally()` site; paycalc's `afterAuth` indirection being
+severed) plus one negative control confirming it stays quiet on paycalc's legitimate second call
+site in `_showUnsupportedRole`.
+
+**Still genuinely untested:** the Firestore read/write layer in the page modules (behind the
+gstatic-CDN import). Before adding new untested behaviour there, consider whether a unit or
+integration test can be added first.
 
 ### Legacy override types still in Firestore
 Types `"allocated"`, `"overtime"`, `"swap"` are no longer creatable via the UI but

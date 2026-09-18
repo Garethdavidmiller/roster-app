@@ -383,7 +383,7 @@ cannot tell two opposite worlds apart.**
 them** — which is the one thing the 28 Sep deadline was written assuming it could. The separating
 quantity is how often the path actually TAKES, and nothing recorded it.
 
-`readyProvisional` now does (v23.69): written beside `ready`, from the same bucket on the same path,
+`readyProvisional` now does (v23.70): written beside `ready`, from the same bucket on the same path,
 whenever the grid that fired `markPageReady` went up under a provisional grant. Rendered as **"Opens
 that did not wait for the sign-in check"**. Its TOTAL over `ready`'s answers how often; its
 DISTRIBUTION against `ready`'s answers whether those opens were any faster.
