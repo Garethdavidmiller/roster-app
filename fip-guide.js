@@ -354,3 +354,70 @@ document.addEventListener('visibilitychange', function () {
 // — registration order would give the same result today, but only because of the <script> order in
 // fip-guide.html, which is not a thing this file should depend on.
 document.querySelector('.btn-print')?.addEventListener('click', expandAllForPrint, true);
+
+// ── PRINT THIS COUNTRY (v24.06) ────────────────────────────────────────────────────────────────
+//
+// ROADMAP print item 1, and the row states the case: "Most readers want France, not the book."
+// The full guide is 25 sheets and a traveller checking one coupon before a trip needs one card.
+//
+// A BUTTON PER CARD, not one control in the header. A header control would have to know which
+// country the reader means, and the only honest answers to that are a picker (a second list of 32
+// names, beside the finder and the jump chips that are already two) or "whichever is open", which
+// is wrong the moment two are. Inside the card there is no question to answer: the country is the
+// one you are reading. It is injected rather than written into 32 cards by hand — the same reason
+// the drawer builds its own pills.
+//
+// PRINTING ONE CARD IS A CSS STATE, NOT A DOM EDIT. `body[data-print-country]` plus a marker class
+// on the chosen card; `@media print` hides the rest. Nothing is removed and nothing is re-inserted,
+// so an interrupted print cannot leave the page missing a country — which is the failure the
+// restore machinery above exists to prevent, reached a different way.
+//
+// IT REUSES THE EXPAND, DELIBERATELY. `expandAllForPrint` opens every <details>, including the 31
+// this print will hide, and that is cheaper than a second narrower path: the hidden ones cost
+// nothing on paper, and one prepare/restore pair means one thing to keep idempotent rather than
+// two. The restore is chained onto the existing one for the same reason.
+var PRINT_COUNTRY_MARK = 'is-print-country';
+/** @type {HTMLElement | null} */
+var _fipPrintTarget = null;
+
+function clearCountryPrint() {
+    if (_fipPrintTarget) _fipPrintTarget.classList.remove(PRINT_COUNTRY_MARK);
+    _fipPrintTarget = null;
+    document.body.removeAttribute('data-print-country');
+}
+
+// THE SAME TWO ROUTES the expand/restore pair above uses, registered separately rather than
+// chained onto `restoreAfterPrint`. Wrapping that function was the first cut and both the linter
+// and the type-checker refuse it outright (`no-func-assign`) — rightly: a reader of
+// `restoreAfterPrint` 40 lines up would have no way to know a later line had replaced it.
+//
+// Separate listeners cost nothing here because `clearCountryPrint` is unconditionally idempotent —
+// it has no snapshot to protect, unlike the <details> restore, which is why that one needs a flag
+// and this one does not. `visibilitychange` is the route that covers the engine most of this
+// station reads on, which fires no `afterprint` for AirPrint at all.
+window.addEventListener('afterprint', clearCountryPrint);
+document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') clearCountryPrint();
+});
+
+countryCards.forEach(function (card) {
+    var body = card.querySelector('.detail-body');
+    if (!body) return;                                  // the two not-FIP <div>s have no body
+    var name = (card.querySelector('summary')?.textContent || '').replace('▾', '').trim();
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn-print-country';
+    // The country is NAMED in the label. "Print this country" on a sheet of 32 identical buttons
+    // reads fine in place and badly in a screen reader's element list, where they would be 32
+    // copies of one string with nothing to tell them apart.
+    btn.textContent = '⤓ Print ' + name.replace(/^\S+\s/, '');
+    btn.addEventListener('click', function () {
+        clearCountryPrint();
+        _fipPrintTarget = /** @type {HTMLElement} */ (card);
+        card.classList.add(PRINT_COUNTRY_MARK);
+        document.body.setAttribute('data-print-country', card.id);
+        expandAllForPrint();
+        window.print();
+    });
+    body.appendChild(btn);
+});

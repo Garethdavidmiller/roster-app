@@ -474,14 +474,43 @@ report-only visual job. And its `beforeprint` prescription, taken literally, int
 prepare then runs twice on every desktop browser, and the second snapshot leaves the page
 permanently expanded. Both fixes are idempotent for that reason.
 
-**Four items are owner decisions, not work waiting to start:**
+**Four items were owner decisions. All four are now closed — three done, one refused on evidence.**
 
 | Item | The decision |
 |---|---|
-| FIP's 27-page print | Offer *Print this country* beside *Print full guide*? Most readers want France, not the book. Nothing is wrong today; it is long |
-| FIP's page count | Large country blocks carry `break-inside: avoid`, which pushes whole sections to fresh sheets. Letting a big block SPLIT while small warnings stay protected would cut pages and whitespace |
-| Print provenance | Calendar, Team View, Overtime and Links each state what/whose/when differently. A shared vocabulary is tidy; whether it is worth a pass is a judgement |
-| Continuation identity | A page 12 of a 27-page FIP guide, detached, says nothing about what it is. A running footer would fix that and costs vertical space on every sheet |
+| FIP's 27-page print | **CLOSED — done at v24.06.** Every country card carries its own `⤓ Print <country>` at the bottom of what you just read. Measured on the real PDF: 25 sheets → 1, the banner kept so the sheet says which guide it is from, the country NAMED (the full print hides every `summary`, which is right there and exactly wrong on a one-country sheet), and the whole guide back afterwards. A CSS state, never a DOM edit, so a cancelled print cannot leave the guide short of a country. The row's own "27 pages" was stale: 25 since v23.27 |
+| FIP's page count | **CLOSED — already done at v23.27, before this table was written.** `details { break-inside: auto }` with `.card, .box, tr` still protected, and `details > summary { break-after: avoid }` so a country heading is never the last thing on a sheet. Measured at the time: 27 → 25 pages. Nothing further to decide |
+| Print provenance | **CLOSED — done at v24.06**, and it was not the tidiness the row took it for. There was a defect underneath: `Intl` spells September "Sept" in en-GB and three letters everywhere else, measured on Node, Chromium and WebKit, so Links, the Pay Calculator, Settings and the Operations error log disagreed with the calendar beside them, on screen as well as on paper. One vocabulary in `date-format.js`, one `printedStamp` for all the printable surfaces — and there were FIVE, not four: this row missed the Pay Calculator |
+| Continuation identity | **CLOSED — WON'T DO, on evidence. It cannot be built in Chromium without destroying content.** See below |
+
+**Why the running footer is refused (v24.06).** It was built, and then rendered to real PDFs — all five
+guides, 48 sheets — which is the only way to see any of this, because `emulateMedia` applies the
+print stylesheet without paginating. `@page` margin boxes (`@bottom-center`) are the CSS written for
+a running footer and Chromium implements none of them, so the only element that repeats per sheet is
+`position: fixed`. Three measurements, each the opposite of what the design assumed:
+
+- **It is clipped at the page-area boundary, so it cannot live in the margin.** At `bottom: -2mm` the
+  text printed cut in half; at −3mm and beyond it vanished from four sheets outright.
+- **Widening `@page`'s bottom margin to make a lane for it does nothing** — the element is positioned
+  against the page area and moves up with it. Tried at 20mm across all five guides: identical page
+  counts, and the clearance above it got *narrower*. `padding-top` does not move it either.
+- **So it must sit inside the page area, where it competes with the text.** On FIP page 22 it printed
+  directly across a sentence, leaving both it and "…NS withdrawing from Hoek van Holland in 2017"
+  unreadable. In a reference guide that is worse than the problem it solves.
+
+It also costs ZERO sheets, which this table expected to be the trade-off — it cannot claim vertical
+space, which is precisely why it overlaps.
+
+**A methodological note worth more than the feature.** A positional check over the PDF's text boxes
+reported that same page as *1.7pt clear*. It was wrong, and wrong in the direction that would have
+shipped the defect: the filter selecting "words above the footer" excluded exactly the words the
+footer was sitting on top of. **The rendered image was the check that worked**, and the numbers
+agreed with it only once it had disagreed with them first.
+
+**If it is wanted anyway, the shape that would work** is an IN-FLOW marker on each country card
+rather than a fixed page footer — in the flow, so it can never overlap. Measured coverage on FIP:
+23 of 25 sheets. Not every sheet, and it changes how every card looks on paper, so it is an owner
+decision rather than a follow-up.
 
 **Not done and not recommended:** printing the whole Operations or Admin page, and a print-provenance
 version stamp on the Calendar — its header already carries the app name, the member and the date,
