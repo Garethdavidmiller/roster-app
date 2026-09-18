@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: September 2026 — v23.90 · Updated every 0.10 version*
+*Last updated: September 2026 — v24.00 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -104,34 +104,6 @@ deterministic and still fails both attempts, so the job stays red for exactly th
 catch, while a one-off race is reported "flaky" instead of failing the run. The deploy gate keeps its
 single-shot rule — the entry above explains why, and nothing here touches it. If `webkit` goes red
 NOW, take it seriously: the flake excuse has been spent.
-
-## The roster review table has never been accessibility-scanned, and has 8 contrast failures (found 18 Sep 2026)
-
-**Measured, on the real rendered review:** axe reports **8 `color-contrast` violations** on the
-Operations roster-upload review table, all in the shipped `.shift-badge` component — white-ish text
-on the pastel type colours, at **2.06–2.27:1** against WCAG AA's 4.5. Examples (foreground on
-background): `#fbfcfd` on `#d8a97e` (Early), `#fbfcfd` on `#86afde` (Late), `#f8f9fb` on `#78b7b3`
-(AL), and `.review-shift-time` at `#a6a7a8` on `#f6f9fb`.
-
-**Why nobody knew.** `e2e/axe.spec.js` scans one rendered state per page, and reaching this table
-needs a PDF upload driven through to a parsed review — so it has never been in the sweep. This is
-the same shape as the blind spot WebKit found in the About panel at v23.97, where the a11y gate had
-only ever scanned the one update-status state the engine happened to produce: **a surface the gate
-cannot reach is a surface with no gate**, and it looks identical to a passing one.
-
-**Not introduced by v23.97's `GUARDED` row, and the count says so.** With the row: 9. Without it: 8.
-The row adds exactly one, by calling `shiftDisplay` — the same helper every other row in the table
-already uses. It inherits the defect; it is not a new one.
-
-**Deliberately not fixed here.** `.shift-badge` is shared with the Calendar, so recolouring it is a
-design decision with a visual-baseline cost across the app, not a bug-check repair — and the two
-contrast fixes this week (v23.95, v23.97) were both single-consumer tokens, which this is not.
-Adding the table to the axe gate would turn the gate red on eight known failures, which teaches a
-reader to ignore it. Both belong to the owner.
-
-**What would close it:** darken the badge label colour (or lighten the badge fill) until each pair
-clears 4.5:1, regenerate the visual baselines, then add the review table to `axe.spec.js` so it
-cannot regress. Do those in that order — gating first would be a red lane nobody can act on.
 
 ## Security
 

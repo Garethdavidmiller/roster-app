@@ -538,6 +538,60 @@ All reached via web search only; none fetched directly (§1).
 
 ---
 
+## The roster review table was never accessibility-scanned, and four opacity dims made it unreadable (found 18 Sep 2026, fixed v24.00)
+
+**What was wrong.** `e2e/axe.spec.js` scans one rendered state per page, and reaching the Operations
+roster-upload review needs a PDF upload driven through to a parsed review — so in the whole life of
+the a11y gate, the review table had never been in it. When it was finally scanned by hand on
+18 Sep 2026 it had **8 `color-contrast` violations** in its default state, and the states one tap
+away were worse. Same shape as the blind spot WebKit found in the About panel at v23.97:
+**a surface the gate cannot reach is a surface with no gate**, and it looks identical to a passing
+one.
+
+**The first diagnosis was wrong, and the wrong fix was nearly shipped.** This entry originally
+recorded the failures as the `.shift-badge` component's — white-ish text on pastel type colours —
+and prescribed recolouring the badge or lightening its fill. Measured properly, **every badge clears
+AA on its own**:
+
+| | Early | AL | Late | Absent | Other | Spare | Unknown | Rest | Night |
+|---|---|---|---|---|---|---|---|---|---|
+| ratio | 4.65 | 5.17 | 5.75 | 6.19 | 6.80 | 8.20 | 8.63 | 13.77 | 17.06 |
+
+Every reported failure came from an **ancestor `opacity`** — four of them, each fading a group of
+rows or values, and axe composites them. That matters twice over. Recolouring `.shift-badge` would
+have changed the Calendar, the admin week grid, Overtime and the guides, cost a full baseline
+regeneration across the app — **and not fixed this**, because a fade over a new colour halves it
+exactly as it halved the old one. And Early's 4.65 is the floor: a pair that clears by 0.15 cannot
+survive being multiplied by anything under 1, so **opacity was never available as a lever here**, at
+any value.
+
+**What shipped instead (v24.00), in `operations.css`.** Each dim was replaced by the cue already
+carrying its meaning beside it, at full strength:
+
+| Dim | Was | Measured | Now says it with |
+|---|---|---|---|
+| `.roster-from-val` — the "was" value on every changed row | `opacity: .5` | 2.06–2.99:1 | it is already smaller than the "now" value |
+| `.cv-dim` — the not-chosen option on a conflict row | `opacity: .5` | 2.23–2.26:1 | the strikethrough it already had |
+| `.roster-change-row.is-skipped` — a row the admin set aside | `opacity: .4` | 1.76–2.32:1 | an empty tick, the sunken surface, a tag that drops its success green |
+| `.roster-blocked` — every row of a refused read | `opacity: .78` | 3.26–4.11:1 | the sunken surface (affordances were already removed) |
+
+The `.roster-blocked` comment had **already made this argument in the source** — "these rows are
+exactly what the admin has been told to check against the PDF, so making the shift badges hard to
+read is the opposite of the intent" — and had moved from `.62` to `.78` chasing it. It just never
+got to the end of it, because nothing measured.
+
+**And it is gated now.** `axe.spec.js` drives the real upload to a rendered review and scans four
+states: default (which covers DIFF, CONFLICT and flagged rows together), one row skipped, the whole
+member skipped, and a read refused by the alignment breaker — reached through three real geometry
+refusals, not by adding the class. Each of the four dims was individually re-introduced with
+`scripts/mutate.mjs` and each turned the gate red.
+
+**The one dim deliberately left.** `.roster-blocked .roster-tick` keeps `opacity: .35`. A tick in a
+refused section is a genuinely inactive control — clicks are returned early at the delegate — and an
+inactive user-interface component is the one thing WCAG 1.4.3 exempts. A skipped row is not: its
+content is what the admin re-reads before changing their mind, so it gets no exemption and was
+fixed.
+
 ## Closed limitations, moved out of KNOWN_LIMITATIONS.md (2 Sep 2026)
 
 From an external review of the Markdown estate. `KNOWN_LIMITATIONS.md` promises "intentional
