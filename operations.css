@@ -284,7 +284,13 @@ body.auth-ready .container { display: grid; }
     border: 1px solid var(--border-light);
     border-radius: var(--radius-xl); padding: 3px 10px;
     cursor: pointer; white-space: nowrap;
-    transition: border-color var(--dur-med), color var(--dur-med);
+    /* `border-color` ONLY, and the missing `color` is the point (v24.01, caught by WebKit in CI).
+       `.section-skipped` below flips this button to white-on-navy, and `background` is not
+       transitioned — so with `color` in this list the text eased from `--text-mid` grey while the
+       ground snapped to navy, and for the 150ms in between the button really was mid-grey on navy.
+       Chromium finished the ease before the a11y scan sampled it; the WebKit runner did not, twice.
+       The rule it leaves: a colour may not transition independently of the background behind it. */
+    transition: border-color var(--dur-med);
 }
 @media (hover: hover) and (pointer: fine) {
     .roster-skip-all-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
@@ -675,7 +681,11 @@ body.auth-ready .container { display: grid; }
 @media (hover: hover) and (pointer: fine) {
     .roster-choice-btn:not(.is-chosen):hover { border-color: var(--primary-blue); color: var(--primary-blue); }
 }
-.section-skipped .roster-change-row { opacity: 0.35; pointer-events: none; }
+/* The whole member set aside — the same treatment as one row (see the dims note above), and it
+   was missed by the pass that fixed the other four because axe reports NOTHING here: measured,
+   every row sat at .35 and the scan came back clean, in violations and in `incomplete` alike.
+   So this one is held by the opacity contract in `e2e/axe.spec.js` rather than by the scan. */
+.section-skipped .roster-change-row { background: var(--surface-sunken); pointer-events: none; }
 .section-skipped .roster-skip-all-btn { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
 .roster-no-changes {
     padding: 18px; text-align: center;

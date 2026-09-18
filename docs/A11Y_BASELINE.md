@@ -169,8 +169,22 @@ dims note.
 
 **What changed in this spec.** Two tests now drive the real upload and scan **four** states — the
 default review, one row skipped, a whole member skipped, and a read refused by the alignment breaker
-(reached through three genuine geometry refusals, not by adding the class). Each of the four dims was
+(reached through three genuine geometry refusals, not by adding the class). Each dim was
 re-introduced with `scripts/mutate.mjs` and each turned the gate red.
+
+**But the scan is not the witness for all of them, and v24.01 is why.** The v24.00 pass fixed four
+dims and missed a fifth — `.section-skipped`, the whole-member flip — because **axe reports nothing
+for it**: measured directly, with every row at `opacity: .35` and plainly washed out in a
+screenshot, the scan returned zero violations *and* zero `incomplete`, with and without the
+`pointer-events: none` that state also sets. A state the gate cannot see is a state with no gate —
+the same lesson this table taught in the first place, found a second time inside the fix for it.
+
+So `faded()` in this spec now checks the MECHANISM directly: no element in the review may sit under
+a fractional opacity, bar two exemptions that are both WCAG 1.4.3's inactive-component case — a
+natively `disabled` control (exempted by that property, not by selector, so it does not go stale)
+and `.roster-blocked .roster-tick`, whose clicks are returned early at the delegate. It found a
+sixth faded element on its first run. It does not replace the scan: axe catches a bad colour pair at
+full opacity that this cannot, and this catches a fade axe will not.
 
 **One dim was deliberately kept.** `.roster-blocked .roster-tick` stays at `opacity: .35`. A tick in
 a refused section is a genuinely inactive control — clicks are returned early at the delegate — and

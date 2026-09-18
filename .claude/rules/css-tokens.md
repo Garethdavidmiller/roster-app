@@ -673,5 +673,13 @@ it legible. Picking a different colour cannot fix it; the fade is the fault.
 so a control whose clicks are genuinely refused may keep a dim (`.roster-blocked .roster-tick`). A
 row the reader can re-select is not inactive, and gets no exemption.
 
-Guarded by `e2e/axe.spec.js`, which scans that table in four states; the full account is
-`operations.css` → the dims note, and `docs/A11Y_BASELINE.md`.
+**A colour may not transition independently of the ground behind it** (v24.01). `.roster-skip-all-btn`
+eased `color` but not `background`, and the state that flips it to white-on-navy snapped the ground
+instantly — so for 150ms the button really was mid-grey on navy. Chromium finished the ease before
+the a11y scan sampled it; WebKit in CI did not, twice. Put both in the same `transition`, or neither.
+
+**And do not assume a scanner sees a fade.** axe reports *nothing* for `.section-skipped`'s rows at
+`opacity: .35` — no violation and no `incomplete` — which is how that dim survived the pass that
+removed the other four. `e2e/axe.spec.js` therefore checks the mechanism directly (`faded()`)
+alongside the scan, exempting only a natively `disabled` control and the one refused-read tick.
+The full account is `operations.css` → the dims note, and `docs/A11Y_BASELINE.md`.

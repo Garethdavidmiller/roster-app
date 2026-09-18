@@ -98,6 +98,53 @@ function report(violations) {
     }).join('\n\n') + '\n';
 }
 
+/**
+ * Every element in the roster review sitting under a fractional `opacity`, as `selector @value`.
+ *
+ * ── WHY THIS EXISTS BESIDE AN AXE SCAN, AND NOT INSTEAD OF ONE (v24.01) ─────────────────────────
+ *
+ * The v24.00 pass removed four opacity dims from this table because each of them halved the
+ * contrast of the shift badges underneath. It missed a fifth — `.section-skipped`, the whole-member
+ * flip — and the reason is the one worth keeping: **axe reports nothing for it.** Measured directly,
+ * with every row at `opacity: .35` and plainly washed out in a screenshot, the scan came back with
+ * zero violations AND zero `incomplete`, with and without the `pointer-events: none` that state also
+ * sets. Whatever axe is doing there, it is not a witness for this, and a state the gate cannot see
+ * is a state with no gate — the same lesson this table taught in the first place.
+ *
+ * So the mechanism is checked directly. This does not replace the scan: axe catches contrast this
+ * cannot (a bad colour pair at full opacity), and this catches a fade axe will not. The pairing is
+ * the point.
+ *
+ * TWO exemptions, and both are the same WCAG 1.4.3 case — an INACTIVE user-interface component,
+ * which the contrast rule does not cover. A natively `disabled` control is the textbook instance
+ * (`.btn-save:disabled` fades app-wide, in `shared.css`), so it is exempted by that PROPERTY rather
+ * than by name — no selector here to go stale when another disabled control appears. The second is
+ * `.roster-blocked .roster-tick`, which is not natively disabled but whose clicks are returned early
+ * at the delegate; it is named because nothing about the element says so.
+ *
+ * A row the reader can re-select is NOT inactive and gets neither exemption. That is the whole line
+ * this contract draws.
+ * @param {import('@playwright/test').Page} page
+ */
+async function faded(page) {
+    return page.evaluate(() => {
+        /** @type {string[]} */
+        const out = [];
+        const root = document.querySelector('#rosterReviewSection');
+        if (!root) return ['#rosterReviewSection is not rendered'];
+        for (const el of root.querySelectorAll('*')) {
+            const o = getComputedStyle(el).opacity;
+            if (o === '' || Number(o) >= 1) continue;
+            if (/** @type {any} */ (el).disabled || el.closest('[disabled]')) continue;
+            if (el.closest('.roster-blocked') && el.classList.contains('roster-tick')) continue;
+            const id = el.tagName.toLowerCase() + (el.className && typeof el.className === 'string'
+                ? '.' + el.className.trim().split(/\s+/).join('.') : '');
+            out.push(`${id} @${o}`);
+        }
+        return [...new Set(out)].sort();
+    });
+}
+
 // Tagged @a11y. GREEN + BLOCKING since v17.52 — part of `npm run test:e2e` (a new WCAG A/AA
 // violation fails the suite); `npm run test:a11y` runs it standalone on chromium. Baseline + the one
 // documented exclusion (calendar `.other-month`) are in A11Y_BASELINE.md.
@@ -274,8 +321,12 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
 
         // And the whole member set aside at once.
         await page.locator('.roster-skip-all-btn').first().click();
+        await expect(page.locator('.section-skipped').first()).toBeVisible();
         const vAll = await scan(page);
         expect(vAll.length, report(vAll)).toBe(0);
+        await expect
+            .poll(() => faded(page), { message: 'no faded element may survive the skip-all flip' })
+            .toEqual([]);
     });
 
     // The REFUSED read — the circuit breaker's own state, where the whole list recedes because none
@@ -299,6 +350,10 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         await expect(page.locator('.roster-blocked').first()).toBeVisible();
         const v = await scan(page);
         expect(v.length, report(v)).toBe(0);
+        // The tick is the one exemption `faded` allows; nothing else in a refused read may fade.
+        await expect
+            .poll(() => faded(page), { message: 'a refused read recedes by SURFACE, never by fading' })
+            .toEqual([]);
     });
 
     test('settings (signed in)', async ({ page }) => {
