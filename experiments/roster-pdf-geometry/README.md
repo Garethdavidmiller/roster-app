@@ -102,6 +102,35 @@ content is bound to its column by construction rather than checked after the fac
 worth shipping first because it is small, deterministic and changes nothing else; it is not the
 destination.
 
+### Re-measured on THREE rosters, 18 Sep 2026 — and phase 2 has now shipped (v24.04)
+
+The figure above is one file. The same simulation across all three roster types for week ending
+26/09/2026 (CEA & Bilingual, Dispatch, Supervisors) says the same thing louder:
+
+```
+one-day-left misreads REFUSED : 19/47   (CEA 7/25 · Dispatch 7/13 · Supervisors 5/9)
+rows working all seven days   : 23/47   — the structural blind spot, unchanged in kind
+```
+
+**60% of one-day drifts pass the witness silently.** Two other things came out of that run and both
+changed the phase-2 design rather than confirming it:
+
+- **All 55 distinct values on a non-first line of a cell are DUTY codes** (`CEA 10`, `SUP 1`,
+  `Dispatch`, `Shadow Nights`). No status code sits on a second line — a non-worked day has no time
+  line above its code, so under the grid a leave cell is a ONE-LINE cell. The line-position defect
+  `roster-prompt-parity.test.mjs` was written for does not get caught by geometry; it stops existing.
+- **297 non-empty cells, 288 read by `normaliseShift` alone** once the duty line is dropped — 97%,
+  with no model involved. The nine that are not: `PIDD TRG` ×4, `NA` ×3, `Until 10:30`, `Medical`.
+  That is the phase 3 evidence, and it is stronger than this document assumed.
+
+Two defects were found the same way and fixed: an EMPTY `S Faure` placeholder row on the Dispatch
+sheet was blinding the witness to a real member on every import (v24.03), and `GER` — Gerrards
+Cross, a location marker — is named in the prompt but rejected by the parser, which the new
+prompt→parser parity direction now records as a waiver rather than leaving silent.
+
+**The files themselves are not in this repository and must not be.** They are staff data, and the
+GitHub Pages mirror serves the repository root at HTTP 200.
+
 ## Three things the advice did not predict, and one of them bites
 
 1. **The file has six pages; three are completely empty** (`items.length === 0`). Skip by content,
