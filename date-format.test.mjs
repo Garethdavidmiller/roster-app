@@ -159,3 +159,45 @@ describe('a local-calendar Date is not an instant, and the strip proved it matte
             'a local-calendar Date must render as its own day — convert an INSTANT, never this');
     });
 });
+
+describe('an unusable date does not render as arithmetic', () => {
+    // The one thing the v24.06 sweep made WORSE before this guard. `toLocaleDateString` says
+    // "Invalid Date" — ugly, and it says what happened; reading `getDate()`/`getMonth()` directly
+    // said "NaN undefined NaN". Three of the six call sites already tested for it and three did
+    // not, which is why the guard is in the composers rather than at the call sites.
+    test('every composer answers with the em-dash, not NaN', () => {
+        const bad = new Date(NaN);
+        for (const [name, out] of Object.entries({
+            formatDayMonth: formatDayMonth(bad),
+            formatDayMonthYear: formatDayMonthYear(bad),
+            formatDayMonthYear2: formatDayMonthYear2(bad),
+            formatWeekdayDate: formatWeekdayDate(bad),
+            formatClock: formatClock(bad),
+        })) {
+            assert.equal(out, '—', `${name} rendered ${JSON.stringify(out)}`);
+            assert.ok(!/NaN|undefined|Invalid/.test(out), `${name} leaked ${JSON.stringify(out)}`);
+        }
+    });
+
+    test('it is an em-dash and not a blank, because "no date recorded" is a different state', () => {
+        // Several of these surfaces legitimately have nothing to show ("Not saved yet"), and a
+        // reader cannot tell that apart from a date the app failed to render if both are empty.
+        assert.notEqual(formatDayMonth(new Date(NaN)), '');
+    });
+
+    test('a non-Date is refused the same way, since a caller passing null is the same bug', () => {
+        assert.equal(formatDayMonth(/** @type {any} */ (null)), '—');
+        assert.equal(formatDayMonthYear(/** @type {any} */ (undefined)), '—');
+        assert.equal(formatDayMonth(/** @type {any} */ ('2026-09-18')), '—');
+    });
+
+    test('a valid date is untouched by the guard', () => {
+        const d = new Date(2026, 8, 18, 14, 23);
+        assert.equal(formatDayMonth(d), '18 Sep');
+        assert.equal(formatClock(d), '14:23');
+        // The epoch is a VALID date and must not be swallowed — `0` is falsy, and a guard written
+        // as a truthiness check rather than a NaN check would lose it.
+        assert.equal(formatDayMonthYear(new Date(0)), formatDayMonthYear(new Date(0)));
+        assert.notEqual(formatDayMonthYear(new Date(0)), '—');
+    });
+});

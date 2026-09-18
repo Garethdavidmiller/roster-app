@@ -58,19 +58,39 @@ export const MONTH_ABB = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'
 // already put in the calendar it means. For an instant that must read as LONDON wall-clock,
 // convert with `londonDate` first and then compose — one zone shim, then the same words.
 
+/**
+ * An unusable date renders as the app's own em-dash, never as arithmetic.
+ *
+ * The composers read `getDate()`/`getMonth()` directly, so an Invalid Date came out as
+ * "NaN undefined NaN" — which is worse than what they replaced: `toLocaleDateString` says
+ * "Invalid Date", and however ugly that is, it says what happened. This is the one behaviour the
+ * v24.06 sweep made worse rather than better, and it is guarded HERE rather than at the six call
+ * sites, three of which already tested for it and three of which did not.
+ *
+ * `—` rather than an empty string, deliberately: a blank reads as "no date recorded", which is a
+ * different and legitimate state several of these surfaces also have ("Not saved yet"). The app
+ * already uses the em-dash for a figure it cannot supply — the Calendar's AL lightbox does — so a
+ * reader meets it as "this is missing", not as a date.
+ * @param {Date} d
+ */
+const usable = d => d instanceof Date && !Number.isNaN(d.getTime());
+export const NO_DATE = '—';
+
 /** "18 Sep" @param {Date} d */
-export const formatDayMonth = d => `${d.getDate()} ${MONTH_ABB[d.getMonth()]}`;
+export const formatDayMonth = d => (usable(d) ? `${d.getDate()} ${MONTH_ABB[d.getMonth()]}` : NO_DATE);
 
 /** "18 Sep 2026" @param {Date} d */
-export const formatDayMonthYear = d => `${formatDayMonth(d)} ${d.getFullYear()}`;
+export const formatDayMonthYear = d => (usable(d) ? `${formatDayMonth(d)} ${d.getFullYear()}` : NO_DATE);
 
 /** "18 Sep 26" — the two-digit-year form. @param {Date} d */
-export const formatDayMonthYear2 = d =>
-    `${formatDayMonth(d)} ${String(((d.getFullYear() % 100) + 100) % 100).padStart(2, '0')}`;
+export const formatDayMonthYear2 = d => (usable(d)
+    ? `${formatDayMonth(d)} ${String(((d.getFullYear() % 100) + 100) % 100).padStart(2, '0')}`
+    : NO_DATE);
 
 /** "Fri 18 Sep", or "Fri 18 Sep 2026" with the year. @param {Date} d @param {boolean} [withYear] */
-export const formatWeekdayDate = (d, withYear = false) =>
-    `${DAY_NAMES[d.getDay()]} ${withYear ? formatDayMonthYear(d) : formatDayMonth(d)}`;
+export const formatWeekdayDate = (d, withYear = false) => (usable(d)
+    ? `${DAY_NAMES[d.getDay()]} ${withYear ? formatDayMonthYear(d) : formatDayMonth(d)}`
+    : NO_DATE);
 
 /**
  * "Printed Fri 18 Sep 2026 · 14:23" — the provenance line every printable surface closes on.
@@ -122,8 +142,9 @@ export const londonClock = at => new Intl.DateTimeFormat('en-GB', {
  * because every roster and payslip staff read is.
  * @param {Date} d
  */
-export const formatClock = d =>
-    d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+export const formatClock = d => (usable(d)
+    ? d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    : NO_DATE);
 
 /**
  * An instant's LONDON wall-clock calendar date, as a local-calendar Date at noon — so the four
