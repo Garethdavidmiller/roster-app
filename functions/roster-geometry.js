@@ -269,6 +269,19 @@ function nameTokens(name) {
  * same letter ("Gareth Miller" for "G. Miller"). More than one candidate at either tier is NO
  * signal — `Vacant` appears three times on one real sheet.
  *
+ * ── THE ONE WAY A TIE IS BROKEN, AND WHY IT IS SAFE (v24.03) ───────────────────────────────────
+ *
+ * A real Dispatch sheet carries TWO rows for the same person: an EMPTY `S Faure` placeholder above
+ * the real `S. Faure` row. They tokenise identically, so the tie rule above refused both and she
+ * got no geometry signal on any Dispatch import — the witness silently skipping one member, every
+ * week, which is exactly the shape of failure this module exists to remove.
+ *
+ * So a tie is broken when EXACTLY ONE of the tied rows has any content at all. An empty row states
+ * nothing, and cannot be the row that was meant. Note what this deliberately does NOT do: two tied
+ * rows that BOTH carry content stay refused, because then the sheet really is ambiguous and picking
+ * either would be a guess. It can only ever narrow a tie the old rule dropped — it can never
+ * promote a non-match, and it never chooses between two rows that both say something.
+ *
  * @param {string} memberName
  * @param {Array<{ name: string, occupancy: boolean[] }>} rows
  * @returns {{ name: string, occupancy: boolean[] }|null}
@@ -278,7 +291,7 @@ function matchGeometryRow(memberName, rows) {
     if (!want.length) return null;
     const exact = rows.filter(r => nameTokens(r.name).join(' ') === want.join(' '));
     if (exact.length === 1) return exact[0];
-    if (exact.length > 1) return null;
+    if (exact.length > 1) return soleOccupied(exact);
     const surname = want.reduce((a, b) => (b.length > a.length ? b : a), '');
     const initials = want.filter(t => t !== surname).map(t => t[0]);
     const loose = rows.filter(r => {
@@ -287,7 +300,17 @@ function matchGeometryRow(memberName, rows) {
         const rest = t.filter(x => x !== surname).map(x => x[0]);
         return initials.every(i => rest.includes(i));
     });
-    return loose.length === 1 ? loose[0] : null;
+    return loose.length === 1 ? loose[0] : soleOccupied(loose);
+}
+
+/**
+ * The one tied row that says anything — or null when none does, or more than one does.
+ * @param {Array<{ name: string, occupancy: boolean[] }>} tied
+ * @returns {{ name: string, occupancy: boolean[] }|null}
+ */
+function soleOccupied(tied) {
+    const occupied = tied.filter(r => Array.isArray(r.occupancy) && r.occupancy.some(Boolean));
+    return occupied.length === 1 ? occupied[0] : null;
 }
 
 /** A parsed value that asserts SOMETHING happened on the day — the only kind an empty cell can refute. */
