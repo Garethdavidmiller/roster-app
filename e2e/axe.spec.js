@@ -13,7 +13,7 @@
 // installed — otherwise the SDK-dependent pages never render and the scan can't reach them.
 import { test, expect, enableCalendarPin } from './fixtures.js';
 import AxeBuilder from '@axe-core/playwright';
-import { seedSession, seedMember, seedMemberSession, seedViewerAccess, stubPinExchange, enterPin, openPinCard, clearNoticeFlags, sheetAction } from './helpers.js';
+import { seedSession, seedMember, seedMemberSession, seedViewerAccess, stubPinExchange, enterPin, openPinCard, clearNoticeFlags, sheetAction, openRosterReview, ROSTER_REVIEW_DATES } from './helpers.js';
 
 // ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
 // Since v20.12 the Calendar opens only for a member session or the shared staff PIN, so a spec that
@@ -237,6 +237,66 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         await seedSession(page, 'G. Miller');
         await page.goto('/operations.html');
         await expect(page.locator('#huddleUploadCard')).toBeVisible();
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
+    // ── THE ROSTER REVIEW TABLE (v24.00) ────────────────────────────────────────────────────────
+    //
+    // Every other scan in this file loads a page and reads what it finds. This one has to DRIVE the
+    // upload — sign in, expand the card, stub the parse, click Read roster — and that is exactly why
+    // it did not exist: the review is the one staff-facing surface the gate could not reach from a
+    // standing start, and an unreachable surface looks identical to a clean one. When it was finally
+    // scanned by hand it had 8 colour-contrast failures, in a component shipped years earlier.
+    //
+    // Scanned in FOUR states, not one, because the defect was in the state changes rather than in
+    // the component: the badges are all above AA, and every failure came from an ancestor `opacity`
+    // that halved them. Each state below owned one of those dims (`.roster-from-val`, `.cv-dim`,
+    // `.is-skipped`, `.roster-blocked`), so a scan of the default state alone would have re-passed
+    // while a row one tap away was still at 1.76:1. See operations.css → the dims note.
+    test('operations — the roster review table, and the states that dim it', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.addInitScript(() => {
+            /** @type {any} */ (window).__E2E = { ...(/** @type {any} */ (window).__E2E || {}), authUser: true };
+        });
+        await openRosterReview(page);
+        // The standard fixture renders DIFF, CONFLICT (the struck-through `.cv-dim` option) and
+        // flagged rows together, so the default scan covers three of the four dims at once.
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+
+        // A row the admin has set aside. Its content is still what they would re-read before
+        // changing their mind, so it is not an inactive component and gets no contrast exemption.
+        await page.locator('.roster-change-row .roster-tick').first().click();
+        await expect(page.locator('.roster-change-row.is-skipped').first()).toBeVisible();
+        const vSkipped = await scan(page);
+        expect(vSkipped.length, report(vSkipped)).toBe(0);
+
+        // And the whole member set aside at once.
+        await page.locator('.roster-skip-all-btn').first().click();
+        const vAll = await scan(page);
+        expect(vAll.length, report(vAll)).toBe(0);
+    });
+
+    // The REFUSED read — the circuit breaker's own state, where the whole list recedes because none
+    // of it will be saved. Reached through the real breaker (three geometry refusals is
+    // ALIGNMENT_BLOCK_THRESHOLD), not by adding the class, because the class is only half of it: the
+    // rows also come back unticked, and it is the combination that renders.
+    test('operations — the roster review, read refused', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.addInitScript(() => {
+            /** @type {any} */ (window).__E2E = { ...(/** @type {any} */ (window).__E2E || {}), authUser: true };
+        });
+        await openRosterReview(page, {
+            weekEnding: '2026-08-08', rosterType: 'cea', dates: ROSTER_REVIEW_DATES,
+            geometryRefused: ['G. Miller', 'L. Springer', 'A. Hared'],
+            parsed: [
+                { memberName: 'G. Miller',   shifts: { '2026-08-03': '06:00-14:00', '2026-08-04': '13:00-21:00', '2026-08-08': 'AL' } },
+                { memberName: 'L. Springer', shifts: { '2026-08-03': 'RD', '2026-08-05': '22:00-06:00' } },
+                { memberName: 'A. Hared',    shifts: { '2026-08-06': 'SPARE', '2026-08-07': 'TRG' } },
+            ],
+        });
+        await expect(page.locator('.roster-blocked').first()).toBeVisible();
         const v = await scan(page);
         expect(v.length, report(v)).toBe(0);
     });

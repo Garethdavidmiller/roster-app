@@ -518,11 +518,17 @@ body.auth-ready .container { display: grid; }
    recedes. Without this the page still reads "here are your changes" with a red note on top, which
    is the shape of a warning, not of a refusal. Action labels are hidden outright rather than
    dimmed: "UPDATE" beside a row that will not update is a statement, and it is untrue.
-   The dim is DELIBERATELY light. The first pass used .62 and it worked against itself — these rows
-   are exactly what the admin has been told to check against the PDF, so making the shift badges
-   hard to read is the opposite of the intent. Removing the affordances is what says "not
-   actionable"; the opacity only has to stop the list reading as a to-do. */
-.roster-blocked { opacity: .78; }
+   THE RECESSION WAS AN OPACITY UNTIL v24.00, AND THIS COMMENT HAD ALREADY ARGUED AGAINST IT. The
+   first pass used .62 and worked against itself — these rows are exactly what the admin has been told to check
+   against the PDF, so making the shift badges hard to read is the opposite of the intent — and .78
+   was a step in this direction that stopped short: measured by axe, it left 36 elements at
+   3.26-4.11:1 against a 4.5 floor, the badges among them. No opacity could have fixed that (the
+   dims note further down has the numbers), so the recession is carried by the SUNKEN SURFACE the
+   skipped row uses, which says the same thing at full strength. Removing the affordances is what
+   says "not actionable"; the surface only has to stop the list reading as a to-do.
+   The TICK keeps its own dim — it is a genuinely inactive control here, clicks are returned early
+   at the delegate, and an inactive component is the one thing WCAG's contrast rule exempts. */
+.roster-blocked .roster-change-row { background: var(--surface-sunken); }
 .roster-blocked .roster-act,
 .roster-blocked .roster-skip-all-btn { visibility: hidden; }
 .roster-blocked .roster-tick { cursor: not-allowed; }
@@ -543,7 +549,13 @@ body.auth-ready .container { display: grid; }
     border: 1px solid var(--border-light);
     border-radius: 10px;
 }
-.roster-change-row.is-skipped { opacity: 0.4; }
+/* A skipped row is SET ASIDE, not faded (see the dims note above). Three cues carry it, none
+   of them costing contrast: the tick is empty, the row drops to the sunken surface, and the
+   action tag loses its success green. The tag still reads "Update" — that is what the row would
+   do if it were re-ticked — but green is the colour this page uses for an outcome, and wearing it
+   on a row that will not be saved is the claim `.roster-blocked` below strips for the same reason. */
+.roster-change-row.is-skipped { background: var(--surface-sunken); }
+.roster-change-row.is-skipped .roster-act { background: var(--bg-faint); color: var(--text-mid); }
 /* Conflict card keeps its warm tint + gains a left accent (needs-a-decision), like the admin
    accent-cards. align-items:flex-start so the stacked choicebox reads top-down. */
 .roster-change-row.roster-change-conflict {
@@ -558,7 +570,32 @@ body.auth-ready .container { display: grid; }
     display: flex; align-items: center; gap: 6px;
     flex: 1; flex-wrap: wrap; font-size: var(--type-small);
 }
-.roster-from-val { opacity: 0.5; font-size: var(--type-badge); }
+/* ── THE DIMS THAT WERE UNREADABLE, AND WHY OPACITY IS NEVER THE LEVER HERE (v24.00) ────────────
+   Four rules on this card used to fade their content with `opacity` — this one, `.cv-dim`,
+   `.roster-change-row.is-skipped` and `.roster-blocked` above — and all four failed WCAG AA on
+   the shift badges they contain: 1.76–4.11:1 against a 4.5 floor, measured by axe on the real
+   rendered review, which nothing had ever scanned.
+
+   The badges themselves are FINE. Measured undimmed, every one clears AA: Early 4.65 · AL 5.17 ·
+   Late 5.75 · Absent 6.19 · Other 6.80 · Spare 8.20 · Unknown 8.63 · Rest 13.77 · Night 17.06.
+   Early's 4.65 is the floor, and it is the whole argument: halving the opacity of a pair that
+   clears by 0.15 cannot leave it clearing, so there is no opacity value that both quietens a badge
+   and keeps it legible. Recolouring `.shift-badge` would not have helped either — it is shared with
+   the Calendar, and whatever colour it were given, a fade over it halves the ratio just the same.
+
+   So each dim was replaced by the cue that was ALREADY carrying the meaning beside it: the "was"
+   value is smaller than the "now" value · the not-chosen conflict option is struck through · a
+   skipped row's tick is empty and its row sits on the sunken surface · a refused read has had its
+   affordances removed outright. Each says the same thing and costs no contrast.
+
+   This is the same intent the `.roster-blocked` comment above states for its own rows: these rows
+   are exactly what the admin has been told to check against the PDF, so making the shift badges
+   hard to read is the opposite of the point. It applies with more force here, because the "was"
+   value is half of every comparison on the screen.
+
+   `e2e/axe.spec.js` scans the review in all four states, so a re-added fade fails the a11y gate —
+   each of the four was put back with `scripts/mutate.mjs` and each turned it red. */
+.roster-from-val { font-size: var(--type-badge); color: var(--text-mid); }
 .roster-from-val .shift-badge { font-size: var(--type-micro); padding: 1px 5px; }
 .roster-arrow { color: var(--text-light); font-size: var(--type-badge); }
 .roster-to-val { font-size: var(--type-small); }
@@ -601,7 +638,9 @@ body.auth-ready .container { display: grid; }
 .roster-cb-lab { flex: 0 0 66px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em;
                  text-transform: uppercase; color: var(--conflict-text); }
 .roster-cv-manual, .roster-cv-pdf { font-size: var(--type-small); font-weight: 600; }
-.cv-dim { opacity: 0.5; text-decoration: line-through; }
+/* Strikethrough only — see the dims note above. This is the option the admin may be about to
+   switch TO, so it is the last thing on the card that should be hard to read. */
+.cv-dim { text-decoration: line-through; color: var(--text-mid); }
 /* Full-width choice row (v15.66): the two buttons share the row 50/50 and wrap to stacked
    full-width if the card is too narrow — they no longer overflow the card's right edge. */
 /* A GRID, NOT A RAGGED FLEX ROW (v22.17 polish). As a wrapping flex row the same control rendered

@@ -646,3 +646,32 @@ is exactly why a static guard and not a screenshot is what holds them.
 The guides restate `::selection`, `::placeholder` and `caret-color` in `guide-shell.css` with their
 own `--placeholder` token, for the same reason `--scroll-thumb` lives there: they load none of the
 app's stylesheets, so a rule added only to `shared.css` reaches seven pages of twelve.
+
+## `opacity` on a group is a contrast bug waiting to be found (v24.00)
+
+Four rules on the Operations roster review recessed a group of rows or values with `opacity` — the
+"was" value on a changed row, the not-chosen half of a conflict, a row the admin had set aside, and
+every row of a refused read. All four failed WCAG AA, at 1.76–4.11:1 against a floor of 4.5, and
+nothing had ever measured them because the a11y gate could not reach that table.
+
+**Why it is structural, not a colour mistake.** A fade multiplies contrast. The shift badges are all
+above AA on their own, but the tightest is Early at **4.65:1** — clearance of 0.15 — so no fill
+colour survives being halved, and there is no opacity value that both quietens the badge and keeps
+it legible. Picking a different colour cannot fix it; the fade is the fault.
+
+**The rule.** If a reader still has to READ it, do not fade it. Say "secondary", "not chosen" or
+"set aside" with something that costs no contrast:
+
+| Meaning | Say it with |
+|---|---|
+| secondary / earlier value | a smaller type step, and the arrow or label already beside it |
+| not the chosen option | `text-decoration: line-through` |
+| set aside, still re-selectable | the **sunken** surface (three-surface model above) + the control's own off state |
+| not actionable at all | remove the affordance — hide the action tag, not the content |
+
+**The one exemption, and it is narrow.** WCAG 1.4.3 exempts an *inactive* user-interface component,
+so a control whose clicks are genuinely refused may keep a dim (`.roster-blocked .roster-tick`). A
+row the reader can re-select is not inactive, and gets no exemption.
+
+Guarded by `e2e/axe.spec.js`, which scans that table in four states; the full account is
+`operations.css` → the dims note, and `docs/A11Y_BASELINE.md`.

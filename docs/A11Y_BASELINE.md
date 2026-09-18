@@ -148,6 +148,36 @@ The general lesson, and it applies to every page in `axe.spec.js`: **a green a11
 about the state that was scanned, not about the page.** If a surface only appears under a condition —
 a bank holiday, an error, a populated list — the gate is silent on it until something puts it there.
 
+## The surface the gate could not reach — the roster review table (v24.00)
+
+The section above states the rule; this is the largest thing it had been hiding. The gate scans
+**one rendered state per page**, and reaching this table needs a PDF upload driven through to a
+parsed review — so from the gate's first release to v24.00 it was never scanned at all, while
+"every page the spec drives passes" stayed true and said nothing about it. Scanned by hand on
+18 Sep 2026 it had 8 `color-contrast` violations in its default state, and more in the states one
+tap away.
+
+**The lesson is about diagnosis, not about the count.** The failures all pointed at `.shift-badge`,
+so the obvious reading was that the badge component was wrong — and the obvious fix, recolouring it,
+would have changed the Calendar, the admin grid, Overtime and the guides, and would not have worked.
+Measured on their own, all nine badges clear AA (Early is the floor at 4.65:1). Every failure came
+from an **ancestor `opacity`**, which axe composites, and which no colour choice can survive: a pair
+clearing by 0.15 cannot be multiplied by 0.5 and still clear. Four such dims were replaced with cues
+that cost no contrast. Full before/after table: `docs/ROADMAP_HISTORY.md` → "The roster review table was never
+accessibility-scanned"; the reasoning that an editor needs beside the code is `operations.css` → the
+dims note.
+
+**What changed in this spec.** Two tests now drive the real upload and scan **four** states — the
+default review, one row skipped, a whole member skipped, and a read refused by the alignment breaker
+(reached through three genuine geometry refusals, not by adding the class). Each of the four dims was
+re-introduced with `scripts/mutate.mjs` and each turned the gate red.
+
+**One dim was deliberately kept.** `.roster-blocked .roster-tick` stays at `opacity: .35`. A tick in
+a refused section is a genuinely inactive control — clicks are returned early at the delegate — and
+an inactive user-interface component is the one thing WCAG 1.4.3 exempts. A SKIPPED row is not the
+same case: its content is what the admin re-reads before changing their mind, so it got no exemption
+and was fixed.
+
 ## Known pre-existing (not gate-caught, low priority)
 
 - **Stale `aria-expanded` on programmatically-opened cards — ✅ RESOLVED (v18.68).** A few
