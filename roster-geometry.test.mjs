@@ -204,6 +204,36 @@ describe('matchGeometryRow — one row, or none', () => {
         assert.equal(matchGeometryRow('Vacant', rows('Vacant', 'Vacant', 'G. Miller')), null);
     });
 
+    // ── THE TIE THAT IS BROKEN, AND THE THREE THAT ARE NOT (v24.03) ────────────────────────────
+    //
+    // Found on a real Dispatch sheet: an EMPTY `S Faure` placeholder row sits above the real
+    // `S. Faure` row. The two tokenise identically, so the rule above refused both and that member
+    // got NO geometry signal on any Dispatch import — the witness quietly skipping one person every
+    // week. Measured before and after on the three real rosters: Dispatch goes 12 to 13 matched,
+    // CEA (25) and Supervisors (9) unchanged, so this narrows exactly the tie it is meant to.
+    const occ = (...days) => days.map(Boolean);
+    const EMPTY = occ(0, 0, 0, 0, 0, 0, 0);
+    const WORKED = occ(0, 1, 1, 1, 1, 1, 1);
+    const row = (name, occupancy) => ({ name, occupancy });
+
+    test('a tie is broken when exactly ONE of the tied rows says anything', () => {
+        const got = matchGeometryRow('S. Faure',
+            [row('Vacancy', EMPTY), row('S Faure', EMPTY), row('S. Faure', WORKED)]);
+        assert.equal(got && got.name, 'S. Faure', 'the empty placeholder must not blind the real row');
+    });
+
+    test('and it is NOT broken when both tied rows carry content — that sheet really is ambiguous', () => {
+        assert.equal(matchGeometryRow('S. Faure', [row('S Faure', WORKED), row('S. Faure', WORKED)]), null);
+    });
+
+    test('nor when neither does — an empty row states nothing to prefer', () => {
+        assert.equal(matchGeometryRow('S. Faure', [row('S Faure', EMPTY), row('S. Faure', EMPTY)]), null);
+    });
+
+    test('it can never PROMOTE a non-match: a lone wrong name stays unmatched however full it is', () => {
+        assert.equal(matchGeometryRow('S. Faure', [row('T. Nowak', WORKED)]), null);
+    });
+
     test('an unmatched member is null, never the nearest row', () => {
         assert.equal(matchGeometryRow('S. Silva', rows('G. Miller', 'M. Robson')), null);
         assert.equal(matchGeometryRow('', rows('G. Miller')), null);
@@ -305,10 +335,31 @@ describe('applyGeometryWitness — refused, not weighed', () => {
         }
     });
 
-    test('a member matched to a duplicate row (Vacant ×2) gets no signal rather than the first one', () => {
+    // Two same-named rows that BOTH say something is the case the real sheet actually produces:
+    // measured on the CEA roster, both `Vacant` rows carry duties (XXXXXXX and .XXXXXX). That stays
+    // refused. The v24.03 tie-break narrows only the OTHER shape — one row empty, one occupied —
+    // which is the real `S Faure` / `S. Faure` placeholder pair on the Dispatch sheet. The two are
+    // asserted together here because it is the contrast that makes either meaningful.
+    test('a member matched to two rows that BOTH carry content gets no signal (real: Vacant ×2)', () => {
         const e = { memberName: 'Vacant', shifts: Object.fromEntries(DATES.map(d => [d, '06:00-14:00'])) };
-        const s = applyGeometryWitness([e], geo(['Vacant', '', '', '', '', '', '', ''], ['Vacant', '06:00-14:00', '', '', '', '', '', '']), DATES);
+        const s = applyGeometryWitness([e], geo(
+            ['Vacant', '06:20-14:20', '', '', '', '', '', ''],
+            ['Vacant', '06:00-14:00', '', '', '', '', '', ''],
+        ), DATES);
         assert.deepEqual(s.refused, []); assert.deepEqual(s.unmatched, ['Vacant']);
+    });
+
+    test('but an EMPTY duplicate no longer blinds the row that says something', () => {
+        const e = { memberName: 'Vacant', shifts: Object.fromEntries(DATES.map(d => [d, '06:00-14:00'])) };
+        // One empty row, one that works Monday only: the witness should now speak, and refuse the
+        // six days the occupied row leaves blank. Before v24.03 it was silent on all seven.
+        const s = applyGeometryWitness([e], geo(
+            ['Vacant', '', '', '', '', '', '', ''],
+            ['Vacant', '', '06:00-14:00', '', '', '', '', ''],
+        ), DATES);
+        assert.deepEqual(s.unmatched, [], 'the tie is broken, so the member is checked');
+        assert.equal(s.refused.length, 1);
+        assert.equal(s.refused[0].dates.length, 6, 'every day the occupied row leaves blank');
     });
 
     test('rows from several pages are one table', () => {
