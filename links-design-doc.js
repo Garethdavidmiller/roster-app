@@ -35,6 +35,7 @@
  *    against data that has already changed underneath it.
  */
 
+import { formatDayMonth, formatDayMonthYear, formatClock } from './date-format.js';
 import { normalisePatterns } from './links-design.js';
 import { normaliseWindow } from './links-window.js';
 
@@ -226,10 +227,8 @@ export function lastSavedLabel(updatedBy, when, now = new Date()) {
     const sameDay = when.getFullYear() === now.getFullYear()
         && when.getMonth() === now.getMonth()
         && when.getDate() === now.getDate();
-    const time = when.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    const time = formatClock(when);
     if (sameDay) return `Last saved by ${updatedBy} at ${time}`;
-    const opts = when.getFullYear() === now.getFullYear()
-        ? { day: 'numeric', month: 'short' }
-        : { day: 'numeric', month: 'short', year: 'numeric' };
-    return `Last saved by ${updatedBy} · ${when.toLocaleDateString('en-GB', /** @type {any} */ (opts))} at ${time}`;
+    const date = when.getFullYear() === now.getFullYear() ? formatDayMonth(when) : formatDayMonthYear(when);
+    return `Last saved by ${updatedBy} · ${date} at ${time}`;
 }

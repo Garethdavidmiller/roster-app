@@ -14,6 +14,7 @@
 
 import { enhanceSelect } from './select-sheet.js';
 import { CONFIG, MONTH_NAMES, computeEaster, getPaydaysAndCutoffs, formatISO } from './roster-data.js';
+import { formatDayMonth, formatClock, londonDate, printedStamp } from './date-format.js';
 import { authReady, authBootstrap } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
 import { getSession, clearSession, ensureNamedSession } from './session.js';   // reconcileExpiredIdentity now runs inside calendar-access.js
@@ -644,7 +645,7 @@ document.getElementById('payBtn')?.addEventListener('click', () => {
     }
     if (!period) return;
 
-    const fmt    = /** @param {any} d */ d => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/London' });
+    const fmt    = /** @param {any} d */ d => formatDayMonth(londonDate(d));
     const payISO = formatISO(period.payday);
     strip.innerHTML = `Pay period: <a class="pay-period-link" href="./paycalc.html?payday=${payISO}">${fmt(period.start)} – ${fmt(period.cutoff)}</a> · paid ${fmt(period.payday)}`;
     strip.style.display = '';
@@ -1021,10 +1022,14 @@ try {
 // eagerly on load. The beforeprint handler is kept for desktop browsers, where it
 // updates both attributes to the moment of printing.
 function stampPrintDate() {
-    const now    = new Date().toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' });
+    // `printedStamp`, not a `dateStyle: 'long'` locale string: this sheet is printed from the same
+    // app as the Team View one beside it in the folder, and the two used to spell the same day
+    // differently ("18 September 2026 at 14:23" against "18 Sep 2026"). roster-data.js → "the
+    // provenance line every printable surface closes on" has the argument and the other four.
+    const now    = new Date();
     const header = document.querySelector('.header');
     if (!header) return;
-    header.setAttribute('data-print-date', `Printed: ${now}`);
+    header.setAttribute('data-print-date', printedStamp(now, formatClock(now)));
     // First run (no member picked yet): don't stamp a default member onto the print header —
     // this also runs on `beforeprint`, so without the guard it would re-add the name that
     // showFirstRunPrompt() cleared. (H1)

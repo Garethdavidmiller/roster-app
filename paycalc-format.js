@@ -4,28 +4,32 @@
  * Pure: no DOM, no Firebase, no side effects. Imported by paycalc-app.js and paycalc-backpay.js.
  */
 
-// NO timeZone option (review fix): period Dates are LOCAL-calendar values (constructed at
-// device-local noon by getPeriods), not instants — so they must render in the device's own
-// timezone. Forcing 'Europe/London' shifted the printed day one back on devices at UTC+13/+14
-// (device-local noon 13 Feb = 22:59Z the 12th = London 12 Feb).
-/** @param {Date} d */
-export const fd = d => d.toLocaleDateString('en-GB', {
-    day: 'numeric', month: 'short', year: '2-digit',
-});
+import { formatDayMonth, formatDayMonthYear, formatDayMonthYear2 } from './date-format.js';
 
-/** @param {Date} d */
-export const fdShort = d => d.toLocaleDateString('en-GB', {
-    day: 'numeric', month: 'short',
-});
+// THE DEVICE'S OWN CALENDAR, and the APP'S OWN WORDS — two separate rules, both load-bearing.
+//
+// The calendar: period Dates are LOCAL-calendar values (constructed at device-local noon by
+// getPeriods), not instants, so they must render in the device's own timezone. An earlier fix
+// forcing 'Europe/London' shifted the printed day one back on devices at UTC+13/+14 (device-local
+// noon 13 Feb = 22:59Z the 12th = London 12 Feb). The composers below read the local getters, so
+// that stays true by construction — there is no longer a timezone option to add back by accident.
+//
+// The words: these three were `toLocaleDateString('en-GB', { month: 'short' })`, which spells
+// September "Sept" on every engine the app runs on — so the Pay Calculator said "18 Sept 26" on a
+// screen the member reaches from a calendar saying "18 Sep". `roster-data.js` → "The app's own
+// date vocabulary" has the measurement and why it is the app's table rather than ICU's.
+/** "18 Sep 26" @param {Date} d */
+export const fd = formatDayMonthYear2;
+
+/** "18 Sep" @param {Date} d */
+export const fdShort = formatDayMonth;
 
 // Full-year variant ("3 Jul 2026") — the payday/joined-on/printed-on long form. Was duplicated
 // inline as `.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })` in
 // paycalc-app / paycalc-backpay / paycalc-periods / paycalc-roster-hint before being written once
-// here (review item 21). Same no-timeZone rationale as fd above.
-/** @param {Date} d */
-export const fdLong = d => d.toLocaleDateString('en-GB', {
-    day: 'numeric', month: 'short', year: 'numeric',
-});
+// here (review item 21).
+/** "18 Sep 2026" @param {Date} d */
+export const fdLong = formatDayMonthYear;
 
 /** @param {number} n */
 export const fmt = n => '£' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');

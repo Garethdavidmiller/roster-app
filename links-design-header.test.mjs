@@ -107,8 +107,8 @@ describe('the status pill — lying about saved state is the expensive direction
         assert.equal(statusCopy({ saved: true, dirty: false, updatedAt: at(NOW.getTime()), now: NOW }).long, 'Saved today at 14:32');
         assert.equal(statusCopy({ saved: true, dirty: false, updatedAt: at(NOW.getTime()), now: NOW }).short, 'Saved 14:32');
         const earlier = statusCopy({ saved: true, dirty: false, updatedAt: at(new Date(2026, 8, 3, 9, 5).getTime()), now: NOW });
-        assert.equal(earlier.long, 'Saved 3 Sept at 09:05');
-        assert.equal(earlier.short, 'Saved 3 Sept');
+        assert.equal(earlier.long, 'Saved 3 Sep at 09:05');
+        assert.equal(earlier.short, 'Saved 3 Sep');
         const lastYear = statusCopy({ saved: true, dirty: false, updatedAt: at(new Date(2025, 8, 3, 9, 5).getTime()), now: NOW });
         assert.match(lastYear.long, /2025/);
     });
@@ -130,11 +130,11 @@ describe('who the badge names', () => {
 
 describe('the pre-filled first-save name', () => {
     test('names the designer and the day', () => {
-        assert.equal(proposeNewDesignName(ME, [], NOW), 'G. Miller · 8 Sept');
+        assert.equal(proposeNewDesignName(ME, [], NOW), 'G. Miller · 8 Sep');
     });
     test('steps past a clash rather than proposing a name the check will refuse', () => {
-        const existing = [{ id: '1', name: 'G. Miller · 8 Sept' }, { id: '2', name: 'g. miller · 8 sept 2' }];
-        assert.equal(proposeNewDesignName(ME, existing, NOW), 'G. Miller · 8 Sept 3');
+        const existing = [{ id: '1', name: 'G. Miller · 8 Sep' }, { id: '2', name: 'g. miller · 8 sep 2' }];
+        assert.equal(proposeNewDesignName(ME, existing, NOW), 'G. Miller · 8 Sep 3');
     });
 });
 
@@ -282,7 +282,7 @@ describe('render — what the masthead SAYS', () => {
         const row = els.pickList.children[1].children[1];   // [0] is the group's own label
         assert.equal(row.dataset.id, 'c');
         assert.equal(rowName(row), 'Proposal');
-        assert.equal(rowMeta(row), 'Saved 7 Sept');
+        assert.equal(rowMeta(row), 'Saved 7 Sep');
         assert.equal(row.attrs['aria-current'], 'true');
         assert.equal(row.children[1].textContent, '✓', 'the tick is a second signal beside the tint — never colour alone');
         // and the one that is NOT open carries neither marker

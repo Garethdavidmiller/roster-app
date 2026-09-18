@@ -8,6 +8,7 @@
  */
 
 import { CONFIG, isValidEmail, isChilternWorkEmail, workEmailLocalPart, workEmailFrom } from './roster-data.js';
+import { formatDayMonthYear } from './date-format.js';
 import { getStaffContact, saveStaffContact, deleteStaffContact, getPasswordStatus, reauthenticateWithPassword, setOwnPassword } from './firebase-client.js';
 import { isPasswordMigrated, isCredentialRejection, validateNewPassword } from './auth-identity.js';
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
@@ -327,7 +328,7 @@ export function init() {
             try {
                 const d = ts?.toDate?.();
                 if (!d || isNaN(d.getTime())) return null;
-                return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+                return formatDayMonthYear(d);
             } catch { return null; }
         }
 
@@ -410,7 +411,7 @@ export function init() {
             try {
                 await sessionReady;
                 await saveStaffContact(currentUser, email);
-                const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+                const today = formatDayMonthYear(new Date());
                 emailInput.value = workEmailLocalPart(email);
                 showSavedState(today, email);
             } catch (err) {

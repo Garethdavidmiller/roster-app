@@ -14,6 +14,7 @@
 
 import { initSelectSheets } from './select-sheet.js';
 import { CONFIG as ROSTER_CONFIG, formatISO, parseSmartFloat, parseSmartFloatOrNull } from './roster-data.js';
+import { printedStamp, formatClock } from './date-format.js';
 import {
   GRADES, RATE_125, RATE_150, RATE_300,
   getTaxYearForOffset, taxYearForPeriod, getThresholds, getLondonAllowanceForPeriod,
@@ -1804,11 +1805,15 @@ export function init() {
       if (!hdr) return;
       const periodSel = /** @type {HTMLSelectElement | null} */ (document.getElementById('periodSelect'));
       const p = periodSel ? getPeriods().find(/** @param {any} x */ x => x.num === +periodSel.value) : null;
-      const now = fdLong(new Date());
+      // The ROADMAP's print-provenance item named four surfaces; this is the fifth, and it had the
+      // same two problems — no time, and a date spelled by ICU rather than the app. See
+      // roster-data.js → "the provenance line every printable surface closes on".
+      const printedNow = new Date();
+      const now = printedStamp(printedNow, formatClock(printedNow));
       // "Pay Calculator", not "MYB Pay Calculator" (v20.13). The app's on-screen name is
       // "Marylebone Roster" and "MYB" is not used for it in staff-facing copy — and a print header
       // is the one place a stale product name is carried out of the app on paper.
-      const label = p ? `Paid ${fd(p.payday)} (P${payslipPeriodNum(p)}) · Printed ${now}` : `Pay Calculator · Printed ${now}`;
+      const label = p ? `Paid ${fd(p.payday)} (P${payslipPeriodNum(p)}) · ${now}` : `Pay Calculator · ${now}`;
       hdr.setAttribute('data-print-line', label);
     }
     stampPaycalcPrintLine();

@@ -22,6 +22,8 @@
 // the v23.83 split of each date into a label and a value; and the v23.84 decision that a STATE is
 // worn as a badge, not said as a sentence.
 
+import { formatWeekdayDate, londonDate } from './date-format.js';
+
 /**
  * A deadline instant, in London wall-clock words: "Tue 18 Aug · 12:00".
  *
@@ -31,16 +33,14 @@
  */
 export function deadlineLabel(ms) {
     if (!ms) return '';
-    // The comma `en-GB` inserts ("Tue, 18 Aug") reads as a stray separator beside the app's own
-    // "·" dividers, so it goes. The weekday still leads, because a deadline staff act on is named
-    // by its day of the week first.
-    const d = new Intl.DateTimeFormat('en-GB', {
-        timeZone: 'Europe/London', weekday: 'short', day: 'numeric', month: 'short',
-    }).format(new Date(ms)).replace(',', '')
-        // en-GB abbreviates September to FOUR letters ("Sept") and every other month to three, so
-        // a column of deadlines came out ragged — "Tue 25 Aug" above "Tue 1 Sept". One month
-        // behaving differently reads as a mistake in a list, so it is trimmed to match.
-        .replace(/\bSept\b/, 'Sep');
+    // `londonDate` converts the instant to its London calendar date, then the app's own composer
+    // spells it: no comma to strip ("Tue, 18 Aug" reads as a stray separator beside the app's "·"
+    // dividers) and no month-abbreviation to trim. This used to format through `Intl` and then
+    // `.replace(/\bSept\b/, 'Sep')`, because en-GB abbreviates September to FOUR letters and every
+    // other month to three, so a column of deadlines came out ragged — "Tue 25 Aug" above
+    // "Tue 1 Sept". The composer reads MONTH_ABB, so the ragged month cannot come back.
+    // The weekday still leads: a deadline staff act on is named by its day of the week first.
+    const d = formatWeekdayDate(londonDate(ms));
     const t = new Intl.DateTimeFormat('en-GB', {
         timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
     }).format(new Date(ms));

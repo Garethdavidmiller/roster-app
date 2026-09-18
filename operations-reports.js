@@ -23,6 +23,7 @@
  * own card by id, and none touches coordinator state. That is what made the split mechanical rather
  * than a redesign — and it is why the shared surface below is four small things and no logic.
  */
+import { formatDayMonth, formatClock } from './date-format.js';
 
 /**
  * The privacy footer both reporting cards end on — ONE declaration, two consumers (v21.29).
@@ -115,10 +116,7 @@ function _usageMonthLabel(/** @type {string} */ ym) {
  *  Error Log rows beside it — a second formatter would have drifted. */
 function _relativeTime(/** @type {Date} */ date) {
     const secs = Math.floor((Date.now() - date.getTime()) / 1000);
-    const exact = date.toLocaleString('en-GB', {
-        day: 'numeric', month: 'short',
-        hour: '2-digit', minute: '2-digit',
-    });
+    const exact = `${formatDayMonth(date)}, ${formatClock(date)}`;
     let rel;
     if (secs < 60)    rel = `${secs}s ago`;
     else if (secs < 3600)  rel = `${Math.floor(secs / 60)}m ago`;
