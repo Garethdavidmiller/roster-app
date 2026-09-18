@@ -109,7 +109,7 @@ hard limits, and a management review date. The readiness dashboard at the top of
 authoritative; it now carries latest-safe dates worked backwards from the timetable change.
 
 ### Roster import — let the PDF's own grid decide the day
-**Status:** Phase 1 SHIPPED (v22.31) · phases 2–3 not started · **Owner:** Gareth · **Proof:** `experiments/roster-pdf-geometry/` · **Code:** `functions/roster-geometry.js`
+**Status:** Phase 1 SHIPPED (v22.31) · **Phase 2 SHIPPED (v24.04–24.05)** · phase 3 not started · **Owner:** Gareth · **Proof:** `experiments/roster-pdf-geometry/` · **Code:** `functions/roster-geometry.js`, `functions/roster-prompt.js`
 
 The import's day-drift defence has a structural weakness the shipped fixes reduce but cannot close:
 the row read, `sundayScan` and `columnScan` all come from ONE model call looking at ONE PDF, so when
@@ -180,6 +180,26 @@ it did at v22.30.
 **What phase 1 does not do, so phase 2 still has a job:** a member whose week is fully occupied has no
 empty cell for a shifted claim to contradict, and an `RD` written into an occupied cell is not checked
 (telling a printed RD from a printed duty means reading the text — phase 3).
+
+**PHASE 2 SHIPPED at v24.04, and the three real rosters re-measured the case for it.** Simulating a
+one-day-left misread on every matched row of the CEA, Dispatch and Supervisor sheets for week ending
+26/09/2026, the phase-1 witness refuses **19 of 47** — **23 of those 47 rows work all seven days**, so
+60% of drifts pass it silently. Under phase 2 the grid ASSIGNS the day and the model is handed
+already-separated cells, so those rows are covered by construction rather than by a check.
+`.claude/rules/roster-import.md` holds the contract; `functions/roster-prompt.js` holds the reasoning,
+including the two wiring defects the v24.05 bug check found in it and the one design cost that is
+deliberate (a member legitimately absent from a week's sheet turns the geometry path off for that
+upload, and the coordinator logs which path it took).
+
+**PHASE 3 IS CLOSER THAN THIS ENTRY ASSUMED.** Measured over the same three rosters: **288 of 297
+non-empty cells — 97% — are read by `normaliseShift` alone** once the duty-code line is dropped. The
+nine that are not: `PIDD TRG` ×4 and `NA` ×3 (both named in the prompt but rejected by the parser, and
+now waived BY NAME in `roster-prompt-parity.test.mjs` so phase 3 has to decide about each rather than
+inherit them), plus `Until 10:30` and `Medical`, which genuinely want a person. Phase 3 would make the
+97% PROVABLE rather than probable — a deterministic parser is testable in a way a model call is not,
+which is what would finally close the "we cannot show the model normalises well" caveat phase 2 ships
+with. **`NA` needs an owner answer first**: the prompt says return `RD`, and that should be confirmed
+against what the roster office means by it before it is hard-coded.
 
 ### Track E — the authentication decision
 **Status:** Blocked on an owner decision · **Owner:** Gareth · **Design:** `AUTH_PLAN.md` · **Status of record:** `SECURITY_RELEASE_PLAN.md`
