@@ -971,20 +971,53 @@
         /* ── Desktop (≥1024px) ─────────────────────────────────────────────── */
         @media (min-width: 1024px) {
 
-            /* Viewport-locked layout */
+            /* ── ONE SCREEN WHEN IT FITS, A SCROLLING PAGE WHEN IT DOES NOT (v23.95) ────────
+               Reported from a laptop: the month stopped mid-week above the legend, and the rest
+               of it could not be reached. Measured across 520–1080px tall — the last week was
+               unreachable at every height below ~825px, and the `max-height: 760px` hatch below
+               did not save it: under ~720px it failed the same way with the grid spilling over
+               the legend instead of being clipped by it.
+
+               ⚠️ THE DECISIVE LINE IS `flex: 1 0 auto`, NOT THE `overflow` OR THE `min-height`.
+               That is measured, not assumed, and it is the opposite of where this reads like the
+               bug should be. The chain used to be `flex: 1` + `min-height: 0` on all four boxes,
+               which lets every one of them shrink below its own content — so the grid's 90px row
+               floor pushed the last week past the bottom of a body that then had no reason to
+               grow. Restoring `height: 100dvh` + `overflow: hidden` here while LEAVING the chain
+               alone keeps the page reachable (it scrolls; only the body's 16px bottom padding is
+               clipped). Restoring the chain breaks it again on its own. So if you are shortening
+               this block, the two `flex: 1 0 auto` lines below are the ones that matter.
+
+               `min-height` rather than `height` is still the honest declaration — the body's box
+               should be allowed to be as tall as its content — and it keeps the fill-the-screen
+               behaviour exactly, because the chain still grows to the viewport when there is room
+               (verified: `scrollY` is 0 at every height at or above the layout's 845px minimum).
+               Do not put `min-height: 0` back on any of the four. */
             body {
-                height: 100vh;
-                height: 100dvh;
+                min-height: 100vh;
+                min-height: 100dvh;
                 display: flex;
                 flex-direction: column;
-                overflow: hidden;
+                overflow-x: hidden;
                 background: linear-gradient(160deg, var(--header-grad-from) 0%, var(--header-grad-to) 100%);
+                /* SIZE THE GRADIENT TO THE SCREEN, NOT TO THE DOCUMENT (v23.95). It goes with the
+                   `min-height` above and is not optional: a body that can grow stretches its own
+                   background over the whole scroll height, so every colour in the ramp slides up
+                   the page and the canvas is a different shade at the same spot depending on how
+                   tall the month is. Measured at 1280×720: the body went 720 → 812px and the About
+                   lightbox's "Up to date" line — green over three TRANSLUCENT layers whose only
+                   opaque backing is this gradient — dropped below the WCAG AA contrast floor. The
+                   axe gate caught it; nothing else would have.
+
+                   `fixed` paints it against the viewport instead, which is what the locked layout
+                   drew before and is stable while scrolling. Desktop-only, so the iOS
+                   `background-attachment: fixed` repaint bugs are out of scope by construction. */
+                background-attachment: fixed;
                 padding: 16px;
             }
 
             .container {
-                flex: 1;
-                min-height: 0;
+                flex: 1 0 auto;
                 display: flex;
                 flex-direction: column;
                 gap: 10px;
@@ -1015,20 +1048,25 @@
 
             /* Calendar display */
             #calendarDisplay {
-                flex: 1;
-                min-height: 0;
+                flex: 1 0 auto;
                 display: flex;
                 flex-direction: column;
             }
 
             .calendar-container {
-                flex: 1;
-                min-height: 0;
+                flex: 1 0 auto;
                 display: flex;
                 flex-direction: column;
                 box-sizing: border-box;
                 padding: 14px 18px 18px 18px;
-                overflow-y: auto;
+                /* Was `auto`, and switching it changes nothing on its own — with the chain above
+                   fixed this box is never shorter than its content, so `auto` would find nothing
+                   to scroll (measured: 0px of inner scroll at every height from 520 to 1080).
+                   It is here to state the intent, and so that a future regression surfaces as a
+                   page that scrolls rather than as an inner scroller on a card with no visible
+                   edge — which is how the clipped week hid: the page looked finished at the
+                   legend. `e2e/responsive.spec.js` asserts the 0. */
+                overflow-y: visible;
             }
 
             /* Month label */
@@ -1043,8 +1081,7 @@
 
             /* Grid: day rows fill available height equally */
             .calendar-grid {
-                flex: 1 1 0;
-                min-height: 0;
+                flex: 1 1 auto;
                 gap: 10px;
                 grid-template-rows: auto;
                 grid-auto-rows: minmax(90px, 1fr);
@@ -1116,16 +1153,16 @@
         }
 
         /* ── Short desktop viewports (≥1024px wide but ≤760px tall) ──────────
-           The desktop layout above locks body height to the viewport and sets
-           overflow:hidden, which is ideal on a normal monitor but clips content
-           on a short window (split-screen, 16:9 laptop with browser chrome +
-           devtools, or a half-height window). Unlock back to normal document
-           flow so the header, calendar and legend all stay reachable and the
-           page scrolls instead of clipping. */
+           REACHABILITY IS NO LONGER THIS RULE'S JOB — the desktop block above now grows the body
+           and lets the document scroll at any height, so nothing here is load-bearing for getting
+           to the last week. What is left is COMFORT: a shorter row floor so a genuinely short
+           window fits more of the month before it has to scroll at all.
+
+           It was `minmax(72px, auto)`. `auto` sizes a row to its content and then STOPS, so on a
+           short-but-not-tiny window the grid left a void below itself rather than filling the card;
+           `1fr` distributes whatever room there is, which is what the desktop rule above does. */
         @media (min-width: 1024px) and (max-height: 760px) {
-            body { height: auto; overflow-y: auto; }
-            .calendar-container { overflow-y: visible; }
-            .calendar-grid { grid-auto-rows: minmax(72px, auto); }
+            .calendar-grid { grid-auto-rows: minmax(72px, 1fr); }
         }
 
         @media (max-width: 1023px) {
@@ -1397,8 +1434,11 @@
             .team-view-container { width: 100%; max-width: 1040px; margin: 0 auto; }
         }
         @media (min-width: 1024px) {
-            /* Desktop: body has overflow:hidden so the team container must own its
-               own scroll path, otherwise the table is clipped on short viewports. */
+            /* Desktop: the team table owns its own scroll path so a long roster scrolls INSIDE
+               the card, under its sticky headers, rather than moving the whole page. This used to
+               say it was because `body` had `overflow: hidden`; that lock went at v23.95 and this
+               is now a deliberate choice rather than a workaround — the sticky headers are the
+               reason to keep it. */
             .team-view-container {
                 width: 100%; /* margin:0 auto suppresses align-self:stretch — restore full width explicitly */
                 max-width: var(--page-max-width);

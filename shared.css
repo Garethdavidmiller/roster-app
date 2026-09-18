@@ -194,8 +194,19 @@
     --success-text: oklch(42.5% 0.1159 144.3deg);
 
     /* SW update status */
-    --status-ok:    oklch(67.3% 0.1624 144.2deg);
-    --status-ok-bg: rgba(76, 175, 80, 0.15);
+    /* The "✓ Up to date" pill in the About panel, and the only consumer of either token.
+       Both changed at v23.95 and the reason is worth keeping, because the surface they sit on
+       argues for the opposite of what they were. The panel is DARK GLASS — three translucent
+       layers whose only opaque backing is the page behind the modal — so a translucent pill's
+       legibility was a function of whatever happened to be on screen underneath it. Measured:
+       the old green-on-glass came out at 2.88:1 against WCAG AA's 4.5.
+
+       The fix is the one its sibling `.lightbox-status.needs-update` already used: an OPAQUE
+       background, so the pill answers for its own contrast and no layout change can move it.
+       The green is darkened to suit a light pill (5.2:1 measured); it is not a "less green"
+       green, it is the same hue at a lightness that can be read. */
+    --status-ok:    oklch(50% 0.13 144.2deg);
+    --status-ok-bg: color-mix(in oklch, var(--status-ok) 10%, white);
 
     /* AL balance warnings */
     --al-lb-ok:      oklch(71.2% 0.0977 186.7deg);
