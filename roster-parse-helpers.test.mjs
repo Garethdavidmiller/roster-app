@@ -183,14 +183,37 @@ describe('normaliseShift', () => {
     test('whitespace-only string → RD (genuinely blank, not flagged)', () => {
         assert.equal(normaliseShift('   '), 'RD');
     });
-    test('paid-absence codes HA (hospital appointment), OD, ML (maternity leave) → SICK, case-insensitive, never UNKNOWN', () => {
+    test('paid-absence codes HA (hospital appointment), OD, ML (maternity leave), CL (compassionate leave) → SICK, case-insensitive, never UNKNOWN', () => {
         assert.equal(normaliseShift('HA'), 'SICK');
         assert.equal(normaliseShift('OD'), 'SICK');
         assert.equal(normaliseShift('ML'), 'SICK');   // maternity leave
+        assert.equal(normaliseShift('CL'), 'SICK');
         assert.equal(normaliseShift('ha'), 'SICK');
         assert.equal(normaliseShift('od'), 'SICK');
         assert.equal(normaliseShift('ml'), 'SICK');
+        assert.equal(normaliseShift('cl'), 'SICK');
         assert.equal(normaliseShift('M.L'), 'SICK');  // punctuated paper-roster form
+        assert.equal(normaliseShift('C/L'), 'SICK');
+        assert.equal(normaliseShift('C.L.'), 'SICK');
+    });
+
+    // ── THE CODE LIST IS NOT WHY AN ABSENCE ARRIVES AS A REST DAY ──────────────────────────────
+    //
+    // Written when CL was added (Sep 2026), because the report that prompted it was "OD was picked
+    // up as a rest day" and the code list was the first place anyone looked. It was not the cause,
+    // and this test says so in the one direction that can go wrong silently: an UNRECOGNISED code
+    // must reach the admin, never resolve to rest. A future 'simplification' of the fallthrough to
+    // `'RD'` would make every code this app has never heard of vanish into the base roster.
+    test('an absence code this parser does not know is UNREADABLE, never a rest day', () => {
+        for (const unknown of ['XL', 'PH', 'COMP', 'O D']) {
+            const got = normaliseShift(unknown);
+            assert.ok(got.startsWith('UNKNOWN|'),
+                `normaliseShift(${JSON.stringify(unknown)}) returned ${JSON.stringify(got)}. An `
+                + 'unrecognised cell must carry the raw text to the review as UNREADABLE. Returning '
+                + "'RD' classifies it as MATCH against a base rest day and drops it silently — the "
+                + 'admin never sees that the PDF said anything at all.');
+            assert.notEqual(got, 'RD');
+        }
     });
     test('raw sick code SC and punctuated absence forms → SICK (v16.68 hardening)', () => {
         // The prompt tells the AI to return SICK for these, but a raw echo must still map —

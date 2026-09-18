@@ -468,6 +468,7 @@ WHAT THE CODES MEAN:
 - HA = Hospital appointment (a paid absence day). Return "SICK".
 - OD = paid absence (often marked Mon-Fri for long-term sickness). Return "SICK".
 - ML = Maternity leave (a paid absence, usually a long block spanning many weeks). Return "SICK".
+- CL = Compassionate leave (a paid absence). Return "SICK".
 - TRG or TRAINING or TRAIN = Training day (no shift time on the roster). Return "TRG". If the cell also says RDW (e.g. "TRG RDW"), return "TRG RDW".
 - INDUCTION or IND = Induction day. Return "IND" (or "IND RDW" if the cell also says RDW).
 - ASSESS or ASSESSMENT or ASSESSMENTS = Assessment day. Return "ASSESS" (or "ASSESS RDW" if the cell also says RDW).
@@ -487,15 +488,15 @@ Each cell has up to two lines, and what is on the SECOND line depends on whether
     ("CEA 3", "CEA BL 4", "CEA 21", "D123"). The duty code is a diagram number, never a shift value
     — ignore it and return the time.
 
-  · A NON-WORKED day has NO time at all. Its STATUS CODE (RD, AL, SP, SC, SN, OD, HA, ML, TRG, IND,
-    ASSESS, TEAM, UNION, MTG) sits on the SECOND line — in exactly the place a duty code would sit
+  · A NON-WORKED day has NO time at all. Its STATUS CODE (RD, AL, SP, SC, SN, OD, HA, ML, CL, TRG,
+    IND, ASSESS, TEAM, UNION, MTG) sits on the SECOND line — in exactly the place a duty code would sit
     on a worked day. That status code IS the shift value. Return it.
 
 So the rule is about WHAT the text is, not WHICH line it is on:
   · Ignore a DUTY code (a "CEA …" or "D…" diagram number) wherever it appears.
   · NEVER ignore a STATUS code, even though it is on the second line.
   · A cell whose only text is "AL" is ANNUAL LEAVE — it is NOT blank and NOT a rest day.
-    The same applies to SP, SC, SN, OD, HA and ML: a cell showing only that code means that code.
+    The same applies to SP, SC, SN, OD, HA, ML and CL: a cell showing only that code means that code.
 Treat a cell as blank ONLY when it has no text whatsoever.
 
 ---

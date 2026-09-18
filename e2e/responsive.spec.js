@@ -59,6 +59,71 @@ test('calendar desktop @1024×720 (short height): renders, no horizontal overflo
     expect(overflow, 'no horizontal overflow on a short-height desktop').toBeLessThanOrEqual(1);
 });
 
+// ── THE LAST WEEK OF THE MONTH MUST BE REACHABLE ON A LAPTOP (v23.95) ─────────────────────────
+//
+// The test above has covered 1024×720 since v14.37 and did not catch this, because it asks only
+// about HORIZONTAL overflow. Vertically the desktop Calendar was a hard viewport lock
+// (`height: 100dvh` + `overflow: hidden`) over a `min-height: 0` flex chain, so the grid's 90px
+// row floor pushed the last week past the bottom of a body that could not grow. Measured across
+// 520–1080px tall before the fix: unreachable at every height below ~825px. Reported from a real
+// Dell laptop, where the month simply stopped mid-week above the legend.
+//
+// WHAT THIS ASSERTS IS REACHABILITY, NOT A LAYOUT. It does not care whether the page scrolls or
+// fits — only that after scrolling to the bottom, the last day cell and the legend are both fully
+// on screen. That is the property the member actually needs, and it survives any future change to
+// the row floor, the breakpoints or the card padding.
+//
+// `innerScroll` is the second half and the one that would otherwise pass silently: the old layout
+// DID technically let you reach the last week, by scrolling inside `.calendar-container` — a card
+// with no visible edge, below a legend that made the page look finished. A scroller nobody can see
+// is not reachable, so a non-zero inner scroll height fails here too.
+//
+// WHAT FAILS THIS AND WHAT DOES NOT, measured with scripts/mutate.mjs rather than guessed:
+// restoring `min-height: 0` on the desktop flex chain in index.css fails it, which is the actual
+// defect. Restoring the body's `height: 100dvh` + `overflow: hidden`, or the container's
+// `overflow-y: auto`, does NOT — with the chain intact the page still scrolls and the month is
+// still reachable. That is not a hole in this test; those two lines are not what broke it, and a
+// test written to fail on them would be asserting a layout rather than the property.
+//
+// Both month shapes, because the 6-row month is 90px taller and was the worse case.
+for (const [month, when, cells] of [['Sep 2026 (5 rows)', '2026-09-18T09:00:00Z', 35],
+                                    ['Aug 2026 (6 rows)', '2026-08-18T09:00:00Z', 42]]) {
+    test(`calendar: every week of ${month} is reachable at desktop heights 1080 → 600`, async ({ page }) => {
+        await page.clock.setFixedTime(new Date(when));
+        await seedMember(page);
+
+        for (const height of [1080, 900, 820, 780, 760, 700, 600]) {
+            await page.setViewportSize({ width: 1280, height });
+            await page.goto('/');
+            await expect(page.locator('.calendar-day').first()).toBeVisible();
+
+            const m = await page.evaluate(() => {
+                const days = [...document.querySelectorAll('.calendar-day')];
+                const de = document.documentElement;
+                window.scrollTo(0, de.scrollHeight - de.clientHeight);
+                const container = document.querySelector('.calendar-container');
+                return {
+                    days: days.length,
+                    lastDayGap: Math.round(de.clientHeight - days[days.length - 1].getBoundingClientRect().bottom),
+                    legendGap: Math.round(de.clientHeight - document.querySelector('.legend').getBoundingClientRect().bottom),
+                    innerScroll: container.scrollHeight - container.clientHeight,
+                };
+            });
+
+            expect(m.days, `${month} should render ${cells} cells`).toBe(cells);
+            expect(m.lastDayGap, `at ${height}px tall the last day of ${month} is still `
+                + `${-m.lastDayGap}px below the viewport after scrolling to the bottom`)
+                .toBeGreaterThanOrEqual(0);
+            expect(m.legendGap, `at ${height}px tall the legend is off screen after scrolling to the bottom`)
+                .toBeGreaterThanOrEqual(0);
+            expect(m.innerScroll, `at ${height}px tall .calendar-container has ${m.innerScroll}px of its own `
+                + 'scroll. The month must be reached by scrolling the PAGE — an inner scroller on a card '
+                + 'with no visible edge is how the clipped week hid in the first place')
+                .toBe(0);
+        }
+    });
+}
+
 // TEAM VIEW — the wide week grid must scroll INSIDE its wrapper, never widening the
 // page. A regression where .team-table-wrap loses overflow-x:auto would push the
 // whole document wide; this catches that.

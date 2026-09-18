@@ -465,6 +465,39 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    // ── EVERY STATE OF THE UPDATE PILL, NOT WHICHEVER ONE THE ENGINE HAPPENS TO PRODUCE (v23.95) ──
+    //
+    // `#lightboxUpdateStatus` has three states and the scan above only ever saw one of them.
+    // Which one is decided by whether `navigator.serviceWorker.getRegistration()` resolves, and
+    // with service workers blocked the two engines disagree: Chromium resolves to null and shows
+    // "Up to date", WebKit rejects and shows "Couldn't check for an update". So the error state
+    // was scanned by exactly one lane, and when it finally was, it turned out to be BLACK TEXT ON
+    // THE DARK GLASS PANEL at 2.15:1 — unreadable precisely when something has gone wrong.
+    //
+    // A state a test can only reach by luck is a state nothing covers. Force all three.
+    for (const [cls, text] of [
+        ['lightbox-status',                "Couldn't check for an update"],
+        ['lightbox-status up-to-date',     '✓ Up to date'],
+        ['lightbox-status needs-update',   '↻ Update ready — it will apply next time you reopen the app'],
+    ]) {
+        test(`About lightbox — update status "${cls}" is readable on the panel`, async ({ page }) => {
+            await seedMember(page);
+            await page.goto('/');
+            await expect(page.locator('.calendar-day').first()).toBeVisible();
+            await page.locator('.title-icon').first().click();
+            await expect(page.locator('#iconLightbox')).toBeVisible();
+            // After refreshUpdateStatus has settled, so this wins rather than racing it.
+            await expect(page.locator('#lightboxUpdateStatus')).not.toBeEmpty();
+            await page.evaluate(([c, t]) => {
+                const el = /** @type {HTMLElement} */ (document.getElementById('lightboxUpdateStatus'));
+                el.className = c;
+                el.textContent = t;
+            }, [cls, text]);
+            const v = await scan(page, { exclude: ['.other-month'] });
+            expect(v.length, report(v)).toBe(0);
+        });
+    }
+
     test('one-time notice open (calendar) — the state the other scans used to sample by accident', async ({ page }) => {
         // A notice is the app's only overlay that opens on a TIMER rather than on a tap, which is
         // what made it a race for everything else and why it needs its own scan: dark glass over a

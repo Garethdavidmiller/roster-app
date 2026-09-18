@@ -194,8 +194,19 @@
     --success-text: oklch(42.5% 0.1159 144.3deg);
 
     /* SW update status */
-    --status-ok:    oklch(67.3% 0.1624 144.2deg);
-    --status-ok-bg: rgba(76, 175, 80, 0.15);
+    /* The "✓ Up to date" pill in the About panel, and the only consumer of either token.
+       Both changed at v23.95 and the reason is worth keeping, because the surface they sit on
+       argues for the opposite of what they were. The panel is DARK GLASS — three translucent
+       layers whose only opaque backing is the page behind the modal — so a translucent pill's
+       legibility was a function of whatever happened to be on screen underneath it. Measured:
+       the old green-on-glass came out at 2.88:1 against WCAG AA's 4.5.
+
+       The fix is the one its sibling `.lightbox-status.needs-update` already used: an OPAQUE
+       background, so the pill answers for its own contrast and no layout change can move it.
+       The green is darkened to suit a light pill (5.2:1 measured); it is not a "less green"
+       green, it is the same hue at a lightness that can be read. */
+    --status-ok:    oklch(50% 0.13 144.2deg);
+    --status-ok-bg: color-mix(in oklch, var(--status-ok) 10%, white);
 
     /* AL balance warnings */
     --al-lb-ok:      oklch(71.2% 0.0977 186.7deg);
@@ -1772,7 +1783,24 @@ button.lightbox-bug-link {
    ============================================================ */
 
 /* Update status pill */
+/* THE UNMARKED STATE IS A STATE, AND IT WAS THE ONLY UNREADABLE ONE (v23.95).
+   Three states reach this element and only two had a colour: `up-to-date`, `needs-update`, and
+   the bare class — "Couldn't check for an update", set by `refreshUpdateStatus`'s catch branch in
+   about-lightbox.js. With nothing declared here it inherited BLACK onto the dark glass panel:
+   2.15:1, measured, against WCAG AA's 4.5. Unreadable exactly when something has gone wrong and
+   the member most needs to read it.
+
+   WEBKIT IS WHAT FOUND IT, and how is the part worth keeping. Chromium resolves
+   `navigator.serviceWorker.getRegistration()` to null with service workers blocked and takes the
+   happy path, so the a11y gate had only ever scanned `up-to-date`; WebKit rejects and lands in
+   the catch. One engine's scan of one error state — which is the argument for the WebKit lane in
+   one sentence.
+
+   So the base carries its own opaque pair, and every state now answers for its own contrast
+   rather than borrowing from whatever is behind the modal. */
 .lightbox-status {
+    color: var(--text-dark);
+    background: var(--surface-sunken);
     font-size: var(--type-small);
     font-weight: 600;
     margin-top: 8px;
