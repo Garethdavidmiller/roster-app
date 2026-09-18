@@ -40,7 +40,8 @@ const {
     parseStrictIsoDate,
     fileSignatureMatches,
 } = require('./roster-parse-helpers');
-const { extractRosterGeometry, applyGeometryWitness, geometryCoverage, awaitGeometryWithin } = require('./roster-geometry');
+const { extractRosterGeometry, applyGeometryWitness, geometryCoverage, awaitGeometryWithin, settledGeometry } = require('./roster-geometry');
+const { SHIFT_VOCABULARY, buildCellTable, buildCellPrompt, DAY_LABELS: CELL_DAY_LABELS } = require('./roster-prompt');
 const {
     CALENDAR_VIEWER_UID,
     isValidPinShape,
@@ -456,48 +457,7 @@ Read the cells fresh from the document — do NOT copy from "parsed". This is a 
 if a row in "parsed" was misaligned by a day, your column-by-column read will catch it.
 
 ---
-WHAT THE CODES MEAN:
-- A time like "05:30-11:30" or "0530-1130" = a worked shift. Always format as HH:MM-HH:MM.
-- RD = Rest day
-- AL or A/L or A.L. = Annual leave. Always return "AL".
-- SP or SPARE = Spare (on standby). Always return "SPARE" — never "SP".
-- OFF = Uncontracted rest day (used in CES and bilingual rosters). Return "RD".
-- RDW = Rest day worked. A cell with RDW always shows a time too, e.g. "14:30-22:00 RDW" or "RDW 06:00-12:00". Return as "RDW HH:MM-HH:MM". Always keep the RDW — never strip it.
-- SC = Sick on a day the person WAS booked to work. Return "SICK".
-- SN = Sick on a day the person was NOT booked to work. That day is a rest day, so return "RD" — never "SICK".
-- HA = Hospital appointment (a paid absence day). Return "SICK".
-- OD = paid absence (often marked Mon-Fri for long-term sickness). Return "SICK".
-- ML = Maternity leave (a paid absence, usually a long block spanning many weeks). Return "SICK".
-- CL = Compassionate leave (a paid absence). Return "SICK".
-- TRG or TRAINING or TRAIN = Training day (no shift time on the roster). Return "TRG". If the cell also says RDW (e.g. "TRG RDW"), return "TRG RDW".
-- INDUCTION or IND = Induction day. Return "IND" (or "IND RDW" if the cell also says RDW).
-- ASSESS or ASSESSMENT or ASSESSMENTS = Assessment day. Return "ASSESS" (or "ASSESS RDW" if the cell also says RDW).
-- TEAM DAY or TEAM = Team day. Return "TEAM" (or "TEAM RDW" if the cell also says RDW).
-- UNION COURSE or UNION = Union course day. Return "UNION" (or "UNION RDW" if the cell also says RDW).
-- MTG or MEETING = Meeting day. Return "MEET" (or "MEET RDW" if the cell also says RDW).
-- NA or N/A or NS = Not available. Return "RD".
-- GER = Gerrards Cross station. Extract the shift time next to it (e.g. "GER 06:00-12:00" → "06:00-12:00"). If no time, return "RD".
-- Blank = the cell contains NO text at all (or only a dash) = "BLANK". Never "RD" — "RD" is
-  reserved for a cell where the letters R and D are actually printed.
-
----
-CELL LAYOUT — READ THIS CAREFULLY. IT IS WHERE MISTAKES HAPPEN:
-Each cell has up to two lines, and what is on the SECOND line depends on whether the person worked.
-
-  · A WORKED day: the time is on the first line, and a train DUTY CODE is on the second
-    ("CEA 3", "CEA BL 4", "CEA 21", "D123"). The duty code is a diagram number, never a shift value
-    — ignore it and return the time.
-
-  · A NON-WORKED day has NO time at all. Its STATUS CODE (RD, AL, SP, SC, SN, OD, HA, ML, CL, TRG,
-    IND, ASSESS, TEAM, UNION, MTG) sits on the SECOND line — in exactly the place a duty code would sit
-    on a worked day. That status code IS the shift value. Return it.
-
-So the rule is about WHAT the text is, not WHICH line it is on:
-  · Ignore a DUTY code (a "CEA …" or "D…" diagram number) wherever it appears.
-  · NEVER ignore a STATUS code, even though it is on the second line.
-  · A cell whose only text is "AL" is ANNUAL LEAVE — it is NOT blank and NOT a rest day.
-    The same applies to SP, SC, SN, OD, HA, ML and CL: a cell showing only that code means that code.
-Treat a cell as blank ONLY when it has no text whatsoever.
+${SHIFT_VOCABULARY}
 
 ---
 RULES:
@@ -546,15 +506,30 @@ Each member object: "memberName" plus one key per column header, in any order.
 Every column header must appear as a key in every member object.
 columnScan: one key per column header; every staff member appears in every column's object.`;
 
-        // ---- Call Claude AI ----
-        // We pass the PDF as a document content block so Claude reads the actual
-        // visual layout of the roster table — preserving column structure.
-        // This is far more reliable than extracting text first (which destroys
-        // the table structure and causes day-column misalignment).
-        // ---- The geometry witness (roster-geometry.js), started NOW and awaited after the model ----
-        // It reads the same bytes the model is about to, so running the two in parallel costs no
-        // latency — and it can never fail the request: extractRosterGeometry does not throw.
+        // ---- The geometry read (roster-geometry.js) ----
+        // Started here and AWAITED BEFORE THE MODEL as of v24.04, which is the whole of phase 2:
+        // when the PDF's drawn grid can place every member this roster covers, the model is handed
+        // cells that are already separated and never assigns a day at all. It cannot fail the
+        // request — `extractRosterGeometry` does not throw, and `awaitGeometryWithin` bounds the
+        // wait, so an unreadable grid costs the budget and falls through to the path below.
+        //
+        // THE COST OF MOVING IT: the extraction used to run inside the model's own latency for
+        // free, and now sits in front of it. Measured on the three real rosters, well under a
+        // second each against a model call of ~15s, which is the trade this buys the guarantee with.
         const geometryPromise = extractRosterGeometry(pdfBuffer);
+        const geometryEarly = await awaitGeometryWithin(geometryPromise);
+        const cellTable = buildCellTable(geometryEarly, relevantNames);
+        if (cellTable.usable) {
+            console.log(`[parseRosterPDF] geometry placed all ${cellTable.rows.length} ${rosterType} rows — the model is normalising cells, not reading a table`);
+        } else {
+            console.log(`[parseRosterPDF] geometry cannot place every ${rosterType} row (${cellTable.reason}; ${cellTable.unmatched.length} unmatched) — reading the PDF as before`);
+        }
+
+        // ---- Call Claude AI ----
+        // On the PDF path we pass the document itself so Claude reads the actual visual layout of
+        // the roster table, preserving column structure — far more reliable than extracting text
+        // first, which destroys the table and causes day-column misalignment. On the geometry path
+        // there is no table left to read: the cells arrive already placed, as text.
 
         let parsed;
         try {
@@ -572,27 +547,26 @@ columnScan: one key per column header; every staff member appears in every colum
             // thinking+streaming call failed in production ("Couldn't read the roster"). The
             // day-shift accuracy issue is instead handled server-side by the deterministic
             // `applySundayScanCorrections` right-shift repair, which does not depend on the model.
+            // The geometry path sends NO document block: the cells are the input, so attaching the
+            // PDF would put the thing the model must not re-read back in front of it.
+            const content = cellTable.usable
+                ? [{ type: 'text', text: buildCellPrompt(cellTable.rows) }]
+                : [
+                    {
+                        type: 'document',
+                        source: {
+                            type:       'base64',
+                            media_type: 'application/pdf',
+                            data:       cleanBase64,
+                        },
+                    },
+                    { type: 'text', text: prompt },
+                ];
             const message = await client.messages.create({
                 model:      CLAUDE_MODEL,
                 thinking:   { type: 'disabled' },
                 max_tokens: 16000,
-                messages: [{
-                    role: 'user',
-                    content: [
-                        {
-                            type: 'document',
-                            source: {
-                                type:       'base64',
-                                media_type: 'application/pdf',
-                                data:       cleanBase64,
-                            },
-                        },
-                        {
-                            type: 'text',
-                            text: prompt,
-                        },
-                    ],
-                }],
+                messages: [{ role: 'user', content }],
             });
 
             // Scan for the first text block rather than assuming content[0] is text —
@@ -641,7 +615,12 @@ columnScan: one key per column header; every staff member appears in every colum
         // day goes to the review as unreadable. (v22.19 for the rule, v22.25 for the BLANK token
         // that finally let the model tell us a cell was empty rather than deciding for us.) This
         // comment said "any missing key is filled with 'RD'" — the pre-v22.19 behaviour.
-        const safeEntries = buildSafeEntries(parsed.parsed, parsed.columnHeaders, dates);
+        // The geometry path's response has no `columnHeaders` — there was no table for the model to
+        // read them off. Its keys are the full day names the cell table stamped on every cell, and
+        // `headerToDayIndex` accepts those exactly as it accepts "Sun"/"Mon", so `buildSafeEntries`
+        // needs no special case beyond being told which spelling to expect.
+        const headers = cellTable.usable ? CELL_DAY_LABELS : parsed.columnHeaders;
+        const safeEntries = buildSafeEntries(parsed.parsed, headers, dates);
 
         if (safeEntries.length === 0) {
             res.status(502).json({ error: 'The AI found no recognisable staff members — check the roster type is correct and try again' });
@@ -684,7 +663,27 @@ columnScan: one key per column header; every staff member appears in every colum
         // what it may not have is unlimited extra time on the critical path once the answer is in.
         // A timeout lands on `status: 'unavailable'`, which the review now states — see
         // `awaitGeometryWithin` for why the budget is on the wait rather than on the work.
-        const geometry = await awaitGeometryWithin(geometryPromise);
+        // ── ASK AGAIN IF THE EARLY WAIT GAVE UP, AND ONLY THEN (v24.05) ─────────────────────────
+        //
+        // Phase 2 moved the first await IN FRONT of the model call, and the first cut of that reused
+        // its result here with a comment claiming the promise had settled. It has not settled when
+        // the early wait TIMED OUT: `awaitGeometryWithin` is a `Promise.race`, so the extraction is
+        // still running and `geometryEarly` is the fail-open `wait-timeout` object.
+        //
+        // Reusing it therefore threw away a witness the PRE-PHASE-2 ordering would have had. Before,
+        // the only await happened after the model call, so a slow extraction had the model's whole
+        // latency plus the budget; after, it had the budget alone, and a PDF that overran it lost
+        // BOTH the geometry path and the phase-1 witness. That is a safety net getting smaller as a
+        // side effect of a change that was meant to add one.
+        //
+        // So: reuse the settled result, and re-ask only when it timed out — by which point the
+        // extraction has had the model call's seconds too, exactly as it used to.
+        //
+        // The witness still runs on the geometry path, where it should refuse NOTHING: a claim
+        // cannot land in an empty cell when the cell is where the claim came from. Keeping it is
+        // cheap, and a refusal there would mean the two halves disagree, which is worth hearing
+        // about rather than assuming away.
+        const geometry = await settledGeometry(geometryEarly, geometryPromise);
         const geoStats = applyGeometryWitness(safeEntries, geometry, dates);
         if (geoStats.status !== 'complete') {
             console.warn(`[parseRosterPDF] geometry witness ${geoStats.status}: ${geoStats.checked}/${geoStats.total} members matched`

@@ -31,21 +31,108 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+
+// The prompt→parser direction below has to CALL the parser, not read it as prose. CommonJS, and
+// dependency-free, so it loads in the no-install lane exactly like every other file here.
+const { normaliseShift } = createRequire(import.meta.url)('./functions/roster-parse-helpers.js');
 
 const INDEX   = readFileSync('functions/index.js', 'utf8');
 const HELPERS = readFileSync('functions/roster-parse-helpers.js', 'utf8');
+const PROMPTS = readFileSync('functions/roster-prompt.js', 'utf8');
 
-/** The prompt region: from the code table to the end of the layout rules. */
+/**
+ * The code table — ONE copy, read where it now lives (v24.04).
+ *
+ * It was inline in `functions/index.js` until the geometry-first read gave the import a SECOND
+ * prompt. Two prompts with two copies of this table is precisely the rot this file exists to
+ * prevent, and only one copy would have been guarded — so the table moved to
+ * `functions/roster-prompt.js` as `SHIFT_VOCABULARY`, both prompts interpolate it, and this reads
+ * it there. The anchors are unchanged; only the file is.
+ */
 function promptSection() {
-    const start = INDEX.indexOf('WHAT THE CODES MEAN:');
-    const end   = INDEX.indexOf('RULES:', start);
+    const start = PROMPTS.indexOf('WHAT THE CODES MEAN:');
+    const end   = PROMPTS.indexOf('`;', start);
     if (start < 0 || end < 0) {
-        throw new Error('roster-prompt-parity: could not locate the prompt section in functions/index.js '
-            + '("WHAT THE CODES MEAN:" … "RULES:"). If the prompt was restructured, update these anchors — '
-            + 'do NOT delete this test: it guards a defect that silently dropped annual leave.');
+        throw new Error('roster-prompt-parity: could not locate SHIFT_VOCABULARY in '
+            + 'functions/roster-prompt.js ("WHAT THE CODES MEAN:" … the closing backtick). If it was '
+            + 'restructured, update these anchors — do NOT delete this test: it guards a defect that '
+            + 'silently dropped annual leave.');
     }
-    return INDEX.slice(start, end);
+    return PROMPTS.slice(start, end);
 }
+
+// ── ONE TABLE, AND BOTH PROMPTS MUST ACTUALLY USE IT (v24.04) ─────────────────────────────────
+//
+// Sharing the table only helps if both prompts interpolate it. A prompt that quietly grew its own
+// copy would pass every test below — they read the shared const — while instructing the model from
+// a table nothing checks. That is the same failure this file was written for, one level up.
+describe('the code table has ONE home, and both prompts interpolate it', () => {
+    test('the PDF prompt interpolates SHIFT_VOCABULARY rather than carrying a copy', () => {
+        assert.match(INDEX, /\$\{SHIFT_VOCABULARY\}/,
+            'functions/index.js no longer interpolates the shared table');
+        assert.ok(!INDEX.includes('WHAT THE CODES MEAN:'),
+            'functions/index.js carries its own copy of the code table again — there must be exactly one');
+    });
+
+    test('the cell prompt interpolates it too', () => {
+        const cellPrompt = PROMPTS.slice(PROMPTS.indexOf('function buildCellPrompt'));
+        assert.match(cellPrompt, /\$\{SHIFT_VOCABULARY\}/,
+            'buildCellPrompt does not include the shared code table, so the geometry-first read is '
+            + 'asking the model to normalise with no vocabulary');
+    });
+});
+
+// ── THE DIRECTION NOBODY WAS CHECKING (v24.04) ────────────────────────────────────────────────
+//
+// Test 2 below checks parser → prompt: every code `normaliseShift` accepts is asked for. The
+// MIRROR was never checked, and three real rosters found what was hiding in it: the prompt says
+// "NA or N/A or NS = Not available. Return \"RD\"", and `normaliseShift('NA')` returns
+// `UNKNOWN|NA`. It works today only because the prompt makes the MODEL do the conversion, so the
+// parser never sees the code — a division of labour nothing wrote down and nothing enforced.
+//
+// It stops being harmless the moment a cell reaches the parser unconverted, which is exactly what
+// the geometry-first read and any deterministic pass do. Asserted here as a WAIVER LIST rather
+// than a blanket rule: a code the prompt asks the model to translate is legitimate, but it has to
+// be named, so that adding one is a decision instead of an accident.
+describe('every code the PROMPT names is either accepted by the parser or waived', () => {
+    /**
+     * Codes the prompt tells the MODEL to convert, so `normaliseShift` never receives them.
+     * Each needs a reason, because an unexplained entry here is how the rule gets hollowed out.
+     *
+     *   NA · N/A · NS  "Not available" — the prompt asks for "RD" directly, and the parser has
+     *                  never been taught the code. Harmless while a model is in the loop; it is
+     *                  the first thing to fix if a deterministic pass ever replaces it (phase 3).
+     *   GER            NOT a status code at all — Gerrards Cross, a LOCATION marker. The prompt
+     *                  asks for the time beside it. The parser reads "06:00-12:00 GER" (time
+     *                  first, trailing content) but not "GER 06:00-12:00", so the model's
+     *                  reordering is doing real work here rather than none.
+     */
+    const TRANSLATED_BY_THE_MODEL = new Set(['NA', 'N/A', 'NS', 'GER']);
+
+    test('no unwaived prompt code falls through to UNKNOWN', () => {
+        const section = promptSection();
+        /** Codes named in a "- CODE or CODE = meaning" row. */
+        const named = new Set();
+        for (const line of section.split('\n')) {
+            const m = /^-\s+([A-Z][A-Z/.]{0,5}(?:\s+or\s+[A-Z][A-Z/.]{0,5})*)\s*=/.exec(line.trim());
+            if (!m) continue;
+            m[1].split(/\s+or\s+/).forEach(c => named.add(c.trim()));
+        }
+        assert.ok(named.size >= 8, `only ${named.size} codes parsed out of the prompt — the row shape changed`);
+        const orphaned = [...named].filter((c) => {
+            if (TRANSLATED_BY_THE_MODEL.has(c)) return false;
+            const warn = console.warn; console.warn = () => {};
+            try { return String(normaliseShift(c)).startsWith('UNKNOWN|'); } finally { console.warn = warn; }
+        });
+        assert.deepEqual(orphaned, [],
+            'The prompt names these codes but `normaliseShift` rejects them, so a cell carrying one '
+            + 'becomes UNREADABLE the moment it reaches the parser without the model translating it '
+            + '— which is what the geometry-first read does:\n  ' + orphaned.join(', ')
+            + '\n\nEither teach the parser the code, or add it to TRANSLATED_BY_THE_MODEL with a '
+            + 'reason. Do not widen the regex to make it disappear.');
+    });
+});
 
 describe('the roster prompt must not tell the AI to ignore a status code', () => {
     const prompt = promptSection();
