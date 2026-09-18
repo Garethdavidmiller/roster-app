@@ -87,15 +87,26 @@ function normaliseShift(raw) {
     // the code out of the source rather than a human keeping two tables in step.
     if (['SN'].includes(_code)) return 'RD';
 
-    // Paid-absence roster codes (owner, Jul 2026): HA = Hospital Appointment (a day off on full
-    // pay); OD = paid absence, often used as a blanket Mon–Fri marking for long-term sickness;
-    // SC = sick on a booked turn; ML = Maternity leave (a long paid-absence block). All become the
-    // app's Absent day ('SICK' — the reason is never stored, GDPR). The prompt already tells the AI
-    // to return SICK for these, but if it echoes the RAW code the server must still map it —
-    // otherwise a real absence surfaced as an UNREADABLE cell instead of Absent. Dots/slashes are
-    // stripped first so the punctuated paper-roster forms ("O.D.", "O/D", "H.A", "M.L") map too.
+    // Paid-absence roster codes (owner, Jul 2026; CL added Sep 2026): HA = Hospital Appointment (a
+    // day off on full pay); OD = paid absence, often used as a blanket Mon–Fri marking for
+    // long-term sickness; SC = sick on a booked turn; ML = Maternity leave (a long paid-absence
+    // block); CL = paid absence. All become the app's Absent day ('SICK' — the reason is never
+    // stored, GDPR, which is also why the five collapse to ONE value rather than five). The prompt
+    // already tells the AI to return SICK for these, but if it echoes the RAW code the server must
+    // still map it — otherwise a real absence surfaced as an UNREADABLE cell instead of Absent.
+    // Dots/slashes are stripped first so the punctuated paper-roster forms ("O.D.", "O/D", "H.A",
+    // "M.L", "C/L") map too.
+    //
+    // ⚠️ A CODE MISSING FROM THIS LIST IS NOT A REST DAY — it falls through to the UNKNOWN sentinel
+    // and reaches the admin as an UNREADABLE review row, which is the safe failure and is how CL
+    // behaved before it was added. So if an absence is arriving as REST, this list is not the
+    // suspect: look at the base-rest-day guard in `normaliseCellValue` (roster-cell-rules.js),
+    // which rewrites a SICK to RD when the member's BASE roster already says rest. That guard is
+    // deliberate (v16.19) and is exactly what a blanket Mon–Fri marking meets on the rest days
+    // inside it.
+    //
     // Sunday and base-rest-day normalisation happen client-side in computeCellStates.
-    if (['HA', 'OD', 'SC', 'ML'].includes(_code)) return 'SICK';
+    if (['HA', 'OD', 'SC', 'ML', 'CL'].includes(_code)) return 'SICK';
 
     // Training / Induction / Assessment / Team Day / Union course (OTHER_DAYS.md). Roster words
     // collapse to the canonical flavour sentinels; an RDW marker (either side: "TRG RDW" or "RDW TRG")
@@ -401,7 +412,7 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
         // the model has collapsed a cell. That leaves the default carrying the whole weight.
         //
         // And the rosters do not blank a rest day. Mon–Sat unworked days are stated explicitly —
-        // RD, AL, SC, SN, OD, HA, ML, NA. Measured over 50 member rows and 350 cells: 24 blank
+        // RD, AL, SC, SN, OD, HA, ML, CL, NA. Measured over 50 member rows and 350 cells: 24 blank
         // SUNDAYS, and 5 blank Mon–Sat cells, all five belonging to ONE person who appears on a
         // second roster and works only its Saturday. Even that case wants an admin, not a default:
         // writing RD across their Mon–Fri would overwrite the shifts their PRIMARY roster's import
@@ -754,7 +765,7 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
         for (const d of disagree) {
             const rowV = entry.shifts[d];
             const colV = colRead[d];
-            // REST ↔ ABSENCE: exactly one read is 'SICK' (a positive absence code — OD/HA/SC/ML — was
+            // REST ↔ ABSENCE: exactly one read is 'SICK' (a positive absence code — OD/HA/SC/ML/CL — was
             // seen on that pass) and the other is a rest day. RECORD THE ABSENCE rather than flag
             // UNREADABLE: dropping a real absence (writing RD) is the dangerous SILENT failure — the
             // person then appears to be working — whereas a false absence is visible on the calendar

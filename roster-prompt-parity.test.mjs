@@ -75,16 +75,16 @@ describe('the roster prompt must not tell the AI to ignore a status code', () =>
     });
 });
 
-describe('every code the parser accepts is documented in the prompt', () => {
-    /** Pull a hardcoded code list out of normaliseShift by its `.includes(` guard. */
-    function codeList(after) {
-        const i = HELPERS.indexOf(after);
-        if (i < 0) throw new Error(`roster-prompt-parity: anchor "${after}" no longer in roster-parse-helpers.js`);
-        const m = HELPERS.slice(i).match(/\[([^\]]*)\]\.includes\(/);
-        if (!m) throw new Error(`roster-prompt-parity: no code array found after "${after}"`);
-        return [...m[1].matchAll(/'([A-Z]+)'/g)].map(x => x[1]);
-    }
+/** Pull a hardcoded code list out of normaliseShift by its `.includes(` guard. */
+function codeList(after) {
+    const i = HELPERS.indexOf(after);
+    if (i < 0) throw new Error(`roster-prompt-parity: anchor "${after}" no longer in roster-parse-helpers.js`);
+    const m = HELPERS.slice(i).match(/\[([^\]]*)\]\.includes\(/);
+    if (!m) throw new Error(`roster-prompt-parity: no code array found after "${after}"`);
+    return [...m[1].matchAll(/'([A-Z]+)'/g)].map(x => x[1]);
+}
 
+describe('every code the parser accepts is documented in the prompt', () => {
     test('the day-status and absence codes all appear in the prompt', () => {
         const prompt = promptSection();
         const codes = [
@@ -102,6 +102,34 @@ describe('every code the parser accepts is documented in the prompt', () => {
             `normaliseShift accepts these codes but the prompt never mentions them:\n  ${undocumented.join('\n  ')}\n`
             + 'The AI will therefore never return them, so the parser branch is unreachable and the day '
             + 'is silently read as something else. Add each to the prompt\'s code table.');
+    });
+});
+
+describe('every paid-absence code has its own row asking for SICK', () => {
+    // Contract 2 asks only that a code is MENTIONED somewhere in the prompt, and the CELL LAYOUT
+    // rules enumerate the status codes too — so deleting a code's ROW from the table leaves it
+    // green. Verified with scripts/mutate.mjs when CL was added (Sep 2026): removing
+    // `- CL = paid absence. Return "SICK".` passed every existing contract.
+    //
+    // That is not cosmetic. The row is the only place the prompt says what the model should RETURN.
+    // Without it the model is told the letters are a status code and left to invent the value, and
+    // an absence the parser would have mapped correctly never arrives as one.
+    test('each code in the paid-absence list is its own `- XX = … "SICK"` row', () => {
+        const prompt = promptSection();
+        const codes = codeList('// Paid-absence roster codes');
+        assert.ok(codes.length >= 5,
+            `expected the parser's paid-absence list, found ${codes.join(',')}`);
+        for (const c of codes) {
+            const row = prompt.match(new RegExp(`^- ${c}\\b[^\\n]*`, 'm'));
+            assert.ok(row,
+                `no \`- ${c} = …\` row in the prompt's code table. ${c} is in normaliseShift's `
+                + 'paid-absence list, so the parser maps it — but the prompt never tells the model '
+                + 'to return SICK for it, and the model decides for itself what the letters mean.');
+            assert.match(row[0], /"SICK"/,
+                `the \`- ${c}\` row does not tell the model to return "SICK". Every code in the `
+                + 'paid-absence list resolves to the app\'s Absent day; a row that asks for '
+                + 'anything else contradicts the parser.');
+        }
     });
 });
 

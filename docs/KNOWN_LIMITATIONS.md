@@ -970,7 +970,7 @@ flat-line member is ever the one a misread week lands on.
 **What is fixed.** v22.19 established the domain rule from three real rosters — a blank cell is an
 ANSWER on Sunday (the uncontracted column; its blank is how the sheet says "not working") and a
 QUESTION every other day, because Mon–Sat unworked days are always stated explicitly (RD, AL, SC,
-SN, OD, HA, ML, NA). `buildSafeEntries` implements exactly that, and until v22.25 it was **dead
+SN, OD, HA, ML, CL, NA). `buildSafeEntries` implements exactly that, and until v22.25 it was **dead
 code**: the prompt told the model "a blank cell = RD" in three places, so an obedient model returned
 an explicit `"RD"`, the key arrived present and non-empty, and the fail-closed branch never ran.
 Reproduced through the real helpers — five physically blank weekdays became five explicit Rest Days
