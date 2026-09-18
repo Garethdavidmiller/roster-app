@@ -334,6 +334,63 @@ describe('computeCellStates — review state machine', () => {
         assert.equal(c.state, 'REMOVE_IMPORT');
     });
 
+    // ── THE APP DECIDED SOMETHING; IT MAY NOT REPORT THAT AS A MATCH (v23.97) ────────────────
+    //
+    // Leave or an absence on a base rest day is normalised to RD before the state is chosen, so
+    // `RD === RD` and the cell came out MATCH — a state whose own definition is "PDF matches base
+    // roster, nothing to do". The PDF said leave. The base says rest. Those do not match, and
+    // MATCH rows are not RENDERED, so the day left the review entirely.
+    //
+    // The write behaviour is unchanged and these tests pin that too: nothing is written, because
+    // the v16.19 overpay guard is right. What changed is that the admin is told.
+    describe('a value the guards refuse to record is GUARDED, not MATCH', () => {
+        const restMember = teamMembers.find(/** @param {any} m */ m =>
+            !m.hidden && !m.managerOnly && getBaseShift(m, new Date(WD + 'T12:00:00')) === 'RD');
+        /** @param {string} v */
+        const onRestDay = (v) => computeCellStates(
+            { parsed: [{ memberName: restMember.name, shifts: { [WD]: v } }], dates: [WD] }, [],
+        ).get(`${restMember.name}|${WD}`);
+
+        for (const v of ['AL', 'SICK']) {
+            test(`${v} on a base rest day → GUARDED, reason 'rest-day', writes nothing`, () => {
+                assert.ok(restMember, 'no member has a base rest day on the fixed test date');
+                const c = onRestDay(v);
+                assert.equal(c.state, 'GUARDED',
+                    `${v} over a base rest day came back as ${c.state}. MATCH means "PDF agrees with `
+                    + 'the base roster"; here the app OVERRODE the PDF, and a MATCH row is never drawn, '
+                    + 'so the day would vanish from the review.');
+                assert.equal(c.guarded, 'rest-day');
+                assert.equal(c.chosen, null, 'a GUARDED row must never carry a write');
+            });
+        }
+
+        test('a Sunday value the Sunday rule strips → GUARDED, reason \'sunday\'', () => {
+            const SUN = '2026-06-14';   // the Sunday before WD
+            const c = computeCellStates(
+                { parsed: [{ memberName: mname, shifts: { [SUN]: 'AL' } }], dates: [SUN] }, [],
+            ).get(`${mname}|${SUN}`);
+            assert.equal(c.state, 'GUARDED');
+            assert.equal(c.guarded, 'sunday');
+            assert.equal(c.chosen, null);
+        });
+
+        test('a value the guards leave ALONE is still MATCH — this does not fire on agreement', () => {
+            // The control. Without it the rule above could be satisfied by calling everything
+            // GUARDED, which would bury the real changes in notices.
+            assert.equal(run(base).state, 'MATCH');
+            assert.equal(run(base).guarded, null);
+        });
+
+        test('a stale import under a guarded value still REMOVE_IMPORTs — it already shows a row', () => {
+            assert.ok(restMember);
+            const c = computeCellStates(
+                { parsed: [{ memberName: restMember.name, shifts: { [WD]: 'AL' } }], dates: [WD] },
+                [{ memberName: restMember.name, date: WD, value: '07:00-15:00', type: 'shift', source: 'roster_import', id: 'i9' }],
+            ).get(`${restMember.name}|${WD}`);
+            assert.equal(c.state, 'REMOVE_IMPORT');
+        });
+    });
+
     test('bare "RDW" (AI omitted the time) → UNREADABLE, never written (chosen stays null)', () => {
         const c = run('RDW');
         assert.equal(c.state, 'UNREADABLE');

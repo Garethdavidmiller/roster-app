@@ -6277,6 +6277,47 @@ test('operations: the review HANDS OVER the original PDF to check against', asyn
 });
 
 
+// ── A DAY THE IMPORT DECLINED TO RECORD MUST STILL APPEAR (v23.97) ────────────────────────────
+//
+// `computeCellStates` normalises leave or an absence on a base rest day to RD before it picks a
+// state, so the comparison saw `RD === RD` and returned MATCH — and MATCH rows are not rendered.
+// The PDF said annual leave; the admin was shown nothing at all for that day.
+//
+// The unit tests pin the state. Only a browser can answer the half that made it invisible: whether
+// a row is actually DRAWN, since the defect was never in the classification's value — it was in a
+// rendering predicate two hundred lines away that listed four states and not this one.
+test('operations: a rest day the roster marked as leave is shown, and writes nothing', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    // 2026-08-05 is a base REST day for this member and carries no saved override (2026-08-04 is
+    // also a rest day, but the fixture seeds a manual entry there, so it is a CONFLICT and takes a
+    // different branch entirely). The PDF marking a rest day AL is the real case: a blanket block
+    // written across a week, which the app must not charge to anybody's entitlement.
+    await openRosterReview(page, {
+        ...ROSTER_REVIEW_PARSE,
+        choices: {},
+        parsed: [{
+            memberName: 'G. Miller',
+            shifts: { ...ROSTER_REVIEW_PARSE.parsed[0].shifts, '2026-08-05': 'AL' },
+        }],
+    });
+
+    const row = page.locator('.roster-change-row.roster-change-guarded');
+    await expect(row).toHaveCount(1);
+    await expect(row).toContainText('rest day on the roster');
+    await expect(row).toContainText('Not recorded');
+    await expect(row).toContainText('5 Aug');
+
+    // It is a notice, not a change: no tick to approve, and nothing pending on it.
+    await expect(row.locator('.roster-tick')).toHaveCount(0);
+
+    // And it must not inflate the person's pending count — an admin who sees "3" goes looking for
+    // a third thing to approve and finds two.
+    const badge = await page.locator('.roster-change-badge').first().innerText();
+    const pending = await page.locator('.roster-change-row').count()
+                  - await page.locator('.roster-change-row.roster-change-guarded').count();
+    expect(Number(badge)).toBe(pending);
+});
+
 // ── ANSWERING AN UNREADABLE CELL IN PLACE (v22.17) ────────────────────────────────────────────
 //
 // The composition rule is unit-tested in override-utils.test.mjs. What only a browser answers is

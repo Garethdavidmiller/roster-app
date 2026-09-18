@@ -72,6 +72,9 @@ export const stripUnknown     = /** @param {any} v */ v => v.slice(UNKNOWN_PREFI
  *
  * State meanings:
  *   MATCH    — PDF matches base roster, no override → nothing to do
+ *   GUARDED  — PDF said something the app's rules refuse to record on that day (leave or an
+ *              absence on a base rest day; anything on a Sunday). Writes NOTHING, exactly like
+ *              MATCH — but it is shown and explained, because the app decided rather than agreed
  *   DIFF     — PDF differs from base roster, no manual override → propose change
  *   CONFLICT — A manually entered override exists that differs from the PDF → flag it
  *   COVERED  — A manual override exists and already matches the PDF → nothing to do
@@ -181,7 +184,7 @@ export function computeCellStates(parsedResult, existingOverrides) {
             // marker. Extracted to normaliseCellValue (v19.32) so the review table's new "pick a
             // reading" control puts a CHOSEN value through the identical guards; a second copy is
             // how a picked Sunday AL would quietly become writable when the parsed path forbids it.
-            const { value: normParsed, display: displayValue } = normaliseCellValue(parsedShift, baseShift, date);
+            const { value: normParsed, display: displayValue, guarded } = normaliseCellValue(parsedShift, baseShift, date);
             const normRest = /** @param {any} s */ s => (s === 'OFF' ? 'RD' : s);
             const normBase = normRest(baseShift);
             const isSun    = isSunday(date);   // still needed by the RDW-parity check below
@@ -203,13 +206,26 @@ export function computeCellStates(parsedResult, existingOverrides) {
                     state = 'COVERED';  // previous import already equals the PDF — nothing to re-approve
                 } else if (normParsed === normBase) {
                     // PDF now matches the base roster.
-                    //  • No override to clean up → genuinely nothing to do (MATCH).
+                    //  • No override to clean up → genuinely nothing to do (MATCH)…
+                    //  • …UNLESS it only matches because a guard REWROTE it (v23.97). An AL or an
+                    //    absence on a base rest day, or anything on a Sunday, is normalised to RD
+                    //    before this comparison — so `RD === RD` and the cell was classified MATCH,
+                    //    a state whose own definition is "PDF matches base roster, nothing to do".
+                    //    The PDF said leave. The base says rest. Those do not match, and MATCH rows
+                    //    are not rendered at all, so the day vanished from the review entirely.
+                    //
+                    //    GUARDED writes nothing either — the overpay guard is right and is
+                    //    untouched — but it SAYS so. The app asks a manager whether a rest day was
+                    //    swapped when they book leave by hand (v23.75, "never defaulted"); it may
+                    //    not answer the identical question in silence just because the same fact
+                    //    arrived by PDF.
                     //  • A stale previous import still exists (and can't equal the PDF, or it would
                     //    be COVERED above) → REMOVE_IMPORT: delete the stale doc and write NOTHING.
                     //    Writing a fresh base-matching override (the old DIFF behaviour) was
                     //    redundant AND would MASK a later base-roster change (an override always
                     //    beats the base), so a "matches base today" row silently kept the old value.
-                    state = existing ? 'REMOVE_IMPORT' : 'MATCH';
+                    //    REMOVE_IMPORT already renders a row, so it needs no guarded variant.
+                    state = existing ? 'REMOVE_IMPORT' : (guarded ? 'GUARDED' : 'MATCH');
                 } else {
                     // PDF differs from base (a genuine change), OR a stale differing import must be
                     // replaced with a new value. Approving deletes the old import (replaceId) and
@@ -236,6 +252,9 @@ export function computeCellStates(parsedResult, existingOverrides) {
 
             states.set(key, {
                 state,
+                /** Which guard rewrote the parsed value, or null. Only ever set on a GUARDED row;
+                 *  the renderer words the row from it. */
+                guarded,
                 parsedShift,
                 // What the row DISPLAYS and SAVES as the incoming value. Keeps the RDW| marker
                 // (see displayValue above); differs from parsedShift only where a value was
@@ -269,3 +288,30 @@ export function computeCellStates(parsedResult, existingOverrides) {
 
     return states;
 }
+
+/**
+ * Why a GUARDED row recorded nothing, in the admin's own words (v23.97).
+ *
+ * HERE RATHER THAN IN THE COORDINATOR because `admin-roster-upload.js` imports Firebase from a
+ * CDN URL, so Node cannot load it and nothing in it can be unit-tested. This is pure wording about
+ * a review state, which is what this module is for.
+ *
+ * WORDING RULES THIS HAS TO OBEY, and each is a documented app convention rather than a preference:
+ * the reader is told what the ROSTER said and what the app DID, in that order, because the surprise
+ * is the second half; "Absent" is the staff-facing word and "sick" never appears (the reason for an
+ * absence is not stored — GDPR); and it states the rest day as the REASON rather than as a verdict
+ * on whether the member was right, because the app does not know. The one thing it must not do is
+ * read like an error: nothing has gone wrong, a rule has been applied, and the row exists so the
+ * admin can decide whether that rule fits this particular day.
+ *
+ * @param {'sunday'|'rest-day'|null} guard
+ * @returns {string}
+ */
+export function guardCopy(guard) {
+    if (guard === 'sunday') {
+        return 'Sundays are not contracted — not recorded';
+    }
+    // 'rest-day' (and any future guard, which should add its own line rather than inherit this one)
+    return 'rest day on the roster — not recorded';
+}
+

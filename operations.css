@@ -663,6 +663,28 @@ body.auth-ready .container { display: grid; }
     border: 1px solid color-mix(in oklch, var(--warning-amber) 35%, white);
 }
 .review-shift-unreadable { font-size: var(--type-small); font-weight: 600; color: var(--warning-amber); }
+/* GUARDED — the PDF carried a value the app's rules will not record on that day (v23.97).
+   NOT amber. The unreadable row is amber because something went wrong and the admin has to act;
+   this row is the app working correctly and has no control on it at all, so it takes the calm
+   informational tint and a neutral left edge. Making it look like a problem would send an admin
+   hunting for the tick that is deliberately absent — the same mistake in the opposite direction
+   from the one this state was created to fix, where the day had no row at all. */
+.roster-change-row.roster-change-guarded {
+    background: var(--surface-sunken);
+    border-left: 4px solid var(--border-light);
+}
+.roster-guard-icon {
+    /* Occupies the tick's column so the day/values line up with every other row in the list. */
+    width: 28px; flex: none; text-align: center;
+    font-size: var(--type-small); font-weight: 700; font-style: italic;
+    color: var(--text-light);
+}
+.roster-guard-note { font-size: var(--type-badge); color: var(--text-light); font-style: italic; }
+/* No tick, so no action: a flat label rather than the tappable-looking pills the other rows use. */
+.roster-change-guarded .act-none {
+    font-size: var(--type-badge); color: var(--text-light); white-space: nowrap;
+}
+
 /* REMOVE_IMPORT — a stale PDF import whose day now matches base; approving deletes it (no write). */
 .roster-remove-note { font-size: var(--type-badge); color: var(--text-light); font-style: italic; }
 .roster-cancel-btn {
