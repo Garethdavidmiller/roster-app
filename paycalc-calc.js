@@ -111,7 +111,7 @@ export const GRADES = {
 // ── Pension (Smart RPS CR Scheme) default per payslip era ──────────────────────
 // The pension contribution steps on specific PAYSLIPS — an RPS review, or a pay award (see below).
 // Newest first; each entry applies to paydays ON/AFTER its `from` (the final null-from entry is the
-// floor). Shared by both grades — the recorded values are payslip-confirmed for CEA (G. Miller);
+// floor). Shared by both grades — the recorded values are payslip-confirmed for CEA;
 // no CES payslip history is on record, so CES uses the same table (same £151.86 today).
 // (v18.43 — review item 8; the pension counterpart of getRateForPeriod/getLondonAllowanceForPeriod.)
 //
@@ -126,7 +126,7 @@ export const GRADES = {
 //  £147.36  from the  8 May 2026 payslip — payslip-confirmed (P51)
 //  £154.77  from the 29 Aug 2025 payslip — payslip-confirmed
 //  £156.29  on   the  1 Aug 2025 payslip — DERIVED, not read from a payslip: reconstructed from
-//           MILLER_ACTUALS totals (pension ≈ basic + varPay − Taxable Pay, bias-corrected against
+//           PAYSLIP_ACTUALS totals (pension ≈ basic + varPay − Taxable Pay, bias-corrected against
 //           the two payslip-confirmed eras). A transitional value between the £160.78 and £154.77
 //           eras; correct it from the real payslip's "Smart RPS CR Scheme" line if ever read.
 //  £160.78  up to the 4 Jul 2025 payslip — payslip-confirmed (9 May 2025)
@@ -147,7 +147,7 @@ export const PENSION_STEPS = [
 //   `rate` = the settled rate for that tax year (null while an award is still unconfirmed).
 //   `pre`  = the rate paid BEFORE that year's award was applied (i.e. the prior year's rate) —
 //            the OLD rate for that year's back-pay. null = not on record (falls back to manual).
-// Payslip-confirmed values: CEA 2024/25 = £20.06 (G. Miller payslip 09/05/2025, "Basic Pay @20.06").
+// Payslip-confirmed values: CEA 2024/25 = £20.06 (reference payslip 09/05/2025, "Basic Pay @20.06").
 // Each April, when the new award is agreed: set that year's `rate`, and add the next year with
 // `pre` = this year's rate. Consumed ONLY by paycalc-backpay.js (the main calculator's per-year
 // rate still comes from GRADES + the localStorage per-year override — unchanged).
@@ -325,7 +325,7 @@ export function getPensionForPeriod(grade, payday) {
  *   - The resulting 0.5-day offset means Math.round always resolves X.5 to X+1 (JS
  *     rounds .5 up), giving the correct calendar-day count regardless of timezone.
  *
- * Example: M. Okeke, startDate = new Date(2026, 3, 20) = April 20 midnight.
+ * Example: a 20 April joiner, startDate = new Date(2026, 3, 20) = April 20 midnight.
  *   raw = (May 2 noon − April 20 midnight) / msPerDay = 12.5
  *   Math.round(12.5) = 13 → daysEmployed = 14 → factor = 14/28 = 0.5 (50%)
  *   Verified against May 8 2026 payslip: London Allowance = £276.16 × 0.5 = £138.08. ✓
@@ -463,7 +463,7 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
     const pa = resolvePA();
     const scaledPa = pa * (scale || 1);
     // HMRC floors taxable income to the nearest whole pound before applying rates.
-    // Verified against G. Miller payslips P20 (01/08/2025) and P28 (26/09/2025).
+    // Verified against reference payslips P20 (01/08/2025) and P28 (26/09/2025).
     const taxable = Math.floor(Math.max(0, amount - scaledPa));
     if (isScottish) return calcBandedTax(taxable, SCOT.bands, scale || 1);
     // HMRC's Taxable Pay Tables band TAXABLE pay (post-allowance) at fixed thresholds, regardless of
@@ -532,10 +532,10 @@ export function computeSL(sacGross, plan, slByYear, skip = false) {
   // round the resulting deduction DOWN to a whole pound. The DEDUCTION is the only figure rounded to £.
   //
   // ⚠️ Do NOT re-add a whole-pound floor on the excess before the rate (the v17.04 "B1" attempt): it
-  // produced the WRONG figure on real payslips. Verified against G. Miller's actual Plan 1 payslips —
+  // produced the WRONG figure on real payslips. Verified against the reference member's actual Plan 1 payslips —
   // e.g. P2 gross £4382.88, threshold £2005.00, excess £2377.88 → floor(2377.88 × 0.09) = floor(214.009)
   // = £214 (his real payslip), whereas flooring the excess first gave floor(2377 × 0.09) = £213. Locked
-  // by the MILLER_ACTUALS.sl regression in paycalc.test.mjs.
+  // by the PAYSLIP_ACTUALS.sl regression in paycalc.test.mjs.
   const threshold = Math.floor(slPlan.t * 100) / 100;   // penny-floored periodic threshold
   return Math.floor(Math.max(0, sacGross - threshold) * slPlan.r);
 }

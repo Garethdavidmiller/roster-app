@@ -1282,7 +1282,7 @@ first-run-state changes — no data-model or auth change.
 ### ✓ DONE (v17.16): student-loan payslip integration tests
 
 Shipped as part of the statutory-deductions patch: Plan 1 was confirmed, and `paycalc.test.mjs` now
-asserts `computeSL` against every clean `sl` value in `MILLER_ACTUALS` (the regression that locks
+asserts `computeSL` against every clean `sl` value in `PAYSLIP_ACTUALS` (the regression that locks
 the HMRC rounding method — the £214-vs-£213 P2 case). See `.claude/rules/paycalc.md` → Statutory
 deductions.
 
@@ -1291,7 +1291,7 @@ deductions.
 ### ~~Deferred: mid-year pension step for 2025/26~~ — SHIPPED v18.43
 
 **Shipped (v18.43 — review item 8).** The "can't be read from the repo" blocker turned out to be
-wrong: the per-payslip pension IS derivable from `MILLER_ACTUALS` as
+wrong: the per-payslip pension IS derivable from `PAYSLIP_ACTUALS` as
 `pension ≈ basic (140 × era rate) + varPay − Taxable Pay` — the derivation self-validates by
 reproducing both payslip-confirmed values (£160.78 Apr–Jul 2025, £154.77 from 29 Aug 2025) in the
 right eras with a consistent reconstruction bias. The old two-value `pensionPre`/`pensionFrom` pair
@@ -1709,7 +1709,7 @@ A thorough external review of v14.96 confirmed no release blocker for current sm
 findings were already done (B1 re-enabled v14.98; App-speed admin-exclusion v14.95; B3 strict
 override isolation shipped v16.29; B4 server-owned role lists shipped v16.30) or already sequenced
 (the C-series password track, in-place login rollout, the app-perf caching pass). Quick wins (fail-closed uploads, stale auth-doc fixes, a
-MILLER_ACTUALS export guard, the primeAuth comment) shipped at v14.99. Two items were captured here — **both now resolved:**
+PAYSLIP_ACTUALS export guard, the primeAuth comment) shipped at v14.99. Two items were captured here — **both now resolved:**
 
 ### M8 — lazy-load heavy Cloud Function dependencies (cold-start) — ✅ SHIPPED
 

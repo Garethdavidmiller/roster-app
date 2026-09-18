@@ -203,8 +203,8 @@ export function initPaycalcLightboxes() {
 
   // ── OWNER-ONLY PAYSLIP ACTUALS IMPORT (device-local; v14.69) ────────────────
   // Real payslip figures are never served (moved out of roster-data.js at v14.68).
-  // G. Miller seeds them once per device here; paycalc-app.js/-hpp.js then show the
-  // actual-vs-estimate comparison from localStorage. Only ever visible to G. Miller.
+  // The developer account seeds them once per device here; paycalc-app.js/-hpp.js then show the
+  // actual-vs-estimate comparison from localStorage. Never visible to anybody else.
   (function () {
     if (!isActualsDev(getLoggedMember())) return;
     const trigger = document.getElementById('actualsImportBtn');

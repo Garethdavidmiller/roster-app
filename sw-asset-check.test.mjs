@@ -795,19 +795,27 @@ test('index.html modulepreload hints match the calendar\'s real transitive modul
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Privacy guard: real payslip figures (MILLER_ACTUALS) must live ONLY in the test
+// Privacy guard: real payslip figures (the payslip actuals must live ONLY in the test
 // fixture (the gitignored test-fixtures/payslip-actuals.local.js), never
 // exported from served production JS. Moved out of roster-data.js at v14.68; this
 // asserts it can't creep back in.
 // ──────────────────────────────────────────────────────────────────────────────
-test('roster-data.js does not export MILLER_ACTUALS (payslip data stays in the test fixture)', () => {
+test('roster-data.js does not export the payslip actuals (they stay in the test fixture)', () => {
     const src = readFileSync(join(ROOT, 'roster-data.js'), 'utf8');
-    const exportsDecl = /export\s+(?:const|let|var|function)\s+MILLER_ACTUALS\b/.test(src);
-    const exportsList = /export\s*\{[^}]*\bMILLER_ACTUALS\b[^}]*\}/.test(src);
+    // ANY `*_ACTUALS` EXPORT, not one spelling (v23.96). What this guard defends against is a
+    // REVERT — somebody restoring the pre-v23.71 block out of git history, which carries the export
+    // name used then, off a colleague's surname. Matching only the current name would have let that
+    // through, so the rename would have quietly disarmed the guard. Naming the old spelling here
+    // would work and would also put that surname back into public source beside the words "payslip
+    // figures", which is the thing being removed. A wildcard closes both: it catches the old name,
+    // any future one, and spells none of them.
+    const NAMES = String.raw`[A-Z][A-Z0-9_]*_ACTUALS`;
+    const exportsDecl = new RegExp(String.raw`export\s+(?:const|let|var|function)\s+${NAMES}\b`).test(src);
+    const exportsList = new RegExp(String.raw`export\s*\{[^}]*\b${NAMES}\b[^}]*\}`).test(src);
     assert.ok(
         !exportsDecl && !exportsList,
-        'MILLER_ACTUALS must NOT be exported from roster-data.js — real payslip figures belong only in ' +
-        'the gitignored test-fixtures/payslip-actuals.local.js, never in served production JS.',
+        'Real payslip figures must NOT be exported from roster-data.js — they belong only in the ' +
+        'gitignored test-fixtures/payslip-actuals.local.js, never in served production JS.',
     );
 });
 
@@ -828,7 +836,7 @@ test('.gitignore still excludes the real payslip fixture', () => {
         'the `*.local.js` rule is gone from .gitignore. It is what keeps real payslip figures out of\n'
         + 'the repository — and therefore off the GitHub Pages mirror, which serves the repo root and\n'
         + 'obeys no ignore list. Restore it before committing anything from test-fixtures/.');
-    assert.ok(!existsSync(join(ROOT, 'test-fixtures', 'miller-actuals.js')),
-        'test-fixtures/miller-actuals.js is back. The real payslip figures left the tree at v23.71;\n'
+    assert.ok(!existsSync(join(ROOT, 'test-fixtures', 'payslip-actuals.js')),
+        'test-fixtures/payslip-actuals.js is back. The real payslip figures left the tree at v23.71;\n'
         + 'the local copy belongs at test-fixtures/payslip-actuals.local.js, which is gitignored.');
 });

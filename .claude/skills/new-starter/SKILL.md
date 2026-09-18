@@ -103,7 +103,7 @@ raw          = (periodCutoff_noon − startDate_midnight) / msPerDay   // always
 daysEmployed = Math.round(raw) + 1                                    // rounds .5 up
 factor       = daysEmployed / totalDays
 ```
-`startDate` must be midnight local. A time component breaks the formula. Verified against M. Okeke May 8 2026 payslip (50% factor, London Allowance £138.08 ✓).
+`startDate` must be midnight local. A time component breaks the formula. Verified against a May 2026 joiner's payslip (50% factor, London Allowance £138.08 ✓).
 
 ## Removing a staff member
 

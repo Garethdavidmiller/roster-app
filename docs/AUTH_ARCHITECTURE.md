@@ -14,7 +14,7 @@ landed **before** B3 (the strict override-isolation cutover, which then shipped 
 about identity so the rules can be tightened safely*. Not version-stamped; not a runtime asset.*
 
 *Code comments cite this file by **Phase number** (1, 2, 3, 4a, 4a.2, 5, 6, 7, 9), by **Track 1**, and
-by **MILLER_ACTUALS** — keep those anchors when editing. Trimmed v17.79: the completed-migration
+by **PAYSLIP_ACTUALS** — keep those anchors when editing. Trimmed v17.79: the completed-migration
 planning narrative (Phase-0 test matrix, acceptance-criteria checklist, risk/rollback table, track
 sequencing) was removed once it shipped; what remains is the **live architecture** — the two pure
 layers, the design rules/guardrails, the per-phase reference code points at, and the decisions.*
@@ -51,7 +51,7 @@ removes that class as a foundation.)
 - Migrate the roster **data structure**, remove/alter GitHub Pages support, or solve surname passwords
   (Track C in the security plan).
 - Make the public/anonymous-readable calendar data private.
-- Move `MILLER_ACTUALS` — a **separate** privacy task (see its section), not on the auth critical path.
+- Move `PAYSLIP_ACTUALS` — a **separate** privacy task (see its section), not on the auth critical path.
 - Build a general app-wide state store (the machine owns identity only).
 
 ---
@@ -194,10 +194,10 @@ Track-1 refactor). The live modules + tests are the source of truth for the curr
 
 ---
 
-## MILLER_ACTUALS — privacy task — ✅ RESOLVED (Option A privacy + Option B feature, v14.68–v14.69)
+## PAYSLIP_ACTUALS — privacy task — ✅ RESOLVED (Option A privacy + Option B feature, v14.68–v14.69)
 
-**Done as Track 2 step 1.** `MILLER_ACTUALS` (13 periods of real payslip figures) was moved OUT of the
-served `roster-data.js` into `test-fixtures/miller-actuals.js`, **excluded from Firebase Hosting**
+**Done as Track 2 step 1.** `PAYSLIP_ACTUALS` (13 periods of real payslip figures) was moved OUT of the
+served `roster-data.js` into `test-fixtures/payslip-actuals.js`, **excluded from Firebase Hosting**
 (`firebase.json` `ignore` → `test-fixtures/**`); `paycalc.test.mjs` imports the fixture as its single
 source. This removes it from the deployed app bundle — in a no-build app any served JS file is
 publicly fetchable, and these are real payslip figures.
@@ -206,7 +206,7 @@ publicly fetchable, and these are real payslip figures.
 live origins. `firebase.json` governs one of them; the GitHub Pages staff mirror is served by the
 repo's own native Pages from `main`/root with a `.nojekyll` marker — **the whole repository, copied
 verbatim, with no config file that could exclude anything.** Measured 29 Aug 2026 (status and size
-only): `GET /roster-app/test-fixtures/miller-actuals.js` → `200`, 2,410 bytes. `CLAUDE.md`,
+only): `GET /roster-app/test-fixtures/payslip-actuals.js` → `200`, 2,410 bytes. `CLAUDE.md`,
 `functions/roster-members.json` and `e2e/` serve from there too.
 
 Nothing is newly exposed by that — the repository is PUBLIC, so the file is already readable on
@@ -250,7 +250,7 @@ has already served. Recorded in KNOWN_LIMITATIONS.md rather than quietly accepte
 imports the figures once per device via an owner-only paste box (Settings → "Import payslip actuals"),
 stored under the member-namespaced `myb_pc_<slug>_actuals` (`payslipActualsKey`/`readPayslipActuals`/
 `writePayslipActuals`/`clearPayslipActuals` in `paycalc-migrations.js`); `paycalc-app.js`/`paycalc-hpp.js`
-read it there (gated to G. Miller) and degrade to the normal estimate everywhere else. Options
+read it there (gated to the developer account by `isActualsDev`) and degrade to the normal estimate everywhere else. Options
 considered (for the record): **A — test-only fixture (chosen)**; B — device-local (chosen for the
 feature); C — owner-only Firestore doc (cross-device but heavy). **Anti-patterns avoided:** moving it to
 another *served* JS file, URL-obscurity, or leaving it in `roster-data.js`.
@@ -261,7 +261,7 @@ another *served* JS file, URL-obscurity, or leaving it in `roster-data.js`.
 
 1. **Track 1 — Auth state machine** — done; was highest priority (before B3), behaviour-preserving.
 2. **Track 3 — Testable coordinators** — done; it is *how* Track 1 landed (Phases 4–7).
-3. **Track 2 — Split `roster-data.js`** — ❌ **REJECTED (Jul 2026, WON'T DO)** (step 1, `MILLER_ACTUALS`,
+3. **Track 2 — Split `roster-data.js`** — ❌ **REJECTED (Jul 2026, WON'T DO)** (step 1, `PAYSLIP_ACTUALS`,
    was already done for a privacy reason and stands). **Why rejected:** the payoff is cosmetic (smaller
    files) with a wide blast radius and no correctness/security benefit. `roster-data.js` is ~1,020 lines
    but well-organised (CONFIG → `teamMembers` → roster-logic) and stable; it's imported by ~40 files,
