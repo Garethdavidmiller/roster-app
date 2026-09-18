@@ -534,7 +534,6 @@ body.auth-ready .container { display: grid; }
    says "not actionable"; the surface only has to stop the list reading as a to-do.
    The TICK keeps its own dim — it is a genuinely inactive control here, clicks are returned early
    at the delegate, and an inactive component is the one thing WCAG's contrast rule exempts. */
-.roster-blocked .roster-change-row { background: var(--surface-sunken); }
 .roster-blocked .roster-act,
 .roster-blocked .roster-skip-all-btn { visibility: hidden; }
 .roster-blocked .roster-tick { cursor: not-allowed; }
@@ -560,7 +559,6 @@ body.auth-ready .container { display: grid; }
    action tag loses its success green. The tag still reads "Update" — that is what the row would
    do if it were re-ticked — but green is the colour this page uses for an outcome, and wearing it
    on a row that will not be saved is the claim `.roster-blocked` below strips for the same reason. */
-.roster-change-row.is-skipped { background: var(--surface-sunken); }
 .roster-change-row.is-skipped .roster-act { background: var(--bg-faint); color: var(--text-mid); }
 /* Conflict card keeps its warm tint + gains a left accent (needs-a-decision), like the admin
    accent-cards. align-items:flex-start so the stacked choicebox reads top-down. */
@@ -645,8 +643,17 @@ body.auth-ready .container { display: grid; }
                  text-transform: uppercase; color: var(--conflict-text); }
 .roster-cv-manual, .roster-cv-pdf { font-size: var(--type-small); font-weight: 600; }
 /* Strikethrough only — see the dims note above. This is the option the admin may be about to
-   switch TO, so it is the last thing on the card that should be hard to read. */
+   switch TO, so it is the last thing on the card that should be hard to read.
+   THE SECOND RULE IS NOT A TIDY-UP (v24.02). `text-decoration` does not inherit into an atomic
+   inline box, and `.shift-badge` is `display: inline-flex` with a colour of its own — so with only
+   the rule above, a conflict whose two values are BADGES rather than times (Rest, AL, Spare, an
+   Other flavour with no time) rendered the not-chosen option pixel-identical to the chosen one.
+   The v24.00 fixture could not see it: both its conflict values are times, and a time IS struck
+   because it is a plain `.review-shift-time` span. Measured on the badge: `line-through` on the
+   parent, `none` on the child. The dim it replaced faded the whole subtree, so this was a
+   REGRESSION introduced by the fix, on the one control where two options must not look alike. */
 .cv-dim { text-decoration: line-through; color: var(--text-mid); }
+.cv-dim .shift-badge { text-decoration: line-through; }
 /* Full-width choice row (v15.66): the two buttons share the row 50/50 and wrap to stacked
    full-width if the card is too narrow — they no longer overflow the card's right edge. */
 /* A GRID, NOT A RAGGED FLEX ROW (v22.17 polish). As a wrapping flex row the same control rendered
@@ -685,7 +692,7 @@ body.auth-ready .container { display: grid; }
    was missed by the pass that fixed the other four because axe reports NOTHING here: measured,
    every row sat at .35 and the scan came back clean, in violations and in `incomplete` alike.
    So this one is held by the opacity contract in `e2e/axe.spec.js` rather than by the scan. */
-.section-skipped .roster-change-row { background: var(--surface-sunken); pointer-events: none; }
+.section-skipped .roster-change-row { pointer-events: none; }
 .section-skipped .roster-skip-all-btn { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
 .roster-no-changes {
     padding: 18px; text-align: center;
@@ -705,6 +712,22 @@ body.auth-ready .container { display: grid; }
     background: color-mix(in oklch, var(--warning-amber) 10%, white);
     border-left: 4px solid var(--warning-amber);
 }
+/* ── SET ASIDE: ONE RULE, DECLARED LAST, BECAUSE THE FIRST THREE NEVER REACHED TWO ROW TYPES ────
+   A row the admin skipped, a whole member skipped, and every row of a refused read all recede the
+   same way — onto the sunken surface. This was three separate declarations until v24.02, each
+   sitting beside the state it described, and all three were DEAD for a conflict row and an
+   unreadable one: `.roster-change-row.roster-change-conflict` and `.roster-change-row
+   .roster-change-unreadable` carry the same specificity and are declared later, so they won.
+   Measured in a refused read: plain rows `oklch(.963)`, conflict `oklch(.979)` — the row that was
+   supposed to recede came out LIGHTER than the rows around it, inverting the comment above it.
+   It is declared HERE, after both, rather than given a specificity bump: the cascade is the
+   mechanism, so the fix is to respect the order rather than to out-weigh it.
+   A conflict row loses its warm "needs a decision" tint when it is set aside, and that is the
+   point — in a refused read nothing is decidable, and the buttons are already inert. */
+.roster-change-row.is-skipped,
+.section-skipped .roster-change-row,
+.roster-blocked .roster-change-row { background: var(--surface-sunken); }
+
 /* The tag was amber-on-amber against the row's own tint, so it read as a slightly different patch
    of background rather than as a tag. White ground separates it without adding a colour. */
 .roster-change-unreadable .act-read {
