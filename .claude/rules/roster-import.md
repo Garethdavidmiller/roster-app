@@ -65,6 +65,49 @@ COVERED / DIFF / CONFLICT classification.
 - **A blank cell is an answer on SUNDAY and a question everywhere else** (v22.19, replacing the flat "missing key → RD"). Mon–Sat unworked days are stated explicitly on every roster type — `RD`, `AL`, `SC`, `SN`, `OD`, `HA`, `ML`, `CL`, `NA` — so a blank there is not a rest day, it is a cell nobody read. Measured over 50 member rows: 24 blank Sundays, and 5 blank Mon–Sat cells, all five belonging to ONE person who appears on a second roster and works only its Saturday — a case that wants an admin rather than a default, since writing RD across their Mon–Fri would overwrite what their primary roster's import had just written. The rule is applied at BOTH sites in `buildSafeEntries` (a day whose header the model never listed, and a header listed with nothing in it); it was `'RD'` at both, so fixing one would have fixed nothing.
 - **The review offers the original PDF**, because every message above ends in "check it against the PDF" and the file had left the workflow at parse time.
 
+## Phase 2 — the grid ASSIGNS the day, so nothing can shift it (v24.04)
+
+**The witness below is a check on an answer the model is still free to get wrong. This removes the
+freedom.** When the PDF's drawn grid can place every member the roster type covers, the cells are
+extracted by coordinate and the model is handed them already separated (`functions/roster-prompt.js`
+→ `buildCellTable` / `buildCellPrompt`). It never assigns a day, so a row cannot shift — there is no
+step at which anything could shift it. `sundayScan` and `columnScan` are not asked for, because they
+exist to cross-check a day assignment nobody is making.
+
+**Why phase 1 was not enough, measured on three REAL rosters (WE 26/09/2026, all three types):** the
+witness refuses only **19 of 47** simulated one-day-left misreads. **23 of those 47 rows work all
+seven days**, so a shifted claim never lands in an empty cell and there is nothing to contradict. The
+other 60% pass silently, and no tuning changes that — it is what a witness can see.
+
+**ALL OR NOTHING, PER DOCUMENT.** `buildCellTable` returns `usable: false` unless the grid places
+every name in `relevantNames` (already scoped by roster type). A member the grid missed would arrive
+with no cells, and "no cells" is indistinguishable from "a week of blanks" by the time it reaches
+`buildSafeEntries` — so one miss falls the WHOLE document back to the PDF path, which still has the
+witness, the cross-checks and the breaker. Mixing two reads of one document, half by coordinate and
+half by the model's eye, with nothing on the review saying which row came from which, is the one
+shape that must not ship. **An earlier draft gated on `activeMembers` and could never have been
+satisfied** — that list spans all three roster types plus seven `hidden` Management accounts.
+
+**The geometry read moved onto the critical path**, and that is the cost: it used to run free inside
+the model's latency. Measured under a second per document against a ~15s model call.
+
+**What the real files settled about LINES.** Every one of the **55 distinct values appearing on a
+non-first line of a cell is a DUTY code** (`CEA 10`, `SUP 1`, `Dispatch`, `Shadow Nights`). No status
+code sits on a second line — because a non-worked day has no time line above its code, so under the
+grid a leave cell is a ONE-LINE cell. The line-position defect that `roster-prompt-parity` exists for
+does not get caught here; it stops existing. The rule that follows is by CONTENT — drop what looks
+like a duty code, normalise what remains — never "take the first line", which is the same positional
+reasoning that failed before.
+
+**ONE code table, and both prompts interpolate it.** `SHIFT_VOCABULARY` moved out of
+`functions/index.js` into `roster-prompt.js`; two prompts with two copies would leave one unguarded,
+which is exactly the rot `roster-prompt-parity.test.mjs` was written for. That test now reads the
+table there, asserts both prompts use it, and checks the direction nobody was checking: **every code
+the PROMPT names must be accepted by `normaliseShift` or waived by name.** Four are waived, each with
+a reason — `NA`/`N/A`/`NS` (the prompt asks the model for `RD` directly) and `GER` (Gerrards Cross, a
+LOCATION marker, where the model's reordering does real work: the parser reads `06:00-12:00 GER` but
+not `GER 06:00-12:00`).
+
 ## The geometry gate — the one independent witness
 
 **The strong witness is now IN the pipeline (v22.31, `functions/roster-geometry.js` — ROADMAP "Roster import" phase 1).** The roster's table rules are DRAWN in the PDF, at nine fixed x positions on every content page of every roster type measured, and assigning each text run by coordinate places every cell — on the row that drifts, not one text object sits in the Sunday column. `parseRosterPDF` reads that grid in parallel with the model call and applies it as the FINAL gate, after the column cross-check and the Sunday corrections: **an AI day landing in a physically EMPTY cell is refused, not weighed** — the cell becomes UNREADABLE and the row comes back as `geometryRefused`, which `roster-alignment.js` treats exactly like a base-roster drift (unticked; three trip the breaker). Zero false refusals on the corpus. It fails open everywhere and says so (`geometry.status`), and it cannot see a fully occupied week or an `RD` in an occupied cell — those are phases 2 and 3, and KNOWN_LIMITATIONS says so. `pdfjs-dist@4.10.38` is now a dependency of `functions/` (server-side; the fourth vetted library — the owner's call to keep, and one line to remove).
