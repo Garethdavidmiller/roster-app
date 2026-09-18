@@ -304,8 +304,8 @@ function _watchScrollFade(panel) {
 }
 
 /**
- * Build a lightbox with the canonical open/close lifecycle (see CLAUDE.md
- * "Canonical lightbox lifecycle"). One factory so every lightbox gets the
+ * Build a lightbox with the canonical open/close lifecycle (the rule is in CLAUDE.md's
+ * architecture table; the full lifecycle and its three exceptions are AI_MAP → `overlay.js`). One factory so every lightbox gets the
  * same behaviour and none can drift: focus save/restore, .visible → rAF →
  * .open + focus, body scroll lock, Android Back support, Escape to close,
  * and a Tab focus trap inside the content card.

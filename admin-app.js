@@ -14,7 +14,7 @@
  *   notifications, pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, MONTH_ABB, getALEntitlement, formatISO, isSunday, parseISODate, TIME_RE, projectAnnualLeaveOverage } from './roster-data.js';
+import { CONFIG, teamMembers, MONTH_ABB, formatISO, isSunday, parseISODate, TIME_RE } from './roster-data.js';
 import { addDays, isRestGap, fmtPeriodDate, fmtPeriodRange } from './admin-period-dates.js';
 import { db, auth, doc, writeBatch, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
@@ -35,7 +35,8 @@ import { initPasswordForce } from './password-force.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { computePeriodDeleteIds, mergeBookedPeriods, composeOtherValue } from './override-utils.js';
-import { alPosition, countedAlDates, consumesEntitlement, dispatcherBreakdown } from './al-entitlement.js';
+import { alPosition, consumesEntitlement, dispatcherBreakdown, winningEntriesOfType } from './al-entitlement.js';
+import { planAlWeekSave } from './admin-al-week-save.js';
 import { createBookedPeriods } from './admin-booked-periods.js';
 import { alFigureYear } from './admin-al-year.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -206,12 +207,12 @@ export function init() {
                 title: 'Record Annual Leave',
                 sections: [
                     { items: [
-                        { icon: '🏖️', html: 'Choose the <strong>staff member at the top of the page</strong>, then a date range. Rest days and Sundays inside it are skipped automatically.', adminOnly: true },
-                        { icon: '🏖️', html: 'Select a date range. Rest days and Sundays inside it are skipped automatically.', staffOnly: true },
+                        { icon: '🏖️', html: 'Choose the <strong>staff member at the top of the page</strong>, then a date range. Sundays never use a leave day. A <strong>rest day</strong> in the range is asked about rather than assumed — it only counts if the member had swapped a working day onto it.', adminOnly: true },
+                        { icon: '🏖️', html: 'Select a date range. Sundays never use a leave day. A <strong>rest day</strong> in the range is asked about rather than assumed — it only counts if you had swapped a working day onto it.', staffOnly: true },
                         // It does NOT list the days — the preview is a COUNT and the span ("3 working days
                         // … 1 Jul – 5 Jul"). Saying otherwise invited an admin to check something
                         // that is not on the screen, on the one card that writes leave.
-                        { icon: '👀', html: 'Before you save you are told <strong>how many working days</strong> the range comes to and the dates it spans, with rest days and Sundays already taken out of that count. Check the number against what you meant to book.' },
+                        { icon: '👀', html: 'Before you save you are told <strong>how many working days</strong> the range comes to and the dates it spans. Sundays are never in that count; a rest day is in it only where you have said it was a swapped working day. Check the number against what you meant to book.' },
                         { icon: '⚠️', html: 'If the booking would take somebody past their entitlement for the year you are told, and asked to confirm. It does not stop you — sometimes that is the right answer.' },
                     ]},
                 ],
@@ -669,9 +670,12 @@ export function init() {
 
         // Clear any previous row-level errors
         weekGrid.querySelectorAll('.day-row.row-error').forEach(r => r.classList.remove('row-error'));
+        _alPendingSkipped = [];   // and the last save's skipped days: this one answers for itself
+        _alPendingKept    = [];
 
         /** @type {any[]} */
-        const toSave = [];
+        let toSave = [];
+        const swapAnswers = new Map();   // date → was this rest day a swapped working day? (this save's)
         /** @type {any[]} */
         const toDelete = [];
         /** @type {any[]} */
@@ -702,6 +706,18 @@ export function init() {
             // misses). 'shift' and 'rdw' share the same timed value composition, so this flows cleanly.
             if (type === 'shift' && isSunday(date)) type = 'rdw';
 
+            // ── THE SWAPPED-DAY ANSWER IS REQUIRED (v23.75) ──────────────────────────────────
+            // AL on a base REST day costs nothing unless the member was SWAPPED onto it, and only
+            // the person recording it knows which. Until v23.75 this path wrote the leave and let it
+            // cost nothing, silently — three of one member's days went missing that way and were
+            // found only by comparing against the depot's workbook. The row asks; this refuses to
+            // save it unanswered, which is the owner's rule and the whole point (al-swapped-days.js).
+            if (type === 'annual_leave' && row.dataset.alSwapAsk === '1' && !row.dataset.alSwap) {
+                row.classList.add('row-error');
+                errors.push(`${formatDisplay(date)}: say whether this rest day was a swapped working day`);
+                return;
+            }
+            if (type === 'annual_leave' && row.dataset.alSwap) swapAnswers.set(date, row.dataset.alSwap === 'yes');
             // Sundays are uncontracted — AL and sick cannot be saved on a Sunday regardless of how it was set
             if (type === 'annual_leave' && isSunday(date)) {
                 row.classList.add('row-error');
@@ -796,7 +812,10 @@ export function init() {
                 value = `${s}-${e}`;
             }
 
-            toSave.push({ memberName, date, type, value, note, existingId: row.dataset.existingId || null });
+            // `swapped` is a WRITE INSTRUCTION, not a field — admin-overrides.js strips it before the
+            // Firestore set, because `hasOnly()` in the rules would refuse a document carrying it.
+            toSave.push({ memberName, date, type, value, note, existingId: row.dataset.existingId || null,
+                          ...(type === 'annual_leave' && row.dataset.alSwap === 'yes' ? { swapped: true } : {}) });
         });
 
         if (errors.length)                    return showError("Can't save — " + errors.join(' · '));
@@ -826,53 +845,25 @@ export function init() {
         const ruleErrors = validateShiftRules(toSave, memberName, toDelete);
         if (ruleErrors.length) return showError(ruleErrors.join(' · '));
 
-        // Annual leave entitlement warning
-        const alInBatch = toSave.filter(e => e.type === 'annual_leave');
-        if (alInBatch.length > 0) {
-            const member      = /** @type {any} */ (teamMembers.find(m => m.name === memberName));
-            const overwriteDates  = new Set(alInBatch.filter(e => e.existingId).map(e => e.date));
-            const deletedALDates  = new Set(
-                getAllOverrides()
-                    .filter(o => toDelete.includes(o.id) && o.type === 'annual_leave')
-                    .map(o => o.date)
-            );
-            // Check EVERY calendar year the batch touches, not just the first entry's — a week grid
-            // spanning New Year (Dec/Jan) writes AL into two years, each with its own entitlement.
-            const years = [...new Set(alInBatch.map(e => e.date.substring(0, 4)))];
-            for (const yearStr of years) {
-                const entitlement = getALEntitlement(member, parseInt(yearStr, 10), getAllOverrides());
-                // No entitlement on record → no cap to project against, so ask nothing (v22.45).
-                // The alternative is a confirm bar built on a number this app does not have, which
-                // is worse than no bar: it would teach a manager that the warning means something.
-                // The WRITE still goes ahead — refusing to judge is not refusing to record.
-                if (entitlement === null) continue;
-                // Existing AL for the year, less the dates this batch OVERWRITES or DELETES (they
-                // are re-accounted via newALDates, or removed). The Sunday and rest-day rules live
-                // in al-entitlement.js so this can not drift from the banner or admin-al.js.
-                const existingALDates = countedAlDates({
-                    overrides: getAllOverrides(),
-                    member,
-                    year: yearStr,
-                    exclude: new Set([...overwriteDates, ...deletedALDates]),
-                });
-                // Both halves of the projection must apply the SAME rule, or a rest day already on
-                // record is free while the identical day being booked now is not — a confirm bar
-                // for leave the member is not spending.
-                // The map is what makes a SWAPPED-IN day cost a day: its `shift` override is
-                // still on record at this point (the AL that replaces it has not been written
-                // yet), and without it the base roster would report a rest day and charge nothing.
-                const ovByDate = buildMemberDateMap(memberName);
-                const newALDates = [...new Set(alInBatch.map(e => e.date)
-                    .filter(d => d.startsWith(yearStr) && consumesEntitlement(member, d, ovByDate)))];
-                const overage = projectAnnualLeaveOverage({ name: memberName, year: yearStr, existingALDates, newALDates, entitlement });
-                if (overage) {
-                    showALConfirm(overage.headline, overage.detail, toSave, toDelete);
-                    return;
-                }
-            }
+        // ANNUAL LEAVE: what this save writes, what it leaves alone, and whether it over-books —
+        // decided in one place, `admin-al-week-save.js`, which is pure and takes the record rather
+        // than reading it. `buildMemberDateMap` is what makes a SWAPPED-IN day already on record cost
+        // a day: its `shift` override is still there at this point, the leave replacing it not yet
+        // written. What stays here is the DOM half — the bar, or the commit.
+        const alPlan = planAlWeekSave({
+            member: /** @type {any} */ (teamMembers.find(m => m.name === memberName)),
+            memberName, toSave, toDelete,
+            ovByDate: buildMemberDateMap(memberName), swapAnswers, overrides: getAllOverrides(),
+        });
+        toSave = alPlan.toSave;
+        _alPendingSkipped = alPlan.skipped;      // the receipt names them: never a silent drop
+        _alPendingKept    = alPlan.keptLeave;    // …and which of them the reader will still see leave on
+        if (alPlan.overage) {
+            showALConfirm(alPlan.overage.headline, alPlan.overage.detail, toSave, toDelete);
+            return;
         }
 
-        await executeSave(toSave, toDelete);
+        await executeSave(toSave, toDelete, _alPendingSkipped, _alPendingKept);
         } catch (err) {
             console.error('[Admin] Save handler error:', err);
             showError('Unexpected error — please reload and try again.');
@@ -1147,6 +1138,8 @@ export function init() {
     // ---- AL over-limit confirm bar ----
     /** @type {any} */ let _alPendingSave   = null;
     /** @type {any[]} */ let _alPendingDelete = [];
+    /** @type {string[]} */ let _alPendingSkipped = [];   // staged days the projection leaves alone
+    /** @type {string[]} */ let _alPendingKept    = [];   // …of those, the ones that still hold leave
     const alConfirmBar       = /** @type {HTMLElement} */ (document.getElementById('alConfirmBar'));
     const alConfirmMsg       = /** @type {HTMLElement} */ (document.getElementById('alConfirmMsg'));
     const alConfirmSub       = /** @type {HTMLElement} */ (document.getElementById('alConfirmSub'));
@@ -1176,6 +1169,8 @@ export function init() {
         alConfirmBar.classList.remove('visible');
         _alPendingSave   = null;
         _alPendingDelete = [];
+        _alPendingSkipped = [];
+        _alPendingKept    = [];
         // Disarm the button too: the slide-out keeps the bar hit-testable for 0.25s, and with
         // _alPendingSave just nulled a tap in that window would fall through to the AL-booking
         // branch (an entitlement-unchecked booking). showALConfirm re-arms it. (v16.69)
@@ -1193,8 +1188,10 @@ export function init() {
             // Week editor path — toSave is an array of override entries
             const toSave   = _alPendingSave;
             const toDelete = _alPendingDelete;
+            const skipped  = _alPendingSkipped;
+            const kept     = _alPendingKept;
             hideALConfirm();
-            await executeSave(toSave, toDelete);
+            await executeSave(toSave, toDelete, skipped, kept);
         } else {
             // AL booking path — delegate to admin-al.js which owns the save button and flag
             hideALConfirm();
@@ -1214,13 +1211,16 @@ export function init() {
     // ============================================
     // ANNUAL LEAVE BOOKING  (logic in admin-al.js)
     // ============================================
-    // The four dropdowns on this page open the app's own sheet, not the OS one (v23.33). The three
-    // member selects are the same ~50-name list the Calendar's was; the month filter joins them so
-    // the page has one kind of dropdown rather than two.
+    // The TWO dropdowns on this page open the app's own sheet, not the OS one (v23.33). `alMember`
+    // and `sickMember` were in this list until v23.74 and must not come back: they are `hidden`
+    // value holders, not controls — the member is chosen ONCE, in the top bar — and enhancing them
+    // built a second, fully operable member picker inside each card. Picking a name there moved the
+    // value the SAVE reads while every visible label stayed on the previous member, so the card
+    // could record leave against one person under another's name and entitlement. One member
+    // control on the page is the whole point of the top bar; see select-sheet.js's hidden-select
+    // note, and `select-sheet-parity.test.mjs`, which now refuses a hidden id in this list.
     initSelectSheets([
         { id: 'fieldMember',          title: 'Which member are you working on?' },
-        { id: 'alMember',             title: 'Book annual leave for' },
-        { id: 'sickMember',           title: 'Record an absence for' },
         { id: 'overridesMonthFilter', title: 'Show which month?' },
     ], { createLightbox });
 
@@ -1340,9 +1340,9 @@ export function init() {
     // Every handle it needs is passed in here; nothing about the list is decided in this file.
     const _bookedPeriods = createBookedPeriods({
         doc: document,
-        getEntries: (memberName, type) => getAllOverrides()
-            .filter(o => o.memberName === memberName && o.type === type && o.date)
-            .sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0),
+        // THE WINNER MAP, not a filter over every historical document (v23.79) — resolve which doc
+        // owns the date first, then ask what it is. Why it matters: al-entitlement.js.
+        getEntries: (memberName, type) => winningEntriesOfType(getAllOverrides(), memberName, type),
         hasAuthority: hasOverrideAuthorityFor,
         memberFor:    name => teamMembers.find(m => m.name === name),
         isSunday,
@@ -1350,6 +1350,10 @@ export function init() {
         isRestGap,
         addDays,
         monthAbb:     MONTH_ABB,
+        // Built once per render and handed to `cfg.consumes`. `consumesEntitlement` reads
+        // `replacedType` off it, which is the only surviving record of what an AL doc replaced —
+        // without it a swapped-in working day reads as a rest day and drops out of the list.
+        memberDateMap: buildMemberDateMap,
         fmtDate:      fmtPeriodDate,
         fmtRange:     fmtPeriodRange,
         onDelete:     deletePeriodOverrides,
@@ -1423,10 +1427,10 @@ export function init() {
         lsSet(SELECTED_MEMBER, currentUser);
 
         // Reword card hints to use first-person language for self-service users
-        const alHint   = document.querySelector('#alToggleHeader .hint');
         const sickHint = document.querySelector('#sickToggleHeader .hint');
         const savedHint = document.querySelector('#overridesToggleHeader .hint');
-        if (alHint)    alHint.textContent   = 'Select a date range — rest days and Sundays are skipped automatically';
+        // NO AL hint here (v23.90): admin.html's own text is already audience-neutral, and this line
+        // overwrote it with the pre-v23.75 rule. One sentence, one home — al-copy-parity.test.mjs.
         if (sickHint)  sickHint.textContent = 'Record your own absence days — for any reason';
         if (savedHint) savedHint.textContent = 'Your saved changes — tap any row to edit or delete';
 
@@ -1449,6 +1453,10 @@ export function init() {
             memberName: alMember.value,
             boxId:      'alBookedBox',
             bodyId:     'alBookedBody',
+            // THE SAME RULE THE BANNER ABOVE USES. Not a copy of it — the function itself, so the
+            // list and the entitlement cannot answer differently about the same day. A rest day
+            // carrying an AL override spends nothing, and used to be listed and counted anyway.
+            consumes:   consumesEntitlement,
             // "3 days", not "3 days AL" — the card is titled Recorded Annual Leave dates and the
             // pill is AL-green. The two dropped words are what let the date, the count and the
             // delete control share ONE line at 375px instead of stacking into two.

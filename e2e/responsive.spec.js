@@ -191,3 +191,108 @@ test('team view restored at boot records the roster-live milestone, not just pag
     ), { message: 'a Team View boot must record the roster-live mark once its grid is authoritative' })
         .toContain('myb-roster-live');
 });
+
+// ── THE RECORDED-DATES ROW KEEPS ITS CONTROLS (v23.72) ────────────────────────────────────────
+// Owner bug report, with a screenshot: on the Admin page's "Recorded Annual Leave dates" list, the
+// row for a long range put its ✕ on a SECOND LINE, under the date, with the day-count chip shoved
+// out to the right edge. The row went from 46px to 72px and the delete control was orphaned
+// beneath the thing it deletes.
+//
+// The cause was `flex-wrap: wrap` on `.al-period-row`, and it is worth stating because the CSS
+// looked correct: `.al-period-dates` carried `min-width: 0` and an ellipsis, with a comment
+// promising a long range would ellipsise "instead of forcing the row wider than the card". It
+// never could. A flex container breaks LINES on its items' hypothetical sizes — before any
+// shrinking runs — so the dates span asked for its full content width, the chip and the 44px
+// button no longer fit beside it, and the button wrapped. The shrink that would have triggered the
+// ellipsis never happened. Measured on the real card: broken at 360px at the DEFAULT text size,
+// and at 412px from Android's "Largest" upward.
+//
+// WHY THIS IS AN E2E AND NOT A UNIT TEST: nothing about it is visible to JSDOM. The markup was
+// always correct — three children in the right order with the right classes — and every existing
+// suite stayed green while the row was visibly broken on a phone. Only a real engine laying out
+// real CSS at a real width can see it.
+//
+// IT DRIVES THE REAL RENDERER. `admin-booked-periods.js` imports nothing and takes every handle
+// injected, so the page can build it with the REAL formatters, the REAL period merger and the REAL
+// month abbreviations, and render into the REAL box on the REAL page. Hand-writing the row's HTML
+// here would have pinned this guard to a copy of the markup that could drift out from under it —
+// and the unit suite does not assert those class names, so nothing would have caught the drift.
+test('recorded-dates rows keep the chip and ✕ on the row, at every width and text size', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await expect(page.locator('#alBookedBox')).toBeAttached();
+
+    // 360px is the narrowest phone this app supports; 412px is the owner's Android. The type-token
+    // override SIMULATES OS text enlargement: Android scales computed font sizes, and these are the
+    // two fonts in the row. It is a proxy for the platform behaviour, not the platform itself.
+    for (const width of [360, 390, 412]) {
+        await page.setViewportSize({ width, height: 900 });
+        for (const scale of [1, 1.15, 1.3, 1.5]) {
+            const rows = await page.evaluate(async ({ scale }) => {
+                const [bp, ou, rd, pd] = await Promise.all([
+                    import('./admin-booked-periods.js'), import('./override-utils.js'),
+                    import('./roster-data.js'),          import('./admin-period-dates.js'),
+                ]);
+                // A nine-day booking across a month end — the owner's actual row.
+                const dates = ['2026-04-24','2026-04-25','2026-04-27','2026-04-28','2026-04-29',
+                               '2026-04-30','2026-05-04','2026-05-05','2026-05-06'];
+                const list = bp.createBookedPeriods({
+                    doc: document,
+                    getEntries:   () => dates.map(date => ({ date, type: 'annual_leave' })),
+                    hasAuthority: () => true,
+                    memberFor:    () => ({ name: 'G. Miller' }),
+                    isSunday:     rd.isSunday,
+                    mergePeriods: ou.mergeBookedPeriods,
+                    isRestGap:    () => true,        // the gap days are rest days, so it stays ONE period
+                    addDays:      pd.addDays,
+                    monthAbb:     rd.MONTH_ABB,
+                    fmtDate:      pd.fmtPeriodDate,
+                    fmtRange:     pd.fmtPeriodRange,
+                    onDelete:     () => {},
+                });
+                document.getElementById('alBookedBox').hidden = false;
+                list.render({ type: 'annual_leave', memberName: 'G. Miller', boxId: 'alBookedBox',
+                    bodyId: 'alBookedBody', countFn: n => `${n} DAY${n === 1 ? '' : 'S'}`,
+                    countClass: 'al-period-count', feedbackId: 'alFeedback', preferredYear: '2026' });
+
+                // The collapsed card would measure everything at zero height.
+                let el = document.getElementById('alBookedBody');
+                while (el && el !== document.documentElement) {
+                    el.hidden = false;
+                    const cs = getComputedStyle(el);
+                    if (cs.display === 'none')  el.style.display = 'block';
+                    if (cs.maxHeight === '0px') el.style.maxHeight = 'none';
+                    el = el.parentElement;
+                }
+                document.documentElement.style.setProperty('--type-label', (13 * scale).toFixed(1) + 'px');
+                document.documentElement.style.setProperty('--type-micro', (10 * scale).toFixed(1) + 'px');
+
+                return [...document.querySelectorAll('.al-period-row')].map(row => {
+                    const d   = row.querySelector('.al-period-dates');
+                    const c   = row.querySelector('.al-period-count');
+                    const btn = row.querySelector('.btn-period-delete');
+                    const dr = d.getBoundingClientRect(), cr = c.getBoundingClientRect(),
+                          br = btn.getBoundingClientRect();
+                    return {
+                        text: d.textContent.trim(),
+                        // A control that has dropped to its own line starts at or below the date's
+                        // bottom edge. Comparing against the date's TOP would false-alarm the moment
+                        // the date itself wraps to two lines, which is the fix working.
+                        chipWrapped: cr.top >= dr.bottom - 2,
+                        btnWrapped:  br.top >= dr.bottom - 2,
+                        // And the date must stay readable — the range's END is what says how long
+                        // the booking is, and it is the half an ellipsis would eat.
+                        clipped: d.scrollWidth > d.clientWidth + 1 || d.scrollHeight > d.clientHeight + 1,
+                    };
+                });
+            }, { scale });
+
+            expect(rows.length, `no rows rendered at ${width}px — the guard measured nothing`).toBeGreaterThan(0);
+            const broken = rows.filter(r => r.chipWrapped || r.btnWrapped || r.clipped)
+                .map(r => `"${r.text}"${r.btnWrapped ? ' ✕ on its own line' : ''}`
+                        + `${r.chipWrapped ? ' chip on its own line' : ''}${r.clipped ? ' date truncated' : ''}`);
+            expect(broken, `at ${width}px and ${scale}× text, the recorded-dates row broke:\n  ${broken.join('\n  ')}`)
+                .toEqual([]);
+        }
+    }
+});

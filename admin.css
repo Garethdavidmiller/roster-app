@@ -214,7 +214,12 @@
            Gold, not the AL or absence colour: it is a statement about WHO, shared by two cards with
            different palettes, and it must not read as part of the banner it sits above. The name
            wraps rather than truncating (`overflow-wrap: anywhere`) — the longest roster name is 23
-           characters and an ellipsised person is not identified. */
+           characters and an ellipsised person is not identified. That length is also why the row is
+           NOT in the `.card-header-actions` cluster: beside the AL-left chip, the `?` and the chevron
+           it would either wrap the title or ellipsise to something that no longer names a person.
+           And it sits OUTSIDE `#alBanner` deliberately — the banner hides itself when the entitlement
+           is unknown, and the state where a manager most needs the name must not be the state that
+           removes it. Both cards share this ONE component on purpose: they ask the same question. */
         .card-member-for {
             display: flex;
             align-items: baseline;
@@ -226,6 +231,8 @@
             padding: 7px 11px;
             margin-bottom: 12px;
         }
+        /* Load-bearing: `display: flex` above out-specifies the `hidden` ATTRIBUTE, so without this the
+           row draws empty and nothing throws — the `page-visibility-parity.test.mjs` trap. */
         .card-member-for[hidden] { display: none !important; }
         .card-member-for .cmf-label {
             font-size: var(--type-micro); font-weight: 700; color: var(--text-mid);
@@ -240,6 +247,14 @@
         .al-banner {
             display: flex;
             align-items: center;
+            /* THE OVER-LIMIT MESSAGE NEEDS A LINE, NOT A GAP (v23.78). It is a third flex item on a
+               row whose four stats already refuse to shrink below their content (see the v23.45 note
+               below), so on a phone there was nothing left to give it: at 390px it collapsed to a
+               ~10px sliver and `#book-annual-leave`'s `overflow-x: hidden` cut it, rendering
+               "1 over limit" as one character per line, clipped. Wrapping lets it take its own line
+               under the figures — which is where it belongs anyway, since it qualifies REMAINING
+               rather than sitting beside it. Owner-reported on J. Haque's −1, 14 Sep 2026. */
+            flex-wrap: wrap;
             gap: 10px;
             background: var(--al-light);
             border: 1.5px solid var(--al);
@@ -301,7 +316,10 @@
             background: var(--al-warning-bg);
             border-radius: 4px;
             padding: 2px 7px;
-            margin-left: auto;
+            /* Its own full-width line beneath the figures. `margin-left: auto` pushed it to the right
+               of a row that had no room to give — the mechanism of the defect above. */
+            flex-basis: 100%;
+            text-align: center;
         }
 
         .field-group label {
@@ -1009,6 +1027,58 @@
         }
         .col-rd-hint[hidden] { display: none; }
 
+        /* What the day markers mean (v23.76). One quiet row under the grid, listing only the icons
+           this week actually carries — the meaning used to exist solely in an aria-label, which told
+           a screen reader "Cut-off Date" and left everybody else with a pair of scissors. */
+        .week-badge-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px 14px;
+            padding: 8px 10px 2px;
+            font-size: var(--type-badge);
+            color: var(--text-mid);
+            line-height: 1.5;
+        }
+        .wbl-item { display: inline-flex; align-items: center; gap: 5px; }
+        .wbl-icon { font-size: 1.05em; }
+
+        /* The swapped-day question on a week-grid row (v23.75) — the same question the AL card asks,
+           on the other door into the same write. Spans the row like .col-rd-hint above it, and the
+           `[hidden]` rule is load-bearing for exactly the reason that one's is: `display: flex`
+           out-specifies the hidden attribute, so the group would draw on every row. */
+        .col-al-swap {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px 10px;
+            padding: 6px 8px;
+            border-radius: 4px;
+            background: var(--al-light);
+            color: var(--al-deep);
+            font-size: var(--type-badge);
+            line-height: 1.5;
+        }
+        .col-al-swap[hidden] { display: none !important; }
+        .al-swap-opts { display: flex; gap: 6px; flex-wrap: wrap; }
+        .al-swap-btn {
+            min-height: 44px;
+            padding: 5px 10px;
+            border: 1px solid color-mix(in oklch, var(--al-deep) 38%, transparent);
+            border-radius: var(--radius-button);
+            background: var(--surface);
+            color: var(--al-deep);
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .al-swap-btn[aria-pressed="true"] {
+            background: var(--al-deep);
+            color: var(--surface);
+            border-color: var(--al-deep);
+        }
+        .al-swap-btn:active { scale: var(--press-scale); }
+
 
 
         /* "Has override" badge — shown when a day already has a saved override.
@@ -1042,6 +1112,22 @@
         .day-row.today .col-day .day-name { color: var(--primary-blue); font-weight: 800; }
         .day-row.today .col-day .day-date { color: var(--primary-blue); }
         .day-row.today:not(.active):not(.has-override):not(.selected) { background: var(--today-print); }
+
+        /* TODAY IS NOT SAID IN COLOUR ALONE (v23.76). The row was blue text on a pale band and
+           nothing else — no word anywhere, so the one thing it was telling you was exactly the thing
+           a colour-blind reader, a printed page or a stranger to the page could not receive. */
+        .day-today-tag {
+            display: inline-block;
+            margin-left: 6px;
+            padding: 1px 6px;
+            border-radius: 999px;
+            background: var(--primary-blue);
+            color: var(--surface);
+            font-size: var(--type-micro);
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            vertical-align: 1px;
+        }
 
         /* Row with a validation error (e.g. time not filled) — highlighted red */
         .day-row.row-error { background: var(--error-bg) !important; border-left: 4px solid var(--error-red) !important; }
@@ -1661,9 +1747,19 @@
             background: var(--bg-faint);
             border-bottom: 1px solid var(--border-light);
         }
+        /* NEVER WRAPS — the date text wraps INSTEAD of the controls (v23.72).
+           `flex-wrap: wrap` was here, and it is why the `min-width: 0` below could never do its
+           job. A flex container breaks lines on its items' HYPOTHETICAL sizes, before any
+           shrinking happens: the dates span asked for its full content width, the chip and the
+           44px button no longer fit beside it, and the button dropped to a second line — so the
+           ellipsis the comment below promised had no opportunity to fire. Measured on the real
+           page: broken at 360px at the DEFAULT text size, and at 412px from Android's "Largest"
+           (1.3x) upward, where the row went 46px to 72px with the delete control orphaned
+           underneath. With `nowrap` the shrink runs, and every width and text scale keeps the
+           chip and the ✕ on the row. */
         .al-period-row {
             display: flex;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
             align-items: center;
             gap: 4px 8px;
             min-height: 46px;
@@ -1673,20 +1769,29 @@
         .al-period-month-hdr + .al-period-row { border-top: none; }
         .al-period-dates {
             flex: 1 1 auto;
-            /* `min-width: 0` so a long range ellipsises instead of forcing the row wider than the
-               card — the confirm state widens the button under it, and this is what absorbs that. */
+            /* `min-width: 0` so a long range shrinks instead of forcing the row wider than the
+               card — the confirm state widens the button under it, and this is what absorbs that.
+               It only actually shrinks now that the row is `nowrap`; see the note there.
+
+               AND IT WRAPS RATHER THAN ELLIPSISING. Both were measured against the real card, and
+               the ellipsis loses the wrong thing: at 360px "Fri 24 Apr – Wed 6 May" cuts to
+               "Fri 24 Apr – Wed 6 M…", so the END of the range — the half that says how long the
+               booking is — is the half that disappears, on the row whose ✕ deletes it. Wrapping
+               keeps every character; two lines of 13px text still fit the 46px row, so at 412px
+               and Android's "Largest" the row does not even grow. `overflow: hidden` stays as the
+               backstop for a single unbreakable token. */
             min-width: 0;
             overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+            white-space: normal;
+            overflow-wrap: break-word;
             font-size: var(--type-label);
             font-weight: 700;            /* the same weight as Saved Changes' date (.oc-date) */
             color: var(--text-dark);
             font-variant-numeric: tabular-nums;
         }
         /* The tail or head of a booking that crossed the year end (v23.11). Inline after the
-           dates, muted and small, so the row still reads as one line at 375px; the dates span
-           ellipsises as one unit if the two together outgrow the column. */
+           dates, muted and small, so the row still reads as one line at 375px; the marker wraps
+           with the dates as one unit if the two together outgrow the column. */
         .al-period-cont {
             margin: 0 8px;
             font-size: var(--type-label);
@@ -1775,6 +1880,47 @@
         .al-preview.empty { color: var(--text-light); }
         .al-preview.ready { background: var(--al-light); color: var(--al-deep); }
         .al-preview.error { background: var(--error-bg); color: var(--error-text); }
+
+        /* ---- The swapped-day question (v23.75) ----------------------------------------------
+           Sits INSIDE the ready preview, directly above Save, because it is a condition of saving
+           rather than an aside. Two buttons per day and no pre-pressed state: an unanswered day must
+           not be able to look answered, which is why this is a choice between two readings and not a
+           checkbox somebody can leave untouched. Colours come from the AL palette the preview is
+           already painted in, so the block reads as part of it. */
+        .swapday-ask {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid color-mix(in oklch, var(--al-deep) 22%, transparent);
+        }
+        .swapday-lead { margin: 0 0 8px; font-weight: 600; line-height: 1.45; }
+        .swapday-row {
+            display: flex;
+            flex-wrap: wrap;          /* the two options drop below the date on a narrow phone */
+            align-items: center;
+            gap: 6px 10px;
+            padding: 5px 0;
+        }
+        .swapday-date { font-weight: 700; min-width: 7.5em; }
+        .swapday-opts { display: flex; gap: 6px; flex-wrap: wrap; }
+        .swapday-opt {
+            min-height: 44px;         /* the app's touch target, same as every other control here */
+            padding: 6px 12px;
+            border: 1px solid color-mix(in oklch, var(--al-deep) 38%, transparent);
+            border-radius: var(--radius-button);
+            background: var(--surface);
+            color: var(--al-deep);
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background var(--dur-fast) var(--ease-standard),
+                        border-color var(--dur-fast) var(--ease-standard);
+        }
+        .swapday-opt[aria-pressed="true"] {
+            background: var(--al-deep);
+            color: var(--surface);
+            border-color: var(--al-deep);
+        }
+        .swapday-opt:active { scale: var(--press-scale); }
 
         /* Absence preview — reuses al-preview layout */
         .sick-preview.ready { background: var(--absence-light); color: var(--absence-text); }

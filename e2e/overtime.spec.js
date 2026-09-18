@@ -92,7 +92,7 @@ test.describe('member surface', () => {
         await seedSession(page, 'G. Miller');
         await stubOvertime(page, { windows: [openWindow()] });
         await page.goto('/overtime.html');
-        const meta = page.locator('.ot-form-meta');
+        const meta = page.locator('.ot-form-dates');
         await expect(meta).toContainText('Answers due');
         await expect(meta).toContainText('18 Aug');       // the initial deadline
         await expect(meta).toContainText('25 Aug');       // the final one, still stated
@@ -100,6 +100,55 @@ test.describe('member surface', () => {
         // working out which applies today, which is the job this is meant to be doing for them.
         await expect(page.locator('.ot-form-when--lead')).toHaveCount(1);
         await expect(page.locator('.ot-form-when--lead')).toContainText('18 Aug');
+
+        // EACH DATE IS A NAMED VALUE, not a sentence (v23.83 — reported from a phone as "where is
+        // the clarity"). The label and the date are separate elements, so the hierarchy survives
+        // being read at a glance; when both were sentences in one grey stack, the only thing
+        // separating the live deadline from its partner was font-weight, and that is what failed.
+        const lead = page.locator('.ot-form-when--lead');
+        await expect(lead.locator('.ot-form-when-label')).toHaveText('Answers due');
+        await expect(lead.locator('.ot-form-when-value')).toHaveText(/18 Aug/);
+        // And the emphasis is real, not merely declared: the live date is drawn larger than the
+        // one beside it. Measured, because a weight or colour change alone is what this replaces.
+        const sizes = await page.locator('.ot-form-when-value').evaluateAll(els =>
+            els.map(e => parseFloat(getComputedStyle(e).fontSize)));
+        expect(sizes.length, 'both dates are on screen').toBe(2);
+        expect(sizes[0], 'the live deadline is the larger of the two').toBeGreaterThan(sizes[1]);
+
+        // THE WEEK IS AN OBJECT, AND IT WEARS ITS STATE (v23.84). The head sits in a band that
+        // carries the horizon's row-card recipe — a coloured left edge — and a chip that names
+        // the same state, so colour is never the only carrier. Asserted on the COMPUTED edge, not
+        // the class: a class can be present and out-specified.
+        const band = page.locator('.ot-week-band');
+        await expect(band).toHaveCount(1);
+        await expect(band.locator('.ot-phase-chip')).toHaveText('Open');
+        const edge = await band.evaluate(el => {
+            const cs = getComputedStyle(el);
+            return { width: cs.borderLeftWidth, color: cs.borderLeftColor, top: cs.borderTopColor };
+        });
+        expect(edge.width, 'the band carries the horizon\'s 4px state edge').toBe('4px');
+        // THE EDGE IS THE APP'S GREEN, MEASURED AGAINST ITSELF. The first draft compared it to the
+        // page's navy and called anything else "a state colour" — so a neutral grey edge passed,
+        // which the mutation tool showed on the first run. A state colour has to be tied to a token
+        // the page renders elsewhere: the chosen "yes" option wears `--success-green` as its fill,
+        // so choose one and compare. Same token, same computed string; swap the edge to a neutral
+        // and they part.
+        await page.locator('.ot-day').first().locator('.ot-mode--yes').first().click();
+        const yesFill = await page.locator('.ot-mode--yes[aria-checked="true"]').first()
+            .evaluate(el => getComputedStyle(el).backgroundColor);
+        expect(edge.color, 'the open week\'s edge is the same green a chosen option wears').toBe(yesFill);
+        expect(edge.color, 'and not the band\'s own neutral border').not.toBe(edge.top);
+        // The ordinary open state no longer prints its sentence — the chip and the named
+        // deadline say it. The FINAL_OPEN warning still does (asserted where that phase renders).
+        await expect(page.locator('.ot-form-phase')).toHaveCount(0);
+
+        // THE PAGE LEADS WITH WHO, LIKE ADMIN. The identity bar sits on the canvas ABOVE the card,
+        // not inside it — the placement the owner accepted on admin and rejected inside a card.
+        const barBox  = await page.locator('#otMineIdentity').boundingBox();
+        const cardBox = await page.locator('#otMineCard').boundingBox();
+        expect(barBox.y + barBox.height, 'the identity bar is above the card').toBeLessThanOrEqual(cardBox.y + 1);
+        // And the beta strip is gone (owner, 15 Sep 2026: everyone on the beta knows).
+        await expect(page.locator('.ot-beta')).toHaveCount(0);
     });
 
     test('a submitted form carries a standing receipt, not just green rows', async ({ page }) => {
@@ -259,6 +308,110 @@ test.describe('member surface', () => {
         await stubOvertime(page, { windows: [openWindow()] });
         await page.goto('/overtime.html');
         await expect(page.locator('.ot-day .ot-day-roster .shift-badge')).toHaveCount(7);
+    });
+
+    test('a rostered Sunday can ask to be taken off — and a rest day cannot', async ({ page }) => {
+        // THE WIRING, not the predicate. `overtime-sunday-release.test.mjs` proves which days
+        // qualify; only a browser can prove the control is actually rendered on the right one, from
+        // the roster the page really resolved. The week starts on Sunday 30 Aug 2026, so the first
+        // card is the one under test — and the member is chosen from the ROSTER rather than written
+        // down here, so a pattern edit turns this test red instead of leaving it asserting nothing.
+        // A page must be loaded before `import()` has a base URL to resolve against.
+        await page.goto('/overtime.html');
+        const pick = await page.evaluate(async () => {
+            const { teamMembers, getBaseShift, parseISODate } = await import('/roster-data.js');
+            const { isRestShift } = await import('/override-utils.js');
+            const sun = '2026-08-30';
+            const works = teamMembers.find(m => !m.hidden && !m.managerOnly
+                && !isRestShift(getBaseShift(m, parseISODate(sun))));
+            return works ? works.name : null;
+        });
+        expect(pick, 'no visible member is rostered on Sun 30 Aug 2026').not.toBeNull();
+
+        await seedSession(page, /** @type {string} */ (pick));
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-day')).toHaveCount(7);
+
+        const sunday = page.locator('.ot-day[data-day="2026-08-30"]');
+        const ask = sunday.locator('.ot-release-box');
+        await expect(ask, 'a Sunday they are rostered to work offers it').toHaveCount(1);
+
+        // Exactly one day in the week may offer it — it is a Sunday question, and there is only one.
+        await expect(page.locator('.ot-release-box'), 'only the Sunday asks').toHaveCount(1);
+
+        // It needs NO availability answer first, unlike the willingness tick: a member unavailable
+        // all week is exactly who may need taking off a Sunday duty.
+        await expect(sunday.locator('.ot-longday-box'), 'the willingness tick waits for an answer')
+            .toHaveCount(0);
+        await ask.check();
+        await expect(sunday.locator('.ot-release-said'))
+            .toContainText('the roster team will decide');
+        // And it must never read as granted — the promise the wording makes is the whole feature.
+        await expect(sunday).not.toContainText('approved');
+        await expect(sunday).not.toContainText('granted');
+    });
+
+    test('the Sunday request answers nothing, and nothing answered can remove it (v23.87)', async ({ page }) => {
+        // THE WIRING of overtime-answer.js, in a browser. An external review of v23.85 found the two
+        // defects this pins: ticking the request wrote `{ mode: 'unavailable' }` under an unanswered
+        // Sunday — so the completeness count dropped to six and a clerk could read a "Not available"
+        // the member never gave — and choosing a mode (or the bulk fill) rebuilt the answer without
+        // the request. The unit tests prove the transitions; only the page can prove the form calls
+        // them, and reads the result back into the Submit button and the row.
+        await page.goto('/overtime.html');
+        const pick = await page.evaluate(async () => {
+            const { teamMembers, getBaseShift, parseISODate } = await import('/roster-data.js');
+            const { isRestShift } = await import('/override-utils.js');
+            const sun = '2026-08-30';
+            const works = teamMembers.find(m => !m.hidden && !m.managerOnly
+                && !isRestShift(getBaseShift(m, parseISODate(sun))));
+            return works ? works.name : null;
+        });
+        expect(pick, 'no visible member is rostered on Sun 30 Aug 2026').not.toBeNull();
+        await seedSession(page, /** @type {string} */ (pick));
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        const submit = page.locator('.ot-submit');
+        const sunday = page.locator('.ot-day[data-day="2026-08-30"]');
+        const ask = sunday.locator('.ot-release-box');
+        const chosen = sunday.locator('.ot-mode[aria-checked="true"]');
+        await expect(submit).toContainText('7 days still to answer');
+
+        // 1. ASKING IS NOT ANSWERING. The count stays at seven and no option is selected.
+        await ask.check();
+        await expect(sunday.locator('.ot-release-said')).toBeVisible();
+        await expect(submit, 'the Sunday is still to answer').toContainText('7 days still to answer');
+        await expect(chosen, 'no availability option was chosen for the member').toHaveCount(0);
+        await expect(sunday, 'and the row does not read as answered').not.toHaveClass(/ot-day--answered/);
+
+        // 2. CHOOSING A MODE KEEPS THE REQUEST.
+        await sunday.locator('.ot-mode[data-mode="all_day"]').click();
+        await expect(sunday.locator('.ot-mode[data-mode="all_day"]')).toHaveAttribute('aria-checked', 'true');
+        await expect(submit).toContainText('6 days still to answer');
+        await expect(ask, 'the request survived the mode press').toBeChecked();
+
+        // 3. THE BULK FILL IS A MODE CHANGE ON EVERY DAY — SAME RULE.
+        await page.locator('.ot-bulk-unavailable').click();
+        await page.getByRole('button', { name: 'Fill all seven days' }).click();
+        await expect(page.locator('.ot-day--answered')).toHaveCount(7);
+        await expect(sunday.locator('.ot-mode[data-mode="unavailable"]')).toHaveAttribute('aria-checked', 'true');
+        await expect(ask, 'the request survived the bulk fill').toBeChecked();
+
+        // 4. UNTICKING REMOVES ONLY THE REQUEST. The Sunday's answer is untouched.
+        await ask.uncheck();
+        await expect(ask).not.toBeChecked();
+        await expect(sunday.locator('.ot-release-said')).toHaveCount(0);
+        await expect(sunday.locator('.ot-mode[data-mode="unavailable"]')).toHaveAttribute('aria-checked', 'true');
+        await expect(page.locator('.ot-day--answered')).toHaveCount(7);
+
+        // 5. AND A REQUEST TICKED THEN UNTICKED ON AN UNANSWERED DAY LEAVES IT EXACTLY UNANSWERED —
+        //    not answered "Not available". Fresh page, so nothing above leaks in.
+        await page.goto('/overtime.html');
+        await ask.check();
+        await ask.uncheck();
+        await expect(submit).toContainText('7 days still to answer');
+        await expect(chosen).toHaveCount(0);
     });
 
     test('a saved answer keeps the time it was SAVED with when the shift later moves', async ({ page }) => {
@@ -883,6 +1036,274 @@ test('the member form fills the desktop band, and the day row goes horizontal in
         .toBeGreaterThanOrEqual(head.x + head.width);
     expect(Math.abs((modes.y + modes.height / 2) - (head.y + head.height / 2)),
         'and on the same line as it').toBeLessThan(12);
+});
+
+test('EVERY child of the day row sits beside the day label at desktop, not under it', async ({ page }) => {
+    // THE DEFECT THIS REPLACES A COMMENT WITH (v23.82). The desktop grid used to LIST the children
+    // that belong in column 2, with a note asking the next person to add to it. The list went stale
+    // twice — `.ot-custom` at v20.74, then `.ot-longday` and `.ot-release` — and the second time it
+    // was not even consistent: auto-placement fills the implicit row left to right, so the Sunday
+    // request took column 2 when the willingness tick was present and column 1 when it was not.
+    // The SAME control, 240px apart, depending on whether the member had answered the day.
+    //
+    // Nothing errored, nothing clipped and nothing was unreachable, so only a measurement can see
+    // it. Written against the CONTAINER rather than a list of classes, because a list here would
+    // be the same hand-maintained thing that failed — a child added tomorrow is covered by this
+    // test on the day it is added.
+    await page.setViewportSize({ width: 1280, height: 1200 });
+
+    // The Sunday must be one the member is rostered to work, or the release control never renders
+    // and the row that exercises the most children is the one the test skips. Picked from the
+    // roster, like the wiring test above, so a pattern edit fails this rather than hollowing it.
+    await page.goto('/overtime.html');
+    const pick = await page.evaluate(async () => {
+        const { teamMembers, getBaseShift, parseISODate } = await import('/roster-data.js');
+        const { isRestShift } = await import('/override-utils.js');
+        const sun = '2026-08-30';
+        const works = teamMembers.find(m => !m.hidden && !m.managerOnly
+            && !isRestShift(getBaseShift(m, parseISODate(sun))));
+        return works ? works.name : null;
+    });
+    expect(pick, 'no visible member is rostered on Sun 30 Aug 2026').not.toBeNull();
+    await seedSession(page, /** @type {string} */ (pick));
+    await stubOvertime(page, { windows: [openWindow()] });
+    await page.goto('/overtime.html');
+
+    const sunday = page.locator('.ot-day[data-day="2026-08-30"]');
+    await sunday.locator('.ot-mode').first().waitFor();
+
+    // Both states of the row, because the bug lived in the difference between them: unanswered
+    // (no willingness tick), then answered with the Sunday request ticked (every child present).
+    const columns = async (label) => {
+        const seen = await sunday.evaluate(row => {
+            const head = row.querySelector('.ot-day-head').getBoundingClientRect();
+            return [...row.children].map(el => ({
+                cls: el.className.split(' ')[0],
+                left: Math.round(el.getBoundingClientRect().left),
+                headLeft: Math.round(head.left),
+                headRight: Math.round(head.right),
+            }));
+        });
+        expect(seen.length, `${label}: the row has children to place`).toBeGreaterThan(1);
+        for (const c of seen) {
+            if (c.cls === 'ot-day-head') continue;
+            expect(c.left, `${label}: ${c.cls} starts after the day label, not under it`)
+                .toBeGreaterThanOrEqual(c.headRight);
+        }
+        return seen;
+    };
+
+    const unanswered = await columns('unanswered');
+    expect(unanswered.some(c => c.cls === 'ot-release'), 'the Sunday request is on the row').toBe(true);
+
+    await sunday.locator('.ot-release-box').check();
+    await sunday.locator('.ot-mode').nth(1).click();
+    await sunday.locator('.ot-longday-box').waitFor();
+    const answered = await columns('answered');
+    expect(answered.some(c => c.cls === 'ot-longday'), 'the willingness tick is on the row').toBe(true);
+
+    // And the request has not MOVED COLUMN between the two states — the half of the bug that a
+    // per-class rule added to only one of them would still have left in place.
+    //
+    // Not an exact equality: ticked, `.ot-release` gains its 3px AL left edge on a -3px margin, so
+    // the box legitimately starts 3px further left than it does unticked. The defect this guards
+    // was 240px. Anything inside a few pixels is the edge; anything beyond it is a column change.
+    const leftOf = (rows) => rows.find(c => c.cls === 'ot-release').left;
+    expect(Math.abs(leftOf(answered) - leftOf(unanswered)),
+        'the Sunday request sits in the same column either way').toBeLessThan(8);
+});
+
+// ── 360px UNDER 1.3× OS TEXT (v23.88, external review of v23.85) ────────────────────────────────
+//
+// PREVENTATIVE, and the review said so: nothing here is known to be broken. The point is that this
+// page was restructured more heavily than any other surface across v23.82–v23.87 — a new head built
+// from surfaces, a state chip, named deadline values, badges that now carry their time inside them,
+// a Sunday-release row — while its own responsive coverage stayed at 390×844, one width and one
+// text size. The Calendar earned its 320/360/390/412 × text-scale matrix by shipping three separate
+// overflows to older Samsungs; this takes the one case that combines the narrow width with the
+// scaling those phones actually apply.
+//
+// WHAT "1.3× TEXT" MEANS HERE. Android scales every font and leaves the viewport alone, so the seam
+// states the scale (text-scale.js reads it) AND the type tokens are multiplied to match — the two
+// halves of what a real phone does at once. Reading the tokens from the page rather than writing
+// them down means a change to the scale in shared.css cannot leave this test measuring the old one.
+//
+// The assertions are deliberately about CONTAINMENT, not pixels: no element of the form may sit
+// outside the viewport, no text may run out of its own box (a chip capped by `max-width` with
+// `nowrap` still overflows — the v23.86 defect, one page over), and the page may not scroll
+// sideways. A baseline holds the appearance; this holds the property that it still fits.
+test('the member form fits at 360px under 1.3× text — band, deadlines, badges, options, the Sunday row and Submit', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { ...(/** @type {any} */ (window).__E2E || {}), textScale: 1.3 };
+    });
+
+    // A member the roster says WORKS the Sunday, so the release row is on screen — it is one of the
+    // six surfaces the review named, and it only renders for somebody rostered that day.
+    await page.goto('/overtime.html');
+    const pick = await page.evaluate(async () => {
+        const { teamMembers, getBaseShift, parseISODate } = await import('/roster-data.js');
+        const { isRestShift } = await import('/override-utils.js');
+        const works = teamMembers.find(m => !m.hidden && !m.managerOnly
+            && !isRestShift(getBaseShift(m, parseISODate('2026-08-30'))));
+        return works ? works.name : null;
+    });
+    expect(pick, 'no visible member is rostered on Sun 30 Aug 2026').not.toBeNull();
+
+    await seedSession(page, /** @type {string} */ (pick));
+    // THE LONGEST ROSTER BADGE ON EVERY ROW. A night shift is the widest of the three — the owl and
+    // the word, plus the time the badge has carried inside it since v23.85 — and seeding all seven
+    // days means the measurement does not depend on which shifts this member's week happens to hold.
+    const dates = weekDates(W.weekStart);
+    await page.addInitScript((rows) => {
+        /** @type {any} */ (window).__E2E = { ...(/** @type {any} */ (window).__E2E || {}), docs: rows };
+    }, dates.map(d => ({ id: `ot-360-${d}`, memberName: /** @type {string} */ (pick), date: d,
+        type: 'shift', value: '22:00-06:00', note: '', source: 'manual' })));
+    await stubOvertime(page, { windows: [openWindow()] });
+    await page.goto('/overtime.html');
+    await expect(page.locator('.ot-day')).toHaveCount(7);
+
+    // Scale the type the way the OS would. The tokens are READ from the page and multiplied, so this
+    // cannot drift from shared.css — and `!important` because `:root` is where they are declared.
+    const before = await page.evaluate(() =>
+        parseFloat(getComputedStyle(/** @type {Element} */ (document.querySelector('.ot-day-roster .shift-badge'))).fontSize));
+    await page.evaluate((scale) => {
+        const names = ['--type-micro', '--type-badge', '--type-small', '--type-label', '--type-body',
+                       '--type-button', '--type-medium', '--type-large', '--type-xl'];
+        const cs = getComputedStyle(document.documentElement);
+        const css = names.map(n => {
+            const px = parseFloat(cs.getPropertyValue(n));
+            return Number.isFinite(px) ? `${n}: ${Math.round(px * scale * 10) / 10}px !important;` : '';
+        }).join(' ');
+        const style = document.createElement('style');
+        style.textContent = `:root { ${css} }`;
+        document.head.appendChild(style);
+    }, 1.3);
+    await page.waitForTimeout(300);
+
+    // GUARD ON THE GUARD: the scaling must have LANDED, or this is a plain 360px test wearing the
+    // name of a stress case. Measured as a ratio on a real element rather than against a written-down
+    // px value, so a token renamed in shared.css fails here instead of silently scaling nothing.
+    const after = await page.evaluate(() =>
+        parseFloat(getComputedStyle(/** @type {Element} */ (document.querySelector('.ot-day-roster .shift-badge'))).fontSize));
+    expect(after / before, `the type did not scale (${before}px → ${after}px) — this would be a 360px test, not a 1.3x one`)
+        .toBeGreaterThan(1.25);
+
+    const report = await page.evaluate(() => {
+        const vw = document.documentElement.clientWidth;
+        /** @type {string[]} */ const out = [];
+        const SURFACES = [
+            ['.ot-week-band', 'the week band'],
+            ['.ot-form-when-value', 'a deadline value'],
+            ['.ot-phase-chip', 'the phase chip'],
+            ['.ot-day-roster .shift-badge', 'a roster badge'],
+            ['.ot-mode', 'an availability option'],
+            ['.ot-release', 'the Sunday release row'],
+            ['.ot-submit', 'the Submit button'],
+        ];
+        for (const [sel, name] of SURFACES) {
+            const els = [...document.querySelectorAll(sel)];
+            if (!els.length) { out.push(`${name} (${sel}) did not render at all`); continue; }
+            els.forEach((el, i) => {
+                const r = el.getBoundingClientRect();
+                const where = els.length > 1 ? `${name} #${i + 1}` : name;
+                if (r.right > vw + 0.5)  out.push(`${where} runs past the right edge: ${Math.round(r.right)} > ${vw}`);
+                if (r.left  < -0.5)      out.push(`${where} starts left of the screen: ${Math.round(r.left)}`);
+                // The box can sit inside while its TEXT runs out of it — exactly the v23.86 defect
+                // on the Pay Calculator, which no geometry check could see.
+                if (el.scrollWidth > el.clientWidth + 1) {
+                    out.push(`${where} has text wider than itself: ${el.scrollWidth} > ${el.clientWidth}`);
+                }
+            });
+        }
+        const doc = document.documentElement;
+        if (doc.scrollWidth > doc.clientWidth + 1) {
+            out.push(`the page scrolls sideways: ${doc.scrollWidth} > ${doc.clientWidth}`);
+        }
+        return out;
+    });
+    expect(report, 'the Overtime form at 360px under 1.3× text').toEqual([]);
+
+    // And Submit is still reachable: a sticky bar that has grown past the fold with the text is a
+    // form nobody can send.
+    await expect(page.locator('.ot-submit')).toBeInViewport();
+});
+
+test('the planning horizon runs its facts across the row at desktop, not down a ribbon', async ({ page }) => {
+    // MEASURED BEFORE AND AFTER (v23.82): at 1280 a week row was 1068px wide with its text ending
+    // at x=304 and its button starting at x=996 — 692px of nothing, on every row, and 122px tall to
+    // stack four lines of small text that a phone stacks for a reason a desktop does not have.
+    //
+    // The numbers below are deliberately loose. This is a composition property, not a pixel
+    // contract: it must fail if the facts go back to stacking, and it must not fail because a
+    // deadline string gained a word. The visual baseline holds the appearance; this holds the shape.
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    await seedSession(page, 'H. Croft');
+    await stubOvertime(page, { weeks: sixWeeks() });
+    await page.goto('/overtime.html');
+    const row = page.locator('.ot-week-row').first();
+    await row.waitFor();
+
+    const shape = await row.evaluate(el => {
+        const box = el.getBoundingClientRect();
+        const rect = (sel) => {
+            const c = el.querySelector(sel);
+            return c ? c.getBoundingClientRect() : null;
+        };
+        const title = rect('.ot-week-title');
+        const meta  = rect('.ot-week-meta');
+        const state = rect('.ot-week-state');
+        return {
+            height: Math.round(box.height),
+            titleRight: title ? Math.round(title.right - box.left) : null,
+            metaLeft:   meta  ? Math.round(meta.left  - box.left) : null,
+            stateLeft:  state ? Math.round(state.left - box.left) : null,
+            sameLine: title && meta ? Math.abs(title.top - meta.top) < 12 : null,
+        };
+    });
+
+    expect(shape.metaLeft, 'the deadlines sit beside the week title, not under it')
+        .toBeGreaterThan(shape.titleRight);
+    expect(shape.sameLine, 'and on its line').toBe(true);
+    expect(shape.stateLeft, 'the state follows them across the row')
+        .toBeGreaterThan(shape.metaLeft);
+    expect(shape.height, 'so the row is no longer four stacked lines tall').toBeLessThan(100);
+
+    // AND THE COLUMNS LINE UP DOWN THE LIST, which is the difference between a grid and a flex row
+    // and the reason this is the former. A reviewer scans this list for the state, so the state has
+    // to start at the same x in every row; laid out by content each row picked its own, and the six
+    // seeded here span every state the horizon can show, with deliberately different meta lengths
+    // (a closed week carries a counts line, a not-created week does not).
+    const lefts = await page.locator('.ot-week-row').evaluateAll(rows => rows.map(r => {
+        const box = r.getBoundingClientRect();
+        const at = (/** @type {string} */ sel) => {
+            const el = r.querySelector(sel);
+            return el ? Math.round(el.getBoundingClientRect().left - box.left) : null;
+        };
+        return { meta: at('.ot-week-meta'), state: at('.ot-week-state') };
+    }));
+    expect(lefts.length, 'rows to compare').toBeGreaterThan(2);
+    for (const key of ['meta', 'state']) {
+        const seen = [...new Set(lefts.map(r => r[key]).filter(x => x !== null))];
+        expect(seen, `the ${key} column starts at one x down the whole list`).toHaveLength(1);
+    }
+});
+
+test('and on a phone the horizon row still stacks, where the width is not there', async ({ page }) => {
+    // The other half. A `min-width` query is easy to write and easy to write at the wrong number,
+    // and the failure is invisible from the desktop the change was made on.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedSession(page, 'H. Croft');
+    await stubOvertime(page, { weeks: sixWeeks() });
+    await page.goto('/overtime.html');
+    const row = page.locator('.ot-week-row').first();
+    await row.waitFor();
+    const stacked = await row.evaluate(el => {
+        const title = el.querySelector('.ot-week-title').getBoundingClientRect();
+        const meta  = el.querySelector('.ot-week-meta').getBoundingClientRect();
+        return meta.top >= title.bottom - 1;
+    });
+    expect(stacked, 'the deadlines sit under the week title').toBe(true);
 });
 
 test('and on a phone the day row is still stacked, where there is no room for anything else', async ({ page }) => {
@@ -1536,7 +1957,11 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
 
         await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
         // The head TOOK the new phase — so this is not passing merely because the resync never ran.
-        await expect(page.locator('.ot-form-meta')).toContainText('Answers were due');
+        await expect(page.locator('.ot-form-dates')).toContainText('Answers were due');
+        // The final window is the one phase whose sentence is a WARNING, so it is the one that
+        // still prints one (v23.84). The chip turns with it.
+        await expect(page.locator('.ot-form-phase')).toContainText('may not fit');
+        await expect(page.locator('.ot-phase-chip')).toHaveText('Still open');
         expect(calls, 'the server was genuinely re-read').toBeGreaterThanOrEqual(2);
         // …and the five answers are still there.
         await expect(page.locator('.ot-submit')).toContainText('2 days still to answer');
@@ -1984,6 +2409,31 @@ test('every control on the member form meets the app\'s touch target', async ({ 
             const c = l.control || l.querySelector('input, select, textarea, button');
             return !!c && !(/** @type {any} */ (c).disabled);
         };
+        // AND AN APP-DRAWN TICK IS REACHED THROUGH ITS ROW, WHICH IS THE THING TO MEASURE (v23.81).
+        // Since v23.50 the app draws its own checkboxes and radios, and the recipe's rule — stated
+        // in .claude/rules/css-tokens.md — is "the ROW is the touch target, the box is what you
+        // see": a 20px box (22px on a coarse pointer) inside a label carrying the 44px, so that
+        // anywhere on the row toggles it. Measuring the box alone reports 20px and calls the
+        // documented pattern a failure.
+        //
+        // This is the same allowance the `::before` arithmetic above makes for `.btn-card-tips`,
+        // whose painted circle is 20px and whose hit area is 44px — the target is not always the
+        // border box, and a test that assumes it is will fail correct code.
+        //
+        // It went unnoticed until v23.81 only because of WHICH controls this page renders: the one
+        // other app-drawn tick here, `.ot-longday-box`, appears only on a day that has been
+        // ANSWERED, and this test's fixture answers none. The Sunday request is offered before any
+        // answer, so it was the first one the measurement ever saw. The hole was three releases old.
+        //
+        // The guard is not loosened: the LABEL still has to be 44px. A tick whose row is short
+        // fails exactly as it did before.
+        const target = (/** @type {Element} */ el) => {
+            const box = el.getBoundingClientRect();
+            const input = /** @type {any} */ (el);
+            if (el.tagName !== 'INPUT' || !/^(checkbox|radio)$/.test(input.type)) return box;
+            const label = input.labels && input.labels[0];
+            return label ? label.getBoundingClientRect() : box;
+        };
         return els
             .filter(activates)
             // A control with no box has nothing to measure. The visually-hidden checkbox behind
@@ -1992,7 +2442,7 @@ test('every control on the member form meets the app\'s touch target', async ({ 
             .filter(el => el.getBoundingClientRect().height > 0)
             .map(el => ({
                 what: (el.className || el.tagName) + ' · ' + (el.textContent || '').trim().slice(0, 40),
-                h: Math.round(el.getBoundingClientRect().height
+                h: Math.round(target(el).height
                     + Math.max(grown(el, '::before'), grown(el, '::after'))),
             }))
             .filter(x => x.h < 44);
@@ -2042,6 +2492,62 @@ test('a long answer chip stays inside its row, on every width', async ({ page })
     // without a single glyph being lost. Anything beyond that is a chip wider than its row.
     }).filter(x => x.over > 1));
     expect(overflowing, 'a chip wider than the row it sits in is a truncated answer').toEqual([]);
+});
+
+test('the answer chip is a capsule while it is a token, and stops being one when it wraps', async ({ page }) => {
+    // THE OTHER HALF OF THE CHIP ABOVE (v23.82). That test made the long answer fit; this one is
+    // about what it looks like once it does.
+    //
+    // `--radius-pill` is 999px, which a browser resolves to HALF THE BOX HEIGHT — so the shape is
+    // decided by the content, not by the rule. "Not available" is 20px tall and comes out a proper
+    // capsule. The long answer wraps to two lines on a phone, and at 34px the same declaration
+    // returned a 17px radius: a fat lozenge whose round ends curve through the 9px of side padding
+    // and leave the first and last characters sitting inside the arc.
+    //
+    // 10px is that capsule frozen at the one-line height. So the assertions are a pair, and both
+    // are needed — pinning only the second would be satisfied by a square chip, and pinning only
+    // the first by going back to the token.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedSession(page, 'H. Croft');
+    const dates = weekDates(W.weekStart);
+    await page.addInitScript((rows) => {
+        window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: rows };
+    }, [
+        { id: 'G. Miller', memberName: 'G. Miller', grade: 'CEA', rosterOrder: 1,
+          currentRevision: 1, firstAcceptedAt: NOW - 3_600_000, updatedAt: NOW - 3_600_000,
+          days: Object.fromEntries(dates.map(d => [d, {
+              mode: 'before_after', until: '09:00', from: '17:00', fullTwelve: true }])) },
+        // The short answer, so both shapes are on screen in one render and the comparison is
+        // between two chips of the same family rather than between a chip and a remembered number.
+        { id: 'R. Forrester-Blackstock', memberName: 'R. Forrester-Blackstock', grade: 'CEA',
+          rosterOrder: 2, currentRevision: 1, firstAcceptedAt: NOW - 3_600_000,
+          updatedAt: NOW - 3_600_000,
+          days: Object.fromEntries(dates.map(d => [d, { mode: 'unavailable' }])) },
+    ]);
+    await stubOvertime(page, { weeks: [{ ...W, exists: true, state: 'created', canCreate: false,
+        expected: 2, received: 2, noResponse: 0 }] });
+    await page.goto('/overtime.html');
+    await page.locator('.ot-day-panel').first().waitFor();
+
+    const shape = async (sel) => page.locator(sel).first().evaluate(el => {
+        const r = el.getBoundingClientRect();
+        // The USED radius, which is the only number that matters — a browser reports 999px back
+        // from `getComputedStyle` while painting half the height, so reading the declaration
+        // would tell you nothing about either state.
+        const declared = parseFloat(getComputedStyle(el).borderTopLeftRadius);
+        return { h: Math.round(r.height), used: Math.min(declared, r.height / 2) };
+    });
+
+    const short = await shape('.ot-answer--no');
+    const long  = await shape('.ot-answer--yes');
+    expect(long.h, 'the long answer must actually be wrapping, or this test proves nothing')
+        .toBeGreaterThan(short.h + 8);
+
+    expect(short.used, 'a one-line chip is still a full capsule').toBe(short.h / 2);
+    expect(long.used, 'a wrapped chip is a rounded block, not a lozenge')
+        .toBeLessThan(long.h / 2);
+    // And not a square either: the corner is still the app's, it is just no longer half the height.
+    expect(long.used, 'but it keeps a real corner').toBeGreaterThanOrEqual(8);
 });
 
 test.describe('an invitation that lands after the week was made', () => {

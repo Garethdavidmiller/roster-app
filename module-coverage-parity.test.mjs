@@ -72,13 +72,18 @@ const UNNAMED_BY_DESIGN = {
     'railcard-guide.js':    'guide-page chrome (print, chip-bar); content is pinned by guide-sources + guide-index-parity',
     'rangers-guide.js':     'guide-page chrome; evidence states pinned by guide-sources.test.mjs',
 
-    // ── THE ONE THAT IS A GENUINE GAP, RECORDED RATHER THAN DRESSED UP ──────────────────────────
-    // Named by an external review as "test it eventually: yes; above the Admin range writer:
-    // absolutely not". The judgement is right and the reason is CONSEQUENCE: a broken Year Card
-    // misreports or mis-fills a presentation block, while the payroll arithmetic beneath it is
-    // among the most heavily guarded code in the repo. It stays here so the debt is visible on
-    // every run instead of being rediscovered by the next reviewer.
-    'paycalc-year-card.js': 'KNOWN GAP — presentation + fill orchestration; the pay maths beneath is separately and heavily tested. Owed a suite',
+    // ── NO GENUINE GAPS REMAIN ──────────────────────────────────────────────────────────────────
+    // `paycalc-year-card.js` sat here from v23.69 as the one entry that was debt rather than a
+    // decision, with the external reviewer's own ordering attached — test it eventually, but
+    // nowhere near above the Admin range writer. It was paid at v23.71 by
+    // `paycalc-year-card.test.mjs`, and writing that suite found a real defect (a fill that threw
+    // left a dead, relabelled button and said nothing), which is the argument for this file in one
+    // line: the module nobody had thought about was the module with the bug in it.
+    //
+    // Every entry above is now a DECISION — a boot shim, or a module an e2e spec drives through
+    // its DOM. Keep it that way: a "KNOWN GAP" entry is a legitimate thing to add when the honest
+    // answer is not-yet, but it should be uncomfortable to leave, and it should never be the
+    // quickest way past a failing run.
 };
 
 /** THIS FILE IS EXCLUDED FROM ITS OWN CORPUS, and that is load-bearing rather than tidy.

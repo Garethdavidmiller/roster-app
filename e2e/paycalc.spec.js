@@ -1308,3 +1308,60 @@ test('paycalc: the period picker names the period the page is computing', async 
 
     expect(errors, 'Uncaught JS exceptions').toHaveLength(0);
 });
+
+// ── THE CONFIDENCE CHIP STAYS INSIDE ITS ROW (v23.86) ────────────────────────────────────────────
+//
+// Owner screenshot, 15 Sep 2026, from a phone: the RDW row in its "differs" state carried
+// "Calendar: 24h 30m ·" and then "Includes an 8h estimate — check" running clean off the right edge
+// of the row AND the card. The chip was `white-space: nowrap` inside a meta column that is ~110px
+// wide at 390 once the icon, the label, "16h 30m entered" and the arrow have taken theirs. Nothing
+// threw and every lane was green: an overflow paints, it does not fail. The longest chip is the
+// estimate one, so that is the fixture — an Other-family day on a base REST day with no time, which
+// resolveOtherPay routes to the RDW bucket at the 8h default (that is what sets defaulted8h.rdw).
+test('paycalc: the "Includes an 8h estimate" chip wraps inside its row instead of running off the card', async ({ page }, testInfo) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    // Thu 9 Jul 2026 is a base rest day for G. Miller inside the period on screen (28 Jun – 25 Jul).
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = /** @type {any} */ (window).__E2E || {};
+        /** @type {any} */ (window).__E2E.docs = [{
+            id: 'o1', memberName: 'G. Miller', date: '2026-07-09',
+            value: 'TRG', type: 'other', source: 'manual',
+        }];
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#rosterHintBar')).toBeVisible({ timeout: 10000 });
+    const row = page.locator('.roster-row[data-cat="rdw"]');
+    await expect(row).toBeVisible();
+    // The screenshot's state: hours entered that DISAGREE with the calendar, which is when the meta
+    // column carries both the calendar figure and the chip beside a wide "entered" total.
+    await page.locator('#rdwH').fill('16');
+    await page.locator('#rdwM').fill('30');
+    await expect(row).toHaveClass(/roster-row--differs/);
+    const chip = row.locator('.conf-badge');
+    await expect(chip).toContainText('8h estimate');
+    const r = await row.boundingBox();
+    const c = await chip.boundingBox();
+    expect(r && c, 'row and chip must both lay out').toBeTruthy();
+    // Inside the row on both sides — the failure was the right edge, but a chip pushed LEFT out of
+    // its column would pass a right-edge-only check.
+    expect(c.x + c.width, `chip right edge ${c.x + c.width} beyond row right edge ${r.x + r.width}`).toBeLessThanOrEqual(r.x + r.width + 0.5);
+    expect(c.x, 'chip left edge before the row').toBeGreaterThanOrEqual(r.x - 0.5);
+    // The box being inside the row is not enough: with `nowrap` still on, `max-width: 100%` caps the
+    // BOX and the text runs out of it — same geometry, same overflow. scrollWidth sees the text.
+    const innerOverflow = await chip.evaluate(el => el.scrollWidth - el.clientWidth);
+    expect(innerOverflow, 'chip text runs past its own box').toBeLessThanOrEqual(1);
+    // And it wraps as a chip, not as a tower: without the column's flex-wrap the chip is squeezed
+    // beside the text to its narrowest word and stacks five lines high. Three lines is the ceiling.
+    const lineHeight = await chip.evaluate(el => parseFloat(getComputedStyle(el).lineHeight));
+    expect(c.height, `chip is ${c.height}px tall at a ${lineHeight}px line`).toBeLessThanOrEqual(lineHeight * 3 + 4);
+    // And still readable once scrolled to: a chip that wraps must not lose its text to a clip
+    // somewhere above it (the row sits below the fold on a phone, so scroll first — boundingBox
+    // reads geometry off-screen, the viewport check does not).
+    await chip.scrollIntoViewIfNeeded();
+    await expect(chip).toBeInViewport({ ratio: 1 });
+    await row.screenshot({ path: testInfo.outputPath('rdw-row.png') });
+    expect(errors, 'Uncaught JS exceptions on the estimate chip').toHaveLength(0);
+});

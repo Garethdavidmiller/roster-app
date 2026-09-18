@@ -118,3 +118,42 @@ describe('what a line says', () => {
         assert.match(summary, /^0 changes/);
     });
 });
+
+describe('a day deliberately LEFT ALONE is part of the receipt (v23.88, external review)', () => {
+    // Annual leave on a rest day the admin answered "rest day — free" is not written at all. A save
+    // that silently dropped the staged row would be exactly the silent decision the swapped-day
+    // question was introduced to end — so the day is named, and it is not counted as a change.
+    const fmt = (/** @type {string} */ d) => `[${d}]`;
+    const desc = () => 'Annual Leave';
+
+    test('the skipped day is named, in date order with the rest', () => {
+        const r = buildSaveReceipt({
+            toSave: [{ date: '2026-06-17', type: 'annual_leave' }], removed: [],
+            memberName: 'C. Reen', formatDate: fmt, describe: desc, skipped: ['2026-06-13'],
+        });
+        assert.deepEqual(r.lines, ['[2026-06-13] — rest day, no leave recorded', '[2026-06-17] — Annual Leave']);
+    });
+
+    test('it is NOT counted as a change — nothing was written', () => {
+        const r = buildSaveReceipt({
+            toSave: [{ date: '2026-06-17', type: 'annual_leave' }], removed: [],
+            memberName: 'C. Reen', formatDate: fmt, describe: desc, skipped: ['2026-06-13', '2026-06-14'],
+        });
+        assert.equal(r.summary, '1 change saved for C. Reen');
+    });
+
+    test('when EVERY staged day was left alone the headline says so, never "0 changes saved"', () => {
+        const r = buildSaveReceipt({
+            toSave: [], removed: [], memberName: 'C. Reen', formatDate: fmt, describe: desc,
+            skipped: ['2026-06-13'],
+        });
+        assert.equal(r.summary, 'Nothing to record for C. Reen');
+        assert.deepEqual(r.lines, ['[2026-06-13] — rest day, no leave recorded']);
+    });
+
+    test('omitting `skipped` leaves every existing receipt exactly as it was', () => {
+        const args = { toSave: [{ date: '2026-06-17', type: 'annual_leave' }], removed: [],
+            memberName: 'C. Reen', formatDate: fmt, describe: desc };
+        assert.deepEqual(buildSaveReceipt(args), buildSaveReceipt({ ...args, skipped: [] }));
+    });
+});

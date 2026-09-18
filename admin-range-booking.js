@@ -35,7 +35,7 @@ import { setStatus } from './status-text.js';
  * @param {string}            cfg.logLabel        console.error prefix ('AL' | 'Sick').
  * @param {(dates: string[]) => (string|null)} cfg.validateRange  Range-length rule → error msg or null.
  * @param {(ctx: { member: string, dates: string[], memberObj: any, memberOvByDate: Map<string, any>|null,
- *   rangeStr: string, workDays: number, restCount: number }) => string} cfg.renderReady  Ready-state innerHTML.
+ *   rangeStr: string, workDays: number, restCount: number, projection?: any }) => string} cfg.renderReady  Ready-state innerHTML.
  * @param {(workingCount: number, member: string) => string} cfg.successFeedback  Inline ✓ feedback text.
  * @param {(workingCount: number, member: string) => string} cfg.successToast     Bottom-toast text.
  * @param {() => (string|null)} cfg.getCurrentUser  Live getter for the logged-in user name.
@@ -47,8 +47,20 @@ import { setStatus } from './status-text.js';
  * @param {Function}          [cfg.afterSave]     Runs after a successful save (refresh banner/boxes).
  * @param {Function}          [cfg.onClick]       Runs at the very top of the save click, before the member/dates
  *   guard (AL: captures + resets the over-limit-confirmed flag, exactly as the old top-of-handler code did).
- * @param {(ctx: { member: string, dates: string[], memberObj: any }) => boolean} [cfg.preSave]  Runs after the
+ * @param {(ctx: { member: string, dates: string[], memberObj: any, ovByDate: Map<string, any>|null,
+ *   swapAnswers: Map<string, boolean> }) => any} [cfg.project]  WHAT THIS SAVE WILL DO (v23.79, AL only) —
+ *   given the stored state AND the admin's current swap answers. Its result is handed to `renderReady`
+ *   as `projection` so the preview can describe the save truthfully rather than describing the roster.
+ *   Omit it (the absence card does) and `projection` is null.
+ * @param {(ctx: { member: string, dates: string[], memberObj: any, swapAnswers: Map<string, boolean> })
+ *   => boolean} [cfg.preSave]  Runs after the
  *   member/dates guard; return true to abort the save (AL: the over-entitlement check that shows the confirm bar).
+ * @param {(ctx: { dates: string[], memberObj: any, ovByDate: Map<string, any>|null }) => string[]} [cfg.swapQuestion]
+ *   THE SWAPPED-DAY QUESTION (v23.75, AL only). Returns the dates in the range whose base roster says REST and
+ *   which therefore would not cost a day — the only case where leave on a rest day is real is a member who
+ *   SWAPPED working days. Supplying this makes the section ASK, per day, and REFUSE TO SAVE until every question
+ *   has an answer; the dates answered "swapped" are passed to `recordRangeOverrides` as `swappedDates`. Omit it
+ *   (the absence card does) and rest days are skipped silently exactly as before.
  * @returns {{ updatePreview: () => void, saveBtn: HTMLButtonElement }}
  */
 export function createRangeBookingSection(cfg) {
@@ -57,6 +69,22 @@ export function createRangeBookingSection(cfg) {
     const previewEl  = /** @type {HTMLElement} */ (document.getElementById(cfg.prefix + 'Preview'));
     const saveBtn    = /** @type {HTMLButtonElement} */ (document.getElementById(cfg.prefix + 'SaveBtn'));
     const feedbackEl = /** @type {HTMLElement} */ (document.getElementById(cfg.prefix + 'Feedback'));
+
+    // ── THE SWAPPED-DAY ANSWERS ────────────────────────────────────────────────────────────────
+    //
+    // `true` = the admin says the member was swapped onto this rest day, so the leave costs a day.
+    // `false` = a genuine rest day, costing nothing (what the app always assumed, silently).
+    // A date ABSENT from the map is UNANSWERED, and that is the state that blocks the save — the
+    // owner's rule (14 Sep 2026): a question that appears must be answered, because a default is
+    // how this went wrong in the first place.
+    /** @type {Map<string, boolean>} */
+    const swapAnswers = new Map();
+    /** Answers are about ONE member over ONE range; changing either makes them meaningless. */
+    const resetSwapAnswers = () => swapAnswers.clear();
+    /** Who the current answers describe. The member can change without the RANGE changing — the top
+     *  bar re-points this card at somebody else — and a date that is a rest day for both people
+     *  would otherwise carry the previous member's answer into the new member's booking. */
+    let swapAnswersFor = '';
 
     /** @type {any} */
     let feedbackTimer = null;
@@ -115,13 +143,75 @@ export function createRangeBookingSection(cfg) {
         }
         const workDays = dates.length - restCount;
 
+        // ── THE SWAPPED-DAY QUESTION ───────────────────────────────────────────────────────────
+        // Asked ONLY when the range actually contains such a day (the owner's rule 1) — no rest
+        // days, no block, and the section behaves exactly as it did before v23.75.
+        //
+        // RESOLVED BEFORE THE PREVIEW IS RENDERED (v23.79). It used to run after, so `renderReady`
+        // described the range from the STORED state alone and could say "1 rest day skipped" about a
+        // day the admin had just declared swapped — a day Save was about to count. Nothing may call
+        // a date skipped when it is going to be recorded, so the answers are settled first and the
+        // projection built from them is what the preview is given.
+        if (member !== swapAnswersFor) { resetSwapAnswers(); swapAnswersFor = member; }
+        const pending = cfg.swapQuestion
+            ? cfg.swapQuestion({ dates, memberObj, ovByDate: memberOvByDate })
+            : [];
+        for (const d of [...swapAnswers.keys()]) if (!pending.includes(d)) swapAnswers.delete(d);
+
+        const projection = cfg.project
+            ? cfg.project({ member, dates, memberObj, ovByDate: memberOvByDate, swapAnswers })
+            : null;
+
         previewEl.className = cfg.previewClass + ' ready';
-        previewEl.innerHTML = cfg.renderReady({ member, dates, memberObj, memberOvByDate, rangeStr, workDays, restCount });
-        saveBtn.disabled = workDays === 0;
+        previewEl.innerHTML = cfg.renderReady({
+            member, dates, memberObj, memberOvByDate, rangeStr, workDays, restCount, projection,
+        });
+        if (pending.length) previewEl.insertAdjacentHTML('beforeend', _swapBlock(pending));
+
+        const answered = pending.filter(d => swapAnswers.has(d)).length;
+        const swapDays = pending.filter(d => swapAnswers.get(d) === true).length;
+        // Unanswered blocks the save outright (rule 2). Otherwise the old rule stands, with the
+        // declared swaps counting towards "is there anything to write?".
+        saveBtn.disabled = answered < pending.length || (workDays + swapDays) === 0;
     }
+
+    /**
+     * The question, one row per affected day. Buttons rather than checkboxes because the answer is
+     * a CHOICE between two readings of the day, not a thing to opt into — and because an unticked
+     * checkbox looks answered, which is the one thing this must never look.
+     * @param {string[]} pending
+     */
+    function _swapBlock(pending) {
+        const rows = pending.map(d => {
+            const yes = swapAnswers.get(d) === true;
+            const no  = swapAnswers.get(d) === false;
+            return `<div class="swapday-row" data-date="${d}">`
+                 + `<span class="swapday-date">${formatDisplay(d)}</span>`
+                 + `<span class="swapday-opts">`
+                 + `<button type="button" class="swapday-opt" data-answer="yes" data-date="${d}" aria-pressed="${yes}">Swapped — counts</button>`
+                 + `<button type="button" class="swapday-opt" data-answer="no"  data-date="${d}" aria-pressed="${no}">Rest day — free</button>`
+                 + `</span></div>`;
+        }).join('');
+        const n = pending.length;
+        return `<div class="swapday-ask" role="group" aria-label="Rest days in this range">`
+             + `<p class="swapday-lead"><strong>${n === 1 ? 'This day is a rest day' : `${n} of these days are rest days`}</strong> on the roster. `
+             + `Leave on a rest day only costs a day if the member was <strong>swapped</strong> onto it. `
+             + `Answer each one — nothing is recorded until you do.</p>${rows}</div>`;
+    }
+
+    // Delegated, because the block is rebuilt on every preview.
+    previewEl.addEventListener('click', e => {
+        const btn = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.swapday-opt'));
+        if (!btn) return;
+        const date = btn.dataset.date || '';
+        if (!date) return;
+        swapAnswers.set(date, btn.dataset.answer === 'yes');
+        updatePreview();
+    });
 
     function onDateChange() {
         cfg.beforePreview?.();
+        resetSwapAnswers();   // a different range is a different set of days to judge
         updatePreview();
         cfg.afterDateChange?.();
     }
@@ -139,7 +229,14 @@ export function createRangeBookingSection(cfg) {
         const dates  = getDates();
         if (!member || !dates || !dates.length) return;
 
-        if (cfg.preSave && cfg.preSave({ member, dates, memberObj: teamMembers.find(m => m.name === member) })) return;
+        // `swapAnswers` goes WITH the dates (v23.79). The over-entitlement check has to project what
+        // this save will do, and until the write runs a declared swap exists nowhere else — the
+        // override map still says REST, so a check built on it alone warns about the wrong number of
+        // days. Passed as a copy: the check must not be able to edit the admin's answers.
+        if (cfg.preSave && cfg.preSave({
+            member, dates, memberObj: teamMembers.find(m => m.name === member),
+            swapAnswers: new Map(swapAnswers),
+        })) return;
 
         feedbackEl.className = 'feedback';
         saveBtn.disabled    = true;
@@ -148,6 +245,7 @@ export function createRangeBookingSection(cfg) {
         try {
             const { workingCount } = await recordRangeOverrides({
                 type: cfg.overrideType, value: cfg.overrideValue, memberName: member, dates, changedBy: cfg.getCurrentUser() ?? '',
+                swappedDates: [...swapAnswers].filter(([, yes]) => yes).map(([d]) => d),
             });
 
             if (!workingCount) {

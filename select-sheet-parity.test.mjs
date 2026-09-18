@@ -115,6 +115,21 @@ const NATIVE_BY_DECISION = {
     // full-bleed radio sheet at v23.33, while the sign-in page — the FIRST dropdown anybody touches,
     // the same roster, on all six protected pages plus the Calendar's front door — still did.
 
+    'admin.html#alMember':
+        'NOT A CONTROL — a `hidden` value holder the save path reads. The member is chosen ONCE, in '
+        + 'the top bar; `.al-member-field` has been `display:none` since the member context bar '
+        + 'existed, for the same reason. It WAS enhanced, v23.33 to v23.74, and that built a second, '
+        + 'fully operable member picker inside the card: picking a name there moved the value the '
+        + 'SAVE writes to while the top bar, "Recording for", the AL banner, the week grid and Saved '
+        + 'Changes all stayed on the previous member, so the card would have recorded leave against '
+        + 'one person under another person\'s name and entitlement. Owner-reported, 14 Sep 2026. '
+        + 'Enhancing it again re-creates that; delete the select instead, if its consumers ever stop '
+        + 'needing a value to read.',
+    'admin.html#sickMember':
+        'The Absence card\'s half of the same pair, hidden and native for the same reason — and it '
+        + 'carried the identical phantom picker, just one card further down where it was less likely '
+        + 'to be noticed first.',
+
     'links-generator-targets.js.gen-slot-time':
         'One per shift slot, inside the generator target TABLE — a dense grid of times a designer '
         + 'sets in a run, not fields read one at a time. Replacing every cell of a table with a '
@@ -345,6 +360,42 @@ test('a page whose enhanced selects carry no class of their own names .fieldpick
 // ────────────────────────────────────────────────────────────────────────────────────────────────
 // Contract 6 — nothing may FOCUS an enhanced select
 // ────────────────────────────────────────────────────────────────────────────────────────────────
+
+test('no ENHANCED select is `hidden` — a hidden select is a value holder, not a control', () => {
+    // THE DEFECT THIS EXISTS FOR, reported by the owner on 14 Sep 2026 and reproduced before fixing.
+    //
+    // `enhanceSelect` builds a NEW element for the trigger, so it inherits the select's classes and
+    // nothing else — `hidden` did not carry. Admin's `#alMember` and `#sickMember` are `hidden` on
+    // purpose: they are retired dropdowns kept only so the save path has a value to read, the member
+    // being chosen once in the top bar. v23.33 put both in the `initSelectSheets` list, and each card
+    // grew a second member picker that looked exactly like one of the page's own fields.
+    //
+    // It was not merely cosmetic. Picking a name there moved `alMember.value` — WHAT THE SAVE WRITES
+    // TO — while the top bar, "Recording for", the AL banner, the week grid and Saved Changes all
+    // stayed on the previous member. The card would have recorded somebody's leave against another
+    // person's name and entitlement figures, and every label on screen agreed with each other and
+    // with the wrong answer.
+    //
+    // `enhanceSelect` now mirrors `hidden` onto its trigger, so this can no longer produce a phantom
+    // control. This test refuses the situation one step earlier: a hidden select in an enhancement
+    // list is a control nobody can see, which means it was either hidden by mistake or enhanced by
+    // mistake. Neither is worth shipping, and the fix is to decide which.
+    const { ids } = findEnhanced();
+    const offenders = [];
+    for (const page of APP_PAGES) {
+        const src = strip(read(page));
+        for (const tag of src.match(/<select\b[^>]*>/g) || []) {
+            const id = tag.match(/\bid=["']([^"']+)["']/)?.[1];
+            if (!id || !ids.has(id)) continue;
+            if (/\bhidden\b(?!\s*=\s*["']false)/.test(tag)) {
+                offenders.push(`${page}#${id} — enhanced, but the markup hides it`);
+            }
+        }
+    }
+    assert.deepEqual(offenders, [],
+        'a hidden <select> must not be enhanced: either drop it from the initSelectSheets list '
+        + '(it is a value holder) or stop hiding it (it is a real control)');
+});
 
 test('no module calls .focus() on a select that is enhanced', () => {
     // An enhanced select is 1px, transparent, `pointer-events: none`, `tabindex="-1"` and
@@ -684,4 +735,47 @@ test('a `.value =` on an enhanced select announces itself, or rebuilds, or repai
     assert.deepEqual([...new Set(offenders)].sort(), [],
         'dispatch an `input` event after writing .value, or call the paint handle enhanceSelect '
         + 'returned — otherwise the trigger keeps the old label over the new value');
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// CONTRACT 12 — A BOX THAT COLLAPSES MUST BE A CONTAINING BLOCK
+//
+// Every enhanced picker keeps the real `<select>` as a 1px `opacity: 0` value holder at
+// `position: absolute`. `overflow: hidden` clips an absolutely-positioned descendant ONLY when the
+// clipping element is that descendant's CONTAINING BLOCK — and a `position: static` box is not one.
+//
+// So a card that collapses with `max-height: 0; overflow: hidden` and no `position` does not
+// actually clip its selects. They escape, keep the offset they had while the card was open, and
+// hold the DOCUMENT open beneath a card that is visibly 56px tall. Measured on the Pay Calculator
+// with only Your Settings collapsed: 517px of empty navy below the disclaimer, the document 2,387px
+// against content ending at 1,870. Reported by the owner as "a large gap at the bottom".
+//
+// THE FIX THAT LOOKED RIGHT AND WAS NOT, recorded because it is the tempting one: pinning the
+// selects themselves with `top: 0; left: 0`. It cured the page height and moved the Calendar's
+// member select onto the ← Prev button — caught by `e2e/calendar.spec.js`'s overlap guard at six
+// widths and two projects. The defect is that the CLIP does not reach the select, not that the
+// select is in the wrong place, and the fix has to say so. `position: relative` moves nothing.
+//
+// Derived, not listed: any rule that collapses a box this way is found and required to position
+// itself, so a seventh collapsible card inherits the requirement without anybody remembering it.
+test('every box that collapses to zero height is a containing block', () => {
+    const files = ['shared.css', 'paycalc.css', 'admin.css', 'index.css', 'operations.css', 'settings.css', 'links.css'];
+    const offenders = [];
+    let examined = 0;
+    for (const f of files) {
+        const css = readFileSync(new URL('./' + f, import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+        for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+            const [sel, body] = [m[1].trim().replace(/\s+/g, ' '), m[2]];
+            if (!/max-height:\s*0/.test(body) || !/overflow:\s*hidden/.test(body)) continue;
+            examined++;
+            if (!/position:\s*(relative|absolute|sticky|fixed)/.test(body)) offenders.push(`${f}  ${sel.slice(0, 70)}`);
+        }
+    }
+    assert.ok(examined > 0, 'no collapse-to-zero rule found — this contract is checking nothing');
+    assert.deepEqual(offenders, [],
+        'these boxes collapse with `max-height: 0; overflow: hidden` but are `position: static`, so\n'
+        + 'the clip does NOT reach an absolutely-positioned descendant. Every enhanced picker leaves a\n'
+        + '1px `<select>` value holder inside one, and it escapes and holds the document open beneath\n'
+        + 'a card that looks collapsed — the v23.71 "large gap at the bottom". Add `position: relative`:\n  '
+        + offenders.join('\n  '));
 });

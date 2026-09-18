@@ -33,7 +33,7 @@ module beside the code.
 | # | Invariant | Where it lives |
 |---|---|---|
 | 1 | **No response and not available are different answers.** No view may merge them, and an empty section still renders its heading — a hidden "No response" makes *nobody outstanding* look exactly like a section that failed to draw. | `overtime-manager.js` |
-| 2 | **An unanswered day stays unanswered.** No default, no copy-last-week, no inferring from the roster. | `overtime-form.js` |
+| 2 | **An unanswered day stays unanswered.** No default, no copy-last-week, no inferring from the roster. | `overtime-form.js` · `overtime-answer.js` (v23.87 — a Sunday-release request on an unanswered day leaves it unanswered: `{ releaseRequested: true }` with no mode, which `dayUnfinished` still counts. Until then the tick wrote `unavailable` underneath) |
 | 3 | **The client never refuses a submission near a deadline.** Inside the grace band it sends and lets the server decide — a client that refuses has denied somebody who was in time. | `overtime-format.js` (`submitDisposition`) |
 | 4 | **A timed-out write goes into RECONCILIATION, never reported as failed.** Aborting stops us waiting; it does not stop the server writing. `clientMutationId` is generated in one place so no call site can forget it. | `overtime-form.js` · `overtime-data.js` |
 | 5 | **The participant snapshot is frozen at creation.** Its one exception is a leaver: a flag, never a delete, refused on a closed week, and removing the flag rather than writing `withdrawn: false` — because `where('withdrawn','==',true)` never matches a missing field. | `functions/overtime.js` (`withdrawOvertimeParticipant`) |
@@ -45,6 +45,8 @@ module beside the code.
 | 11 | **Never name an internal document in staff-facing copy.** "The draft roster" is the roster office's artefact; to staff "the roster" is the one released on the Thursday. Reviewer surfaces may name it freely. | `overtime-format.js` |
 | 12 | **A withdrawn member is withdrawn on BOTH sides.** `getMyOvertimeState` omits the window and `submitOvertimeAvailability` refuses with its own code (`withdrawn`, distinct from `not-a-participant` — one was never asked, the other was and has been stood down). Hiding the window is the courtesy; refusing the write is the half that matters, because a page opened before the withdrawal still has the form and the button. | `functions/overtime.js` |
 | 13 | **Creation is conditional; the daily top-up is not.** "Nothing due" is the NORMAL state — the horizon is pre-created — so an early return on it would run the top-up only on the one day a week a new week enters the horizon, and a member invited on any other day would have no form on any already-open week until then. | `functions/overtime.js` (`autoCreateOvertimeWindows`) |
+
+| 14 | **A release request is a REQUEST, on CONTRACTED work, and it grants nothing.** `releaseRequested` asks the roster team to take the member off a Sunday they are rostered to. It writes no override, changes no roster and consumes no annual leave — Sundays stay uncontracted for leave. No surface may word it as granted, and it must never be merged with the day's overtime answer, which is about different work entirely. | `functions/overtime-core.js` (`REQUEST_DAY_FIELDS`; since v23.87 refused on any day but a Sunday — the server checks the calendar, still never the roster) · `overtime-answer.js` (the request survives every mode change and the bulk fill, and answers nothing itself — the two were merged in the client until v23.87) |
 
 Reviewing is not participating — that one is an authorisation rule and lives in
 `AUTH_AND_SESSIONS.md` invariant 14, with the rest of the claim model.
@@ -627,8 +629,13 @@ missed would ship a half-launched feature. Work through ALL of them; each names 
 2. **Drop `CONFIG.OVERTIME_BETA`** from `roster-data.js` and regenerate — participation then follows
    eligibility alone. The nav pill and page policy already gate on `canOpenOvertime`, which needs no
    change (auth-policy.js keeps the reviewer/participant split).
-3. **Remove the beta banner** (`.ot-beta` in `overtime.html`) and the "restricted live beta" wording
-   in the page's tips (`overtime-tips.js`).
+3. ~~**Remove the beta banner**~~ — **done early, at v23.84**, by owner decision rather than as a
+   launch step ("everyone on the beta knows it is a beta"): `.ot-beta` is gone from `overtime.html`
+   and `overtime.css`, and `e2e/overtime.spec.js` asserts its absence. Checked at the same time:
+   `overtime-tips.js` no longer carries any beta wording, and the two reviewer-side "Beta audience"
+   labels (`overtime-manager.js`, `overtime-review-controller.js`) read `w.audience === 'restricted'`
+   from the data, so they retire THEMSELVES the moment item 1 widens the audience. Nothing here is
+   left to do by hand at launch.
 4. **Arm the retention purge** — `purgeArmed` in `functions/index.js`, after reading a dry run
    (`EXC-002`; evidence row `VAL-OT-001`, dated in `MAINTENANCE_CALENDAR.md`).
 5. **Re-check the reviewer workspace at scale** — the By-day view renders every participant under

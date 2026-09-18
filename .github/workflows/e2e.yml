@@ -128,7 +128,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0        # the diff against main IS the check
 
@@ -205,10 +205,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Install Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '20'
           # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
@@ -255,11 +255,11 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       # No `cache: npm`, and deliberately no install step after it.
       - name: Install Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '20'
 
@@ -303,10 +303,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Install Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '22'
           cache: npm
@@ -345,10 +345,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Install Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '20'
           # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
@@ -373,7 +373,7 @@ jobs:
 
       - name: Upload Playwright report on failure
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: playwright-report
           path: playwright-report/
@@ -443,10 +443,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Install Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '20'
           # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
@@ -471,7 +471,7 @@ jobs:
 
       - name: Upload Playwright report on failure
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           # Shard in the name too: four jobs upload here, and a colliding artifact name fails the
           # upload of whichever lands second — losing the report for the half that broke.
@@ -493,10 +493,10 @@ jobs:
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true   # parity with deploy-rules.yml (silences JS-action node-version warnings)
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Install Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '20'
           # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
@@ -507,7 +507,7 @@ jobs:
 
       # firebase-tools v15 requires Java 21+ for the Firestore/Storage emulators.
       - name: Install Java 21 (Firebase emulators)
-        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -534,10 +534,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Install Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '20'
           # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
@@ -559,7 +559,7 @@ jobs:
 
       - name: Upload Playwright report on failure
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: playwright-report-csp
           path: playwright-report/
@@ -588,6 +588,49 @@ jobs:
   # this one's noise for a few weeks. If the runner's diffs are consistently empty, pin the browser
   # image, regenerate the baselines on it and promote this to blocking. If they are consistently
   # noisy, that is the answer too, and it stays report-only for good.
+  # ── THE SAME IDEA UNDER SAFARI'S ENGINE (v23.71, the v23.01 review's item 3) ──────────────────
+  # Six baselines, not 45. iOS BEHAVIOUR is covered by the `webkit` job below; iOS APPEARANCE was
+  # covered by nothing, because every pixel baseline is Chromium's. Report-only for the same reason
+  # the Chromium visual lane is: a renderer difference nobody can act on must not fail a build.
+  visual-webkit:
+    needs: guard
+    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Install Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright WebKit
+        run: npx playwright install --with-deps webkit
+
+      - name: Compare against the committed WebKit baselines
+        run: npm run test:visual:webkit
+        env:
+          CI: true
+
+      # Always uploaded, pass or fail — a diff nobody can see is the one thing a report-only job
+      # must not produce.
+      - name: Upload WebKit visual diffs
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: visual-diffs-webkit
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
+
   visual:
     needs: guard
     if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
@@ -600,10 +643,10 @@ jobs:
       # alone was not enough. It already existed, and went unread for eight releases.
       pull-requests: write
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Install Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '20'
           # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
@@ -617,6 +660,13 @@ jobs:
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
+
+      # `print-visual.spec.js` rasterises page 1 of the real generated PDF, and poppler is what
+      # does it. WITHOUT THIS STEP THE PRINT BASELINES WOULD SKIP ON EVERY RUN — loudly, the spec
+      # sees to that, but a baseline nobody compares is decoration. It is one apt package and it
+      # only affects this report-only job, so a bad day for the mirror cannot fail a gate.
+      - name: Install poppler (rasterises the printed sheet)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils
 
       # `|| true` as well as continue-on-error: the step's own exit code is what decides whether
       # the upload below runs, and a diff we cannot see is the one thing this job must not produce.
@@ -637,7 +687,7 @@ jobs:
       # on a drifted one it carries the expected/actual/diff triple, which is the entire point.
       - name: Upload visual diffs
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: visual-diffs
           path: |

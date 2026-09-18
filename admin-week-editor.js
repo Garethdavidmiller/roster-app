@@ -29,6 +29,7 @@
 
 import { teamMembers, getBaseShift, getShiftBadge, getSpecialDayBadges, formatISO, isSunday,
          DAY_NAMES, MONTH_ABB, escapeHtml, TIME_RE, parseISODate } from './roster-data.js';
+import { swapDecisionDates } from './al-swapped-days.js';
 import { isRestShift, isForbiddenOnSunday, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
 import { TYPES, PILL_TYPES } from './admin-shift-types.js';
 import { hasOverrideAuthorityFor, loadFailedFor, loadOverrides } from './admin-override-store.js';
@@ -188,6 +189,9 @@ export function buildWeekGridInto(container, dateStr) {
     // buildMemberDateMap applies shouldReplaceOverride() so manual beats roster_import
     // (bare .find() would return whichever arrived first in the array — wrong precedence).
     const memberDateMap = buildMemberDateMap(memberName);
+    /** Icon → meaning, for the legend below the grid; a Map, so a repeat lists once.
+     *  @type {Map<string, string>} */
+    const weekBadges = new Map();
 
     for (let i = 0; i < 7; i++) {
         const date    = new Date(sunday);
@@ -196,6 +200,7 @@ export function buildWeekGridInto(container, dateStr) {
         const baseShift = getBaseShift(member, date);
 
         const badges    = getSpecialDayBadges(date, dateISO);
+        badges.forEach(b => weekBadges.set(b.icon, b.title));
         const badgeHTML = badges.map(b => `<span class="day-badge" role="img" aria-label="${b.title}">${b.icon}</span>`).join('');
 
         const existing = memberDateMap.get(dateISO);
@@ -208,6 +213,7 @@ export function buildWeekGridInto(container, dateStr) {
         row.className   = 'day-row' + (existing ? ' has-override' : '') + (isToday ? ' today' : '');
         row.dataset.date = dateISO;
         row.dataset.baseIsRd = isRestShift(baseShift) ? '1' : '';
+        row.dataset.alSwapAsk = swapDecisionDates({ dates: [dateISO], memberObj: member, ovByDate: memberDateMap }).length ? '1' : '';
         if (existing) row.dataset.existingId = existing.id;
 
         row.innerHTML = `
@@ -216,7 +222,7 @@ export function buildWeekGridInto(container, dateStr) {
             </div>
             <div class="col-day">
                 <span class="day-name">${DAY_NAMES[date.getDay()]}</span>
-                <span class="day-date">${date.getDate()} ${MONTH_ABB[date.getMonth()]}${badgeHTML}${existing ? ` <span class="overwrite-badge"><span aria-hidden="true">⚠</span> ${escapeHtml(existing.value === 'SICK' ? 'Absent' : existing.value === 'SPARE' ? 'Spare' : (existing.value || existing.type))}</span>` : ''}</span>
+                <span class="day-date">${date.getDate()} ${MONTH_ABB[date.getMonth()]}${isToday ? '<span class="day-today-tag">Today</span>' : ''}${badgeHTML}${existing ? ` <span class="overwrite-badge"><span aria-hidden="true">⚠</span> ${escapeHtml(existing.value === 'SICK' ? 'Absent' : existing.value === 'SPARE' ? 'Spare' : (existing.value || existing.type))}</span>` : ''}</span>
             </div>
             <div class="col-base">${getShiftBadge(baseShift, { showTime: true })}</div>
             <div class="col-pills">
@@ -232,6 +238,12 @@ export function buildWeekGridInto(container, dateStr) {
                 <span class="time-error-msg" id="${timeErrId}" role="alert">Use HH:MM format (e.g. 07:00)</span>
             </div>
             <div class="col-rd-hint" hidden>Base roster: Rest Day — use <strong>RDW</strong> if this was overtime</div>
+            <!-- Swapped-day question (v23.75): no pre-pressed state, save refuses until answered.
+                 Why it is asked: al-swapped-days.js. -->
+            <div class="col-al-swap" role="group" aria-label="Is this a swapped working day?" hidden>
+                <span class="al-swap-q">Rest day on the roster — was this a <strong>swapped</strong> working day?</span>
+                <span class="al-swap-opts"><button type="button" class="al-swap-btn" data-swap="yes" aria-pressed="false">Swapped — counts</button><button type="button" class="al-swap-btn" data-swap="no" aria-pressed="false">Rest day — free</button></span>
+            </div>
             <div class="other-opts" hidden>
                 <span class="other-flavour-group" role="group" aria-label="Type of day">
                     ${Object.entries(OTHER_FLAVOURS).map(([k, f]) =>
@@ -362,6 +374,17 @@ export function buildWeekGridInto(container, dateStr) {
                 // Show RD hint when Shift is chosen on a base-rest day
                 const rdHint = /** @type {HTMLElement|null} */ (row.querySelector('.col-rd-hint'));
                 if (rdHint) rdHint.hidden = !(type === 'shift' && row.dataset.baseIsRd === '1' && !already);
+                // Same shape, the other type: AL on a base rest day is asked about (v23.75).
+                const alSwap = /** @type {HTMLElement|null} */ (row.querySelector('.col-al-swap'));
+                if (alSwap) {
+                    const ask = type === 'annual_leave' && row.dataset.alSwapAsk === '1';
+                    alSwap.hidden = !ask;
+                    // Leaving the type resets the answer — a stale `yes` would charge the next pick.
+                    if (!ask) {
+                        delete row.dataset.alSwap;
+                        row.querySelectorAll('.al-swap-btn').forEach(b => b.setAttribute('aria-pressed', 'false'));
+                    }
+                }
                 _markChanged();
                 updateSaveBtn();
             });
@@ -397,6 +420,17 @@ export function buildWeekGridInto(container, dateStr) {
 
         // Other-family sub-controls: flavour is a single-select toggle; the RDW tick marks an
         // Other rest-day. Both mark the grid changed like any other edit.
+        row.querySelectorAll('.al-swap-btn').forEach(btnEl => {
+            btnEl.addEventListener('click', () => {
+                const answer = /** @type {HTMLElement} */ (btnEl).dataset.swap || '';
+                row.dataset.alSwap = answer;
+                row.querySelectorAll('.al-swap-btn').forEach(b =>
+                    b.setAttribute('aria-pressed', String(/** @type {HTMLElement} */ (b).dataset.swap === answer)));
+                _markChanged();
+                updateSaveBtn();
+            });
+        });
+
         row.querySelectorAll('.other-flavour-btn').forEach(btnEl => {
             const btn = /** @type {HTMLButtonElement} */ (btnEl);
             btn.addEventListener('click', () => {
@@ -416,6 +450,13 @@ export function buildWeekGridInto(container, dateStr) {
             _syncOtherRdwWarn(row);
             _markChanged(); updateSaveBtn();
         });
+    }
+
+    // The day markers' meaning used to live ONLY in an `aria-label`. Listed here for everybody, and
+    // only the icons THIS week carries, so an ordinary week adds no row. Reasoning: admin.css.
+    if (weekBadges.size) {
+        container.insertAdjacentHTML('beforeend', `<div class="week-badge-legend">${[...weekBadges].map(([icon, title]) =>
+            `<span class="wbl-item"><span class="wbl-icon" aria-hidden="true">${icon}</span>${escapeHtml(title)}</span>`).join('')}</div>`);
     }
 }
 

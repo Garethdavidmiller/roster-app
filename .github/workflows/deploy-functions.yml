@@ -46,10 +46,10 @@ jobs:
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Install Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           # Run the deploy TOOL (firebase-tools) on Node 20 to match deploy-hosting.yml.
           # Functions deploys were failing with a bare "Failed to authenticate" on Node 22
@@ -106,7 +106,7 @@ jobs:
       # production. The PR-side `functions` job in e2e.yml has been on 22 since v21.82 for the
       # same reason; this closes the same gap on the deploy side.
       - name: Switch to the Functions runtime Node version
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '22'
           cache: 'npm'
@@ -143,7 +143,7 @@ jobs:
       # Closes the window opened above. Everything from here on is firebase-tools, which is pinned
       # to 20 by the empirical auth failure recorded at the top of this job.
       - name: Switch back to the deploy-tool Node version
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '20'
 
@@ -203,7 +203,7 @@ jobs:
       contents: read
       issues: write
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: ./.github/actions/report-deploy-failure
         with:
           target: 'Cloud Functions'

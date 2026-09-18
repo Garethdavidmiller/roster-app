@@ -1255,8 +1255,8 @@ const dayMarkers = /** @type {(f:any) => {icon:string,label:string}[]} */ (
 
 describe('dayMarkers ↔ getSpecialDayBadges — one icon per day, three surfaces', () => {
     const SHARED = [
-        { flag: 'isBH',     date: new Date(2026, 11, 25, 12), iso: '2026-12-25', title: 'Bank Holiday' },
-        { flag: 'isCutoff', date: CUTOFF_2026,                iso: '2026-02-07', title: 'Cut-off Date' },
+        { flag: 'isBH',     date: new Date(2026, 11, 25, 12), iso: '2026-12-25', title: 'Bank holiday' },
+        { flag: 'isCutoff', date: CUTOFF_2026,                iso: '2026-02-07', title: 'Cut-off date' },
         { flag: 'isPay',    date: PAYDAY_2026,                iso: '2026-02-13', title: 'Payday' },
         { flag: 'isXmas',   date: XMAS_2026,                  iso: '2026-12-25', title: 'Christmas Day' },
         { flag: 'isEaster', date: EASTER_2026,                iso: '2026-04-05', title: 'Easter Sunday' },
@@ -1271,6 +1271,14 @@ describe('dayMarkers ↔ getSpecialDayBadges — one icon per day, three surface
             assert.equal(panel[0].icon, admin.icon,
                 `${title}: the day panel says ${panel[0].icon} and the admin row says ${admin.icon} `
                 + '— the panel exists to explain the marker the calendar is showing');
+            // AND THE SAME WORDS, which this did not check until v23.77 — so TWO of the five had
+            // quietly drifted apart in case ("Bank Holiday" vs "Bank holiday", "Cut-off Date" vs
+            // "Cut-off date") and the icon check sailed past both. The admin title is also an
+            // `aria-label` on the day row and now the week grid's visible legend, so a reader can
+            // meet both spellings of one marker in a single session.
+            assert.equal(admin.title, panel[0].label,
+                `${title}: the admin row says "${admin.title}" and the day panel says `
+                + `"${panel[0].label}" — one marker, one name`);
         });
     }
 

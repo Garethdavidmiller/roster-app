@@ -683,6 +683,9 @@ describe('generated names must be safe as Firestore document ids', () => {
 describe('the availability schema — never invent an answer', () => {
     const DATES = C.weekDates('2026-08-30');
     const week = (fill) => Object.fromEntries(DATES.map(d => [d, fill]));
+    // `day` on the SUNDAY, an ordinary answer everywhere else — the release request is a Sunday
+    // question (v23.87), so a fixture that put it on all seven days would be refused on the Monday.
+    const onSunday = (day) => ({ ...week({ mode: 'all_day' }), [DATES[0]]: day });
 
     test('all seven modes round-trip unchanged', () => {
         const modes = [
@@ -706,6 +709,84 @@ describe('the availability schema — never invent an answer', () => {
             // read and re-submitted — the round-trip asymmetry class of defect.
             assert.deepEqual(C.normaliseDays(r.days, DATES).days, r.days);
         }
+    });
+
+    describe('asking to be taken off a rostered Sunday (v23.80)', () => {
+        // A REQUEST about CONTRACTED work, riding beside an answer about OVERTIME. The two are
+        // independent, which is the whole reason it is a field and not a mode.
+        const EVERY_MODE = [
+            { mode: 'unavailable' },
+            { mode: 'all_day' },
+            { mode: 'before', until: '07:00' },
+            { mode: 'after', from: '15:00' },
+            { mode: 'before_after', until: '07:00', from: '15:00' },
+            { mode: 'custom', start: '18:00', end: '23:00', nextDay: false },
+        ];
+
+        test('EVERY mode accepts it — including "not available", unlike the willingness flag', () => {
+            // The one that matters: a member unavailable all week is exactly somebody who may need
+            // to be taken off a Sunday duty. Refusing it there would remove it from the people most
+            // likely to want it, which is the opposite of `fullTwelve`'s reasoning.
+            for (const m of EVERY_MODE) {
+                const day = { ...m, releaseRequested: true };
+                const r = C.normaliseDays(onSunday(day), DATES);
+                assert.equal(r.ok, true, `${m.mode} should accept the request`);
+                assert.deepEqual(r.days[DATES[0]], day, `${m.mode} must keep it verbatim`);
+                assert.deepEqual(C.normaliseDays(r.days, DATES).days, r.days, 'fixed point');
+            }
+        });
+
+        test('FALSE is stored as an absence, never as a declared no — on any day, since it asks nothing', () => {
+            const r = C.normaliseDays(week({ mode: 'all_day', releaseRequested: false }), DATES);
+            assert.equal(r.ok, true);
+            assert.deepEqual(r.days[DATES[0]], { mode: 'all_day' });
+            assert.deepEqual(r.days[DATES[1]], { mode: 'all_day' });
+        });
+
+        test('it rides WITH the willingness flag — the two are different axes', () => {
+            const day = { mode: 'after', from: '15:00', fullTwelve: true, releaseRequested: true };
+            const r = C.normaliseDays(onSunday(day), DATES);
+            assert.equal(r.ok, true);
+            assert.deepEqual(r.days[DATES[0]], day);
+        });
+
+        test('and it is type-checked, like every other field', () => {
+            for (const bad of ['yes', 1, null, {}]) {
+                const r = C.normaliseDays(onSunday({ mode: 'all_day', releaseRequested: bad }), DATES);
+                assert.equal(r.ok, false, `releaseRequested: ${JSON.stringify(bad)} was accepted`);
+                assert.equal(r.error, 'bad-release-requested');
+            }
+        });
+
+        test('A SUNDAY QUESTION: a request on any other day of the week is refused, naming the day (v23.87)', () => {
+            // The client offers the control only on a Sunday (`offersSundayRelease`), so a request
+            // under a Monday can only come from a client this server does not recognise — and
+            // storing it would put "Asked to come off this Sunday" under a Monday on the reviewer's
+            // screen. Every one of the six other days, so the rule cannot be off by one at either end.
+            for (let i = 1; i < 7; i++) {
+                const days = { ...week({ mode: 'all_day' }), [DATES[i]]: { mode: 'all_day', releaseRequested: true } };
+                const r = C.normaliseDays(days, DATES);
+                assert.equal(r.ok, false, `${DATES[i]} accepted a release request`);
+                assert.equal(r.error, 'release-not-sunday');
+                assert.equal(r.date, DATES[i], 'the refusal names the day');
+            }
+            assert.equal(DATES[0].endsWith('08-30'), true, 'the fixture week starts on Sunday 30 Aug 2026');
+        });
+
+        test('an answer WITHOUT it is unchanged — additive, not a new requirement', () => {
+            const r = C.normaliseDays(week({ mode: 'all_day' }), DATES);
+            assert.equal(r.ok, true);
+            assert.deepEqual(r.days[DATES[0]], { mode: 'all_day' });
+        });
+
+        test('THE SERVER DOES NOT CHECK THE ROSTER, and that is deliberate', () => {
+            // It has no roster to check. A request is a fact about what the member ASKED, and it
+            // stays true if their shift changes afterwards. The client offers the control only where
+            // it means something; the server's job is to store what was said, faithfully. (It DOES
+            // check the calendar — the Sunday rule above — because that it can know.)
+            const r = C.normaliseDays(onSunday({ mode: 'all_day', releaseRequested: true }), DATES);
+            assert.equal(r.ok, true, 'a Sunday request is accepted whatever the roster says');
+        });
     });
 
     describe('the willingness flag rides ALONGSIDE a window (v21.24)', () => {

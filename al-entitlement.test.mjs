@@ -19,7 +19,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { countedAlDates, alPosition, consumesEntitlement, dispatcherBreakdown } from './al-entitlement.js';
+import { countedAlDates, alPosition, consumesEntitlement, dispatcherBreakdown, winningEntriesOfType } from './al-entitlement.js';
 import { teamMembers, getBaseShift, parseISODate, formatISO, isSunday, getALEntitlement } from './roster-data.js';
 import { isRestShift } from './override-utils.js';
 
@@ -344,7 +344,13 @@ describe('the entitlement count is asked for with the overrides in hand', () => 
     // cut of this guard pinned `countedAlDates` alone — and the behavioural test written next found
     // `alPosition`, the banner's own call site, sitting outside it. That is the same mistake one
     // level up: a rule guarded at the site somebody thought of.
-    const READERS = ['countedAlDates', 'alPosition'];
+    //
+    // `projectAlOverage` JOINED THE LIST at v23.79, when the over-entitlement projection was
+    // extracted out of both coordinators into `admin-al-projection.js`. That module does not hold
+    // the cache — it is HANDED one — so the guard stays pointed at the coordinators, which are where
+    // the argument can actually be dropped. Moving a reader behind a wrapper must not move it out of
+    // the audit; it just changes which call the audit looks at.
+    const READERS = ['countedAlDates', 'alPosition', 'projectAlOverage'];
     const SITES   = ['admin-al.js', 'admin-app.js'];
 
     for (const file of SITES) {
@@ -499,5 +505,55 @@ describe('a Dispatcher entitlement splits into the two things it is made of', ()
         // state of it — kept as a fail-closed guard for the day `getALEntitlement` grows a null path
         // for a Dispatcher, not claimed as tested.
         assert.equal(dispatcherBreakdown({ member: { name: 'M', role: 'Management' }, year: 2026, overrides: [] }), null);
+    });
+});
+
+// ── winningEntriesOfType — the list must agree with the balance ──────────────────────────────────
+//
+// The Recorded-dates list used to filter the raw override collection for `type === 'annual_leave'`,
+// which finds documents that are no longer the day's override at all. Duplicate/orphan docs are a
+// real population here, so this is not hypothetical. (External review of v23.78.)
+describe('winningEntriesOfType', () => {
+    const miller = teamMembers.find(m => m.name === 'G. Miller');
+
+    test('THE REGRESSION: an old AL doc under a NEWER non-AL winner is not listed', () => {
+        const overrides = [
+            { id: 'old', memberName: 'G. Miller', type: 'annual_leave', date: '2026-06-15',
+              value: 'AL', updatedAt: { seconds: 100 } },
+            { id: 'new', memberName: 'G. Miller', type: 'shift', date: '2026-06-15',
+              value: '06:00-14:00', updatedAt: { seconds: 200 } },
+        ];
+        const al = winningEntriesOfType(overrides, 'G. Miller', 'annual_leave');
+        assert.deepEqual(al.map(o => o.id), [],
+            'the winning override is a shift, so the date is not recorded annual leave');
+        // And the entitlement calculation has always agreed — which is the disagreement this closes.
+        assert.equal(countedAlDates({ overrides, member: miller, year: '2026' }).has('2026-06-15'), false);
+    });
+
+    test('the NEWER of two AL docs is the one listed, exactly once', () => {
+        const overrides = [
+            { id: 'a', memberName: 'G. Miller', type: 'annual_leave', date: '2026-06-15',
+              value: 'AL', updatedAt: { seconds: 100 } },
+            { id: 'b', memberName: 'G. Miller', type: 'annual_leave', date: '2026-06-15',
+              value: 'AL', updatedAt: { seconds: 200 } },
+        ];
+        assert.deepEqual(winningEntriesOfType(overrides, 'G. Miller', 'annual_leave').map(o => o.id), ['b']);
+    });
+
+    test('another member\'s overrides are never returned', () => {
+        const overrides = [
+            { id: 'x', memberName: 'S. Silva', type: 'annual_leave', date: '2026-06-15', value: 'AL' },
+        ];
+        assert.deepEqual(winningEntriesOfType(overrides, 'G. Miller', 'annual_leave'), []);
+    });
+
+    test('results are ascending by date, and a junk collection returns nothing', () => {
+        const overrides = [
+            { id: '2', memberName: 'G. Miller', type: 'annual_leave', date: '2026-06-17', value: 'AL' },
+            { id: '1', memberName: 'G. Miller', type: 'annual_leave', date: '2026-06-15', value: 'AL' },
+        ];
+        assert.deepEqual(winningEntriesOfType(overrides, 'G. Miller', 'annual_leave').map(o => o.date),
+            ['2026-06-15', '2026-06-17']);
+        assert.deepEqual(winningEntriesOfType(/** @type {any} */ (null), 'G. Miller', 'annual_leave'), []);
     });
 });

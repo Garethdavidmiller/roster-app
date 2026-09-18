@@ -2248,6 +2248,69 @@ test('admin: a member whose leave could not be read gets no balance, not a full 
     expect(visible, 'no readable balance over a read that failed').not.toMatch(/AL left:/i);
 });
 
+// ── THE LIST COUNTS WHAT THE ENTITLEMENT COUNTS (v23.72, owner report) ─────────────────────────
+//
+// The owner compared the app against the roster office's own leave spreadsheet and found M. Robson
+// a day apart: the app's December period read "Sat 5 – Fri 11 Dec · 6 days", the spreadsheet said
+// Mon 7 – Fri 11, and his chips summed to 33 against an allowance of 32.
+//
+// SAT 5 DEC 2026 IS A REST DAY on his line, and an AL override had been recorded on it. The
+// entitlement maths was already right — `consumesEntitlement` returns false for a rest day, so his
+// banner correctly read 32 of 32 — but the recorded-dates list filtered SUNDAYS and nothing else,
+// counted the rest day, and started the period a day before his leave did. One card, two
+// disagreeing counts of the same thing, with the wrong one next to the ✕ that deletes it.
+//
+// REAL MEMBER, REAL ROSTER, REAL DATES. The fix is to hand the list the entitlement rule itself
+// rather than a second copy of it, so this test is worth nothing unless it runs against a genuine
+// rest day: `getBaseShift(M. Robson, 2026-12-05)` is 'RD' because of where his week-4 main line
+// falls, which no fixture here asserts and a roster edit could change. The first assertion below
+// therefore pins the PREMISE — if his line moves, this fails loudly as a stale test rather than
+// passing while measuring nothing.
+test('admin: an AL day on a REST day is not listed and does not count', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            docs: [
+                // Sat 5 Dec — the rest day. Recorded, and spends nothing.
+                { id: 'r1', memberName: 'M. Robson', date: '2026-12-05', type: 'annual_leave', value: 'AL', note: '' },
+                // Mon 7 – Fri 11 — the leave he actually took.
+                { id: 'r2', memberName: 'M. Robson', date: '2026-12-07', type: 'annual_leave', value: 'AL', note: '' },
+                { id: 'r3', memberName: 'M. Robson', date: '2026-12-08', type: 'annual_leave', value: 'AL', note: '' },
+                { id: 'r4', memberName: 'M. Robson', date: '2026-12-09', type: 'annual_leave', value: 'AL', note: '' },
+                { id: 'r5', memberName: 'M. Robson', date: '2026-12-10', type: 'annual_leave', value: 'AL', note: '' },
+                { id: 'r6', memberName: 'M. Robson', date: '2026-12-11', type: 'annual_leave', value: 'AL', note: '' },
+            ],
+        });
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    // THE PREMISE, asserted before anything is measured against it.
+    const premise = await page.evaluate(async () => {
+        const rd = await import('./roster-data.js');
+        const m = rd.teamMembers.find(x => x.name === 'M. Robson');
+        return { five: String(rd.getBaseShift(m, rd.parseISODate('2026-12-05'))),
+                 seven: String(rd.getBaseShift(m, rd.parseISODate('2026-12-07'))) };
+    });
+    expect(premise.five, 'Sat 5 Dec 2026 must be a REST day on M. Robson\'s line, or this test proves nothing')
+        .toMatch(/^(RD|OFF)$/);
+    expect(premise.seven, 'Mon 7 Dec 2026 must be a working day, or the expected period is wrong')
+        .not.toMatch(/^(RD|OFF)$/);
+
+    await page.locator('#fieldMember').selectOption('M. Robson');
+    await page.locator('#alToggleHeader').click();
+    await expect(page.locator('#alBookedBox')).toBeVisible();
+    await page.locator('#alBookedToggle').click();
+    await expect(page.locator('#alBookedBody')).toBeVisible();
+
+    const rows = page.locator('#alBookedBody .al-period-row');
+    await expect(rows).toHaveCount(1);
+    // The range STARTS on the Monday — a period opening on the rest day is the defect, and it is
+    // visible in the dates even when the count happens to be right.
+    await expect(rows.first().locator('.al-period-dates')).toHaveText('Mon 7 – Fri 11 Dec');
+    await expect(rows.first().locator('.al-period-count')).toHaveText('5 days');
+});
+
 // ── THE RECORDED-DATES LIST IS PER YEAR (v23.09, owner report) ──────────────────────────────────
 //
 // The owner's own card ran January 2026 to June 2027 in one scroll — fifteen bookings, every month
@@ -2506,12 +2569,28 @@ test('admin: scrolling the date picker into another year moves the list with the
         /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
             docs: [
                 { id: 'a1', memberName: 'G. Miller', date: '2026-03-02', type: 'annual_leave', value: 'AL', note: '' },
-                { id: 'a2', memberName: 'G. Miller', date: '2027-06-22', type: 'annual_leave', value: 'AL', note: '' },
+                // BOTH DATES MUST BE WORKING DAYS ON HIS LINE. The list only shows leave that
+                // spends entitlement (v23.72), so a fixture date that happens to fall on a rest day
+                // is dropped — and this test then fails for a reason that has nothing to do with
+                // what it checks. It did: this was 22 Jun 2027, which is a rest day for G. Miller,
+                // so the 2027 chip vanished and the failure read like a broken year selector.
+                // 8 Jun is a working day, and the premise is asserted below rather than trusted.
+                { id: 'a2', memberName: 'G. Miller', date: '2027-06-08', type: 'annual_leave', value: 'AL', note: '' },
             ],
         });
     });
     await page.goto('/admin.html');
     await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    // The premise, so a roster edit that moves his line fails loudly here instead of quietly
+    // deleting the year this test is about.
+    const bothWork = await page.evaluate(async () => {
+        const [rd, al] = await Promise.all([import('./roster-data.js'), import('./al-entitlement.js')]);
+        const m = rd.teamMembers.find(x => x.name === 'G. Miller');
+        return ['2026-03-02', '2027-06-08'].map(d => al.consumesEntitlement(m, d, null));
+    });
+    expect(bothWork, 'both seeded AL dates must be working days for G. Miller').toEqual([true, true]);
+
     await page.locator('#fieldMember').selectOption('G. Miller');
     await page.locator('#alToggleHeader').click();
     await page.locator('#alBookedToggle').click();
@@ -7007,7 +7086,19 @@ test('admin: switching member at large text does not shave the page @layout', as
 //
 // `#fieldMember` is asserted too, but it is the weak one: a real user's pick fires `change` on it,
 // so it repaints either way. The two it mirrors INTO are the ones with no signal of their own.
-test('admin: switching member on Change a Shift renames the AL and Absence pickers', async ({ page }) => {
+test('admin: switching member carries the AL and Absence value holders with it', async ({ page }) => {
+    // RE-POINTED AT v23.74, NOT WEAKENED. It was written at v23.42 for the rule that a selection
+    // changed IN CODE must announce itself, and it checked that three trigger faces followed the
+    // member. Two of those triggers should never have existed: `#alMember` and `#sickMember` are
+    // `hidden` value holders, and enhancing them built the phantom member pickers the owner reported
+    // on 14 Sep 2026 — so this test was, in part, asserting that a control which should not be on
+    // the page stayed correct.
+    //
+    // The half that matters is kept and sharpened. What those two selects HOLD is what the AL and
+    // Absence saves write to, so "they follow the member" is the single most consequential
+    // invariant on this page — it is the one whose failure books somebody's leave against the wrong
+    // person. That is now asserted directly, alongside the v23.42 face rule for the one member
+    // control that is real, and the absence of a visible trigger for the two that are not.
     const errors = collectFatalErrors(page);
     await seedSession(page);
     await page.goto('/admin.html');
@@ -7021,7 +7112,8 @@ test('admin: switching member on Change a Shift renames the AL and Absence picke
     })));
 
     const before = await faces();
-    for (const row of before) expect(row.face, `${row.id} starts consistent`).toBe(row.held);
+    expect(before.find(r => r.id === 'fieldMember')?.face, 'the one real member control starts consistent')
+        .toBe(before.find(r => r.id === 'fieldMember')?.held);
 
     // Drive the page's own change handler, as picking a row in the sheet does.
     const moved = await page.evaluate(() => {
@@ -7037,9 +7129,17 @@ test('admin: switching member on Change a Shift renames the AL and Absence picke
     await expect.poll(async () => (await faces()).find(r => r.id === 'fieldMember')?.held)
         .toBe(moved);
 
+    // ALL THREE must HOLD the new member — the two hidden ones are what the AL and Absence saves
+    // read, so a stale value here is leave recorded against the previous person.
     for (const row of await faces()) {
         expect(row.held, `${row.id} should hold the newly chosen member`).toBe(moved);
-        expect(row.face, `${row.id}: the picker must NAME the member it now holds`).toBe(moved);
+    }
+    // The v23.42 face rule, for the only member control a reader can actually operate.
+    expect((await faces()).find(r => r.id === 'fieldMember')?.face,
+        'the member control must NAME the member it now holds').toBe(moved);
+    // And the two value holders must still be offering nobody a second way to change the member.
+    for (const id of ['alMemberTrigger', 'sickMemberTrigger']) {
+        await expect(page.locator(`#${id}`), `${id} is a phantom control over a hidden select`).toBeHidden();
     }
     expect(errors, 'Uncaught JS exceptions').toHaveLength(0);
 });
@@ -7087,3 +7187,549 @@ for (const w of [320, 340, 359, 360, 414]) {
         expect(errors, 'uncaught JS on admin').toHaveLength(0);
     });
 }
+
+// ── THE OVER-LIMIT MESSAGE IS NOT CLIPPED EITHER (v23.78) ───────────────────────────────────────
+// The guard above measures the four `.al-banner-stat` boxes and, with a member who is not over
+// limit, `#alBannerWarn` is not even rendered — so a FIFTH element on that row was never measured
+// by the test written to stop exactly this. It was a third flex item on a row whose stats refuse to
+// shrink, so at 390px it collapsed to a sliver and the card's `overflow-x: hidden` cut it: the owner
+// photographed "1 over limit" running one character per line down the right edge.
+//
+// This drives the real path — enough seeded leave to push the member genuinely negative — rather
+// than unhiding the element, because `updateALBanner` deciding to SHOW it is half of what broke.
+for (const w of [320, 360, 390]) {
+    test(`admin: the over-limit message is not clipped at ${w}px @layout`, async ({ page }) => {
+        await page.setViewportSize({ width: w, height: 900 });
+        await seedSession(page, 'G. Miller');
+        await page.addInitScript(() => {
+            // Every date in a three-month span; the ones that consume are well past any entitlement,
+            // and the app does its own filtering — so this needs no roster knowledge to stay true.
+            const docs = [];
+            for (let d = new Date(2026, 1, 2); d < new Date(2026, 4, 1); d.setDate(d.getDate() + 1)) {
+                const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                docs.push({ id: 'ol' + iso, memberName: 'G. Miller', date: iso, type: 'annual_leave', value: 'AL', note: '' });
+            }
+            /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, { docs });
+        });
+        await page.goto('/admin.html');
+        await expect(page.locator('#fieldMember')).toBeAttached();
+        await page.locator('#fieldMember').selectOption('G. Miller');
+        await page.evaluate(() => document.querySelectorAll('.card-body, [id$="Body"]')
+            .forEach(b => b.classList.add('open')));
+        await expect(page.locator('#alBanner')).toBeVisible();
+
+        // THE PREMISE, asserted rather than assumed: if the seeding stopped pushing him over, the
+        // message would be hidden and every check below would pass by not looking.
+        const remaining = Number(await page.locator('#alBannerRemaining').textContent());
+        expect(remaining, 'the fixture must put the member OVER limit, or this tests nothing')
+            .toBeLessThan(0);
+        const warn = page.locator('#alBannerWarn');
+        await expect(warn).toBeVisible();
+        await expect(warn).toHaveText(`${Math.abs(remaining)} over limit`);
+
+        const box = await page.evaluate(() => {
+            const card = document.getElementById('book-annual-leave');
+            const el = document.getElementById('alBannerWarn');
+            const r = el.getBoundingClientRect();
+            // One client rect per LINE BOX, which counts wrapped lines exactly. `lineHeight` computes
+            // to "normal" here, so dividing by it gives NaN — and NaN quietly fails every numeric
+            // comparison, which is how a check like this passes for the wrong reason.
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            return { over: Math.round(r.right - (card.getBoundingClientRect().left + card.clientWidth)),
+                     width: Math.round(r.width), lines: range.getClientRects().length };
+        });
+        expect(box.over, `the over-limit message is cut off by the card at ${w}px`).toBeLessThanOrEqual(0);
+        // A sliver is the shape of the defect: wide enough for the words, and on one line.
+        expect(box.width, 'the message was squeezed to a sliver').toBeGreaterThan(60);
+        expect(box.lines, 'the message wrapped instead of taking its own line').toBeLessThanOrEqual(1);
+    });
+}
+
+test('admin: the AL preview names a Spare day and says it costs one day of leave', async ({ page }) => {
+    // THE WIRING, not the helper. `spareShiftNote` has its own unit test, and a unit test is exactly
+    // what would NOT have caught the defect this replaces: the broken sentence lived in a template
+    // literal inside `admin-al.js`, which imports Firebase, so nothing in Node could render it and
+    // nothing did — it shipped ungrammatical from v11.35 to v23.72 and was found by the owner
+    // reading it off a phone. This drives the real card and reads the real banner.
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    // The note renders only for CEA/CES, and only on a day whose BASE shift is SPARE — so the date
+    // is found from the roster rather than written down here, where a pattern edit would silently
+    // turn it into an ordinary working day and leave this test asserting nothing.
+    const pick = await page.evaluate(async () => {
+        const rd = await import('./roster-data.js');
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        for (const m of rd.teamMembers) {
+            if (m.hidden || m.managerOnly) continue;
+            if (m.role !== 'CEA' && m.role !== 'CES') continue;
+            for (let i = 1; i <= 200; i++) {
+                const d = new Date(today); d.setDate(d.getDate() + i);
+                if (rd.getBaseShift(m, d) !== 'SPARE') continue;
+                return {
+                    name: m.name,
+                    iso: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+                    monthsAhead: (d.getFullYear() - today.getFullYear()) * 12 + (d.getMonth() - today.getMonth()),
+                };
+            }
+        }
+        return null;
+    });
+    expect(pick, 'no CEA/CES member has a Spare day in the next 200 days — that is a roster problem, not a copy one')
+        .not.toBeNull();
+
+    await page.locator('#fieldMember').selectOption(/** @type {any} */ (pick).name);
+    await page.locator('#alToggleHeader').click();
+    await expect(page.locator('#alRangePicker')).toBeVisible();
+
+    for (let i = 0; i < /** @type {any} */ (pick).monthsAhead; i++) {
+        await page.locator('#alRpNext').click();
+        await page.waitForTimeout(60);
+    }
+    // Twice on the same cell is a one-day range: the first click sets the start, the second the end.
+    const cell = page.locator(`#alRpGrid .rp-day[data-iso="${/** @type {any} */ (pick).iso}"]`);
+    await expect(cell, 'the picker did not reach the month holding the Spare day').toHaveCount(1);
+    await cell.click();
+    await cell.click();
+
+    const preview = page.locator('#alPreview');
+    await expect(preview).toContainText('1 day of Annual Leave');   // v23.79 wording — see the range test below
+    // What the owner ruled on 14 Sep 2026: a day is a day.
+    await expect(preview).toContainText('This is a Spare day');
+    await expect(preview).toContainText('It still uses 1 day of annual leave.');
+
+    const text = (await preview.textContent()) ?? '';
+    expect(text, 'the singular branch shipped as "1 of these day is" for four months').not.toMatch(/these day\b/);
+    expect(text, 'a one-day booking has no "these" to be one of').not.toMatch(/of these/);
+    expect(text, 'the hours claim is wrong and was removed — the app charges whole days')
+        .not.toMatch(/hours|more than 1 AL day/i);
+});
+
+test('admin: the AL and Absence cards carry no member dropdown of their own', async ({ page }) => {
+    // OWNER-REPORTED, 14 Sep 2026. `#alMember` and `#sickMember` are `hidden` value holders — the
+    // member is chosen ONCE in the top bar — but v23.33 put both in the `initSelectSheets` list, and
+    // `enhanceSelect` builds a NEW element for the trigger, which inherited the classes and not the
+    // `hidden`. Each card grew a second, fully operable member picker. Picking a name in it moved
+    // `alMember.value`, WHICH IS WHAT THE SAVE WRITES TO, while the top bar, "Recording for", the AL
+    // banner, the week grid and Saved Changes all stayed on the previous member: leave recorded
+    // against one person under another person's name and entitlement figures.
+    //
+    // `select-sheet-parity.test.mjs` refuses a hidden id in an enhancement list. It cannot see the
+    // other half — that `enhanceSelect` mirrors `hidden` onto its trigger is a runtime property of
+    // an element, so deleting that line leaves every static test green. This is the half that fails.
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+
+    // Open BOTH cards — the Absence one carried the identical phantom, one card further down.
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#sickToggleHeader').click();
+    await expect(page.locator('#alBanner')).toBeVisible();
+
+    for (const id of ['alMemberTrigger', 'sickMemberTrigger']) {
+        await expect(page.locator(`#${id}`), `${id} is a phantom control over a hidden select`)
+            .toBeHidden();
+    }
+    // ONE member control on the page, which is the whole point of the top bar.
+    await expect(page.locator('.fieldpick:visible').filter({ hasText: 'G. Miller' }))
+        .toHaveCount(1);
+});
+
+test('select-sheet: a hidden select gets a hidden trigger, and revealing it reveals the trigger', async ({ page }) => {
+    // The RULE behind the defect above, driven through the real module rather than through Admin —
+    // so it keeps holding for whatever select is hidden next. Refusing outright would be the wrong
+    // guard (a page may legitimately hide a field and reveal it later), so the contract is that the
+    // trigger mirrors the select: that is what makes the fix safe as well as correct.
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    const states = await page.evaluate(async () => {
+        const { enhanceSelect } = await import('./select-sheet.js');
+        const sel = document.createElement('select');
+        sel.id = 'probeHiddenSelect';
+        sel.hidden = true;
+        sel.innerHTML = '<option value="a">Alpha</option><option value="b">Beta</option>';
+        document.body.appendChild(sel);
+        enhanceSelect(sel, { title: 'Probe' });
+        const trig = () => /** @type {any} */ (document.getElementById('probeHiddenSelectTrigger'));
+        const whileHidden = trig()?.hidden;
+        sel.hidden = false;                       // a later reveal must reach the trigger
+        await new Promise(r => setTimeout(r, 50)); // the MutationObserver is async
+        const afterReveal = trig()?.hidden;
+        sel.remove(); trig()?.remove();
+        return { whileHidden, afterReveal };
+    });
+    expect(states.whileHidden, 'a hidden select must not produce a visible control').toBe(true);
+    expect(states.afterReveal, 'revealing the select must reveal its trigger').toBe(false);
+});
+
+test('admin: AL on a rest day asks whether it was a swap, and will not save unanswered', async ({ page }) => {
+    // OWNER-REPORTED, 14 Sep 2026. Leave on a base-roster rest day costs nothing unless the member
+    // was SWAPPED onto it, and the app decided that silently — the AL card skipped such days, the
+    // week grid wrote them costing nothing. Three of one member's days were missing from her balance
+    // and the only way to find out was to compare against the depot's workbook by hand.
+    //
+    // The two rules are the owner's: ask ONLY when a day is affected, and REQUIRE an answer. The
+    // second is a save-path property — `al-swapped-days.test.mjs` can prove which days qualify, but
+    // only this can prove the button stays disabled — which is the half that makes it non-silent.
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    // A member and a range found from the roster, not written down: a pattern edit must not be able
+    // to turn this into a test of nothing.
+    // THE RANGE MUST HOLD A WORKING DAY *AND* A REST DAY, and that is not fussiness. A rest-day-only
+    // range is unsaveable either way — nothing to write — so it cannot tell "blocked because
+    // unanswered" from "blocked because empty". Deleting the unanswered guard left an earlier
+    // version of this test green; with a working day in the range, only the guard can disable Save.
+    const pick = await page.evaluate(async () => {
+        const [rd, ou] = await Promise.all([import('./roster-data.js'), import('./override-utils.js')]);
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const rest = (/** @type {any} */ m, /** @type {Date} */ d) =>
+            d.getDay() !== 0 && ou.isRestShift(rd.getBaseShift(m, d));
+        const work = (/** @type {any} */ m, /** @type {Date} */ d) =>
+            d.getDay() !== 0 && !ou.isRestShift(rd.getBaseShift(m, d));
+        for (const m of rd.teamMembers) {
+            if (m.hidden || m.managerOnly) continue;
+            for (let i = 1; i <= 120; i++) {
+                const a = new Date(today); a.setDate(a.getDate() + i);
+                const b = new Date(a);     b.setDate(b.getDate() + 1);
+                if (!work(m, a) || !rest(m, b)) continue;
+                if (a.getMonth() !== b.getMonth()) continue;   // keep both cells on one picker page
+                return { name: m.name, work: iso(a), rest: iso(b),
+                         monthsAhead: (a.getFullYear() - today.getFullYear()) * 12 + (a.getMonth() - today.getMonth()) };
+            }
+        }
+        return null;
+    });
+    expect(pick, 'no member has a working day followed by a rest day in the next 120 days').not.toBeNull();
+    const p = /** @type {any} */ (pick);
+
+    await page.locator('#fieldMember').selectOption(p.name);
+    await page.locator('#alToggleHeader').click();
+    await expect(page.locator('#alRangePicker')).toBeVisible();
+    for (let i = 0; i < p.monthsAhead; i++) { await page.locator('#alRpNext').click(); await page.waitForTimeout(60); }
+
+    await page.locator(`#alRpGrid .rp-day[data-iso="${p.work}"]`).click();
+    await page.locator(`#alRpGrid .rp-day[data-iso="${p.rest}"]`).click();
+
+    const ask  = page.locator('#alPreview .swapday-ask');
+    const save = page.locator('#alSaveBtn');
+    await expect(ask, 'a rest day in the range must raise the question').toBeVisible();
+    await expect(ask).toContainText('rest day');
+    // THE DECISIVE ASSERTION: there IS a working day to record, so the only thing that can be
+    // holding Save is the unanswered question.
+    await expect(save, 'unanswered means unsaveable — no default').toBeDisabled();
+
+    await page.locator(`.swapday-opt[data-answer="no"][data-date="${p.rest}"]`).click();
+    await expect(page.locator(`.swapday-opt[data-answer="no"][data-date="${p.rest}"]`)).toHaveAttribute('aria-pressed', 'true');
+    await expect(save, 'answered — the working day is recordable').toBeEnabled();
+
+    // The other answer, and the pressed state moving with it.
+    await page.locator(`.swapday-opt[data-answer="yes"][data-date="${p.rest}"]`).click();
+    await expect(page.locator(`.swapday-opt[data-answer="yes"][data-date="${p.rest}"]`)).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator(`.swapday-opt[data-answer="no"][data-date="${p.rest}"]`)).toHaveAttribute('aria-pressed', 'false');
+    await expect(save).toBeEnabled();
+});
+
+test('admin: a range with no rest days asks nothing at all', async ({ page }) => {
+    // The owner's rule 1, and the reason it matters: a question on every booking would be noise, and
+    // noise is how a question stops being read. No affected day, no block.
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    const pick = await page.evaluate(async () => {
+        const [rd, ou] = await Promise.all([import('./roster-data.js'), import('./override-utils.js')]);
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        for (const m of rd.teamMembers) {
+            if (m.hidden || m.managerOnly) continue;
+            for (let i = 1; i <= 120; i++) {
+                const a = new Date(today); a.setDate(a.getDate() + i);
+                if (a.getDay() === 0 || ou.isRestShift(rd.getBaseShift(m, a))) continue;
+                return { name: m.name, work: iso(a),
+                         monthsAhead: (a.getFullYear() - today.getFullYear()) * 12 + (a.getMonth() - today.getMonth()) };
+            }
+        }
+        return null;
+    });
+    expect(pick).not.toBeNull();
+    const p = /** @type {any} */ (pick);
+
+    await page.locator('#fieldMember').selectOption(p.name);
+    await page.locator('#alToggleHeader').click();
+    for (let i = 0; i < p.monthsAhead; i++) { await page.locator('#alRpNext').click(); await page.waitForTimeout(60); }
+    const cell = page.locator(`#alRpGrid .rp-day[data-iso="${p.work}"]`);
+    await cell.click();
+    await cell.click();
+
+    // "1 day of Annual Leave", not "1 working day" (v23.79): the preview describes what the save
+    // will RECORD, not what the roster says about the date. The old wording read as a count of
+    // working days and was computed like one, which is how it came to say "rest day skipped" about
+    // a day the admin had just declared swapped.
+    await expect(page.locator('#alPreview')).toContainText('1 day of Annual Leave');
+    await expect(page.locator('#alPreview'), 'nothing is skipped in a range with no rest days')
+        .not.toContainText('skipped');
+    await expect(page.locator('#alPreview .swapday-ask'), 'no rest day, no question').toHaveCount(0);
+    await expect(page.locator('#alSaveBtn'), 'an ordinary booking is unaffected').toBeEnabled();
+});
+
+test('admin: the week grid asks the swap question too, and refuses to save it unanswered', async ({ page }) => {
+    // THE OTHER DOOR, and the one the reported defect actually came through. The AL card skipped rest
+    // days; the week grid WROTE the leave and let it cost nothing. Fixing only the card would have
+    // left the original route silent — "the rule tested, the wiring not", in product form.
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    // Find a member with a rest day in the week the grid is showing, from the roster rather than a
+    // written-down date.
+    const target = await page.evaluate(async () => {
+        const [rd, ou] = await Promise.all([import('./roster-data.js'), import('./override-utils.js')]);
+        const rows = [...document.querySelectorAll('.day-row')].map(r => /** @type {any} */ (r).dataset.date);
+        for (const m of rd.teamMembers) {
+            if (m.hidden || m.managerOnly) continue;
+            for (const d of rows) {
+                if (!d) continue;
+                const dt = new Date(d + 'T00:00:00');
+                if (dt.getDay() === 0) continue;               // a Sunday is a different rule entirely
+                if (ou.isRestShift(rd.getBaseShift(m, dt))) return { name: m.name, date: d };
+            }
+        }
+        return null;
+    });
+    expect(target, 'no member has a rest day in the displayed week').not.toBeNull();
+    const t = /** @type {any} */ (target);
+
+    await page.locator('#fieldMember').selectOption(t.name);
+    await page.waitForTimeout(400);
+    const row = page.locator(`.day-row[data-date="${t.date}"]`);
+    await expect(row).toHaveCount(1);
+
+    // The question is hidden until AL is the chosen type — it is a question about annual leave.
+    const ask = row.locator('.col-al-swap');
+    await expect(ask, 'nothing is asked before a type is picked').toBeHidden();
+    await clickInView(row.locator('.type-pill-btn[data-type="annual_leave"]'));
+    await expect(ask, 'AL on a rest-day row must ask').toBeVisible();
+
+    // Unanswered → the save refuses THIS ROW by name rather than writing a day that costs nothing.
+    await clickInView(page.locator('#saveBtn'));
+    await expect(row).toHaveClass(/row-error/);
+    await expect(page.locator('#weekGridFeedback, .feedback').filter({ hasText: 'swapped working day' }).first())
+        .toBeVisible();
+
+    // Answering clears the refusal.
+    await clickInView(row.locator('.al-swap-btn[data-swap="no"]'));
+    await expect(row.locator('.al-swap-btn[data-swap="no"]')).toHaveAttribute('aria-pressed', 'true');
+
+    // Switching away from AL forgets the answer — it described a booking that no longer exists.
+    await clickInView(row.locator('.type-pill-btn[data-type="rdw"]'));
+    await expect(ask).toBeHidden();
+    await clickInView(row.locator('.type-pill-btn[data-type="annual_leave"]'));
+    await expect(row.locator('.al-swap-btn[data-swap="no"]'), 'a stale answer must not survive a type change')
+        .toHaveAttribute('aria-pressed', 'false');
+});
+
+test('admin: a skip-only save leaves the row showing the record that is still there (v23.89)', async ({ page }) => {
+    // FOUND IN THE v23.88 REGRESSION READ, not by a failing test. When every staged day resolves to
+    // "rest day — free" there is nothing to commit, so the save reports and returns early — and that
+    // early return called `resetStagedRows()` without the re-render the normal path does afterwards.
+    // `resetStagedRows` only DEACTIVATES a row; it does not restore what a prefilled row was showing.
+    // So a rest day that already held an ABSENCE came back blank, and the one thing the receipt had
+    // just promised — that nothing was recorded and nothing was removed — was contradicted by the
+    // grid underneath it.
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { ...(/** @type {any} */ (window).__E2E || {}), authUser: true };
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    const target = await page.evaluate(async () => {
+        const [rd, ou] = await Promise.all([import('./roster-data.js'), import('./override-utils.js')]);
+        const rows = [...document.querySelectorAll('.day-row')].map(r => /** @type {any} */ (r).dataset.date);
+        for (const m of rd.teamMembers) {
+            if (m.hidden || m.managerOnly) continue;
+            for (const d of rows) {
+                if (!d) continue;
+                const dt = new Date(d + 'T00:00:00');
+                if (dt.getDay() === 0) continue;
+                if (ou.isRestShift(rd.getBaseShift(m, dt))) return { name: m.name, date: d };
+            }
+        }
+        return null;
+    });
+    expect(target, 'no member has a rest day in the displayed week').not.toBeNull();
+    const t = /** @type {any} */ (target);
+
+    // An ABSENCE already on that rest day. It is what the row is prefilled with, and it is what must
+    // still be there afterwards — the save is told to record leave and answers that it recorded none.
+    await page.addInitScript((row) => {
+        /** @type {any} */ (window).__E2E = { ...(/** @type {any} */ (window).__E2E || {}), docs: [row] };
+    }, { id: 'sick-1', memberName: t.name, date: t.date, type: 'sick', value: 'SICK', note: '', source: 'manual' });
+    await page.goto('/admin.html');
+    await page.locator('#fieldMember').selectOption(t.name);
+    await page.waitForTimeout(400);
+
+    const row = page.locator(`.day-row[data-date="${t.date}"]`);
+    await expect(row.locator('.type-pill-btn[data-type="sick"]'), 'the row starts prefilled with the absence')
+        .toHaveAttribute('aria-pressed', 'true');
+
+    await clickInView(row.locator('.type-pill-btn[data-type="annual_leave"]'));
+    await clickInView(row.locator('.al-swap-btn[data-swap="no"]'));
+    await clickInView(page.locator('#saveBtn'));
+
+    await expect(page.locator('.feedback, #weekGridFeedback').filter({ hasText: 'no leave recorded' }).first())
+        .toBeVisible();
+    // Nothing was written…
+    const writes = await page.evaluate(() => (/** @type {any} */ (window).__E2E?.batchWrites || []));
+    expect(writes.filter((/** @type {any} */ w) => w.date === t.date), 'nothing may be written for a free rest day')
+        .toHaveLength(0);
+    // …and nothing was removed, which the row has to keep SAYING.
+    await expect(page.locator(`.day-row[data-date="${t.date}"] .type-pill-btn[data-type="sick"]`),
+        'the absence is still on record, so the row must still show it').toHaveAttribute('aria-pressed', 'true');
+});
+
+test('admin: a rest day that ALREADY holds leave is not reported as "no leave recorded" (v23.93)', async ({ page }) => {
+    // THE WIRING HALF of admin-al-week-save.test.mjs's legacy-data block (external review of v23.92).
+    // The pure test proves the planner and the receipt builder agree; only this proves the page
+    // actually passes `keptLeave` from one to the other. Deleting that argument at either call site
+    // leaves every unit test green — which is the seam this repo keeps naming.
+    //
+    // The record seeded here is the LEGACY shape: annual leave on a base rest day with no
+    // `replacedType`, which is what the week grid wrote before v23.88 and what the swap question
+    // therefore re-asks about.
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { ...(/** @type {any} */ (window).__E2E || {}), authUser: true };
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    const target = await page.evaluate(async () => {
+        const [rd, ou] = await Promise.all([import('./roster-data.js'), import('./override-utils.js')]);
+        const rows = [...document.querySelectorAll('.day-row')].map(r => /** @type {any} */ (r).dataset.date);
+        for (const m of rd.teamMembers) {
+            if (m.hidden || m.managerOnly) continue;
+            for (const d of rows) {
+                if (!d) continue;
+                const dt = new Date(d + 'T00:00:00');
+                if (dt.getDay() === 0) continue;               // Sundays are a different rule entirely
+                if (ou.isRestShift(rd.getBaseShift(m, dt))) return { name: m.name, date: d };
+            }
+        }
+        return null;
+    });
+    expect(target, 'no member has a rest day in the displayed week').not.toBeNull();
+    const t = /** @type {any} */ (target);
+
+    await page.addInitScript((row) => {
+        /** @type {any} */ (window).__E2E = { ...(/** @type {any} */ (window).__E2E || {}), docs: [row] };
+    }, { id: 'legacy-al', memberName: t.name, date: t.date, type: 'annual_leave', value: 'AL', note: '', source: 'manual' });
+    await page.goto('/admin.html');
+    await page.locator('#fieldMember').selectOption(t.name);
+    await page.waitForTimeout(400);
+
+    const row = page.locator(`.day-row[data-date="${t.date}"]`);
+    await expect(row.locator('.type-pill-btn[data-type="annual_leave"]'), 'the row starts prefilled with the leave')
+        .toHaveAttribute('aria-pressed', 'true');
+
+    // RE-STAGING IS TWO TAPS, AND THE FIRST CUT OF THIS TEST GOT IT WRONG — worth recording,
+    // because the wrong version fails in a way that looks like the feature is broken. Tapping the
+    // ALREADY-PRESSED pill DEACTIVATES the row and stages a REMOVAL, so the save reported "1 change
+    // saved … removed" and never reached the swap question at all. An untouched prefilled row is
+    // not collected either (`prefilled-existing`). The reachable path is to leave the type and come
+    // back to it: that re-selects annual leave, reveals the question (`alSwapAsk`), and stages the
+    // row WITH its `existingId` — which is the state this whole test is about.
+    await clickInView(row.locator('.type-pill-btn[data-type="sick"]'));
+    await clickInView(row.locator('.type-pill-btn[data-type="annual_leave"]'));
+    await expect(row.locator('.col-al-swap'), 'the swap question must be asked on a legacy record')
+        .toBeVisible();
+    await clickInView(row.locator('.al-swap-btn[data-swap="no"]'));
+    await clickInView(page.locator('#saveBtn'));
+
+    const feedback = page.locator('.feedback, #weekGridFeedback').first();
+    await expect(feedback, 'the receipt must say the existing leave was left alone')
+        .toContainText(/left as it is/);
+    await expect(feedback, 'and must not use the wording for a day that is genuinely clear')
+        .not.toContainText('no leave recorded');
+
+    // …and the three layers still agree: nothing written, nothing deleted, the record still drawn.
+    const writes = await page.evaluate(() => (/** @type {any} */ (window).__E2E?.batchWrites || []));
+    expect(writes.filter((/** @type {any} */ w) => w.date === t.date),
+        'answering free must not write leave').toHaveLength(0);
+    await expect(row.locator('.type-pill-btn[data-type="annual_leave"]'),
+        'the leave is still on record, so the row must still show it').toHaveAttribute('aria-pressed', 'true');
+});
+
+test('admin: the week grid writes NOTHING for a rest day answered free, and names the day (v23.88)', async ({ page }) => {
+    // THE TWO SURFACES MEANT DIFFERENT THINGS BY ONE ANSWER (external review of v23.85). The AL card
+    // wrote nothing for a rest day answered "Rest day — free"; the week grid wrote annual leave that
+    // cost nothing — so the Calendar showed AL on a day the manager had just called a genuine rest
+    // day, and `admin-al-projection.js` said "skipped" about a document that existed.
+    //
+    // The write is the assertion. `batchWrites` records every set() payload, so this can tell "no
+    // document" from "a document that happens to cost nothing" — which the receipt text alone
+    // cannot, and which is the entire difference the fix is about.
+    await seedSession(page, 'G. Miller');
+    // A SAVE THAT CANNOT WRITE WOULD PASS THE FIRST HALF FOR THE WRONG REASON. Without this the
+    // fixture's auth has no current user, `executeSave` refuses with "you've been signed out", and
+    // `batchWrites` is empty whatever the rule does. The control at the end is the proof it is not.
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { ...(/** @type {any} */ (window).__E2E || {}), authUser: true };
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    const target = await page.evaluate(async () => {
+        const [rd, ou] = await Promise.all([import('./roster-data.js'), import('./override-utils.js')]);
+        const rows = [...document.querySelectorAll('.day-row')].map(r => /** @type {any} */ (r).dataset.date);
+        for (const m of rd.teamMembers) {
+            if (m.hidden || m.managerOnly) continue;
+            for (const d of rows) {
+                if (!d) continue;
+                const dt = new Date(d + 'T00:00:00');
+                if (dt.getDay() === 0) continue;               // a Sunday is a different rule entirely
+                if (ou.isRestShift(rd.getBaseShift(m, dt))) return { name: m.name, date: d };
+            }
+        }
+        return null;
+    });
+    expect(target, 'no member has a rest day in the displayed week').not.toBeNull();
+    const t = /** @type {any} */ (target);
+
+    await page.locator('#fieldMember').selectOption(t.name);
+    await page.waitForTimeout(400);
+    const row = page.locator(`.day-row[data-date="${t.date}"]`);
+    await expect(row).toHaveCount(1);
+
+    // ── "Rest day — free": nothing is recorded, and the receipt says which day ──────────────────
+    await clickInView(row.locator('.type-pill-btn[data-type="annual_leave"]'));
+    await clickInView(row.locator('.al-swap-btn[data-swap="no"]'));
+    await clickInView(page.locator('#saveBtn'));
+
+    await expect(page.locator('.feedback, #weekGridFeedback').filter({ hasText: 'no leave recorded' }).first(),
+        'a save that records nothing must still say what it did').toBeVisible();
+    const afterFree = await page.evaluate(() => (/** @type {any} */ (window).__E2E?.batchWrites || []));
+    expect(afterFree.filter((/** @type {any} */ w) => w.type === 'annual_leave' && w.date === t.date),
+        'a rest day answered free must produce no annual leave document at all').toHaveLength(0);
+
+    // ── THE CONTROL: the same row answered "Swapped — counts" IS written ────────────────────────
+    // Without it the fix could be "the grid stopped writing annual leave", which is not the fix.
+    await clickInView(row.locator('.type-pill-btn[data-type="annual_leave"]'));
+    await clickInView(row.locator('.al-swap-btn[data-swap="yes"]'));
+    await clickInView(page.locator('#saveBtn'));
+    await expect(page.locator('.feedback, #weekGridFeedback').first(),
+        'the control must actually save — otherwise the "no write" half above proves nothing')
+        .toContainText(/saved for/);
+    await expect.poll(async () => {
+        const w = await page.evaluate(() => (/** @type {any} */ (window).__E2E?.batchWrites || []));
+        return w.filter((/** @type {any} */ x) => x.type === 'annual_leave' && x.date === t.date).length;
+    }, { message: 'a declared swap is real leave and must be written' }).toBe(1);
+});

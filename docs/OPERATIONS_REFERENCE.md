@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: September 2026 — v23.70 · Updated every 0.10 version*
+*Last updated: September 2026 — v23.90 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -479,6 +479,18 @@ public unauthenticated endpoint rather than a client write.
 4. **Admin** actions it in Operations → Password Reset Requests (Reset, or Set up accounts if
    `provisioned` is false), then clears the row (`clearResetRequest`). Create/update is denied to every
    client **including the admin**; only the function writes.
+5. **The member is told, on their own devices** (v23.62). Until then the one person the reset was
+   about was the only person not told: their password had become the surname default and their other
+   devices were signed out, and they discovered both by failing to sign in. `resetMemberPassword`
+   sends `🔑 Password reset — set a new one` via `sendTargetedPush` to the uid it has just written,
+   deep-linking to `settings.html`, where the Password card opens itself. **The new password is
+   never in the payload** — a push renders on a lock screen, and the default is derived from a
+   surname that is on the roster.
+
+   Operationally the figure to read is **`notified`**, reported beside `revoked` and `stamped`: the
+   credential has already changed by that line, so a push failure never means the reset failed. A
+   member with no subscription is a legitimate `false`, and that case — signed out AND not told — is
+   the admin's cue to reach them another way.
 
 **Accepted cost:** an admin device that subscribed to push before v17.76 (when `owner` was first
 stamped on subscriptions) gets no notification until the bell is toggled off and on.
@@ -878,6 +890,29 @@ grade is in the week.
 
 Your grade choice **follows you between weeks** (v20.89). The day filter does not, because its
 dates belong to the week you were looking at.
+
+### "Asked to come off this Sunday" (v23.81)
+
+A member ROSTERED to work a Sunday can tick **Ask to be taken off this Sunday** on that week's form,
+and their row on your list carries the request. It is the operating half of a gap the app could not
+state before: Sundays are uncontracted for every grade, so annual leave and absence cannot be
+recorded on one — which is right, and which left "I am away for my Sunday duty" with nowhere to go
+except a free-text tag in the depot's workbook.
+
+Three things to know before you act on one:
+
+- **It is a REQUEST and the app grants nothing.** No override is written, no roster changes, no leave
+  is consumed. You decide, outside the app, exactly as you did before — and the app records nothing
+  about your decision, so the calendar keeps showing that Sunday duty until the week's roster PDF is
+  imported or the shift is changed in Admin.
+- **It is NOT an answer about overtime**, and the two are deliberately separate questions (v23.87). A
+  member can be unavailable for overtime all week and still need taking off their Sunday; a member
+  can ask to come off it and still not have answered the availability question at all, in which case
+  that day stays in **No response** and their form still says a day is outstanding. Do not read a
+  request as either answer.
+- **It only ever appears on a Sunday.** The form offers it on a Sunday the member is rostered to work
+  and the server refuses the field on any other day, so a request under a Monday is not something to
+  interpret — it is a client that should not exist.
 
 ### Somebody who has left, and is being chased every week
 

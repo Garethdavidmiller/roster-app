@@ -137,6 +137,98 @@ test('every NOTIFICATION_FEATURES hashPath page is in the SW SAFE_NOTIFICATION_P
         'notification deep-link urls in functions/*.js whose page is not in SW SAFE_NOTIFICATION_PAGES');
 });
 
+test('the push notification names the BADGE asset, the ICON asset, and re-bases both onto SW scope', () => {
+    // THE ONE APP SURFACE NOBODY CAN SEE FROM A TEST, AND THE ONE WITH NO GUARD ON IT.
+    //
+    // `.claude/rules/notifications.md` states two rules about `showNotification`'s image options, in
+    // bold, with the reason beside each — and until this test nothing enforced either. Both fail the
+    // same way: the push is delivered, the tap works, every suite stays green, and the notification
+    // is simply WRONG on the phone. There is no console to read and no page to screenshot, because
+    // the surface is drawn by the OS.
+    //
+    //   1 · THE BADGE MUST NOT BE THE APP ICON. Android masks the badge to a single colour in the
+    //       status bar, so feeding it the full-colour `icon-192.png` produces a muddy blob. The rule
+    //       reads "Never use icon-192.png as the badge"; `icon-badge.png` is the white-on-transparent
+    //       silhouette that exists for it. The obvious "tidy-up" — one constant for both, since they
+    //       are both the app's icon — is exactly the edit this refuses.
+    //
+    //   2 · BOTH MUST RESOLVE AGAINST `registration.scope`, NOT THE BARE ORIGIN. On the GitHub Pages
+    //       install the app is served from `/roster-app/`, and the bare origin is a DIFFERENT, empty
+    //       site that 404s. A root-relative `/icon-192.png` therefore resolves to nothing for the
+    //       staff on the mirror — which is still where a large share of them open the app — and iOS
+    //       falls back to a generic globe glyph in the Notification Centre. `scope` ends in '/'.
+    //
+    // WHAT THIS DOES NOT PROVE: that `icon-badge.png` is actually monochrome. Asserting that needs a
+    // PNG decoder for one fact, which is the trade `pageCount` in print-visual.spec.js already
+    // refuses. It proves the badge is a SEPARATE, PRECACHED asset from the app icon — which is the
+    // documented failure, stated exactly.
+    const sw = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
+
+    // Comments FIRST. Both options are documented in-place with comments that themselves mention
+    // `icon-192.png` (the badge's comment says what it must NOT be), so a scan of the raw source
+    // reads the counter-example as the value and passes on code that is wrong.
+    const code = sw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+    const at = code.indexOf('showNotification(');
+    assert.ok(at !== -1, 'showNotification( not found in service-worker.js — re-point this guard rather than deleting it');
+    const opts = code.slice(at, at + 600);
+
+    // Guard the guard: prove the window is the options object and not 600 characters of something
+    // else, or every assertion below passes by finding nothing.
+    assert.ok(/body:/.test(opts) && /tag/.test(opts),
+        'the showNotification window does not look like the options object — the guard has slipped');
+
+    const valueOf = (key) => opts.match(new RegExp(`${key}:\\s*\`([^\`]*)\``))?.[1];
+    const icon  = valueOf('icon');
+    const badge = valueOf('badge');
+    assert.ok(icon,  'no `icon:` template literal in the showNotification options');
+    assert.ok(badge, 'no `badge:` template literal in the showNotification options');
+
+    assert.ok(badge.includes('icon-badge.png'),
+        `the notification badge must be icon-badge.png, got '${badge}'. Android masks the badge to one `
+        + 'colour in the status bar; the full-colour app icon becomes a muddy blob (notifications.md).');
+    assert.ok(!badge.includes('icon-192'),
+        'the badge is the APP ICON. notifications.md: "Never use icon-192.png as the badge" — it is '
+        + 'masked to a single colour by Android and renders as a blob. Use icon-badge.png.');
+    assert.ok(icon.includes('icon-192.png'),
+        `the notification icon must be the app icon icon-192.png, got '${icon}'`);
+
+    for (const [name, v] of [['icon', icon], ['badge', badge]]) {
+        assert.ok(v.startsWith('${self.registration.scope}'),
+            `notification ${name} is '${v}' — it must resolve against self.registration.scope, not the `
+            + 'bare origin. On the /roster-app/ GitHub Pages install the bare origin is a different, '
+            + 'empty site, so a root-relative path 404s for every member on the mirror.');
+    }
+
+    // Both must be PRECACHED, or the mirror and an offline device fetch them over a network that may
+    // not be there — and a notification arrives at precisely the moment the app is NOT open.
+    //
+    // The corpus is DERIVED from the warm-up calls rather than from a list of array names typed here.
+    // Naming them is how this check goes quietly blind: the icons are in ICON_ASSETS, not CORE_ASSETS
+    // (this test asserted the wrong pair on its first run and failed, which is the only reason that is
+    // written down rather than shipped), and an array dropping OUT of the warm-up is exactly the
+    // regression worth catching — a hardcoded name would keep reading a list nothing precaches.
+    const arrayOf = (n) => sw.match(new RegExp(`const ${n}\\s*=\\s*\\[([\\s\\S]*?)\\];`))?.[1] ?? '';
+    // To the CALLBACK ARROW, not to the first comma: one warm-up call passes a spread of two arrays
+    // (`[...FONT_ASSETS, ...ICON_ASSETS]`), and stopping at the first comma silently captured only
+    // the first of them — so the icons this test is ABOUT were the one pair it could not see.
+    const warmed = [...sw.matchAll(/fetchInBatches\(([\s\S]*?),\s*\w+\s*=>/g)]
+        .flatMap(m => [...m[1].matchAll(/([A-Z_]+_ASSETS)/g)].map(x => x[1]));
+    assert.ok(warmed.length >= 2,
+        `only ${warmed.length} asset arrays found in the warm-up — the fetchInBatches scan has stopped matching`);
+    const precache = warmed.map(arrayOf).join('\n');
+    for (const f of ['icon-192.png', 'icon-badge.png']) {
+        assert.ok(precache.includes(`"./${f}"`) || precache.includes(`'./${f}'`),
+            `${f} is used by the push handler and must be precached — it is not in any array the `
+            + `post-activation warm-up fetches (${[...new Set(warmed)].join(', ')})`);
+    }
+
+    // And they must be two different files on disk. A badge that is a copy of the app icon satisfies
+    // every assertion above by NAME while producing the exact blob the rule exists to prevent.
+    const bytes = (f) => readFileSync(join(ROOT, f));
+    assert.ok(!bytes('icon-badge.png').equals(bytes('icon-192.png')),
+        'icon-badge.png is byte-identical to icon-192.png — the badge is the app icon under another name');
+});
+
 test('firestore.rules staffContact work-email domain matches CONFIG.WORK_EMAIL_DOMAIN', () => {
     // The Chiltern work-email domain is duplicated: CONFIG.WORK_EMAIL_DOMAIN (roster-data.js, the client
     // isChilternWorkEmail check) AND the firestore.rules staffContact validation. The comment says "keep
@@ -704,7 +796,7 @@ test('index.html modulepreload hints match the calendar\'s real transitive modul
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Privacy guard: real payslip figures (MILLER_ACTUALS) must live ONLY in the test
-// fixture (test-fixtures/miller-actuals.js, excluded from Firebase Hosting), never
+// fixture (the gitignored test-fixtures/payslip-actuals.local.js), never
 // exported from served production JS. Moved out of roster-data.js at v14.68; this
 // asserts it can't creep back in.
 // ──────────────────────────────────────────────────────────────────────────────
@@ -715,6 +807,28 @@ test('roster-data.js does not export MILLER_ACTUALS (payslip data stays in the t
     assert.ok(
         !exportsDecl && !exportsList,
         'MILLER_ACTUALS must NOT be exported from roster-data.js — real payslip figures belong only in ' +
-        'test-fixtures/miller-actuals.js (excluded from Firebase Hosting), never in served production JS.',
+        'the gitignored test-fixtures/payslip-actuals.local.js, never in served production JS.',
     );
+});
+
+// THE GITIGNORE IS THE PROTECTION NOW, SO THE GITIGNORE IS WHAT HAS TO BE GUARDED (v23.71).
+//
+// `firebase.json`'s `test-fixtures/**` exclusion governs Firebase Hosting and cannot express a
+// decision for the GitHub Pages mirror, which publishes the repository root with no ignore list —
+// so while the payslip fixture was committed it was served there, measured at HTTP 200 against a
+// 404 on the canonical origin. Keeping the bytes out of the repository is the only rule BOTH
+// origins obey, and a deleted line in `.gitignore` would silently re-open it the next time
+// somebody ran `git add -A` on a machine that has the file.
+//
+// This cannot see whether a real fixture exists (it does not, on any checkout but the owner's).
+// What it can assert is that the rule protecting it is still written down.
+test('.gitignore still excludes the real payslip fixture', () => {
+    const gi = readFileSync(join(ROOT, '.gitignore'), 'utf8');
+    assert.ok(/^\*\.local\.js\s*$/m.test(gi),
+        'the `*.local.js` rule is gone from .gitignore. It is what keeps real payslip figures out of\n'
+        + 'the repository — and therefore off the GitHub Pages mirror, which serves the repo root and\n'
+        + 'obeys no ignore list. Restore it before committing anything from test-fixtures/.');
+    assert.ok(!existsSync(join(ROOT, 'test-fixtures', 'miller-actuals.js')),
+        'test-fixtures/miller-actuals.js is back. The real payslip figures left the tree at v23.71;\n'
+        + 'the local copy belongs at test-fixtures/payslip-actuals.local.js, which is gitignored.');
 });

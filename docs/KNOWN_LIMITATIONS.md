@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: September 2026 — v23.70 · Updated every 0.10 version*
+*Last updated: September 2026 — v23.90 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -134,6 +134,74 @@ fetches the document **server-side**. So (a) these documents already reach a thi
 worth knowing independently of any auth work, and (b) authenticated download would break `.docx`
 viewing outright, because Microsoft cannot fetch an auth-gated URL. Any fix has to replace the Word
 rendering path at the same time.
+
+### Real payslip figures stay in git HISTORY (v23.71 — owner decision, recorded not accepted)
+
+The pay-maths regression fixture — thirteen of a named colleague's actual payslips — **left the
+working tree at v23.71**: it is now the gitignored `test-fixtures/payslip-actuals.local.js`, and
+`sw-asset-check.test.mjs` guards the `.gitignore` rule that keeps it out. That closes the live
+exposure: the GitHub Pages mirror serves the repository root and obeys no ignore list, so from the
+next deploy the path 404s on both origins instead of only the canonical one.
+
+**It does not close the history.** The figures remain in every commit up to v23.71, and in the
+SERVED `roster-data.js` before v14.68 — so anyone who clones the public repository can still read
+them, and GitHub has already served them to whoever asked.
+
+Scrubbing was considered and declined in the same decision, on cost rather than principle: a
+`filter-repo` rewrite changes every commit SHA on `main`, which breaks existing clones, stales every
+commit and PR-diff link in these documents, and cannot recall bytes already served or cached by
+third parties. The remaining exposure is a public repository the owner chose to have — the same
+reasoning already recorded for the base roster's public classification (AUTH_PLAN.md §2).
+
+**What would actually close it**, whenever the repository's visibility is revisited: making the
+repository private, which also retires the Pages mirror as a side effect and therefore cannot
+happen before that migration (OPERATIONS_REFERENCE → "Which address staff are on" measures how far
+it has got). Until then this is the honest state, written down rather than implied by a fixture
+that is no longer there.
+
+### No evidence in the repo that any Firestore backup exists (found 16 Sep 2026, deep review)
+
+**Status: an OPEN QUESTION for the owner, not a finding about code.** One command answers it:
+`gcloud firestore backups schedules list --database='(default)' --project=myb-roster`.
+
+`RECOVERY_RUNBOOK.md` opens its preventative section with its own words: *"These are the difference
+between 'restored in minutes' and 'gone'. **None exist by default.**"* It then documents three things
+to switch on — Point-in-Time Recovery, managed backup schedules, and a portable GCS export.
+
+**Nothing anywhere records that any of them were.** Every later reference in that runbook is
+conditional — *"if PITR is on"*, *"with PITR on"*. There is no CI job, no maintenance-calendar entry,
+and no completion marker, which is notable because this repo DOES mark completions when they happen
+(`CLAUDE.md`: *"A2 complete: the old SA JSON key and the `FIREBASE_SERVICE_ACCOUNT` GitHub secret
+have both been deleted"*).
+
+So the restore playbooks are written against snapshots that may not be being taken. What is at stake
+is every staff member's leave, absence, overrides, overtime declarations, password-reset requests and
+saved work emails — none of which is reconstructable from the repository, because the repository
+holds the base roster and nothing else.
+
+This is recorded rather than fixed because it cannot be verified or changed from a session: it is
+GCP console/CLI state. **If the answer is "they are on", replace this entry with the date checked.**
+
+### `docs/AL_WORKBOOK.md` publishes named colleagues' leave figures (found 16 Sep 2026, deep review)
+
+**Status: recorded, owner's decision.** The file carries **28 named individuals with specific leave
+figures** — e.g. *"Worked example — J. Davies, 2026. Allowance 20, grid days 19, over-quota 1,
+remaining 0."* The repository is public, so this is readable at github.com; the Pages mirror serves
+it too (`200`, while Firebase correctly `404`s, its ignore list covering `docs/`).
+
+Two things make it worth recording rather than assuming it is inside an existing decision:
+
+- **The public classification was reasoned about SHIFT PATTERNS** — *"shift patterns are on the
+  station's own printed rosters"* (`AUTH_PLAN.md` §2). A leave balance is not on a printed roster,
+  and it is a different class of personal data about a third party.
+- **`public-data-classification.test.mjs` does not inspect `docs/` at all.** The guard covers
+  `roster-data.js`, the other world-readable surface; nothing covers this one, so the same class of
+  content can grow there silently.
+
+The document's VALUE is its rules — how a quota grid is read, where the app and the spreadsheet
+legitimately disagree — not who the worked examples are about. Anonymising the examples would keep
+all of that and remove the personal data; it is not done here because it is a judgement about what
+should be public, which is the owner's to make.
 
 ### Admin/manager password is surname-derived (F-SEC-1) — scoped July 2026, owner chose leave-as-is
 
@@ -1340,6 +1408,32 @@ never contingent on the beta label, and dropping it does not make any of them go
 Design: `OVERTIME_AVAILABILITY.md`. Operating: OPERATIONS_REFERENCE.md. These are the things the
 feature deliberately does NOT do yet, so that a reader stops looking for them.
 
+- **The SUNDAY-RELEASE REQUEST is recorded, and it is only ever a request.** Since v23.81 a member
+  rostered to work a Sunday can tick "Ask to be taken off this Sunday" on that week's availability
+  form (`overtime-sunday-release.js`), the reviewer's list flags it (`releaseRequestLine`), and the
+  server stores it as `releaseRequested: true` on that day's answer (`REQUEST_DAY_FIELDS`). What it
+  still does NOT do, deliberately: it writes no override, changes no roster and consumes no annual
+  leave, and no surface words it as granted — `OVERTIME_AVAILABILITY.md` invariant 14. The roster
+  team decides, outside the app, and the app records nothing about their decision. The server also
+  checks no roster when accepting one (it has none; a request is a fact about what was asked and
+  stays true if the shift later moves) — it checks the CALENDAR instead, and refuses the field on any
+  day but a Sunday (v23.87). This bullet said "server-side only … nothing writes it, and no surface
+  shows it" from v23.80 until v23.87, a release after both halves had shipped; the sequencing it
+  described (rules first, form once the functions deploy was confirmed) is recorded in
+  OVERTIME_AVAILABILITY.md → "First-release deploy ordering".
+
+- **"Away for a rostered Sunday duty" is therefore a REQUEST in the app, not an absence.** Sundays
+  are uncontracted for every grade, so annual leave and absence cannot be written on one
+  (`SUNDAY_FORBIDDEN_TYPES`) — correct, and it is what stops a Sunday costing somebody a day they do
+  not owe. The consequence was that a fact the depot's workbook has always been able to state — a
+  free-text `N/A <name>` tag in the Sunday row, used on **52 of its 75 tagged Sundays**, every one a
+  day the person was otherwise contracted — had no representation in the app. An external review
+  (v23.78) proposed a new non-entitlement absence type; **the owner's answer was the request above**,
+  which puts it where it is actually decided and invents no new kind of absence. Do NOT loosen the AL
+  rule to close the remaining gap, which is that the DECISION is not recorded: once the roster team
+  has taken somebody off, the calendar still shows the Sunday duty until the roster PDF for that week
+  is imported or the shift is changed in Admin.
+
 - **No expiry purge.** Windows past `retentionUntil` (13 weeks) are filtered out of both read
   endpoints, so they are invisible and inert — but the documents stay in Firestore. Enforcement is
   in the endpoints on purpose: **rules are not filters**, and a `resource.data` condition would fail
@@ -1432,11 +1526,42 @@ production.
   skip), a SILENT non-push, and a write that should not exist. Teeth-verified by six mutations.
   This entry said the DECISION to send was what remained untested; it is now the covered part.
 
-Also still untested: the coordinator wiring in `calendar-app.js` / `admin-app.js` (the extracted
-`calendar-renderer.js` / `calendar-*` state modules have unit tests; the coordinators themselves do
-not — e2e covers their page-load) and the Firestore read/write layer in the page modules (behind the
-gstatic-CDN import). Before adding new untested behaviour in these modules, consider whether a unit
-or integration test can be added first.
+**The coordinators have no unit tests, and that is mostly a DECISION rather than a gap** (restated
+16 Sep 2026 — this entry previously read as an open item and understated what covers them). A
+coordinator is what remains once the pure logic has been extracted out, so `calendar-app.js` and
+`admin-app.js` are DOM-bound by construction and a unit harness for either would be a mock of the
+whole page. Their decisive seams are wiring-tested instead, deliberately, in e2e — and the tests say
+so in their own headers: `e2e/calendar.spec.js` (`day detail:` block) pins `personalActionsAllowed`
+at its call site and records the mutation that justified it, and `e2e/pages.spec.js` does the same
+for `_syncMemberFor`. **Do not read "only e2e covers it" as a shortfall here. That IS the wiring
+test** the "rule tested, the wiring not" risk in CLAUDE.md asks for.
+
+**One real hole sat inside that framing, and it is now closed** (16 Sep 2026). Three fire-and-forget
+writers run once per page from its coordinator — `initErrorReporter`, `recordUsage` and
+`recordPageLatency` — and every one writes to a collection whose rules require `request.auth != null`.
+Called before an identity exists, each write is rejected in silence: **the error log looks healthy
+because it is broken**, the Usage card under-reports, and the latency samples thin out. Nothing
+raises, nothing renders differently, and nothing went red. Measured rather than argued: deleting
+`initErrorReporter();` from `calendar-app.js` left the entire unit estate green, and every chromium
+test in `e2e/calendar.spec.js` with it. e2e could never have seen it — the page renders identically either way.
+
+That mattered more than an ordinary coverage gap because of what depends on it. `recordPageLatency`
+is the wire the **mid-October latency reading** runs on (MAINTENANCE_CALENDAR; `LATENCY.md` → THE
+FULL-MONTH READ → item 6), including `readyProvisional`, the measurement added at v23.70 to separate
+the two readings of the fast path that the aggregate cannot. A regression there would not look like
+an error — it would look like a thinner sample that still reads as data.
+
+`page-contract-parity.test.mjs` now pins all seven coordinators: each calls all three, and each call
+sits inside that page's declared auth barrier rather than at module scope. All seven were correctly
+wired when the guard was written, so this closes no defect — it protects a rule that was obeyed
+everywhere and checked nowhere. Verified by four mutations (a deleted call; a call kept but hoisted
+out of the barrier; Overtime's chained `.finally()` site; paycalc's `afterAuth` indirection being
+severed) plus one negative control confirming it stays quiet on paycalc's legitimate second call
+site in `_showUnsupportedRole`.
+
+**Still genuinely untested:** the Firestore read/write layer in the page modules (behind the
+gstatic-CDN import). Before adding new untested behaviour there, consider whether a unit or
+integration test can be added first.
 
 ### Legacy override types still in Firestore
 Types `"allocated"`, `"overtime"`, `"swap"` are no longer creatable via the UI but

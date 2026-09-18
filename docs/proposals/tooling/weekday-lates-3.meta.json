@@ -1,0 +1,24 @@
+{
+ "sub1": "Weekday Lates with weeks 13–17 kept exactly as written, the evening gap filled, and the fatigue factors driven as low as this design allows",
+ "eyebrow3": "Weekday Lates, weeks 13–17 protected",
+ "h3": "What was held, what moved, and what it cost",
+ "sub3": "Five weeks kept to the letter; the evening filled from the two turns outside them",
+ "coverNote": "gaps of 8, 6, 5, 5 around the wheel — inherited from Weekday Lates, not re-spread",
+ "methodHeading": "How the factors were brought down",
+ "h7": "How it was built, and how to load it",
+ "sub7": "Reproducible: the same starting grid, seed and objective give the same rotation on any machine",
+ "method": "<p><b>1 · Weeks 13–17 are kept to the letter.</b> Every one of those five weeks appears in this rotation exactly as written in Weekday Lates &mdash; not a day, not a time altered. What changed is <i>where they sit</i>: 13, 14, 15, 16 and 17 are now lines 21, 3, 6, 24 and 1. That is the whole reason the factors could come down, and it is explained in the note opposite.</p>\n<p><b>2 · The evening was filled from what was left.</b> Nine duties ran 08:30&ndash;17:00 and all nine finished at once, which is why cover fell to six from 17:00 while December traffic peaks. Three of the nine are inside week 16 and were therefore untouchable; the rest are line 9's week and line 6's Friday, and both moved to <b>12:30&ndash;21:00</b> &mdash; 8h30, the same length, so the contracted week is still paid to the minute.</p>\n<p><b>3 · Then the rotation was searched fatigue-first.</b> Every factor present charged over and above its size, four restarts a seed, three seeds, with the two coverage-preserving moves only. Factors present fell from five to one, MRSF's 55-hour row from 58.9h to 51.1h, FF8b from five instances to none, and the longest run from nine days to six.</p>",
+ "openQuestions": "<b>Zero was the target and one is the floor, for a reason worth understanding.</b> The factor left is FF19 &mdash; successive start times varying by more than two hours &mdash; at three instances, down from seven. <b>It cannot be zero in any rotation containing both early and late weeks</b>: going round the cycle you must cross from earlies to lates and back again, and each crossing is by definition a jump of more than two hours. Three is the fewest of the three seeds; two is the arithmetic floor for a design with this mix of turns. <b>What protecting the five weeks cost.</b> Had they been free to be rewritten, the factor count would be the same but the rotation softer: full weekends off are <b>4 in 24</b> here against 6 in Weekday Lates, because the search had five fewer weeks to arrange around. That is the price of keeping them, and it is a real one. <b>If they must also stay at lines 13–17</b>, zero is not merely hard but impossible: week 13 works Tue&ndash;Sat and week 14 Sun&ndash;Mon, so pinned adjacent they form a single 58.9-hour seven-day window that nothing else in the grid can break, and MRSF's row can never clear. Moving them apart is what took it to 51.1.",
+ "identity": {
+  "lineage": "Weekday Lates (WL-24-EXT · a52ec588) with weeks 13–17 held as written, the 08:30–17:00 turns outside them re-timed into the evening, and the rotation then searched fatigue-first. Compare with Weekday Lates 2 (WL2-24-R21 · 33f70893), which had no protected weeks and could also move week 16's three turns."
+ },
+ "denseDuty": true,
+ "denseAlts": true,
+ "extraAlternatives": [
+  { "label": "WL-24-EXT — Weekday Lates, before any change", "file": "weekday-lates.json" },
+  { "label": "WL3 before the fatigue search (duty change only)", "file": "wl3-raw.json" },
+  { "label": "WL3-24-F21 — same rules, seed 21", "file": "weekday-lates-3-alt-seed21.json" },
+  { "label": "WL3-24-F34 — same rules, seed 34", "file": "weekday-lates-3-alt-seed34.json" },
+  { "label": "WL2-24-R21 — no protected weeks, for comparison", "file": "weekday-lates-2.json" }
+ ]
+}

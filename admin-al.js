@@ -6,10 +6,12 @@
 // Imports data and Firebase directly; receives admin-app.js-owned DOM handles and shared
 // functions via initALSection(deps) to avoid circular imports.
 
-import { getALEntitlement, getBaseShift, escapeHtml, projectAnnualLeaveOverage, parseISODate } from './roster-data.js';
+import { getBaseShift, escapeHtml, parseISODate } from './roster-data.js';
 import { getAllOverrides, isWorkingDate, buildMemberDateMap } from './admin-overrides.js';
-import { countedAlDates, consumesEntitlement } from './al-entitlement.js';
 import { createRangeBookingSection } from './admin-range-booking.js';
+import { swapDecisionDates } from './al-swapped-days.js';
+import { projectAlBooking, projectAlOverage } from './admin-al-projection.js';
+import { spareShiftNote } from './admin-al-spare-note.js';
 
 const esc = escapeHtml;
 
@@ -58,54 +60,48 @@ export function initALSection({
     let confirmedOverLimit = false;
 
     /**
-     * AL over-entitlement check — runs for each calendar year spanned by the booking
-     * (a Dec–Jan range touches two years). Returns true to abort the save and show the
-     * confirm bar; false to proceed.
-     * @param {{ member: string, dates: string[], memberObj: any }} ctx
+     * AL over-entitlement check.
+     *
+     * **It projects the admin's CURRENT ANSWERS, not just what is on record** (v23.79). Until the
+     * save runs, a rest day the admin has just declared a swapped working day still reads as REST in
+     * the override map — so the old check filtered it out, and a member with one day left could be
+     * booked two without ever seeing the bar. The write then recorded both, correctly, and left the
+     * balance negative. `projectAlBooking` is the fix: it is the same projection the preview renders
+     * and the same one the save writes.
+     *
+     * @param {{ member: string, dates: string[], memberObj: any, swapAnswers: Map<string, boolean> }} ctx
      */
-    function checkEntitlement({ member, dates, memberObj }) {
+    function checkEntitlement({ member, dates, memberObj, swapAnswers }) {
         if (confirmedOverLimit) return false;
-        const memberOvByDate = buildMemberDateMap(member);
-        // Mirror recordRangeOverrides EXACTLY: exclude Sundays; if an override exists, follow it
-        // (worked iff it is not a rest shift); otherwise fall back to the base shift. Falling
-        // through to the base test when a NON-rest override (e.g. RDW) exists would exclude a
-        // base-RD/RDW day here while recordRangeOverrides INCLUDES it — the check would then count
-        // fewer days than are actually booked and let a booking slip over the cap unconfirmed.
-        const workingDates = dates.filter(d => isWorkingDate(memberObj, d, memberOvByDate));
-        const years = [...new Set(workingDates.map(d => d.substring(0, 4)))];
-        for (const yearStr of years) {
-            const entitlement = getALEntitlement(memberObj, parseInt(yearStr, 10), getAllOverrides());
-            // No entitlement on record → nothing to cap against, so no confirm bar (v22.45). Same
-            // reasoning as the week-grid check: a bar raised against a number we do not have is
-            // worse than none. The booking itself is unaffected.
-            if (entitlement === null) continue;
-            // All existing AL for the year that CONSUMES entitlement — the Sunday and rest-day rules
-            // now live in al-entitlement.js, which the banner and the week-grid save read too
-            // (this file was the only one of the three that had the rest-day test). A re-booked day
-            // already in this set is not double-counted toward the cap: the shared helper excludes
-            // overlap from the new dates.
-            const existingALDates = countedAlDates({ overrides: getAllOverrides(), member: memberObj, year: yearStr });
-            // consumesEntitlement, not just isWorkingDate (v21.56): an rdw day inside the range is
-            // WRITTEN (it is a worked day) but will not COST a day (declining overtime is not
-            // leave), so counting it here raised a confirm bar for leave the member is not
-            // spending — and disagreed with the week-grid check, which already asks this rule.
-            const newALDates = workingDates.filter(d =>
-                d.startsWith(yearStr) && consumesEntitlement(memberObj, d, memberOvByDate));
-            const overage = projectAnnualLeaveOverage({ name: member, year: yearStr, existingALDates, newALDates, entitlement });
-            if (overage) {
-                showALConfirm(overage.headline, overage.detail, null); // null = AL booking path (not week editor)
-                return true;
-            }
+        const ovByDate = buildMemberDateMap(member);
+        const { consuming } = projectAlBooking({ member: memberObj, dates, ovByDate, swapAnswers });
+        const overage = projectAlOverage({
+            member: memberObj, memberName: member, overrides: getAllOverrides(), consuming,
+        });
+        if (overage) {
+            showALConfirm(overage.headline, overage.detail, null); // null = AL booking path (not week editor)
+            return true;
         }
         return false;
     }
 
     /**
      * The 🏖️ ready-state preview, including the CEA/CES spare-shift warning.
+     *
+     * **IT DESCRIBES THE SAVE, NOT THE ROSTER** (v23.79). The counts come from `projection`, which
+     * knows the admin's swap answers; the old version counted working and rest days from the stored
+     * state alone and so could say "1 rest day skipped" about a day it was about to record. Nothing
+     * here may call a date skipped when Save will count it.
+     *
+     * Three states, in the order a reader meets them:
+     *   something still to answer → say so, and say nothing about totals that are not settled yet;
+     *   everything answered       → how many days of leave this will record;
+     *   days that cost nothing    → named separately, never folded into the total.
+     *
      * @param {{ member: string, dates: string[], memberObj: any, memberOvByDate: Map<string, any>|null,
-     *   rangeStr: string, workDays: number, restCount: number }} ctx
+     *   rangeStr: string, workDays: number, restCount: number, projection?: any }} ctx
      */
-    function renderReady({ member, dates, memberObj, memberOvByDate, rangeStr, workDays, restCount }) {
+    function renderReady({ member, dates, memberObj, memberOvByDate, rangeStr, workDays, restCount, projection = null }) {
         // A worked day whose base is an unconfirmed Spare shift is flagged (it will be booked as AL).
         let spareCount = 0;
         if (memberObj) {
@@ -114,12 +110,30 @@ export function initALSection({
                     getBaseShift(memberObj, parseISODate(dateStr)) === 'SPARE') spareCount++;
             });
         }
-        const label    = workDays === 1 ? '1 working day' : `${workDays} working day${workDays !== 1 ? 's' : ''}`;
-        const restNote = restCount > 0 ? ` <em>(+ ${restCount} rest day${restCount > 1 ? 's' : ''} skipped)</em>` : '';
+        const c = projection?.counts;
+        let label, restNote = '';
+        if (!c) {                                    // no projection (no member resolved): old shape
+            label = `${workDays} working day${workDays !== 1 ? 's' : ''}`;
+            if (restCount > 0) restNote = ` <em>(+ ${restCount} rest day${restCount > 1 ? 's' : ''} skipped)</em>`;
+        } else if (c.unanswered > 0) {
+            // Unanswered days are not counted in or out yet, so the total is deliberately withheld —
+            // a figure that is about to change is worse than no figure.
+            const settled = c.consuming + c.freeWritten;
+            label = settled === 1 ? '1 day so far' : `${settled} days so far`;
+            restNote = ` <em>(+ ${c.unanswered} rest day${c.unanswered > 1 ? 's' : ''} to answer below)</em>`;
+        } else {
+            label = c.consuming === 1 ? '1 day' : `${c.consuming} days`;
+            const parts = [];
+            // A written day that costs nothing is an RDW day — worked, but declining overtime is not
+            // leave. It is reported because it IS being recorded, just not charged.
+            if (c.freeWritten > 0) parts.push(`${c.freeWritten} day${c.freeWritten > 1 ? 's' : ''} recorded at no cost`);
+            if (c.skipped > 0)     parts.push(`${c.skipped} rest day${c.skipped > 1 ? 's' : ''} skipped`);
+            if (parts.length) restNote = ` <em>(+ ${parts.join(', ')})</em>`;
+        }
         const isSpareRole = memberObj && (memberObj.role === 'CEA' || memberObj.role === 'CES');
-        const spareNote = (isSpareRole && spareCount > 0)
-            ? `<br><em>⚠ ${spareCount} of these day${spareCount !== 1 ? 's are' : ' is'} an unconfirmed "Spare" shift. If the actual shift ends up longer than 7 hours, it may use more than 1 AL day — check with your manager if unsure.</em>`
-            : '';
+        // Wording, and why a Spare day costs exactly one: admin-al-spare-note.js's header.
+        const noteText  = isSpareRole ? spareShiftNote(spareCount, dates.length) : '';
+        const spareNote = noteText ? `<br><em>${esc(noteText)}</em>` : '';
         return `🏖️ <strong>${label}</strong> of Annual Leave for ${esc(member)}: ${rangeStr}${restNote}${spareNote}`;
     }
 
@@ -141,6 +155,15 @@ export function initALSection({
         successToast:    (n, m) => `Recorded ${n} day${n > 1 ? 's' : ''} of Annual Leave for ${m}`,
         getCurrentUser, showInChangeAShift, showSuccess,
         beforePreview: () => hideALConfirm?.(),
+        // ASK ABOUT REST DAYS IN THE RANGE, AND REFUSE TO SAVE UNTIL EACH IS ANSWERED (v23.75).
+        // Leave on a rest day costs nothing unless the member was SWAPPED onto it, and only the
+        // person booking knows which. Deliberately AL-ONLY — `admin-sick.js` passes no
+        // `swapQuestion`, so an absence keeps skipping rest days silently: being off sick on a day
+        // you were not due to work is a different question, and not one this answers.
+        swapQuestion: ({ dates, memberObj, ovByDate }) => swapDecisionDates({ dates, memberObj, ovByDate }),
+        // The SAME projection the over-entitlement check and the write use (admin-al-projection.js).
+        project: ({ dates, memberObj, ovByDate, swapAnswers }) =>
+            projectAlBooking({ member: memberObj, dates, ovByDate, swapAnswers }),
         afterDateChange: () => { updateALBanner(); updateALBookedBox(); },
         // The picker crossing into another year is a change of SUBJECT, not of selection: the
         // figures above it describe a year, and the reader is now looking at a different one.

@@ -147,7 +147,7 @@ const meta = {
   tables: PROPOSAL === 'QT' ? 42 : 81, steps: PROPOSAL === 'QT' || PROPOSAL === 'EF' ? '100,000' : '60,000', restarts: PROPOSAL === 'QT' || PROPOSAL === 'EF' ? 'five' : 'four',
   runs: PROPOSAL === 'QT' ? 'four seeded runs per table, two tables' : PROPOSAL === 'BB' || PROPOSAL === 'EF' ? 'four seeded runs' : 'three seeded runs per table',
   efTable,
-  stretch, pickNote: pickNote + (cands.length > shown.length ? ` The other ${cands.length - shown.length} seeded results are in <span class="tt">results/</span> (${cands.filter(c => !shown.includes(c)).map(c => `${c.variant}${c.seed}`).join(', ')}); none stands higher on the pick than the rows shown.` : ''),
+  stretch, pickSentence: pickNote + (cands.length > shown.length ? ` The other ${cands.length - shown.length} seeded results are in <span class="tt">results/</span> (${cands.filter(c => !shown.includes(c)).map(c => `${c.variant}${c.seed}`).join(', ')}); none stands higher on the pick than the rows shown.` : ''),
   candidateFiles: cands.map(c => c.file), winnerVariant: win.variant,
   sundayNote: `Sunday: ${sundayOut.after?.length ?? 5} December movements fall after the 23:25 finish (the last at 23:54, three of them arrivals) — the standing question on whether Sunday's window moves; the window is stored per design, so the proposal can be rebuilt to either answer.`,
   designRules: rules, alternatives, identity,

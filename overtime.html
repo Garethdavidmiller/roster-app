@@ -92,15 +92,6 @@
          emoji, in the chip every other page uses — a second title is not emphasis, it is a page
          that has not decided where its name lives. No other app page has one. -->
 
-    <!-- BETA · Live use. Restrained on purpose: the data really is operational, so this must not
-         read as "test data" — the wording that would be genuinely wrong here. A quiet line rather
-         than a banner: it is a caveat about the content, so it must not outweigh it. -->
-    <div class="ot-beta" role="note">
-        <span class="ot-beta-chip">Beta</span>
-        <p>Availability submitted here is real and may be used when preparing the roster. The
-        feature is still being refined.</p>
-    </div>
-
     <!-- Tabs. Rendered only for somebody who has BOTH surfaces (a rostered Master Admin); a
          reviewer with no form of their own, or a member with no review rights, sees one panel and
          no tab strip at all rather than a tab that leads nowhere. -->
@@ -113,6 +104,17 @@
 
     <!-- ── MY AVAILABILITY ───────────────────────────────────────────────────────────────────── -->
     <section id="otMinePanel" role="tabpanel" aria-labelledby="otTabMine" tabindex="0">
+        <!-- WHOSE answers these are, in ADMIN'S OWN BAR (v21.57; v21.58 copied that bar verbatim
+             INTO the card and the owner called it "very weird"; v21.59 restyled it as an in-card
+             field; v23.84 moves it OUT). The v21.59 note had the diagnosis right: admin's bar earns
+             its navy by sitting on the navy page, and inside a light card it read as a bolted-on
+             lozenge. So it now sits where admin's does — on the page, above the card — which is the
+             one placement the owner has seen and liked. Filled by the coordinator by id; outside
+             the repainted content host so a refresh can never lose it. -->
+        <div class="member-context-bar" id="otMineIdentity" hidden>
+            <label for="otIdentityMember">Staff member</label>
+            <select id="otIdentityMember" disabled></select>
+        </div>
         <div class="card" id="otMineCard">
             <div class="card-header card-header-toggle" id="otMineToggleHeader">
                 <div>
@@ -127,26 +129,18 @@
             </div>
             <div class="card-collapsible-body open" id="otMineBody">
                 <div class="card-body">
-                    <!-- One job per sentence, stated once (v20.84 wording sweep). The BETA strip
-                         says the data is REAL, the hint says WHO this tells, so this line says the
-                         one thing left: it is not a booking. Three texts used to circle the same
-                         relationship, each repeating "availability/overtime/roster". -->
-                    <p class="ot-explainer">This doesn't book overtime — anything you're actually
-                    given will appear on the released roster.</p>
-                    <!-- WHOSE answers these are — the one fact no other text on the card states
-                         (v21.57; restyled v21.58 to ADMIN'S OWN PATTERN, owner request). The same
-                         locked "Staff member" bar a self-service member sees on admin.html: a real
-                         select, disabled, styled to read as a display box — so the two pages answer
-                         "who am I acting as?" with one visual language. Filled by the coordinator;
-                         sits OUTSIDE the repainted content host so a refresh can never lose it. -->
-                    <div class="member-context-bar" id="otMineIdentity" hidden>
-                        <label for="otIdentityMember">Staff member</label>
-                        <select id="otIdentityMember" disabled></select>
-                    </div>
                     <div id="otMineContent" aria-live="polite"></div>
                     <!-- The identical phrasing to the ? panel's line — one fact, one sentence,
                          wherever it is stated. "Your submitted overtime availability" was the
                          mouthful version of "what you submit". -->
+                    <!-- The two things this form is NOT, together at the foot (v23.84). "It is not
+                         a booking" opened the card from v20.84, as a two-line paragraph above the
+                         member's own name — the first thing read, on every visit, by people who
+                         have filled this in for months. It is a caveat about what happens
+                         afterwards, so it sits with the other one, where a member looks once. The
+                         card's hint still says what the form IS. -->
+                    <p class="ot-explainer">This doesn't book overtime — anything you're actually
+                    given will appear on the released roster.</p>
                     <p class="ot-privacy">Managers and the admin can see what you submit. Forms are
                     kept for around 13 weeks, then deleted.</p>
                 </div>

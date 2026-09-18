@@ -7,6 +7,11 @@
  * No Firebase, no secrets, no HTTP — fully testable with Node's built-in test runner.
  *
  * Imported by functions/index.js via require('./roster-parse-helpers').
+ *
+ * ** `.claude/rules/roster-import.md` IS THE CONTRACT FOR THIS PIPELINE — read it before changing
+ * anything here.** It holds the day-drift defence and why its three "layers" are not three
+ * witnesses, the geometry gate, the review states, and what a blank cell means on each day.
+ * Every rule in it is there because a week was written onto the wrong days, or nearly was.
  */
 
 // ── Shift normalisation ──────────────────────────────────────────────────────

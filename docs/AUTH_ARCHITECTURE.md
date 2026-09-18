@@ -216,13 +216,35 @@ app; a future "do not serve this" would be expressed there and would be half-tru
 knows the mirror exists as a file server either: `sw-asset-check`, `page-contract-parity` and the CSP
 suites all reason about the Firebase side.
 
-**Three ways to close it properly, none of them free, all of them the owner's call:**
-  a. **Leave it and keep this paragraph** — the exposure is a public repo the owner chose to have.
-  b. **Synthesise the figures** to the same shape. `paycalc.test.mjs` asserts money tolerances
-     against them, so this is real work, and it loses the "matches a real payslip" property that is
-     the fixture's whole value.
-  c. **Retire the Pages mirror** — already the stated direction; `analytics/origins` exists to
-     measure that migration.
+**CLOSED AT v23.71 BY A FOURTH ROUTE THE LIST DID NOT CONTAIN: the file left the repository.**
+Owner decision, 12 Sep 2026, after a second external review kept Privacy at 7.5 while every other
+dimension moved. The three options above were (a) leave it, (b) synthesise, (c) retire the mirror —
+and the shape of the problem is in why none of them was taken.
+
+The real fixture is now `test-fixtures/payslip-actuals.local.js`, **gitignored** (`*.local.js`).
+That is what closes it: an ignore list expresses a decision for an origin that reads it, and the
+mirror does not read one. Keeping the bytes out of the repository is the only rule BOTH origins
+obey, and it needs no migration first. `sw-asset-check.test.mjs` guards the `.gitignore` rule
+itself, because a deleted line there re-opens this the next time somebody runs `git add -A` on a
+machine that holds the file.
+
+Option (b) was declined on the reasoning this section already gave: synthesised figures lose the
+"matches a real payslip" property that is the fixture's whole value, and — worse — a green run
+against invented numbers REPORTS the payslip regression as passing. `payslip-actuals.example.js`
+therefore documents the shape and is deliberately never imported. Option (c) remains the stated
+direction and is unaffected; this simply stopped waiting for it.
+
+**What it costs, stated rather than glossed:** on any checkout but the owner's, the payslip
+regression does not run — computeSL against every clean Plan 1 deduction, tax within £1 and NI
+within 20p of thirteen real payslips, the cumulative-PAYE pair, and the take-home reconciliation.
+`paycalc.test.mjs` announces exactly that as a SKIP rather than letting the assertions quietly stop
+existing, which is what a loop over an absent fixture would otherwise do: register nothing, and
+report a smaller green number that reads identically to a passing one.
+
+**History was deliberately not rewritten** (same decision): the figures remain in commits up to
+v23.71, and in the served `roster-data.js` before v14.68. A scrub rewrites every SHA on `main`,
+breaks existing clones, stales every commit link in these documents, and does not recall what GitHub
+has already served. Recorded in KNOWN_LIMITATIONS.md rather than quietly accepted.
 
 **The in-app "Actual Take-Home" comparison was kept, made DEVICE-LOCAL (Option B, v14.69):** the owner
 imports the figures once per device via an owner-only paste box (Settings → "Import payslip actuals"),
