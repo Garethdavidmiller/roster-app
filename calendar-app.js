@@ -14,7 +14,7 @@
 
 import { enhanceSelect } from './select-sheet.js';
 import { CONFIG, MONTH_NAMES, computeEaster, getPaydaysAndCutoffs, formatISO } from './roster-data.js';
-import { formatDayMonth, formatClock, londonDate, printedStamp } from './date-format.js';
+import { formatDayMonth, formatClock, printedStamp } from './date-format.js';
 import { authReady, authBootstrap } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
 import { getSession, clearSession, ensureNamedSession } from './session.js';   // reconcileExpiredIdentity now runs inside calendar-access.js
@@ -645,7 +645,18 @@ document.getElementById('payBtn')?.addEventListener('click', () => {
     }
     if (!period) return;
 
-    const fmt    = /** @param {any} d */ d => formatDayMonth(londonDate(d));
+    // THE DEVICE'S OWN CALENDAR, not London (v24.08). These are local-calendar Dates, built at
+    // local NOON by `getPaydaysAndCutoffs` and advanced in whole days — they are not instants, so
+    // there is no zone to convert them to. Reading them through `Europe/London` is the same defect
+    // `paycalc-format.js` records having fixed and reverted: at UTC+12 and beyond, local noon is
+    // the previous day in UTC, so the strip printed the day before. Measured before the fix: 26 of
+    // 2026's 52 payday and cut-off dates shifted at UTC+14, 10 at UTC+12, 16 at UTC−11.
+    //
+    // The tell was that the LABEL and the LINK disagreed. The `?payday=` below is `formatISO`,
+    // which reads the local getters — so a member tapping "paid 28 Aug" could land the calculator
+    // on the 29th. One of the two had to be wrong, and it was never going to be the one the
+    // Calendar grid above it also uses.
+    const fmt    = /** @param {any} d */ d => formatDayMonth(d);
     const payISO = formatISO(period.payday);
     strip.innerHTML = `Pay period: <a class="pay-period-link" href="./paycalc.html?payday=${payISO}">${fmt(period.start)} – ${fmt(period.cutoff)}</a> · paid ${fmt(period.payday)}`;
     strip.style.display = '';

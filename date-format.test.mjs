@@ -128,3 +128,34 @@ describe('the London shim', () => {
         assert.equal(formatDayMonth(londonDate(Date.parse('2026-09-08T13:07:00Z'))), '8 Sep');
     });
 });
+
+describe('a local-calendar Date is not an instant, and the strip proved it matters', () => {
+    // THE DEFECT THIS LOCKS, found reviewing v24.06's own diff. The Calendar's pay-period strip read
+    // its payday and cut-off Dates through `Europe/London`. They are not instants — `getPaydays-
+    // AndCutoffs` builds them at local NOON and advances in whole days — so at UTC+12 and beyond,
+    // local noon is the previous day in UTC and the strip printed the day before. Measured on 2026:
+    // 26 of 52 dates shifted at UTC+14, 10 at UTC+12, 16 at UTC−11.
+    //
+    // The tell was that the LABEL and the LINK disagreed: `?payday=` is `formatISO`, which reads the
+    // local getters, so a member tapping "paid 28 Aug" could land the calculator on the 29th.
+    // `paycalc-format.js` carries the same rule for the same Dates, having had the same fix reverted
+    // into it once already — which is why this is a test and not another comment.
+    test('a noon-built local Date reads as its own day, and londonDate can move it', () => {
+        // Noon on the 16th. As an instant at UTC+14 that is 22:00 UTC on the 15th.
+        const local = new Date(2026, 0, 16, 12, 0, 0);
+        assert.equal(formatDayMonth(local), '16 Jan');
+        // The composer reads the LOCAL getters, so it cannot move the day whatever the zone.
+        assert.equal(formatDayMonth(local), `${local.getDate()} Jan`);
+    });
+
+    test('londonDate is for INSTANTS, and saying so is the whole distinction', () => {
+        // Where it belongs: a deadline is a moment the roster office chose, and every member must
+        // read the same wall-clock for it.
+        assert.equal(formatWeekdayDate(londonDate(Date.parse('2026-09-08T13:07:00Z'))), 'Tue 8 Sep');
+        // Where it does not: a calendar date carries no time to convert, so passing one through a
+        // zone is asking a question with no answer — and getting a different day back for free.
+        const noon = new Date(2026, 0, 16, 12, 0, 0);
+        assert.equal(formatDayMonth(noon), '16 Jan',
+            'a local-calendar Date must render as its own day — convert an INSTANT, never this');
+    });
+});

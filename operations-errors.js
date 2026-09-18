@@ -238,9 +238,8 @@ async function initErrorLog(opts = {}) {
 
 /** Build the plain-text block that gets pasted into Claude for diagnosis. */
 function _formatForClaude(/** @type {any} */ err) {
-    const when = err.timestamp?.toDate
-        ? `${formatDayMonthYear(err.timestamp.toDate())}, ${formatClock(err.timestamp.toDate())}`
-        : 'unknown';
+    const at = err.timestamp?.toDate ? err.timestamp.toDate() : null;
+    const when = at ? `${formatDayMonthYear(at)}, ${formatClock(at)}` : 'unknown';
     return [
         '🐛 App error — please diagnose',
         '',
