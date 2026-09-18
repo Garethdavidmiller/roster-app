@@ -1957,6 +1957,13 @@
                 margin: 0 !important;
                 width: 100% !important;
                 height: auto !important;
+                /* ⚠️ DO NOT ADD `min-height: auto !important` HERE. It looks like an omission —
+                   this block overrides `height` and the desktop rule sets `min-height: 100dvh`
+                   (v23.95), so the two appear to have fallen out of step. They have not. TRIED at
+                   v23.98 and REVERTED the same hour: releasing the floor lets the printed body
+                   collapse, and the navy canvas paints over the bottom half of the sheet — caught
+                   by `print-visual.spec.js`, which rasterises page 1 of the real PDF. The floor is
+                   what keeps `background: white !important` above covering the whole page. */
                 overflow: visible !important;
             }
 

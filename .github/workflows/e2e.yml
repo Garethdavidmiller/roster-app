@@ -642,6 +642,9 @@ jobs:
       # To SAY something when a baseline drifts — see the comment step below for why the artifact
       # alone was not enough. It already existed, and went unread for eight releases.
       pull-requests: write
+      # To publish the drift as its own check run, whose conclusion differs from this job's. See
+      # the last step: `continue-on-error` makes THIS job green either way.
+      checks: write
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
@@ -821,3 +824,67 @@ jobs:
             gh pr comment "$PR" --body-file "$BODY" \
               || echo "::warning::Could not comment on #$PR about the drifted visual baselines — see the visual-diffs artifact."
           fi
+
+      # ── AND IT SAYS SO TO A MACHINE, WHICH THE COMMENT CANNOT ─────────────────────────────────
+      #
+      # The comment above fixed the human half. It did not fix the other one, and that half has now
+      # cost something twice.
+      #
+      # This job is `continue-on-error`, so its conclusion is `success` on a drifted lane and a
+      # clean one alike. Anything reading CI programmatically — a session checking whether a release
+      # is green, a reviewer scripting against the API — gets `visual: success` and learns NOTHING
+      # about the baselines. v23.47 is exactly that: a session read the job conclusions, reported
+      # the release fully green, and merged two stale baselines to main. CLAUDE.md records it, and
+      # records the earlier eight-release miss, and still has to warn every reader in prose that
+      # `visual: success` is not a drift signal. A rule that survives only as a warning in a
+      # document is the kind this repo keeps finding out about the hard way.
+      #
+      # So the drift gets its OWN check run, whose conclusion is the fact rather than the job's.
+      # `neutral` is the one that does the work here: it is visible in the checks list and in the
+      # API, it is not `success`, and GitHub does not treat it as a failure — so the lane stays
+      # report-only, which is the property that must not change. Pixel diffs are environment-
+      # sensitive and must never gate a release.
+      #
+      # Same three rules as the comment step: never fail the job, say so when the drift CLEARS
+      # (here for free — the check is republished every run), and stay silent when the compare step
+      # produced no outcome at all.
+      - name: Publish the drift as its own check
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRIFTED: ${{ steps.compare.outputs.drifted }}
+          REPO: ${{ github.repository }}
+          # The HEAD commit, not `github.sha` — on a pull_request event that is the ephemeral merge
+          # commit, and a check run attached to it is invisible on the branch.
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set +e -uo pipefail
+          if [ "${DRIFTED:-}" != "true" ] && [ "${DRIFTED:-}" != "false" ]; then
+            echo "The comparison step reported no outcome — no check to publish."
+            exit 0
+          fi
+
+          NAMES=$(find test-results -name '*-diff.png' 2>/dev/null | sed 's#.*/##; s#-diff\.png$##' | sort -u || true)
+          COUNT=$(printf '%s' "$NAMES" | grep -c . || true)
+
+          if [ "$DRIFTED" = "true" ]; then
+            CONCLUSION=neutral
+            TITLE="$COUNT baseline(s) drifted — does not block the merge"
+            SUMMARY=$(printf 'The committed PNGs no longer match what this branch renders.\n\n%s\n\nDiffs: [visual-diffs artifact](%s) (expires in 7 days).' \
+                        "$(printf '%s\n' "$NAMES" | sed 's/^/- `/; s/$/`/')" "$RUN_URL")
+          else
+            CONCLUSION=success
+            TITLE="Baselines match"
+            SUMMARY="Every committed baseline matches what this branch renders."
+          fi
+
+          gh api --method POST "repos/$REPO/check-runs" \
+            -f name='visual baselines' \
+            -f head_sha="$HEAD_SHA" \
+            -f status=completed \
+            -f conclusion="$CONCLUSION" \
+            -f output[title]="$TITLE" \
+            -f output[summary]="$SUMMARY" \
+            --silent \
+            || echo "::warning::Could not publish the visual-baselines check run — the PR comment and the visual-diffs artifact still carry the result."
