@@ -3557,6 +3557,77 @@ test('settings (signed in): the Pay Calculator Data pointer card renders and lin
     await expect(card.locator('a[href*="paycalc.html#payTransferCard"]')).toBeVisible();
 });
 
+// ── Roster review: a state's marker must reach EVERY row type (v24.02, CI-gated) ──────────────
+//
+// Both halves of this were shipped broken at v24.00 and neither the a11y gate nor the visual
+// baseline could see it, because BOTH were written against a fixture whose conflict values happen
+// to be TIMES and whose rows happen to be DIFF.
+//
+//   1. `.cv-dim` marks the option a conflict row will NOT apply. It was changed from a fade to
+//      `text-decoration: line-through` — which does not inherit into an atomic inline box, and
+//      `.shift-badge` is `display: inline-flex`. A time is a plain span and gets struck; a BADGE
+//      (Rest, AL, Spare, an Other flavour with no time) did not, so the two options on the one
+//      control that exists to tell them apart rendered identically.
+//   2. A set-aside row recedes onto the sunken surface. That was three declarations, each beside
+//      the state it described, and all three lost the cascade to `.roster-change-conflict` and
+//      `.roster-change-unreadable` — same specificity, declared later. Measured in a refused read:
+//      the conflict row came out LIGHTER than the rows that did recede.
+//
+// So this asserts the marker against every row type the table can produce, not against one.
+test('operations: a not-chosen conflict value is struck through, badge or time', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await seedSession(page, 'G. Miller');
+    // A conflict whose new-roster value is a BADGE with no time — the case the other fixtures miss.
+    await openRosterReview(page, {
+        weekEnding: '2026-08-08', rosterType: 'cea', dates: ROSTER_REVIEW_DATES,
+        parsed: [{ memberName: 'G. Miller', shifts: { '2026-08-04': 'AL', '2026-08-03': '06:00-14:00' } }],
+    });
+    const dim = page.locator('.cv-dim').first();
+    await expect(dim).toBeVisible();
+    await expect(dim.locator('.shift-badge')).toHaveCount(1);   // the fixture really is badge-only
+    const struck = await page.evaluate(() => {
+        const d = /** @type {Element} */ (document.querySelector('.cv-dim'));
+        const b = d.querySelector('.shift-badge');
+        return { row: getComputedStyle(d).textDecorationLine, badge: b && getComputedStyle(b).textDecorationLine };
+    });
+    expect(struck.row, 'the not-chosen row must be struck').toContain('line-through');
+    expect(struck.badge, 'and the strike must REACH the badge — it does not inherit into inline-flex')
+        .toContain('line-through');
+});
+
+test('operations: every row type recedes when it is set aside', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await seedSession(page, 'G. Miller');
+    // A refused read un-ticks everything, so all five row types are set aside at once — DIFF,
+    // CONFLICT (the seeded manual override) and UNREADABLE all present in one capture.
+    await openRosterReview(page, {
+        weekEnding: '2026-08-08', rosterType: 'cea', dates: ROSTER_REVIEW_DATES,
+        geometryRefused: ['G. Miller', 'L. Springer', 'A. Hared'],
+        parsed: [
+            { memberName: 'G. Miller',   shifts: { '2026-08-03': '06:00-14:00', '2026-08-04': '13:00-21:00', '2026-08-05': 'UNKNOWN|XZ9' } },
+            { memberName: 'L. Springer', shifts: { '2026-08-03': 'RD' } },
+            { memberName: 'A. Hared',    shifts: { '2026-08-06': 'SPARE' } },
+        ],
+    });
+    await expect(page.locator('.roster-blocked').first()).toBeVisible();
+    // Sentinel: the fixture must actually produce the two row types that lost the cascade.
+    await expect(page.locator('.roster-change-conflict')).not.toHaveCount(0);
+    await expect(page.locator('.roster-change-unreadable')).not.toHaveCount(0);
+
+    const rows = await page.evaluate(() => [...document.querySelectorAll('.roster-change-row')].map(r => ({
+        kind: r.classList.contains('roster-change-conflict') ? 'conflict'
+            : r.classList.contains('roster-change-unreadable') ? 'unreadable' : 'plain',
+        bg: getComputedStyle(r).backgroundColor,
+    })));
+    const kinds = [...new Set(rows.map(r => r.kind))].sort();
+    expect(kinds, 'the fixture must cover all three row shapes').toEqual(['conflict', 'plain', 'unreadable']);
+    const backgrounds = [...new Set(rows.map(r => r.bg))];
+    expect(backgrounds,
+        'a set-aside row recedes onto ONE surface whatever type it is — a conflict or unreadable row '
+        + 'keeping its own tint here is the v24.00 cascade bug:\n  ' + JSON.stringify(rows))
+        .toHaveLength(1);
+});
+
 // ── Roster review: resolving a flagged cell (v19.32, CI-gated) ────────────────────────────────
 // The visual baseline covers this table's COMPOSITION but is opt-in and not a CI gate, so the
 // feature's WIRING is asserted here where every branch runs it. What only a real browser proves is

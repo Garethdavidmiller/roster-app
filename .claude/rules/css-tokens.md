@@ -678,6 +678,16 @@ eased `color` but not `background`, and the state that flips it to white-on-navy
 instantly — so for 150ms the button really was mid-grey on navy. Chromium finished the ease before
 the a11y scan sampled it; WebKit in CI did not, twice. Put both in the same `transition`, or neither.
 
+**A replacement cue must REACH every element it is meant to mark** (v24.02). Swapping a fade for
+`text-decoration` looked equivalent and was not: `text-decoration` does not inherit into an atomic
+inline box, so `line-through` on a row never reached the `display: inline-flex` `.shift-badge`
+inside it, and the not-chosen half of a conflict became identical to the chosen one. `opacity` had
+covered the whole subtree; nothing else does. The same release shipped the cascade version of the
+same mistake — three `background` declarations for "set aside", each beside the state it described,
+all three losing to `.roster-change-conflict`/`.roster-change-unreadable` declared later at equal
+specificity. **Assert the cue against every element type the surface can produce**, not against the
+one your fixture happens to render; `e2e/pages.spec.js` does that for both.
+
 **And do not assume a scanner sees a fade.** axe reports *nothing* for `.section-skipped`'s rows at
 `opacity: .35` — no violation and no `incomplete` — which is how that dim survived the pass that
 removed the other four. `e2e/axe.spec.js` therefore checks the mechanism directly (`faded()`)
