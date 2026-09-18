@@ -57,7 +57,7 @@ not exist here, or if an ID is declared twice.
 
 | ID | Claim | Settled by | Cost if wrong | Where it lives |
 |---|---|---|---|---|
-| **VAL-PAY-003** | **Pension £156.29 from the 1 Aug 2025 payslip.** The only step in `PENSION_STEPS` that was **derived from MILLER_ACTUALS totals** rather than read off a payslip line. The four others in the table are payslip-confirmed. | The `Smart RPS CR Scheme` line on the **1 Aug 2025 payslip** | Small and bounded — one period's default, self-healing on any period the member has touched. Listed because a derived figure sitting in a table of confirmed ones is indistinguishable from them | `paycalc-calc.js` (`PENSION_STEPS`) |
+| **VAL-PAY-003** | **Pension £156.29 from the 1 Aug 2025 payslip.** The only step in `PENSION_STEPS` that was **derived from PAYSLIP_ACTUALS totals** rather than read off a payslip line. The four others in the table are payslip-confirmed. | The `Smart RPS CR Scheme` line on the **1 Aug 2025 payslip** | Small and bounded — one period's default, self-healing on any period the member has touched. Listed because a derived figure sitting in a table of confirmed ones is indistinguishable from them | `paycalc-calc.js` (`PENSION_STEPS`) |
 | **VAL-PAY-004** | **CES has no 2025/26 `pre` rate on record.** Deliberately absent rather than guessed, so the box stays editable and compute-mode can be finished by hand. | Any **CES payslip from before 24 Oct 2025** | None today — the app declines to state it, which is the correct behaviour. It is here so the blank is not later "fixed" with an inferred number | `paycalc-calc.js` (`AWARD_RATES`) |
 
 ---

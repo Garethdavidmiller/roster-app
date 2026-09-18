@@ -130,7 +130,7 @@ every period's result and breakdown line simply agrees with the payslip.**
 
 ### The maths — two wirings, Q1 picks one
 
-Current model (calibrated against MILLER_ACTUALS): `sacGross = gross − pension`, and tax, NI and
+Current model (calibrated against PAYSLIP_ACTUALS): `sacGross = gross − pension`, and tax, NI and
 student loan are ALL computed on `sacGross`.
 
 - **Wiring A — BRASS inside the sacrifice (expected):** `sacGross = gross − pension − brass`.

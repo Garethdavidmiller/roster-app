@@ -47,19 +47,28 @@ const FIXTURE_HERE = existsSync(new URL(FIXTURE_SPEC, import.meta.url));
 const FIXTURE_REQUIRED = process.env.PAYSLIP_FIXTURE_REQUIRED === '1';
 
 /** @type {Record<string, {gross:number,tax:number,ni:number,sl:number,net:number,varPay:number}>|null} */
-let MILLER_ACTUALS = null;
+let PAYSLIP_ACTUALS = null;
 if (FIXTURE_HERE) {
-  ({ MILLER_ACTUALS } = await import(FIXTURE_SPEC));
+  // THE EXPORT IS NAMED FOR WHAT IT HOLDS, NOT FOR WHOSE IT IS (v23.96). It used to carry a
+  // colleague's surname, which put a person's name beside their payroll figures in a file the
+  // GitHub Pages mirror serves at HTTP 200. The figures themselves left at v23.71; the name that
+  // attributed them did not.
+  const mod = await import(FIXTURE_SPEC);
+  PAYSLIP_ACTUALS = mod.PAYSLIP_ACTUALS;
   // Present and importable is not the same as usable. A fixture whose export was renamed, or emptied,
-  // would otherwise sail past the checks below into the `!MILLER_ACTUALS` branch and report itself as
-  // ABSENT — the same silence, one step further in.
-  assert.ok(MILLER_ACTUALS && Object.keys(MILLER_ACTUALS).length > 0,
-    `${FIXTURE_SPEC} exists but exports no usable MILLER_ACTUALS. It is present, so this is a BROKEN `
+  // would otherwise sail past the checks below into the `!PAYSLIP_ACTUALS` branch and report itself as
+  // ABSENT — the same silence, one step further in. A fixture written before the rename lands here
+  // too, which is deliberate: it is a one-line fix on the one machine that holds the file, and a
+  // loud failure is the only way its owner finds out rather than losing the regression silently.
+  assert.ok(PAYSLIP_ACTUALS && Object.keys(PAYSLIP_ACTUALS).length > 0,
+    `${FIXTURE_SPEC} exists but exports no usable PAYSLIP_ACTUALS. It is present, so this is a BROKEN `
     + 'fixture, not a missing one — fix it rather than deleting it, or the payslip regression goes '
-    + 'quiet on the only checkout that can run it.');
+    + 'quiet on the only checkout that can run it.\n'
+    + 'If this fixture predates v23.96 it still exports the old per-person name: rename that export '
+    + 'to PAYSLIP_ACTUALS (the shape is unchanged).');
 }
 
-if (!MILLER_ACTUALS) {
+if (!PAYSLIP_ACTUALS) {
   const NOT_VERIFIED =
       'NOT VERIFIED on this run: computeSL against every clean Plan 1 payslip deduction; tax within\n'
     + '£1 and NI within 20p of thirteen real payslips; the cumulative-PAYE pair built from periods\n'
@@ -115,7 +124,7 @@ describe('constants', () => {
   });
 
   test('AWARD_RATES: CEA 2025/26 old £20.06 → new £20.74 (payslip-confirmed)', () => {
-    // Old rate from G. Miller payslip 09/05/2025 ("Basic Pay @ 20.06"); new = the settled 2025/26 rate.
+    // Old rate from the reference payslip of 09/05/2025 ("Basic Pay @ 20.06"); new = the settled 2025/26 rate.
     assert.equal(AWARD_RATES.cea['2025/26'].pre, 20.06);
     assert.equal(AWARD_RATES.cea['2025/26'].rate, 20.74);
   });
@@ -373,7 +382,7 @@ describe('computeSL', () => {
     // rounded down to £. Construct excess = £1011.20:
     //   correct:  floor(1011.20 × 0.09) = floor(91.008) = £91
     //   the WITHDRAWN v17.04 "floor the excess to a whole pound first" method gave £90 — proven wrong
-    //   by G. Miller's real P2 payslip (see the MILLER_ACTUALS.sl regression below).
+    //   by the reference member's real P2 payslip (see the PAYSLIP_ACTUALS.sl regression below).
     const threshold = sl.plan2.t;   // 28470/13 = 2190.00 exactly (penny-floor is a no-op here)
     const sacGross = threshold + 1011.20;
     assert.equal(computeSL(sacGross, 'plan2', sl), 91);
@@ -419,17 +428,17 @@ describe('computeSL', () => {
   });
 
   // ── Real-payslip regression (the source of truth) ─────────────────────────────
-  // G. Miller is on Plan 1. His real SL deductions lock the HMRC rounding method: the excess keeps
+  // The reference member is on Plan 1. Those real SL deductions lock the HMRC rounding method: the excess keeps
   // its pence, only the final deduction is floored to £. (P2 = £214 is the case the withdrawn v17.04
   // method got wrong as £213.) Only the whole-pound, non-zero periods are asserted: P4 carries a
   // £259.12 payslip adjustment (has pence — not a clean period deduction), and from P7 his loan is
   // settled so the payslip shows £0 while his gross is still above the threshold (a loan-balance fact
   // the estimator does not model). Threshold: Plan 1 26065/13 = £2005.00 exactly.
-  test('MILLER_ACTUALS.sl: computeSL matches every clean Plan 1 payslip deduction exactly', (t) => {
+  test('PAYSLIP_ACTUALS.sl: computeSL matches every clean Plan 1 payslip deduction exactly', (t) => {
     // Guarded INSIDE the body on purpose: the test keeps existing and says it skipped, rather than
     // disappearing from the tally where a smaller green number reads exactly like a passing one.
-    if (!MILLER_ACTUALS) return t.skip('real payslip fixture absent — see the note at the top of this file');
-    for (const [date, v] of Object.entries(MILLER_ACTUALS)) {
+    if (!PAYSLIP_ACTUALS) return t.skip('real payslip fixture absent — see the note at the top of this file');
+    for (const [date, v] of Object.entries(PAYSLIP_ACTUALS)) {
       if (!v.sl || !Number.isInteger(v.sl)) continue;   // skip £0 (loan settled) and the pence adjustment
       assert.equal(computeSL(v.gross, 'plan1', sl), v.sl, `SL ${date} (gross ${v.gross})`);
     }
@@ -439,7 +448,7 @@ describe('computeSL', () => {
   //
   // `const threshold = Math.floor(slPlan.t * 100) / 100` is the only statement in computeSL that
   // the block above does not exercise, and the reason is an accident of whose payslips we hold:
-  // G. Miller is on Plan 1, and Plan 1's 2025/26 periodic threshold is 26065/13 = £2005.00 EXACTLY.
+  // The reference member is on Plan 1, and Plan 1's 2025/26 periodic threshold is 26065/13 = £2005.00 EXACTLY.
   // Flooring an exact penny changes nothing, so every real-payslip assertion passes with the floor
   // deleted. Seven of the nine plan/year thresholds in the table are NOT exact.
   //
@@ -484,7 +493,7 @@ describe('computeSL', () => {
 
   test('and the floor never moves a plan whose threshold is already exact', () => {
     // The other direction: it must not be a general downward nudge. Plan 1 in 2025/26 divides
-    // exactly, and its deduction is the one G. Miller's payslips confirm.
+    // exactly, and its deduction is the one the reference payslips confirm.
     const cfg = T25.sl.plan1;
     assert.equal(Math.floor(cfg.t * 100) / 100, cfg.t, 'Plan 1 2025/26 is no longer an exact penny — re-read this case');
     const gross = cfg.t + 100 / cfg.r;
@@ -737,22 +746,22 @@ describe('computeTax', () => {
   //     Measured on the real payslips: on the 13 Feb 2026 one the mutation charges the whole
   //     year's liability, clipped by the overriding limit to £2,594.42, against a true £1,108.40.
   //
-  // Figures come from MILLER_ACTUALS and the year-to-date totals are SUMMED from it rather than
+  // Figures come from PAYSLIP_ACTUALS and the year-to-date totals are SUMMED from it rather than
   // written down, so a fixture correction flows through instead of being restated here.
   describe('a half-filled Year to Date pair never engages the cumulative method', () => {
-    if (!MILLER_ACTUALS) {
+    if (!PAYSLIP_ACTUALS) {
       test('SKIPPED — built from the real payslip fixture', (t) =>
         t.skip('real payslip fixture absent — see the note at the top of this file'));
       return;
     }
-    const ROWS = Object.values(MILLER_ACTUALS);
+    const ROWS = Object.values(PAYSLIP_ACTUALS);
     /** The year-to-date position a member would copy off payslip `n - 1`, for estimating `n`. */
     const ytdBefore = (/** @type {number} */ n) => ({
       ytdPay: ROWS.slice(0, n - 1).reduce((a, v) => a + v.gross, 0),
       ytdTax: ROWS.slice(0, n - 1).reduce((a, v) => a + v.tax, 0),
     });
-    const P1 = MILLER_ACTUALS['2025-04-11'];   // period 1 — the payslip the totals were copied from
-    const P2 = MILLER_ACTUALS['2025-05-09'];   // period 2 — the payslip being estimated
+    const P1 = PAYSLIP_ACTUALS['2025-04-11'];   // period 1 — the payslip the totals were copied from
+    const P2 = PAYSLIP_ACTUALS['2025-05-09'];   // period 2 — the payslip being estimated
 
     // The control. Without it the whole block would also pass on a computeTax that had simply
     // stopped going cumulative at all, which is the careless fix for the cases below.
@@ -830,12 +839,12 @@ describe('computeTax', () => {
     approx(empty, normal, 'empty code fallback');
   });
 
-  test('HMRC floor: G. Miller P20 (01/08/2025) and P28 (26/09/2025) — Math.floor step applied', () => {
+  test('HMRC floor: reference payslips P20 (01/08/2025) and P28 (26/09/2025) — Math.floor step applied', () => {
     // Verifies the HMRC round-down step in the NON-CUMULATIVE tax computation.
     // P20: sacGross £4,441.60 → without floor £809.87, with floor £809.60
     // P28: sacGross £4,810.43 → without floor £957.40, with floor £957.20
     // P28's floored estimate equals the actual payslip (£957.20) exactly. P20's
-    // actual payslip tax was £809.71 (MILLER_ACTUALS, the source of truth) — 11p
+    // actual payslip tax was £809.71 (PAYSLIP_ACTUALS, the source of truth) — 11p
     // above the non-cumulative estimate because real payroll is cumulative. That
     // drift is expected, not a regression (see the integration block below).
     const { tax: taxP20 } = computeTax(4441.60, '1257L', T25);
@@ -1041,7 +1050,7 @@ describe('getPensionForPeriod', () => {
   });
 
   // ── Historic eras (PENSION_STEPS table, v18.43 — review item 8) ─────────────
-  // Derived from MILLER_ACTUALS (pension ≈ basic + varPay − Taxable Pay): £160.78 to the
+  // Derived from PAYSLIP_ACTUALS (pension ≈ basic + varPay − Taxable Pay): £160.78 to the
   // 4 Jul 2025 payslip (payslip-confirmed 9 May 2025), a transitional £156.29 on the
   // 1 Aug 2025 payslip (derived — see PENSION_STEPS), £154.77 from 29 Aug 2025.
 
@@ -1096,7 +1105,7 @@ describe('calcProRateFactor', () => {
     assert.equal(calcProRateFactor(new Date(2026, 3, 5), p51start, p51cut), 1);
   });
 
-  test('M. Okeke: startDate Apr 20 midnight → 14/28 = 0.5 (matches payslip)', () => {
+  test('a 20 April joiner: startDate Apr 20 midnight → 14/28 = 0.5 (matches payslip)', () => {
     // Apr 20 midnight → raw 12.5 → Math.round(12.5)=13 → daysEmployed=14 → 14/28=0.5
     // Verified: May 8 2026 payslip shows London Allowance £276.16 × 0.5 = £138.08 ✓
     const factor = calcProRateFactor(new Date(2026, 3, 20), p51start, p51cut);
@@ -1141,33 +1150,33 @@ describe('calcProRateFactor', () => {
   });
 });
 
-// ── G. Miller 2025/26 payslip integration ─────────────────────────────────────
+// ── Reference 2025/26 payslip integration ─────────────────────────────────────
 // Actual payslip figures from the gitignored test-fixtures/payslip-actuals.local.js.
 // gross = post-pension sacGross (matches "Taxable Pay" on payslip).
 // Tax and NI are tested non-cumulatively: actual payroll uses cumulative PAYE,
 // so small per-period differences (up to ~£1 tax, ~20p NI) are expected and
 // acceptable. Any larger gap would indicate a formula regression.
-// Student loan IS tested — G. Miller is on Plan 1 (confirmed); the clean-period SL
-// deductions are locked by the `MILLER_ACTUALS.sl` regression in the computeSL block above.
+// Student loan IS tested — the reference member is on Plan 1 (confirmed); the clean-period SL
+// deductions are locked by the `PAYSLIP_ACTUALS.sl` regression in the computeSL block above.
 // Net take-home is reconciled below (net = gross − tax − NI − SL).
 // NOTE: The HMRC-floor test above asserts P20 NON-CUMULATIVE tax = £809.60, while
-// MILLER_ACTUALS records the actual payslip tax of £809.71 for the same period.
+// PAYSLIP_ACTUALS records the actual payslip tax of £809.71 for the same period.
 // These do not conflict: £809.71 is the cumulative payslip figure (the source of
 // truth), £809.60 is the non-cumulative floored estimate, and the 11p gap is the
 // expected cumulative-PAYE drift documented above. Confirmed by Gareth (Jun 2026).
 
 describe('payslip integration (non-cumulative estimates against real payslips)', () => {
   // Derived from the real payslip fixture (test-fixtures/payslip-actuals.local.js) — the single
-  // source of truth for this regression net. These figures lived in MILLER_ACTUALS in the served
+  // source of truth for this regression net. These figures lived in PAYSLIP_ACTUALS in the served
   // roster-data.js until v14.68, moved to a hosting-excluded fixture then, and left the tree
   // entirely at v23.71 (the Pages mirror serves the repo root, so an ignore list could not
   // express the decision for both origins). Object insertion order is payday-ascending, preserved.
-  if (!MILLER_ACTUALS) {
+  if (!PAYSLIP_ACTUALS) {
     test('SKIPPED — the thirteen real payslips are not on this checkout', (t) =>
       t.skip('real payslip fixture absent — see the note at the top of this file'));
     return;
   }
-  const actuals = Object.entries(MILLER_ACTUALS)
+  const actuals = Object.entries(PAYSLIP_ACTUALS)
     .map(([date, v]) => ({ date, gross: v.gross, tax: v.tax, ni: v.ni }));
 
   for (const p of actuals) {
@@ -1189,7 +1198,7 @@ describe('payslip integration (non-cumulative estimates against real payslips)',
   // the headline figure staff read. Combined with the per-field tax/NI/SL tests, it
   // transitively confirms the code composes to the real take-home. Tolerance covers minor
   // payslip rounding (largest observed drift ~28p). (v17.24 — closes the "net never asserted" gap.)
-  const withNet = Object.entries(MILLER_ACTUALS).map(([date, v]) => ({ date, ...v }));
+  const withNet = Object.entries(PAYSLIP_ACTUALS).map(([date, v]) => ({ date, ...v }));
   for (const p of withNet) {
     test(`${p.date}: net reconciles as gross − tax − NI − SL`, () => {
       approx(p.gross - p.tax - p.ni - p.sl, p.net, `net ${p.date}`, 0.50);

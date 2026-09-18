@@ -455,7 +455,7 @@ export function runMigrations({ getPeriods, getLoggedMember, getPensionDefault }
     //
     // Part B — joining-period anchor bug (joiners only):
     //   ANCHOR_DATE was midnight before v8.88; it must be noon to maintain the
-    //   calcProRateFactor half-day invariant. With a midnight anchor, M. Okeke's P51
+    //   calcProRateFactor half-day invariant. With a midnight anchor, a 20 April joiner's P51
     //   pro-ration factor was 13/28 instead of the correct 14/28, producing auto-saved
     //   pension values of £71.86 or £68.42 instead of £73.68. The old-rate noon-anchor
     //   value (£77.39) is also stale. All three are fingerprint values that cannot

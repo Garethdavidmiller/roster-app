@@ -269,8 +269,9 @@ test('paycalc: the re-posted YTD notice appears on a clean device', async ({ pag
 // A mid-year joiner (startDate this tax year) must NOT be told to fill in payslips from before
 // they were employed. The HPP + back-pay period loops skip periods entirely before startDate
 // (getProRateFactor(p) === 0), fixing the "Not entered yet: 10 Apr…" + inflated "N of 13" denom
-// for a joiner (v18.54 — from the max-effort review). J. Davies started 5 May 2026, so her
-// 2026/27 window's 10 Apr + 8 May payslips predate her employment.
+// for a joiner (v18.54 — from the max-effort review). The joiner seeded below started 5 May 2026
+// (a start date, from the public roster — no payslip of theirs is involved), so their 2026/27
+// window's 10 Apr + 8 May payslips predate their employment.
 test('paycalc: a joiner is not asked to fill in pre-employment payslips', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await seedSession(page, 'J. Davies');   // getLoggedMember reads the session, not the calendar member
@@ -306,8 +307,9 @@ test('paycalc: a joiner is not asked to fill in pre-employment payslips', async 
 // A mid-year joiner's rough "from Year to Date" HPP estimate must not subtract PRE-EMPLOYMENT
 // non-premium pay. _expectedNonPremiumYtd now pro-rates London + pension by the joining factor
 // (v18.55), so pre-start periods (factor 0) contribute £0 instead of a phantom "London − pension".
-// J. Davies (start 5 May 2026, source payslip p52) has a fixed non-premium baseline ~£2924 vs a
-// buggy ~£3179; a Taxable Pay of £3050 sits between them — buggy → £0, fixed → a real figure.
+// A 5 May 2026 joiner has a fixed non-premium baseline ~£2924 vs a buggy ~£3179; a Taxable Pay of
+// £3050 sits between them. Every figure here is COMPUTED by the calculator from the published
+// rates and a public start date — none is read off anybody's payslip — buggy → £0, fixed → a real figure.
 test('paycalc: joiner ytd-mode HPP excludes pre-employment non-premium pay', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await seedSession(page, 'J. Davies');

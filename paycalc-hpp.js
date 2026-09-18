@@ -329,7 +329,7 @@ function _hoursEstimate(ty, allPeriods) {
   // becomes actionable. Only PAID paydays — a future payslip isn't "missing", it hasn't happened.
   const missingPaid = /** @type {Date[]} */ ([]);
   const _now = new Date();
-  // Device-local payslip actuals (G. Miller only; imported once per device, never served).
+  // Device-local payslip actuals (developer account only; imported once per device, never served).
   // When a period has real figures, its actual varPay is used instead of the entered-hours
   // estimate — read once here, not per period.
   const _actuals = isActualsDev(getLoggedMember()) ? readPayslipActuals() : null;
