@@ -40,7 +40,7 @@ const {
     parseStrictIsoDate,
     fileSignatureMatches,
 } = require('./roster-parse-helpers');
-const { extractRosterGeometry, applyGeometryWitness, geometryCoverage, awaitGeometryWithin } = require('./roster-geometry');
+const { extractRosterGeometry, applyGeometryWitness, geometryCoverage, awaitGeometryWithin, settledGeometry } = require('./roster-geometry');
 const { SHIFT_VOCABULARY, buildCellTable, buildCellPrompt, DAY_LABELS: CELL_DAY_LABELS } = require('./roster-prompt');
 const {
     CALENDAR_VIEWER_UID,
@@ -663,13 +663,27 @@ columnScan: one key per column header; every staff member appears in every colum
         // what it may not have is unlimited extra time on the critical path once the answer is in.
         // A timeout lands on `status: 'unavailable'`, which the review now states — see
         // `awaitGeometryWithin` for why the budget is on the wait rather than on the work.
-        // Already awaited before the model call (phase 2), so this is the same settled result rather
-        // than a second wait — re-awaiting would arm a second timer for a promise that has resolved.
-        // The witness still runs on the geometry path: it should refuse NOTHING there, because a
-        // claim cannot land in an empty cell when the cell is where the claim came from. Keeping it
-        // is cheap, and a refusal on that path would mean the two halves disagree, which is worth
-        // hearing about rather than assuming away.
-        const geometry = geometryEarly;
+        // ── ASK AGAIN IF THE EARLY WAIT GAVE UP, AND ONLY THEN (v24.05) ─────────────────────────
+        //
+        // Phase 2 moved the first await IN FRONT of the model call, and the first cut of that reused
+        // its result here with a comment claiming the promise had settled. It has not settled when
+        // the early wait TIMED OUT: `awaitGeometryWithin` is a `Promise.race`, so the extraction is
+        // still running and `geometryEarly` is the fail-open `wait-timeout` object.
+        //
+        // Reusing it therefore threw away a witness the PRE-PHASE-2 ordering would have had. Before,
+        // the only await happened after the model call, so a slow extraction had the model's whole
+        // latency plus the budget; after, it had the budget alone, and a PDF that overran it lost
+        // BOTH the geometry path and the phase-1 witness. That is a safety net getting smaller as a
+        // side effect of a change that was meant to add one.
+        //
+        // So: reuse the settled result, and re-ask only when it timed out — by which point the
+        // extraction has had the model call's seconds too, exactly as it used to.
+        //
+        // The witness still runs on the geometry path, where it should refuse NOTHING: a claim
+        // cannot land in an empty cell when the cell is where the claim came from. Keeping it is
+        // cheap, and a refusal there would mean the two halves disagree, which is worth hearing
+        // about rather than assuming away.
+        const geometry = await settledGeometry(geometryEarly, geometryPromise);
         const geoStats = applyGeometryWitness(safeEntries, geometry, dates);
         if (geoStats.status !== 'complete') {
             console.warn(`[parseRosterPDF] geometry witness ${geoStats.status}: ${geoStats.checked}/${geoStats.total} members matched`

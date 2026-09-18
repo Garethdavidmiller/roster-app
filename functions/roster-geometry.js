@@ -453,7 +453,39 @@ async function awaitGeometryWithin(promise, ms = GEOMETRY_WAIT_BUDGET_MS) {
     }
 }
 
+/**
+ * Reuse a settled geometry result, and ask again ONLY when the early wait gave up.
+ *
+ * ── WHY THIS IS A FUNCTION AND NOT TWO LINES IN THE COORDINATOR (v24.05) ───────────────────────
+ *
+ * Phase 2 moved the first `awaitGeometryWithin` in FRONT of the model call so the cells could be
+ * handed over already separated. The first cut of that then reused the early result for the
+ * phase-1 witness further down, on the reasoning that the promise had settled by then.
+ *
+ * It has not settled when the early wait TIMED OUT. `awaitGeometryWithin` is a `Promise.race`: the
+ * extraction keeps running and the caller is holding the fail-open object. Reusing it threw away a
+ * witness the PRE-phase-2 ordering would have had — before, the only await came after the model
+ * call, so a slow extraction had the model's whole latency plus the budget; after, it had the
+ * budget alone, and a PDF that overran it lost BOTH the geometry path and the witness. A safety net
+ * getting smaller as a side effect of a change that was meant to add one.
+ *
+ * It lives here rather than inline because it was a WIRING mistake, not a rule mistake — the
+ * helpers were both correct and the coordinator used them wrongly, which is the one shape a unit
+ * test of either helper can never catch. As a named function it is drivable directly, and the
+ * coordinator's use of it is a single call with no branch left to get wrong.
+ *
+ * @param {RosterGeometry|null|undefined} early   what the pre-model wait returned
+ * @param {Promise<RosterGeometry>} promise       the SAME extraction, still running on a timeout
+ * @param {(p: Promise<RosterGeometry>) => Promise<RosterGeometry>} [again]  injectable for tests
+ * @returns {Promise<RosterGeometry>}
+ */
+async function settledGeometry(early, promise, again = awaitGeometryWithin) {
+    if (early && early.reason === 'wait-timeout') return again(promise);
+    return /** @type {any} */ (early);
+}
+
 module.exports = {
+    settledGeometry,
     GEOMETRY_WAIT_BUDGET_MS,
     GEOMETRY_WORK_BUDGET_MS,
     awaitGeometryWithin,

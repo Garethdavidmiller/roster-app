@@ -91,6 +91,29 @@ satisfied** — that list spans all three roster types plus seven `hidden` Manag
 **The geometry read moved onto the critical path**, and that is the cost: it used to run free inside
 the model's latency. Measured under a second per document against a ~15s model call.
 
+**And moving it nearly cost the phase-1 witness, which is the bug worth remembering** (v24.05). The
+first cut reused the pre-model result for the witness further down, on the reasoning that the promise
+had settled. It has not settled when the early wait TIMED OUT — `awaitGeometryWithin` is a
+`Promise.race`, so the extraction is still running and the caller holds a fail-open object. Before
+phase 2 the only await came after the model call, so a slow extraction had the model's whole latency
+plus the budget; after, it had the budget alone, and a PDF that overran it lost BOTH the geometry
+path and the witness. `settledGeometry` re-asks on `wait-timeout` and ONLY on that — every other
+fail-open reason (`no-grid`, `pdfjs-unavailable`, `no-text`, `work-budget`, `threw`) is a settled
+answer, and re-asking those would spend the whole budget again on every ordinary fallback.
+
+**A member legitimately absent from one week's sheet turns the geometry path OFF for that upload.**
+`parseRosterPDF` already treats an absent member as advisory (`missingMembers`) — a leaver, a starter
+not yet on the rota, somebody printed elsewhere — but the gate cannot tell that apart from "the grid
+missed a row that IS on the page". It takes the safe reading. So phase 2 can go quiet for a roster
+type and nothing will look broken; the coordinator logs which path it took, with the reason and the
+unmatched count, on every parse. Read that line first.
+
+**The cell table is JSON, one object per member, and that is a safety property.** A roster cell
+legitimately contains a pipe (`06:00-14:00 | CEA 1` is one cell's two printed lines), so a delimited
+table would draw its structure and its data from the same alphabet. As JSON the framing and the
+escaping are one mechanism, and a cell carrying newlines or quotes cannot forge a row or a day —
+pinned by the injection block in `roster-cell-read.test.mjs`.
+
 **What the real files settled about LINES.** Every one of the **55 distinct values appearing on a
 non-first line of a cell is a DUTY code** (`CEA 10`, `SUP 1`, `Dispatch`, `Shadow Nights`). No status
 code sits on a second line — because a non-worked day has no time line above its code, so under the
