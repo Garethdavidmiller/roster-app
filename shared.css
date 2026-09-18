@@ -1783,7 +1783,24 @@ button.lightbox-bug-link {
    ============================================================ */
 
 /* Update status pill */
+/* THE UNMARKED STATE IS A STATE, AND IT WAS THE ONLY UNREADABLE ONE (v23.95).
+   Three states reach this element and only two had a colour: `up-to-date`, `needs-update`, and
+   the bare class — "Couldn't check for an update", set by `refreshUpdateStatus`'s catch branch in
+   about-lightbox.js. With nothing declared here it inherited BLACK onto the dark glass panel:
+   2.15:1, measured, against WCAG AA's 4.5. Unreadable exactly when something has gone wrong and
+   the member most needs to read it.
+
+   WEBKIT IS WHAT FOUND IT, and how is the part worth keeping. Chromium resolves
+   `navigator.serviceWorker.getRegistration()` to null with service workers blocked and takes the
+   happy path, so the a11y gate had only ever scanned `up-to-date`; WebKit rejects and lands in
+   the catch. One engine's scan of one error state — which is the argument for the WebKit lane in
+   one sentence.
+
+   So the base carries its own opaque pair, and every state now answers for its own contrast
+   rather than borrowing from whatever is behind the modal. */
 .lightbox-status {
+    color: var(--text-dark);
+    background: var(--surface-sunken);
     font-size: var(--type-small);
     font-weight: 600;
     margin-top: 8px;
