@@ -68,8 +68,10 @@ import { projectAlBooking, projectAlOverage } from './admin-al-projection.js';
  * @param {Map<string, any>|null} [args.ovByDate] the member's overrides in play, keyed by date
  * @param {Map<string, boolean>|null} [args.swapAnswers] THIS SAVE's answers: date → swapped?
  * @param {any[]} [args.overrides] every override on record, for the year's existing leave
- * @returns {{toSave: any[], skipped: string[], keptLeave: string[], overage: any}}
- *   `toSave` is the batch to write — the SAME array when nothing was dropped. `skipped` are the
+ * @returns {{toSave: any[], skipped: string[], keptLeave: string[], unanswered: string[], overage: any}}
+ *   `toSave` is the batch to write — the SAME array when nothing was dropped. `unanswered` are the
+ *   rest days whose question has not been answered: they are WITHHELD from the batch and the caller
+ *   must refuse the save and name them (see the block beside the filter below). `skipped` are the
  *   dates deliberately left alone, in date order. `keptLeave` is the SUBSET of those that still hold
  *   a leave record afterwards, so the receipt can avoid telling a manager a day is clear when the
  *   Calendar is about to show leave on it. `overage` is the confirmation message, or `null`.
@@ -77,7 +79,7 @@ import { projectAlBooking, projectAlOverage } from './admin-al-projection.js';
 export function planAlWeekSave({ member, memberName, toSave, toDelete = [],
                                 ovByDate = null, swapAnswers = null, overrides = [] }) {
     let alInBatch = toSave.filter(e => e.type === 'annual_leave');
-    if (!alInBatch.length) return { toSave, skipped: [], keptLeave: [], overage: null };
+    if (!alInBatch.length) return { toSave, skipped: [], keptLeave: [], unanswered: [], overage: null };
 
     const proj = projectAlBooking({ member, dates: alInBatch.map(e => e.date), ovByDate, swapAnswers });
 
@@ -102,6 +104,30 @@ export function planAlWeekSave({ member, memberName, toSave, toDelete = [],
         });
     }
 
+    // ── AN UNANSWERED REST DAY IS NEVER WRITTEN ────────────────────────────────────────────────
+    //
+    // `projectAlBooking`'s own contract says an unanswered day "blocks the save", and this planner
+    // computed the set and threw it away: the batch still carried the day and `consuming` did not,
+    // so the leave was RECORDED AND COST NOTHING — the exact failure v23.75 exists to prevent, and
+    // the one that lost three of a member's days before anybody counted.
+    //
+    // The coordinator's per-row check is what names the day, and it fires first in every ordinary
+    // save. It cannot fire when its input is STALE, and that is reachable rather than theoretical:
+    // `row.dataset.alSwapAsk` is written ONCE per row by `renderWeekGrid`, while this reads
+    // `buildMemberDateMap` at save time, and the AL/absence range delete deliberately skips the
+    // re-render while edits are staged (admin-app.js, v16.82). Deleting an AL that carried
+    // `replacedType: 'shift'` from a base rest day turns a not-asked row into an asked one with no
+    // question on screen.
+    //
+    // So the decision lives HERE, beside the projection that makes it, and the surfaces keep the
+    // message — which is the whole reason this module exists (see its header: one decision, no
+    // second copy to forget). Withholding is the safe direction: a day not recorded is visible and
+    // recoverable, leave that costs nothing is neither until somebody counts the year.
+    if (proj.unanswered.length) {
+        const open = new Set(proj.unanswered);
+        batch = batch.filter(e => !(e.type === 'annual_leave' && open.has(e.date)));
+    }
+
     // Existing leave for the year, less the dates this batch OVERWRITES or DELETES — they are
     // re-accounted through `consuming`, or removed outright. Ordering 1 above: computed from the
     // SURVIVING entries, so a day left alone is not counted as one this batch replaces.
@@ -114,6 +140,7 @@ export function planAlWeekSave({ member, memberName, toSave, toDelete = [],
         toSave: batch,
         skipped,
         keptLeave,
+        unanswered: proj.unanswered,
         overage: projectAlOverage({ member, memberName, overrides, consuming: proj.consuming, exclude }),
     };
 }

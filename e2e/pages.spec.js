@@ -7672,6 +7672,65 @@ test('admin: the week grid asks the swap question too, and refuses to save it un
         .toHaveAttribute('aria-pressed', 'false');
 });
 
+test('admin: the save refuses an unanswered rest day even when the row never asked (v24.11)', async ({ page }) => {
+    // THE STALE-FLAG CASE, and the reason the decision moved into `admin-al-week-save.js`.
+    //
+    // The refusal above reads `row.dataset.alSwapAsk`, which `renderWeekGrid` writes ONCE per row.
+    // The planner reads `buildMemberDateMap` at SAVE time. Those two diverge whenever the override
+    // cache changes without a re-render — which the AL/absence range delete does deliberately while
+    // edits are staged (v16.82), so deleting an AL that carried `replacedType: 'shift'` from a base
+    // rest day leaves a row that IS asked with no question on screen and nothing to answer.
+    //
+    // Staging that whole sequence here would test the sequence rather than the rule. Clearing the
+    // dataset flag reproduces exactly the divergence it creates — the row believes no question
+    // applies, the record says one does — and then drives the REAL save handler. Before the fix the
+    // day was written and `consuming` excluded it: leave recorded that cost nothing.
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    const target = await page.evaluate(async () => {
+        const [rd, ou] = await Promise.all([import('./roster-data.js'), import('./override-utils.js')]);
+        const rows = [...document.querySelectorAll('.day-row')].map(r => /** @type {any} */ (r).dataset.date);
+        for (const m of rd.teamMembers) {
+            if (m.hidden || m.managerOnly) continue;
+            for (const d of rows) {
+                if (!d) continue;
+                const dt = new Date(d + 'T00:00:00');
+                if (dt.getDay() === 0) continue;               // Sundays are refused for a different reason
+                if (ou.isRestShift(rd.getBaseShift(m, dt))) return { name: m.name, date: d };
+            }
+        }
+        return null;
+    });
+    expect(target, 'no member has a rest day in the displayed week').not.toBeNull();
+    const t = /** @type {any} */ (target);
+
+    await page.locator('#fieldMember').selectOption(t.name);
+    await page.waitForTimeout(400);
+    const row = page.locator(`.day-row[data-date="${t.date}"]`);
+    await expect(row).toHaveCount(1);
+
+    await clickInView(row.locator('.type-pill-btn[data-type="annual_leave"]'));
+    await expect(row.locator('.col-al-swap'), 'the row asks normally').toBeVisible();
+
+    // Now make the row believe it was never asked — the stale flag, reproduced.
+    await page.evaluate((date) => {
+        const r = /** @type {any} */ (document.querySelector(`.day-row[data-date="${date}"]`));
+        delete r.dataset.alSwapAsk;
+        const ask = /** @type {any} */ (r.querySelector('.col-al-swap'));
+        if (ask) ask.hidden = true;
+    }, t.date);
+    await expect(row.locator('.col-al-swap'), 'no question is on screen now').toBeHidden();
+
+    await clickInView(page.locator('#saveBtn'));
+
+    // The planner refuses on its own, and the row is marked the same way the per-row check marks it.
+    await expect(row, 'the day must be named, not written').toHaveClass(/row-error/);
+    await expect(page.locator('#weekGridFeedback, .feedback').filter({ hasText: 'swapped working day' }).first())
+        .toBeVisible();
+});
+
 test('admin: a skip-only save leaves the row showing the record that is still there (v23.89)', async ({ page }) => {
     // FOUND IN THE v23.88 REGRESSION READ, not by a failing test. When every staged day resolves to
     // "rest day — free" there is nothing to commit, so the save reports and returns early — and that
