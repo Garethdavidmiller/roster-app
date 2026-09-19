@@ -84,6 +84,75 @@ describe('"rest day — free": not written, and NAMED', () => {
     });
 });
 
+describe('UNANSWERED: the question the planner used to compute and throw away', () => {
+    // `projectAlBooking`'s contract says an unanswered rest day "blocks the save". This planner
+    // computed that set and discarded it, so the day was written while `consuming` excluded it —
+    // leave recorded that cost nothing, which is the failure v23.75 exists to prevent.
+    //
+    // The coordinator's per-row check is what NAMES the day, and it reads a flag `renderWeekGrid`
+    // writes once. This planner reads the record at SAVE time, and the two diverge when the
+    // override cache changes without a re-render — which the AL/absence range delete does on
+    // purpose while edits are staged. So the refusal has to be decidable from the planner's own
+    // inputs, and these tests are what say it is.
+
+    test('a rest day with NO answer is withheld from the batch, not written', () => {
+        const plan = planAlWeekSave({
+            member: reen, memberName: 'C. Reen',
+            toSave: [al(SAT)], ovByDate: NO_OV, swapAnswers: new Map(), overrides: [],
+        });
+        assert.deepEqual(plan.unanswered, [SAT], 'the planner must report the day it could not judge');
+        assert.deepEqual(plan.toSave, [], 'and must not write leave it cannot charge');
+    });
+
+    test('an unanswered day never reaches the entitlement check either', () => {
+        // The two have to agree: a day that is not written must not be counted, and a day that IS
+        // written must be. Withholding without this would just move the disagreement.
+        const plan = planAlWeekSave({
+            member: reen, memberName: 'C. Reen',
+            toSave: [al(SAT)], ovByDate: NO_OV, swapAnswers: new Map(),
+            overrides: oneDayLeft,
+        });
+        assert.equal(plan.overage, null, 'nothing is being written, so nothing is over-booked');
+    });
+
+    test('the rest of the batch still saves — one open question is not a dead save', () => {
+        const plan = planAlWeekSave({
+            member: reen, memberName: 'C. Reen',
+            toSave: [al(MON), al(SAT)], ovByDate: NO_OV, swapAnswers: new Map(), overrides: [],
+        });
+        assert.deepEqual(plan.unanswered, [SAT]);
+        assert.deepEqual(plan.toSave.map(e => e.date), [MON],
+            'the working day is unaffected by the question on another row');
+    });
+
+    test('ANSWERED is untouched by all of this — the control', () => {
+        const yes = planAlWeekSave({
+            member: reen, memberName: 'C. Reen',
+            toSave: [al(SAT)], ovByDate: NO_OV,
+            swapAnswers: new Map([[SAT, true]]), overrides: [],
+        });
+        assert.deepEqual(yes.unanswered, [], 'answered is not unanswered');
+        assert.deepEqual(yes.toSave.map(e => e.date), [SAT], 'a declared swap is still written');
+
+        const no = planAlWeekSave({
+            member: reen, memberName: 'C. Reen',
+            toSave: [al(SAT)], ovByDate: NO_OV,
+            swapAnswers: new Map([[SAT, false]]), overrides: [],
+        });
+        assert.deepEqual(no.unanswered, []);
+        assert.deepEqual(no.skipped, [SAT], '"rest day — free" is still a SKIP, not a refusal');
+    });
+
+    test('a batch with no leave in it reports no open questions', () => {
+        const plan = planAlWeekSave({
+            member: reen, memberName: 'C. Reen',
+            toSave: [{ memberName: 'C. Reen', date: SAT, type: 'rdw', value: '09:00-17:00' }],
+            ovByDate: NO_OV, swapAnswers: new Map(), overrides: [],
+        });
+        assert.deepEqual(plan.unanswered, [], 'the early return carries the key too');
+    });
+});
+
 describe('the over-entitlement bar', () => {
     test('THE v23.79 REGRESSION, at the save: a declared swap counts toward the year', () => {
         // Two consuming days against one remaining. The swapped rest day is not a `shift` override

@@ -855,6 +855,16 @@ export function init() {
             memberName, toSave, toDelete,
             ovByDate: buildMemberDateMap(memberName), swapAnswers, overrides: getAllOverrides(),
         });
+        // The planner decides; this names the days. Ordinarily the per-row check above has already
+        // refused and this never fires — it is reached when that check's input was stale, which the
+        // planner's own block explains. Marking the rows keeps the two refusals looking the same.
+        if (alPlan.unanswered.length) {
+            alPlan.unanswered.forEach(d => document
+                .querySelector(`.day-row[data-date="${d}"]`)?.classList.add('row-error'));
+            return showError(alPlan.unanswered
+                .map(d => `${formatDisplay(d)}: say whether this rest day was a swapped working day`)
+                .join(' · '));
+        }
         toSave = alPlan.toSave;
         _alPendingSkipped = alPlan.skipped;      // the receipt names them: never a silent drop
         _alPendingKept    = alPlan.keptLeave;    // …and which of them the reader will still see leave on
