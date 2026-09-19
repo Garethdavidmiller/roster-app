@@ -15,6 +15,7 @@
         "generate-sri.mjs",
         "scripts",
         "functions",
+        "test-fixtures",
         ".claude",
         "e2e",
         "experiments",

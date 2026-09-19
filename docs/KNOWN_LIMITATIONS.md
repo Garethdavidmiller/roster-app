@@ -107,11 +107,24 @@ NOW, take it seriously: the flake excuse has been spent.
 
 ## Security
 
-> **Forward plan:** the deferred security work in this section (per-member write isolation,
-> named-session separation, App Check, password retirement, Workload Identity Federation, the
-> firebase-admin bump) is sequenced into a phased release with per-phase risk/rollback in
-> **`SECURITY_RELEASE_PLAN.md`**. The entries below remain the authoritative *post-mortems and
-> rationale*; that file is the *ordering* that keeps a fix from re-creating the v10.94 outage.
+> **Forward plan.** The security work in this section is sequenced, with per-phase risk and
+> rollback, in **`SECURITY_RELEASE_PLAN.md`**. The entries below remain the authoritative
+> *post-mortems and rationale*; that file is the *ordering* that keeps a fix from re-creating the
+> v10.94 outage.
+>
+> **TWO items are still deferred. FOUR have shipped, and this paragraph listed all six as pending
+> until 19 Sep 2026** (external review). That is worth naming rather than quietly correcting: the
+> entries below are detailed and current, so a stale *introduction* is the most misleading kind of
+> staleness — it tells a reader the section is a backlog when most of it is a changelog.
+>
+> | | |
+> |---|---|
+> | **Still deferred** | **App Check** (Track D — declined as immediate, retained; see its entry below) · **password retirement** (Track C5, gated on the migration reaching ≥90% — `MAINTENANCE_CALENDAR.md` → Trigger points) |
+> | **Shipped** | **Per-member write isolation** — strict since v16.29; the permissive `!('name' in token)` escape is gone from `firestore.rules` · **Named-session separation** — the Calendar closed to anonymous on 26 Aug 2026; a read needs a `name` claim or the `calendarViewer` capability · **Workload Identity Federation** — all four workflows authenticate by short-lived OIDC; no `FIREBASE_SERVICE_ACCOUNT` key exists (Appendix A2) · **The firebase-admin bump** — `functions/package.json` is on `^14.3.0` |
+>
+> The shipped four are listed by what a reader can CHECK rather than by a version alone, because
+> that is what stops this row going stale again: each claim above is one grep away from being
+> falsified.
 
 ### The document FILES are protected by a bearer URL, not by auth
 `storage.rules` gates direct Storage SDK reads, but staff never read Huddles/Circulars/Newsletters
@@ -230,10 +243,32 @@ adding one is the owner's call.
 
 ### `docs/AL_WORKBOOK.md` publishes named colleagues' leave figures (found 16 Sep 2026, deep review)
 
-**Status: recorded, owner's decision.** The file carries **28 named individuals with specific leave
-figures** — e.g. *"Worked example — J. Davies, 2026. Allowance 20, grid days 19, over-quota 1,
-remaining 0."* The repository is public, so this is readable at github.com; the Pages mirror serves
-it too (`200`, while Firebase correctly `404`s, its ignore list covering `docs/`).
+**Status: ACTED ON, 19 Sep 2026 (v24.15) — the per-person record no longer ships.** It had been
+*"recorded, owner's decision"* since 16 Sep; an external review raised it again, the exposure was
+re-measured and confirmed live (`200` on the Pages mirror, `404` on Firebase, whose ignore list
+covers `docs/`), and the split was made rather than re-recorded.
+
+**What moved and what stayed.** Section 12 — the reconciliation log, roughly fifty dated entries
+naming colleagues against days taken, days remaining and one reason for absence — is now
+`docs/AL_WORKBOOK.local.md`, gitignored. Everything else stayed: the method, the four cell states,
+the workbook's own defects, and the worked examples, which keep every figure and now read
+*"a member"*. The remaining names in the committed file are a workbook-spelling ↔ app-spelling
+map carrying no figure at all, and both spellings are already public by the deliberate
+classification in `AUTH_PLAN.md` §2.
+
+**This entry used to quote the worked example verbatim, name included** — so the record of the
+problem reproduced it, on the same mirror, for three days. That was found by the guard written in
+the same change (`payroll-anonymity.test.mjs` now scans for a roster name beside a LEAVE BALANCE as
+well as beside a payroll term), which also found two more: a leaver's final-leave arrangement in the
+world-readable `roster-member-data.js`, and a name beside the word "sickness" in an illustrative
+code comment. Both are fixed. A guard that finds three offences on its first run is the argument for
+writing it.
+
+**Two things this did NOT do.** The log is still in git HISTORY — exactly as the payslip fixture is,
+two entries up — so this stops it being SERVED, not published; rewriting history is the owner's call
+and has not been taken. And a fresh checkout no longer carries the log, so a session in a new
+container starts without the accumulated reconciliation history: a real cost to the `/al-workbook`
+workflow, accepted deliberately and reversible by un-ignoring the file.
 
 Two things make it worth recording rather than assuming it is inside an existing decision:
 

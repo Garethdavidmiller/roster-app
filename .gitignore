@@ -33,3 +33,7 @@ ui-debug.log
 # repository root with no ignore list, so anything committed here is published there. A gitignore is
 # the only rule both origins obey. `test-fixtures/payslip-actuals.example.js` documents the shape.
 *.local.js
+
+# The AL workbook reconciliation log — names colleagues against their leave figures, and
+# `docs/` is served by the GitHub Pages mirror at HTTP 200. Same rule as the payslip fixture.
+docs/AL_WORKBOOK.local.md

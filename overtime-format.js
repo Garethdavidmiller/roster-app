@@ -284,7 +284,7 @@ export function asAtLine(nowMs) {
  * ── AN ANSWER'S AGE IS PART OF WHAT IT MEANS ────────────────────────────────────────────────────
  *
  * The reviewer's row showed WHO, WHAT they are rostered and WHAT they said, and nothing about WHEN
- * they said it. Mid-week sickness is the case that breaks on: "G. Miller · Available all day" could
+ * they said it. A mid-week absence is the case that breaks on: "a member · Available all day" could
  * have been written nineteen days ago, before a roster the member has since seen and planned
  * around, and the row looked exactly as fresh as one written this morning.
  *
