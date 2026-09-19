@@ -33,8 +33,8 @@ const { getStorage } = require('firebase-admin/storage');
 const crypto = require('crypto');
 const { getAuth } = require('firebase-admin/auth');
 const { parseStrictIsoDate, isPayCutoffDay, fileSignatureMatches, buildPushPayload } = require('./roster-parse-helpers');
-const { mayReceiveDocumentUrl, resolveKind, signedUrlExpiry, SIGNED_URL_TTL_MS, isSignablePath }
-    = require('./doc-url-core');
+const { mayReceiveDocumentUrl, resolveKind, kindFromBody, signedUrlExpiry, SIGNED_URL_TTL_MS,
+    isSignablePath } = require('./doc-url-core');
 const { setupWebPush, fanOutPush } = require('./push');
 
 /**
@@ -694,7 +694,9 @@ const sendPayReminderNotification = onSchedule(
                 return res.status(403).json({ error: 'Forbidden' });
             }
 
-            const kind = resolveKind(req.body && req.body.kind);
+            // kindFromBody, not `req.body.kind` — an unparsed body (no JSON Content-Type) would
+            // otherwise be refused as an unknown kind, which is the one thing it is not.
+            const kind = resolveKind(kindFromBody(req.body));
             if (!kind.ok) return res.status(400).json({ error: 'Unknown document kind' });
 
             // The LATEST of that kind — the same document the viewer is showing. The id is a date

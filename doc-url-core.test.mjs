@@ -103,6 +103,39 @@ describe('WHICH document — the caller never names a path', () => {
     });
 });
 
+describe('the body arrives in three shapes, and only one of them is an object', () => {
+
+    // firebase-functions v2 parses req.body ONLY on Content-Type: application/json. Without it the
+    // body is a Buffer or a string and `body.kind` is undefined — which resolveKind then refuses as
+    // "unknown kind", telling the caller the one thing that is NOT true. Found by review of v24.16
+    // before any client depended on it, and probed rather than assumed.
+    test('a parsed object, a Buffer and a string all yield the same kind', () => {
+        assert.equal(C.kindFromBody({ kind: 'huddle' }), 'huddle');
+        assert.equal(C.kindFromBody(Buffer.from('{"kind":"huddle"}')), 'huddle');
+        assert.equal(C.kindFromBody('{"kind":"huddle"}'), 'huddle');
+    });
+
+    test('nothing usable yields undefined, which resolveKind refuses as it always did', () => {
+        for (const bad of [undefined, null, '', Buffer.alloc(0), '{not json', '[]', '"huddle"', 7]) {
+            const k = C.kindFromBody(/** @type {any} */ (bad));
+            assert.equal(C.resolveKind(k).ok, false, `${JSON.stringify(bad)} produced a signable kind`);
+        }
+    });
+
+    test('malformed JSON is not a special case — it is just an unusable kind', () => {
+        // Deliberate: there is nothing a caller could do differently on being told which of the two
+        // it was, and a distinct error would leak how the body is parsed.
+        assert.equal(C.kindFromBody('{"kind":'), undefined);
+    });
+
+    test('a body naming something outside the allowlist is still refused whatever its shape', () => {
+        for (const shape of [{ kind: '../secrets' }, Buffer.from('{"kind":"huddles"}'), '{"kind":"roster"}']) {
+            assert.equal(C.resolveKind(C.kindFromBody(/** @type {any} */ (shape))).ok, false,
+                'the raw-body fallback widened what this endpoint will sign');
+        }
+    });
+});
+
 describe('HOW LONG — the window has to outlive Microsoft, not the tap', () => {
 
     test('fifteen minutes, from the clock it is given', () => {

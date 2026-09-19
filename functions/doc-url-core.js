@@ -109,6 +109,40 @@ function resolveKind(raw) {
 }
 
 /**
+ * Pull the requested kind out of a request body, whatever shape it arrived in.
+ *
+ * ── WHY THIS IS NOT JUST `body.kind` ────────────────────────────────────────────────────────────
+ *
+ * firebase-functions v2 parses `req.body` into an object ONLY when the caller sent
+ * `Content-Type: application/json`. Without it the body arrives as a Buffer or a string, and
+ * `body.kind` is `undefined` — which `resolveKind` then correctly refuses as "unknown kind".
+ *
+ * That refusal is the problem: the kind was fine, and the caller is told the one thing that is not
+ * true. `setupRosterAuth` carries a comment about this same trap and hands its raw-body fallback to
+ * `parseSetupActionFlags`; this is the same fix in the same shape. Found by a 48-hour review of
+ * v24.16 (19 Sep 2026) before any client depended on it — probed, not assumed: a Buffer body
+ * answered 400 "Unknown document kind" with a valid `huddle` inside it.
+ *
+ * Malformed JSON is NOT an error here. It yields `undefined`, `resolveKind` refuses it, and the
+ * caller gets the same 400 as any other unusable kind — there is nothing a caller could do
+ * differently on being told which of the two it was.
+ *
+ * @param {any} body  req.body, in any of the shapes the runtime may hand over
+ * @returns {any} the raw kind value, for `resolveKind` to accept or refuse
+ */
+function kindFromBody(body) {
+    if (body && typeof body === 'object' && !Buffer.isBuffer(body)) return body.kind;
+    const text = Buffer.isBuffer(body) ? body.toString('utf8') : (typeof body === 'string' ? body : '');
+    if (!text) return undefined;
+    try {
+        const parsed = JSON.parse(text);
+        return parsed && typeof parsed === 'object' ? parsed.kind : undefined;
+    } catch (_) {
+        return undefined;
+    }
+}
+
+/**
  * The expiry instant for a URL minted at `nowMs`.
  *
  * Takes the clock rather than reading one, so the window can be tested at its boundaries without
@@ -141,6 +175,7 @@ function isSignablePath(path) {
 
 module.exports = {
     DOC_KINDS,
+    kindFromBody,
     SIGNED_URL_TTL_MS,
     mayReceiveDocumentUrl,
     resolveKind,
