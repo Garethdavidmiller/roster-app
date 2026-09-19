@@ -77,8 +77,12 @@ describe('the type-checker’s scope is a decision, not a drift', () => {
         // a rule about SHAPE instead: a directory or a glob is tooling, a `playwright.*.mjs` is a
         // runner config, and anything else that is a real module at the root has to be argued for
         // HERE, in the file that measures what turning it back on would cost.
+        // `test-fixtures` joined at v24.15, deliberately: `roster-pdf.mjs` builds a PDF with
+        // `Buffer`, which is Node, and this project's tsc run is configured for the BROWSER modules
+        // it ships. Pulling in @types/node to typecheck a test fixture would widen the toolchain
+        // for nothing. This assertion is what stopped that happening silently.
         const TOOLING_DIRS = new Set(['node_modules', 'scripts', 'functions', '.claude', 'e2e',
-            'experiments', 'docs']);
+            'experiments', 'docs', 'test-fixtures']);
         const NAMED_FILES = new Set([
             'service-worker.js',   // the decision this file is about
             'purify.es.mjs',       // vendored — not ours to annotate

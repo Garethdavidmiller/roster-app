@@ -1319,8 +1319,12 @@ test('every doc is routed from ARCHITECTURE.md — the index cannot fall behind'
     // leaving it there would have been the worst kind of pass: the root now holds README.md and
     // CLAUDE.md alone, both exempt, so the guard would have gone green over an empty list while
     // twenty-four documents went unchecked. The `> 15` floor below is what would have caught it.
+    // `*.local.md` is GITIGNORED by construction — `docs/AL_WORKBOOK.local.md` holds the per-person
+    // half of the AL workbook, which must not ship (v24.15). Routing it from ARCHITECTURE.md would
+    // point every reader of a fresh checkout at a file that is not there, so the index must NOT
+    // mention it and this scan must not ask. Same shape as `payslip-actuals.local.js`.
     const mdFiles = readdirSync(new URL('./docs/', import.meta.url))
-        .filter(f => f.endsWith('.md') && !INDEX_EXEMPT.has(f));
+        .filter(f => f.endsWith('.md') && !f.endsWith('.local.md') && !INDEX_EXEMPT.has(f));
     assert.ok(mdFiles.length > 15, `found only ${mdFiles.length} docs — the scan is wrong`);
 
     const missing = mdFiles.filter(f => !INDEX.includes(f));

@@ -288,12 +288,54 @@ function lastPanel() {
  *  a granted Calendar is precisely the visible failure. */
 function _panelIsDown() { return !!lastPanel()?._removed; }
 
+// ── WAITING FOR THE LAZY OVERLAY, WITHOUT GUESSING A DURATION ──────────────────────────────────
+//
+// `calendar-access.js` imports `login-overlay.js` LAZILY, so every path that raises a sign-in card
+// completes one or more `await`s after the call that triggered it. Four places here used to wait a
+// flat 20ms for that. It is the wrong shape of wait twice over: on an idle machine it is ~20ms of
+// dead time per site, and on a loaded one — an external reviewer hit exactly this on 19 Sep 2026,
+// running the estate in parallel — 20ms is simply not enough and the suite reports a Calendar
+// regression that is not there. A timing guess cannot tell "slow" from "broken", and a test that
+// fails under load teaches people to re-run rather than to read.
+//
+// Both helpers below wait on the NUMBER OF AWAIT POINTS rather than on the clock, which is the
+// property that actually settles this: a dynamic import of an already-mocked module resolves in a
+// task, not after an interval, so draining tasks is deterministic no matter how contended the CPU
+// is. `waitFor` additionally stops the moment its condition holds, so the common case is faster
+// than the old sleep as well as steadier.
+
+/** One macrotask turn — drains the microtask queue behind it too. */
+const turn = () => new Promise(r => setTimeout(r, 0));
+
+/**
+ * Drain `n` task turns. Use where there is no observable condition to wait for — the `beforeEach`
+ * below, which has to let a PREVIOUS test's pending mount land before it clears `loginMounts`, and
+ * cannot assert that a mount is coming because most tests leave none pending.
+ * @param {number} [n]
+ */
+async function drainTurns(n = 6) { for (let i = 0; i < n; i++) await turn(); }
+
+/**
+ * Wait until `predicate()` holds, then return. Fails with what it was waiting for rather than with
+ * whatever assertion happened to run next against a half-mounted card.
+ * @param {() => boolean} predicate
+ * @param {string} what   named in the failure message
+ * @param {number} [maxTurns]
+ */
+async function waitFor(predicate, what, maxTurns = 400) {
+    for (let i = 0; i < maxTurns; i++) {
+        if (predicate()) return;
+        await turn();
+    }
+    throw new Error(`waited ${maxTurns} task turns for ${what}, and it never happened`);
+}
+
 beforeEach(async () => {
     // Reset the module's access state FIRST and let it settle. `handleAccessLost` on a test that
     // ended `named` now routes through the (async) sign-in front door, and its mount would
     // otherwise land in the NEXT test's `loginMounts` after that test had reset them.
     handleAccessLost();
-    await new Promise(r => setTimeout(r, 20));
+    await drainTurns();
     ops = [];
     currentUser = null;
     tokenClaims = { calendarViewer: true };
@@ -634,7 +676,7 @@ describe('initCalendarAccess', () => {
         const back = document.getElementById('calLockSignIn');
         assert.ok(back, 'the PIN card offers no way back to sign-in');
         back._listeners.get('click')();
-        await new Promise(r => setTimeout(r, 20));   // the overlay module is imported lazily
+        await waitFor(() => loginMounts.length === 2, 'the sign-in card to re-mount');
         assert.equal(loginMounts.length, 2, 'sign-in was not re-mounted');
         assert.ok(lastPanelHtml().includes('SIGN-IN CARD'));
         assert.ok(!lastPanelHtml().includes('calLockPin'));
@@ -665,7 +707,7 @@ describe('initCalendarAccess', () => {
         // Synchronously after the tap: the PIN card is STILL there — nothing was torn down ahead
         // of the import.
         assert.equal(pinCard._removed, false, 'the PIN card was taken down before the sign-in card existed');
-        await new Promise(r => setTimeout(r, 20));
+        await waitFor(() => pinCard._removed === true, 'the PIN card to come down behind the sign-in card');
         assert.equal(pinCard._removed, true);
         assert.ok(lastPanelHtml().includes('SIGN-IN CARD'));
     });
@@ -1016,7 +1058,7 @@ describe('lockCalendar + handleAccessLost', () => {
         // The roster goes off screen SYNCHRONOUSLY — before the sign-in module is awaited — because
         // this path arrives with a Calendar on screen and a refused read behind it.
         assert.equal(grid.hidden, true, 'the workspace stayed visible while the sign-in card loaded');
-        await new Promise(r => setTimeout(r, 20));
+        await waitFor(() => loginMounts.length === 1, 'the expired-session sign-in card to mount');
         assert.equal(loginMounts.length, 1, 'the sign-in card was not shown: ' + JSON.stringify(loginMounts.map(m => [m.pageLabel, m.notice, !!m.host])));
         assert.match(loginMounts[0].notice || '', /expired/i, 'the card does not say why it is up');
         assert.ok(!lastPanelHtml().includes('id="calLockPin"'), 'a member was sent to the staff PIN');

@@ -64,13 +64,13 @@ const {
     GEOMETRY_WAIT_BUDGET_MS, GEOMETRY_WORK_BUDGET_MS, _isClaim, _nameTokens,
 } = require('./functions/roster-geometry.js');
 
-// The measured grid from experiments/roster-pdf-geometry — the same nine x positions on every
-// content page of every roster type and week-ending in the corpus.
-const VX = [25.3, 154.8, 250.3, 347.0, 442.3, 537.5, 633.5, 729.5, 822.5];
-const DATES = ['2026-08-30', '2026-08-31', '2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04', '2026-09-05'];
-/** x just inside each DAY column (index 0 = Sunday). */
-const COL_X = VX.slice(1, 8).map(v => v + 40);
-const NAME_X = 28.2;
+import { VX, COL_X, NAME_X, DATES, ROSTER_FIXTURE, rosterPage, buildPdf } from './test-fixtures/roster-pdf.mjs';
+
+// The measured grid, the hand-built PDF and the roster it draws now live in
+// `test-fixtures/roster-pdf.mjs`, so that `index-endpoints.test.mjs` can drive the REAL handler at
+// the SAME document this file proves the adapter against. Two fixtures would drift, and the one the
+// handler used would slowly stop resembling the one the adapter is trusted on — see that file's
+// header for why the joining test exists at all (v24.12 shipped exactly that gap).
 
 /** Build one page's runs from rows of [name, cell0..cell6]; '' leaves the cell physically empty. */
 function pageFrom(rowSpecs, { top = 700, rowH = 50 } = {}) {
@@ -446,51 +446,6 @@ describe('geometryCoverage — counted over the rows that reach the review', () 
 
 // ── The adapter, through the REAL pdfjs on a PDF built by hand ─────────────────────────────────
 
-/**
- * Write a PDF 1.4 file: one or more pages, each a list of content-stream lines. Rules are stroked
- * `x y m x y l S`; text is `BT /F1 9 Tf x y Td (…) Tj ET`. Offsets computed for the xref table.
- * @param {string[][]} pages
- */
-function buildPdf(pages) {
-    const enc = (/** @type {string} */ s) => Buffer.from(s, 'latin1');
-    /** @type {Buffer[]} */
-    const objs = [];
-    const pageIds = pages.map((_, i) => 3 + i * 2);
-    objs.push(enc('<< /Type /Catalog /Pages 2 0 R >>'));
-    objs.push(enc(`<< /Type /Pages /Kids [${pageIds.map(id => `${id} 0 R`).join(' ')}] /Count ${pages.length} >>`));
-    const fontId = 3 + pages.length * 2;
-    pages.forEach((lines, i) => {
-        const content = enc(lines.join('\n') + '\n');
-        objs.push(enc(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 842] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${pageIds[i] + 1} 0 R >>`));
-        objs.push(Buffer.concat([enc(`<< /Length ${content.length} >>\nstream\n`), content, enc('\nendstream')]));
-    });
-    objs.push(enc('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'));
-    let out = enc('%PDF-1.4\n');
-    /** @type {number[]} */
-    const offs = [];
-    objs.forEach((o, i) => { offs.push(out.length); out = Buffer.concat([out, enc(`${i + 1} 0 obj\n`), o, enc('\nendobj\n')]); });
-    const xref = out.length;
-    let tail = `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`;
-    for (const o of offs) tail += `${String(o).padStart(10, '0')} 00000 n \n`;
-    tail += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
-    return Buffer.concat([out, enc(tail)]);
-}
-
-/** A roster page: the nine drawn rules, row bands, and rows of [name, cell0..cell6]. */
-function rosterPage(rowSpecs, { top = 700, rowH = 50, vx = VX } = {}) {
-    const lines = ['q 0.5 w'];
-    for (const x of vx) lines.push(`${x} 100 m ${x} ${top} l S`);
-    for (let r = 0; r <= rowSpecs.length; r++) { const y = top - r * rowH; lines.push(`25.3 ${y} m 822.5 ${y} l S`); }
-    lines.push('Q');
-    rowSpecs.forEach(([name, ...cells], r) => {
-        const y = top - r * rowH - rowH / 2;
-        const text = (/** @type {string} */ s, /** @type {number} */ x) => lines.push(`BT /F1 9 Tf ${x} ${y} Td (${s.replace(/[()\\]/g, '\\$&')}) Tj ET`);
-        if (name) text(name, NAME_X);
-        cells.forEach((c, i) => { if (c) text(c, COL_X[i]); });
-    });
-    return lines;
-}
-
 // An OPTIONAL check that can extend the critical path without bound is not optional (v22.39
 // external review). Organised by what each wrong answer costs, and they are opposite in kind:
 //
@@ -501,16 +456,6 @@ function rosterPage(rowSpecs, { top = 700, rowH = 50, vx = VX } = {}) {
 //   GIVING UP TOO EASILY loses the only witness the model cannot influence, on a file that would
 //   have been read a moment later. That is why the budget is on the WAIT and not on the work: the
 //   extraction has already had the entire model call for free before the clock starts.
-/** The hand-built roster both the budget block and the pdfjs block read. Hoisted so a fixture is
- *  not duplicated: it is the same document either way. */
-const ROSTER_FIXTURE = [
-    ['Sunday', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-    ['G. Miller', '', 'RD', '06:20-14:20', '06:20-14:20', 'RD', '07:00-16:00', '07:00-15:00'],
-    ['S. Silva', '08:00-16:00', 'RD', 'RD', '08:00-16:00', '08:00-16:00', '08:00-16:00', '08:00-16:00'],
-    ['Vacant', '', '', '', '', '', '', ''],
-    ['Print Date: 27/08/2026', '', '09:52', 'Page 1 of 2', '', '', '', ''],
-];
-
 describe('the budgets — an optional witness may not hold the request open', () => {
     test('a witness that never settles is given up on, and says so', async () => {
         const never = new Promise(() => {});

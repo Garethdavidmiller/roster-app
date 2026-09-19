@@ -119,17 +119,25 @@ stub(require.resolve('@anthropic-ai/sdk', { paths: [fnDir] }), {
 // NOTHING else is: the handler, its validation, `buildSafeEntries`, the cross-checks and the witness
 // all run for real. `GEO.usable` is flipped per test and restored in a `finally`.
 const REAL_ROSTER_PROMPT = require('./functions/roster-prompt.js');
-const GEO = { usable: false };
+const GEO = { usable: false, real: false };
 const GEO_ROW = {
     memberName: 'L. Springer',
     cells: ['', '05:30-11:30', 'RD', 'RD', '05:30-11:30', 'RD', 'RD'],
 };
 stub(require.resolve('./roster-prompt', { paths: [fnDir] }), {
     ...REAL_ROSTER_PROMPT,
-    buildCellTable: () => (GEO.usable
-        ? { usable: true, rows: [GEO_ROW], unmatched: [], reason: '' }
-        : { usable: false, rows: [], unmatched: ['forced'], reason: 'forced off for the legacy-path cases' }),
+    // `GEO.real` hands the call straight back to the REAL implementation, which is what the
+    // full-path test below uses: with a genuinely openable PDF in the request, `extractRosterGeometry`,
+    // `awaitGeometryWithin` and `buildCellTable` then ALL run for real, and the stub's shape stops
+    // being something this file asserts about itself. See the "end to end" block at the bottom.
+    buildCellTable: (geometry, memberNames) => (GEO.real
+        ? REAL_ROSTER_PROMPT.buildCellTable(geometry, memberNames)
+        : GEO.usable
+            ? { usable: true, rows: [GEO_ROW], unmatched: [], reason: '' }
+            : { usable: false, rows: [], unmatched: ['forced'], reason: 'forced off for the legacy-path cases' }),
 });
+
+import { rosterPage, buildPdf, DATES } from './test-fixtures/roster-pdf.mjs';
 
 const index = require('./functions/index.js');
 
@@ -771,5 +779,91 @@ describe('parseRosterPDF — the geometry path', () => {
         assert.equal(out.code, 502,
             'a legacy-path reply with no columnHeaders was accepted — there IS a header row on that '
             + 'path and nothing else decides the day');
+    });
+});
+
+// ── END TO END: A REAL PDF, THE REAL EXTRACTOR, THE REAL HANDLER (v24.15) ───────────────────────
+//
+// Asked for by name in the v24.14 external review, and it closes a seam the block above cannot.
+//
+// Everything so far proves ONE HALF each. `roster-geometry.test.mjs` drives a hand-built PDF
+// through the real `pdfjs` and proves the ADAPTER reads a drawn grid. The geometry-path tests above
+// stub `buildCellTable` and prove the COORDINATOR behaves once a grid is usable. Neither asks
+// whether the two AGREE — and a stub returning a shape the real extractor never produces leaves
+// both green with the wiring broken.
+//
+// That is not hypothetical. It is exactly what v24.12 had to fix: phase 2 geometry was present and
+// the coordinator rejected every document it placed, because it still demanded `columnHeaders` the
+// cell prompt does not ask the model for. Roughly 3,000 tests passed throughout.
+//
+// So here nothing between the HTTP boundary and the model is stubbed: `extractRosterGeometry` opens
+// a real PDF with real pdfjs, `awaitGeometryWithin` races it, and the REAL `buildCellTable` matches
+// real roster names against the rows it found. Only the model is faked, because it must be.
+//
+// THE PDF CARRIES THE WHOLE CEA ROSTER, and it has to. `buildCellTable` is all-or-nothing per
+// document — a single unplaced member makes it `usable: false` — so a two-row fixture would take
+// the legacy path and quietly test nothing. The names are read from `roster-members.json` at run
+// time rather than typed here, so the fixture tracks the roster instead of rotting against it.
+describe('end to end: a real PDF through the real extractor and the real handler', () => {
+    const CEA = require('./functions/roster-members.json').cea;
+
+    /** Every CEA on one page. Sunday is left PHYSICALLY EMPTY for the first member. */
+    const rowsFor = (names) => [
+        ['Sunday', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+        ...names.map((n, i) => i === 0
+            ? [n, '', 'RD', '06:20-14:20', '06:20-14:20', 'RD', '07:00-16:00', '07:00-15:00']
+            : [n, '08:00-16:00', 'RD', 'RD', '08:00-16:00', '08:00-16:00', '08:00-16:00', '08:00-16:00']),
+    ];
+
+    // 26 bands have to fit between the vertical rules (y 100..800), so the rows are shorter than
+    // the 50pt the two-row fixtures use. The extractor reads bands, not a fixed height.
+    const realPdf = () => buildPdf([rosterPage(rowsFor(CEA), { top: 800, rowH: 25 })]);
+
+    /** A model reply that echoes the cells back, keyed by the full day names the cell table stamps. */
+    const replyFor = (names) => JSON.stringify({
+        parsed: names.map((n, i) => (i === 0
+            ? { memberName: n, Sunday: 'BLANK', Monday: 'RD', Tuesday: '06:20-14:20', Wednesday: '06:20-14:20', Thursday: 'RD', Friday: '07:00-16:00', Saturday: '07:00-15:00' }
+            : { memberName: n, Sunday: '08:00-16:00', Monday: 'RD', Tuesday: 'RD', Wednesday: '08:00-16:00', Thursday: '08:00-16:00', Friday: '08:00-16:00', Saturday: '08:00-16:00' })),
+    });
+
+    /** One request with the REAL extractor in the loop, always put back. */
+    const throughRealGeometry = async () => {
+        GEO.real = true;
+        try {
+            build({ aiReply: replyFor(CEA) });
+            const req = rosterRequest();
+            req.rawBody = Buffer.from(realPdf().toString('base64'), 'utf8');
+            return await call(index.parseRosterPDF, req);
+        } finally {
+            GEO.real = false;
+        }
+    };
+
+    test('the real grid places every roster row, and the handler accepts it', async () => {
+        const out = await throughRealGeometry();
+        assert.equal(out.code, 200,
+            `the real geometry path was rejected (${out.code}: ${JSON.stringify(out.body).slice(0, 400)}). `
+            + 'Either the extractor is no longer placing every row, or the coordinator is demanding '
+            + 'something buildCellPrompt does not ask the model for — the v24.12 defect.');
+    });
+
+    test('and the model was sent CELLS, which is the proof the real path was taken', async () => {
+        await throughRealGeometry();
+        const blocks = modelCalls().at(-1).blocks;
+        assert.ok(blocks.some(b => b.type === 'text' && b.text.includes('ALREADY been separated into cells')),
+            'the cell prompt was not used — the real extractor fell back to the legacy path, so this '
+            + 'whole block silently stopped testing what it claims to');
+        assert.ok(!blocks.some(b => b.type === 'document'),
+            'the PDF was attached as well: on the geometry path the model must not re-read the table');
+    });
+
+    test('a physically EMPTY Sunday resolves to a rest day, and Monday keeps its own cell', async () => {
+        const out = await throughRealGeometry();
+        const row = (out.body.parsed || []).find(e => e.memberName === CEA[0]);
+        assert.ok(row, `no ${CEA[0]} in the response: ${JSON.stringify(out.body).slice(0, 300)}`);
+        // The one-day drift this programme exists to remove would move the duty onto Sunday.
+        assert.equal(row.shifts[DATES[0]], 'RD', 'the blank Sunday should resolve to a rest day');
+        assert.equal(row.shifts[DATES[1]], 'RD', 'Monday should keep its own cell');
+        assert.equal(row.shifts[DATES[2]], '06:20-14:20', 'Tuesday should carry the duty');
     });
 });

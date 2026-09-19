@@ -70,4 +70,18 @@ export default [
             'no-console': 'off',
         },
     },
+
+    // Shared TEST FIXTURES: ES modules running in Node, so they need node globals (Buffer) with
+    // `sourceType: 'module'` — the Cloud Functions block above is the same environment but
+    // CommonJS, and folding these in there makes every `export` a parsing error.
+    {
+        files: ['test-fixtures/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 2022,
+            sourceType: 'module',
+            globals: {
+                ...globals.node,
+            },
+        },
+    },
 ];

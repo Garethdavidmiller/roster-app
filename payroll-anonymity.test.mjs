@@ -47,6 +47,21 @@ import { teamMembers } from './roster-data.js';
 /** Payroll vocabulary. Deliberately broad — a false positive costs one reworded comment. */
 const PAYROLL = /student\s*loan|\bplan\s*[1245]\b|postgrad|taxable pay|tax paid|payslip|pension|\bYTD\b|year to date|net pay|take[- ]home|national insurance/i;
 
+/**
+ * LEAVE vocabulary — a person's leave BALANCE, not the subject of annual leave (v24.15).
+ *
+ * Added after an external review found `docs/AL_WORKBOOK.md` publishing roughly fifty dated entries
+ * naming colleagues against their days taken, days remaining and — in one line — a reason for
+ * absence. `docs/` is inside the Pages mirror, and that file answered HTTP 200 while returning 404
+ * on Firebase, which is the same asymmetry this suite already exists for.
+ *
+ * Deliberately NARROWER than `PAYROLL`. The words "annual leave" are everywhere in this app and
+ * mean nothing on their own; what identifies a person is a COUNT against them — a balance, a
+ * remainder, an over-quota day — or a reason for absence, which this app never records anywhere
+ * (CLAUDE.md states that as a GDPR rule, and a served document is the last place to break it).
+ */
+const LEAVE = /over[- ]quota|days remaining|grid days|days taken|\blong[- ]term sick|\bsickness\b|reason for absence/i;
+
 /** Every name the roster publishes, INCLUDING hidden rows — a leaver is still a person. */
 const NAMES = teamMembers.map(m => m.name).filter(Boolean);
 
@@ -170,6 +185,32 @@ describe('the enumeration survives an unzipped archive, with nothing lost', () =
         assert.ok(viaWalk.includes('payroll-anonymity.test.mjs'), 'the walk did not find this file');
         assert.ok(viaWalk.every(f => !f.startsWith('/') && !f.startsWith('./')),
             'the walk returned paths readFileSync cannot resolve from the repo root');
+    });
+});
+
+describe('no roster name sits beside a LEAVE BALANCE in the tracked tree', () => {
+    test('every tracked text file', () => {
+        /** @type {string[]} */
+        const offences = [];
+        for (const file of TRACKED) {
+            let text;
+            try { text = readFileSync(file, 'utf8'); } catch { continue; }
+            text.split('\n').forEach((line, i) => {
+                if (!LEAVE.test(line)) return;
+                const named = NAMES.filter(n => line.includes(n));
+                if (named.length) {
+                    offences.push(`${file}:${i + 1}  [${named.join(', ')}]  ${line.trim().slice(0, 120)}`);
+                }
+            });
+        }
+        assert.deepEqual(offences, [],
+            'A roster name is on the same line as a leave balance or a reason for absence, in a file '
+            + `the GitHub Pages mirror serves at HTTP 200:\n\n  ${offences.join('\n  ')}\n\n`
+            + 'Same remedy as the payroll rule above: keep the arithmetic, drop the attribution — '
+            + '"a member", "one Dispatcher", "the joining year". A METHOD needs no name. If the '
+            + 'per-person record itself is the point, it does not belong in the tree at all: '
+            + 'docs/AL_WORKBOOK.local.md is gitignored for exactly that, and docs/AL_WORKBOOK.md '
+            + 'section 12 says why.');
     });
 });
 

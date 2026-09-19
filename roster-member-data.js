@@ -138,7 +138,7 @@ export const teamMembers = [
     // On the CES rotation from his 9 Jun 2026 start (currentWeek:5 anchors him from the
     // 15 Feb CES reference so July lands on week 5).
     // noProRate: pay and AL are full-year (CES 34) despite the mid-year startDate.
-    { name: 'B. Khalil',               currentWeek: 5,  rosterType: 'ces',        role: 'CES', startDate: new Date(2026, 5, 9), noProRate: true, hidden: true }, // left Sep 2026 — remaining days taken as AL; CES week-5 line is a vacancy. Row kept so his past shifts and overrides still resolve
+    { name: 'B. Khalil',               currentWeek: 5,  rosterType: 'ces',        role: 'CES', startDate: new Date(2026, 5, 9), noProRate: true, hidden: true }, // left Sep 2026; CES week-5 line is a vacancy. Row kept so his past shifts and overrides still resolve
     { name: 'G. Rotaru',               currentWeek: 5,  rosterType: 'ces',        role: 'CES' },
     { name: 'L. Webster',              currentWeek: 6,  rosterType: 'ces',        role: 'CES' },
     { name: 'Z. Lewis',                currentWeek: 7,  rosterType: 'ces',        role: 'CES' },

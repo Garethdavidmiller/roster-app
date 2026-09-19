@@ -25,13 +25,22 @@ ever worked for that is reading first.
 
 1. **Read `docs/AL_WORKBOOK.md`** — §0 (the rule that must not be got wrong) and §5 (the over-quota
    column) at minimum. §6 if you are going to read the file mechanically.
+1b. **And read `docs/AL_WORKBOOK.local.md` if it is there** — the per-person reconciliation log,
+   split out on 19 Sep 2026 because `docs/` is served by the Pages mirror at HTTP 200 and the log
+   names colleagues against their leave. It is **gitignored**, so a fresh checkout will not have
+   it: that is expected, not a fault. Without it you still have the whole method; what you lose is
+   what previous passes found about particular rows, so say so rather than assuming a row is
+   unexamined.
 2. **Answer the question**, following §0's four steps. The over-quota days are part of the answer,
    not a footnote.
 3. **Say what you could not establish.** An unexplained figure is a question for the owner (§10),
    not something to resolve by picking the likelier reading.
 4. **Point out what you noticed** even when it was not asked — a duplicate row, a figure that moved,
    a person in one system and not the other. §8 is a list of defects found exactly this way.
-5. **Write the learnings back into `docs/AL_WORKBOOK.md`, in this session, before you finish.**
+5. **Write the learnings back, in this session, before you finish.** Anything naming a person goes
+   in `docs/AL_WORKBOOK.local.md`; a GENERAL rule goes in `docs/AL_WORKBOOK.md`, where everyone
+   gets it. **Never put a name beside a leave figure in a committed file** —
+   `payroll-anonymity.test.mjs` fails the commit, and it is right to.
    Update the section, turn an `[inferred]` into a `[measured]`, strike an answered open question,
    and add a row to §12. An answer that stays in the chat is lost, and the next session re-asks it.
 
