@@ -578,6 +578,40 @@ describe('getDocumentUrl — the caller names a KIND and never a path', () => {
     });
 });
 
+describe('getDocumentUrl — the body may not be parsed, and that must not read as a bad kind', () => {
+
+    // THE WIRING, not the rule. `kindFromBody` is unit-tested in doc-url-core.test.mjs, but a
+    // handler reading `req.body.kind` directly would pass every one of those and still refuse a
+    // perfectly good request whose Content-Type was not application/json. Reverting the handler to
+    // `req.body.kind` passes the whole of the rest of this file, which is why this block exists.
+    test('a RAW BUFFER body is honoured, exactly as a parsed object is', async () => {
+        const w = build({ seed: PUBLISHED });
+        w.setClaims({ name: 'G. Miller' });
+        const out = await askForUrl(w.eps, Buffer.from(JSON.stringify({ kind: 'huddle' })));
+        assert.equal(out.code, 200,
+            `an unparsed body was refused (${out.code}: ${JSON.stringify(out.body)}). firebase-functions `
+            + 'parses req.body only on Content-Type: application/json; without the fallback the caller '
+            + 'is told "unknown kind" about a kind that was fine.');
+        assert.equal(w.signed.at(-1).path, 'huddles/2026-08-30.pdf');
+    });
+
+    test('a raw STRING body is honoured too', async () => {
+        const w = build({ seed: PUBLISHED });
+        w.setClaims({ admin: true });
+        assert.equal((await askForUrl(w.eps, '{"kind":"circular"}')).code, 200);
+    });
+
+    test('but the fallback widens NOTHING — a bad kind in a raw body is still a 400', async () => {
+        const w = build({ seed: PUBLISHED });
+        w.setClaims({ admin: true });
+        for (const body of [Buffer.from('{"kind":"../secrets"}'), '{"kind":"huddles"}', Buffer.from('not json')]) {
+            const out = await askForUrl(w.eps, body);
+            assert.equal(out.code, 400, `${String(body).slice(0, 30)} was accepted`);
+        }
+        assert.deepEqual(w.signed, [], 'a refused raw body reached the signer');
+    });
+});
+
 describe('getDocumentUrl — the URL is SHORT-LIVED, which is the whole point', () => {
 
     test('it signs for READ, with an expiry a quarter of an hour out', async () => {
