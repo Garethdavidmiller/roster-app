@@ -192,6 +192,20 @@ deliberately NOT being measured: `LATENCY.md`'s closing rule forbids the counter
 widening the path's eligibility is an ACCESS decision (`CALENDAR_DATA.md` 13) rather than a latency
 one. If the access question is ever reopened, measure it then.
 
+**AND NOTHING WILL DELIVER THE FIRST ONE, WHICH IS WORTH SAYING OUT LOUD** (19 Sep 2026).
+`MAINTENANCE_CALENDAR.md`'s row for this reads *"nothing to diary"*, and it is right to — the
+LATENCY question is closed and that row correctly refuses to reopen it. But KEEP-OR-REMOVE is a
+different question living in this file, and no row, workflow or trigger will ever hand it a second
+month. So the sentence above described a check nobody is going to run, which is the same shape as
+the backup finding two entries down: the answer was left to somebody's memory.
+
+**Stated properly, then: the default outcome is KEEP, by inaction, and that is a legitimate
+result.** The path is measured, argued, covered by tests that fail on the deletion of either half,
+and costs almost nothing to run. What would be wrong is believing a decision is still pending when
+nothing is pending. If the owner wants the second reading, it takes a row in
+`MAINTENANCE_CALENDAR.md` naming a month and this entry; **adding one is the owner's call, not a
+default** — it is a recurring commitment, and this file does not get to make those.
+
 ### No restore has ever been TESTED — and the portable export is still not set up
 
 **Status: OPEN, and smaller than it was.** Backups themselves are no longer the gap: PITR and a
