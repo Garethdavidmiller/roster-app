@@ -192,56 +192,27 @@ deliberately NOT being measured: `LATENCY.md`'s closing rule forbids the counter
 widening the path's eligibility is an ACCESS decision (`CALENDAR_DATA.md` 13) rather than a latency
 one. If the access question is ever reopened, measure it then.
 
-### Firestore has NO backups — measured 19 Sep 2026 (found 16 Sep 2026, deep review)
+### No restore has ever been TESTED — and the portable export is still not set up
 
-**Status: ANSWERED, and the answer is the bad one. Now a decision for the owner, not a question.**
-The first `backup-check.yml` run read the project directly:
+**Status: OPEN, and smaller than it was.** Backups themselves are no longer the gap: PITR and a
+managed schedule went on 19 Sep 2026 and a run confirmed both against the live project
+(`Schedules: present · PITR: present`). That story is closed and lives in `ROADMAP_HISTORY.md`.
 
-- **No backup schedules exist.** Nothing is being snapshotted.
-- **Point-in-Time Recovery is OFF** (`POINT_IN_TIME_RECOVERY_DISABLED`).
+**What remains is that a backup nobody has restored from is a belief, not a capability.** Two
+specific gaps:
 
-**Both reads SUCCEEDED**, which is what makes this a finding rather than a blank: `github-deploy@`
-held the permission, so this is a definite absence and not the *"we cannot see"* case the check
-deliberately stays green for. Run:
-<https://github.com/Garethdavidmiller/roster-app/actions/runs/35415383659>
+- **The restore path is unexercised.** `RECOVERY_RUNBOOK.md`'s procedure lands in a **NEW** database
+  — `(default)` cannot be overwritten from a backup — so the real sequence involves a restore, a
+  verification, and then a cutover that the runbook describes and nobody has walked. The first time
+  it is attempted should not be the day it is needed.
+- **Section 3's portable GCS export is still not set up.** PITR and managed backups both live inside
+  the same project; an export to Cloud Storage is the copy that survives losing it.
 
-**So every restore procedure in `RECOVERY_RUNBOOK.md` currently has nothing to restore FROM**, and
-the runbook's own conditional wording (*"if PITR is on"*) resolves to "it is not". Turning either on
-is a GCP console/CLI action with a cost attached and is the owner's to make; the check reports and
-never fixes. **When one is switched on, re-run the check and replace this entry with that date** —
-the next scheduled run will go green on its own, which is the confirmation.
-
-`RECOVERY_RUNBOOK.md` opens its preventative section with its own words: *"These are the difference
-between 'restored in minutes' and 'gone'. **None exist by default.**"* It then documents three things
-to switch on — Point-in-Time Recovery, managed backup schedules, and a portable GCS export.
-
-**Nothing anywhere records that any of them were.** Every later reference in that runbook is
-conditional — *"if PITR is on"*, *"with PITR on"*. There was no CI job, no maintenance-calendar entry
-and no completion marker — **and the absence of a marker turned out to mean exactly what it looks
-like**, which is worth keeping: this repo DOES mark completions when
-they happen (`CLAUDE.md`: *"A2 complete: the old SA JSON key and the `FIREBASE_SERVICE_ACCOUNT` GitHub secret
-have both been deleted"*).
-
-So the restore playbooks were written against snapshots that might not be being taken — and, as of
-19 Sep, are not. What is at stake is every staff member's leave, absence, overrides, overtime
-declarations, password-reset requests and saved work emails — none of which is reconstructable from
-the repository, because the repository holds the base roster and nothing else.
-
-**It is now ASKED rather than remembered** (19 Sep 2026, owner-authorised).
-`.github/workflows/backup-check.yml` runs weekly and on demand, and is the only place the question
-CAN be answered from automation: the standing deploy key was deliberately deleted
-(`SECURITY_RELEASE_PLAN.md` → A2), so no GCP credential exists outside GitHub Actions, which is why
-a session cannot answer it. The job is READ-ONLY and **never fixes** — turning backups on has a cost
-attached and is the owner's call, and a workflow that could enable them could also be the thing that
-quietly disables them.
-
-**It goes red only on a DEFINITE absence of both schedules and PITR.** `github-deploy@` may not hold
-`datastore.backupSchedules.list`, and *"we cannot see"* is a different finding from *"there are
-none"*: reporting them as the same thing is how a check like this becomes noise, so an unknown stays
-green and names the role to grant.
-
-**Replace this entry with the date checked once a run has answered it** — the first
-`workflow_dispatch` after this merges is what closes the question.
+**Why this is recorded as a limitation rather than a task.** A restore drill on a live Firestore
+project costs real money and real care, and its value is proportional to how likely the loss is —
+which PITR has just reduced considerably. It is a legitimate thing to decide not to do; what is not
+legitimate is believing it has been done. `MAINTENANCE_CALENDAR.md` has no row for a drill, and
+adding one is the owner's call.
 
 ### `docs/AL_WORKBOOK.md` publishes named colleagues' leave figures (found 16 Sep 2026, deep review)
 
