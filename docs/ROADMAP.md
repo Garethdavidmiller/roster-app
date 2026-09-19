@@ -181,7 +181,7 @@ it did at v22.30.
 empty cell for a shifted claim to contradict, and an `RD` written into an occupied cell is not checked
 (telling a printed RD from a printed duty means reading the text — phase 3).
 
-**PHASE 2 SHIPPED at v24.04, and the three real rosters re-measured the case for it.** Simulating a
+**PHASE 2 SHIPPED at v24.04 AND COULD NOT SUCCEED UNTIL v24.12** — the coordinator still required the model to return `columnHeaders`, which `buildCellPrompt` deliberately never asks for, so every upload the grid COULD place was answered with *"The AI returned an unexpected format"*. The better the geometry read, the more certain the failure; a sheet the grid could not place fell back to the legacy path and worked, which is the wrong way round. It was invisible because the only end-to-end test hands the handler an unopenable PDF — so the geometry path had no execution anywhere, and the whole estate stayed green. **The three real rosters re-measured the case for phase 2:** Simulating a
 one-day-left misread on every matched row of the CEA, Dispatch and Supervisor sheets for week ending
 26/09/2026, the phase-1 witness refuses **19 of 47** — **23 of those 47 rows work all seven days**, so
 60% of drifts pass it silently. Under phase 2 the grid ASSIGNS the day and the model is handed

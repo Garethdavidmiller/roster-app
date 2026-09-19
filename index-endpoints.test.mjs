@@ -90,13 +90,45 @@ stub(require.resolve('@anthropic-ai/sdk', { paths: [fnDir] }), {
         get messages() {
             return {
                 create: async (body) => {
-                    AI.calls.push({ kind: 'create', model: body && body.model });
+                    // The content blocks are recorded, not discarded — "a harness that discards is
+                    // a harness that cannot see" (CLAUDE.md). Without this nothing could assert
+                    // WHICH input the model was handed, and the geometry path's whole guarantee is
+                    // that it is handed cells rather than the PDF. The base64 document body is
+                    // dropped on the way in: its TYPE is the fact worth keeping, and storing a few
+                    // hundred KB per call is not.
+                    const blocks = ((body && body.messages && body.messages[0] || {}).content || [])
+                        .map(b => ({ type: b.type, text: b.type === 'text' ? b.text : undefined }));
+                    AI.calls.push({ kind: 'create', model: body && body.model, blocks });
                     if (AI.throws) throw new Error(AI.throws);
                     return { content: [{ type: 'text', text: AI.reply }] };
                 },
             };
         }
     },
+});
+
+// ── FORCING THE GEOMETRY PATH (v24.12) ─────────────────────────────────────────────────────────
+//
+// `parseRosterPDF` has TWO paths and only one of them was ever executed here. The fixture PDF below
+// is deliberately unopenable, so the geometry read fails OPEN and every existing case runs the
+// legacy path — which is why v24.04 could ship a coordinator that rejected every geometry-path
+// upload with "The AI returned an unexpected format" and leave all ~3,000 tests green.
+//
+// Taking the real path needs a real roster PDF, and those are staff data that must never enter this
+// repository. So the one input that decides the path — `buildCellTable`'s answer — is stubbed, and
+// NOTHING else is: the handler, its validation, `buildSafeEntries`, the cross-checks and the witness
+// all run for real. `GEO.usable` is flipped per test and restored in a `finally`.
+const REAL_ROSTER_PROMPT = require('./functions/roster-prompt.js');
+const GEO = { usable: false };
+const GEO_ROW = {
+    memberName: 'L. Springer',
+    cells: ['', '05:30-11:30', 'RD', 'RD', '05:30-11:30', 'RD', 'RD'],
+};
+stub(require.resolve('./roster-prompt', { paths: [fnDir] }), {
+    ...REAL_ROSTER_PROMPT,
+    buildCellTable: () => (GEO.usable
+        ? { usable: true, rows: [GEO_ROW], unmatched: [], reason: '' }
+        : { usable: false, rows: [], unmatched: ['forced'], reason: 'forced off for the legacy-path cases' }),
 });
 
 const index = require('./functions/index.js');
@@ -673,5 +705,71 @@ describe('the endpoint tells a guesser nothing (rules 1 and 2)', () => {
         assert.equal(out.code, 405);
         assert.deepEqual(reads, []);
         assert.deepEqual(writes, []);
+    });
+});
+
+
+// ── THE GEOMETRY PATH, EXECUTED (v24.12) ───────────────────────────────────────────────────────
+//
+// The reply below is EXACTLY what `buildCellPrompt`'s own OUTPUT FORMAT block asks the model for:
+// `parsed` alone, keyed by full day names, with no `columnHeaders`, `columnScan` or `sundayScan` —
+// because on this path the grid already decided the day and there was no table to read headers off.
+// Before v24.12 the coordinator required `columnHeaders` unconditionally and answered this with a
+// 502, so phase 2 could not succeed on any real upload: the better the grid read, the more certain
+// the failure.
+describe('parseRosterPDF — the geometry path', () => {
+    const GEOMETRY_REPLY = JSON.stringify({
+        parsed: [{
+            memberName: 'L. Springer',
+            Sunday: 'BLANK', Monday: '05:30-11:30', Tuesday: 'RD', Wednesday: 'RD',
+            Thursday: '05:30-11:30', Friday: 'RD', Saturday: 'RD',
+        }],
+    });
+
+    /** Run one request with the geometry path forced on, and always put it back. */
+    const onGeometryPath = async (opts = {}) => {
+        GEO.usable = true;
+        try {
+            build({ aiReply: GEOMETRY_REPLY, ...opts });
+            return await call(index.parseRosterPDF, rosterRequest());
+        } finally {
+            GEO.usable = false;
+        }
+    };
+
+    test('a reply carrying no columnHeaders is ACCEPTED — the grid supplied the days', async () => {
+        const out = await onGeometryPath();
+        assert.equal(out.code, 200,
+            `the geometry path was rejected (${out.code}: ${JSON.stringify(out.body)}) — the `
+            + 'coordinator is requiring something buildCellPrompt never asks the model for');
+    });
+
+    test('and the days land where the GRID put them, not where a header row would', async () => {
+        const out = await onGeometryPath();
+        const row = (out.body.parsed || []).find(e => e.memberName === 'L. Springer');
+        assert.ok(row, `no L. Springer in the response: ${JSON.stringify(out.body).slice(0, 300)}`);
+        // Sunday is the week's first date and was BLANK; Monday carries the duty. A one-day drift
+        // — the defect the whole geometry programme exists to remove — moves the duty to Sunday.
+        assert.equal(row.shifts['2026-08-30'], 'RD', 'Sunday BLANK should resolve to a rest day');
+        assert.equal(row.shifts['2026-08-31'], '05:30-11:30', 'Monday should carry the duty');
+    });
+
+    test('the model is sent the CELLS and never the PDF — it must not re-read the table', async () => {
+        await onGeometryPath();
+        const blocks = modelCalls().at(-1).blocks;
+        assert.ok(blocks.length > 0, 'the harness recorded no content blocks');
+        assert.ok(blocks.some(b => b.type === 'text' && b.text.includes('ALREADY been separated into cells')),
+            'the cell prompt was not the input — the geometry path sent something else');
+        assert.ok(!blocks.some(b => b.type === 'document'),
+            'the PDF was attached on the geometry path — the model can re-read the table and '
+            + 'undo the grid\'s day assignment, which is the one thing this path exists to prevent');
+    });
+
+    test('the LEGACY path still requires columnHeaders — the guard was narrowed, not removed', async () => {
+        build({ aiReply: JSON.stringify({ parsed: [PARSED_ROW] }) });   // GEO.usable stays false
+        const out = await call(index.parseRosterPDF, rosterRequest());
+        assert.equal(out.code, 502,
+            'a legacy-path reply with no columnHeaders was accepted — there IS a header row on that '
+            + 'path and nothing else decides the day');
     });
 });
