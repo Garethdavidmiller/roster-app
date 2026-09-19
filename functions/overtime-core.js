@@ -1071,6 +1071,23 @@ function reminderNotice(milestones) {
 /** en-GB short months for the reminder body — a Date-free render of an ISO doc id. */
 const MONTH_ABB_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+/**
+ * Is the retention purge armed to DELETE, or still only reporting what it would?
+ *
+ * A DATE (owner, 19 Sep 2026), and deliberately NOT 21 Nov, when the first window expires: arming
+ * that morning would delete it before any run had ever logged it. Ten days later leaves ten daily
+ * runs naming real windows and deleting nothing — the log the evidence gate always wanted.
+ *
+ * Fails CLOSED, and must be asked **per invocation, never at module load** — a warm instance
+ * outlives the date. OVERTIME_AVAILABILITY.md → Retention has the rest.
+ * @param {number} [nowMs] injected so this is testable without a clock
+ * @returns {boolean}
+ */
+const PURGE_ARMS_AT = Date.UTC(2026, 11, 1);   // 1 Dec 2026 — ten days of real dry runs first
+function purgeArmedAt(nowMs = Date.now()) {
+    return Number.isFinite(nowMs) && nowMs >= PURGE_ARMS_AT;
+}
+
 module.exports = {
     // policy
     POLICY_VERSION,
@@ -1127,4 +1144,7 @@ module.exports = {
     londonDeadlineLabel,
     askedNotice,
     reminderNotice,
+    // retention
+    PURGE_ARMS_AT,
+    purgeArmedAt,
 };

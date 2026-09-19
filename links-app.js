@@ -57,7 +57,7 @@ import { baselineFromEntry } from './links-concurrency.js';
 import { createDesignStore } from './links-design-store.js';
 import { setStatus } from './status-text.js';
 import {
-    isDeleted, isPurgeable, purgeableIds, deletedLabel, canSoftDelete, sortByDeleted,
+    isDeleted, deletedLabel, canSoftDelete, sortByDeleted,
 } from './links-deletion.js';
 
 
@@ -1121,37 +1121,6 @@ export function init() {
         document.getElementById('linksImportText')?.addEventListener('input', _importReset);
     }
     initDesignImport();
-
-    /**
-     * Remove deleted designs that have aged out of the recovery window.
-     *
-     * Fire-and-forget on load, following the same client-side pruning pattern the circular /
-     * newsletter / analytics sweeps use. The decision itself is `purgeableIds` in
-     * links-deletion.js, which fails closed on an unresolved or future `deletedAt` — this runs on
-     * whatever the device thinks the time is, so it must never treat "I can't tell how old this
-     * is" as "old enough to destroy".
-     *
-     * ⚠️ NOT WIRED UP since v19.86 (external review P2) — hence the underscore. It is kept, rather
-     * than deleted, because the transactional re-check below is the hard-won part and a server-time
-     * expiry will want it verbatim. What is missing is only the CLOCK: a device running more than
-     * 30 days fast makes every recent deletion look expired, and this function would then agree
-     * with itself and destroy a colleague's design. Re-enable only once the age comes from the
-     * server (a scheduled Cloud Function), never by restoring the call site.
-     */
-    function _purgeExpiredDeletions() {
-        const ids = purgeableIds(deletedDesigns, Date.now());
-        if (ids.length === 0) return;
-        deletedDesigns = deletedDesigns.filter(d => !ids.includes(d.id));
-        for (const id of ids) {
-            // Read-and-delete inseparably — the store's rule, and the reason is the same one that
-            // applies to every destructive act here: the load snapshot is not necessarily current.
-            // Firestore runs with persistentLocalCache, so a load made offline is served from
-            // IndexedDB and can be arbitrarily stale — it could show a design as expired that a
-            // colleague restored days ago. Offline it simply fails and nothing is destroyed.
-            store.purgeIfExpired(id, (data) => isPurgeable(data, Date.now()))
-                .catch(err => console.warn('[Links] Purge of an expired deletion failed (will retry next load):', err));
-        }
-    }
 
     /**
      * Switch the active design. Warns if dirty.
@@ -2373,24 +2342,17 @@ export function init() {
             // Bin: newest deletion first. The ordering rule (incl. the unresolved-timestamp case,
             // which must not go through Infinity - Infinity) is pure and tested.
             deletedDesigns = sortByDeleted(binned);
-            // AUTOMATIC PERMANENT DELETION IS SUSPENDED (v19.86, external review P2).
+            // THE BIN IS PERMANENT (owner, 19 Sep 2026). Nothing here deletes anything
+            // automatically and nothing is going to: the bin keeps what it has, the panel shows
+            // each design's age, and removal is a deliberate "Remove for good" (transactional, and
+            // it re-checks that the design is still deleted).
             //
-            // `purgeExpiredDeletions` is kept and still correct — it re-reads inside a transaction
-            // and `isPurgeable` fails closed on an unresolved or FUTURE `deletedAt`. What none of
-            // that can defend against is a device clock running more than 30 days FAST: every recent
-            // deletion then looks expired, the transaction re-checks with the same wrong local time
-            // and agrees, and a colleague's design is destroyed for good. The whole point of the bin
-            // is that a delete is recoverable, so a path that can silently empty it early defeats
-            // the feature it belongs to.
-            //
-            // The correct fix is expiry on SERVER time — a scheduled Cloud Function. Until that
-            // exists, nothing here deletes anything automatically: the bin keeps what it has, the
-            // panel shows each design's age, and removal is a deliberate act through "Remove for
-            // good" (which IS transactional, and now re-checks that the design is still deleted).
-            // The cost is a bin that grows; with three designers and a handful of designs that is
-            // nothing against permanently losing somebody's work to a wrong clock.
-            //
-            // Do NOT re-enable this by simply calling it again — it needs a server clock first.
+            // It was SUSPENDED at v19.86 and carried as an exception pending a server sweep. The
+            // reason it is now closed rather than waiting: a soft-deleted design is already
+            // invisible and restorable, keeping it costs almost nothing, and the only thing expiry
+            // adds is the power to destroy a designer's work unattended — which is the failure the
+            // bin exists to prevent. The load-time purge, `isPurgeable`, `purgeableIds` and the
+            // 30-day constant went with the decision; links-deletion.js's header has the argument.
 
             if (designs.length > 0) {
                 // Re-open the design that was active last visit, else the first

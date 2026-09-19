@@ -1,0 +1,212 @@
+name: Are Firestore backups actually being taken?
+
+# ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────────
+#
+# `RECOVERY_RUNBOOK.md` opens its preventative section with its own words: *"These are the
+# difference between 'restored in minutes' and 'gone'. None exist by default."* It then documents
+# three things to switch on — Point-in-Time Recovery, managed backup schedules, and a portable GCS
+# export.
+#
+# NOTHING ANYWHERE RECORDED THAT ANY OF THEM WERE. Every later reference in that runbook is
+# conditional — "if PITR is on", "with PITR on" — and this repo DOES mark completions when they
+# happen (CLAUDE.md: "A2 complete: the old SA JSON key ... have both been deleted"). So the restore
+# playbooks are written against snapshots that may not be being taken, and until now the only way
+# to find out was for a person to run one command and remember the answer.
+#
+# At stake is everything a member cannot get back from the repository: leave, absence, every
+# override, overtime declarations, password-reset requests and saved work emails. The repository
+# holds the BASE roster and nothing else.
+#
+# ── WHY A WORKFLOW RATHER THAN A ONE-OFF ────────────────────────────────────────────────────────
+#
+# A one-off answers it once. A schedule can be deleted, a retention can lapse, a project can be
+# migrated — and the failure mode is silent by construction: nothing about a missing backup is
+# visible until the day you need one. So this asks weekly, and the answer lives in the run rather
+# than in somebody's memory.
+#
+# It is also the only way the question can be answered from automation at all. The standing deploy
+# key was deliberately deleted (SECURITY_RELEASE_PLAN → A2), so no GCP credential exists outside
+# GitHub Actions — which is a good property, and the reason a session cannot answer this.
+#
+# ── NO NEW THIRD-PARTY ACTION ───────────────────────────────────────────────────────────────────
+#
+# `google-github-actions/auth` is already pinned and trusted by the three deploy workflows. There is
+# deliberately no `setup-gcloud`: gcloud is pre-installed on GitHub-hosted Ubuntu runners, so the
+# credential file the auth action writes is activated with one `gcloud auth login --cred-file`.
+# Adding a fourth third-party action to ask a read-only question is a supply-chain cost with no
+# return.
+#
+# ── LEAST PRIVILEGE, AND WHAT IT DELIBERATELY WILL NOT DO ───────────────────────────────────────
+#
+# READ ONLY. It lists schedules and reads the PITR setting; it creates nothing, changes nothing, and
+# never fixes. It cannot: turning backups on has a cost attached and is the owner's call, and a
+# workflow that could enable them could also be the thing that quietly disables them.
+#
+# `github-deploy@` is a DEPLOY service account and may well not hold `datastore.backupSchedules.list`.
+# If so this reports exactly that and names the role. **"We cannot see" is a different finding from
+# "there are none"**, and reporting them as the same thing is how a check like this becomes noise —
+# which is why the job goes RED only on a definite absence, and stays green on an unknown.
+
+on:
+  schedule:
+    # Weekly, Monday 06:12 UTC. Away from the deploy, currency (:17) and live-health (:41) minutes,
+    # so a backup answer is never read inside an in-flight release. Weekly rather than hourly
+    # because a backup schedule does not change by the hour, and a check that arrives too often is
+    # a check nobody reads.
+    - cron: '12 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write        # the Workload Identity Federation exchange
+  issues: write          # to say so, once, on the thread the other checks already use
+
+jobs:
+  backups:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Authenticate to Google Cloud (Workload Identity Federation)
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
+        with:
+          workload_identity_provider: 'projects/532910998075/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
+          service_account: 'github-deploy@myb-roster.iam.gserviceaccount.com'
+
+      - name: Ask whether backups exist
+        id: ask
+        shell: bash
+        env:
+          PROJECT: myb-roster
+        run: |
+          set -uo pipefail
+          DB='(default)'
+
+          # The auth action writes a credential FILE and exports its path. Without setup-gcloud,
+          # gcloud has to be pointed at it explicitly.
+          gcloud auth login --cred-file="$GOOGLE_APPLICATION_CREDENTIALS" --quiet
+
+          {
+            echo "## Firestore backups — \`$PROJECT\`"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # ── 1 · managed backup SCHEDULES ────────────────────────────────────────────────────
+          # Each probe is wrapped rather than run under `set -e`: a permission error is an ANSWER,
+          # and the two probes must not mask one another.
+          # `--format=value(...)` rather than JSON parsed inline: a multi-line parser embedded in a
+          # YAML block scalar has to stay indented past the block, and a stray column-0 line silently
+          # ENDS the scalar — which is how the first version of this file failed to parse at all
+          # while still passing `workflow-hygiene`. gcloud can count its own rows.
+          set +e
+          SCHED=$(gcloud firestore backups schedules list --database="$DB" --project="$PROJECT" \
+                    --format='value(name.basename(),retention)' 2>/tmp/sched.err)
+          SCHED_RC=$?
+          set -e
+
+          if [ $SCHED_RC -ne 0 ]; then
+            SCHED_STATE=unknown
+            if grep -qiE 'permission|denied|forbidden|not authoriz|PERMISSION_DENIED' /tmp/sched.err; then
+              SCHED_TEXT="**Could not check** — \`github-deploy@\` lacks permission to list backup schedules. That is NOT the same as \"there are none\". Grant \`roles/datastore.viewer\` (or just \`datastore.backupSchedules.list\`) to answer it."
+            else
+              SCHED_TEXT="**Could not check** — the command failed for a reason other than permissions; see the run log."
+            fi
+            sed -e 's/^/    /' /tmp/sched.err >> "$GITHUB_STEP_SUMMARY" || true
+          else
+            COUNT=$(printf '%s\n' "$SCHED" | grep -c . || true)
+            if [ "${COUNT:-0}" -gt 0 ]; then
+              SCHED_STATE=present
+              SCHED_TEXT="**$COUNT backup schedule(s) exist.**"
+              printf '%s\n' "$SCHED" | sed -e 's/^/  - `/' -e 's/$/`/' >> "$GITHUB_STEP_SUMMARY" || true
+            else
+              SCHED_STATE=absent
+              SCHED_TEXT="**No backup schedules exist.** Nothing is being snapshotted."
+            fi
+          fi
+
+          # ── 2 · Point-in-Time Recovery ──────────────────────────────────────────────────────
+          set +e
+          PITR=$(gcloud firestore databases describe --database="$DB" --project="$PROJECT" \
+                   --format='value(pointInTimeRecoveryEnablement)' 2>/tmp/pitr.err)
+          PITR_RC=$?
+          set -e
+          if [ $PITR_RC -ne 0 ]; then
+            PITR_STATE=unknown
+            PITR_TEXT="**Could not check PITR** — see the run log."
+            sed -e 's/^/    /' /tmp/pitr.err >> "$GITHUB_STEP_SUMMARY" || true
+          elif [ "$PITR" = "POINT_IN_TIME_RECOVERY_ENABLED" ]; then
+            PITR_STATE=present
+            PITR_TEXT="**Point-in-Time Recovery is ON.**"
+          else
+            PITR_STATE=absent
+            PITR_TEXT="**Point-in-Time Recovery is OFF** (\`${PITR:-unset}\`)."
+          fi
+
+          {
+            echo ""
+            echo "- Schedules: $SCHED_TEXT"
+            echo "- PITR: $PITR_TEXT"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          {
+            echo "sched_text=$SCHED_TEXT"
+            echo "pitr_text=$PITR_TEXT"
+          } >> "$GITHUB_OUTPUT"
+
+          # RED only on a definite absence of BOTH. A job that fails because it lacks an IAM role
+          # trains its reader to ignore it, and the one thing here that must never be ignored is a
+          # real "nothing is recoverable".
+          if [ "$SCHED_STATE" = absent ] && [ "$PITR_STATE" = absent ]; then
+            echo "::error::No Firestore backup schedules AND no PITR — nothing is recoverable."
+            exit 1
+          fi
+          echo "Schedules: $SCHED_STATE · PITR: $PITR_STATE"
+
+      - name: Say so, once, in an issue
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SCHED_TEXT: ${{ steps.ask.outputs.sched_text }}
+          PITR_TEXT: ${{ steps.ask.outputs.pitr_text }}
+        run: |
+          set -uo pipefail
+          LABEL="deploy-failure"
+
+          # DEDUPED onto the SAME thread the deploy, currency and live-health checks use — one
+          # situation, one thread. It is hand-rolled rather than reusing the shared
+          # `report-deploy-failure` action on purpose: that action's body says "did not deploy" and
+          # "production is still running whatever the last successful deploy shipped", which would
+          # be a confidently wrong description of this finding.
+          EXISTING=$(gh issue list --state open --label "$LABEL" --limit 1 --json number \
+            --jq '.[0].number' 2>/dev/null || true)
+
+          BODY=$(printf '%s\n' \
+          "**Firestore has no backups.**" \
+          "" \
+          "- Schedules: ${SCHED_TEXT}" \
+          "- PITR: ${PITR_TEXT}" \
+          "" \
+          "None of this is reconstructable from the repository: leave, absence, every override," \
+          "overtime declarations, password-reset requests and saved work emails. The repo holds the" \
+          "BASE roster and nothing else." \
+          "" \
+          "\`RECOVERY_RUNBOOK.md\` documents what to switch on. **This check never fixes it** —" \
+          "turning backups on has a cost attached and is the owner's call." \
+          "" \
+          "Run: ${RUN_URL}" )
+
+          gh label create "$LABEL" --color B60205 \
+            --description "A deploy workflow failed and production may be stale" 2>/dev/null || true
+
+          # Never fails the job: this step runs only when something has already gone wrong, and a
+          # failed notification must not bury the real finding.
+          if [ -n "${EXISTING:-}" ]; then
+            gh issue comment "$EXISTING" --body "$BODY" \
+              || echo "::warning::Could not comment on issue #$EXISTING — the finding is above."
+          else
+            gh issue create --title "⚠️ Firestore has no backups" --label "$LABEL" --body "$BODY" \
+              || echo "::warning::Could not open an issue — the finding is above."
+          fi

@@ -1258,6 +1258,39 @@ describe('purgeExpiredOvertimeWindows — the only irreversible thing here', () 
         unfreeze();
         assert.equal([...db._store.keys()].length, 5, 'nothing should have been deleted');
     });
+
+    // ── THE FLAG IS A PREDICATE, RESOLVED PER RUN (v24.10) ──────────────────────────────────────
+    //
+    // Production passes `purgeArmedAt` — a DATE rule — rather than a boolean, and these two tests
+    // are the reason that had to be threaded rather than captured. They drive the real handler, not
+    // the rule: `overtime-core.test.mjs` owns the date itself.
+    test('a predicate is honoured, and a false one deletes nothing', async () => {
+        freeze(NOW);
+        const { eps, db } = build(expiredTree(), { purgeArmed: () => false });
+        await run(eps);
+        unfreeze();
+        assert.equal([...db._store.keys()].length, 5,
+            'a disarmed predicate must walk the tree and delete nothing');
+    });
+
+    test('it is asked EVERY run, so a warm instance cannot miss the arming date', async () => {
+        // The trap this shape exists for. A Cloud Function instance stays warm for hours or days,
+        // so a date read once at module load would leave an instance that booted the day before
+        // still dry-running the day after — silently, until something happened to cold-start it.
+        //
+        // One built handler, two runs, the predicate's answer changing between them. If the flag
+        // were captured at build time the second run would still delete nothing.
+        freeze(NOW);
+        let armed = false;
+        const { eps, db } = build(expiredTree(), { purgeArmed: () => armed });
+        await run(eps);
+        assert.equal([...db._store.keys()].length, 5, 'run 1 was disarmed and must have kept it all');
+        armed = true;
+        await run(eps);
+        unfreeze();
+        assert.deepEqual([...db._store.keys()], [],
+            'run 2 asked again, found itself armed, and must have purged');
+    });
 });
 
 describe('autoCreateOvertimeWindows — the schedule, executed', () => {

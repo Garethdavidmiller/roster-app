@@ -7371,6 +7371,20 @@ test('admin: the AL preview names a Spare day and says it costs one day of leave
     // The note renders only for CEA/CES, and only on a day whose BASE shift is SPARE — so the date
     // is found from the roster rather than written down here, where a pattern edit would silently
     // turn it into an ordinary working day and leave this test asserting nothing.
+    //
+    // ── AND NEVER A SUNDAY, WHICH THIS SEARCH LEARNED THE HARD WAY (v24.10) ─────────────────────
+    //
+    // `annual_leave` is in `SUNDAY_FORBIDDEN_TYPES`, so a Sunday costs no entitlement however the
+    // base roster reads: the preview correctly answers "0 days of Annual Leave … (+ 1 rest day
+    // skipped)" and the assertion below is unsatisfiable. Nothing here excluded one, so the pick
+    // was only ever right by luck — and the luck ran out on 19 Sep 2026, when the first CEA with a
+    // Spare day in the next 200 days became L. Springer on Sunday 18 October.
+    //
+    // A DATE-DRIVEN SEARCH IS A TIME BOMB WITH NO FUSE VISIBLE IN THE DIFF. It is still the right
+    // shape — a hardcoded date rots the moment a pattern is edited, which is what the comment above
+    // is about — but the filter has to encode every rule the surface under test obeys, not just the
+    // one the test is named after. This found it: Chromium and WebKit failed identically, on a
+    // branch that touched neither Admin nor annual leave.
     const pick = await page.evaluate(async () => {
         const rd = await import('./roster-data.js');
         const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -7379,18 +7393,28 @@ test('admin: the AL preview names a Spare day and says it costs one day of leave
             if (m.role !== 'CEA' && m.role !== 'CES') continue;
             for (let i = 1; i <= 200; i++) {
                 const d = new Date(today); d.setDate(d.getDate() + i);
+                const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                // `isSunday` takes the ISO STRING, not a Date — handing it a Date makes it a silent
+                // no-op that filters nothing, which is how the first version of this fix "passed".
+                if (rd.isSunday(iso)) continue;                     // AL is refused on a Sunday
                 if (rd.getBaseShift(m, d) !== 'SPARE') continue;
                 return {
                     name: m.name,
-                    iso: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+                    iso,
                     monthsAhead: (d.getFullYear() - today.getFullYear()) * 12 + (d.getMonth() - today.getMonth()),
                 };
             }
         }
         return null;
     });
-    expect(pick, 'no CEA/CES member has a Spare day in the next 200 days — that is a roster problem, not a copy one')
+    expect(pick, 'no CEA/CES member has a NON-SUNDAY Spare day in the next 200 days — that is a roster problem, not a copy one')
         .not.toBeNull();
+    // The filter above has to be seen to have worked. A Sunday reaching here means the day costs no
+    // entitlement and every assertion below is unsatisfiable — which is the failure this test spent
+    // a release reporting as a copy bug.
+    expect(new Date(`${/** @type {any} */ (pick).iso}T12:00:00`).getDay(),
+        `the search returned a Sunday (${/** @type {any} */ (pick).iso}) — AL cannot be booked on one`)
+        .not.toBe(0);
 
     await page.locator('#fieldMember').selectOption(/** @type {any} */ (pick).name);
     await page.locator('#alToggleHeader').click();

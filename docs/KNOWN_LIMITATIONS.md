@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: September 2026 — v24.00 · Updated every 0.10 version*
+*Last updated: September 2026 — v24.10 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -169,9 +169,10 @@ between 'restored in minutes' and 'gone'. **None exist by default.**"* It then d
 to switch on — Point-in-Time Recovery, managed backup schedules, and a portable GCS export.
 
 **Nothing anywhere records that any of them were.** Every later reference in that runbook is
-conditional — *"if PITR is on"*, *"with PITR on"*. There is no CI job, no maintenance-calendar entry,
-and no completion marker, which is notable because this repo DOES mark completions when they happen
-(`CLAUDE.md`: *"A2 complete: the old SA JSON key and the `FIREBASE_SERVICE_ACCOUNT` GitHub secret
+conditional — *"if PITR is on"*, *"with PITR on"*. There was no CI job, no maintenance-calendar entry
+and no completion marker (the CI job now exists — see below — and answers the question; it does not
+answer whether anyone acted on it), which is notable because this repo DOES mark completions when
+they happen (`CLAUDE.md`: *"A2 complete: the old SA JSON key and the `FIREBASE_SERVICE_ACCOUNT` GitHub secret
 have both been deleted"*).
 
 So the restore playbooks are written against snapshots that may not be being taken. What is at stake
@@ -179,8 +180,21 @@ is every staff member's leave, absence, overrides, overtime declarations, passwo
 saved work emails — none of which is reconstructable from the repository, because the repository
 holds the base roster and nothing else.
 
-This is recorded rather than fixed because it cannot be verified or changed from a session: it is
-GCP console/CLI state. **If the answer is "they are on", replace this entry with the date checked.**
+**It is now ASKED rather than remembered** (19 Sep 2026, owner-authorised).
+`.github/workflows/backup-check.yml` runs weekly and on demand, and is the only place the question
+CAN be answered from automation: the standing deploy key was deliberately deleted
+(`SECURITY_RELEASE_PLAN.md` → A2), so no GCP credential exists outside GitHub Actions, which is why
+a session cannot answer it. The job is READ-ONLY and **never fixes** — turning backups on has a cost
+attached and is the owner's call, and a workflow that could enable them could also be the thing that
+quietly disables them.
+
+**It goes red only on a DEFINITE absence of both schedules and PITR.** `github-deploy@` may not hold
+`datastore.backupSchedules.list`, and *"we cannot see"* is a different finding from *"there are
+none"*: reporting them as the same thing is how a check like this becomes noise, so an unknown stays
+green and names the role to grant.
+
+**Replace this entry with the date checked once a run has answered it** — the first
+`workflow_dispatch` after this merges is what closes the question.
 
 ### `docs/AL_WORKBOOK.md` publishes named colleagues' leave figures (found 16 Sep 2026, deep review)
 
@@ -1357,27 +1371,34 @@ never contingent on the beta label, and dropping it does not make any of them go
   Related: the other limits in that family (max turn length, minimum rest between turns, the weekly
   ceiling) are ALREADY COMPUTED and rendered as advisory ORR rows — promoting them is a rendering
   change plus the confirmed figures. Do not do it from recall; see `.claude/rules/links-design.md`.
-- **Delete is a SOFT delete (v19.41).** A deleted design carries `deletedAt`/`deletedBy`, drops
-  out of the picker, and is restorable from "🗑 Recently deleted" **until somebody removes it by
-  hand** — automatic expiry was suspended at v19.86 (external review P2). `isPurgeable` fails closed
-  on an unresolved or FUTURE `deletedAt`, but no client-side age check can defend against a device
-  clock running more than 30 days FAST: every recent deletion then looks expired, the purge
-  transaction re-checks with the same wrong local time and agrees, and a colleague's design is
-  destroyed. The bin exists so that a delete is recoverable, so a path that can silently empty it
-  early defeats the feature it belongs to. The cost is a bin that grows; with three designers that
-  is nothing against losing somebody's work to a wrong clock. Expiry returns when it can be
-  computed from SERVER time (a scheduled Cloud Function) — `_purgeExpiredDeletions` is kept,
-  unwired, because its transactional re-check is the part worth keeping.
+- **Delete is a SOFT delete and the bin is PERMANENT** (v19.41; settled 19 Sep 2026, owner). A
+  deleted design carries `deletedAt`/`deletedBy`, drops out of the picker, and is restorable from
+  "🗑 Recently deleted" until somebody removes it by hand. Nothing expires it and nothing will.
 
-  **And the UI went on promising the expiry for ten more versions** (fixed v19.96, external review
-  P2). Suspending the purge left `deletedLabel` still appending "· removed for good in N days" to
-  every row, and the delete confirm and the tips still saying 30 days — while the bin's own intro
-  line, two inches above the rows, correctly read "Nothing is deleted automatically". One dialog,
-  two mutually exclusive explanations. The behaviour was SAFER than the promise, so nothing was
-  lost; what was damaged is the reason to believe the next thing the panel says, and a designer
-  who took the countdown seriously might have hurried or written the work off. `daysLeft` and
-  `SOFT_DELETE_RETENTION_DAYS` are now explicitly DORMANT and must not drive visible copy again
-  until the age comes from the server.
+  Automatic expiry was suspended at v19.86 (external review P2) because no client-side age check can
+  defend against a device clock running more than 30 days FAST: every recent deletion then looks
+  expired, the purge transaction re-checks with the same wrong local time and agrees, and a
+  colleague's design is destroyed. It was then carried as a production exception for ten months, on
+  the assumption a server-side sweep would eventually replace it.
+
+  **It will not, and the reasoning is better than the plan it replaces.** A soft-deleted design is
+  already invisible and restorable, storing it costs almost nothing, and the only thing an automatic
+  purge adds is the power to destroy a designer's work unattended — the exact failure the bin exists
+  to prevent. So the machinery that existed ONLY to serve the un-built sweep was DELETED at v24.10
+  rather than left dormant: `SOFT_DELETE_RETENTION_DAYS`, `isPurgeable`, `purgeableIds`, `daysLeft`,
+  the unwired `_purgeExpiredDeletions` and the store's `purgeIfExpired`. That is this repo's own
+  rule, coined about that very constant — *a knob that drives nothing is the
+  `SOFT_DELETE_RETENTION_DAYS` mistake*. Git has all of it if a Cloud Function sweep is ever wanted,
+  and such a sweep would read SERVER time and would not have used the client store's method anyway.
+
+  **The reason the dormant version was a real cost, not just untidiness:** the UI went on promising
+  the expiry for ten more versions (fixed v19.96, external review P2). Suspending the purge left
+  `deletedLabel` still appending "· removed for good in N days" to every row, and the delete confirm
+  and the tips still saying 30 days — while the bin's own intro line, two inches above the rows,
+  correctly read "Nothing is deleted automatically". One dialog, two mutually exclusive
+  explanations. The behaviour was SAFER than the promise, so nothing was lost; what was damaged is
+  the reason to believe the next thing the panel says. There is now no constant for a countdown to
+  come back from, and `doc-parity.test.mjs` fails if one is re-added without re-pointing the guard.
 
 - **Two designs may carry the SAME NAME** (external review, Sep 2026 — P2, not fixed). `createDesign`,
   `duplicateDesign` and `renameDesign` validate length and emptiness and nothing else, so a picker can

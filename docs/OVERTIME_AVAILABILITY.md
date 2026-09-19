@@ -485,17 +485,34 @@ It is deliberately *not* a Firestore rule. Rules are not filters: a `resource.da
 collection read fails the **whole query** rather than dropping a row, so one expired document would
 blank a reviewer's entire workspace.
 
-**The purge exists and ships DISARMED** (v20.96). `purgeExpiredOvertimeWindows` runs daily at 04:00
-Europe/London — an hour before the creator, so the two never contend — selects every window past its
-`retentionUntil`, walks it bottom-up and reports exactly what it would remove. `purgeArmed` in
-`functions/index.js` is the one statement that turns the report into a deletion.
+**The purge ARMS ITSELF ON 1 DECEMBER 2026** (v20.96 built it disarmed; dated at v24.10, owner
+decision). `purgeExpiredOvertimeWindows` runs daily at 04:00 Europe/London — an hour before the
+creator, so the two never contend — selects every window past its `retentionUntil`, walks it
+bottom-up and reports exactly what it would remove. Before the date it reports and deletes nothing;
+from the date it deletes. The rule is `purgeArmedAt` in `functions/overtime-core.js`.
 
-Disarmed is not indecision. It is the only irreversible thing this feature does, it runs unattended,
-and its first real work happens months after it was written — so the walk gets proved against real
-documents while its mistakes are still only log lines. **Read a run of `[purgeExpiredOvertimeWindows]`
-in the Functions log, check the weeks and the counts, then arm it.** Nothing anybody SEES changes
-either way, since both read endpoints already omit expired windows; that is why arming can wait and
-also why waiting is not free — the data is still there.
+**Why a date, and why not the obvious one.** It shipped behind a boolean somebody would flip after
+reading a real dry run, and the owner asked for it armed on 19 Sep 2026. The calendar refused the
+straight answer three times over, and each refusal shaped the one above:
+
+- **Flipping it that day would have deleted nothing for 63 days**, because retention is 91 days past
+  the week-ending Saturday and the first windows ended 22 Aug — so the earliest expiry is 21 Nov.
+  The first deletion would then have happened unattended, two months after anyone thought about it.
+- **It would also have retired the evidence gate**, since the only runs that can ever show a real
+  window are the ones from 21 Nov onward, and arming turns those into deletions.
+- **And arming ON 21 Nov has the same flaw in miniature** — the window expires that morning and
+  would be deleted before any run had logged it. That was the first draft of this change, and it was
+  wrong for the reason the whole gate exists.
+
+So the date is **1 Dec**: ten daily runs that name real expired windows and delete nothing, then the
+job arms itself. Read one if you want the confirmation the gate was always after — the log is
+`[purgeExpiredOvertimeWindows]` — but nothing now depends on anyone remembering to.
+
+**The flag is resolved per invocation, never at module load.** A warm Cloud Function instance
+outlives the date, so a value captured at boot would leave an instance started on 30 Nov still
+dry-running on 2 Dec, silently, until something cold-started it. Both halves are mutation-tested.
+
+Nothing anybody SEES changes either way, since both read endpoints already omit expired windows.
 
 Two properties the walk depends on. **Firestore does not cascade**: a parent deleted on its own
 leaves every participant, submission and revision present, billable and unreachable from any listing
@@ -582,13 +599,13 @@ because none existed before.
 
 ## Known temporary exceptions
 
-Two, both stated in full in `ARCHITECTURE.md` → §3 and deliberately not re-explained here:
+One, stated in full in `ARCHITECTURE.md` → §3 and deliberately not re-explained here:
 
-- **`EXC-002`** — the retention purge ships **disarmed**. It reports; it deletes nothing, so expired
-  data persists contrary to what *Retention* above says happens to it. `VAL-OT-001` is the evidence
-  that closes it, after 21 Nov 2026.
 - **`EXC-003`** — participation is a **restricted beta**. The audience ladder is server-owned, so
   widening it is a one-word edit plus `npm run generate:roster-members`.
+
+The retention purge's exception **closed on 19 Sep 2026** — it arms itself on a date now, and
+*Retention* below is what it does rather than what it would do.
 
 ---
 
@@ -636,8 +653,9 @@ missed would ship a half-launched feature. Work through ALL of them; each names 
    labels (`overtime-manager.js`, `overtime-review-controller.js`) read `w.audience === 'restricted'`
    from the data, so they retire THEMSELVES the moment item 1 widens the audience. Nothing here is
    left to do by hand at launch.
-4. **Arm the retention purge** — `purgeArmed` in `functions/index.js`, after reading a dry run
-   (`EXC-002`; evidence row `VAL-OT-001`, dated in `MAINTENANCE_CALENDAR.md`).
+4. ~~**Arm the retention purge**~~ — **nothing to do (v24.10).** It arms itself on 1 Dec 2026; see
+   *Retention* above. Evidence row `VAL-OT-001` is settled by reading one of the ten dry runs that
+   precede it, which is optional rather than a gate.
 5. **Re-check the reviewer workspace at scale** — the By-day view renders every participant under
    every date; at ~50 staff that is ~350 rows under the ALL lens. Decide between defaulting the day
    lens to the week's first date and collapsible day sections. (The empty-section invariant stands
@@ -689,7 +707,6 @@ submission would announce what the receipt on their screen already states.
 ---
 
 ## Deliberately not built
-- **The scheduled purge ships disarmed** — see `EXC-002` above.
 - **No override write-back.** Availability is a declaration, not a roster change; nothing here
   writes to `overrides`.
 - **No collection-group query, and so no composite index.** Participation is resolved by point reads

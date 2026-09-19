@@ -8,33 +8,32 @@
  *
  * The model is a soft delete: a `deletedAt` timestamp (+ `deletedBy`) on the document. A design
  * carrying one is hidden from the picker and kept until a designer deliberately removes it for
- * good. **Automatic expiry is SUSPENDED** (v19.86) — see `SOFT_DELETE_RETENTION_DAYS`. No DOM, no
- * Firebase — because the two directions of this decision are wildly asymmetric and both need
- * pinning:
+ * good. No DOM, no Firebase.
  *
- *   · Reading a deleted design as LIVE is a visible nuisance — it reappears in the picker.
- *   · Reading a live design as PURGEABLE destroys someone's work permanently, which is the
- *     exact failure the whole feature exists to prevent.
+ * ── THE BIN IS PERMANENT, BY DECISION (owner, 19 Sep 2026) ──────────────────────────────────────
  *
- * So `isDeleted` and `isPurgeable` are deliberately NOT each other's mirror. They disagree about
- * one specific state, and that disagreement is the point — see `isPurgeable`.
- */
-
-/**
- * How long a deleted design WOULD be recoverable, if anything expired it.
+ * Automatic expiry was SUSPENDED at v19.86 — no client-side age check survives a device clock
+ * running 30 days fast, which makes every recent deletion look expired and destroys a colleague's
+ * work. It was then carried as a production exception on the assumption a sweep would arrive.
  *
- * ⚠️ **DORMANT — nothing in the app acts on this, and nothing says it to a user** (v19.86 suspended
- * the purge; v19.96 removed the last visible copy that still quoted it). It is kept because a
- * server-time sweep will want the number and the transactional re-check around it, both of which
- * were hard-won. What no client-side check can survive is a device clock running 30 days fast: every
- * recent deletion then looks expired, the re-check agrees with the same wrong clock, and a
- * colleague's design is destroyed.
+ * It will not, and the reasoning is better than the plan it replaces: a soft-deleted design is
+ * already invisible and restorable, storing it costs almost nothing, and the one thing an automatic
+ * purge adds is the ability to destroy a designer's work unattended — the exact failure this
+ * feature was built to prevent. Expiry makes nothing here better.
  *
- * **Do not reconnect it to visible copy until the age comes from the server.** A countdown is a
- * promise, and this one was still being displayed for ten versions after the thing that would have
+ * So the machinery that existed ONLY to serve the un-built sweep is GONE rather than left dormant:
+ * `SOFT_DELETE_RETENTION_DAYS`, `isPurgeable`, `purgeableIds`, `daysLeft`, the unwired
+ * `_purgeExpiredDeletions` in links-app.js and the store's `purgeIfExpired`. That follows this
+ * repo's own rule, coined about this very constant: *a knob that drives nothing is the
+ * `SOFT_DELETE_RETENTION_DAYS` mistake*. Ten months of "dormant, kept for the sweep" is how a
+ * countdown came to be shown to designers for ten versions after the thing that would have
  * honoured it was switched off.
+ *
+ * What remains is what a permanent bin needs: hide it, say who binned it and when, sort it, refuse
+ * to bin the last live design, and one deliberate **Remove for good** with a transactional
+ * read-and-delete. If a sweep is ever wanted, git has all of it — and it would be a Cloud Function
+ * reading SERVER time, which would not have used the client store's method anyway.
  */
-export const SOFT_DELETE_RETENTION_DAYS = 30;
 
 const DAY_MS = 86_400_000;
 
@@ -73,67 +72,6 @@ export function isDeleted(data) {
 }
 
 /**
- * Has this deletion aged out of the recovery window?
- *
- * Fails CLOSED — every uncertain state answers "no, keep it":
- *  · no `deletedAt` at all → not even deleted, let alone purgeable;
- *  · `deletedAt` present but UNRESOLVED (null) → age unknown, and unknown age must never read as
- *    expired. This is where it deliberately parts company with `isDeleted`, which counts the same
- *    state as deleted: hiding a design you cannot date is free, destroying it is not;
- *  · a FUTURE `deletedAt` → the device clock is wrong (the purge runs on the client, like every
- *    other prune in this app, so it is only ever as trustworthy as `Date.now()`). Treating a
- *    future date as very old would purge the entire bin on a machine whose clock has jumped.
- *
- * @param {any} data - the Firestore document data
- * @param {number} nowMs
- * @param {number} [retentionDays=SOFT_DELETE_RETENTION_DAYS]
- * @returns {boolean}
- */
-export function isPurgeable(data, nowMs, retentionDays = SOFT_DELETE_RETENTION_DAYS) {
-    if (!isDeleted(data)) return false;
-    const at = tsMillis(data?.deletedAt);
-    if (at === null) return false;
-    const age = nowMs - at;
-    if (age < 0) return false;
-    return age > retentionDays * DAY_MS;
-}
-
-/**
- * Which of these deleted designs are due to be removed for good?
- *
- * @param {Array<{id: any, deletedAt?: any}>} entries
- * @param {number} nowMs
- * @param {number} [retentionDays=SOFT_DELETE_RETENTION_DAYS]
- * @returns {any[]} ids
- */
-export function purgeableIds(entries, nowMs, retentionDays = SOFT_DELETE_RETENTION_DAYS) {
-    return (entries || []).filter(e => isPurgeable(e, nowMs, retentionDays)).map(e => e.id);
-}
-
-/**
- * Whole days left before a deleted design would be removed for good — null when that can't be
- * known (unresolved timestamp), so a caller can say so rather than invent a number.
- *
- * Rounds UP, so a design with any time left never reads "0 days".
- *
- * ⚠️ **DORMANT, like the constant it reads.** It has no caller in the app: `deletedLabel` stopped
- * using it at v19.96 because nothing expires a design, so the number it returns describes an event
- * that does not occur. Kept for the eventual server-time sweep, and tested so it still works when
- * that arrives.
- *
- * @param {any} data
- * @param {number} nowMs
- * @param {number} [retentionDays=SOFT_DELETE_RETENTION_DAYS]
- * @returns {number|null}
- */
-export function daysLeft(data, nowMs, retentionDays = SOFT_DELETE_RETENTION_DAYS) {
-    const at = tsMillis(data?.deletedAt);
-    if (at === null) return null;
-    const left = (at + retentionDays * DAY_MS) - nowMs;
-    return left <= 0 ? 0 : Math.ceil(left / DAY_MS);
-}
-
-/**
  * The staff-facing line under a deleted design's name.
  *
  * Calm and factual per the wording conventions — it states who and when, with no exclamation and
@@ -151,9 +89,8 @@ export function daysLeft(data, nowMs, retentionDays = SOFT_DELETE_RETENTION_DAYS
  * rather than a data-loss one: nothing is destroyed until a designer chooses "Remove for good". But
  * a designer who believed the countdown might reasonably have hurried, or written the work off.
  *
- * `daysLeft` and `SOFT_DELETE_RETENTION_DAYS` are deliberately kept — see their own notes. They are
- * dormant, and must not drive visible copy again until a SERVER-time sweep exists to make the
- * promise true.
+ * With the bin now permanent (see the module header), there is no removal date to promise and no
+ * constant left to promise it from. This line reports AGE and nothing else.
  *
  * @param {any} data - the Firestore document data ({deletedAt, deletedBy})
  * @param {number} nowMs

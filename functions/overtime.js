@@ -26,8 +26,8 @@
  *                               device clock must never decide what a member is shown.
  *   submitOvertimeAvailability  the only mutation A MEMBER makes. Transactional, revision-aware,
  *                               idempotent.
- *   purgeExpiredOvertimeWindows scheduled. The only irreversible thing here, so it ships DISARMED
- *                               and reports what it would remove until somebody reads a run.
+ *   purgeExpiredOvertimeWindows scheduled. The only irreversible thing here, so it reports what it
+ *                               would remove until it ARMS ITSELF on a date (overtime-core.js).
  *   withdrawOvertimeParticipant reviewer. Stops a week EXPECTING one person — a leaver otherwise
  *                               stays a permanent non-responder in every open week. A flag, never
  *                               a delete: it changes what is expected, not what happened.
@@ -215,8 +215,25 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
      * A dependency rather than a constant here for the same reason as everything else in this
      * argument list — the literal belongs in the composition root, and a test can drive both sides
      * of the branch without editing source.
+     *
+     * ── IT IS EVALUATED PER RUN, AND THAT IS THE LOAD-BEARING PART (v24.10) ─────────────────────
+     *
+     * Production now passes a PREDICATE rather than a boolean, because the real rule is a date
+     * (`purgeArmedAt` in overtime-core.js — nothing is expired before 21 Nov 2026, so a boolean
+     * flipped today would arm the job blind two months later). A date read ONCE at module load
+     * would then be wrong in the quiet way: a Cloud Function instance stays warm for hours or days,
+     * so an instance that booted on the 20th would still believe it was disarmed on the 22nd, and
+     * the job would silently keep dry-running until something happened to cold-start it.
+     *
+     * So this resolves on every invocation, and the answer is threaded INTO `purgeWindow` rather
+     * than closed over — one decision per run, used by both the log line and the delete, which is
+     * what makes "what the log described is what the run did" true rather than nearly true.
+     *
+     * A boolean is still accepted, and the existing tests pass one: they are about the ARMED
+     * branch, not about when it arms.
+     * @param {boolean | (() => boolean)} flag
      */
-    const PURGE_ARMED = purgeArmed === true;
+    const resolveArmed = (flag) => (typeof flag === 'function' ? flag() === true : flag === true);
 
     const db = () => getFirestore();
 
@@ -807,6 +824,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
         { schedule: '0 4 * * *', timeZone: 'Europe/London', region: 'europe-west2' },
         async () => {
             const nowMs = Date.now();
+            const armed = resolveArmed(purgeArmed);
             let snap;
             try {
                 snap = await db().collection(WINDOWS).get();
@@ -820,7 +838,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                     && toMillis(d.data().retentionUntil) <= nowMs)
                 .sort((a, b) => (a.id < b.id ? -1 : 1));   // oldest first
             if (!expired.length) {
-                console.log(`[purgeExpiredOvertimeWindows] nothing expired${PURGE_ARMED ? '' : ' (dry run)'}`);
+                console.log(`[purgeExpiredOvertimeWindows] nothing expired${armed ? '' : ' (dry run)'}`);
                 return;
             }
             const take = expired.slice(0, MAX_PURGE_WINDOWS_PER_RUN);
@@ -828,11 +846,11 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
 
             for (const doc of take) {
                 try {
-                    const counts = await purgeWindow(doc.ref);
+                    const counts = await purgeWindow(doc.ref, armed);
                     console.log(`[purgeExpiredOvertimeWindows] ${doc.id}: `
                         + `${counts.revisions} revisions, ${counts.submissions} submissions, `
                         + `${counts.participants} participants, 1 window`
-                        + `${PURGE_ARMED ? ' — DELETED' : ' — would delete (dry run)'}`);
+                        + `${armed ? ' — DELETED' : ' — would delete (dry run)'}`);
                 } catch (err) {
                     // One bad week must not abandon the rest, and it must not be reported as done.
                     console.error(`[purgeExpiredOvertimeWindows] ${doc.id} failed:`, err);
@@ -851,9 +869,12 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
      * identical figures from the identical traversal — a separate "estimate" pass would be a second
      * piece of code claiming to describe this one.
      * @param {any} ref the window document
+     * @param {boolean} armed whether to actually delete — passed IN, never re-read, so one run's
+     *   decision governs both its log line and its deletes even if the clock crosses the arming
+     *   date mid-run
      * @returns {Promise<{revisions:number, submissions:number, participants:number}>}
      */
-    async function purgeWindow(ref) {
+    async function purgeWindow(ref, armed) {
         const counts = { revisions: 0, submissions: 0, participants: 0 };
         /** @type {any[]} */
         const doomed = [];
@@ -875,7 +896,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
         // one property that matters here: reverse it and an interruption orphans the tree.
         doomed.push(ref);
 
-        if (PURGE_ARMED) {
+        if (armed) {
             // Batched, because a per-document delete of a full window is ~100 sequential round
             // trips. Chunked well under the 500-operation cap; a partial commit is harmless, since
             // whatever survives is still expired and still selected tomorrow.
@@ -909,7 +930,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
 
             // BOUNDED BY RETENTION, like the member's read (v21.94). This is the other unbounded
             // `collection(WINDOWS).get()`, and while it is a reviewer-only call rather than the hot
-            // path, it grows with the same disarmed purge.
+            // path, it grows at the same rate and the purge only starts clearing it in Dec 2026.
             //
             // Checked against all three consumers before narrowing it, because dropping documents
             // from a set something else derives an ABSENCE from is exactly how a bound goes wrong:
@@ -1104,10 +1125,10 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             //
             // This read every window that has ever existed and dropped the expired ones in memory.
             // That is only self-limiting while something removes them, and
-            // `purgeExpiredOvertimeWindows` ships DISARMED — meanwhile `autoCreateOvertimeWindows`
-            // adds one a week for ever. Steady state with an armed purge is ~19 documents; without
-            // it the collection grows by ~52 a year, and this is the member's ONLY read, on every
-            // page open and every deadline resync. The `where` costs nothing (an automatic
+            // `purgeExpiredOvertimeWindows` deletes nothing until it arms itself (1 Dec 2026) —
+            // meanwhile `autoCreateOvertimeWindows` adds one a week. Steady state once it is armed
+            // is ~19 documents; until then the collection grows by ~52 a year, and this is the
+            // member's ONLY read, on every page open and every deadline resync. The `where` costs nothing (an automatic
             // single-field index) and makes the growth irrelevant to the hot path, so arming the
             // purge stays a storage decision rather than a latency one.
             const snap = await db().collection(WINDOWS)

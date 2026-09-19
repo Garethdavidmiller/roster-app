@@ -62,6 +62,14 @@ Console** with no CLI at all — those are called out because they're the fastes
 
 These are the difference between "restored in minutes" and "gone". None exist by default.
 
+**Whether they are on is now ASKED weekly, not remembered** —
+`.github/workflows/backup-check.yml` lists the backup schedules and reads the PITR setting on a
+schedule and on demand (`workflow_dispatch`), and opens/comments on the `deploy-failure` thread when
+BOTH are definitely absent. It is READ-ONLY and never turns anything on: that has a cost attached
+and is the owner's call. Everything below is still the thing to do; the check only stops the answer
+living in somebody's memory. An "unknown" (the deploy service account may not hold
+`datastore.backupSchedules.list`) is reported as an unknown, never as an absence.
+
 ### 1. Turn on Firestore Point-in-Time Recovery (PITR) — do this first
 
 PITR lets you read the database *as it was* at any minute within the last **7 days**. It is
