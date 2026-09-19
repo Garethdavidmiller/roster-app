@@ -835,3 +835,79 @@ describe('the currency canary stands down for a deploy in flight', () => {
             + 'report. Raise them together.');
     });
 });
+
+// ── A run-script that dedents out of its own block scalar ───────────────────────────────────────
+//
+// THE BUG THIS EXISTS FOR WAS MADE TWICE IN ONE SESSION, BOTH TIMES WHILE FIXING SOMETHING ELSE.
+// A `run: |` block scalar ends at the first line indented LESS than the block. Pipe a script into
+// `python3 -c "` and write its body at column 0 — which is what Python requires — and the scalar
+// terminates mid-command: the rest of the step becomes top-level YAML keys, and the whole workflow
+// is unparseable. It does not look wrong. The shell is valid, the Python is valid, and the file
+// reads correctly to a person.
+//
+// `workflow-lint.yml` catches it, and it is the right place for a real parse. But it only fires on
+// a push that touched `.github/workflows/**`, so the answer arrives after a push rather than before
+// one — and this suite runs on a bare checkout with NO node_modules (the `nodeps` lane), so it has
+// no YAML parser to call. What it can do without one is check the single structural property that
+// this class of mistake violates, which is enough to catch it at the keyboard.
+describe('every run-script stays inside its own block scalar', () => {
+
+    /** Lines that open a block scalar, with the indent their body must not go below. */
+    const BLOCK = /^(\s*)(run|if|body|script|query|value|description):\s*[|>][-+]?\d*\s*$/;
+
+    test('no continuation line dedents below the block it belongs to', () => {
+        // WHAT ENDS A BLOCK SCALAR: the first non-blank line indented less than the body. That is
+        // not the bug on its own — every `run: |` in the repo ends that way, at the next step. The
+        // bug is ending there and landing on something that is NOT YAML, because the author was
+        // writing a shell script and the parser was reading keys.
+        //
+        // So the classification is the whole test, and the first cut of it got this backwards in
+        // both directions: it passed anything word-shaped, which is exactly what `import sys, json`
+        // is, and failed every dedented COMMENT, which is legal YAML anywhere. It reported nine
+        // offences that were fine while missing the one that was not.
+        const ENDS_CLEANLY = [
+            /^\s*#/,                          // a comment — legal at any indent
+            /^\s*-\s/,                        // a sequence entry
+            /^\s*-?\s*['"\w][\w.$/'"-]*\s*:(\s|$)/,   // a mapping key, quoted or not
+        ];
+        /** @type {string[]} */
+        const offences = [];
+        for (const f of readdirSync(WF_DIR).filter(n => /\.ya?ml$/.test(n))) {
+            const lines = readFileSync(join(WF_DIR, f), 'utf8').split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                const open = lines[i].match(BLOCK);
+                if (!open) continue;
+                const openIndent = open[1].length;
+                // The body's indent is set by its first non-blank line, per the YAML spec.
+                let j = i + 1;
+                while (j < lines.length && lines[j].trim() === '') j++;
+                if (j >= lines.length) continue;
+                const bodyIndent = lines[j].match(/^\s*/)[0].length;
+                if (bodyIndent <= openIndent) continue;   // an empty block; the real parser judges it
+                for (; j < lines.length; j++) {
+                    if (lines[j].trim() === '') continue;
+                    if (lines[j].match(/^\s*/)[0].length >= bodyIndent) continue;
+                    if (ENDS_CLEANLY.some(re => re.test(lines[j]))) break;   // the block ended, fine
+                    offences.push(`${f}:${j + 1}  "${lines[j].slice(0, 60)}"`);
+                    break;
+                }
+            }
+        }
+        assert.deepEqual(offences, [],
+            'a line dedents out of its own `run: |` block and is not YAML, so the scalar ENDS '
+            + 'there and the workflow no longer parses:\n  ' + offences.join('\n  ')
+            + '\n\nThis is almost always an embedded `python3 -c "` script written at column 0 — '
+            + 'which is where Python needs it. Indenting the body is not the fix. Use a one-liner, '
+            + 'jq, or a script file in scripts/.');
+    });
+
+    test('the scan is really reading the workflows', () => {
+        // Every assertion above is a deepEqual against [], which passes on an empty scan. Pin the
+        // machinery to something that IS there, or a renamed directory reports a clean bill.
+        const files = readdirSync(WF_DIR).filter(n => /\.ya?ml$/.test(n));
+        assert.ok(files.length >= 8, `only ${files.length} workflows found in ${WF_DIR}`);
+        const anyBlock = files.some(f =>
+            readFileSync(join(WF_DIR, f), 'utf8').split('\n').some(l => BLOCK.test(l)));
+        assert.ok(anyBlock, 'no `run: |` block found at all — the opener regex has stopped matching');
+    });
+});
