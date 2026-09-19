@@ -141,6 +141,47 @@ one tap would fix.
 
 ---
 
+## Firestore had no backups at all — found 16 Sep 2026, ON and verified 19 Sep
+
+**CLOSED in three days, and the shape of the finding is why it is kept.** It was not a code defect.
+`RECOVERY_RUNBOOK.md` opened its preventative section with its own words — *"These are the
+difference between 'restored in minutes' and 'gone'. None exist by default"* — and then documented
+three things to switch on. **Nothing anywhere recorded whether any of them ever were.** Every later
+reference in that runbook was conditional: *"if PITR is on"*, *"with PITR on"*.
+
+So the restore playbooks were written against snapshots that might not be being taken, and the only
+way to find out was for a person to run one command and remember the answer.
+
+**The absence of a completion marker meant exactly what it looked like.** This repo DOES mark
+completions when they happen (`CLAUDE.md`: *"A2 complete: the old SA JSON key and the
+`FIREBASE_SERVICE_ACCOUNT` GitHub secret have both been deleted"*), which is what made the silence
+worth acting on rather than assuming somebody had done it quietly.
+
+**The answer now lives in a run rather than in somebody's memory.**
+`.github/workflows/backup-check.yml` (19 Sep 2026, owner-authorised) asks weekly and on demand. It
+is the only place the question CAN be answered from automation, because the standing deploy key was
+deliberately deleted (`SECURITY_RELEASE_PLAN.md` → A2) and no GCP credential exists outside GitHub
+Actions. It is READ-ONLY and never fixes: turning backups on has a cost attached and is the owner's
+call, and a workflow that could enable them could also be the thing that quietly disables them.
+
+**Both directions were observed on this project, which is what makes the green trustworthy:**
+
+| | |
+|---|---|
+| first run, 19 Sep | `No backup schedules exist` · `Point-in-Time Recovery is OFF` — a definite absence, and the job went red |
+| after the owner switched them on | **`Schedules: present · PITR: present`** — both reads succeeded |
+
+The check deliberately goes red only on a definite absence of BOTH, and stays green on an unknown
+(the deploy service account may not hold `datastore.backupSchedules.list`), because *"we cannot
+see"* is a different finding from *"there are none"* and conflating them is how a check becomes
+noise. Having returned both answers here, it is known to distinguish them rather than merely to
+return green.
+
+**What it did not close** — a backup is not a tested restore, and the portable GCS export is still
+not set up. Both are in `KNOWN_LIMITATIONS.md`, stated as open.
+
+---
+
 ## Rangers & Rovers guide — the plan, retired (2 Sep 2026)
 
 **`RANGERS_ROVERS_PLAN.md` in full, moved here VERBATIM apart from two changes named in place:** §6

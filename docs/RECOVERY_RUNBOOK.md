@@ -60,17 +60,33 @@ Console** with no CLI at all — those are called out because they're the fastes
 
 ## Before you need it — set these up now
 
-These are the difference between "restored in minutes" and "gone". None exist by default.
+These are the difference between "restored in minutes" and "gone". None exist by default —
+**and on THIS project two of the three are now ON, verified 19 Sep 2026:**
 
-**Whether they are on is now ASKED weekly, not remembered** —
+```
+Schedules: present · PITR: present
+```
+
+So the restore procedures below are **executable rather than aspirational**, and the conditional
+wording that runs through this file — *"if PITR is on"*, *"with PITR on"* — resolves to YES. That
+had never been true before: nothing anywhere recorded whether any preventative had ever been
+switched on, and the first run of the check below found a definite absence of both.
+
+**Whether they stay on is ASKED weekly, not remembered** —
 `.github/workflows/backup-check.yml` lists the backup schedules and reads the PITR setting on a
 schedule and on demand (`workflow_dispatch`), and opens/comments on the `deploy-failure` thread when
 BOTH are definitely absent. It is READ-ONLY and never turns anything on: that has a cost attached
-and is the owner's call. Everything below is still the thing to do; the check only stops the answer
-living in somebody's memory. An "unknown" (the deploy service account may not hold
-`datastore.backupSchedules.list`) is reported as an unknown, never as an absence.
+and is the owner's call. An "unknown" (the deploy service account may not hold
+`datastore.backupSchedules.list`) is reported as an unknown, never as an absence — and the job has
+now returned all three answers on this project (absent, then present), so it is known to
+distinguish them rather than merely to return green.
 
-### 1. Turn on Firestore Point-in-Time Recovery (PITR) — do this first
+**STILL NOT DONE, and it is the honest caveat on all of the above: nobody has ever tested a
+RESTORE.** A backup that has not been restored from is a belief, not a capability. The path below
+lands in a NEW database — `(default)` cannot be overwritten from a backup — and that has never been
+exercised here. Section 3's portable GCS export is also still not set up.
+
+### 1. Point-in-Time Recovery (PITR) — **ON since 19 Sep 2026**
 
 PITR lets you read the database *as it was* at any minute within the last **7 days**. It is
 the single biggest safety net for "someone deleted/overwrote a record an hour ago", and it
@@ -86,7 +102,7 @@ costs almost nothing for a database this size.
 Once on, you can export a snapshot from any moment in the window (see "Restore from an
 export" below, `--snapshot-time`).
 
-### 2. Turn on scheduled Firestore backups
+### 2. Scheduled Firestore backups — **ON since 19 Sep 2026**
 
 Firestore's **managed backups** run on a schedule and keep restorable copies (retention up
 to 14 weeks). Separate from PITR; survives longer.
