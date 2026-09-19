@@ -773,3 +773,141 @@ describe('the smoke config retries in CI and nowhere else', () => {
             + 'the gate\'s failures are not all real failures.');
     });
 });
+
+// ── The currency canary must be able to tell a deploy from a fault ──────────────────────────────
+//
+// `production-currency.yml` is the one workflow whose failure mode is CREDIBILITY. It emails the
+// owner, and it is wrong exactly when a release is slower than its window — so its false alarms
+// arrive on a good day, which is the fastest way to teach someone to ignore a channel. It has now
+// done that twice (7 Sep, 19 Sep 2026), both times losing a race to a deploy it could not see.
+//
+// The fix is the stand-down: ask whether a Hosting deploy is in flight. Every assertion below is on
+// a way that ask can be present and NOT WORK, because that is the whole risk here — a guard that
+// fails open looks identical to a guard that is not needed, and this one already shipped once with
+// `$GITHUB_TOKEN` unset, where `set -u` killed the subshell and `|| true` swallowed it.
+describe('the currency canary stands down for a deploy in flight', () => {
+    const CURRENCY_WF = join(WF_DIR, 'production-currency.yml');
+    const src = readFileSync(CURRENCY_WF, 'utf8');
+    // The prose explains the trap at length and names every identifier while doing it. Match the
+    // script, not its justification — the same stripping the concurrency and retry rules use.
+    const code = src.split('\n').map(l => l.replace(/^(\s*)#.*$/, '$1')).join('\n');
+
+    test('the stand-down is actually in the script, not only in the comment', () => {
+        assert.match(code, /actions\/workflows\/\$HOSTING_WORKFLOW\/runs/,
+            'production-currency.yml no longer asks the Actions API whether a Hosting deploy is '
+            + 'running. Without it the only defence is DEPLOY_WINDOW_S, which is a guess at a '
+            + 'duration nobody controls — and the next slow deploy wins the race again.');
+        assert.match(code, /exit 0/, 'the stand-down must exit BEFORE the stale verdict');
+    });
+
+    test('the token it authenticates with is passed in, because a run step is not given one', () => {
+        // The failure this pins is invisible: GITHUB_REPOSITORY is exported automatically and
+        // GITHUB_TOKEN is not, so under `set -u` the expansion kills the subshell, `|| true`
+        // catches it, IN_FLIGHT is empty, and the run reports exactly as it did before. A guard
+        // that never fires and never says so.
+        assert.match(code, /GITHUB_TOKEN:\s*\$\{\{\s*github\.token\s*\}\}/,
+            'the compare step must declare GITHUB_TOKEN in its own `env:` block');
+        assert.match(code, /permissions:[\s\S]*?\n\s+actions: read/,
+            'reading workflow runs needs `actions: read`; without it the query 403s and the '
+            + 'stand-down fails open on every run');
+    });
+
+    test('it keys on the workflow FILE, and that file exists', () => {
+        // A display-name match ("Hosting" in r['name']) reads fine and stops working silently the
+        // day somebody retitles the deploy. The filename is what the repo keys on everywhere else,
+        // and it is checkable from here — which is the entire reason to prefer it.
+        const m = code.match(/HOSTING_WORKFLOW:\s*(\S+)/);
+        assert.ok(m, 'the stand-down must name the Hosting deploy workflow by file');
+        assert.ok(readdirSync(WF_DIR).includes(m[1]),
+            `production-currency.yml stands down for ${m[1]}, which is not in ${WF_DIR}. The `
+            + 'deploy workflow was renamed and the canary now sees no deploy, ever.');
+    });
+
+    test('the poll cannot outlive the job that runs it', () => {
+        // The window and the timeout are two numbers in two places that mean one thing. Raise the
+        // window alone and a slow-but-successful deploy becomes a CANCELLED run, which reports
+        // neither stale nor current — the canary goes silent in the exact case it was raised for.
+        const window = Number(code.match(/DEPLOY_WINDOW_S=(\d+)/)?.[1]);
+        const timeout = Number(code.match(/timeout-minutes:\s*(\d+)/)?.[1]);
+        assert.ok(Number.isFinite(window) && Number.isFinite(timeout), 'both numbers must be read');
+        assert.ok(timeout * 60 > window + 300,
+            `timeout-minutes (${timeout}) must leave the ${window}s poll room to finish and still `
+            + 'report. Raise them together.');
+    });
+});
+
+// ── A run-script that dedents out of its own block scalar ───────────────────────────────────────
+//
+// THE BUG THIS EXISTS FOR WAS MADE TWICE IN ONE SESSION, BOTH TIMES WHILE FIXING SOMETHING ELSE.
+// A `run: |` block scalar ends at the first line indented LESS than the block. Pipe a script into
+// `python3 -c "` and write its body at column 0 — which is what Python requires — and the scalar
+// terminates mid-command: the rest of the step becomes top-level YAML keys, and the whole workflow
+// is unparseable. It does not look wrong. The shell is valid, the Python is valid, and the file
+// reads correctly to a person.
+//
+// `workflow-lint.yml` catches it, and it is the right place for a real parse. But it only fires on
+// a push that touched `.github/workflows/**`, so the answer arrives after a push rather than before
+// one — and this suite runs on a bare checkout with NO node_modules (the `nodeps` lane), so it has
+// no YAML parser to call. What it can do without one is check the single structural property that
+// this class of mistake violates, which is enough to catch it at the keyboard.
+describe('every run-script stays inside its own block scalar', () => {
+
+    /** Lines that open a block scalar, with the indent their body must not go below. */
+    const BLOCK = /^(\s*)(run|if|body|script|query|value|description):\s*[|>][-+]?\d*\s*$/;
+
+    test('no continuation line dedents below the block it belongs to', () => {
+        // WHAT ENDS A BLOCK SCALAR: the first non-blank line indented less than the body. That is
+        // not the bug on its own — every `run: |` in the repo ends that way, at the next step. The
+        // bug is ending there and landing on something that is NOT YAML, because the author was
+        // writing a shell script and the parser was reading keys.
+        //
+        // So the classification is the whole test, and the first cut of it got this backwards in
+        // both directions: it passed anything word-shaped, which is exactly what `import sys, json`
+        // is, and failed every dedented COMMENT, which is legal YAML anywhere. It reported nine
+        // offences that were fine while missing the one that was not.
+        const ENDS_CLEANLY = [
+            /^\s*#/,                          // a comment — legal at any indent
+            /^\s*-\s/,                        // a sequence entry
+            /^\s*-?\s*['"\w][\w.$/'"-]*\s*:(\s|$)/,   // a mapping key, quoted or not
+        ];
+        /** @type {string[]} */
+        const offences = [];
+        for (const f of readdirSync(WF_DIR).filter(n => /\.ya?ml$/.test(n))) {
+            const lines = readFileSync(join(WF_DIR, f), 'utf8').split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                const open = lines[i].match(BLOCK);
+                if (!open) continue;
+                const openIndent = open[1].length;
+                // The body's indent is set by its first non-blank line, per the YAML spec.
+                let j = i + 1;
+                while (j < lines.length && lines[j].trim() === '') j++;
+                if (j >= lines.length) continue;
+                const bodyIndent = lines[j].match(/^\s*/)[0].length;
+                if (bodyIndent <= openIndent) continue;   // an empty block; the real parser judges it
+                for (; j < lines.length; j++) {
+                    if (lines[j].trim() === '') continue;
+                    if (lines[j].match(/^\s*/)[0].length >= bodyIndent) continue;
+                    if (ENDS_CLEANLY.some(re => re.test(lines[j]))) break;   // the block ended, fine
+                    offences.push(`${f}:${j + 1}  "${lines[j].slice(0, 60)}"`);
+                    break;
+                }
+            }
+        }
+        assert.deepEqual(offences, [],
+            'a line dedents out of its own `run: |` block and is not YAML, so the scalar ENDS '
+            + 'there and the workflow no longer parses:\n  ' + offences.join('\n  ')
+            + '\n\nThis is almost always an embedded `python3 -c "` script written at column 0 — '
+            + 'which is where Python needs it. Indenting the body is not the fix. Use a one-liner, '
+            + 'jq, or a script file in scripts/.');
+    });
+
+    test('the scan is really reading the workflows', () => {
+        // Every assertion above is a deepEqual against [], which passes on an empty scan. Pin the
+        // machinery to something that IS there, or a renamed directory reports a clean bill.
+        const files = readdirSync(WF_DIR).filter(n => /\.ya?ml$/.test(n));
+        assert.ok(files.length >= 8, `only ${files.length} workflows found in ${WF_DIR}`);
+        const anyBlock = files.some(f =>
+            readFileSync(join(WF_DIR, f), 'utf8').split('\n').some(l => BLOCK.test(l)));
+        assert.ok(anyBlock, 'no `run: |` block found at all — the opener regex has stopped matching');
+    });
+});

@@ -34,15 +34,19 @@ name: Is production current?
 # flight. It therefore keeps re-reading before saying anything: a canary that cries on every deploy
 # is one that gets muted, which would leave things exactly where they were on 14 Aug.
 #
-# How long it waits is MEASURED, not guessed. The first version re-checked once after 180 seconds,
-# on the belief that a deploy took "a few minutes" — but deploy-hosting.yml runs the test gate
-# before it deploys, and the run takes ~13 minutes end to end (run #979: 20:28 → 20:41). So on
-# 7 Sep 2026 the 20:17 tick (running at 20:34) read v23.17 while v23.18 was six minutes from
-# landing, re-read it three minutes later, and raised the alarm: an email, a comment on the standing
-# issue, and nothing wrong. Any merge whose next hourly tick falls inside the deploy window would
-# have done the same. The wait now covers the whole window with margin: up to DEPLOY_WINDOW_S,
-# polled once a minute, and it stops the moment both origins agree. A genuinely stale production
-# still costs at most fifteen extra minutes to report; a routine release costs no alarm at all.
+# How long it waits was MEASURED, not guessed — and then the measurement went out of date, which is
+# the real lesson here. The first version re-checked once after 180 seconds, believing a deploy took
+# "a few minutes"; deploy-hosting.yml runs the test gate BEFORE it deploys, so the run takes far
+# longer, and on 7 Sep 2026 the 20:17 tick raised the alarm six minutes before v23.18 landed. The
+# window went to 900s, described as "~13 minutes measured". On 19 Sep 2026 a 17m09s deploy beat it
+# by SEVEN SECONDS and emailed the owner that production was stale while it was perfectly healthy.
+#
+# Raising the number is a treadmill: the next slow deploy wins again, and the duration is not a
+# property anybody controls — it is however long the test gate happens to take that day. So the
+# window is no longer the only defence. Before the verdict, the run ASKS whether a Hosting deploy is
+# actually in flight and stands down if one is, which is correct at any duration. The window stays
+# as the backstop for the case that question cannot be answered, and is sized with margin rather
+# than to a measurement it would only outlive until the next slow run.
 
 on:
   schedule:
@@ -51,24 +55,32 @@ on:
     - cron: '17 * * * *'
   workflow_dispatch:
 
-# Least privilege: read the repo, and open an issue when production is stale. No deploy rights —
-# this workflow observes and reports, it never fixes.
+# Least privilege: read the repo, READ the workflow runs (to see whether a deploy is in flight —
+# see the stand-down below), and open an issue when production is stale. No deploy rights — this
+# workflow observes and reports, it never fixes.
 permissions:
   contents: read
+  actions: read
   issues: write
 
 jobs:
   check:
     runs-on: ubuntu-latest
     # The poll below may run for DEPLOY_WINDOW_S; this must exceed it, or a slow-but-successful
-    # deploy turns into a cancelled run that reports nothing either way.
-    timeout-minutes: 20
+    # deploy turns into a cancelled run that reports nothing either way. Raised with the window.
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Compare every served origin against main
         id: compare
         shell: bash
+        env:
+          # NOT automatic. A `run` step gets GITHUB_REPOSITORY for free and GITHUB_TOKEN never —
+          # and under `set -u` the unset expansion kills the subshell, so the stand-down below
+          # would have failed open on every single run while looking exactly like a working guard.
+          GITHUB_TOKEN: ${{ github.token }}
+          HOSTING_WORKFLOW: deploy-hosting.yml
         run: |
           set -uo pipefail
 
@@ -86,11 +98,22 @@ jobs:
           LIVE_WEB=$(version_of "$WEB")
           LIVE_PAGES=$(version_of "$PAGES")
 
-          # A deploy may be in flight. Keep re-reading for as long as a Hosting deploy can take
-          # (see the header — ~13 minutes measured, 15 here) before accusing anything, and stop
-          # the moment both origins agree. A canary that fires on every release is a canary that
-          # gets switched off.
-          DEPLOY_WINDOW_S=900
+          # A deploy may be in flight. Keep re-reading before accusing anything, and stop the moment
+          # both origins agree. A canary that fires on every release is a canary that gets switched
+          # off — and on 19 Sep 2026 this one very nearly was.
+          #
+          # ⚠️ THE WINDOW WAS A GUESS AT A DURATION, AND THE DURATION MOVED. It was 900s against a
+          # deploy described as "~13 minutes measured". v24.17's Hosting deploy ran 17:59:58 →
+          # 18:17:07 — 17m09s — and this check gave up at 18:17:00. It lost by SEVEN SECONDS and
+          # emailed the owner that production was stale while it was perfectly healthy. The head
+          # start was not the cause: even started at the same instant, 15 minutes cannot outwait a
+          # 17-minute deploy.
+          #
+          # So the window is no longer the only defence, because raising a number is a treadmill —
+          # the next slow deploy wins again. The step below ASKS whether a Hosting deploy is
+          # actually in flight for this commit and stands down if so, which is true at any duration.
+          # The window remains as the backstop for the case that question cannot be answered.
+          DEPLOY_WINDOW_S=1500
           POLL_S=60
           waited=0
           while { [ "$LIVE_WEB" != "$EXPECTED" ] || [ "$LIVE_PAGES" != "$EXPECTED" ]; } && [ "$waited" -lt "$DEPLOY_WINDOW_S" ]; do
@@ -103,6 +126,40 @@ jobs:
 
           echo "web=$LIVE_WEB"     >> "$GITHUB_OUTPUT"
           echo "pages=$LIVE_PAGES" >> "$GITHUB_OUTPUT"
+
+          # ── STAND DOWN IF A DEPLOY IS STILL RUNNING ────────────────────────────────────────
+          # Asked only when the reads still disagree, so the happy path costs nothing. A Hosting
+          # deploy that has not finished means production is EXPECTED to be behind main; saying so
+          # is not a finding, it is a description of a deploy — and it is true at ANY duration,
+          # which the window above can never be.
+          #
+          # It asks the WORKFLOW FILE, not the workflow's display name. A name match ("Hosting" in
+          # r['name']) reads fine and stops working silently the day somebody retitles the deploy;
+          # the filename is what the repo actually keys on, and workflow-hygiene.test.mjs fails if
+          # HOSTING_WORKFLOW ever names a file that is not there.
+          #
+          # Failing open is deliberate: if the query cannot be answered we fall through and report
+          # exactly as before, because a canary that goes quiet when it cannot see is worse than one
+          # that occasionally cries wolf.
+          if [ "$LIVE_WEB" != "$EXPECTED" ] || [ "$LIVE_PAGES" != "$EXPECTED" ]; then
+            # ONE LINE ON PURPOSE. The first cut of this piped into a `python3 -c "` heredoc
+            # whose body sat at column 0 — below the `run: |` block scalar's own indent, which
+            # ENDS the scalar and makes the whole workflow unparseable YAML. Indenting the body
+            # is not a fix either, because then Python rejects it. jq is preinstalled on
+            # ubuntu-latest; if it ever is not, this yields empty and the run reports as before.
+            IN_FLIGHT=$(curl -fsSL --max-time 30 \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/workflows/$HOSTING_WORKFLOW/runs?branch=main&per_page=5" \
+              2>/dev/null \
+              | jq -r '[.workflow_runs[] | select(.status != "completed")] | first | .html_url // empty' \
+              2>/dev/null || true)
+            if [ -n "$IN_FLIGHT" ]; then
+              echo "::notice::Production is behind main and a Hosting deploy is STILL RUNNING ($IN_FLIGHT). That is a deploy in progress, not a stale production. Standing down."
+              exit 0
+            fi
+          fi
 
           STALE=""
           # An UNREADABLE origin is reported too, and deliberately not as "stale": a 404 or a TLS
@@ -148,7 +205,8 @@ jobs:
           "| Checked | ${RUN_URL} |" \
           "" \
           "This was read from the served \`roster-data.js\` on each origin — the same file a" \
-          "member's browser fetches — and re-read every minute for fifteen, so it is not a deploy" \
+          "member's browser fetches — re-read every minute until the deploy window elapsed, and" \
+          "checked against the Actions API for a Hosting deploy still running. It is not a deploy" \
           "in flight." \
           "" \
           "### Checking your own phone will not show this" \
