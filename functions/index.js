@@ -592,8 +592,20 @@ columnScan: one key per column header; every staff member appears in every colum
 
         // ---- Validate the response shape ----
         // Each member is now an object with day-name keys rather than a rowValues array.
-        // We only require parsed[] and columnHeaders[] to be present at the top level.
-        if (!parsed || !Array.isArray(parsed.parsed) || !Array.isArray(parsed.columnHeaders)) {
+        //
+        // `columnHeaders` IS REQUIRED ONLY ON THE LEGACY PATH (v24.12). `buildCellPrompt` asks for
+        // `{ parsed: [...] }` and nothing else — there was no table for the model to read headers
+        // off — so requiring them unconditionally rejected EVERY geometry-path upload with "The AI
+        // returned an unexpected format", i.e. the better the grid read, the more certain the
+        // failure. Shipped in v24.04 and invisible because the only end-to-end test hands the
+        // handler an unopenable PDF, which fails geometry open and exercises the legacy path.
+        //
+        // The headers are NOT synthesised for the geometry path. A fabricated
+        // ['Sun','Mon',...] would satisfy every check below while standing for a table nobody read,
+        // which is the shape of defect this whole pipeline exists to prevent.
+        const geometryPath = cellTable.usable;
+        if (!parsed || !Array.isArray(parsed.parsed)
+            || (!geometryPath && !Array.isArray(parsed.columnHeaders))) {
             res.status(502).json({ error: 'The AI returned an unexpected format — please try again' });
             return;
         }
@@ -601,14 +613,19 @@ columnScan: one key per column header; every staff member appears in every colum
         // ---- Map columnHeaders to dates (server owns all date assignment) ----
         // The AI only reads column headers left-to-right and cell values left-to-right.
         // The server maps "Mon" → dates[1], "Sun" → dates[0], etc.
-        const { columnDates, error: colError } = mapColumnHeadersToDates(parsed.columnHeaders, dates);
-        if (colError) {
-            console.error(`[parseRosterPDF] Column mapping error: ${colError}`);
-            res.status(502).json({ error: colError });
-            return;
+        // Legacy path only: on the geometry path the day of every cell was decided by the grid, so
+        // there is no header row to map and nothing here to validate. `columnDates` feeds the log
+        // line below and nothing else — `buildSafeEntries` does the real date assignment from
+        // `headers`, a few lines down.
+        if (!geometryPath) {
+            const { columnDates, error: colError } = mapColumnHeadersToDates(parsed.columnHeaders, dates);
+            if (colError) {
+                console.error(`[parseRosterPDF] Column mapping error: ${colError}`);
+                res.status(502).json({ error: colError });
+                return;
+            }
+            console.log(`[parseRosterPDF] Columns: ${parsed.columnHeaders.join(', ')} → ${columnDates.join(', ')}`);
         }
-
-        console.log(`[parseRosterPDF] Columns: ${parsed.columnHeaders.join(', ')} → ${columnDates.join(', ')}`);
 
         // ---- Build safe entries — map named day keys to dated shifts ----
         // A day the model did not report — or reported as BLANK — is resolved by COLUMN, not by a
@@ -641,7 +658,11 @@ columnScan: one key per column header; every staff member appears in every colum
 
         // ---- Post-processing: validate Sunday values using sundayScan ----
         // Catches blank-misread-as-Monday (Case A) and RDW-stripped (Case B).
-        const hasSundayColumn = parsed.columnHeaders.some(h => ['sun', 'sunday'].includes(String(h).trim().toLowerCase()));
+        // The geometry path has a Sunday column BY CONSTRUCTION — the cell table stamps all seven
+        // day labels on every row — and no `sundayScan`, so the correction below is a no-op there
+        // either way. Reading `parsed.columnHeaders` unguarded threw a TypeError before v24.12.
+        const hasSundayColumn = geometryPath
+            || parsed.columnHeaders.some(h => ['sun', 'sunday'].includes(String(h).trim().toLowerCase()));
         applySundayScanCorrections(safeEntries, parsed.sundayScan, hasSundayColumn, dates);
 
         // v22.16 flagged every plain-time Sunday here as UNREADABLE, on the premise that a
