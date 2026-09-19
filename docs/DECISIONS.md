@@ -211,6 +211,31 @@ shown that yet.
   `ROADMAP_HISTORY.md` because its reasoning is still sound; do not plan from it.
 - **GDPR:** staff shift data is personal data. If the governance gate is answered "official", data
   controller status and retention policies need documenting — see that gate.
+- **The Calendar PROVISIONAL FAST PATH stays — KEEP, owner decision, 19 Sep 2026.** v22.97's
+  provisional paint shows a returning member their own cached roster while `accounts:lookup` is
+  still in flight. `readyProvisional` (v23.69) measured how often it actually fires: **1 open in
+  roughly 800 eligible**, and on the strength of that an external review asked whether it could
+  simply be deleted. The answer is no, and the reasoning is recorded here precisely so the low
+  number does not reopen it every time somebody reads the telemetry.
+
+  **Three reasons, and the first is the one that decides it.** `revokeProvisional` is a SECURITY
+  path — it takes a roster back off screen when an identity does not confirm — so deleting this is
+  not removing an optimisation, it is removing a guard and the branch it protects. The evidence is
+  ONE month, and `LATENCY.md` declined a 4.6–52 ms optimisation for want of evidence; removing a
+  revoke path on thinner evidence than that would be inconsistent in the expensive direction. And
+  the population it serves is small **by construction rather than by accident** — a member on their
+  own device with their own name selected, which is exactly who the app should be fastest for even
+  when that is rare.
+
+  **Deleting is not free either**, which is the half the "can this be deleted?" framing tends to
+  drop: it costs a release, a version, and a fresh regression surface in the access module, where a
+  mistake is worst. Footprint for anyone weighing it again: ~41 references across
+  `calendar-access.js`, `calendar-overrides.js` and `calendar-app.js`, plus the telemetry that
+  measures it.
+
+  **What would reopen it:** evidence that the path is WRONG, not merely rare — a refusal that should
+  have been a grant, or a grant that should have been a refusal. Rarity is settled and is not a
+  reason to ask again.
 
 ---
 
