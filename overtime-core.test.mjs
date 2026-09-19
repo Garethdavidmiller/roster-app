@@ -3,8 +3,11 @@
  * Run with: node --test overtime-core.test.mjs   (no mocks; part of test:hygiene)
  *
  * WHY THIS RUNS IN test:hygiene RATHER THAN test:functions, despite living under functions/:
- * `overtime-core.js` requires nothing at all, so it loads without functions/node_modules — and the
- * deadline arithmetic is too load-bearing to run only in the Functions deploy workflow. A branch
+ * `overtime-core.js` requires only `./london-clock`, which itself requires nothing, so the pair
+ * loads without functions/node_modules — and the deadline arithmetic is too load-bearing to run
+ * only in the Functions deploy workflow. That the leaf stays dependency-free is not a courtesy:
+ * `london-clock.test.mjs` asserts it, because a single require added there would drop this whole
+ * suite out of the every-branch lane with nothing visibly breaking. A branch
  * that never touches functions/ can still break the London clock by editing this module, and
  * test:hygiene is the suite that runs on every branch and gates the Hosting deploy.
  *

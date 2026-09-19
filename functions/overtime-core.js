@@ -36,6 +36,20 @@
  *    submission is absent; `normaliseDays` refuses a partial week rather than filling the gaps.
  */
 
+// ── The clock this module stands on ─────────────────────────────────────────────────────────────
+//
+// london-clock.js requires nothing itself, so this module still loads on a bare checkout with no
+// functions/node_modules — which is why overtime-core.test.mjs can run in test:hygiene on every
+// branch rather than only in the Functions deploy lane. Keep it that way.
+const {
+    londonOffsetMinutes,
+    londonTimestamp,
+    londonIsoDate,
+    isValidIsoDate,
+    isoDayOfWeek,
+    addDays,
+} = require('./london-clock');
+
 // ── Policy ──────────────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -116,67 +130,12 @@ const PLANNING_WEEKS = ANSWERABLE_WEEKS + 2;
  */
 const MAX_PARTICIPANTS_PER_WINDOW = 499;
 
-// ── The London clock ────────────────────────────────────────────────────────────────────────────
+// ── The hours this feature keeps ────────────────────────────────────────────────────────────────
+//
+// The timezone bridge itself lives in london-clock.js. What stays here is the CHOICE of hour:
+// noon for a deadline, midnight for retention, 05:00 for the scheduler. Each is policy.
 
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
-
-/**
- * The UTC offset Europe/London was on at a given instant, in minutes east of UTC (+0 GMT, +60 BST).
- *
- * Derived from `Intl`, never from month arithmetic: the UK's transition dates are "last Sunday in
- * March/October", which is exactly the kind of rule that gets hand-coded slightly wrong and then
- * fails twice a year. Formatting the instant in London and reading it back as though it were UTC
- * gives the offset directly, and the runtime's own tz database stays the authority.
- * @param {number} utcMs
- * @returns {number} minutes
- */
-function londonOffsetMinutes(utcMs) {
-    const parts = new Intl.DateTimeFormat('en-GB', {
-        timeZone: 'Europe/London',
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', second: '2-digit',
-        hourCycle: 'h23',
-    }).formatToParts(new Date(utcMs));
-    /** @type {Record<string,number>} */
-    const f = {};
-    for (const p of parts) if (p.type !== 'literal') f[p.type] = Number(p.value);
-    // `h23` should never yield 24, but a runtime that does would silently shift the day.
-    const hour = f.hour === 24 ? 0 : f.hour;
-    const asIfUtc = Date.UTC(f.year, f.month - 1, f.day, hour, f.minute, f.second);
-    return Math.round((asIfUtc - utcMs) / 60000);
-}
-
-/**
- * The epoch-ms instant of `hour:00:00` Europe/London on an ISO calendar date.
- *
- * ── WHY TWO PASSES, HONESTLY ────────────────────────────────────────────────────────────────────
- * For the only two hours this module actually uses — 00:00 and 12:00 — ONE pass is already correct
- * everywhere, including on both transition days, and mutation-testing confirms it (removing the
- * second pass leaves every noon and midnight assertion green). The reason is arithmetic: the guess
- * is at most |offset| = 1h from the answer, and the UK moves its clocks at 01:00–02:00 local, so
- * neither the guess nor the answer straddles a transition at those hours.
- *
- * The second pass is here for the NEXT hour somebody uses. It diverges only where local time is
- * pathological — 01:00 on spring-forward, which does not exist — and there it resolves forward
- * (01:00 → 02:00 BST) instead of backwards into the previous day. That is the conventional
- * resolution and the one a reader expects. It is one extra `Intl` read, it is pinned by
- * `overtime-core.test.mjs`, and it is what stops a future deadline time from shipping an hour out.
- *
- * ⚠️ 00:00 and 12:00 are both safe from the two pathologies of local-time arithmetic. **If you add
- * a third hour, decide first** what a non-existent time (spring gap) and a doubled time (autumn
- * overlap) should mean for a DEADLINE — "which 01:30 was I supposed to submit by" is not a question
- * to answer at the keyboard.
- * @param {string} isoDate "YYYY-MM-DD"
- * @param {number} hour    0–23; in production only 0 or 12 — see above
- * @returns {number} epoch ms
- */
-function londonTimestamp(isoDate, hour) {
-    const [y, m, d] = isoDate.split('-').map(Number);
-    const guess = Date.UTC(y, m - 1, d, hour, 0, 0);
-    const firstPass = guess - londonOffsetMinutes(guess) * 60000;
-    return guess - londonOffsetMinutes(firstPass) * 60000;
-}
 
 /** The instant of 12:00 Europe/London on `isoDate` — the availability deadline clock. */
 function londonNoonTimestamp(isoDate) {
@@ -210,44 +169,11 @@ function londonMidnightTimestamp(isoDate) {
     return londonTimestamp(isoDate, 0);
 }
 
-/** The ISO calendar date in Europe/London at a given instant. */
-function londonIsoDate(utcMs) {
-    const parts = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit',
-    }).format(new Date(utcMs));
-    return parts;   // en-CA formats as YYYY-MM-DD
-}
-
 // ── Calendar helpers (pure date arithmetic, no timezone) ────────────────────────────────────────
-
-/**
- * True for a real "YYYY-MM-DD" that names a date which actually exists.
- * The round-trip is the point: `2026-02-30` parses happily and rolls into March otherwise.
- * @param {any} isoDate
- */
-function isValidIsoDate(isoDate) {
-    if (typeof isoDate !== 'string' || !ISO_DATE_RE.test(isoDate)) return false;
-    const [y, m, d] = isoDate.split('-').map(Number);
-    const dt = new Date(Date.UTC(y, m - 1, d));
-    return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
-}
-
-/** Day of week for an ISO date, 0=Sunday…6=Saturday. Timezone-free — it names a calendar date. */
-function isoDayOfWeek(isoDate) {
-    const [y, m, d] = isoDate.split('-').map(Number);
-    return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-}
 
 /** True when the ISO date is a Saturday — the only legal week-ending. */
 function isSaturday(isoDate) {
     return isValidIsoDate(isoDate) && isoDayOfWeek(isoDate) === 6;
-}
-
-/** Shift an ISO date by whole days. Pure calendar arithmetic; DST cannot affect a date count. */
-function addDays(isoDate, days) {
-    const [y, m, d] = isoDate.split('-').map(Number);
-    const dt = new Date(Date.UTC(y, m - 1, d + days));
-    return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
 }
 
 /** The seven Sunday→Saturday ISO dates of the roster week starting `weekStart`. */
@@ -1102,17 +1028,21 @@ module.exports = {
     AVAILABILITY_MODES,
     REQUEST_DAY_FIELDS,
     OPTIONAL_DAY_FIELDS,
-    // clock
+    // clock — the first two and londonIsoDate are RE-EXPORTS of london-clock.js, and must stay
+    // re-exports. Eight call sites reach them as `OT.x`; re-DECLARING one here would leave every
+    // one of them resolving and running, with two clocks in the process and nothing to say so.
+    // `london-clock.test.mjs` asserts identity rather than presence, for exactly that reason.
     londonOffsetMinutes,
     londonTimestamp,        // exported for the DST-pathology tests, not for production callers
-    londonNoonTimestamp,
-    londonMidnightTimestamp,
+    londonNoonTimestamp,    // ours: noon is the deadline hour this depot chose
+    londonMidnightTimestamp,// ours: the retention boundary
     londonIsoDate,
-    // calendar
+    // calendar — the first three are re-exports; the last three encode the Sunday→Saturday ROSTER
+    // week, which is this railway's shape rather than the calendar's, and so stay here.
     isValidIsoDate,
     isoDayOfWeek,
-    isSaturday,
     addDays,
+    isSaturday,
     weekDates,
     weekEndingFor,
     // milestones + phases
