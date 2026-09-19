@@ -169,9 +169,10 @@ between 'restored in minutes' and 'gone'. **None exist by default.**"* It then d
 to switch on — Point-in-Time Recovery, managed backup schedules, and a portable GCS export.
 
 **Nothing anywhere records that any of them were.** Every later reference in that runbook is
-conditional — *"if PITR is on"*, *"with PITR on"*. There is no CI job, no maintenance-calendar entry,
-and no completion marker, which is notable because this repo DOES mark completions when they happen
-(`CLAUDE.md`: *"A2 complete: the old SA JSON key and the `FIREBASE_SERVICE_ACCOUNT` GitHub secret
+conditional — *"if PITR is on"*, *"with PITR on"*. There was no CI job, no maintenance-calendar entry
+and no completion marker (the CI job now exists — see below — and answers the question; it does not
+answer whether anyone acted on it), which is notable because this repo DOES mark completions when
+they happen (`CLAUDE.md`: *"A2 complete: the old SA JSON key and the `FIREBASE_SERVICE_ACCOUNT` GitHub secret
 have both been deleted"*).
 
 So the restore playbooks are written against snapshots that may not be being taken. What is at stake
@@ -179,8 +180,21 @@ is every staff member's leave, absence, overrides, overtime declarations, passwo
 saved work emails — none of which is reconstructable from the repository, because the repository
 holds the base roster and nothing else.
 
-This is recorded rather than fixed because it cannot be verified or changed from a session: it is
-GCP console/CLI state. **If the answer is "they are on", replace this entry with the date checked.**
+**It is now ASKED rather than remembered** (19 Sep 2026, owner-authorised).
+`.github/workflows/backup-check.yml` runs weekly and on demand, and is the only place the question
+CAN be answered from automation: the standing deploy key was deliberately deleted
+(`SECURITY_RELEASE_PLAN.md` → A2), so no GCP credential exists outside GitHub Actions, which is why
+a session cannot answer it. The job is READ-ONLY and **never fixes** — turning backups on has a cost
+attached and is the owner's call, and a workflow that could enable them could also be the thing that
+quietly disables them.
+
+**It goes red only on a DEFINITE absence of both schedules and PITR.** `github-deploy@` may not hold
+`datastore.backupSchedules.list`, and *"we cannot see"* is a different finding from *"there are
+none"*: reporting them as the same thing is how a check like this becomes noise, so an unknown stays
+green and names the role to grant.
+
+**Replace this entry with the date checked once a run has answered it** — the first
+`workflow_dispatch` after this merges is what closes the question.
 
 ### `docs/AL_WORKBOOK.md` publishes named colleagues' leave figures (found 16 Sep 2026, deep review)
 
