@@ -381,31 +381,6 @@ export function createDesignStore(deps) {
         },
 
         /**
-         * Delete an EXPIRED bin entry, re-checking its expiry on the server.
-         *
-         * The sweep this belongs to is DISARMED (`_purgeExpiredDeletions` is never called — see its
-         * header, and KNOWN_LIMITATIONS): a device clock 30 days fast makes every recent deletion
-         * look expired, and the re-read agrees with itself because it uses the same wrong local
-         * time. That is a decision about WHEN, and it is not this module's to make.
-         *
-         * What is this module's is the same rule as `purge`: read and delete inseparably, so a
-         * colleague's restore cannot be overtaken by a queued delete. Kept here rather than left in
-         * the coordinator so the sweep, if it is ever re-armed on server time, is re-armed against
-         * a path that already has the protocol.
-         * @param {string} id
-         * @param {(data: any) => boolean} stillExpired
-         */
-        async purgeIfExpired(id, stillExpired) {
-            const ref = refFor(id);
-            await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
-                const snap = await tx.get(ref);
-                if (!snap.exists()) return;                 // already gone
-                if (!stillExpired(snap.data())) return;     // restored, or not actually expired
-                tx.delete(ref);
-            }));
-        },
-
-        /**
          * Permanent delete — the only hard delete left in the workspace, and transactional for the
          * reason that applies to every human-pressed destructive button: the row that was pressed
          * may be stale. A restores, B presses Remove for good on a list loaded before that, and a

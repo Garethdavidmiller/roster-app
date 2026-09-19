@@ -28,7 +28,7 @@ closed in one file and left open in another, which is the failure this file was 
 what is intended — the risk is a reader believing the intended state is already live. A `VAL` is a
 state everyone believes is *correct*; the risk is that it is quietly wrong and nothing will ever say
 so. The two are kept in separate ID spaces for that reason. Some rows relate: `VAL-OT-001` is the
-evidence that would let `EXC-002` close, and says so.
+evidence behind the Overtime purge, and says so.
 
 `GUIDE_SOURCES.md` is the same idea applied to the guides, and it is far more developed — every
 high-risk claim there carries its source, its review dates and an evidence class, structurally
@@ -66,7 +66,7 @@ not exist here, or if an ID is declared twice.
 
 | ID | Claim | Settled by | Cost if wrong | Where it lives |
 |---|---|---|---|---|
-| **VAL-OT-001** | **The Overtime retention purge removes the right windows.** The job is written, scheduled and **ships disarmed** — it walks each expired window and logs what it would delete. Nothing has ever been deleted, so the plan is asserted and untested. | **Reading one logged run** after 21 Nov 2026, when the first window becomes purgeable. The gate cannot be satisfied before then | Arming it blind is a bottom-up delete against live data with no cascade — the failure is unrecoverable, which is precisely why the disarm exists | `functions/overtime.js` · deadline in `MAINTENANCE_CALENDAR.md` · closes `EXC-002` |
+| **VAL-OT-001** | **The Overtime retention purge removes the right windows.** The job is written, scheduled, and **arms itself on 1 Dec 2026** — until then it walks each expired window and logs what it would delete. Nothing has ever been deleted, so the plan is asserted and untested. | **Reading one logged run between 21 Nov and 1 Dec 2026** — the ten-day gap exists to produce exactly this evidence, since nothing expires before 21 Nov and no earlier run has a real window to describe. Optional rather than a gate now: it is how you CONFIRM the walk, not what permits it | A bottom-up delete against live data with no cascade, and the failure is unrecoverable — which is why the date sits after the first expiry rather than on it | `functions/overtime-core.js` (`purgeArmedAt`) · `functions/overtime.js` · dated in `MAINTENANCE_CALENDAR.md` |
 | **VAL-GUIDE-001** | **Two Rangers & Rovers claims where the publisher contradicts itself.** Not a gap in our reading — re-reading cannot settle either. Marked per-claim on the page. | **Chiltern retail guidance**, not National Rail | A staff member accepts or refuses a ticket at the gateline on our word | `GUIDE_SOURCES.md` (`rr-*` rows) — **not restated here** |
 | **VAL-GUIDE-002** | **The FIP Irish Sea coupon question, and the Kosovo caveat** carried unresolved rather than decided either way. | The relevant operator, at the **Nov 2026** review | A member is turned away abroad holding a document we said would work | `GUIDE_SOURCES.md` (`fip-*` rows) — **not restated here** |
 

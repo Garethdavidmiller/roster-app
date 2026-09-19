@@ -320,9 +320,17 @@ const OWNED_COUNTS = [
     // flagged the links welcome notice (14 days), the clientErrors retention (90) and the usage
     // dedup window (30) — three unrelated figures with three different owners. A guard that cries
     // wolf gets an exemption list, and an exemption list is how a guard stops guarding.
-    ['SOFT_DELETE_RETENTION_DAYS', 'links-deletion.js',
+    // THE ONE ROW HERE THAT NO LONGER HAS A CONSTANT, and it is stronger for it (v24.10). It used
+    // to own `SOFT_DELETE_RETENTION_DAYS` (30, dormant). The bin is now PERMANENT by owner decision
+    // and that constant is deleted, so there is no retention period to restate — which makes any
+    // countdown in a doc not merely unowned but false. Kept and re-pointed rather than removed with
+    // the constant: the prose risk is the whole reason this row existed, and it outlived its
+    // number. Note what this exposes about the guard's shape — it never resolved a constant's live
+    // VALUE, so deleting one could not have made it fail. It would have gone on citing a dead file
+    // for ever if nobody looked. The test below pins the deletion so this row cannot become fiction.
+    ['the deleted Links retention constant', 'links-deletion.js (the bin is permanent)',
         /\b(?:removed for good|purged|destroyed|restorable|kept in the bin)\s+(?:for\s+|after\s+|in\s+)?(\d+)\s*days?\b|\b(\d+)[- ]day (?:countdown|retention)\b/gi,
-        'the soft-delete retention period is DORMANT — nothing acts on it and nothing may promise it to a user'],
+        'nothing expires a binned design — a doc may not promise any removal window'],
     ['MAX_CONSECUTIVE_WORKED_DAYS', 'links-limits.js',
         /\blimit of (\d+) consecutive\b/gi,
         'the consecutive-day limit is owned by links-limits.js'],
@@ -357,7 +365,21 @@ const LIVE_DOCS = ['./CLAUDE.md', './docs/AI_MAP.md', './docs/ROADMAP.md', './do
     // DATA_MODEL.md did: material does not stop being live because it moved to a quieter file, and
     // every line in it was under this guard yesterday as part of ROADMAP.md. A split that silently
     // drops a guard is how the estate loses coverage without anything failing.
-    './docs/DECISIONS.md'];
+    './docs/DECISIONS.md',
+    // FILE_INDEX.md and the REMAINING FOUR rule files joined 19 Sep 2026, by the same argument and
+    // for the same reason it keeps having to be made. FILE_INDEX is the file catalogue — it WAS
+    // CLAUDE.md's tree until 11 Sep, so every line in it was under this guard, and moving it out
+    // dropped the coverage exactly as splitting DECISIONS.md nearly did. Only two of the six
+    // `.claude/rules/*.md` were listed, which is a list that grew by whoever remembered.
+    //
+    // The gap was not theoretical: a line-by-line read found `~5,000 tests` in FILE_INDEX and
+    // `~3,000 tests` in notifications.md — two figures for one suite, neither right (5,727), and
+    // both exactly the shape CONTRACT 2b was written to forbid. Adding the files is the fix; the
+    // figures were removed rather than corrected, which is that contract's own rule.
+    './docs/FILE_INDEX.md',
+    './.claude/rules/paycalc.md', './.claude/rules/roster-import.md',
+    './.claude/rules/notifications.md', './.claude/rules/guide-pages.md',
+    './.claude/rules/roster-data.md'];
 
 // ── CONTRACT 1c: AI_MAP KNOWS every export — the other direction of 1b ─────────────────────────
 //
@@ -707,6 +729,20 @@ test('no live doc restates a count that a constant owns', () => {
     assert.deepEqual(problems, [],
         'a count restated in prose renders perfectly while describing something that no longer ' +
         'exists, and nothing reads prose for a number:\n  ' + problems.join('\n  '));
+});
+
+// The row above owns a count that no longer has a constant, which only works while the constant
+// really is gone. If a retention period ever comes back it must come back as an owned constant, and
+// this failing is how the row gets re-pointed at it rather than silently describing nothing.
+test('the Links bin has no retention constant to restate', () => {
+    const src = read('./links-deletion.js');
+    assert.equal(/SOFT_DELETE_RETENTION_DAYS\s*=/.test(src), false,
+        'the retention constant is back — re-point the OWNED_COUNTS row at it');
+    for (const gone of ['export function isPurgeable', 'export function purgeableIds',
+                        'export function daysLeft']) {
+        assert.equal(src.includes(gone), false,
+            `${gone} is back in links-deletion.js — the bin was accepted as permanent at v24.10`);
+    }
 });
 
 test('every command README.md tells a reviewer to run actually exists', () => {
@@ -1128,6 +1164,29 @@ test('no doc writes down a repo-derived count that grows with the repo', () => {
         `the build-threshold row states ${figures.join(', ')} — these grow with the repo and were ` +
         'all wrong at v21.62. Let this test derive them instead. Current values: ' +
         JSON.stringify(actual));
+
+    // ── AND THE PRECACHE SIZE ANYWHERE ELSE IN CLAUDE.md (v24.10) ──────────────────────────────
+    //
+    // Scoping the rule to ONE ROW was the gap. The service-worker lifecycle paragraph carried its
+    // own copy of the same figure and drifted exactly as the build row had: "~110" while it was
+    // 162, corrected to "~190", and 208 by the time anyone read it again — understating the cost
+    // both times, which is the direction that makes the no-precache-in-install argument look
+    // weaker than it is. Found by a line-by-line read, not by this test, because this test was
+    // looking at one line.
+    //
+    // Any sentence in CLAUDE.md that puts a two-to-four digit figure next to the word "precache"
+    // or "precached asset" is now the same offence, wherever it sits.
+    //
+    // Matched as a COUNT PHRASE near the word, not as "a number somewhere in the sentence" — the
+    // first draft of this flagged `v15.46` out of "(v15.41; hardened v15.46)". A version is a
+    // number in a sentence about the precache and is not a claim about its size.
+    const COUNT_PHRASE = /(?<![.\d])~?\d{2,4}\s+(?:of them\b|(?:precached\s+)?assets?\b)/gi;
+    const precacheClaims = [...CLAUDE.matchAll(COUNT_PHRASE)]
+        .filter(m => /precach/i.test(CLAUDE.slice(Math.max(0, m.index - 120), m.index + 120)))
+        .map(m => m[0].trim());
+    assert.deepEqual(precacheClaims, [],
+        `CLAUDE.md states the precache size (${precacheClaims.join(' | ')}). It grows with every ` +
+        `module and has been wrong twice. It is ${actual.precache} today; derive it, do not write it.`);
 });
 
 // ── CONTRACT 3d: a doc may not write down the SIZE of a roster-owned list ──────────────────────

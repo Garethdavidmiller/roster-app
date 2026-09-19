@@ -58,6 +58,7 @@ const {
 const { buildDocumentEndpoints } = require('./documents');
 const { buildAuthEndpoints }     = require('./auth-endpoints');
 const { buildOvertimeEndpoints } = require('./overtime');
+const { purgeArmedAt }           = require('./overtime-core');   // the retention purge's arming DATE
 const rosterMembers = require('./roster-members.json');
 
 initializeApp();
@@ -794,14 +795,20 @@ Object.assign(exports, buildOvertimeEndpoints({
     // in like documents.js's; STAFF_SITE_URL only seeds the deep link, which each device's service
     // worker re-bases onto its own scope.
     VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_URL,
-    // The retention purge ships DISARMED: it walks the whole tree daily and logs exactly what it
-    // would remove, deleting nothing. It is the only irreversible thing the feature does and it
-    // runs unattended, so the walk gets proved against real documents while its mistakes are still
-    // only log lines. Read a run of `[purgeExpiredOvertimeWindows]` in the Functions log, check the
-    // weeks and the counts, then set this true. Nothing anyone SEES changes either way — both read
-    // endpoints already omit expired windows, which is why arming it is safe to defer and why
-    // deferring it is not free (the data is still there).
-    purgeArmed: false,
+    // The retention purge ARMS ITSELF ON A DATE (owner decision, 19 Sep 2026) rather than on a
+    // boolean somebody remembers to flip. It walks the whole tree daily and logs exactly what it
+    // would remove; before 21 Nov 2026 it deletes nothing, after it deletes. The rule and the whole
+    // argument for it are `purgeArmedAt` in ./overtime-core.js — in short: nothing is expired
+    // before that date, so flipping a boolean today would have armed the job blind two months
+    // later AND retired the dry-run gate, since the only runs that could ever show real windows are
+    // the ones from 21 Nov onward.
+    //
+    // A FUNCTION, not `purgeArmedAt()` evaluated here: a warm Cloud Function instance outlives the
+    // date, so a value read at module load would leave an instance that booted on the 20th still
+    // dry-running on the 22nd. `overtime.js` resolves it per invocation.
+    //
+    // Nothing anyone SEES changes either way — both read endpoints already omit expired windows.
+    purgeArmed: purgeArmedAt,
 }));
 
 

@@ -51,6 +51,7 @@ changed once.
 | `MAINTENANCE_CALENDAR.md` | What must happen **by a date**, whether or not anyone plans it? | — (dated rows) |
 | `ROADMAP.md` | What might we **build**? | — |
 | `GUIDE_SOURCES.md` | The same discipline as `VALIDATION_REGISTER`, applied to the guides' claims | per-row ids |
+| `KNOWN_LIMITATIONS.md` | What is **true of the app and not going to change soon** — accepted constraints, platform facts, deferred fixes, and the things a reader will otherwise re-discover | — |
 | **§3 below** | Where does **deployed** differ from **documented target**? | `EXC-*` |
 
 `VAL-*` and `EXC-*` are deliberately **separate ID spaces**, because they are separate questions.
@@ -123,14 +124,16 @@ converged.** That is the only thing it is for.
 **A closed row is DELETED, not struck through** — and its ID goes with it, since every citation
 elsewhere must resolve to a live row (`doc-parity.test.mjs`). The first exception to close was the
 publicly-readable `overrides` collection, on **26 Aug 2026**; its history lives in git and in
-`RECOVERY_RUNBOOK.md` → "The Calendar PIN". A table that keeps its dead rows stops answering the one
+`RECOVERY_RUNBOOK.md` → "The Calendar PIN". Two more closed on **19 Sep 2026**: the
+Overtime purge now arms itself on a date (`OVERTIME_AVAILABILITY.md` → Retention), and the Links bin
+was accepted as permanent — the second half of that row's own closure condition, and the half
+nobody expected to take. Their IDs went with them, which is why neither is named here: a citation
+that resolves to nothing is the failure this register is shaped to avoid. A table that keeps its dead rows stops answering the one
 question it exists for, which is what is true right now.
 
 | ID | Exception | Where | Closes when |
 |---|---|---|---|
-| **EXC-002** | **The Overtime retention purge is disarmed.** It runs daily, walks every expired window and logs what it would delete. It deletes nothing. Expired data therefore persists, contrary to what the retention design says happens to it. | `functions/index.js` (`purgeArmed: false`) | One logged run is read after **21 Nov 2026** — `MAINTENANCE_CALENDAR.md`, and `VAL-OT-001` |
 | **EXC-003** | **Overtime is a restricted beta.** Reviewing is open to admin/manager; participating is limited to a named list. The audience ladder is server-owned, so widening it is a one-word edit plus `npm run generate:roster-members`. | `CONFIG.OVERTIME_BETA` · `functions/roster-members.json` | Full launch — both lists drop away and participation alone decides |
-| **EXC-004** | **The Links bin never empties.** Soft-deleted designs are hidden and restorable; automatic expiry was suspended at v19.86 because no client-side age check survives a fast device clock. The retention constant is dormant and no surface promises a countdown. | `links-deletion.js` (`SOFT_DELETE_RETENTION_DAYS`) | A server-side purge is built, or the bin is accepted as permanent — `KNOWN_LIMITATIONS.md` |
 | **EXC-005** | **The surname default is still a valid password.** Members who have set their own have a real secret; everyone else can still sign in with their surname, and an admin reset returns an account to it. | `auth-identity.js` (`credentialCandidatesFor`) | Track C5 — gated on ≥90% migrated **and** on Track E. Irreversible |
 | **EXC-007** | **Document bearer URLs already in circulation stay live.** Since v23.17 the Huddle, Circular and Newsletter are behind the PIN or a password in the app, and their Firestore reads were closed at v23.18; but each file is fetched by a permanent tokenised Storage URL that bypasses rules, so anyone who obtained one before (browser history, a forwarded link, Microsoft's Office viewer cache) can still open that file. New readers cannot discover a URL; old holders keep theirs. | `storage.rules` header · AUTH_PLAN.md §5 (E6) | E6 rotates the existing objects and replaces the Office-viewer delivery for `.docx` — costed in AUTH_PLAN §5, not scheduled |
 | **EXC-006** | **Two origins serve the app.** `myb-roster.web.app` is canonical and is the notification target; the GitHub Pages mirror is still where the MAJORITY of staff open it (owner, Sep 2026 — a gradual changeover, not a rump). It serves **no redirects and no HTTP headers**, so anything relying on either reaches the smaller half: the `<meta>` CSP and the `guide.html`/`fip.html` redirect stubs both exist for that reason. The per-address counters measure the changeover. | `firebase.json` · Pages settings | The mirror is retired — watch `analytics/origins` |

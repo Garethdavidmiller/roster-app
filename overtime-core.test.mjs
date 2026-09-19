@@ -1293,3 +1293,46 @@ describe('push notices — the words and the one morning, each wrong-able silent
         });
     });
 });
+
+// ── THE RETENTION PURGE'S ARMING DATE (v24.10) ──────────────────────────────────────────────────
+//
+// The purge shipped disarmed behind a boolean somebody would flip after reading a dry run. The
+// owner asked for it armed; the calendar said a boolean could not do that safely, so it became a
+// date. These pin the date and the two properties that make it better than the boolean — not the
+// deleting, which `overtime-endpoints.test.mjs` already drives.
+describe('purgeArmedAt — when the retention purge starts deleting', () => {
+    test('it is disarmed before 1 Dec 2026 and armed from it', () => {
+        assert.equal(C.purgeArmedAt(Date.UTC(2026, 10, 30, 23, 59)), false);
+        assert.equal(C.purgeArmedAt(Date.UTC(2026, 11, 1)), true);
+        assert.equal(C.purgeArmedAt(Date.UTC(2026, 11, 2)), true);
+    });
+
+    test('it arms AFTER the first expiry, so real dry runs exist in the log first', () => {
+        // The property that makes a date better than a boolean, and the one the first draft of this
+        // got wrong. Retention is 91 days past the week-ending Saturday and the scheduler's first
+        // run (11 Aug 2026) made weeks ending 22 Aug, so the first window expires 21 Nov. Arming ON
+        // that date would delete it the same morning it appeared — the evidence gate gone without
+        // ever having been satisfiable. The gap is what leaves runs that name a real window and
+        // delete nothing.
+        const firstExpiry = Date.UTC(2026, 7, 22) + 91 * 86_400_000;
+        assert.equal(firstExpiry, Date.UTC(2026, 10, 21), 'the first expiry moved — re-check the gap');
+        assert.ok(C.PURGE_ARMS_AT > firstExpiry, 'the purge must not arm before anything has been logged');
+        const dryRunDays = (C.PURGE_ARMS_AT - firstExpiry) / 86_400_000;
+        assert.ok(dryRunDays >= 7, `only ${dryRunDays} daily dry runs against a real window`);
+        assert.equal(C.purgeArmedAt(firstExpiry), false, 'the day it expires it must still be a dry run');
+    });
+
+    test('nothing was purgeable on the day it was decided, which is why a boolean was wrong', () => {
+        // 19 Sep 2026: flipping a boolean that day would have deleted nothing for two months and
+        // then deleted unattended, with no dry run ever taken.
+        assert.equal(C.purgeArmedAt(Date.UTC(2026, 8, 19)), false);
+    });
+
+    test('a nonsense clock does not arm it', () => {
+        // Fails CLOSED. The armed branch is irreversible, so anything that is not a real instant
+        // past the date must read as "not yet".
+        assert.equal(C.purgeArmedAt(NaN), false);
+        assert.equal(C.purgeArmedAt(/** @type {any} */ (undefined)), C.purgeArmedAt());
+        assert.equal(C.purgeArmedAt(Number.NEGATIVE_INFINITY), false);
+    });
+});

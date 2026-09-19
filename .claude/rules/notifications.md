@@ -127,7 +127,7 @@ accurate summary of the whole queue. Wording is built by the pure `buildResetReq
 **The first two are ENFORCED** — `sw-asset-check.test.mjs`, beside the deep-link allowlist check.
 They were not, for as long as both had existed: each was written here in bold with its reason, and
 nothing checked either, so swapping the badge to `icon-192.png` or dropping `registration.scope` left
-all ~3,000 tests green. Neither failure is visible from anywhere a test or a reviewer looks — the
+the whole estate green. Neither failure is visible from anywhere a test or a reviewer looks — the
 push is delivered, the tap works, and the notification is simply wrong on the phone, because the OS
 draws it. The guard also requires both assets to be precached (derived from the warm-up calls, not a
 typed list of array names) and the badge to be a different FILE from the app icon, since a copy under

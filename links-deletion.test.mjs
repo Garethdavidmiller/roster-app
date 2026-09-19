@@ -2,22 +2,24 @@
  * links-deletion.test.mjs — the "Recently deleted" rules for the Links workspace.
  * Run: node --test links-deletion.test.mjs   (part of `npm run test:hygiene`)
  *
- * WHY THIS EXISTS. Soft delete replaced a permanent one (v19.41), so this module is now the only
- * thing standing between a designer's work and a real `deleteDoc`. The two directions are not
- * equally costly and the tests are weighted accordingly: a design wrongly treated as LIVE
- * reappears in the picker and someone deletes it again, while a design wrongly treated as
- * PURGEABLE is gone for good — which is the exact outcome the feature was added to prevent.
+ * WHY THIS EXISTS. Soft delete replaced a permanent one (v19.41), so this module is what stands
+ * between a designer's work and a real `deleteDoc`.
  *
- * The state that separates them is an UNRESOLVED `deletedAt`: a `serverTimestamp()` write reads
- * back as null on the writing device until the server resolves it. That state must count as
- * deleted (or the design sits in the picker on the device that just binned it) and must NOT count
- * as purgeable (an age you cannot read is not an age that has expired).
+ * The state that matters most is an UNRESOLVED `deletedAt`: a `serverTimestamp()` write reads back
+ * as null on the writing device until the server resolves it, and it must still count as deleted —
+ * or the design sits in the picker on the very device that just binned it.
+ *
+ * **The `isPurgeable` / `purgeableIds` / `daysLeft` suites went at v24.10**, with the functions
+ * themselves: the bin is permanent by owner decision and nothing expires a design, so the rules
+ * that decided WHEN to destroy one no longer exist to be tested. The asymmetry they were weighted
+ * for is now structural rather than defended — there is no automatic path to destruction left.
+ * Removal is a designer pressing "Remove for good", which links-design-store.js makes
+ * transactional. See links-deletion.js's header.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    SOFT_DELETE_RETENTION_DAYS, tsMillis, isDeleted, isPurgeable, purgeableIds,
-    daysLeft, deletedLabel, canSoftDelete, sortByDeleted,
+    tsMillis, isDeleted, deletedLabel, canSoftDelete, sortByDeleted,
 } from './links-deletion.js';
 
 const DAY = 86_400_000;
@@ -52,73 +54,6 @@ describe('isDeleted — is this design in the bin?', () => {
     });
 });
 
-describe('isPurgeable — may this be destroyed for good?', () => {
-    test('a live design is never purgeable, however old', () => {
-        assert.equal(isPurgeable({ ...LIVE, updatedAt: ts(NOW - 999 * DAY) }, NOW), false);
-    });
-    test('inside the window → kept', () => {
-        assert.equal(isPurgeable(binned(SOFT_DELETE_RETENTION_DAYS - 1), NOW), false);
-    });
-    test('exactly ON the boundary → kept (strictly older than the window)', () => {
-        assert.equal(isPurgeable(binned(SOFT_DELETE_RETENTION_DAYS), NOW), false);
-    });
-    test('past the window → purgeable', () => {
-        assert.equal(isPurgeable(binned(SOFT_DELETE_RETENTION_DAYS + 1), NOW), true);
-    });
-
-    // The two fail-closed cases. Both are the difference between an untidy bin and lost work.
-    test('an UNRESOLVED deletedAt is NOT purgeable — unknown age is not expired', () => {
-        assert.equal(isPurgeable(UNRESOLVED, NOW), false,
-            'this is the one state where isDeleted and isPurgeable deliberately disagree');
-    });
-    test('a FUTURE deletedAt is NOT purgeable (a device clock that has jumped)', () => {
-        // The purge runs on the client, like every other prune in this app, so it is only as
-        // trustworthy as Date.now(). Reading a future date as "very old" would empty the whole bin
-        // on one wrong machine.
-        assert.equal(isPurgeable(binned(-5), NOW), false);
-    });
-    test('a malformed deletedAt is NOT purgeable', () => {
-        assert.equal(isPurgeable({ deletedAt: 'yesterday' }, NOW), false);
-        assert.equal(isPurgeable({ deletedAt: ts(NaN) }, NOW), false);
-        assert.equal(isPurgeable({ deletedAt: {} }, NOW), false);
-    });
-    test('the retention window is configurable and respected', () => {
-        assert.equal(isPurgeable(binned(8), NOW, 7), true);
-        assert.equal(isPurgeable(binned(8), NOW, 90), false);
-    });
-});
-
-describe('purgeableIds', () => {
-    test('picks out only the expired ones, by id', () => {
-        const entries = [
-            { id: 'a', ...binned(SOFT_DELETE_RETENTION_DAYS + 3) },
-            { id: 'b', ...binned(2) },
-            { id: 'c', ...UNRESOLVED },
-            { id: 'd', ...LIVE },
-            { id: 'e', ...binned(SOFT_DELETE_RETENTION_DAYS + 100) },
-        ];
-        assert.deepEqual(purgeableIds(entries, NOW), ['a', 'e']);
-    });
-    test('empty / missing input is safe', () => {
-        assert.deepEqual(purgeableIds([], NOW), []);
-        assert.deepEqual(purgeableIds(/** @type {any} */ (null), NOW), []);
-    });
-});
-
-describe('daysLeft', () => {
-    test('counts down whole days, rounding UP so time left never reads 0', () => {
-        assert.equal(daysLeft(binned(0), NOW), SOFT_DELETE_RETENTION_DAYS);
-        assert.equal(daysLeft(binned(1), NOW), SOFT_DELETE_RETENTION_DAYS - 1);
-        assert.equal(daysLeft({ deletedAt: ts(NOW - (SOFT_DELETE_RETENTION_DAYS * DAY) + 1) }, NOW), 1);
-    });
-    test('never negative', () => {
-        assert.equal(daysLeft(binned(SOFT_DELETE_RETENTION_DAYS + 10), NOW), 0);
-    });
-    test('unknown when the timestamp has not resolved — null, not a made-up number', () => {
-        assert.equal(daysLeft(UNRESOLVED, NOW), null);
-    });
-});
-
 describe('deletedLabel — the staff-facing line', () => {
     // ── IT MUST NOT PROMISE A REMOVAL DATE (v19.96, external review P2) ─────────────────────────
     // These cases asserted the countdown — "· removed for good in 30 days" — right up to here, and
@@ -135,10 +70,11 @@ describe('deletedLabel — the staff-facing line', () => {
         assert.equal(deletedLabel(binned(4), NOW), 'Deleted 4 days ago by S. Silva');
     });
     test('an OLD deletion reads exactly the same — age is not expiry', () => {
-        // The rows that used to say "removed for good today". Nothing removes them, so the line
-        // must not imply anything is about to happen; it just keeps counting up.
-        assert.equal(deletedLabel(binned(SOFT_DELETE_RETENTION_DAYS), NOW),
-            `Deleted ${SOFT_DELETE_RETENTION_DAYS} days ago by S. Silva`);
+        // 30 days was the old retention constant, and these are the rows that used to say "removed
+        // for good today". Nothing removes them and nothing ever will, so the line must not imply
+        // anything is about to happen; it just keeps counting up. The literal stays as a literal —
+        // there is no constant left to read it from, which is the point.
+        assert.equal(deletedLabel(binned(30), NOW), 'Deleted 30 days ago by S. Silva');
         assert.equal(deletedLabel(binned(400), NOW), 'Deleted 400 days ago by S. Silva');
     });
     test('no row anywhere counts down, at any age', () => {
