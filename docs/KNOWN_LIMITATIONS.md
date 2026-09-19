@@ -134,8 +134,27 @@ its own access token and **bypasses the rules entirely** (documented in `storage
 
 Consequence, stated plainly because no other doc says it: **tightening the Firestore read rules would
 not put these documents behind authentication.** It would change who can *discover* a URL; anyone who
-has ever held one — a forwarded link, browser history, a synced bookmark — keeps access indefinitely,
-and revocation requires rewriting the object, not editing a rule. So the internal operational
+has ever held one — a forwarded link, browser history, a synced bookmark — keeps access until the
+object is deleted, and revocation requires rewriting the object, not editing a rule.
+
+**BUT NOT FOREVER, AND THE DOCUMENTS SAID FOREVER UNTIL 19 SEP 2026.** Both retention sweeps
+DELETE the Storage object, which is what actually kills a bearer URL: **Huddles at 3 months**
+(`pruneOldHuddles`, server-side in `functions/documents.js`), **Circulars and Newsletters at 6
+months** (`pruneOldDocs`, browser-side in `doc-retention.js`). So a leaked URL is bounded by the
+retention window, not unbounded — which materially lowers this finding's priority and was worth
+getting right in both directions.
+
+**Three things stop that being a guarantee, and they are the residual risk:**
+
+- **The circular/newsletter sweep is UPLOAD-TRIGGERED, not scheduled.** It runs fire-and-forget
+  after a successful upload. If uploads stop, nothing prunes, and "6 months" becomes "6 months after
+  somebody next uploads".
+- **No server time, no sweep.** `doc-retention.js` refuses to run on a client clock, deliberately —
+  correct, and it means the sweep can silently not happen.
+- **A partial failure ORPHANS the Storage object.** `pruneOldHuddles` deletes Firestore first, then
+  Storage, because the reverse leaves a user-facing broken link. The accepted cost is an orphaned
+  object — invisible to staff, unreferenced by any document, and **still serving its bearer URL,
+  permanently**. That is the one genuinely unbounded case, and nothing currently lists it. So the internal operational
 documents are the app's least-protected content, and the change everyone reaches for first (a login
 on the calendar) does not touch them. Closing this is a delivery-model change — authenticated
 `getBlob`, or short-lived signed URLs minted per request — tracked as **`AUTH_PLAN.md` → E6** (§5),
