@@ -159,6 +159,39 @@ happen before that migration (OPERATIONS_REFERENCE → "Which address staff are 
 it has got). Until then this is the honest state, written down rather than implied by a fixture
 that is no longer there.
 
+### The Calendar fast path serves ~1 open in 800 (measured 19 Sep 2026) — keep or remove?
+
+**Status: an OPEN DECISION for the owner. Recorded rather than acted on, and deliberately so.**
+
+v22.97's provisional paint shows a returning member their own cached roster while `accounts:lookup`
+is still in flight. `readyProvisional` (v23.69) was built to say how often it actually fires, and the
+answer is **1 open of roughly 800 eligible** — the full reading, and why the denominator is 800 and
+not 2,161, is `LATENCY.md` → *THE CLOSING READ*.
+
+**What it costs to keep.** Not much runtime, but real structural weight in the one module where that
+is most expensive: a provisional grant and a revoke path in `calendar-access.js`, the
+`decideProvisionalAccess` rule, cross-member control locking, and the provisional scope threaded
+through `setOverrideAccess` into the cached query. `revokeProvisional` is the path that takes a
+roster back off screen when an identity does not confirm — security-adjacent, and covered by tests
+that fail on the deletion of either half.
+
+**Why it is not simply deleted.** Three reasons, and the third is the one that decides it:
+
+- The measurement is ONE month, and the population it serves is small by construction rather than by
+  accident — a member on their own device with their own name selected, which is exactly the case
+  the app should be fastest for even if it is rare.
+- Removing it would re-open a shipped owner decision (5 Sep 2026) on a reading it was never promised
+  to survive.
+- **Deleting a security path in a hurry is the failure this whole line of work spent two months
+  refusing.** `LATENCY.md` declined a 4.6–52 ms optimisation for want of evidence; removing a
+  revoke path on thinner evidence than that would be inconsistent in the expensive direction.
+
+**What would decide it.** Either a second month confirming the rate, or an answer to WHY it refuses
+— Team View, a stored selection naming a colleague, or a PIN unlock. That second question is
+deliberately NOT being measured: `LATENCY.md`'s closing rule forbids the counter by name, because
+widening the path's eligibility is an ACCESS decision (`CALENDAR_DATA.md` 13) rather than a latency
+one. If the access question is ever reopened, measure it then.
+
 ### Firestore has NO backups — measured 19 Sep 2026 (found 16 Sep 2026, deep review)
 
 **Status: ANSWERED, and the answer is the bad one. Now a decision for the owner, not a question.**

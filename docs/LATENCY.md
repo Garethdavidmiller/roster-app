@@ -16,7 +16,7 @@ that. Phase 1 shipped. Phase 3 was priced at 4.6–52 ms against a wall of over 
 |---|---|---|
 | ~~**The identity round trip**~~ | **ANSWERED 5 Sep 2026 and SHIPPED (v22.97)** — see the section below | Gareth · done |
 | ~~**The Phase 2 reading**~~ | **CLOSED 5 Sep, reconfirmed 12 Sep on 2.8× the sample** — 98.4% of attributed starts are cache-served | done |
-| **Did the fast path work?** | A NUMBER — the card's "Opens that did not wait for the sign-in check", read against the table in "THE FULL-MONTH READ" below. **The September aggregate could not answer it**, and the reason is recorded there rather than forgotten | ~mid-October 2026, one full month after v23.69 |
+| ~~**Did the fast path work?**~~ | **ANSWERED 19 Sep 2026 — it RARELY FIRES**: 1 open of ~800 eligible. Row one of the pre-registered table, so the identity finding stands and `VAL-AUTH-006` is not reopened. **THE FILE IS CLOSED** — see *THE CLOSING READ* below | done |
 
 **The close-out changed shape when the identity question was answered YES** (see below). The path
 this section anticipated — "no, the gate holds", and the plan closes recording the second as the
@@ -399,6 +399,64 @@ DISTRIBUTION against `ready`'s answers whether those opens were any faster.
 **Read it no earlier than a full month after v23.69 ships**, for the reason the by-version tail
 above demonstrates rather than argues: this estate's devices run a long spread of versions, and a
 new metric reports only from the ones that have updated.
+
+## THE CLOSING READ — 19 September 2026. The fast path RARELY FIRES, and this file is DONE
+
+The card at **2,161 Calendar opens** (1,285 on 12 Sep). It answers the one question the September
+aggregate could not, and it answers it in the row that was built for it:
+
+> **Opens that did not wait for the sign-in check — 1 open.**
+
+Against the table above, that is row one: **a small share**. So the September reading was diluted,
+**the identity finding stands untouched**, and `VAL-AUTH-006` is not reopened.
+
+**The denominator is NOT 2,161, and the smaller figure is the honest one.** `readyProvisional` only
+exists from v23.69, so it can report only from devices that have updated — which is the caveat the
+previous entry ended on. Counting the by-version rows at or past v23.70 gives roughly **800 eligible
+opens**, and exactly one of them took the path. Either way the answer is the same; stating 1-in-2,161
+would be claiming a precision the instrument does not have, in the flattering direction.
+
+**Why it fires so rarely is not measured, and the hypothesis is the one this file already wrote
+down**: the path is refused for Team View, for a stored selection naming a colleague, and for every
+PIN unlock — which is most Calendar reading on the shared station PC. That remains plausible and
+unobserved. Recording the refusal REASON would settle it, and it is deliberately not being built:
+see the closing rule below.
+
+### Everything else on the card is a clean negative, and three of them are re-confirmations
+
+| Question | This month | 12 Sep | Verdict |
+|---|---|---|---|
+| Is the app's own code slow? | Getting ready **0% over ½s** (2,213) · Loading code 19% (2,026) | 0% · 20% | **No**, for the third month |
+| Is the service worker the cost? | Worker busy **76%** (1,294) vs Shifts shown **77%** (2,192) | 78% vs 78% | **No.** A full sweep ran on 78% of opens and cost nothing measurable |
+| Is it the network? | Recognised **73%** 4G (983) · **88%** 3G (34) · **47%** not-reported (1,080), while Getting ready is **0% in every one** of those groups | 68 / 91 / 48, same flat row | **Yes** — the `VAL-AUTH-006` signature, on 2,099 opens |
+| Is the cache serving the grid? | Saved copy **2,178** · the server **28** — 98.7% | 98.4% | Phase 2 stays closed |
+| How often does a release interrupt? | **316 of 2,161 — 14%** | 14% | Unchanged; and on the Calendar that load runs while the page is HIDDEN |
+
+The ladder, for the record: Recognised 60% (2,099) · Unlocked 64% (2,118) · Roster found 75% (1,706)
+· Shifts shown 77% (2,192) · Confirmed 96% (2,102). The card's red headline — **Usable 34% under a
+second, 22% over three** — is this ladder's last rung, not the app being slow: `Confirmed` is the
+`accounts:lookup` round trip and `Getting ready` is zero.
+
+### THIS FILE IS NOW CLOSED
+
+The ending was written in advance, at the top of this document, and it is the one that arrived:
+
+> *record what is left to `Recognised` as the PRICE OF THE SECURITY MODEL — a cost that was chosen,
+> not a problem nobody solved. That is a success ending, not a failure … **Do not go looking for a
+> Phase 5 to make the plan feel finished.***
+
+So: no further Calendar startup change. Not the refusal-reason counter, which is exactly the Phase 5
+that sentence forbids — it would answer a question whose answer changes nothing, because widening the
+path's eligibility is an ACCESS decision (`CALENDAR_DATA.md` 13) and not a latency one. Not a
+preload, not a split, not a retune. **The measuring is what ends this, and it has.**
+
+**One question this reading OPENS, and it is the owner's, not this file's.** The fast path is now
+known to serve about one open in eight hundred while carrying a provisional grant, a revoke path,
+cross-member control locking and scope plumbing through `setOverrideAccess` — security-adjacent
+machinery whose cost is real and whose benefit is now measured at nearly nothing. Whether to keep it
+is a judgement about access and risk appetite, on one month of data, and deleting a security path on
+that basis would be the same hurry this file spent two months refusing. Recorded in
+`KNOWN_LIMITATIONS.md`; not acted on here.
 
 ## Phase 2 — CLOSED on its own decision rule (5 Sep 2026)
 
