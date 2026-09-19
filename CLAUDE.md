@@ -448,7 +448,7 @@ Full hex table and "never hardcode" rule: see `.claude/rules/css-tokens.md` → 
 | Pointer Events API for swipe | Handles touch, mouse, and trackpad in one handler. Do not revert to Touch Events. |
 | `aria-live` for month announcements | Programmatic `.focus()` on the month heading caused mobile layout reflow. Do not switch. |
 | `Math.ceil()` on carousel panel width | Eliminates sub-pixel seam on high-DPI screens. Do not remove. |
-| CSS variables for all colours | Defined in `:root`. Never hardcode hex anywhere in CSS or JS. |
+| CSS variables for all colours | Defined in `:root`. Never hardcode hex anywhere in CSS or JS. **Enforced since 19 Sep 2026 by `css-hex-parity.test.mjs`** — until then this row was a rule with nothing behind it, and a mutation audit walked a raw `#ff0000` through the entire hygiene lane. Four structural exemptions (a token DEFINITION, a `var()` fallback, a mask channel, `@media print`) and one named JS exemption, each argued in that file's header: do not add a fifth without one. |
 | Three-surface model (v11.55) | canvas (navy) → card → sunken; fields use `--field-bg`, brighten to `white` on focus. Full surface rules (incl. the `background-color`-longhand-on-fields rule): `.claude/rules/css-tokens.md`. |
 | Motion vocabulary (v11.56) | Shared easing/duration tokens + `--press-scale` press feedback on primary buttons. Full rules: `.claude/rules/css-tokens.md`. |
 | Typography scale (v11.77) | `--type-micro`…`--type-large` tokens; never below 16px on focusable fields (iOS focus-zoom). Full scale: `.claude/rules/css-tokens.md`. |

@@ -23,6 +23,10 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 
+// Every app stylesheet. NOTE the filter reads `guide-*`, and the guide sheets are actually
+// named `*-guide.css`, so those five ARE scanned — over-coverage, not a hole (no guide page
+// has a lightbox), and left as it is deliberately rather than narrowed. `css-hex-parity`
+// needed the other spelling, because for THAT rule scanning them is a false positive.
 const SHEETS = readdirSync('.').filter(f => f.endsWith('.css') && !f.startsWith('guide-') && f !== 'guide.css');
 /** Strip comments so a commented-out rule is not read as a live one. */
 const strip = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
