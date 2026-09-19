@@ -143,6 +143,24 @@ Do these three safe things once so they're not new under pressure:
 - Open **Firebase Console → Hosting → release history** and find the "Rollback" control.
 - Open **Firestore → Rules → history** and find the rollback control.
 
+### 5b. The document-signing grant (v24.16) — one command, and nothing works without it
+
+`getDocumentUrl` hands staff a 15-minute URL for the Huddle, Circular or Newsletter instead of the
+permanent one. Signing requires the runtime service account to be able to sign AS ITSELF:
+
+```
+gcloud iam service-accounts add-iam-policy-binding \
+  <runtime-sa>@myb-roster.iam.gserviceaccount.com \
+  --member="serviceAccount:<runtime-sa>@myb-roster.iam.gserviceaccount.com" \
+  --role="roles/iam.serviceAccountTokenCreator" --project=myb-roster
+```
+
+**Without it the endpoint answers 503 on every call.** That is deliberate and safe: the client
+treats 503 as "use the stored URL", so a missing grant degrades to the OLD behaviour rather than to
+a broken button. The symptom is therefore silent — documents keep opening on permanent URLs and
+nobody notices the change never took effect. Check the Functions log for
+`signing failed — is serviceAccountTokenCreator granted?` after deploying.
+
 ### 6. The RESTORE DRILL — the one rehearsal that is not on the safe list
 
 **A backup nobody has restored from is a belief, not a capability.** PITR and a managed schedule

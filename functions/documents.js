@@ -31,7 +31,10 @@ const { onSchedule }        = require('firebase-functions/v2/scheduler');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 const crypto = require('crypto');
+const { getAuth } = require('firebase-admin/auth');
 const { parseStrictIsoDate, isPayCutoffDay, fileSignatureMatches, buildPushPayload } = require('./roster-parse-helpers');
+const { mayReceiveDocumentUrl, resolveKind, signedUrlExpiry, SIGNED_URL_TTL_MS, isSignablePath }
+    = require('./doc-url-core');
 const { setupWebPush, fanOutPush } = require('./push');
 
 /**
@@ -50,7 +53,7 @@ const { setupWebPush, fanOutPush } = require('./push');
 function buildDocumentEndpoints({
     HUDDLE_SECRET, VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_URL,
     readRawBody, nowInLondon, isRetriableFirestoreError,
-    MAX_FILE_BYTES, MAX_HUDDLE_HTML_CHARS,
+    MAX_FILE_BYTES, MAX_HUDDLE_HTML_CHARS, ADMIN_FUNCTION_ORIGINS,
 }) {
 
     // Set to true to silence all Huddle push notifications (e.g. while the staff site
@@ -629,7 +632,110 @@ const sendPayReminderNotification = onSchedule(
         }
     }
 );
-    return { ingestHuddle, onHuddleCreated, onCircularCreated, onNewsletterCreated, sendPayReminderNotification };
+
+    /**
+     * POST /getDocumentUrl  — a SHORT-LIVED URL for the latest document of one kind.
+     *
+     * ── WHY THIS ENDPOINT EXISTS (v24.16, owner decision 19 Sep 2026) ──────────────────────────
+     *
+     * The three documents have always been opened through the PERMANENT tokenised download URL in
+     * their Firestore document, which bypasses `storage.rules` and outlives any access change.
+     * `AUTH_PLAN.md` §5 costs four ways out; the owner chose this one, on two facts only they had:
+     * the documents ARRIVE as `.docx`, and a Circular is a designed document that must not be
+     * flattened into HTML. Both of the routes that would have removed Microsoft entirely therefore
+     * cost either fidelity or a manual export on every weekly issue.
+     *
+     * So the Office viewer stays and the URL it is handed becomes short-lived. That bounds the leak
+     * without changing one thing a member sees or one step an admin takes.
+     *
+     * ── FOUR PROPERTIES, EACH LOAD-BEARING ────────────────────────────────────────────────────
+     *
+     * 1. THE CALLER NAMES A KIND, NEVER A PATH. `resolveKind` answers from a frozen allowlist; the
+     *    collection, the document and the storage path are all resolved HERE. An endpoint that
+     *    signs what it is told is an arbitrary-read hole into the whole bucket, and that is the one
+     *    mistake this design cannot make.
+     * 2. THE DOOR MIRRORS `firestore.rules`. `mayReceiveDocumentUrl` is the same three claims the
+     *    read rule allows, pinned to the rules text by `doc-url-core.test.mjs`. If this were more
+     *    permissive it would be a way to read a document the rules refuse.
+     * 3. `checkRevoked: true`. A member who has been disabled must not keep minting URLs for up to
+     *    an hour on a cached token — the same reasoning `setupRosterAuth` records.
+     * 4. IT SIGNS THE LATEST, exactly as the viewer opens the latest. Nothing is taken from the
+     *    caller about WHICH document, so there is no id to tamper with.
+     *
+     * ⚠️ DEPLOY PREREQUISITE — this endpoint cannot work without an IAM grant. `getSignedUrl` needs
+     * to sign as the runtime service account, which on Cloud Functions means that account holds
+     * `roles/iam.serviceAccountTokenCreator` ON ITSELF. Without it every call fails at the signing
+     * line with a permission error, and the client must fall back to the stored URL rather than
+     * show a member a dead button. RECOVERY_RUNBOOK.md records the grant.
+     *
+     * Request:  POST { "kind": "huddle" | "circular" | "newsletter" }, Authorization: Bearer <ID token>
+     * Success:  200 { url, expiresAt, fileType }
+     * Refusals: 405 method · 401 no/!valid token · 403 no door · 400 unknown kind
+     *           404 nothing published yet · 503 signing unavailable (the IAM case above)
+     */
+    const getDocumentUrl = onRequest(
+        {
+            region:         'europe-west2',
+            timeoutSeconds: 30,
+            cors:           ADMIN_FUNCTION_ORIGINS,
+        },
+        async (req, res) => {
+            if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+            const bearer = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
+            let claims;
+            try {
+                // checkRevoked — property 3 above.
+                claims = await getAuth().verifyIdToken(bearer, true);
+            } catch (_) {
+                return res.status(401).json({ error: 'Unauthorised' });
+            }
+            if (!mayReceiveDocumentUrl(claims)) {
+                return res.status(403).json({ error: 'Forbidden' });
+            }
+
+            const kind = resolveKind(req.body && req.body.kind);
+            if (!kind.ok) return res.status(400).json({ error: 'Unknown document kind' });
+
+            // The LATEST of that kind — the same document the viewer is showing. The id is a date
+            // string, so a descending id order is a descending date order.
+            let snap;
+            try {
+                snap = await getFirestore().collection(kind.collection)
+                    .orderBy('date', 'desc').limit(1).get();
+            } catch (err) {
+                console.error(`[getDocumentUrl] ${kind.kind} lookup failed:`, err);
+                return res.status(503).json({ error: 'Could not look up the document' });
+            }
+            if (snap.empty) return res.status(404).json({ error: `No ${kind.label} has been published yet` });
+
+            const data = snap.docs[0].data() || {};
+            if (!isSignablePath(data.storagePath)) {
+                // The server wrote this path; a bad one is our defect, not the caller's. Say so in
+                // the log and refuse — never hand an undefined path to the signer.
+                console.error(`[getDocumentUrl] ${kind.kind} ${snap.docs[0].id} has no usable storagePath`);
+                return res.status(503).json({ error: 'That document cannot be opened right now' });
+            }
+
+            const expiresAt = signedUrlExpiry(Date.now());
+            let url;
+            try {
+                [url] = await getStorage().bucket().file(data.storagePath)
+                    .getSignedUrl({ action: 'read', expires: expiresAt });
+            } catch (err) {
+                // Overwhelmingly the IAM grant in the prerequisite above. 503 (not 500) so the
+                // client reads it as "try the old way", which is what its fallback is for.
+                console.error('[getDocumentUrl] signing failed — is serviceAccountTokenCreator granted?', err);
+                return res.status(503).json({ error: 'Document signing unavailable' });
+            }
+
+            console.log(`[getDocumentUrl] signed ${kind.kind} for ${claims.name || (claims.admin ? 'admin' : 'pin')} `
+                + `(${SIGNED_URL_TTL_MS / 60000} min)`);
+            return res.status(200).json({ url, expiresAt, fileType: data.fileType || null });
+        },
+    );
+
+    return { ingestHuddle, getDocumentUrl, onHuddleCreated, onCircularCreated, onNewsletterCreated, sendPayReminderNotification };
 }
 
 module.exports = { buildDocumentEndpoints };

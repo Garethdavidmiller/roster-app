@@ -212,6 +212,7 @@ Object.assign(exports, buildDocumentEndpoints({
     HUDDLE_SECRET, VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_URL,
     readRawBody, nowInLondon, isRetriableFirestoreError: _isRetriableFirestoreError,
     MAX_FILE_BYTES, MAX_HUDDLE_HTML_CHARS,
+    ADMIN_FUNCTION_ORIGINS,
 }));
 
 

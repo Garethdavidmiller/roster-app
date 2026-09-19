@@ -399,7 +399,26 @@ unless that delivery model changes."*
 
 **Therefore: no phase in E1–E5 puts these documents behind authentication.** Those phases change who can
 *discover* a URL. Anyone who has ever held one — a forwarded link, browser history, a synced bookmark —
-keeps access indefinitely, and revocation means rewriting the object, not editing a rule.
+keeps access until the object is deleted, and revocation means rewriting the object, not editing a rule.
+
+**BUT NOT FOREVER, AND THE DOCUMENTS SAID FOREVER UNTIL 19 SEP 2026.** Both retention sweeps
+DELETE the Storage object, which is what actually kills a bearer URL: **Huddles at 3 months**
+(`pruneOldHuddles`, server-side in `functions/documents.js`), **Circulars and Newsletters at 6
+months** (`pruneOldDocs`, browser-side in `doc-retention.js`). So a leaked URL is bounded by the
+retention window, not unbounded — which materially lowers this finding's priority and was worth
+getting right in both directions.
+
+**Three things stop that being a guarantee, and they are the residual risk:**
+
+- **The circular/newsletter sweep is UPLOAD-TRIGGERED, not scheduled.** It runs fire-and-forget
+  after a successful upload. If uploads stop, nothing prunes, and "6 months" becomes "6 months after
+  somebody next uploads".
+- **No server time, no sweep.** `doc-retention.js` refuses to run on a client clock, deliberately —
+  correct, and it means the sweep can silently not happen.
+- **A partial failure ORPHANS the Storage object.** `pruneOldHuddles` deletes Firestore first, then
+  Storage, because the reverse leaves a user-facing broken link. The accepted cost is an orphaned
+  object — invisible to staff, unreferenced by any document, and **still serving its bearer URL,
+  permanently**. That is the one genuinely unbounded case, and nothing currently lists it.
 
 Worth stating plainly when prioritising: **the change everyone reaches for first (a login on the
 calendar) protects the personal data and leaves the company-confidential documents exactly as they are.**
@@ -428,8 +447,69 @@ So the options are narrower than they first look:
 | Accept it | Fine, but as a recorded decision rather than an accident. |
 
 Whichever is chosen, **existing tokens must be rotated** — old URLs stay live until the objects are
-rewritten. **Cost this properly before scheduling E6**; the estimate implied by "swap the delivery model"
-was written before the Office-viewer dependency was noticed.
+rewritten, or until retention deletes them (3 months / 6 months, above).
+
+### Costed, 19 Sep 2026 — and the table above ranks option 3 WRONGLY
+
+The line above asks for this, so here it is. Reading the code changes the order.
+
+**Option 3 — convert `.docx` → HTML at upload — is the CHEAPEST to build, not the biggest change.**
+Every piece of it already ships and is in production for the Huddle:
+
+- `doc-upload.js` already takes a `transform` as a CONFIG KEY, and its JSDoc names the Huddle's
+  DOCX→HTML as the example. The Circular and Newsletter cards (`operations-app.js`) call the very
+  same `initDocUploadCard`, already accept `.docx`, and simply omit that one key.
+- The converter is already loaded, SRI-pinned and CDN-failure-tolerant (`_loadMammoth`, `huddle.js`),
+  with the 200 KB cap, the parse-failure abort and the download-only fallback all written.
+- The viewer already renders inline HTML when a document carries it — that is how the Huddle works.
+
+So the plumbing is roughly: generalise `_convertHuddleDocx` out of `huddle.js`, pass it to two more
+cards, and teach `calendar-doc-viewer.js` to prefer `htmlContent` over `officeViewerUrl`.
+
+**The real cost is FIDELITY, not plumbing, and it is a UX decision rather than an engineering one.**
+`mammoth.convertToHtml` is called with no image handler, so images inline as base64 data URIs and
+count against the 200 KB cap. A Huddle is text and tables and converts well. **A Retail Circular is
+the document most likely to be image-heavy**, and on exceeding the cap `htmlContent` becomes `null`
+and the card falls back to download-only — losing exactly the "renders with images" behaviour the
+Office viewer was adopted for at v16.45. That is the thing to measure, and measuring it is cheap:
+convert one real circular and look at the result.
+
+**Ordering, which the table did not state.** Removing the Microsoft dependency and putting documents
+behind authentication are TWO steps, and only the first is blocked today. Option 3 unblocks
+authenticated `getBlob` by removing the third party; it does not by itself authenticate anything.
+Nor does it help documents already uploaded — those ride their bearer URLs until rotated or pruned.
+
+### DECIDED 19 Sep 2026 — short-lived signed URLs, and the two options that were REFUSED
+
+**Owner decision, on two facts only the owner had.** Converting `.docx` to HTML was refused
+outright: a Circular is a DESIGNED document and flattening it through Mammoth degrades what staff
+read. Requiring PDF was refused too, because **the documents arrive as `.docx`** — so that option is
+not a one-off change but a manual export on every weekly issue, for ever. Both of the routes that
+would have removed Microsoft entirely therefore cost either fidelity or recurring work, and neither
+cost is worth paying for a leak that retention already bounds.
+
+**So the Office viewer stays and its URL becomes short-lived.** `getDocumentUrl` (v24.16,
+`functions/documents.js`, rules in `functions/doc-url-core.js`) mints a 15-minute read URL for the
+latest document of a named KIND. Exposure goes from "until retention deletes the object" to "the
+signing window", and **nothing a member sees or an admin does changes** — which is what made this
+the option worth taking.
+
+**Stated plainly, because it will be claimed otherwise later: this does NOT remove Microsoft.** A
+`.docx` still opens through the Office Online viewer, which still fetches it server-side, and if
+Microsoft caches what it fetched then the window bounds THIS app's leak and not their copy. That was
+understood when the option was chosen. It also does nothing for URLs already in circulation.
+
+**Deploy prerequisite, and it is not optional:** signing needs
+`roles/iam.serviceAccountTokenCreator` on the runtime service account, granted to ITSELF. Without it
+every call answers 503 — which the client is required to treat as "use the stored URL", so a missing
+grant degrades to today's behaviour rather than to a dead button. RECOVERY_RUNBOOK.md holds the
+grant; `ARCHITECTURE.md` EXC-007 stays open until the client half ships and the old URLs are rotated.
+
+**And one action needs no decision at all.** Rotation is a step every option shares, and it can be
+taken alone: re-writing the objects turns "whoever ever held a URL" into "whoever held one since the
+rotation", without choosing a delivery model. Doing it periodically would bound the exposure on
+purpose rather than relying on retention to do it as a side effect — and would also clear the
+orphaned-object case, which retention by construction cannot reach.
 
 ### E6 vs the notifications — DECIDED 7 Sep 2026; the gate half is BUILT (recorded 10 Aug 2026 as a possibility)
 

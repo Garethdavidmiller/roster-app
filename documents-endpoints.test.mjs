@@ -35,6 +35,7 @@ const fnDir = new URL('./functions/', import.meta.url).pathname;
 const firePath    = require.resolve('firebase-admin/firestore', { paths: [fnDir] });
 const storagePath = require.resolve('firebase-admin/storage', { paths: [fnDir] });
 const pushPath    = require.resolve('./functions/push.js');
+const authPath    = require.resolve('firebase-admin/auth', { paths: [fnDir] });
 const docsPath    = require.resolve('./functions/documents.js');
 
 const SERVER_TS = { __serverTimestamp: true };
@@ -61,6 +62,22 @@ function makeDb(seed = {}) {
     const db = {
         collection: (/** @type {string} */ name) => ({
             doc: (/** @type {string} */ id) => refFor(`${name}/${id}`),
+            // `orderBy(field, 'desc').limit(n).get()` — what getDocumentUrl uses to find the LATEST
+            // of a kind. Sorts on the real field rather than on insertion order, so a seed written
+            // out of date order still answers correctly; that is the whole point of the query.
+            orderBy: (/** @type {string} */ field, /** @type {string} */ dir) => {
+                assert.equal(dir, 'desc', 'only the latest-first ordering is faked');
+                const sorted = () => [...store.keys()]
+                    .filter(pth => pth.startsWith(`${name}/`))
+                    .sort((a, b) => String((store.get(b) || {})[field])
+                        .localeCompare(String((store.get(a) || {})[field])));
+                const page = (/** @type {number} */ n) => {
+                    const docs = sorted().slice(0, n).map(snapFor);
+                    return { empty: docs.length === 0, docs };
+                };
+                return { limit: (/** @type {number} */ n) => ({ get: async () => page(n) }),
+                    get: async () => page(Infinity) };
+            },
             where: (/** @type {string} */ field, /** @type {string} */ op, /** @type {any} */ value) => ({
                 get: async () => {
                     assert.equal(op, '<');
@@ -85,6 +102,8 @@ function makeDb(seed = {}) {
 /** @param {string[]} existingObjects  Storage paths that already exist */
 function makeStorage(existingObjects = []) {
     const objects = new Set(existingObjects);
+    const signed = /** @type {{path: string, action: string, expires: number}[]} */ ([]);
+    let signFails = false;
     const saved = /** @type {{path: string, bytes: number, contentType: string}[]} */ ([]);
     const deleted = /** @type {string[]} */ ([]);
     const bucket = {
@@ -97,11 +116,18 @@ function makeStorage(existingObjects = []) {
             },
             setMetadata: async () => {},
             delete: async () => { deleted.push(path); objects.delete(path); },
+            // RECORDS rather than discards: "refused" and "signed and then refused" are the same
+            // status line, and only the recording tells them apart (this file's own lesson).
+            getSignedUrl: async (/** @type {any} */ opts) => {
+                if (signFails) throw Object.assign(new Error('sign failed'), { code: 403 });
+                signed.push({ path, action: opts && opts.action, expires: opts && opts.expires });
+                return [`https://signed.example/${encodeURIComponent(path)}?exp=${opts && opts.expires}`];
+            },
         }),
         getFiles: async (/** @type {{prefix: string}} */ { prefix }) =>
             [[...objects].filter(p => p.startsWith(prefix)).map(p => bucket.file(p))],
     };
-    return { bucket, objects, saved, deleted };
+    return { bucket, objects, saved, deleted, signed, failSigning: () => { signFails = true; } };
 }
 
 /**
@@ -116,6 +142,15 @@ function build({ seed = {}, objects = [], maxFileBytes = 20 * 1024 * 1024 } = {}
         require.cache[p] = /** @type {any} */ ({ id: p, filename: p, loaded: true, exports });
     };
     stub(firePath, { getFirestore: () => fsFake.db, FieldValue: { serverTimestamp: () => SERVER_TS } });
+    // The token world. `tokenClaims === null` means verifyIdToken THROWS — an absent, expired or
+    // REVOKED token are the same refusal to the handler and must stay so.
+    let tokenClaims = /** @type {any} */ (null);
+    stub(authPath, { getAuth: () => ({
+        verifyIdToken: async (/** @type {string} */ t) => {
+            if (!t || tokenClaims === null) throw new Error('bad token');
+            return tokenClaims;
+        },
+    }) });
     stub(storagePath, { getStorage: () => ({ bucket: () => stFake.bucket }) });
     stub(pushPath, {
         setupWebPush: () => {},
@@ -138,8 +173,10 @@ function build({ seed = {}, objects = [], maxFileBytes = 20 * 1024 * 1024 } = {}
         isRetriableFirestoreError: (/** @type {any} */ e) => !!e?._retriable,
         MAX_FILE_BYTES: maxFileBytes,
         MAX_HUDDLE_HTML_CHARS: 200_000,
+        ADMIN_FUNCTION_ORIGINS: ['https://myb-roster.web.app'],
     });
-    return { eps, sends, setNow: (/** @type {any} */ n) => { now = n; }, ...fsFake, ...stFake };
+    return { eps, sends, setNow: (/** @type {any} */ n) => { now = n; },
+        setClaims: (/** @type {any} */ c) => { tokenClaims = c; }, ...fsFake, ...stFake };
 }
 
 // ── request/response fakes (the overtime-endpoints shape) ──────────────────────────────────────
@@ -425,5 +462,169 @@ describe('sendPayReminderNotification — a daily schedule that must fire on exa
         assert.match(p.title, /^💷 Payday Friday — /);
         assert.ok(p.url.includes('payday=2026-02-13'), `deep link carries the payday: ${p.url}`);
         assert.match(p.body, /13 February/);
+    });
+});
+
+// ── getDocumentUrl — the short-lived URL (v24.16) ──────────────────────────────────────────────
+//
+// EXECUTED, not merely defined. `functions-surface.test.mjs` proves this endpoint exists; v20.50 is
+// the standing lesson about the difference — an endpoint signed off on a 405 and a 401, neither of
+// which reaches the line that mints anything.
+//
+// Organised by what each wrong answer costs:
+//   · a door too wide      → a way to read a document firestore.rules refuses
+//   · a caller-named path  → an arbitrary read of the whole bucket
+//   · a permanent URL      → the very thing this endpoint exists to stop
+//   · a hard failure       → a member meets a dead button instead of the old, working way
+
+/** Drive getDocumentUrl and wait for its response. */
+async function askForUrl(/** @type {any} */ eps, /** @type {any} */ body, /** @type {string|null} */ auth = 'Bearer tok') {
+    const { res, out, done } = makeRes();
+    const headers = /** @type {Record<string, string|undefined>} */ ({
+        authorization: auth ?? undefined, origin: 'https://myb-roster.web.app',
+    });
+    const req = {
+        method: 'POST', headers, url: '/', path: '/', query: {}, body,
+        get(/** @type {string} */ h) { return headers[String(h).toLowerCase()]; },
+        header(/** @type {string} */ h) { return this.get(h); },
+    };
+    const p = eps.getDocumentUrl(req, res);
+    await Promise.race([done, p]);
+    await p?.catch?.(() => {});
+    return out;
+}
+
+/** A world with one published document of each kind. */
+const PUBLISHED = {
+    'huddles/2026-08-30':     { date: '2026-08-30', storagePath: 'huddles/2026-08-30.pdf',  fileType: 'pdf' },
+    'circulars/2026-08-28':   { date: '2026-08-28', storagePath: 'circulars/2026-08-28.docx', fileType: 'docx' },
+    'newsletters/2026-08-01': { date: '2026-08-01', storagePath: 'newsletters/2026-08-01.docx', fileType: 'docx' },
+};
+
+describe('getDocumentUrl — the door, and that it is exactly the rules\' door', () => {
+
+    test('no token, a bad token and a REVOKED token are the same 401 — and nothing is signed', async () => {
+        const w = build({ seed: PUBLISHED });
+        w.setClaims(null);                       // verifyIdToken throws: absent / expired / revoked
+        assert.equal((await askForUrl(w.eps, { kind: 'huddle' })).code, 401);
+        assert.equal((await askForUrl(w.eps, { kind: 'huddle' }, null)).code, 401);
+        assert.deepEqual(w.signed, [], 'a refused caller reached the signer');
+    });
+
+    test('a token with NO door is 403, and still nothing is signed', async () => {
+        const w = build({ seed: PUBLISHED });
+        w.setClaims({ uid: 'x' });               // authenticated, but no name / admin / calendarViewer
+        assert.equal((await askForUrl(w.eps, { kind: 'huddle' })).code, 403);
+        assert.deepEqual(w.signed, [], 'a caller the rules would refuse got a URL');
+    });
+
+    test('each of the three doors is admitted', async () => {
+        for (const claims of [{ name: 'G. Miller' }, { admin: true }, { calendarViewer: true }]) {
+            const w = build({ seed: PUBLISHED });
+            w.setClaims(claims);
+            const out = await askForUrl(w.eps, { kind: 'huddle' });
+            assert.equal(out.code, 200, `${JSON.stringify(claims)} was refused: ${JSON.stringify(out.body)}`);
+        }
+    });
+
+    test('GET is refused before anything else happens', async () => {
+        const w = build({ seed: PUBLISHED });
+        w.setClaims({ admin: true });
+        const { res, out, done } = makeRes();
+        const p = w.eps.getDocumentUrl({ method: 'GET', headers: {}, get: () => undefined, header: () => undefined }, res);
+        await Promise.race([done, p]);
+        assert.equal(out.code, 405);
+        assert.deepEqual(w.signed, []);
+    });
+});
+
+describe('getDocumentUrl — the caller names a KIND and never a path', () => {
+
+    test('the three kinds resolve to their own collections', async () => {
+        for (const [kind, path] of [['huddle', 'huddles/2026-08-30.pdf'],
+            ['circular', 'circulars/2026-08-28.docx'], ['newsletter', 'newsletters/2026-08-01.docx']]) {
+            const w = build({ seed: PUBLISHED });
+            w.setClaims({ name: 'G. Miller' });
+            const out = await askForUrl(w.eps, { kind });
+            assert.equal(out.code, 200, `${kind}: ${JSON.stringify(out.body)}`);
+            assert.equal(w.signed.at(-1).path, path, `${kind} signed the wrong object`);
+        }
+    });
+
+    test('a path, a collection name or junk in `kind` is a 400 that signs nothing', async () => {
+        for (const kind of ['huddles', '../secrets/x', 'circulars/2026-08-28', '', null, 7, { }]) {
+            const w = build({ seed: PUBLISHED });
+            w.setClaims({ admin: true });
+            const out = await askForUrl(w.eps, { kind });
+            assert.equal(out.code, 400, `${JSON.stringify(kind)} was accepted`);
+            assert.deepEqual(w.signed, [], `${JSON.stringify(kind)} reached the signer`);
+        }
+    });
+
+    test('a storagePath the SERVER wrote badly fails closed rather than reaching the signer', async () => {
+        const w = build({ seed: { 'huddles/2026-08-30': { date: '2026-08-30' } } });   // no storagePath
+        w.setClaims({ admin: true });
+        const out = await askForUrl(w.eps, { kind: 'huddle' });
+        assert.equal(out.code, 503);
+        assert.deepEqual(w.signed, []);
+    });
+
+    test('nothing published yet is a 404, not an error', async () => {
+        const w = build({ seed: {} });
+        w.setClaims({ admin: true });
+        const out = await askForUrl(w.eps, { kind: 'newsletter' });
+        assert.equal(out.code, 404);
+        assert.match(String(out.body.error), /Newsletter/, 'the refusal should name what is missing');
+    });
+});
+
+describe('getDocumentUrl — the URL is SHORT-LIVED, which is the whole point', () => {
+
+    test('it signs for READ, with an expiry a quarter of an hour out', async () => {
+        const w = build({ seed: PUBLISHED });
+        w.setClaims({ name: 'G. Miller' });
+        const before = Date.now();
+        const out = await askForUrl(w.eps, { kind: 'circular' });
+        assert.equal(out.code, 200);
+        const call = w.signed.at(-1);
+        assert.equal(call.action, 'read', 'signed for something other than reading');
+        const window = call.expires - before;
+        assert.ok(window > 14 * 60_000 && window <= 15 * 60_000 + 2_000,
+            `the signing window is ${Math.round(window / 1000)}s — it must outlive the Office viewer's `
+            + 'server-side fetch, and must not drift back towards permanent');
+        assert.equal(out.body.expiresAt, call.expires, 'the client is told a different expiry than was signed');
+    });
+
+    test('the response carries the fileType, because the client picks the viewer from it', async () => {
+        const w = build({ seed: PUBLISHED });
+        w.setClaims({ admin: true });
+        assert.equal((await askForUrl(w.eps, { kind: 'circular' })).body.fileType, 'docx');
+        assert.equal((await askForUrl(w.eps, { kind: 'huddle' })).body.fileType, 'pdf');
+    });
+
+    test('the permanent storageUrl is NEVER returned', async () => {
+        const w = build({ seed: { 'huddles/2026-08-30': {
+            date: '2026-08-30', storagePath: 'huddles/2026-08-30.pdf',
+            storageUrl: 'https://firebasestorage.example/permanent?token=forever',
+        } } });
+        w.setClaims({ admin: true });
+        const out = await askForUrl(w.eps, { kind: 'huddle' });
+        assert.equal(out.code, 200);
+        assert.doesNotMatch(JSON.stringify(out.body), /token=forever/,
+            'the permanent bearer URL was handed back — this endpoint exists to stop exactly that');
+    });
+});
+
+describe('getDocumentUrl — a signing failure must not strand a member', () => {
+
+    test('the IAM case answers 503, so the client can fall back rather than show a dead button', async () => {
+        const w = build({ seed: PUBLISHED });
+        w.setClaims({ name: 'G. Miller' });
+        w.failSigning();
+        const out = await askForUrl(w.eps, { kind: 'huddle' });
+        assert.equal(out.code, 503,
+            'a signing failure — overwhelmingly the missing serviceAccountTokenCreator grant — must '
+            + 'be a 503 the client treats as "use the old way", not a 500 and not a 200 with no url');
+        assert.equal(out.body.url, undefined);
     });
 });
