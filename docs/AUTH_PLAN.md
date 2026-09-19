@@ -479,6 +479,32 @@ behind authentication are TWO steps, and only the first is blocked today. Option
 authenticated `getBlob` by removing the third party; it does not by itself authenticate anything.
 Nor does it help documents already uploaded — those ride their bearer URLs until rotated or pruned.
 
+### DECIDED 19 Sep 2026 — short-lived signed URLs, and the two options that were REFUSED
+
+**Owner decision, on two facts only the owner had.** Converting `.docx` to HTML was refused
+outright: a Circular is a DESIGNED document and flattening it through Mammoth degrades what staff
+read. Requiring PDF was refused too, because **the documents arrive as `.docx`** — so that option is
+not a one-off change but a manual export on every weekly issue, for ever. Both of the routes that
+would have removed Microsoft entirely therefore cost either fidelity or recurring work, and neither
+cost is worth paying for a leak that retention already bounds.
+
+**So the Office viewer stays and its URL becomes short-lived.** `getDocumentUrl` (v24.16,
+`functions/documents.js`, rules in `functions/doc-url-core.js`) mints a 15-minute read URL for the
+latest document of a named KIND. Exposure goes from "until retention deletes the object" to "the
+signing window", and **nothing a member sees or an admin does changes** — which is what made this
+the option worth taking.
+
+**Stated plainly, because it will be claimed otherwise later: this does NOT remove Microsoft.** A
+`.docx` still opens through the Office Online viewer, which still fetches it server-side, and if
+Microsoft caches what it fetched then the window bounds THIS app's leak and not their copy. That was
+understood when the option was chosen. It also does nothing for URLs already in circulation.
+
+**Deploy prerequisite, and it is not optional:** signing needs
+`roles/iam.serviceAccountTokenCreator` on the runtime service account, granted to ITSELF. Without it
+every call answers 503 — which the client is required to treat as "use the stored URL", so a missing
+grant degrades to today's behaviour rather than to a dead button. RECOVERY_RUNBOOK.md holds the
+grant; `ARCHITECTURE.md` EXC-007 stays open until the client half ships and the old URLs are rotated.
+
 **And one action needs no decision at all.** Rotation is a step every option shares, and it can be
 taken alone: re-writing the objects turns "whoever ever held a URL" into "whoever held one since the
 rotation", without choosing a delivery model. Doing it periodically would bound the exposure on
