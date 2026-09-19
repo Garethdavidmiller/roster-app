@@ -172,53 +172,6 @@ happen before that migration (OPERATIONS_REFERENCE → "Which address staff are 
 it has got). Until then this is the honest state, written down rather than implied by a fixture
 that is no longer there.
 
-### The Calendar fast path serves ~1 open in 800 (measured 19 Sep 2026) — keep or remove?
-
-**Status: an OPEN DECISION for the owner. Recorded rather than acted on, and deliberately so.**
-
-v22.97's provisional paint shows a returning member their own cached roster while `accounts:lookup`
-is still in flight. `readyProvisional` (v23.69) was built to say how often it actually fires, and the
-answer is **1 open of roughly 800 eligible** — the full reading, and why the denominator is 800 and
-not 2,161, is `LATENCY.md` → *THE CLOSING READ*.
-
-**What it costs to keep.** Not much runtime, but real structural weight in the one module where that
-is most expensive: a provisional grant and a revoke path in `calendar-access.js`, the
-`decideProvisionalAccess` rule, cross-member control locking, and the provisional scope threaded
-through `setOverrideAccess` into the cached query. `revokeProvisional` is the path that takes a
-roster back off screen when an identity does not confirm — security-adjacent, and covered by tests
-that fail on the deletion of either half.
-
-**Why it is not simply deleted.** Three reasons, and the third is the one that decides it:
-
-- The measurement is ONE month, and the population it serves is small by construction rather than by
-  accident — a member on their own device with their own name selected, which is exactly the case
-  the app should be fastest for even if it is rare.
-- Removing it would re-open a shipped owner decision (5 Sep 2026) on a reading it was never promised
-  to survive.
-- **Deleting a security path in a hurry is the failure this whole line of work spent two months
-  refusing.** `LATENCY.md` declined a 4.6–52 ms optimisation for want of evidence; removing a
-  revoke path on thinner evidence than that would be inconsistent in the expensive direction.
-
-**What would decide it.** Either a second month confirming the rate, or an answer to WHY it refuses
-— Team View, a stored selection naming a colleague, or a PIN unlock. That second question is
-deliberately NOT being measured: `LATENCY.md`'s closing rule forbids the counter by name, because
-widening the path's eligibility is an ACCESS decision (`CALENDAR_DATA.md` 13) rather than a latency
-one. If the access question is ever reopened, measure it then.
-
-**AND NOTHING WILL DELIVER THE FIRST ONE, WHICH IS WORTH SAYING OUT LOUD** (19 Sep 2026).
-`MAINTENANCE_CALENDAR.md`'s row for this reads *"nothing to diary"*, and it is right to — the
-LATENCY question is closed and that row correctly refuses to reopen it. But KEEP-OR-REMOVE is a
-different question living in this file, and no row, workflow or trigger will ever hand it a second
-month. So the sentence above described a check nobody is going to run, which is the same shape as
-the backup finding two entries down: the answer was left to somebody's memory.
-
-**Stated properly, then: the default outcome is KEEP, by inaction, and that is a legitimate
-result.** The path is measured, argued, covered by tests that fail on the deletion of either half,
-and costs almost nothing to run. What would be wrong is believing a decision is still pending when
-nothing is pending. If the owner wants the second reading, it takes a row in
-`MAINTENANCE_CALENDAR.md` naming a month and this entry; **adding one is the owner's call, not a
-default** — it is a recurring commitment, and this file does not get to make those.
-
 ### No restore has ever been TESTED — and the portable export is still not set up
 
 **Status: OPEN, and smaller than it was.** Backups themselves are no longer the gap: PITR and a
