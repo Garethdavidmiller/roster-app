@@ -143,6 +143,80 @@ Do these three safe things once so they're not new under pressure:
 - Open **Firebase Console → Hosting → release history** and find the "Rollback" control.
 - Open **Firestore → Rules → history** and find the rollback control.
 
+### 6. The RESTORE DRILL — the one rehearsal that is not on the safe list
+
+**A backup nobody has restored from is a belief, not a capability.** PITR and a managed schedule
+went on 19 Sep 2026 and a run confirmed both; what has never been done, here or anywhere in this
+project's life, is the sequence that actually matters — *backup → restore → verify → cut over*.
+Two external reviews have now named it as the largest remaining reliability gap, ahead of adding
+any further backup mechanism.
+
+It is deliberately NOT in the three-item list above, because unlike those it **costs money and
+creates a second live database**. Read the whole of this before starting, and do it on a quiet day.
+
+**Prerequisites — check these first, because the drill stops dead without them.**
+
+- The caller needs `datastore.backups.list` and `datastore.databases.restore` on the project. The
+  deploy service account `github-deploy@myb-roster.iam.gserviceaccount.com` is **not known to hold
+  the restore permission** — it was scoped for deploys — so expect to run this as the owner, not
+  through CI, and grant the role explicitly if you want it automated later.
+- There is no standing GCP credential outside GitHub Actions (`SECURITY_RELEASE_PLAN.md` → A2), so
+  an agent session cannot do this for you. That is by design.
+
+**The drill.**
+
+1. **List what exists.** Nothing below is worth doing if this comes back empty.
+   ```
+   gcloud firestore backups list --project=myb-roster
+   ```
+   Note a backup's full name and the time it was taken. That time is your expectation for step 4.
+
+2. **Restore into a scratch database.** Never over `(default)` — it cannot be done, and the attempt
+   is the most dangerous thing on this page.
+   ```
+   gcloud firestore databases restore \
+     --source-backup=<backup-name> \
+     --destination-database=drill-$(date +%Y%m%d) --project=myb-roster
+   ```
+   It is asynchronous. `gcloud firestore operations list --project=myb-roster` shows progress.
+
+3. **Time it, and write the number down.** How long the restore took is the single most useful
+   figure this drill produces: it is what you would be telling people on the day.
+
+4. **Verify — and verify the thing a restore can silently get wrong.** Not "does the database
+   exist" but "is the DATA the data". Read from the scratch database, never the live one:
+   - `overrides` — the collection that holds every shift change, absence and booked leave. Pick a
+     member and a month you can check against the live app, and confirm the documents match.
+   - `overtimeWindows` — frozen participant lists; a window's population must not have changed.
+   - `linkDesigns` — the workspace's own revision fields should be intact, not reset.
+   - `staffContact` — present, and still readable only under the rules you expect.
+   - The backup's timestamp from step 1: anything written AFTER it must be **absent**. A restore
+     that appears to contain today's data is not a restore, and finding that out here is the point.
+
+5. **Practise the cutover you would actually perform**, on one document. The runbook's standing
+   advice is to restore *one record by hand* over a whole collection: copy a single `overrides`
+   document from the scratch database into `(default)` and confirm the app renders it. That is the
+   step nobody has walked, and it is where a surprise would live.
+
+6. **DELETE THE SCRATCH DATABASE.** It bills for storage until you do, and a stale `drill-*`
+   database is a second copy of everyone's data sitting where nothing is watching it.
+   ```
+   gcloud firestore databases delete --database=drill-<date> --project=myb-roster
+   ```
+
+7. **Record the date and the restore time** in `MAINTENANCE_CALENDAR.md`, and update
+   `KNOWN_LIMITATIONS.md` → *"No restore has ever been TESTED"*, which is the entry this closes.
+
+**What the drill does NOT prove.** It exercises the managed-backup path only. PITR is a different
+mechanism, section 3's portable GCS export still does not exist, and neither is covered by doing
+this. It also says nothing about how long a FULL restore of every collection would take under real
+pressure — step 3's number is for the data volume you have today.
+
+**It is legitimate to decide not to do this.** PITR has cut the likelihood of the loss it insures
+against, and the drill costs real money and real care. What is not legitimate is believing it has
+been done: `KNOWN_LIMITATIONS.md` states the gap plainly for that reason, and nothing in this
+repository schedules the drill — adding a row to `MAINTENANCE_CALENDAR.md` is the owner's call.
+
 ---
 
 ## Incident playbooks

@@ -228,10 +228,16 @@ managed schedule went on 19 Sep 2026 and a run confirmed both against the live p
 **What remains is that a backup nobody has restored from is a belief, not a capability.** Two
 specific gaps:
 
-- **The restore path is unexercised.** `RECOVERY_RUNBOOK.md`'s procedure lands in a **NEW** database
-  — `(default)` cannot be overwritten from a backup — so the real sequence involves a restore, a
-  verification, and then a cutover that the runbook describes and nobody has walked. The first time
-  it is attempted should not be the day it is needed.
+- **The restore path is unexercised — but it is now WRITTEN DOWN** (v24.15). The procedure lands in
+  a **NEW** database, because `(default)` cannot be overwritten from a backup, so the real sequence
+  is restore → verify → cut over, and nobody has walked it. The first time it is attempted should
+  not be the day it is needed.
+  **`RECOVERY_RUNBOOK.md` → "5. Rehearse once" → "6. The RESTORE DRILL"** now holds it as a
+  procedure rather than a paragraph: the IAM the deploy account probably lacks, the scratch-database
+  restore, what to verify (and the check that catches a restore silently containing today's data),
+  the one-document cutover nobody has practised, and the step people forget — **deleting the scratch
+  database**, which bills and is a second copy of everyone's data. Writing it changes nothing about
+  whether it has been RUN; it means the run would not be improvised.
 - **Section 3's portable GCS export is still not set up.** PITR and managed backups both live inside
   the same project; an export to Cloud Storage is the copy that survives losing it.
 
