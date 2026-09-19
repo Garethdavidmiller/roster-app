@@ -159,10 +159,24 @@ happen before that migration (OPERATIONS_REFERENCE → "Which address staff are 
 it has got). Until then this is the honest state, written down rather than implied by a fixture
 that is no longer there.
 
-### No evidence in the repo that any Firestore backup exists (found 16 Sep 2026, deep review)
+### Firestore has NO backups — measured 19 Sep 2026 (found 16 Sep 2026, deep review)
 
-**Status: an OPEN QUESTION for the owner, not a finding about code.** One command answers it:
-`gcloud firestore backups schedules list --database='(default)' --project=myb-roster`.
+**Status: ANSWERED, and the answer is the bad one. Now a decision for the owner, not a question.**
+The first `backup-check.yml` run read the project directly:
+
+- **No backup schedules exist.** Nothing is being snapshotted.
+- **Point-in-Time Recovery is OFF** (`POINT_IN_TIME_RECOVERY_DISABLED`).
+
+**Both reads SUCCEEDED**, which is what makes this a finding rather than a blank: `github-deploy@`
+held the permission, so this is a definite absence and not the *"we cannot see"* case the check
+deliberately stays green for. Run:
+<https://github.com/Garethdavidmiller/roster-app/actions/runs/35415383659>
+
+**So every restore procedure in `RECOVERY_RUNBOOK.md` currently has nothing to restore FROM**, and
+the runbook's own conditional wording (*"if PITR is on"*) resolves to "it is not". Turning either on
+is a GCP console/CLI action with a cost attached and is the owner's to make; the check reports and
+never fixes. **When one is switched on, re-run the check and replace this entry with that date** —
+the next scheduled run will go green on its own, which is the confirmation.
 
 `RECOVERY_RUNBOOK.md` opens its preventative section with its own words: *"These are the difference
 between 'restored in minutes' and 'gone'. **None exist by default.**"* It then documents three things
@@ -170,15 +184,15 @@ to switch on — Point-in-Time Recovery, managed backup schedules, and a portabl
 
 **Nothing anywhere records that any of them were.** Every later reference in that runbook is
 conditional — *"if PITR is on"*, *"with PITR on"*. There was no CI job, no maintenance-calendar entry
-and no completion marker (the CI job now exists — see below — and answers the question; it does not
-answer whether anyone acted on it), which is notable because this repo DOES mark completions when
+and no completion marker — **and the absence of a marker turned out to mean exactly what it looks
+like**, which is worth keeping: this repo DOES mark completions when
 they happen (`CLAUDE.md`: *"A2 complete: the old SA JSON key and the `FIREBASE_SERVICE_ACCOUNT` GitHub secret
 have both been deleted"*).
 
-So the restore playbooks are written against snapshots that may not be being taken. What is at stake
-is every staff member's leave, absence, overrides, overtime declarations, password-reset requests and
-saved work emails — none of which is reconstructable from the repository, because the repository
-holds the base roster and nothing else.
+So the restore playbooks were written against snapshots that might not be being taken — and, as of
+19 Sep, are not. What is at stake is every staff member's leave, absence, overrides, overtime
+declarations, password-reset requests and saved work emails — none of which is reconstructable from
+the repository, because the repository holds the base roster and nothing else.
 
 **It is now ASKED rather than remembered** (19 Sep 2026, owner-authorised).
 `.github/workflows/backup-check.yml` runs weekly and on demand, and is the only place the question
