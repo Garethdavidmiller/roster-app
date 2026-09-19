@@ -773,3 +773,65 @@ describe('the smoke config retries in CI and nowhere else', () => {
             + 'the gate\'s failures are not all real failures.');
     });
 });
+
+// ── The currency canary must be able to tell a deploy from a fault ──────────────────────────────
+//
+// `production-currency.yml` is the one workflow whose failure mode is CREDIBILITY. It emails the
+// owner, and it is wrong exactly when a release is slower than its window — so its false alarms
+// arrive on a good day, which is the fastest way to teach someone to ignore a channel. It has now
+// done that twice (7 Sep, 19 Sep 2026), both times losing a race to a deploy it could not see.
+//
+// The fix is the stand-down: ask whether a Hosting deploy is in flight. Every assertion below is on
+// a way that ask can be present and NOT WORK, because that is the whole risk here — a guard that
+// fails open looks identical to a guard that is not needed, and this one already shipped once with
+// `$GITHUB_TOKEN` unset, where `set -u` killed the subshell and `|| true` swallowed it.
+describe('the currency canary stands down for a deploy in flight', () => {
+    const CURRENCY_WF = join(WF_DIR, 'production-currency.yml');
+    const src = readFileSync(CURRENCY_WF, 'utf8');
+    // The prose explains the trap at length and names every identifier while doing it. Match the
+    // script, not its justification — the same stripping the concurrency and retry rules use.
+    const code = src.split('\n').map(l => l.replace(/^(\s*)#.*$/, '$1')).join('\n');
+
+    test('the stand-down is actually in the script, not only in the comment', () => {
+        assert.match(code, /actions\/workflows\/\$HOSTING_WORKFLOW\/runs/,
+            'production-currency.yml no longer asks the Actions API whether a Hosting deploy is '
+            + 'running. Without it the only defence is DEPLOY_WINDOW_S, which is a guess at a '
+            + 'duration nobody controls — and the next slow deploy wins the race again.');
+        assert.match(code, /exit 0/, 'the stand-down must exit BEFORE the stale verdict');
+    });
+
+    test('the token it authenticates with is passed in, because a run step is not given one', () => {
+        // The failure this pins is invisible: GITHUB_REPOSITORY is exported automatically and
+        // GITHUB_TOKEN is not, so under `set -u` the expansion kills the subshell, `|| true`
+        // catches it, IN_FLIGHT is empty, and the run reports exactly as it did before. A guard
+        // that never fires and never says so.
+        assert.match(code, /GITHUB_TOKEN:\s*\$\{\{\s*github\.token\s*\}\}/,
+            'the compare step must declare GITHUB_TOKEN in its own `env:` block');
+        assert.match(code, /permissions:[\s\S]*?\n\s+actions: read/,
+            'reading workflow runs needs `actions: read`; without it the query 403s and the '
+            + 'stand-down fails open on every run');
+    });
+
+    test('it keys on the workflow FILE, and that file exists', () => {
+        // A display-name match ("Hosting" in r['name']) reads fine and stops working silently the
+        // day somebody retitles the deploy. The filename is what the repo keys on everywhere else,
+        // and it is checkable from here — which is the entire reason to prefer it.
+        const m = code.match(/HOSTING_WORKFLOW:\s*(\S+)/);
+        assert.ok(m, 'the stand-down must name the Hosting deploy workflow by file');
+        assert.ok(readdirSync(WF_DIR).includes(m[1]),
+            `production-currency.yml stands down for ${m[1]}, which is not in ${WF_DIR}. The `
+            + 'deploy workflow was renamed and the canary now sees no deploy, ever.');
+    });
+
+    test('the poll cannot outlive the job that runs it', () => {
+        // The window and the timeout are two numbers in two places that mean one thing. Raise the
+        // window alone and a slow-but-successful deploy becomes a CANCELLED run, which reports
+        // neither stale nor current — the canary goes silent in the exact case it was raised for.
+        const window = Number(code.match(/DEPLOY_WINDOW_S=(\d+)/)?.[1]);
+        const timeout = Number(code.match(/timeout-minutes:\s*(\d+)/)?.[1]);
+        assert.ok(Number.isFinite(window) && Number.isFinite(timeout), 'both numbers must be read');
+        assert.ok(timeout * 60 > window + 300,
+            `timeout-minutes (${timeout}) must leave the ${window}s poll room to finish and still `
+            + 'report. Raise them together.');
+    });
+});
