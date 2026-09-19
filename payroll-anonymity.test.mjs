@@ -40,7 +40,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { teamMembers } from './roster-data.js';
 
@@ -50,15 +50,128 @@ const PAYROLL = /student\s*loan|\bplan\s*[1245]\b|postgrad|taxable pay|tax paid|
 /** Every name the roster publishes, INCLUDING hidden rows — a leaver is still a person. */
 const NAMES = teamMembers.map(m => m.name).filter(Boolean);
 
+/** Binary shapes nothing can leak a name through, and the one directory scanned on purpose. */
+const SKIP_EXT = /\.(png|pdf|woff2|ico|jpg|jpeg|webp|zip)$/i;
+/** `docs/proposals/**` is excluded on purpose: the December 2026 link proposals carry rota names
+ *  throughout and no pay at all, so scanning them yields a long list of matches on the word
+ *  "pension" in a fatigue-rule paragraph and nothing else. */
+const SKIP_DIR = 'docs/proposals/';
+
 /**
- * Tracked text files. `docs/proposals/**` is excluded on purpose: the December 2026 link proposals
- * carry rota names throughout and no pay at all, so scanning them would produce a long list of
- * matches on the word "pension" in a fatigue-rule paragraph and nothing else.
+ * Directories a WALK must not descend into. `git ls-files` excludes these for free; a filesystem
+ * walk has to be told. They are either not tracked (node_modules, run artefacts) or not files
+ * (.git itself), so skipping them cannot hide a tracked leak.
  */
-const TRACKED = execFileSync('git', ['ls-files'], { encoding: 'utf8' })
-    .split('\n').filter(Boolean)
-    .filter(f => !/\.(png|pdf|woff2|ico|jpg|jpeg|webp|zip)$/i.test(f))
-    .filter(f => !f.startsWith('docs/proposals/'));
+const UNTRACKED_DIRS = new Set([
+    '.git', 'node_modules', 'test-results', 'playwright-report', 'coverage', '.firebase',
+]);
+
+/**
+ * ── WHY THIS IS NOT JUST `git ls-files` (v24.13) ────────────────────────────────────────────────
+ *
+ * It was, and that broke an explicit repository promise. `npm test` is supposed to run on a bare
+ * checkout — README states it, `test:nodeps` gates it in CI, and an external reviewer verifies each
+ * release by unzipping the GitHub archive and running the estate. A ZIP has no `.git`, so this
+ * suite died with `fatal: not a git repository` and took the whole hygiene lane red with it —
+ * 3,263 of 3,264 passing, the one failure being the guard itself rather than anything it guards.
+ *
+ * CI never saw it, because CI clones. That is the same shape as the defect this release already
+ * fixed in the roster importer: a path nobody executes cannot fail, and the environment that would
+ * have shown it is the one nobody runs.
+ *
+ * `git ls-files` stays the PREFERRED answer, because "tracked" is exactly the question — the Pages
+ * mirror publishes the tracked tree and nothing else. The walk is the fallback, and it is
+ * deliberately WIDER than git: it may scan an untracked stray, which costs a reworded line, where
+ * missing a tracked file would cost the thing this guard exists to prevent. The superset property
+ * is asserted below rather than assumed.
+ *
+ * @param {{ allowGit?: boolean }} [opts] — `allowGit: false` forces the archive path, for the test
+ *        that proves the fallback works without having to delete a `.git` directory to find out.
+ * @returns {string[]} repo-relative paths, scannable text files only
+ */
+function listFiles({ allowGit = true } = {}) {
+    const keep = (/** @type {string} */ f) => !SKIP_EXT.test(f) && !f.startsWith(SKIP_DIR);
+    if (allowGit) {
+        try {
+            return execFileSync('git', ['ls-files'], {
+                encoding: 'utf8',
+                stdio: ['ignore', 'pipe', 'ignore'],   // a missing .git must not print to the run
+            }).split('\n').filter(Boolean).filter(keep);
+        } catch {
+            // No git metadata (an unzipped archive) or no git binary. Fall through to the walk.
+        }
+    }
+    /** @type {string[]} */
+    const out = [];
+    (function walk(/** @type {string} */ dir) {
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+            const rel = dir === '.' ? entry.name : `${dir}/${entry.name}`;
+            if (entry.isDirectory()) {
+                if (UNTRACKED_DIRS.has(entry.name)) continue;
+                walk(rel);
+            } else if (entry.isFile()) {
+                out.push(rel);
+            }
+        }
+    })('.');
+    return out.filter(keep).sort();
+}
+
+const TRACKED = listFiles();
+
+// ── THE ARCHIVE FALLBACK (v24.13) ──────────────────────────────────────────────────────────────
+//
+// These run in a CLONE, where git is available, so they cannot prove "the ZIP works" by being here.
+// What they prove is the property that makes the ZIP work: the walk sees everything git sees. A
+// test that merely called the fallback and checked it returned SOMETHING would pass on a walk that
+// had quietly stopped descending — which is the failure mode worth catching, because a file this
+// guard does not scan is a file it cannot protect.
+describe('the enumeration survives an unzipped archive, with nothing lost', () => {
+    test('the fallback is a SUPERSET of what git tracks — no scanned file is dropped', () => {
+        const viaGit  = listFiles();                      // the preferred answer, in a clone
+        const viaWalk = new Set(listFiles({ allowGit: false }));
+        assert.ok(viaGit.length > 100, `git listed only ${viaGit.length} files — this proves nothing`);
+        const missed = viaGit.filter(f => !viaWalk.has(f));
+        assert.deepEqual(missed, [],
+            'the archive fallback does not reach these tracked files, so in a ZIP they would go '
+            + 'unscanned and a name beside a payroll figure in one of them would ship unnoticed:\n  '
+            + missed.slice(0, 20).join('\n  '));
+    });
+
+    test('every file class this guard must read is actually in the list', () => {
+        // THE SUPERSET TEST ABOVE CANNOT SEE A BUG IN `keep`, and a mutation proved it: narrowing
+        // `keep` to drop every `.md` left that assertion green, because the git list and the walk
+        // are filtered by the SAME predicate and so lose the same files together. Two copies
+        // agreeing because they share the broken part is the defect shape this repo keeps meeting.
+        //
+        // Docs are not an incidental class here — they are where the external review found real
+        // names beside payroll figures. So the classes are asserted against the FINAL list.
+        const have = new Set(TRACKED.map(f => f.replace(/^.*\./, '')));
+        for (const ext of ['js', 'mjs', 'md', 'html', 'css', 'json']) {
+            assert.ok(have.has(ext),
+                `no .${ext} file survived the filter, so this guard scans none of them — `
+                + 'a name beside a payroll figure in one would ship unseen');
+        }
+    });
+
+    test('and it refuses the directories git excludes for free', () => {
+        // A walk that descended into node_modules would scan tens of thousands of third-party files,
+        // turn a fast guard into a slow one, and report offences in code this repo does not own.
+        const viaWalk = listFiles({ allowGit: false });
+        const strays  = viaWalk.filter(f => /(^|\/)(\.git|node_modules|test-results|playwright-report)\//.test(f));
+        assert.deepEqual(strays, [], `the walk descended where it should not:\n  ${strays.slice(0, 5).join('\n  ')}`);
+    });
+
+    test('the scan itself runs on the fallback list, not merely the git one', () => {
+        // Guard the guard: the walk must produce a list the real scan can consume — same shape,
+        // same relative paths, readable. A fallback that returned absolute paths, or `./`-prefixed
+        // ones, would read zero files and report a clean tree.
+        const viaWalk = listFiles({ allowGit: false });
+        assert.ok(viaWalk.includes('payroll-anonymity.test.mjs'), 'the walk did not find this file');
+        assert.ok(viaWalk.every(f => !f.startsWith('/') && !f.startsWith('./')),
+            'the walk returned paths readFileSync cannot resolve from the repo root');
+    });
+});
 
 describe('no roster name sits beside a payroll fact in the tracked tree', () => {
     test('every tracked text file', () => {
