@@ -23,6 +23,10 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 
+// Every app stylesheet. NOTE the filter reads `guide-*`, and the guide sheets are actually
+// named `*-guide.css`, so those five ARE scanned — over-coverage, not a hole (no guide page
+// has a lightbox), and left as it is deliberately rather than narrowed. `css-hex-parity`
+// needed the other spelling, because for THAT rule scanning them is a false positive.
 const SHEETS = readdirSync('.').filter(f => f.endsWith('.css') && !f.startsWith('guide-') && f !== 'guide.css');
 /** Strip comments so a commented-out rule is not read as a live one. */
 const strip = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
@@ -32,15 +36,24 @@ describe('lightbox panels keep the shared entry animation', () => {
         const offenders = [];
         for (const f of SHEETS) {
             const css = strip(readFileSync(f, 'utf8'));
-            // An id block whose selector names a lightbox panel, containing a transform.
-            const re = /(^|\})\s*(#[A-Za-z][\w-]*)\s*\{([^}]*)\}/g;
-            let m;
-            while ((m = re.exec(css))) {
-                const [, , sel, body] = m;
+            // ANY rule that sets a transform and whose selector names a panel — not only a bare
+            // `#panelContent { … }`. Until 19 Sep 2026 this matched the bare form alone, which is
+            // the shape the five fossils happened to take, and a mutation audit walked straight
+            // past it: `#iconLightbox .lb-content { transform: scale(0.85) }` is (1,1,0), still
+            // beats the shared (0,3,0) rule, freezes the panel in exactly the same way, and was
+            // invisible here. Guard the RULE, not the spelling the defect arrived in.
+            for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+                const selector = (m[1].trim().split('\n').pop() ?? '').trim();
+                const body = m[2];
+                if (selector.startsWith('@') || !selector) continue;       // a media block's head
                 if (!/transform\s*:/.test(body)) continue;
-                // Only panels: the element createLightbox is handed as `content`.
-                if (!/Content$|Card$|LightboxContent$/.test(sel.slice(1))) continue;
-                offenders.push(`${f} ${sel}`);
+                // Only panels: the element createLightbox is handed as `content`. A panel is named
+                // either by its own id or by an id that CONTAINS it (`#iconLightbox .lb-content`).
+                const ids = selector.match(/#[A-Za-z][\w-]*/g) ?? [];
+                const namesPanel = ids.some(id => /(Content|Card)$/.test(id.slice(1)))
+                    || (ids.length > 0 && /\.lb-content\b/.test(selector));
+                if (!namesPanel) continue;
+                offenders.push(`${f} ${selector}`);
             }
         }
         assert.deepEqual(offenders, [],

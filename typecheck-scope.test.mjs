@@ -53,14 +53,48 @@ const exclude = new Set(jsconfig.exclude);
 
 describe('the type-checker’s scope is a decision, not a drift', () => {
 
-    test('the two deliberate exclusions are still exactly those two', () => {
-        // Named individually so ADDING one is a visible edit here, with this file's header to read
-        // first. Removing one is equally visible — and is the good outcome.
+    test('the two deliberate exclusions are still BOTH there', () => {
+        // Named individually so REMOVING one is a visible edit here, with this file's header to read
+        // first — and removing one is the good outcome. This half cannot see an exclusion being
+        // ADDED; the test below is the half that does, and the name of this one used to claim both.
         assert.ok(exclude.has('service-worker.js'),
             'service-worker.js left the exclude list — if that is deliberate, delete this assertion '
             + 'and the header note with it; if it is not, `npm run typecheck` now reports ~105 errors');
         assert.ok(exclude.has('functions'),
             'functions/ left the exclude list — see this file\'s header for what turning it on costs');
+    });
+
+    test('and NOTHING ELSE has joined them', () => {
+        // The assertion above is `has`, not `equals` — presence, never exclusivity — so for this
+        // file's whole life a THIRD exclusion could be added without failing the test whose name is
+        // "exactly those two". Found by mutation (19 Sep 2026): adding `paycalc-calc.js` to the
+        // exclude list left every assertion here green, which is precisely the outcome the header
+        // says this file exists to prevent — "to stop the gap GROWING without one".
+        //
+        // The list legitimately holds non-app entries (tooling directories, the test globs, the
+        // runner configs, the vendored copy), so this cannot be an equality against a frozen array —
+        // that would fail on a new Playwright config, which is not the thing worth stopping. It is
+        // a rule about SHAPE instead: a directory or a glob is tooling, a `playwright.*.mjs` is a
+        // runner config, and anything else that is a real module at the root has to be argued for
+        // HERE, in the file that measures what turning it back on would cost.
+        const TOOLING_DIRS = new Set(['node_modules', 'scripts', 'functions', '.claude', 'e2e',
+            'experiments', 'docs']);
+        const NAMED_FILES = new Set([
+            'service-worker.js',   // the decision this file is about
+            'purify.es.mjs',       // vendored — not ours to annotate
+            'generate-sri.mjs',    // build tooling, not shipped
+        ]);
+        const unexpected = jsconfig.exclude.filter((/** @type {string} */ e) => {
+            if (TOOLING_DIRS.has(e)) return false;
+            if (e.includes('*')) return false;                       // the test globs
+            if (/^playwright\.[\w.-]*mjs$/.test(e)) return false;    // a runner config
+            return !NAMED_FILES.has(e);
+        });
+        assert.deepEqual(unexpected, [],
+            'these joined jsconfig.json\'s exclude list without a decision being recorded — the '
+            + 'checker silently stopped reading them:\n  ' + unexpected.join('\n  ')
+            + '\nIf the exclusion is deliberate, name it in NAMED_FILES above WITH the reason, and '
+            + 'measure what turning it on would cost (this file\'s header shows the format).');
     });
 
     test('nothing in an excluded area CLAIMS to be checked', () => {
