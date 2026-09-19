@@ -818,11 +818,17 @@ Object.assign(exports, buildOvertimeEndpoints({
     VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_URL,
     // The retention purge ARMS ITSELF ON A DATE (owner decision, 19 Sep 2026) rather than on a
     // boolean somebody remembers to flip. It walks the whole tree daily and logs exactly what it
-    // would remove; before 21 Nov 2026 it deletes nothing, after it deletes. The rule and the whole
-    // argument for it are `purgeArmedAt` in ./overtime-core.js — in short: nothing is expired
-    // before that date, so flipping a boolean today would have armed the job blind two months
-    // later AND retired the dry-run gate, since the only runs that could ever show real windows are
-    // the ones from 21 Nov onward.
+    // would remove; it DELETES NOTHING UNTIL 1 DECEMBER 2026, and from that date it deletes.
+    //
+    // TWO DATES, AND THEY ARE NOT THE SAME ONE — this comment said 21 Nov until v24.13, which is
+    // the FIRST EXPIRY, not the arming threshold (external review). Retention is 91 days past the
+    // week-ending Saturday and the scheduler's first run made weeks ending 22 Aug 2026, so the
+    // earliest window expires 21 Nov: before then there is nothing for a dry run to name. Arming ON
+    // that date would delete the first window the morning it appeared, with no run having logged
+    // it. 1 Dec sits ten days later, so ten daily runs name real windows and delete nothing first.
+    // The rule and the full argument are `purgeArmedAt` in ./overtime-core.js, and the two
+    // boundaries are pinned in overtime-core.test.mjs — behaviour was always right; this line was
+    // the only thing that disagreed with it.
     //
     // A FUNCTION, not `purgeArmedAt()` evaluated here: a warm Cloud Function instance outlives the
     // date, so a value read at module load would leave an instance that booted on the 20th still
