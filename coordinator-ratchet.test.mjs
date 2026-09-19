@@ -395,6 +395,20 @@ const CAPS = {
                                                  //   day-drift defence is among them. The clearest
                                                  //   candidate in this block for a rule to leave.
     'functions/overtime.js':             1400,   // the Overtime endpoints + Firestore orchestration
+    // SPLIT at v24.14, at 1,150 of 1,150 — the ZERO-HEADROOM state this file's own header names as
+    // the point where a guard stops being read and starts being raised. The London clock and the
+    // ISO-date algebra left for functions/london-clock.js: 1,150 measured lines down to 1,076.
+    //
+    // The classification is SPLIT, not EXTRACT. No new rule came out — the file was doing two
+    // unrelated jobs, and only one of them is Overtime's. "What is the UTC offset in London at this
+    // instant" is the same answer for anybody who asks and would still be true if this feature were
+    // deleted. What stayed is every hour this depot CHOSE: noon for a deadline, midnight for
+    // retention, 05:00 for the scheduler, and the Sunday→Saturday roster week.
+    //
+    // THE CAP DOES NOT MOVE, and that is the formula rather than an oversight: measured + 50 rounded
+    // up to the next 50 is 1,150 for a 1,076-line file. The point of the split was never the number.
+    // It was the headroom, which goes from 0 to 74 — back inside the 50–99 band this file's header
+    // says every capped module is owed, so the next one-line Overtime fix no longer fails here.
     'functions/overtime-core.js':        1150,   // every Overtime RULE, already pure and tested
     'functions/index.js':                1100,   // the composition root; its exports ARE the deploy surface
 
