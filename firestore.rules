@@ -324,6 +324,27 @@ service cloud.firestore {
         request.resource.data.date.size() == 10 &&
         request.resource.data.date.matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])') &&
         request.resource.data.storageUrl is string &&
+        // ── storagePath IS BOUND TO ITS OWN COLLECTION (v24.18, external review of v24.17) ──
+        // This field was in `hasOnly` with no type check and no shape check, which was a fair
+        // reading while a bad value could only produce a broken link. `getDocumentUrl` (v24.16)
+        // changed that: it hands this path to the Admin Storage API, which bypasses storage.rules
+        // and will sign ANY object it is given. A huddles document carrying some other collection's
+        // path would then be a privileged server minting a read URL for a file this rule never
+        // meant to release.
+        // The signer checks the same thing itself (`isSignablePathForKind`) — this is the second
+        // layer, and it is the one that stops the bad value being STORED rather than merely
+        // refusing to act on it afterwards. Both must agree; doc-url-core.test.mjs pins them.
+        // The pattern admits every path this app has ever written — `versionedDocPath`'s
+        // `huddles/{date}-{id}.{ext}` and the pre-v13.99 `huddles/{date}.{ext}` — and nothing with a
+        // second slash, so a nested or traversing path cannot be written in the first place.
+        // OPTIONAL, like htmlContent below — a pre-v13.99 document has no storagePath at
+        // all, and `legacyDocPath` is what finds its object. `is string` is checked first
+        // so .matches() is never called on a non-string. Every write this app makes today
+        // sets it (`versionedDocPath`), so the optionality is for what already EXISTS,
+        // not for anything new.
+        (!('storagePath' in request.resource.data) ||
+         (request.resource.data.storagePath is string &&
+          request.resource.data.storagePath.matches('huddles/[A-Za-z0-9._-]+[.](pdf|docx)'))) &&
         // Browser writes (uploadHuddle) set fileType to the short form 'pdf'|'docx'.
         // The Cloud Function ingest path uses the Admin SDK and bypasses these rules.
         request.resource.data.fileType in ['pdf', 'docx'] &&
@@ -612,6 +633,27 @@ service cloud.firestore {
         // well-formed but non-existent day (e.g. 2026-02-31); the client date paths prevent those.
         request.resource.data.date.matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])') &&
         request.resource.data.storageUrl is string &&
+        // ── storagePath IS BOUND TO ITS OWN COLLECTION (v24.18, external review of v24.17) ──
+        // This field was in `hasOnly` with no type check and no shape check, which was a fair
+        // reading while a bad value could only produce a broken link. `getDocumentUrl` (v24.16)
+        // changed that: it hands this path to the Admin Storage API, which bypasses storage.rules
+        // and will sign ANY object it is given. A circulars document carrying some other collection's
+        // path would then be a privileged server minting a read URL for a file this rule never
+        // meant to release.
+        // The signer checks the same thing itself (`isSignablePathForKind`) — this is the second
+        // layer, and it is the one that stops the bad value being STORED rather than merely
+        // refusing to act on it afterwards. Both must agree; doc-url-core.test.mjs pins them.
+        // The pattern admits every path this app has ever written — `versionedDocPath`'s
+        // `circulars/{date}-{id}.{ext}` and the pre-v13.99 `circulars/{date}.{ext}` — and nothing with a
+        // second slash, so a nested or traversing path cannot be written in the first place.
+        // OPTIONAL, like htmlContent below — a pre-v13.99 document has no storagePath at
+        // all, and `legacyDocPath` is what finds its object. `is string` is checked first
+        // so .matches() is never called on a non-string. Every write this app makes today
+        // sets it (`versionedDocPath`), so the optionality is for what already EXISTS,
+        // not for anything new.
+        (!('storagePath' in request.resource.data) ||
+         (request.resource.data.storagePath is string &&
+          request.resource.data.storagePath.matches('circulars/[A-Za-z0-9._-]+[.](pdf|docx)'))) &&
         request.resource.data.fileType in ['pdf', 'docx'] &&
         request.resource.data.uploadedAt is timestamp &&
         request.resource.data.uploadedBy is string;
@@ -635,6 +677,27 @@ service cloud.firestore {
         // well-formed but non-existent day (e.g. 2026-02-31); the client date paths prevent those.
         request.resource.data.date.matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])') &&
         request.resource.data.storageUrl is string &&
+        // ── storagePath IS BOUND TO ITS OWN COLLECTION (v24.18, external review of v24.17) ──
+        // This field was in `hasOnly` with no type check and no shape check, which was a fair
+        // reading while a bad value could only produce a broken link. `getDocumentUrl` (v24.16)
+        // changed that: it hands this path to the Admin Storage API, which bypasses storage.rules
+        // and will sign ANY object it is given. A newsletters document carrying some other collection's
+        // path would then be a privileged server minting a read URL for a file this rule never
+        // meant to release.
+        // The signer checks the same thing itself (`isSignablePathForKind`) — this is the second
+        // layer, and it is the one that stops the bad value being STORED rather than merely
+        // refusing to act on it afterwards. Both must agree; doc-url-core.test.mjs pins them.
+        // The pattern admits every path this app has ever written — `versionedDocPath`'s
+        // `newsletters/{date}-{id}.{ext}` and the pre-v13.99 `newsletters/{date}.{ext}` — and nothing with a
+        // second slash, so a nested or traversing path cannot be written in the first place.
+        // OPTIONAL, like htmlContent below — a pre-v13.99 document has no storagePath at
+        // all, and `legacyDocPath` is what finds its object. `is string` is checked first
+        // so .matches() is never called on a non-string. Every write this app makes today
+        // sets it (`versionedDocPath`), so the optionality is for what already EXISTS,
+        // not for anything new.
+        (!('storagePath' in request.resource.data) ||
+         (request.resource.data.storagePath is string &&
+          request.resource.data.storagePath.matches('newsletters/[A-Za-z0-9._-]+[.](pdf|docx)'))) &&
         request.resource.data.fileType in ['pdf', 'docx'] &&
         request.resource.data.uploadedAt is timestamp &&
         request.resource.data.uploadedBy is string;

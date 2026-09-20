@@ -662,3 +662,70 @@ describe('getDocumentUrl — a signing failure must not strand a member', () => 
         assert.equal(out.body.url, undefined);
     });
 });
+
+// ── The two v24.18 properties, both invisible from the response ────────────────────────────────
+//
+// Neither of these changes a status code or a body, so every test above passes either way. That is
+// precisely why they need their own block: an endpoint can be correct to its caller and wrong to
+// the person it is about, or wrong about which FILE it just released.
+describe('getDocumentUrl — it signs the kind it was asked for, and says nothing about who asked', () => {
+
+    test('a document whose storagePath belongs to another collection is REFUSED, not signed', async () => {
+        // The external review's finding, driven through the real handler. The signer bypasses
+        // storage.rules, so this path would otherwise have come back as a working read URL for a
+        // file the circulars read rule never covered.
+        const w = build({ seed: {
+            'circulars/2026-08-28': { date: '2026-08-28', storagePath: 'roster/2026-08-28.pdf', fileType: 'pdf' },
+        } });
+        w.setClaims({ name: 'G. Miller' });
+        const out = await askForUrl(w.eps, { kind: 'circular' });
+        assert.equal(out.code, 503, 'a cross-collection storagePath was signed');
+        assert.equal(out.body.url, undefined);
+    });
+
+    test('and a HUDDLE path in a circulars document is refused too — both are real paths', async () => {
+        // Not a strawman: `huddles/…` is a path this app writes every day. What makes it unsignable
+        // here is only that it is paired with the wrong kind, which is the whole point of binding.
+        const w = build({ seed: {
+            'circulars/2026-08-28': { date: '2026-08-28', storagePath: 'huddles/2026-08-28.pdf', fileType: 'pdf' },
+        } });
+        w.setClaims({ name: 'G. Miller' });
+        assert.equal((await askForUrl(w.eps, { kind: 'circular' })).code, 503);
+    });
+
+    test('the happy path still signs — the binding refuses the wrong file, not every file', async () => {
+        // The direction a tightening gets wrong. Without this, deleting the whole check and
+        // returning false would leave the two tests above green.
+        const w = build({ seed: PUBLISHED });
+        w.setClaims({ name: 'G. Miller' });
+        const out = await askForUrl(w.eps, { kind: 'circular' });
+        assert.equal(out.code, 200);
+        assert.ok(out.body.url, 'a correctly-pathed circular did not sign');
+    });
+
+    test('no successful signing writes a member name to the log', async () => {
+        // Once the client calls this endpoint, every document a member opens goes through here. A
+        // named log line would make that a named access trail, at the exact release that shipped
+        // the privacy improvement — and against how the app treats the same question elsewhere:
+        // `recordOpen` sends an increment and keeps the identity on-device.
+        const said = [];
+        const realLog = console.log;
+        console.log = (...a) => { said.push(a.map(String).join(' ')); };
+        try {
+            const w = build({ seed: PUBLISHED });
+            w.setClaims({ name: 'G. Miller' });
+            assert.equal((await askForUrl(w.eps, { kind: 'huddle' })).code, 200);
+        } finally {
+            console.log = realLog;
+        }
+        const signed = said.filter(l => l.includes('[getDocumentUrl]'));
+        assert.ok(signed.length > 0,
+            'nothing was logged at all — this test would then pass on an endpoint that had stopped '
+            + 'logging for some other reason, and prove nothing about the name');
+        for (const line of signed) {
+            assert.doesNotMatch(line, /G\. Miller/,
+                `the signing log names the member: "${line}". Log the DOOR (member / admin / pin), `
+                + 'never the person — see the comment beside that line in functions/documents.js.');
+        }
+    });
+});

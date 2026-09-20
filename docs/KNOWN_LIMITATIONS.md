@@ -253,14 +253,22 @@ Two things make it worth recording rather than assuming it is inside an existing
 - **The public classification was reasoned about SHIFT PATTERNS** — *"shift patterns are on the
   station's own printed rosters"* (`AUTH_PLAN.md` §2). A leave balance is not on a printed roster,
   and it is a different class of personal data about a third party.
-- **`public-data-classification.test.mjs` does not inspect `docs/` at all.** The guard covers
-  `roster-data.js`, the other world-readable surface; nothing covers this one, so the same class of
-  content can grow there silently.
+- **`public-data-classification.test.mjs` still does not inspect `docs/`.** It covers
+  `roster-data.js`, the other world-readable surface, and nothing about this change altered that.
+  What DID change is that `docs/` is no longer unguarded: `payroll-anonymity.test.mjs` scans the
+  whole tracked tree, Markdown included, for a roster name sitting beside a payroll term or a leave
+  balance. **Know what that does and does not promise.** It catches this class — a NAME next to a
+  FIGURE — which is the class that went wrong. It is not a classification guard: a new personal
+  field in a doc that never names anybody passes it, and so does a name beside something neither
+  vocabulary lists. The gap this bullet was written about is narrowed, not closed.
 
 The document's VALUE is its rules — how a quota grid is read, where the app and the spreadsheet
-legitimately disagree — not who the worked examples are about. Anonymising the examples would keep
-all of that and remove the personal data; it is not done here because it is a judgement about what
-should be public, which is the owner's to make.
+legitimately disagree — not who the worked examples are about. **That anonymisation was done, in
+this same change** (v24.15): every worked example keeps its figures and now reads *"a member"*, and
+the §7 mismatch table lost its figures column. This paragraph previously said it had NOT been done
+and left it as a judgement for the owner — true when it was written, and stale from the moment the
+change landed. The judgement that remains the owner's is the one above: whether to rewrite git
+history, which is what would remove the old copies.
 
 ### Admin/manager password is surname-derived (F-SEC-1) — scoped July 2026, owner chose leave-as-is
 

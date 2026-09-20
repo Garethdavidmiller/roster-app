@@ -34,7 +34,7 @@ const crypto = require('crypto');
 const { getAuth } = require('firebase-admin/auth');
 const { parseStrictIsoDate, isPayCutoffDay, fileSignatureMatches, buildPushPayload } = require('./roster-parse-helpers');
 const { mayReceiveDocumentUrl, resolveKind, kindFromBody, signedUrlExpiry, SIGNED_URL_TTL_MS,
-    isSignablePath } = require('./doc-url-core');
+    isSignablePathForKind } = require('./doc-url-core');
 const { setupWebPush, fanOutPush } = require('./push');
 
 /**
@@ -661,6 +661,13 @@ const sendPayReminderNotification = onSchedule(
      *    an hour on a cached token — the same reasoning `setupRosterAuth` records.
      * 4. IT SIGNS THE LATEST, exactly as the viewer opens the latest. Nothing is taken from the
      *    caller about WHICH document, so there is no id to tamper with.
+     * 5. AND THE PATH IS BOUND TO THE KIND (v24.18). Properties 1 and 4 mean the caller cannot
+     *    choose a document; this one means a document cannot choose a FILE outside its own
+     *    collection. The signer bypasses `storage.rules` and will sign whatever object it is
+     *    handed, so a `circulars` doc carrying `roster/…` would be this server turning one field
+     *    into a real read of something else. `firestore.rules` now refuses to store such a path and
+     *    `isSignablePathForKind` refuses to act on one — the second layer matters because the first
+     *    cannot reach a document written before it existed.
      *
      * ⚠️ DEPLOY PREREQUISITE — this endpoint cannot work without an IAM grant. `getSignedUrl` needs
      * to sign as the runtime service account, which on Cloud Functions means that account holds
@@ -712,10 +719,13 @@ const sendPayReminderNotification = onSchedule(
             if (snap.empty) return res.status(404).json({ error: `No ${kind.label} has been published yet` });
 
             const data = snap.docs[0].data() || {};
-            if (!isSignablePath(data.storagePath)) {
+            // FOR THIS KIND — not merely well-formed. The signer bypasses storage.rules, so a
+            // circulars document carrying a huddles path (or any other) must not be signed: see
+            // doc-url-core.js for why the kind is an argument rather than an assumption.
+            if (!isSignablePathForKind(kind.kind, data.storagePath)) {
                 // The server wrote this path; a bad one is our defect, not the caller's. Say so in
-                // the log and refuse — never hand an undefined path to the signer.
-                console.error(`[getDocumentUrl] ${kind.kind} ${snap.docs[0].id} has no usable storagePath`);
+                // the log and refuse — never hand an unchecked path to the signer.
+                console.error(`[getDocumentUrl] ${kind.kind} ${snap.docs[0].id} storagePath is missing or not a ${kind.collection}/ path`);
                 return res.status(503).json({ error: 'That document cannot be opened right now' });
             }
 
@@ -731,7 +741,17 @@ const sendPayReminderNotification = onSchedule(
                 return res.status(503).json({ error: 'Document signing unavailable' });
             }
 
-            console.log(`[getDocumentUrl] signed ${kind.kind} for ${claims.name || (claims.admin ? 'admin' : 'pin')} `
+            // ── THE DOOR, NEVER THE PERSON (v24.18, external review of v24.17) ────────────────
+            // This line named the member. Once the client calls this endpoint, that would make
+            // every document open a NAMED server-side access trail — at the exact moment the app
+            // shipped a privacy feature, and in direct contradiction of how it treats the same
+            // question elsewhere: `recordOpen` sends an increment and deliberately keeps who did it
+            // on the device. What is worth knowing here is which door was used and whether signing
+            // works, and both survive without an identity. If named document auditing is ever
+            // WANTED, that is a decision to take deliberately and write down, not to inherit from
+            // a debug log.
+            const door = claims.admin === true ? 'admin' : (typeof claims.name === 'string' ? 'member' : 'pin');
+            console.log(`[getDocumentUrl] signed ${kind.kind} for a ${door} `
                 + `(${SIGNED_URL_TTL_MS / 60000} min)`);
             return res.status(200).json({ url, expiresAt, fileType: data.fileType || null });
         },
