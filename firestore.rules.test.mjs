@@ -537,6 +537,21 @@ describe('huddles', () => {
         );
     });
 
+    // The same v24.18 binding on huddles. Both collections are checked because the rule is written
+    // out three times, once per collection — and a rule restated per collection is one that can be
+    // forgotten in one of them, silently, with the other two still passing.
+    test('admin cannot create a huddle whose storagePath belongs to another collection', async () => {
+        await assertFails(
+            setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), storagePath: 'circulars/2026-06-25.pdf' })
+        );
+    });
+
+    test('admin cannot create a huddle whose storagePath traverses out of it', async () => {
+        await assertFails(
+            setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), storagePath: 'huddles/../roster/x.pdf' })
+        );
+    });
+
     test('admin cannot create with non-string uploadedBy', async () => {
         await assertFails(
             setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), uploadedBy: 12345 })
@@ -1108,6 +1123,44 @@ describe('circulars', () => {
     test('admin can create with storagePath field (v13.99+)', async () => {
         await assertSucceeds(
             setDoc(doc(adminDb(), 'circulars', uid()), { ...VALID_CIRCULAR(), storagePath: 'circulars/2026-06-25-abc123.pdf' })
+        );
+    });
+
+    // ── storagePath is bound to its OWN collection (v24.18, external review of v24.17) ─────────
+    // Until v24.18 this field was in `hasOnly` and otherwise unchecked, which was defensible while
+    // a wrong value could only break a link. `getDocumentUrl` signs whatever path it reads, through
+    // the Admin SDK, which bypasses storage.rules — so a circulars document carrying another
+    // collection's path is a privileged read of a file this rule never meant to release. The
+    // endpoint refuses it too (`isSignablePathForKind`); this is the layer that stops it being
+    // STORED, which is the only one that helps for a document written before that check existed.
+    for (const [label, path] of [
+        ['a huddles path',           'huddles/2026-06-25-abc123.pdf'],
+        ['a newsletters path',       'newsletters/2026-06-25.pdf'],
+        ['an unrelated bucket path', 'roster/2026-06-25.pdf'],
+        ['a nested path',            'circulars/nested/thing.pdf'],
+        ['a traversing path',        'circulars/../huddles/x.pdf'],
+        ['an absolute path',         '/circulars/2026-06-25.pdf'],
+        ['a prefix-only path',       'circulars/'],
+        ['a lookalike collection',   'circularsX/2026-06-25.pdf'],
+        ['a non-string',             42],
+    ]) {
+        test(`admin cannot create a circular whose storagePath is ${label}`, async () => {
+            await assertFails(
+                setDoc(doc(adminDb(), 'circulars', uid()), { ...VALID_CIRCULAR(), storagePath: path })
+            );
+        });
+    }
+
+    test('a circular with NO storagePath is still allowed — pre-v13.99 documents have none', async () => {
+        // The direction a tightening gets wrong, and it is not hypothetical: the first cut of this
+        // rule REQUIRED the field and failed eight existing tests, because `legacyDocPath` exists
+        // precisely for documents that do not carry one.
+        await assertSucceeds(setDoc(doc(adminDb(), 'circulars', uid()), VALID_CIRCULAR()));
+    });
+
+    test('the legacy unversioned path shape is still allowed', async () => {
+        await assertSucceeds(
+            setDoc(doc(adminDb(), 'circulars', uid()), { ...VALID_CIRCULAR(), storagePath: 'circulars/2026-06-25.pdf' })
         );
     });
 

@@ -154,16 +154,85 @@ describe('HOW LONG — the window has to outlive Microsoft, not the tap', () => 
     });
 });
 
-describe('the path is checked even though the server supplies it', () => {
+describe('the path is checked even though the server supplies it — and bound to its KIND', () => {
 
-    test('an ordinary storage path signs', () => {
-        assert.equal(C.isSignablePath('huddles/2026-09-19-huddle.pdf'), true);
+    // ── WHY THIS BLOCK GREW TEETH (v24.18, external review of v24.17) ──────────────────────────
+    // The old `isSignablePath(path)` asked only whether a path was well-formed. That was the right
+    // question while a bad `storagePath` could only produce a broken link, and the wrong one the
+    // moment this module started handing paths to the Admin Storage API, which bypasses
+    // storage.rules and signs whatever it is given. The cases below are all the SAME case: a
+    // well-formed path that belongs to something else.
+
+    test('each kind signs its own collection', () => {
+        assert.equal(C.isSignablePathForKind('huddle', 'huddles/2026-09-19-k3f9a1.pdf'), true);
+        assert.equal(C.isSignablePathForKind('circular', 'circulars/2026-09-14-abc123.docx'), true);
+        assert.equal(C.isSignablePathForKind('newsletter', 'newsletters/2026-09-01.pdf'), true,
+            'the pre-v13.99 unversioned path shape must still sign — those documents still exist');
     });
 
-    test('absent, malformed or escaping paths fail CLOSED rather than reaching the signer', () => {
-        for (const bad of [undefined, null, '', 7, {}, '/huddles/x.pdf', 'huddles/../secrets/x']) {
-            assert.equal(C.isSignablePath(/** @type {any} */ (bad)), false,
+    test('a well-formed path belonging to ANOTHER kind is refused', () => {
+        // The finding, stated as a test. Each of these is a real path this app writes; what makes
+        // it unsignable is only that it is paired with the wrong kind.
+        assert.equal(C.isSignablePathForKind('circular', 'huddles/2026-09-19-k3f9a1.pdf'), false);
+        assert.equal(C.isSignablePathForKind('huddle', 'newsletters/2026-09-01.pdf'), false);
+        assert.equal(C.isSignablePathForKind('newsletter', 'circulars/2026-09-14-abc123.docx'), false);
+    });
+
+    test('a path outside the three collections is refused for every kind', () => {
+        for (const kind of ['huddle', 'circular', 'newsletter']) {
+            for (const path of ['roster/2026-09-19.pdf', 'clientErrors/x.json', 'x.pdf',
+                'huddlesX/a.pdf', 'Huddles/a.pdf']) {
+                assert.equal(C.isSignablePathForKind(kind, path), false,
+                    `${kind} would have signed ${path}`);
+            }
+        }
+    });
+
+    test('a prefix match is not enough — the rest must be one plain segment', () => {
+        for (const bad of ['huddles/', 'huddles/nested/thing.pdf', 'huddles/../secrets/x',
+            'huddles/..', '/huddles/x.pdf']) {
+            assert.equal(C.isSignablePathForKind('huddle', bad), false, `signed ${bad}`);
+        }
+    });
+
+    test('an unknown kind signs nothing, whatever the path', () => {
+        // Guards the call site as much as the input: passing something that is not a DOC_KINDS key
+        // must never degrade to "well-formed is good enough".
+        for (const kind of [undefined, null, '', 'huddles', 'HUDDLE', 7, {}, ['huddle']]) {
+            assert.equal(C.isSignablePathForKind(/** @type {any} */ (kind), 'huddles/x.pdf'), false,
+                `kind ${JSON.stringify(kind)} was honoured`);
+        }
+    });
+
+    test('absent or malformed paths fail CLOSED rather than reaching the signer', () => {
+        for (const bad of [undefined, null, '', 7, {}, []]) {
+            assert.equal(C.isSignablePathForKind('huddle', /** @type {any} */ (bad)), false,
                 `${JSON.stringify(bad)} would have been signed`);
         }
+    });
+
+    // ── The second layer, and the parity that keeps them agreeing ──────────────────────────────
+    // firestore.rules stops the bad value being STORED; this module stops it being ACTED ON. Two
+    // copies of one rule is the shape this repo keeps getting bitten by, so the rule text is read
+    // rather than remembered — exactly as the access-door parity above does.
+    test('firestore.rules binds storagePath to the same collection, for all three', () => {
+        for (const [kind, collection] of Object.entries(C.DOC_KINDS)
+            .map(([k, v]) => [k, v.collection])) {
+            const m = RULES.match(
+                new RegExp(`storagePath\\.matches\\('([^']+)'\\)`, 'g'));
+            assert.ok(m && m.length === 3,
+                `expected three storagePath.matches() rules, found ${m ? m.length : 0} — a document `
+                + 'collection has lost its prefix binding, so a path for another collection could be '
+                + `written into it (${kind})`);
+            assert.match(RULES, new RegExp(`storagePath\\.matches\\('${collection}/`),
+                `${collection} does not bind storagePath to its own prefix in firestore.rules`);
+        }
+    });
+
+    test('and it requires the field to be a string first', () => {
+        // matches() on a non-string errors, which denies — but relying on an error to enforce a
+        // rule is how a rule stops being read. Three collections, three explicit checks.
+        const n = (RULES.match(/request\.resource\.data\.storagePath is string/g) || []).length;
+        assert.equal(n, 3, `expected 3 \`storagePath is string\` checks, found ${n}`);
     });
 });

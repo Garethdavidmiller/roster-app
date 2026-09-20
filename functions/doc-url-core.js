@@ -156,21 +156,45 @@ function signedUrlExpiry(nowMs) {
 }
 
 /**
- * Is a storage path one this endpoint is willing to sign?
+ * Is a storage path one this endpoint is willing to sign FOR THIS KIND?
  *
- * The path comes from the SERVER's own Firestore read, never from the caller, so this is a
- * belt-and-braces check on our own data rather than input validation. It still earns its place: a
- * malformed or absent `storagePath` on a document must fail closed with a clear refusal rather than
- * reach the signing call and produce whatever that does with `undefined`.
+ * ── WHY THE KIND IS AN ARGUMENT, AND NOT A COMMENT (v24.18, external review of v24.17) ──────────
  *
- * @param {any} path
+ * The first version took the path alone and asked only whether it was well-formed: a non-empty
+ * string, not absolute, no `..`. That was written when the worst a bad `storagePath` could do was
+ * produce a broken link, and it says so — "a belt-and-braces check on our own data".
+ *
+ * THE SIGNER CHANGED THAT ARITHMETIC. This module now hands a path to the Admin Storage API, which
+ * bypasses `storage.rules` entirely and returns a working read URL for WHATEVER it is given. So a
+ * `storagePath` of `roster/2026-09-19.pdf` sitting in a `circulars` document is no longer malformed
+ * metadata — it is a privileged server turning one field into a genuine signed read of a different
+ * object. The precondition is still strong (an admin write or a defect would have to put it there,
+ * and `firestore.rules` now binds the field to its collection prefix as defence in depth), which is
+ * why this was fixed while the endpoint is young rather than treated as an incident.
+ *
+ * The fix is the SHAPE of the question. `isSignablePath(path)` cannot be asked correctly, because
+ * the answer depends on something the caller was not made to supply; `isSignablePathForKind` cannot
+ * be called without stating which kind the path is supposed to belong to. Passing the wrong kind is
+ * then a visible mistake at the call site rather than an invisible absence at this one.
+ *
+ * The path still comes from the SERVER's own Firestore read, never from the caller. Both halves
+ * matter: the caller cannot name a path, and a path the server read cannot escape its own kind.
+ *
+ * @param {any} kind  a resolved kind key from DOC_KINDS — 'huddle' | 'circular' | 'newsletter'
+ * @param {any} path  the `storagePath` field of the document that kind resolved to
  * @returns {boolean}
  */
-function isSignablePath(path) {
-    return typeof path === 'string'
-        && path.length > 0
-        && !path.startsWith('/')
-        && !path.includes('..');
+function isSignablePathForKind(kind, path) {
+    if (typeof kind !== 'string' || !Object.prototype.hasOwnProperty.call(DOC_KINDS, kind)) return false;
+    if (typeof path !== 'string' || path.length === 0) return false;
+    if (path.startsWith('/') || path.includes('..')) return false;
+    const prefix = `${DOC_KINDS[kind].collection}/`;
+    if (!path.startsWith(prefix)) return false;
+    // Exactly ONE segment under the prefix. Without this, `huddles/x/../../y` is already refused by
+    // the `..` check above, but `huddles/nested/thing` would not be — and nothing this app writes
+    // has ever nested, so a nested path is by definition not a document of this kind.
+    const rest = path.slice(prefix.length);
+    return rest.length > 0 && !rest.includes('/');
 }
 
 module.exports = {
@@ -180,5 +204,5 @@ module.exports = {
     mayReceiveDocumentUrl,
     resolveKind,
     signedUrlExpiry,
-    isSignablePath,
+    isSignablePathForKind,
 };
