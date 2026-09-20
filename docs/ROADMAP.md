@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: September 2026 — v24.10 · Updated every 0.10 version*
+*Last updated: September 2026 — v24.20 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -198,8 +198,14 @@ now waived BY NAME in `roster-prompt-parity.test.mjs` so phase 3 has to decide a
 inherit them), plus `Until 10:30` and `Medical`, which genuinely want a person. Phase 3 would make the
 97% PROVABLE rather than probable — a deterministic parser is testable in a way a model call is not,
 which is what would finally close the "we cannot show the model normalises well" caveat phase 2 ships
-with. **`NA` needs an owner answer first**: the prompt says return `RD`, and that should be confirmed
-against what the roster office means by it before it is hard-coded.
+with. **`NA` IS ANSWERED, and it is no longer one of the nine** (owner, 20 Sep 2026): it means **not
+available**, and "usually only falls on a Sunday as it is uncontracted". That is not a translation
+to `RD` — it is a rule that depends on the COLUMN, which is why the prompt no longer answers it at
+all. The prompt reports `NA`; `buildSafeEntries` writes `RD` on Sunday (where not-available and
+not-working coincide, because nobody is contracted) and sends Mon–Sat to an admin (where the person
+IS contracted and the two stop coinciding). Shipped v24.20, so the deterministic read is now 291 of
+297 rather than 288 — `NA` never needed the model. `PIDD TRG` ×4, `Until 10:30` and `Medical` are
+what remain, and the last two genuinely want a person.
 
 ### Track E — the authentication decision
 **Status:** Blocked on an owner decision · **Owner:** Gareth · **Design:** `AUTH_PLAN.md` · **Status of record:** `SECURITY_RELEASE_PLAN.md`

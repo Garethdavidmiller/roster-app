@@ -74,7 +74,7 @@ const SHIFT_VOCABULARY = `WHAT THE CODES MEAN:
 - TEAM DAY or TEAM = Team day. Return "TEAM" (or "TEAM RDW" if the cell also says RDW).
 - UNION COURSE or UNION = Union course day. Return "UNION" (or "UNION RDW" if the cell also says RDW).
 - MTG or MEETING = Meeting day. Return "MEET" (or "MEET RDW" if the cell also says RDW).
-- NA or N/A or NS = Not available. Return "RD".
+- NA or N/A or NS = Not available. Return "NA". Do NOT return "RD" — "not available" and "rest day" are the same thing only on a Sunday, which is uncontracted, and it is not your job to know which day this cell is. Report the code and stop there.
 - GER = Gerrards Cross station. Extract the shift time next to it (e.g. "GER 06:00-12:00" → "06:00-12:00"). If no time, return "RD".
 - Blank = the cell contains NO text at all (or only a dash) = "BLANK". Never "RD" — "RD" is
   reserved for a cell where the letters R and D are actually printed.
