@@ -109,9 +109,10 @@ export const COLLECTIONS = {
 // importers (nav-panel, calendar-doc-viewer, the Huddle viewer) are unaffected; isDocxUpload is used
 // internally by the upload paths. officeViewerUrl is re-exported for the DOCX circular/newsletter
 // open path (nav-panel, calendar-doc-viewer).
-import { isSafeStorageUrl, isDocxUpload, officeViewerUrl, legacyDocPath, versionedDocPath, uploadMimeType } from './storage-utils.js';
+import { isSafeStorageUrl, isDocxUpload, officeViewerUrl, resolveDocumentOpenUrl, legacyDocPath, versionedDocPath, uploadMimeType } from './storage-utils.js';
 import { fetchWithTimeout, isFetchTimeout } from './fetch-timeout.js';
-export { isSafeStorageUrl, officeViewerUrl };
+import { requestSignedDocumentUrl } from './document-url.js';
+export { isSafeStorageUrl, officeViewerUrl, resolveDocumentOpenUrl };
 
 // ---- Firebase Authentication ----
 
@@ -686,6 +687,24 @@ export async function resetMemberPassword(memberName, { revoke = true } = {}) {
 }
 
 /** Admin-only Cloud Function returning the EXACT unique-account sign-in counts (v18.96). */
+/**
+ * A SHORT-LIVED url for the latest Huddle / Circular / Newsletter, or `null` to use the stored one.
+ *
+ * The RULE — which failures mean "fall back", and why every one of them is ordinary — lives in
+ * `document-url.js`, which imports no Firebase and is therefore testable in Node. This is the
+ * three lines that cannot live there: the current user, and their ID token.
+ *
+ * @param {'huddle'|'circular'|'newsletter'} kind
+ * @returns {Promise<string|null>}
+ */
+export async function fetchSignedDocumentUrl(kind) {
+    const user = auth.currentUser;
+    // No session, no ID token, so the request could only 401. Returning here keeps a signed-out
+    // visitor's open instant rather than costing them a round trip to be refused.
+    if (!user) return null;
+    return requestSignedDocumentUrl(kind, () => user.getIdToken());
+}
+
 const SIGN_IN_STATS_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/getSignInStats';
 
 /**

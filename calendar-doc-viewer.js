@@ -19,7 +19,7 @@
  * Microsoft's Office Online viewer (officeViewerUrl) which renders it with images.
  */
 import { createLightbox } from './overlay.js';
-import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, officeViewerUrl } from './firebase-client.js';
+import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, resolveDocumentOpenUrl, fetchSignedDocumentUrl } from './firebase-client.js';
 import { recordOpen } from './usage-reporter.js';
 import { getCurrentMember, isFirstRun } from './calendar-member.js';
 
@@ -140,14 +140,26 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
             ]);
             if (seq !== _openSeq) return;   // a newer tap superseded this one — don't clobber its content
             if (doc && isSafeStorageUrl(doc.storageUrl)) {
+                // ── MINTED HERE, NOT IN THE CLICK HANDLER (v24.19) ──────────────────────────────
+                // The short-lived url (getDocumentUrl, v24.16) replaces the permanent bearer url
+                // this viewer used to hand out. It is fetched now, while the button is still being
+                // built, because the click below must stay SYNCHRONOUS: awaiting inside it spends
+                // the user gesture, and `window.open` without a gesture is pop-up-blocked and
+                // knocks the PWA out of standalone — the failure this file's own comments warn
+                // about. The cost is one request per viewer open rather than per tap, and the
+                // signing window (15 min) is sized for exactly this chain.
+                // A null here is ORDINARY — no IAM grant yet, a lapsed claim, a timeout — and
+                // resolveDocumentOpenUrl then uses the stored url, which is what shipped before.
+                const signed = await fetchSignedDocumentUrl(/** @type {any} */ (key));
+                if (seq !== _openSeq) return;   // a newer tap superseded this one while we waited
+                const open = resolveDocumentOpenUrl({ signed, stored: doc.storageUrl, fileType: doc.fileType });
+                if (!open) { showMessage(d.empty, 'doc-viewer-empty'); return; }
                 bodyEl.textContent = '';
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = 'doc-open-btn';
                 btn.textContent = `📄 Open ${d.label}`;
-                // A .docx would download if opened directly — render it via the Office Online
-                // viewer instead. PDFs open by their own URL (browsers show them inline).
-                const openUrl = doc.fileType === 'docx' ? officeViewerUrl(doc.storageUrl) : doc.storageUrl;
+                const openUrl = open.url;
                 // Real user gesture → window.open opens a Custom Tab over the standalone app.
                 // Counted here (not on viewer open) so the count means the document was actually
                 // opened — mirroring the nav-drawer path (v18.20; admin-excluded, anonymous).

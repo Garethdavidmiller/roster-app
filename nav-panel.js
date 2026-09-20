@@ -49,7 +49,7 @@
  */
 
 import { notifSupported, peekNotifState, enableNotifications, disableNotifications } from './notif.js';
-import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, officeViewerUrl } from './firebase-client.js';
+import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, resolveDocumentOpenUrl, fetchSignedDocumentUrl } from './firebase-client.js';
 import { APP_VERSION, avatarInitials, avatarHue } from './roster-data.js';
 import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor } from './overlay.js';
 import { lsGet, lsSet } from './ls.js';
@@ -464,13 +464,27 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // anyway restores that: it succeeds under today's rules, and once reads require a session it
         // fails into the same fallback rather than stalling first.
         const authOrSoon = Promise.race([authReady, new Promise(r => setTimeout(r, DOC_AUTH_WAIT_MS))]);
-        Promise.race([authOrSoon.then(() => fetchFn()), timed]).then(/** @param {any} data */ data => {
+        Promise.race([authOrSoon.then(() => fetchFn()), timed]).then(/** @param {any} data */ async data => {
             const url = data?.storageUrl;
             const safeUrl = isSafeStorageUrl(url) ? url : null;
             if (safeUrl) {
-                // A .docx would download if opened directly — render it via the Office Online
-                // viewer instead. PDFs open by their own URL (browsers show them inline).
-                const openUrl = data.fileType === 'docx' ? officeViewerUrl(safeUrl) : safeUrl;
+                // ── THE SHORT-LIVED URL, AND WHY AWAITING IS SAFE *HERE* (v24.19) ───────────────
+                // The other two surfaces mint before their button exists, because awaiting inside a
+                // click handler spends the user gesture. This path already solved that differently:
+                // `newTab` was opened ON the gesture, above, and is sitting there waiting for a
+                // location — so there is no gesture left to lose and the await costs nothing but
+                // the time the member is already watching a blank tab for.
+                // `docId` is 'circular' | 'newsletter', which is exactly the KIND the endpoint
+                // takes; a null is ordinary (no IAM grant, lapsed claim, timeout) and the stored
+                // url is then used, as it was before this existed.
+                const signed = await fetchSignedDocumentUrl(/** @type {any} */ (docId));
+                const open = resolveDocumentOpenUrl({ signed, stored: safeUrl, fileType: data.fileType });
+                // Unreachable while `safeUrl` is non-null (resolveDocumentOpenUrl would have to
+                // reject BOTH urls), but it is the branch that hands a url to window.open, so it
+                // fails closed rather than trusting that. Same shape as the no-document path below:
+                // the pre-opened tab must be CLOSED, or the member is left on a blank one.
+                if (!open) { if (newTab) newTab.close(); return _docFailureFallback(triggerEl); }
+                const openUrl = open.url;
                 // The document genuinely opens on both branches below — count it (anonymous,
                 // admin-excluded; v18.20). Failure/no-doc paths never reach here.
                 recordOpen(docId, _usageId);
