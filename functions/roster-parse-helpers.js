@@ -371,18 +371,10 @@ const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Fri
 //
 // It is matched CASE-INSENSITIVELY and the scan set below shares it, so `parsed`, `sundayScan` and
 // `columnScan` cannot end up with three subtly different ideas of what empty looks like.
-const BLANK_CELL_TOKEN = 'BLANK';
-
-/**
- * Did the model report this cell as physically empty? True for a missing key, an empty string and
- * the BLANK token — the three ways "there was nothing there" arrives.
- * @param {any} raw
- */
-function isPhysicallyBlank(raw) {
-    if (raw === undefined || raw === null) return true;
-    const s = String(raw).trim();
-    return s === '' || s.toUpperCase() === BLANK_CELL_TOKEN;
-}
+const {
+    BLANK_CELL_TOKEN, NOT_AVAILABLE_TOKENS,
+    isPhysicallyBlank, isNotAvailable, blankCellMeaning, notAvailableMeaning,
+} = require('./cell-day-rules');
 
 function buildSafeEntries(parsedMembers, columnHeaders, dates) {
     const safeEntries = [];
@@ -434,9 +426,7 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
         // not show Tuesday is a broken read, not a format.
         const shifts = {};
         for (let i = 0; i < dates.length; i++) {
-            shifts[dates[i]] = (i === 0)
-                ? 'RD'
-                : `UNKNOWN|no ${DAY_LABELS[i] || 'day'} cell was read — check the PDF`;
+            shifts[dates[i]] = blankCellMeaning(i, DAY_LABELS[i]);
         }
 
         // Tolerant member-cell lookup (v16.84): the header→date map resolves a header
@@ -488,9 +478,25 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
                 // covers a day whose HEADER the model never listed, and this one a header it listed
                 // with nothing in it. Both were 'RD' until v22.19, so the fix had to be made twice
                 // or it would have been made nowhere the model actually goes.
-                shifts[date] = (dayIndex === 0)
-                    ? 'RD'
-                    : `UNKNOWN|no ${DAY_LABELS[dayIndex] || 'day'} cell was read — check the PDF`;
+                shifts[date] = blankCellMeaning(dayIndex, DAY_LABELS[dayIndex]);
+                continue;
+            }
+
+            // ── "NOT AVAILABLE" IS AN ANSWER ON SUNDAY AND A QUESTION EVERYWHERE ELSE (v24.20) ──
+            //
+            // Exactly the blank-cell rule above, for exactly the same reason, and it is the owner's
+            // fact that joins them: NA means NOT AVAILABLE, and it "usually only falls on a Sunday
+            // as it is uncontracted". On Sunday, not-available and not-working are the same thing
+            // BECAUSE nobody is contracted to be there — which is what makes RD the right answer.
+            // That equivalence is precisely what stops being true Monday to Saturday, where the
+            // person IS contracted and "not available" is a statement about them, not a rest day.
+            //
+            // The prompt used to answer this itself ("Return \"RD\""), unconditionally, for every
+            // day. That is the same mistake the blank rule was created to undo: a model deciding
+            // what a cell MEANS when the meaning depends on which column it is in, which the model
+            // is not asked to know. The prompt now reports `NA` and this decides.
+            if (isNotAvailable(raw)) {
+                shifts[date] = notAvailableMeaning(dayIndex, DAY_LABELS[dayIndex]);
                 continue;
             }
 
@@ -1357,6 +1363,8 @@ module.exports = {
     mapColumnHeadersToDates,
     buildSafeEntries,
     BLANK_CELL_TOKEN,
+    NOT_AVAILABLE_TOKENS,
+    isNotAvailable,
     isPhysicallyBlank,
     applySundayScanCorrections,
     applyColumnScanCrossCheck,

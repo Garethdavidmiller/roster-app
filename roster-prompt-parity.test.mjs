@@ -100,15 +100,32 @@ describe('every code the PROMPT names is either accepted by the parser or waived
      * Codes the prompt tells the MODEL to convert, so `normaliseShift` never receives them.
      * Each needs a reason, because an unexplained entry here is how the rule gets hollowed out.
      *
-     *   NA · N/A · NS  "Not available" — the prompt asks for "RD" directly, and the parser has
-     *                  never been taught the code. Harmless while a model is in the loop; it is
-     *                  the first thing to fix if a deterministic pass ever replaces it (phase 3).
      *   GER            NOT a status code at all — Gerrards Cross, a LOCATION marker. The prompt
      *                  asks for the time beside it. The parser reads "06:00-12:00 GER" (time
      *                  first, trailing content) but not "GER 06:00-12:00", so the model's
      *                  reordering is doing real work here rather than none.
      */
-    const TRANSLATED_BY_THE_MODEL = new Set(['NA', 'N/A', 'NS', 'GER']);
+    const TRANSLATED_BY_THE_MODEL = new Set(['GER']);
+
+    /**
+     * Codes `buildSafeEntries` answers ITSELF, before `normaliseShift` is ever called — because
+     * their meaning depends on WHICH DAY the cell is in, which a per-cell normaliser cannot know.
+     *
+     *   NA · N/A · NS  "Not available" (v24.20). The prompt used to say `Return "RD"`,
+     *                  unconditionally, and this entry sat in TRANSLATED_BY_THE_MODEL above saying
+     *                  so — noting it was "the first thing to fix if a deterministic pass ever
+     *                  replaces it". That fix is this. The OWNER's fact is what decides it: NA
+     *                  means not available and "usually only falls on a Sunday as it is
+     *                  uncontracted". On Sunday, not-available and not-working are the same thing
+     *                  because nobody is contracted to be there, so RD is right. Monday to
+     *                  Saturday the person IS contracted, the two stop being the same, and the cell
+     *                  goes to an admin instead of being quietly written as a rest day.
+     *
+     * This is a DIFFERENT waiver from the one above and must stay different: that one says a human
+     * decision was delegated to the model, this one says it was taken by the coordinator where the
+     * day is known. Collapsing them would lose the distinction that makes the first one dangerous.
+     */
+    const DECIDED_BY_THE_DAY = new Set(['NA', 'N/A', 'NS']);
 
     test('no unwaived prompt code falls through to UNKNOWN', () => {
         const section = promptSection();
@@ -121,7 +138,7 @@ describe('every code the PROMPT names is either accepted by the parser or waived
         }
         assert.ok(named.size >= 8, `only ${named.size} codes parsed out of the prompt — the row shape changed`);
         const orphaned = [...named].filter((c) => {
-            if (TRANSLATED_BY_THE_MODEL.has(c)) return false;
+            if (TRANSLATED_BY_THE_MODEL.has(c) || DECIDED_BY_THE_DAY.has(c)) return false;
             const warn = console.warn; console.warn = () => {};
             try { return String(normaliseShift(c)).startsWith('UNKNOWN|'); } finally { console.warn = warn; }
         });
@@ -129,8 +146,9 @@ describe('every code the PROMPT names is either accepted by the parser or waived
             'The prompt names these codes but `normaliseShift` rejects them, so a cell carrying one '
             + 'becomes UNREADABLE the moment it reaches the parser without the model translating it '
             + '— which is what the geometry-first read does:\n  ' + orphaned.join(', ')
-            + '\n\nEither teach the parser the code, or add it to TRANSLATED_BY_THE_MODEL with a '
-            + 'reason. Do not widen the regex to make it disappear.');
+            + '\n\nEither teach the parser the code, or name it in TRANSLATED_BY_THE_MODEL (the model '
+            + 'converts it) or DECIDED_BY_THE_DAY (buildSafeEntries answers it, because the meaning '
+            + 'depends on the column) — with a reason. Do not widen the regex to make it disappear.');
     });
 });
 
@@ -363,13 +381,24 @@ describe('the prompt never asks the AI to interpret a blank cell', () => {
         // BLANK would send every blank cell down the normaliseShift path as an unknown value —
         // arguably safe, and arriving as ~44 unreadable review rows per upload, which is the kind
         // of "safe" nobody keeps.
-        const token = /const BLANK_CELL_TOKEN = '([^']+)'/.exec(HELPERS);
-        assert.ok(token, 'BLANK_CELL_TOKEN is not declared in roster-parse-helpers.js');
+        // The token moved to `functions/cell-day-rules.js` with the two day-dependent cell
+        // rules (v24.20); `roster-parse-helpers.js` destructures it. Read it where it is
+        // DECLARED — following the declaration is the point, and a regex that quietly found
+        // nothing would have made this assertion pass on an empty match.
+        const RULES_SRC = readFileSync(new URL('./functions/cell-day-rules.js', import.meta.url), 'utf8');
+        const token = /const BLANK_CELL_TOKEN = '([^']+)'/.exec(RULES_SRC);
+        assert.ok(token, 'BLANK_CELL_TOKEN is not declared in functions/cell-day-rules.js');
         assert.ok(FULL.includes(`"${token[1]}"`),
             `the parser recognises "${token[1]}" but the prompt never asks the model to write it`);
-        assert.match(HELPERS, /function isPhysicallyBlank/,
+        assert.match(RULES_SRC, /function isPhysicallyBlank/,
             'isPhysicallyBlank must exist — it is what makes "the model said empty" and "the model '
-            + 'never mentioned this day" take the same branch');
+            + 'never mentioned this day" take the same branch. It moved to cell-day-rules.js with '
+            + 'the day-dependent rules (v24.20).');
+        // And the coordinator must still be the thing CALLING it, or the rule is a module nobody
+        // asks. `blankCellMeaning` is routed from three sites there; one is enough to prove wiring.
+        assert.match(HELPERS, /blankCellMeaning\(/,
+            'roster-parse-helpers.js no longer calls blankCellMeaning — the blank rule has been '
+            + 'extracted into a module and then disconnected, which is worse than leaving it inline');
     });
 
     test('the blank-Sunday rule keeps its actual job — never omit the key', () => {

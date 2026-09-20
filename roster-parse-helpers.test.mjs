@@ -505,6 +505,56 @@ describe('buildSafeEntries', () => {
         assert.equal(entries[0].shifts['2026-03-30'], '05:30-11:30');
         assert.equal(entries[0].shifts['2026-03-29'], 'RD');
     });
+    // ── "NOT AVAILABLE" IS AN ANSWER ON SUNDAY AND A QUESTION EVERYWHERE ELSE (v24.20) ─────────
+    //
+    // The owner's fact is what decides this: NA means NOT AVAILABLE and "usually only falls on a
+    // Sunday as it is uncontracted". On Sunday, not-available and not-working are the same thing
+    // BECAUSE nobody is contracted to be there — which is what makes RD correct. Monday to Saturday
+    // the person IS contracted, the two are no longer the same, and writing RD would state
+    // something about them that the sheet does not say.
+    //
+    // Until v24.20 the PROMPT answered this, unconditionally, for every day ("Return \"RD\"") —
+    // the same mistake the blank-cell rule was created to undo.
+    describe('a cell marked "not available"', () => {
+        const row = (day, value) => ({
+            memberName: 'G. Miller',
+            Sun: 'RD', Mon: 'RD', Tue: 'RD', Wed: 'RD', Thu: 'RD', Fri: 'RD', Sat: 'RD',
+            [day]: value,
+        });
+
+        test('on SUNDAY it is a rest day — the day is uncontracted, so the two agree', () => {
+            for (const token of ['NA', 'N/A', 'NS', 'na', ' n/a ']) {
+                const e = buildSafeEntries([row('Sun', token)], HEADERS, DATES);
+                assert.equal(e[0].shifts['2026-03-29'], 'RD', `Sunday ${JSON.stringify(token)}`);
+            }
+        });
+
+        test('MONDAY TO SATURDAY it goes to an admin, and says which day and why', () => {
+            // The whole point. A silent RD here would record a contracted person as resting.
+            for (const [day, date] of [['Mon', '2026-03-30'], ['Wed', '2026-04-01'], ['Sat', '2026-04-04']]) {
+                const got = String(buildSafeEntries([row(day, 'NA')], HEADERS, DATES)[0].shifts[date]);
+                assert.ok(got.startsWith('UNKNOWN|'), `${day} was written as ${got} instead of being flagged`);
+                assert.match(got, /not available/i, 'the reviewer must be told what the cell said');
+                assert.match(got, /contracted/i, 'and why that is a question rather than a rest day');
+            }
+        });
+
+        test('it is not confused with a code that merely contains those letters', () => {
+            // `isNotAvailable` matches the WHOLE cell. A time, or any other status, is untouched.
+            for (const v of ['NAT', 'ANA', 'AL', 'RD', '06:20-13:35']) {
+                const got = String(buildSafeEntries([row('Mon', v)], HEADERS, DATES)[0].shifts['2026-03-30']);
+                assert.ok(!/not available/i.test(got), `${v} was read as "not available"`);
+            }
+        });
+
+        test('and an ordinary Sunday value is still read normally — the rule is narrow', () => {
+            // Guards the guard: a Sunday branch that returned RD for everything would pass the
+            // first test above and be badly wrong.
+            const e = buildSafeEntries([row('Sun', '08:00-16:00')], HEADERS, DATES);
+            assert.equal(e[0].shifts['2026-03-29'], '08:00-16:00');
+        });
+    });
+
     test('shift values are normalised', () => {
         const entries = buildSafeEntries(
             [{ memberName: 'L. Springer', Mon: '0530-1130', Sun: 'RD', Tue: 'RD', Wed: 'RD', Thu: 'RD', Fri: 'RD', Sat: 'RD' }],

@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: September 2026 — v24.10 · Updated every 0.10 version*
+*Last updated: September 2026 — v24.20 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -128,9 +128,18 @@ NOW, take it seriously: the flake excuse has been spent.
 
 ### The document FILES are protected by a bearer URL, not by auth
 `storage.rules` gates direct Storage SDK reads, but staff never read Huddles/Circulars/Newsletters
-that way — they open the permanent tokenised `storageUrl` saved in the Firestore doc, which carries
-its own access token and **bypasses the rules entirely** (documented in `storage.rules` itself:
-"Don't store confidential files here unless that delivery model changes").
+that way — they open a URL that carries its own access token and **bypasses the rules entirely**
+(documented in `storage.rules` itself: "Don't store confidential files here unless that delivery
+model changes").
+
+**WHICH url, as of v24.19, depends on one IAM grant.** The three opening surfaces now ask
+`getDocumentUrl` for a **15-minute signed URL** and open that. Without
+`roles/iam.serviceAccountTokenCreator` on the runtime service account every call answers 503 and
+they fall back to the **permanent tokenised `storageUrl`** in the Firestore document — which is the
+state described throughout the rest of this entry, and the state the app is in until that grant is
+made. The fallback is deliberate: a member must be able to open the document either way. So this
+entry is not yet closed by the change; it is closed by the grant, and then by rotating the objects
+whose permanent URLs are already in circulation.
 
 Consequence, stated plainly because no other doc says it: **tightening the Firestore read rules would
 not put these documents behind authentication.** It would change who can *discover* a URL; anyone who
