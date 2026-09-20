@@ -2012,8 +2012,39 @@ test('admin: saving reports the DAYS it changed, not just how many', async ({ pa
     // opt the stub in, the way every other spec that reaches a real write does.
     await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
     await seedSession(page, 'G. Miller');
+
+    // ── THIS TEST NAVIGATES TO A FIXED WEEK, AND IT HAS TO (v24.19) ────────────────────────────
+    //
+    // It needs a CLEAN multi-day save: it bulk-applies ANNUAL LEAVE to Mon–Fri and asserts the
+    // receipt names the days it changed. Since v23.75, annual leave on a base REST DAY is asked
+    // about rather than defaulted — "say whether this rest day was a swapped working day" — and the
+    // save REFUSES until every affected day is answered. That rule is correct, and it is not what
+    // this test is about.
+    //
+    // Whether Mon–Fri contains a rest day depends on where the default member's rotation sits in
+    // the week the page opens on, and the page opened on TODAY's week. So this test passed or
+    // failed according to the date it was run on, with nothing in it saying so. It went red on
+    // 20 Sep 2026 — on main, on both engines, and on the retry — having never been touched.
+    //
+    // NOT `page.clock.setFixedTime`, which is how the rest of this suite pins time: freezing the
+    // clock here stops the week grid rendering at all (`.day-row` never appears), so the page never
+    // gets as far as the thing under test. Driving the app's OWN week navigation is both closer to
+    // what a user does and immune to that.
+    //
+    // The week is one where the dropdown's first member — L. Springer, which is what a fresh
+    // profile selects — works all five days. If the roster data ever moves under this, the failure
+    // is the app's own refusal naming the offending date, which says exactly what happened; a scan
+    // of `getBaseShift` over successive Sundays finds the next clean week.
     await page.goto('/admin.html');
     await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    await page.locator('#fieldDate').evaluate((el) => {
+        /** @type {HTMLInputElement} */ (el).value = '2027-01-11';       // Monday
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    // Fail LOUDLY if that did not land where it should, rather than through whatever the save does
+    // about it — a wrong week would make every assertion below meaningless.
+    await expect(page.locator('#weekNavLabel')).toContainText('Jan 2027');
 
     // Stage several days through the real bulk path, then save.
     await page.locator('#bulkSelMonFri').click();
