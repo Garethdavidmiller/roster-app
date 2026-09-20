@@ -37,7 +37,7 @@ function _loadPurify() {
     return (_purifyPromise ||= import('./purify.es.mjs').then(m => m.default)
         .catch(err => { _purifyPromise = null; throw err; }));
 }
-import { subscribeToLatestHuddle, isSafeStorageUrl } from './firebase-client.js';
+import { subscribeToLatestHuddle, resolveDocumentOpenUrl, fetchSignedDocumentUrl } from './firebase-client.js';
 import { lockBodyScroll, _pushOverlayState, dismissOverlay, trapFocus, _isTopOverlay } from './overlay.js';
 import { recordOpen } from './usage-reporter.js';
 import { getCurrentMember, isFirstRun } from './calendar-member.js';
@@ -235,19 +235,29 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
     // button: tapping it IS a real gesture, so the file opens as a separate Custom Tab over the
     // intact standalone app, and Back returns to the clean app.
     /** @param {any} huddle */
-    function showOpenFileButton(huddle) {
+    async function showOpenFileButton(huddle) {
         body.innerHTML = '<div class="huddle-open-prompt">'
             + '<p>The latest Huddle is ready.</p>'
             + '<button type="button" id="huddleOpenFileBtn" class="huddle-open-btn">📄 Open Huddle</button>'
             + '</div>';
         openViewer();
+        // ── MINTED BEFORE THE TAP, NEVER INSIDE IT (v24.19) ─────────────────────────────────────
+        // This button exists precisely because a real gesture is needed: the file opens as a Custom
+        // Tab over the intact standalone app (see the comment above this function). Awaiting the
+        // short-lived url inside the handler would spend that gesture and undo the whole reason the
+        // button is here, so it is fetched while the member is still reading the prompt.
+        // A null is ORDINARY — no IAM grant yet, a lapsed claim, a timeout — and the stored url,
+        // which is what shipped before, is used instead.
+        const signed = await fetchSignedDocumentUrl('huddle');
+        // Defence-in-depth: only open a recognised Firebase Storage HTTPS URL (the same validator
+        // the Circular/Newsletter openers use, now inside resolveDocumentOpenUrl and applied to the
+        // signed url too). Guards against malformed Firestore data or a compromised write opening
+        // an arbitrary URL.
+        const open = resolveDocumentOpenUrl({ signed, stored: huddle.storageUrl, fileType: huddle.fileType });
         const openBtn = document.getElementById('huddleOpenFileBtn');
         openBtn?.addEventListener('click', () => {
-            // Defence-in-depth: only open a recognised Firebase Storage HTTPS URL
-            // (same validator the Circular/Newsletter openers use). Guards against
-            // malformed Firestore data or a compromised write opening an arbitrary URL.
-            if (isSafeStorageUrl(huddle.storageUrl)) {
-                window.open(huddle.storageUrl, '_blank', 'noopener');
+            if (open) {
+                window.open(open.url, '_blank', 'noopener');
             } else {
                 body.innerHTML = '<p class="huddle-error">This Huddle link is unavailable — please contact the admin.</p>';
             }
@@ -275,7 +285,9 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
             // nothing. Fall back to the Open-file button instead: the storageUrl is still
             // perfectly openable, matching the documented DOCX-conversion-failed UX (v16.23).
             console.error('[Huddle] inline render failed:', err);
-            showOpenFileButton(huddle);
+            // `showOpenFileButton` is async since v24.19 and this call is fire-and-forget from
+            // inside a catch, so its own failure has nowhere to go but an unhandled rejection.
+            showOpenFileButton(huddle).catch(e => console.error('[Huddle] open-file fallback failed:', e));
         }
     }
 
@@ -312,8 +324,9 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
                 // DOCX converted to HTML server-side — render inline.
                 showInlineHuddle(huddle);
             } else {
-                // PDF, or DOCX where conversion failed.
-                showOpenFileButton(huddle);
+                // PDF, or DOCX where conversion failed. Async since v24.19 — see the other call
+                // site; the surrounding try only catches what it awaits.
+                showOpenFileButton(huddle).catch(e => console.error('[Huddle] open-file failed:', e));
             }
         } catch (err) {
             console.error('[Huddle] Auto-open error:', err);

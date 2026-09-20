@@ -76,6 +76,48 @@ export function officeViewerUrl(storageUrl) {
 }
 
 /**
+ * WHICH URL a document opens with, and what to wrap it in — the whole decision, in one place.
+ *
+ * ── WHY THIS IS PURE, AND WHY IT IS ONE FUNCTION (v24.19) ───────────────────────────────────────
+ *
+ * Three surfaces open these documents: the nav drawer (all three kinds), `calendar-doc-viewer.js`
+ * (Circular / Newsletter) and `calendar-huddle-viewer.js`. Until now each read `storageUrl` and
+ * applied the `.docx` wrap itself, which was three copies of a two-line rule. Adding the short-lived
+ * URL would have made it three copies of a FOUR-line rule including a security fallback, and a
+ * fallback implemented three times is a fallback that is wrong in at least one of them.
+ *
+ * ── THE RULE ────────────────────────────────────────────────────────────────────────────────────
+ *
+ * Prefer the SIGNED url (`getDocumentUrl`, v24.16 — 15 minutes, bounded). Fall back to the stored
+ * permanent one. Both are checked by `isSafeStorageUrl` *here*, so a caller cannot skip the
+ * allowlist by passing something through: the signed URL arrives from our own Function over HTTPS,
+ * but it is still a URL this app is about to hand to `window.open`, and the one thing the allowlist
+ * exists for is that no path reaches that call unchecked.
+ *
+ * ── THE FALLBACK IS THE POINT, NOT A CONVENIENCE ────────────────────────────────────────────────
+ *
+ * The signing endpoint cannot work until an IAM grant is in place, and answers 503 without it. It
+ * can also 403 a session whose claim has lapsed, 404 before anything is published, or simply time
+ * out. In EVERY one of those cases a member must still be able to open the document exactly as they
+ * could before — so `signed` being absent is an ordinary, expected input here, not an error. The
+ * only state this function refuses is one where NEITHER url is usable, which means the document
+ * genuinely cannot be opened and the caller must say so rather than open something.
+ *
+ * @param {{ signed?: string|null, stored?: string|null, fileType?: string|null }} doc
+ * @returns {{ url: string, signed: boolean } | null} null when nothing safe is available
+ */
+export function resolveDocumentOpenUrl({ signed, stored, fileType }) {
+    const pick = isSafeStorageUrl(signed) ? { url: /** @type {string} */ (signed), signed: true }
+        : isSafeStorageUrl(stored) ? { url: /** @type {string} */ (stored), signed: false }
+        : null;
+    if (!pick) return null;
+    // A browser has no renderer for a .docx, so opening it directly just downloads the file. The
+    // wrap is applied AFTER the choice, so a signed url reaches the Office viewer the same way a
+    // stored one does — that is what makes the cutover invisible to a reader.
+    return { url: fileType === 'docx' ? officeViewerUrl(pick.url) : pick.url, signed: pick.signed };
+}
+
+/**
  * The "YYYY-MM-DD" retention cutoff six months before `now` — documents dated strictly before
  * it are pruned (circulars/newsletters keep 6 months). Extracted from `pruneOldDocs` (doc-retention.js) so the
  * fiddly month-underflow clamp is unit-testable: `setMonth()`/a bare `getMonth()-6` overflows on

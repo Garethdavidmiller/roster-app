@@ -7,7 +7,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { isSafeStorageUrl, isDocxUpload, officeViewerUrl, sixMonthCutoffISO, legacyDocPath, versionedDocPath, uploadMimeType } from './storage-utils.js';
+import { isSafeStorageUrl, isDocxUpload, officeViewerUrl, resolveDocumentOpenUrl, sixMonthCutoffISO, legacyDocPath, versionedDocPath, uploadMimeType } from './storage-utils.js';
 
 describe('isSafeStorageUrl', () => {
     test('accepts a Firebase download URL under this project bucket', () => {
@@ -147,5 +147,69 @@ describe('uploadMimeType — the explicit Content-Type map', () => {
     });
     test('pdf gets application/pdf', () => {
         assert.equal(uploadMimeType('pdf'), 'application/pdf');
+    });
+});
+
+// ── WHICH URL A DOCUMENT OPENS WITH (v24.19) ───────────────────────────────────────────────────
+//
+// Three surfaces used to answer this for themselves. They now all call one function, and the cases
+// below are the ones that were about to become three copies of a security fallback.
+describe('resolveDocumentOpenUrl — the signed url, the stored one, and the .docx wrap', () => {
+
+    const SIGNED = 'https://storage.googleapis.com/myb-roster.appspot.com/huddles/x.pdf?X-Goog-Expires=900';
+    const STORED = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/huddles%2Fx.pdf?token=abc';
+
+    test('a signed url wins when there is one', () => {
+        const r = resolveDocumentOpenUrl({ signed: SIGNED, stored: STORED, fileType: 'pdf' });
+        assert.equal(r.url, SIGNED);
+        assert.equal(r.signed, true, 'the caller must be able to tell which url it got');
+    });
+
+    // ── THE FALLBACK. Each of these is a state the app SHIPS IN, not an error. ──────────────────
+    // The signing endpoint 503s until the IAM grant is in place, 403s a lapsed claim, 404s before
+    // anything is published, and can simply time out. A member must open the document in every one
+    // of them, exactly as they did before the endpoint existed.
+    test('no signed url falls back to the stored one, for every way of having none', () => {
+        for (const signed of [null, undefined, '']) {
+            const r = resolveDocumentOpenUrl({ signed, stored: STORED, fileType: 'pdf' });
+            assert.equal(r.url, STORED, `signed=${JSON.stringify(signed)} did not fall back`);
+            assert.equal(r.signed, false);
+        }
+    });
+
+    test('an UNSAFE signed url falls back rather than being opened', () => {
+        // The one that matters most: a signed url arrives from our own Function, but it is still a
+        // url about to reach window.open, and the allowlist is applied to it too. Anything else
+        // would make the new path the one way to bypass a control the old path always had.
+        for (const bad of ['https://evil.example.com/x.pdf', 'http://storage.googleapis.com/myb-roster.appspot.com/h/x.pdf',
+            'javascript:alert(1)', 'https://storage.googleapis.com/someone-elses-bucket/x.pdf', 42, {}]) {
+            const r = resolveDocumentOpenUrl({ signed: /** @type {any} */ (bad), stored: STORED, fileType: 'pdf' });
+            assert.equal(r.url, STORED, `${JSON.stringify(bad)} was opened as a signed url`);
+            assert.equal(r.signed, false);
+        }
+    });
+
+    test('neither url usable is the only refusal — and it is a refusal, not a guess', () => {
+        assert.equal(resolveDocumentOpenUrl({ signed: null, stored: null, fileType: 'pdf' }), null);
+        assert.equal(resolveDocumentOpenUrl({ signed: 'nope', stored: 'also-nope', fileType: 'pdf' }), null);
+        assert.equal(resolveDocumentOpenUrl({ }), null);
+    });
+
+    test('a .docx is wrapped for the Office viewer — whichever url was chosen', () => {
+        // The wrap is applied AFTER the choice, which is what makes the cutover invisible to a
+        // reader: a signed .docx reaches Microsoft the same way a stored one always did.
+        const a = resolveDocumentOpenUrl({ signed: SIGNED, stored: STORED, fileType: 'docx' });
+        const b = resolveDocumentOpenUrl({ signed: null,   stored: STORED, fileType: 'docx' });
+        assert.ok(a.url.startsWith('https://view.officeapps.live.com/'), 'signed .docx was not wrapped');
+        assert.ok(b.url.startsWith('https://view.officeapps.live.com/'), 'stored .docx was not wrapped');
+        assert.ok(a.url.includes(encodeURIComponent(SIGNED)), 'the wrapped url is not the signed one');
+        assert.equal(a.signed, true, 'wrapping must not lose which url it was');
+    });
+
+    test('a PDF is never wrapped, and an unknown fileType is treated as one', () => {
+        for (const fileType of ['pdf', null, undefined, '', 'PDF', 'doc']) {
+            const r = resolveDocumentOpenUrl({ signed: SIGNED, stored: STORED, fileType });
+            assert.equal(r.url, SIGNED, `fileType=${JSON.stringify(fileType)} was wrapped`);
+        }
     });
 });

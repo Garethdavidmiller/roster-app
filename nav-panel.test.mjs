@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 // The REAL isSafeStorageUrl — it lives in the pure, import-free storage-utils.js (firebase-client.js
 // re-exports it), so the mock below uses production behaviour directly instead of a hand-copied
 // mirror that could drift from the real bucket-allowlist rule.
-import { isSafeStorageUrl, officeViewerUrl } from './storage-utils.js';
+import { isSafeStorageUrl, officeViewerUrl, resolveDocumentOpenUrl } from './storage-utils.js';
 
 // In-memory localStorage backing the ls.js mock — seeded/read directly by tests.
 const store = new Map();
@@ -24,6 +24,11 @@ mock.module('./firebase-client.js', {
         getLatestNewsletter:  async () => null,
         isSafeStorageUrl,   // the real function (see the import note above) — no mirror to keep in sync
         officeViewerUrl,    // the real function — .docx nav links route through it
+        resolveDocumentOpenUrl,  // the real rule too: which url a drawer tap actually opens
+        // The drawer mints a short-lived url before setting the pre-opened tab's location. `null`
+        // is the state the app ships in (no IAM grant), and is what these tests exercise — the
+        // stored url must still open, exactly as it did before the endpoint existed.
+        fetchSignedDocumentUrl: async () => null,
     },
 });
 mock.module('./notif.js', {

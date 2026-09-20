@@ -15,6 +15,7 @@
  */
 import { test, describe, mock, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { resolveDocumentOpenUrl as realResolveDocumentOpenUrl } from './storage-utils.js';
 
 let _circularImpl = () => Promise.resolve(null);
 
@@ -29,12 +30,20 @@ mock.module('./overlay.js', {
         },
     },
 });
+// The short-lived-url fetch (v24.19). Swapped per test; `null` is the state the app SHIPS in
+// (no IAM grant yet), so it is the default here too.
+let _signedImpl = () => Promise.resolve(null);
 mock.module('./firebase-client.js', {
     namedExports: {
         getLatestCircular:   (...a) => _circularImpl(...a),
         getLatestNewsletter: () => Promise.resolve(null),
         isSafeStorageUrl:    () => true,
         officeViewerUrl:     (u) => u,
+        fetchSignedDocumentUrl: (...a) => _signedImpl(...a),
+        // THE REAL ONE, deliberately. Stubbing the decision would leave this file testing that the
+        // viewer calls a function, which is not the question — the question is which url a member
+        // ends up opening, and only the real rule answers that.
+        resolveDocumentOpenUrl: realResolveDocumentOpenUrl,
     },
 });
 mock.module('./usage-reporter.js', { namedExports: { recordOpen: () => {} } });
@@ -76,7 +85,7 @@ const flush = async (n = 8) => { for (let i = 0; i < n; i++) await Promise.resol
 /** Text of everything currently rendered into the viewer body. */
 const bodyText = () => _els.docViewerBody._children.map(c => c.textContent).join(' | ');
 
-beforeEach(() => { _circularImpl = () => Promise.resolve(null); setupDOM(); });
+beforeEach(() => { _circularImpl = () => Promise.resolve(null); _signedImpl = () => Promise.resolve(null); setupDOM(); });
 
 describe('doc viewer — THE DOCUMENT GATE (v23.17): a locked tap reads nothing, and the unlock finishes it', () => {
     test('while locked: the message, and NO fetch — cached or live', async () => {
@@ -250,5 +259,76 @@ describe('doc viewer — the open must always reach a terminal state', () => {
         const rendered = bodyText();
         assert.match(rendered, /Try again/,
             `the failure state must carry a control a user (and a screen reader) can act on — got: ${rendered}`);
+    });
+});
+
+// ── THE WIRING, NOT THE RULE (v24.19) ──────────────────────────────────────────────────────────
+//
+// `storage-utils.test.mjs` proves resolveDocumentOpenUrl chooses correctly. That is not the same
+// as this viewer opening what it chose — the coordinator could fetch nothing, pass the wrong
+// argument, or discard the result, and every one of those leaves that file green. This block drives
+// the real module and asserts what a member's browser is actually handed.
+describe('doc viewer — which URL the member actually opens (v24.19)', () => {
+
+    const SIGNED = 'https://storage.googleapis.com/myb-roster.appspot.com/circulars/x.pdf?X-Goog-Expires=900';
+    const STORED = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/circulars%2Fx.pdf?token=perm';
+
+    /** Open the circular, press its button, and report the url window.open received. */
+    async function openedUrl() {
+        let got = null;
+        const realOpen = global.window.open;
+        global.window.open = (u) => { got = u; return null; };
+        try {
+            global.window.location.hash = '#circular';
+            initDocViewer({ authReady: Promise.resolve() });
+            await flush();
+            const btn = _els.docViewerBody._children.find(c => /Open/.test(c.textContent));
+            assert.ok(btn, 'no open control was rendered');
+            btn._fire('click');
+            await flush();
+        } finally { global.window.open = realOpen; }
+        return got;
+    }
+
+    test('with a signed url available, THAT is what opens — not the permanent one', async () => {
+        _circularImpl = () => Promise.resolve({ storageUrl: STORED, fileType: 'pdf' });
+        _signedImpl   = () => Promise.resolve(SIGNED);
+        assert.equal(await openedUrl(), SIGNED,
+            'the viewer fetched a short-lived url and then opened the permanent one anyway — which '
+            + 'is the whole change, silently undone');
+    });
+
+    test('with no signed url, the stored one still opens — a member is never stranded', async () => {
+        // The state the app ships in: the IAM grant is not in place, so every call 503s and
+        // fetchSignedDocumentUrl returns null. This must be indistinguishable from before v24.19.
+        _circularImpl = () => Promise.resolve({ storageUrl: STORED, fileType: 'pdf' });
+        _signedImpl   = () => Promise.resolve(null);
+        assert.equal(await openedUrl(), STORED);
+    });
+
+    test('the fetch is asked for the right KIND', async () => {
+        let asked = null;
+        _circularImpl = () => Promise.resolve({ storageUrl: STORED, fileType: 'pdf' });
+        _signedImpl   = (k) => { asked = k; return Promise.resolve(SIGNED); };
+        await openedUrl();
+        assert.equal(asked, 'circular',
+            'the endpoint signs the LATEST document of the kind it is given, so a wrong kind here '
+            + 'hands the member a url for somebody else\'s document');
+    });
+
+    test('the url is minted BEFORE the click, so the gesture is not spent', async () => {
+        // The constraint that shaped this design. `window.open` without a user gesture is
+        // pop-up-blocked and drops the PWA out of standalone, so the fetch must have finished by
+        // the time the button exists — not be started by pressing it.
+        let fetched = 0;
+        _circularImpl = () => Promise.resolve({ storageUrl: STORED, fileType: 'pdf' });
+        _signedImpl   = () => { fetched++; return Promise.resolve(SIGNED); };
+
+        global.window.location.hash = '#circular';
+        initDocViewer({ authReady: Promise.resolve() });
+        await flush();
+        assert.equal(fetched, 1,
+            'nothing was minted while the viewer loaded, so the click handler must be doing it — '
+            + 'which spends the user gesture and gets the open pop-up-blocked');
     });
 });
