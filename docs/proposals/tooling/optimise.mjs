@@ -30,12 +30,20 @@ const SPARE = new Set(KEYS.filter(k => START[k].mon === 'SPARE'));
 // FREEZE=13-18 or FREEZE=3,9,14 — lines held at both their content and their POSITION. A frozen line
 // is excluded from every move, so the search cannot reach the result by quietly editing it. Asserted
 // at the end against the starting grid rather than trusted to the move set.
-const FREEZE = new Set((process.env.FREEZE ?? '').split(',').filter(Boolean).flatMap(part => {
+const parseLines = spec => new Set((spec ?? '').split(',').filter(Boolean).flatMap(part => {
   const m = part.match(/^(\d+)\s*-\s*(\d+)$/);
   if (!m) return [part.trim()];
   const out = []; for (let i = +m[1]; i <= +m[2]; i++) out.push(String(i));
   return out;
 }));
+const FREEZE = parseLines(process.env.FREEZE);
+// FLOAT=13 — a line whose PATTERN is held but whose POSITION is free, used ALONGSIDE a pinned
+// FREEZE rather than instead of it. FREEZE_POS is all-or-nothing and that is not enough for the
+// case this was added for: holding weeks 14, 15 and 16 together in order (FREEZE, pinned) while
+// week 13 is free to go anywhere (FLOAT) — which is the only arrangement that keeps four of the
+// five protected weeks in sequence AND clears MRSF, because 13 immediately followed by 14 is a
+// single 58.9h seven-day window that nothing outside those two weeks can break.
+const FLOAT = parseLines(process.env.FLOAT);
 // FREEZE_POS=0 protects a frozen line's PATTERN but lets it move in the rotation: it can be swapped
 // whole with another working line, never edited. That distinction decides real cases — Weekday Lates'
 // line 13 runs Tue–Sat and line 14 Sun–Mon, so while both are pinned in place they form one 58.9h
@@ -43,7 +51,8 @@ const FREEZE = new Set((process.env.FREEZE ?? '').split(',').filter(Boolean).fla
 const FREEZE_POS = process.env.FREEZE_POS !== '0';
 const WORK = KEYS.filter(k => !SPARE.has(k) && !FREEZE.has(k));
 /** Lines a whole-line swap may move: the working set, plus frozen lines when only content is held. */
-const SWAPPABLE = FREEZE_POS ? WORK : KEYS.filter(k => !SPARE.has(k));
+const SWAPPABLE = FREEZE_POS ? KEYS.filter(k => !SPARE.has(k) && !FREEZE.has(k))
+                             : KEYS.filter(k => !SPARE.has(k));
 // RULES=1 charges every factor PRESENT over and above its size, which is what anneal.mjs's own
 // rules mode does. Use it when the goal is "no factors present" rather than the softest rotation.
 const RULES = process.env.RULES === '1';
@@ -94,7 +103,7 @@ const pick = a => a[Math.floor(rnd() * a.length)];
 /** Frozen PATTERNS, by content. Under FREEZE_POS=0 a frozen line may move, so "which positions must
  *  not be edited" has to be recomputed from the current grid — freezing position numbers instead is
  *  what let a moved pattern be edited by a later day-swap, which the end-of-run assertion caught. */
-const FROZEN_PATTERNS = new Set([...FREEZE].map(k => JSON.stringify(START[k])));
+const FROZEN_PATTERNS = new Set([...FREEZE, ...FLOAT].map(k => JSON.stringify(START[k])));
 const editable = p => (FREEZE_POS ? WORK : KEYS.filter(k => !SPARE.has(k)))
   .filter(k => !FROZEN_PATTERNS.has(JSON.stringify(p[k])));
 
@@ -165,6 +174,12 @@ else { // content-only: every frozen pattern must still be somewhere in the grid
   const present = new Set(Object.values(best.p).map(r => JSON.stringify(r)));
   for (const k of FREEZE) if (!present.has(JSON.stringify(START[k])))
     throw new Error(`frozen line ${k}'s pattern is no longer in the rotation — the freeze is not holding`); }
+for (const k of FLOAT) { // pattern must still exist somewhere, unedited; position may have moved
+  const present = new Set(Object.values(best.p).map(r => JSON.stringify(r)));
+  if (!present.has(JSON.stringify(START[k])))
+    throw new Error(`floated line ${k}'s pattern is no longer in the rotation — the float is not holding`);
+}
 console.log('invariants hold: day duties, contracted hours and cover weeks all unchanged'
-  + (FREEZE.size ? `; lines ${[...FREEZE].join(', ')} ${FREEZE_POS ? 'untouched' : 'kept as patterns (position free)'}` : ''));
+  + (FREEZE.size ? `; lines ${[...FREEZE].join(', ')} ${FREEZE_POS ? 'untouched' : 'kept as patterns (position free)'}` : '')
+  + (FLOAT.size ? `; line${FLOAT.size > 1 ? 's' : ''} ${[...FLOAT].join(', ')} kept as pattern${FLOAT.size > 1 ? 's' : ''}, position free` : ''));
 writeFileSync(FILE.replace(/\.json$/, '-optimised.json'), JSON.stringify(best.p, null, 0));
