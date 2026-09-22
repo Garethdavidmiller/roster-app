@@ -18,6 +18,7 @@ and every figure in a PDF is computed from the cells it shows — nothing is typ
 | **Fifteen Turns Repaired** | `FT-24-R21 · b76bf9e1` | The same design with both gates **repaired** and the rotation re-searched — every duty, headcount and coverage hour unchanged | **1** | 6 | 6 in 24 |
 | **Weekday Lates 2** | `WL2-24-R21 · 33f70893` | Weekday Lates with the `08:30–17:00` turns re-timed into the evening to cover the 17:00 peak, then re-searched | **1** | 6 | 6 in 24 |
 | **Weekday Lates 3** | `WL3-24-F7 · a6234195` | The same evening fix with **weeks 13–17 kept exactly as written**, then searched fatigue-first | **1** (FF19, at its floor) | 6 | 4 in 24 |
+| **Weekday Lates 4** | `WL4-24-F7 · f0d403d6` | The same evening fix again, with **weeks 14–17 kept in order on their own line numbers** — week 13 the one that moves | **1** (FF19, at its floor) | 7 | 6 in 24 |
 | **Weeks 17-18 Swapped** | `WS-24-EXT · 0bebb675` | **Supplied as a grid**, not searched — cover week moved to 18, midday turn at `12:00–20:30`. Clears every hard gate; not yet shape-searched | 5 | 9 | 6 in 24 |
 | **Targeted Fatigue Redo** | `TF-24-EXT · 8eef9a13` | **Supplied as a grid**, not searched — *Weeks 17-18 Swapped* re-ordered BY HAND to cut fatigue. Same duties, same days, identical coverage; MRSF cleared, FF11 depends on how a cover week is worked | 4, or **3 as rostered** | 9 | 5 in 24 |
 
@@ -122,13 +123,47 @@ Sun–Mon, so pinned adjacent they form one 58.9-hour seven-day window that noth
 can break and MRSF's 55-hour row can never clear; separated, it drops to 51.1. **If those weeks must
 also stay at lines 13–17, the floor is two factors, not one** — that is a property of the block, not
 a limit of the search, and `optimise.mjs`'s `FREEZE_POS` switch is what distinguishes the two
-readings of "protect".
+readings of "protect". **There is a third reading, and *Weekday Lates 4* is it** (22 Sep 2026):
+hold the four weeks that *can* be held at their own line numbers and let week 13 — the one end of
+the offending join — move on its own. That keeps one factor and the line numbers both.
 
 **What protecting them cost is stated rather than glossed:** full weekends off are **4 in 24** here
 against 6 in Weekday Lates, because the search had five fewer weeks to arrange around. And week 16
 holds three of the nine `08:30–17:00` turns, so the evening fill came from line 9's week and line 6's
 Friday alone — 17:00 reaches 7, 7, 8, 10, 10 where Weekday Lates 2, free to move week 16, reached
 8, 8, 9, 10, 9.
+
+**Weekday Lates 4** (`WL4-24-F7 · f0d403d6`) answers what *Weekday Lates 3* left open. The owner
+asked whether weeks 13–17 could stay **in order, on their own line numbers**, rather than kept to the
+letter and scattered. All five cannot, for the reason above: the 13→14 join is a 58.9-hour seven-day
+window lying wholly inside those two weeks, so nothing outside them can break it. **Four of the five
+can.** Weeks 14, 15, 16 and 17 sit at lines 14, 15, 16 and 17 — not a day, not a time, not a line
+number altered — and week 13 is the only one that moves, to line 4, unedited. One factor present,
+FF19 at its floor of two, worst seven-day window 54.7h, six full weekends off.
+
+**The block's position was enumerated, not searched.** Cover weeks are pinned at lines 1, 7, 12 and
+17, and week 17 *is* one of them — a cover week is blank — so "14, 15, 16, 17 in order" means the
+three working weeks sitting immediately before some cover week. On a 24-line wheel that is four
+placements and no more, so all four were run at three seeds each rather than left to the annealer to
+stumble on. Twelve runs, every one clearing every threshold; the placement that keeps the weeks on
+their own numbers is the one printed. `tooling/wl4-run.mjs` is that driver.
+
+**The price is the run, and it is structural: 7 consecutive days against 6** everywhere else here.
+Week 14 works Fri–Sat and week 15 Sun–Thu, so holding those two in order is seven straight days
+whatever the rest of the wheel does. It is not a breach — FF11 allows 13 consecutive, and the "more
+than 7 consecutive 8h shifts" row needs more than seven — but it is the one figure this design
+cannot match the others on, and its PDF says so on its own page rather than in a footnote.
+
+**What the line numbers cost is one weekend.** Of the twelve runs, the block on lines 22, 23 and 24
+reached **7 full weekends off** against this design's 6 — a weekend against the line numbers, which
+is the room's call rather than the search's. Both are in the PDF's alternatives table and both grids
+are committed (`tooling/weekday-lates-4-alt-blockmoved.json`, and `-alt-floor.json` for the third
+placement that also reaches FF19's floor at one fewer weekend).
+
+**Coverage is identical to Weekday Lates 3's** — every quarter-hour of the whole week, asserted
+rather than argued, because both start from the same grid and `optimise.mjs`'s two moves leave each
+day's duty multiset exactly as it was. 17:00 still reaches 7, 7, 8, 10, 10 Monday to Friday.
+Ordering the weeks costs the run and a weekend; it costs nothing in cover.
 
 **Weeks 17-18 Swapped** is supplied rather than searched, and its duty table matches **none** of the
 others here — it is its own design, not a rearrangement of one. It clears every hard gate (35h to the
@@ -257,6 +292,7 @@ PROPOSAL=ST node final.mjs results/best-A-*.json results/best-B-*.json          
 PROPOSAL=BB EXTRA=results/best-RDpure-21.json node final.mjs results/best-RD-*.json
 PROPOSAL=QT node final.mjs results/best-Q-*.json results/best-R-*.json
 PROPOSAL=EF node final.mjs results/best-RE-*.json
+node wl4-run.mjs                      # Weekday Lates 4: all four placements of the 14-17 block x 3 seeds (12 runs)
 node shots.mjs <rendered>.html       # A4 page screenshots + a height check against the printable page
 node regenerate.mjs --check           # every proposal's fingerprint, without rendering
 node regenerate.mjs                  # re-render EVERY sheet from the same inputs that produced it

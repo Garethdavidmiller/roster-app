@@ -20,3 +20,6 @@ seed*.json
 *-s[0-9]*.json
 best-so-far.json
 *-optimised.json
+# A driver's run SUMMARY is the same class: wl4-run.mjs rewrites this on every run, and the
+# figures that matter end up in the proposal's own meta beside its PDF.
+wl4-results.json

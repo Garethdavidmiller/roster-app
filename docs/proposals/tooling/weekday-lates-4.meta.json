@@ -1,0 +1,39 @@
+{
+ "sub1": "Weekday Lates with weeks 14–17 kept in order and ON THEIR OWN LINES, week 13 moved away, and the evening gap filled",
+ "eyebrow3": "Weekday Lates, weeks 14–17 held in place",
+ "h3": "What was held, what moved, and what it cost",
+ "sub3": "Four of the five protected weeks never move at all; one does, and that is what makes the rest work",
+ "coverNote": "gaps of 8, 6, 5, 5 around the wheel — inherited from Weekday Lates, not re-spread",
+ "methodHeading": "How the order was kept",
+ "h7": "How it was built, and how to load it",
+ "sub7": "Reproducible: the same starting grid, seed and objective give the same rotation on any machine",
+ "method": "<p><b>1 · Weeks 14, 15, 16 and 17 do not move.</b> They sit at lines 14, 15, 16 and 17, in that order, exactly as written in <i>Weekday Lates</i> — not a day, not a time, not a line number altered. That is the difference between this proposal and <i>Weekday Lates 3</i>, which kept the same five weeks to the letter but scattered them to lines 21, 3, 6, 24 and 1.</p><p><b>2 · Week 13 moves, and only week 13.</b> It keeps its duties exactly as written and goes to line 4. It has to move, and the reason is arithmetic rather than preference: week 13 works Tue–Sat and week 14 Sun–Mon, so back to back they are seven consecutive working days totalling <b>58.9 hours</b> against MRSF's 55-hour limit. That window lies wholly inside those two weeks, so no rearrangement of the other twenty-two can break it. Separated, the worst seven-day window is 54.7h and the row clears.</p><p><b>3 · The block's position was enumerated, not searched.</b> Cover weeks are pinned at 1, 7, 12 and 17, and week 17 <i>is</i> one of them — a cover week is blank, so “14, 15, 16, 17 in order” means the three working weeks sitting immediately before some cover week. On a 24-line wheel that is four placements and no more, so all four were tried at three seeds each. Twelve runs, every one clearing every threshold; the placement that keeps the weeks on their own line numbers is the one printed here.</p><p><b>4 · Then the rest of the wheel was searched fatigue-first.</b> Every factor present charged over and above its size, three restarts a seed, with only the two coverage-preserving moves — so the cover curve is identical to <i>Weekday Lates 3</i>'s, hour for hour, and the ordering choice costs nothing in cover.</p>",
+ "openQuestions": "<b>The seven-day run is the price, and it is structural.</b> The longest working stretch is <b>7 days</b> against <i>Weekday Lates 3</i>'s 6. Week 14 works Fri–Sat and week 15 Sun–Thu, so holding those two in order is seven straight days whatever else moves. It is <i>not</i> a threshold breach — FF11 allows 13 consecutive and the “more than 7 consecutive 8h shifts” row needs more than seven — but 6 is what the other proposals reach, and this one cannot. <b>What holding the line numbers cost.</b> Of the twelve runs, one placement reached <b>7 full weekends off</b> against this design's 6 — but it puts the block on lines 22, 23 and 24 instead of 14, 15 and 16. That candidate is in the table opposite: a weekend against the line numbers, and it is the room's call rather than the search's. <b>FF19 is at its floor.</b> Two instances of successive start times varying by more than two hours, down from <i>Weekday Lates 3</i>'s three. No rotation holding both early and late weeks can reach zero — crossing from earlies to lates is by definition a jump over two hours — and two is the arithmetic floor for this mix of turns, which <i>Weekday Lates 3</i>'s own notes state. <b>Weeks 13–17 in full.</b> If all five must stay in order, MRSF is present at 58.9h and the floor is two factors rather than one; that is a property of the 13→14 join, not a limit of the search.",
+ "identity": {
+  "lineage": "Weekday Lates (WL-24-EXT · a52ec588) with the 08:30–17:00 turns outside the protected weeks re-timed into the evening, weeks 14–17 held in order at their own line numbers, week 13 held as written but free to move, and the rotation then searched fatigue-first. Shares its starting grid, duty table and coverage curve with Weekday Lates 3 (WL3-24-F7 · a6234195), which kept the same five weeks but moved all of them."
+ },
+ "denseDuty": true,
+ "denseAlts": true,
+ "extraAlternatives": [
+  {
+   "label": "WL-24-EXT — Weekday Lates, before any change",
+   "file": "weekday-lates.json"
+  },
+  {
+   "label": "WL3-24-F7 — the same five weeks, all MOVED",
+   "file": "weekday-lates-3.json"
+  },
+  {
+   "label": "WL2-24-R21 — no protected weeks at all",
+   "file": "weekday-lates-2.json"
+  },
+  {
+   "label": "Block on lines 22–24 — one MORE weekend, weeks not on their own numbers",
+   "file": "weekday-lates-4-alt-blockmoved.json"
+  },
+  {
+   "label": "Block on lines 9–11 — FF19 also at its floor, one fewer weekend",
+   "file": "weekday-lates-4-alt-floor.json"
+  }
+ ]
+}
