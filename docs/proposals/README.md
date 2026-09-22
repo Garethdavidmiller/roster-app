@@ -22,6 +22,7 @@ and every figure in a PDF is computed from the cells it shows — nothing is typ
 | **Weeks 17-18 Swapped** | `WS-24-EXT · 0bebb675` | **Supplied as a grid**, not searched — cover week moved to 18, midday turn at `12:00–20:30`. Clears every hard gate; not yet shape-searched | 5 | 9 | 6 in 24 |
 | **Targeted Fatigue Redo** | `TF-24-EXT · 8eef9a13` | **Supplied as a grid**, not searched — *Weeks 17-18 Swapped* re-ordered BY HAND to cut fatigue. Same duties, same days, identical coverage; MRSF cleared, FF11 depends on how a cover week is worked | 4, or **3 as rostered** | 9 | 5 in 24 |
 | **Three Mondays** | `TM-24-EXT · fe90c0b8` | **Supplied as a grid**, not searched — the *Targeted Fatigue Redo* with three Monday duties rotated. Breaks the eight-day run across weeks 14–15; the binding figures are elsewhere and do not move | 4, or **3 as rostered** | 9 | 5 in 24 |
+| **Cover at Seventeen** | `C17-24-EXT · edc1b731` | **Supplied as a grid**, not searched — *Three Mondays* with lines 17 and 18 swapped back, so the cover week returns to 17. **FF11 clears** for the first time in this line | **3** (on both readings) | 9 | 5 in 24 |
 
 The four searched proposals — *Same Turns*, *By the Book*, *Quarter To*, *Eight Forty* — clear every hard rule — Chiltern's 13-day limit, twelve hours between duties, the exact
 35-hour contracted week — and meet the December staffing shape (four to open, three through to
@@ -228,6 +229,31 @@ each now hold two start times where one of them held one.
 **Three hand edits have taken this line from five factors present to four.** On the same duty table the
 search reaches one. That has been the unfinished question since *Weeks 17-18 Swapped* and it has not
 changed.
+
+**Cover at Seventeen** (`C17-24-EXT · edc1b731`) is the fourth revision and the one that worked. It is
+**a single whole-line swap**: lines 17 and 18 exchange contents, so the cover week returns to **17** and
+week 18 takes the Sunday `10:30-19:00`, the Monday `16:25-23:55`, the two rest days and the
+Thursday–Saturday early block that 17 had been holding. It is the **reverse of the change that started
+this line** — *Weeks 17-18 Swapped* moved the cover week from 17 to 18, three hand edits were built on
+top, and this puts that one thing back and keeps all three.
+
+**FF11 clears.** Across four revisions it has gone **16 → 15 → 15 → 13**, and the threshold is "more than
+13". It is **11 as rostered**. The longest run of duties of eight hours or more falls **7 → 5** and FF15
+**7 → 6**, so factors present fall to **three** — and for the first time the count is the same on *both*
+readings of a cover week, so this design no longer depends on how the clerk places one.
+
+**Why one swap did what three rounds of same-day moves could not.** The fifteen-shift block those
+revisions kept failing to break ran lines 17 to 20, and every edit was made inside weeks 14, 15, 16 and
+23 — never inside the block. Moving the cover week to 17 puts a guaranteed break at its head. The
+binding block is now the wrap point instead, line 24 into cover week 1 into line 2, and it is **exactly
+13**: a knife edge, not a margin.
+
+**What it cost:** FF19 rises 9 to 10, the highest in this line, and the cover weeks are less evenly
+spread — gaps of **6, 5, 5, 8** against 6, 5, 6, 7.
+
+**The comparison still has not changed.** Four hand edits, five factors down to three, coverage untouched
+throughout. The search reaches **one**, with a six-or-seven-day run, FF19 at two and half the weeks on a
+single turn.
 
 ## The two readings of a cover week
 
