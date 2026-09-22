@@ -35,6 +35,7 @@ export const SUPPLIED = [
     { file: 'targeted-fatigue.json',   name: 'Targeted Fatigue Redo', code: 'TF-24-EXT',  fp: '8eef9a13', strap: 'Weeks 17-18 Swapped re-ordered by hand — same duties, same days, same coverage' },
     { file: 'three-mondays.json',     name: 'Three Mondays',         code: 'TM-24-EXT',  fp: 'fe90c0b8', strap: 'The eight-day run across weeks 14-15 broken by rotating three Monday duties' },
     { file: 'cover-at-seventeen.json', name: 'Cover at Seventeen',    code: 'C17-24-EXT', fp: 'edc1b731', strap: 'Lines 17 and 18 swapped back - the cover week returns to 17, and FF11 clears' },
+    { file: 'saturday-four.json',     name: 'Saturday Four',        code: 'S4-24-EXT',  fp: '536b387b', strap: 'Saturday rebuilt - nine turns down to four, shaped to the December Saturday curve' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */

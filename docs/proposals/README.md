@@ -23,6 +23,7 @@ and every figure in a PDF is computed from the cells it shows — nothing is typ
 | **Targeted Fatigue Redo** | `TF-24-EXT · 8eef9a13` | **Supplied as a grid**, not searched — *Weeks 17-18 Swapped* re-ordered BY HAND to cut fatigue. Same duties, same days, identical coverage; MRSF cleared, FF11 depends on how a cover week is worked | 4, or **3 as rostered** | 9 | 5 in 24 |
 | **Three Mondays** | `TM-24-EXT · fe90c0b8` | **Supplied as a grid**, not searched — the *Targeted Fatigue Redo* with three Monday duties rotated. Breaks the eight-day run across weeks 14–15; the binding figures are elsewhere and do not move | 4, or **3 as rostered** | 9 | 5 in 24 |
 | **Cover at Seventeen** | `C17-24-EXT · edc1b731` | **Supplied as a grid**, not searched — *Three Mondays* with lines 17 and 18 swapped back, so the cover week returns to 17. **FF11 clears** for the first time in this line | **3** (on both readings) | 9 | 5 in 24 |
+| **Saturday Four** | `S4-24-EXT · 536b387b` | *Cover at Seventeen* with **Saturday rebuilt** — nine turns down to four on Saturday's own minute budget, demand fit 20.7 → 12.1. The first duty change in this line | **3** (on both readings) | 9 | 5 in 24 |
 
 The four searched proposals — *Same Turns*, *By the Book*, *Quarter To*, *Eight Forty* — clear every hard rule — Chiltern's 13-day limit, twelve hours between duties, the exact
 35-hour contracted week — and meet the December staffing shape (four to open, three through to
@@ -254,6 +255,40 @@ spread — gaps of **6, 5, 5, 8** against 6, 5, 6, 7.
 **The comparison still has not changed.** Four hand edits, five factors down to three, coverage untouched
 throughout. The search reaches **one**, with a six-or-seven-day run, FF19 at two and half the weeks on a
 single turn.
+
+**Saturday Four** (`S4-24-EXT · 536b387b`) is the fifth revision and **the first to change a duty rather
+than the order of the weeks** — on Saturday, and on Saturday alone. Against *Cover at Seventeen*, **zero
+cells outside the Saturday column differ**, Saturday still carries 12 people and still pays 5,895 minutes,
+so Mon–Sat is 42,000 to the minute exactly as before. The contract could not move, because the budget the
+search was given was the one Saturday already had.
+
+**Nine turns become four:** `06:20-14:30` ×5, `08:30-15:45` ×1, `14:30-22:15` ×2, `15:15-23:55` ×4.
+Distinct starts fall 6 → 4 and finishes 7 → 4. The demand-fit score against the measured December Saturday
+curve falls **20.7 → 12.1** (same measure as every other sheet; lower is better), and the thinnest
+fully-covered hour rises **3.0 → 4.5 people**. The longest Saturday duty falls **9h10 → 8h40**, bringing
+Saturday under the cap the rest of this folder works to.
+
+**The frontier is on the record rather than hidden behind one answer:** five turns reaches a fit of 11.3 and
+six reaches 11.5, so a fifth turn buys 0.8 of fit. Four was taken because fewer start and finish times was
+the first half of the brief.
+
+**How it was found.** Every multiset of 12 duties paying exactly 5,895 minutes, from a pool of quarter-hour
+starts and finishes plus the 06:20 open and 23:55 close, each duty 7h00–8h40 — about 130 million tables
+from a SEEDED search, so it reproduces, scored on demand fit with fewer turns as the tie-break and a floor
+under the thinnest hour so nothing could be won by hollowing out the evening (`tooling/sat-table.mjs`). Then
+which line holds which Saturday duty was searched exhaustively under the 12-hour rest rule: 90 assignments
+clear it, and the best of those on the fatigue figures is the one printed (`tooling/sat-assign.mjs`).
+
+**One December rule is now met that was not** — four through to the close, against three. **One cannot be:**
+the rule asks four at the open and Saturday still has five. That is arithmetic, not a search failure — no
+table of 12 duties paying 5,895 minutes from that pool puts four at the open *and* four at the close, at any
+evening floor. Four at the open needs a different Saturday headcount or minutes moved in from a weekday,
+and both were outside what this revision was allowed to touch.
+
+**What it cost:** the worst rolling seven-day total rises 53.1 → 53.3 hours, still well under 55. Every other
+figure is unchanged. Saturday's headcount is still **12 against the December shape's fourteen**, and that is
+the real limit on how much shape Saturday can carry: 5,895 minutes over a 17h35 day is a mean of 5.6 people,
+so there is little headroom to build a peak whatever the table.
 
 ## The two readings of a cover week
 
