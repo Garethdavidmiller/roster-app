@@ -21,6 +21,7 @@ and every figure in a PDF is computed from the cells it shows — nothing is typ
 | **Weekday Lates 4** | `WL4-24-F7 · f0d403d6` | The same evening fix again, with **weeks 14–17 kept in order on their own line numbers** — week 13 the one that moves | **1** (FF19, at its floor) | 7 | 6 in 24 |
 | **Weeks 17-18 Swapped** | `WS-24-EXT · 0bebb675` | **Supplied as a grid**, not searched — cover week moved to 18, midday turn at `12:00–20:30`. Clears every hard gate; not yet shape-searched | 5 | 9 | 6 in 24 |
 | **Targeted Fatigue Redo** | `TF-24-EXT · 8eef9a13` | **Supplied as a grid**, not searched — *Weeks 17-18 Swapped* re-ordered BY HAND to cut fatigue. Same duties, same days, identical coverage; MRSF cleared, FF11 depends on how a cover week is worked | 4, or **3 as rostered** | 9 | 5 in 24 |
+| **Three Mondays** | `TM-24-EXT · fe90c0b8` | **Supplied as a grid**, not searched — the *Targeted Fatigue Redo* with three Monday duties rotated. Breaks the eight-day run across weeks 14–15; the binding figures are elsewhere and do not move | 4, or **3 as rostered** | 9 | 5 in 24 |
 
 The four searched proposals — *Same Turns*, *By the Book*, *Quarter To*, *Eight Forty* — clear every hard rule — Chiltern's 13-day limit, twelve hours between duties, the exact
 35-hour contracted week — and meet the December staffing shape (four to open, three through to
@@ -204,6 +205,29 @@ single-turn weeks fall 6 of 20 to 4.
 which week sits beside which; on this exact duty table the same work done by `optimise.mjs` reaches
 one factor and a six-or-seven-day run with the coverage curve untouched. It is listed as supplied,
 deliberately, so the hand-made baseline stays on the record beside the searched result.
+
+**Three Mondays** (`TM-24-EXT · fe90c0b8`) is the third hand edit in that same line, and it is
+**three cells, all on Monday**: line 15's `06:20-13:45` becomes a rest day, line 16's Monday moves
+from `08:30-17:00` to `06:20-13:45`, and line 23's rest day becomes `08:30-17:00`. A rotation returns
+every duty it takes, so Monday's staffing is untouched — 13 on duty and 5 still on at 16:20, before
+and after — and the full-week coverage curve is identical, as it has been across all three edits.
+
+**It did exactly what it said, and the headline figures did not move.** Both are true, and the gap is
+the thing to read. The document sets out to break an eight-day run across weeks 14 and 15: the stretch
+beginning line 14 Friday was **8 days** and is now **3**, and the worst rolling seven-day window moved
+off that spot as well, from line 14 Friday to line 19 Tuesday, falling from **54.7 hours to 53.1**.
+That is a real gain for whoever works those weeks. But the longest possible run is still **9 days**, at
+cover week 1 running into line 2, and FF11 is still **15** in the worst case — the same fifteen shifts
+at lines 17 to 20, byte-identical, untouched by the edit. **The design was corrected where the problem
+was noticed rather than where the worst case lives**, and that distinction is the one these sheets
+exist to make visible.
+
+**What it cost:** FF19 rises 8 to 9, and single-turn weeks fall from 4 of 20 to 2 — lines 16 and 23
+each now hold two start times where one of them held one.
+
+**Three hand edits have taken this line from five factors present to four.** On the same duty table the
+search reaches one. That has been the unfinished question since *Weeks 17-18 Swapped* and it has not
+changed.
 
 ## The two readings of a cover week
 

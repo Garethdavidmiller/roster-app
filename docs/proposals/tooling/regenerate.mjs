@@ -33,6 +33,7 @@ export const SUPPLIED = [
     { file: 'fifteen-turns-repaired.json', name: 'Fifteen Turns Repaired', code: 'FT-24-R21', fp: 'b76bf9e1', strap: 'The supplied design, repaired and re-searched' },
     { file: 'weeks1718.json',          name: 'Weeks 17-18 Swapped',   code: 'WS-24-EXT',  fp: '0bebb675', strap: 'Cover week at 18, midday turn at 12:00-20:30' },
     { file: 'targeted-fatigue.json',   name: 'Targeted Fatigue Redo', code: 'TF-24-EXT',  fp: '8eef9a13', strap: 'Weeks 17-18 Swapped re-ordered by hand — same duties, same days, same coverage' },
+    { file: 'three-mondays.json',     name: 'Three Mondays',         code: 'TM-24-EXT',  fp: 'fe90c0b8', strap: 'The eight-day run across weeks 14-15 broken by rotating three Monday duties' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */

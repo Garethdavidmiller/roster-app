@@ -1,0 +1,31 @@
+{
+ "sub1": "The Targeted Fatigue Redo with three Monday duties rotated — the eight-day run across weeks 14–15 broken, and nothing else on the grid touched",
+ "eyebrow3": "A three-cell correction, assessed",
+ "h3": "Same feel, more people",
+ "sub3": "What this design keeps of today, and where the December headcounts differ",
+ "coverNote": "gaps of 7, 6, 5, 6 around the wheel — close to even, one line out; unchanged since Weeks 17-18 Swapped",
+ "methodHeading": "Where this design came from",
+ "h7": "Where it came from, and how to load it",
+ "sub7": "Checkable rather than reproducible: there is no search behind it, and every figure is computed from the cells",
+ "method": "<p><b>1 · It is three cells, all on Monday.</b> Against the <i>Targeted Fatigue Redo</i>, exactly three cells differ and they form one rotation: line 15's Monday <span class=\"tt\">06:20-13:45</span> becomes a rest day, line 16's Monday moves from <span class=\"tt\">08:30-17:00</span> to <span class=\"tt\">06:20-13:45</span>, and line 23's Monday rest day becomes <span class=\"tt\">08:30-17:00</span>. Nothing else on the grid moved.</p><p><b>2 · Monday's staffing is untouched, and that was checked rather than assumed.</b> A rotation returns every duty it takes, so Monday's multiset of duties is identical — 13 people on duty before and after, and 5 still on at 16:20 when the late starters arrive. The full-week coverage curve is identical to the previous version's at every quarter-hour, and has been since <i>Weeks 17-18 Swapped</i>: this family has not changed a duty, only which week holds it.</p><p><b>3 · The reading was checksummed before anything was built on it.</b> Monday to Saturday comes to <b>42,000</b> minutes against 20 working lines &times; 35h = 42,000, exactly, and all 24 of the document's own stated weekly totals match their cells to the minute.</p><p><b>4 · The judge is the workspace's own</b> — <span class=\"tt\">runDesignChecks</span>, <span class=\"tt\">weeklyHours</span>, <span class=\"tt\">assessHardLimits</span>, <span class=\"tt\">assessFatigue</span>, <span class=\"tt\">scoreOrder</span> and <span class=\"tt\">calcHourlyCoverage</span>, with nothing typed by hand and nothing softened. Where the design misses one of the December rules the table opposite says so.</p>",
+ "openQuestions": "<b>The change did exactly what it said, and the headline figures did not move — both are true, and the gap between them is the thing worth reading.</b> The document sets out to break an eight-day run across weeks 14 and 15. Measured: the stretch beginning line 14 Friday was <b>8 days</b> and is now <b>3</b>. The worst rolling seven-day window moved off that spot as well, from line 14 Friday to line 19 Tuesday, and fell from <b>54.7 hours to 53.1</b>. That is a real gain for whoever works those weeks. <b>But the binding figures are somewhere else, and they are unchanged.</b> The longest possible run is still <b>9 days</b>, at cover week 1 running into line 2, and FF11 is still <b>15</b> in the worst case — the same fifteen shifts at lines 17 to 20, not one of them altered by this edit. The design was corrected where the problem was noticed rather than where the worst case lives. <b>What it cost.</b> FF19 rises from <b>8 to 9</b>, and single-turn weeks fall from <b>4 of 20 to 2</b> — line 16 now holds a 06:20 Monday against 08:30 midweek, and line 23 an 08:30 Monday against a 16:25 late block, so both weeks now ask somebody to hold two start times where one of them held one. <b>Every hard gate stays clear</b> — 35h to the minute, no rest under 12 hours, no hard-limit breach, longest run nine days inside the thirteen on either reading of a cover week. <b>The unfinished question has not changed in three revisions.</b> Every factor still present is a property of which week sits next to which, and three hand edits have now moved it from five present to four. On this exact duty table the workspace's own search reaches <b>one</b>, with the coverage curve untouched — the searched proposals opposite are that result. This is listed as supplied, deliberately, so the hand-made line stays on the record.",
+ "identity": {
+  "lineage": "Supplied as a Word table and assessed here — not produced by the proposal search. It is the THIRD hand edit in one line: “Weeks 17-18 Swapped” (WS-24-EXT · 0bebb675) re-ordered into the “Targeted Fatigue Redo” (TF-24-EXT · 8eef9a13), and then three Monday cells rotated to give this. All three share a duty table, a per-day duty multiset and an hour-by-hour coverage curve; only the order of the weeks has ever changed."
+ },
+ "denseDuty": true,
+ "denseAlts": true,
+ "extraAlternatives": [
+  {
+   "label": "TF-24-EXT — the version this corrects",
+   "file": "targeted-fatigue.json"
+  },
+  {
+   "label": "WS-24-EXT — where the line started",
+   "file": "weeks1718.json"
+  },
+  {
+   "label": "WL4-24-F7 — the same work, searched",
+   "file": "weekday-lates-4.json"
+  }
+ ]
+}
