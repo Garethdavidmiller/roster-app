@@ -23,7 +23,7 @@ and every figure in a PDF is computed from the cells it shows — nothing is typ
 | **Targeted Fatigue Redo** | `TF-24-EXT · 8eef9a13` | **Supplied as a grid**, not searched — *Weeks 17-18 Swapped* re-ordered BY HAND to cut fatigue. Same duties, same days, identical coverage; MRSF cleared, FF11 depends on how a cover week is worked | 4, or **3 as rostered** | 9 | 5 in 24 |
 | **Three Mondays** | `TM-24-EXT · fe90c0b8` | **Supplied as a grid**, not searched — the *Targeted Fatigue Redo* with three Monday duties rotated. Breaks the eight-day run across weeks 14–15; the binding figures are elsewhere and do not move | 4, or **3 as rostered** | 9 | 5 in 24 |
 | **Cover at Seventeen** | `C17-24-EXT · edc1b731` | **Supplied as a grid**, not searched — *Three Mondays* with lines 17 and 18 swapped back, so the cover week returns to 17. **FF11 clears** for the first time in this line | **3** (on both readings) | 9 | 5 in 24 |
-| **Saturday Four** | `S4-24-EXT · 536b387b` | *Cover at Seventeen* with **Saturday rebuilt** — nine turns down to four on Saturday's own minute budget, demand fit 20.7 → 12.1. The first duty change in this line | **3** (on both readings) | 9 | 5 in 24 |
+| **Saturday Four** | `S4-24-EXT · 481ba9ed` | *Cover at Seventeen* with **Saturday rebuilt** on its own minute budget — nine turns down to four, six start times down to three, weighted to the late for Wembley. The first duty change in this line | **3** (on both readings) | 9 | 5 in 24 |
 
 The four searched proposals — *Same Turns*, *By the Book*, *Quarter To*, *Eight Forty* — clear every hard rule — Chiltern's 13-day limit, twelve hours between duties, the exact
 35-hour contracted week — and meet the December staffing shape (four to open, three through to
@@ -256,21 +256,30 @@ spread — gaps of **6, 5, 5, 8** against 6, 5, 6, 7.
 throughout. The search reaches **one**, with a six-or-seven-day run, FF19 at two and half the weeks on a
 single turn.
 
-**Saturday Four** (`S4-24-EXT · 536b387b`) is the fifth revision and **the first to change a duty rather
+**Saturday Four** (`S4-24-EXT · 481ba9ed`) is the fifth revision and **the first to change a duty rather
 than the order of the weeks** — on Saturday, and on Saturday alone. Against *Cover at Seventeen*, **zero
 cells outside the Saturday column differ**, Saturday still carries 12 people and still pays 5,895 minutes,
 so Mon–Sat is 42,000 to the minute exactly as before. The contract could not move, because the budget the
 search was given was the one Saturday already had.
 
-**Nine turns become four:** `06:20-14:30` ×5, `08:30-15:45` ×1, `14:30-22:15` ×2, `15:15-23:55` ×4.
-Distinct starts fall 6 → 4 and finishes 7 → 4. The demand-fit score against the measured December Saturday
-curve falls **20.7 → 12.1** (same measure as every other sheet; lower is better), and the thinnest
-fully-covered hour rises **3.0 → 4.5 people**. The longest Saturday duty falls **9h10 → 8h40**, bringing
+**Nine turns become four, and six start times become three:** `06:20-14:45` ×5, `09:30-16:30` ×1, and 15:15
+starting BOTH late turns — `15:15-22:30` ×2 and `15:15-23:55` ×4. Finishes fall 7 → 4. The thinnest
+fully-covered hour rises **3.0 → 4.7 people**, and the longest Saturday duty falls **9h10 → 8h40**, bringing
 Saturday under the cap the rest of this folder works to.
 
-**The frontier is on the record rather than hidden behind one answer:** five turns reaches a fit of 11.3 and
-six reaches 11.5, so a fifth turn buys 0.8 of fit. Four was taken because fewer start and finish times was
-the first half of the brief.
+**Two owner rules are built into the search pool rather than applied afterwards.** In the 21:00–23:00 band the
+only legal finish is **22:30**, because that is when the ticket office closes — an earlier draft of this table
+put two turns at 22:15, fifteen minutes short of a real handover, which is exactly the sort of time a search
+invents and a station cannot use. And the demand TARGET for 15:00–23:00 is lifted 15% for **Wembley**:
+Chiltern serves Wembley Stadium out of Marylebone, and an event fills trains the measured curve already
+counts, so the curve understates those hours. The traffic row printed on page 4 is still the measured one.
+
+**The fit, both ways:** against the measured curve alone it is **11.4** where today's Saturday is 20.7;
+against the Wembley-weighted target **11.8** where today's is 32.8. The weight is deliberately gentle — it
+buys half a person at 16:00 and half at 22:00, paid for by half at 08:00 and half at 09:00. A heavier one was
+tried and rejected: at 1.25 it buys a whole person at 16:00 and gives a whole one back at 09:00, where the
+curve reads 81 cars. **1.10, 1.15 and 1.20 all return this same table**, so the answer does not balance on the
+knob.
 
 **How it was found.** Every multiset of 12 duties paying exactly 5,895 minutes, from a pool of quarter-hour
 starts and finishes plus the 06:20 open and 23:55 close, each duty 7h00–8h40 — about 130 million tables
@@ -285,7 +294,7 @@ table of 12 duties paying 5,895 minutes from that pool puts four at the open *an
 evening floor. Four at the open needs a different Saturday headcount or minutes moved in from a weekday,
 and both were outside what this revision was allowed to touch.
 
-**What it cost:** the worst rolling seven-day total rises 53.1 → 53.3 hours, still well under 55. Every other
+**What it cost:** the worst rolling seven-day total rises 53.1 → 53.5 hours, still well under 55. Every other
 figure is unchanged. Saturday's headcount is still **12 against the December shape's fourteen**, and that is
 the real limit on how much shape Saturday can carry: 5,895 minutes over a 17h35 day is a mean of 5.6 people,
 so there is little headroom to build a peak whatever the table.

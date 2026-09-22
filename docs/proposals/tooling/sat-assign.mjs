@@ -15,9 +15,10 @@ import { asRosteredRuns } from './cover-placement.mjs';
 const SRC = './cover-at-seventeen.json';
 const P0 = JSON.parse(readFileSync(SRC, 'utf8'));
 const K = Object.keys(P0).sort((a,b)=>a-b);
-// The table sat-table.mjs returns at SEED=7 for the 4-turn frontier point: fewest distinct turns,
-// fewest starts and fewest finishes, at a demand fit of 12.1 against today's Saturday at 20.7.
-const TABLE = [['06:20-14:30',5],['08:30-15:45',1],['14:30-22:15',2],['15:15-23:55',4]];
+// The table sat-table.mjs returns at SEED=7, LATE_W=1.15: four turns, and only THREE start times.
+// 06:20 opens, 09:30 is the single body turn, and 15:15 starts BOTH late turns -- one off at 22:30 when
+// the ticket office closes, one through to the 23:55 close.
+const TABLE = [['06:20-14:45',5],['09:30-16:30',1],['15:15-22:30',2],['15:15-23:55',4]];
 const DUTIES = TABLE.flatMap(([t,n]) => Array(n).fill(t));
 const SLOTS = K.filter(k => /^\d\d:\d\d-/.test(P0[k].sat));       // lines that work Saturday
 if (DUTIES.length !== SLOTS.length) throw new Error(`${DUTIES.length} duties vs ${SLOTS.length} slots`);

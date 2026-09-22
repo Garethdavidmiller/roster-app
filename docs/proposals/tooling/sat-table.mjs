@@ -20,7 +20,17 @@
 // claim was established: no table in this pool puts four at the open AND four at the close, at any floor.
 import { startMinutes, endMinutes } from '../../../links-design.js';
 import { DEC_2026_DEMAND } from '../../../links-demand.js';
-const WIN=[6*60+20,23*60+55], cars=DEC_2026_DEMAND.sat.cars;
+const WIN=[6*60+20,23*60+55];
+// WEMBLEY (owner, 22 Sep 2026). Chiltern serves Wembley Stadium station out of Marylebone, so a
+// Saturday event loads the afternoon and evening in a way the measured timetable curve does not show --
+// the curve counts trains, and an event fills the ones already there. LATE_W lifts the TARGET for
+// 15:00-23:00 so the fit measure asks for more people then; it does not pretend the traffic figures
+// are different, and the traffic row printed on page 4 is still the measured one.
+// 1.15 is the shipped setting, and it is 'slightly' on purpose. 1.10, 1.15 and 1.20 all return the
+// SAME table, so the answer is not balanced on the knob; 1.25 buys another person at 16:00 and pays a
+// whole one back at 09:00, where the curve reads 81 cars. The gentle weight moves half a person.
+const LATE_W=Number(process.env.LATE_W??1.15), LATE_FROM=15, LATE_TO=23;
+const cars=DEC_2026_DEMAND.sat.cars.map((c,h)=>h>=LATE_FROM&&h<=LATE_TO?c*LATE_W:c);
 const HM=m=>`${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
 const T=(s,e)=>`${HM(s)}-${HM(e)}`;
 function fit(duties){
@@ -43,7 +53,13 @@ const OPEN=6*60+20, CLOSE=23*60+55, TOTAL=5895, N=12;
 // Legal clock times: quarter hours, plus the open and the close. "No :05 or :10 except open and close."
 const QS=[];for(let m=7*60;m<=17*60;m+=15)QS.push(m);
 const STARTS=[OPEN,...QS];
-const ENDS=[];for(let m=13*60+30;m<=22*60+45;m+=15)ENDS.push(m);ENDS.push(CLOSE);
+// THE TICKET OFFICE CLOSES AT 22:30 (owner, 22 Sep 2026). A turn that finishes in the evening but
+// before the station closes finishes when the office does -- so in the 21:00-23:00 band, 22:30 is the
+// only legal finish. The first version of this table put two turns at 22:15, fifteen minutes short of
+// a real handover point, which is exactly the kind of time a search invents and a station cannot use.
+const OFFICE_CLOSE=22*60+30;
+const ENDS=[];for(let m=13*60+30;m<=22*60+45;m+=15){ if(m>21*60&&m<23*60&&m!==OFFICE_CLOSE) continue; ENDS.push(m); }
+ENDS.push(CLOSE);
 const LO=420, HI=520;                                    // 7h00 .. 8h40
 const POOL=[];
 for(const s of STARTS)for(const e of ENDS){const d=e-s;if(d>=LO&&d<=HI)POOL.push([s,e,d]);}
