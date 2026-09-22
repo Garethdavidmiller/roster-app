@@ -56,6 +56,12 @@ const SWAPPABLE = FREEZE_POS ? KEYS.filter(k => !SPARE.has(k) && !FREEZE.has(k))
 // RULES=1 charges every factor PRESENT over and above its size, which is what anneal.mjs's own
 // rules mode does. Use it when the goal is "no factors present" rather than the softest rotation.
 const RULES = process.env.RULES === '1';
+// LINES_ONLY=1 restricts the search to WHOLE-LINE swaps: every week pattern stays exactly as
+// written and only the order people rotate through them changes. It is the smallest edit that can
+// move a fatigue factor, because the factors are properties of which week follows which — and it
+// is what "improve the factors without redesigning anybody's week" means. The day-swap move, which
+// moves ONE duty between two lines on one day, is the larger edit and stays the default.
+const LINES_ONLY = process.env.LINES_ONLY === '1';
 const family = t => { const s = startMinutes(t); return s === null ? null : s < 9 * 60 ? 'E' : 'L'; };
 const clone = p => { const q = {}; for (const k in p) q[k] = { ...p[k] }; return q; };
 
@@ -110,7 +116,7 @@ const editable = p => (FREEZE_POS ? WORK : KEYS.filter(k => !SPARE.has(k)))
 function move(p) {
   const q = clone(p);
   const ed = editable(p);
-  if (rnd() < 0.72 && ed.length > 1) {      // swap one day's duty between two EDITABLE lines
+  if (!LINES_ONLY && rnd() < 0.72 && ed.length > 1) {      // swap one day's duty between two EDITABLE lines
     const d = pick(DAYS); let x = pick(ed), y = pick(ed);
     while (y === x) y = pick(ed);
     [q[x][d], q[y][d]] = [q[y][d], q[x][d]];
@@ -138,7 +144,7 @@ function polish(p) {
   while (moved) {
     moved = false;
     const ed = editable(cur);
-    for (const d of DAYS) for (let i = 0; i < ed.length; i++) for (let j = i + 1; j < ed.length; j++) {
+    if (!LINES_ONLY) for (const d of DAYS) for (let i = 0; i < ed.length; i++) for (let j = i + 1; j < ed.length; j++) {
       const q = clone(cur); [q[ed[i]][d], q[ed[j]][d]] = [q[ed[j]][d], q[ed[i]][d]];
       const c = evaluate(q).cost; if (c < curC - 1e-9) { cur = q; curC = c; moved = true; }
     }
@@ -179,7 +185,12 @@ for (const k of FLOAT) { // pattern must still exist somewhere, unedited; positi
   if (!present.has(JSON.stringify(START[k])))
     throw new Error(`floated line ${k}'s pattern is no longer in the rotation — the float is not holding`);
 }
+if (LINES_ONLY) { // every starting week pattern must still be present, unedited — a reorder and nothing more
+  const a = Object.values(START).map(r => JSON.stringify(r)).sort(), b = Object.values(best.p).map(r => JSON.stringify(r)).sort();
+  if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error('LINES_ONLY edited a week pattern — the restriction is not holding');
+}
 console.log('invariants hold: day duties, contracted hours and cover weeks all unchanged'
+  + (LINES_ONLY ? '; LINES_ONLY — every week pattern intact, order only' : '')
   + (FREEZE.size ? `; lines ${[...FREEZE].join(', ')} ${FREEZE_POS ? 'untouched' : 'kept as patterns (position free)'}` : '')
   + (FLOAT.size ? `; line${FLOAT.size > 1 ? 's' : ''} ${[...FLOAT].join(', ')} kept as pattern${FLOAT.size > 1 ? 's' : ''}, position free` : ''));
 writeFileSync(FILE.replace(/\.json$/, '-optimised.json'), JSON.stringify(best.p, null, 0));

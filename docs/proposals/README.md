@@ -22,6 +22,7 @@ and every figure in a PDF is computed from the cells it shows — nothing is typ
 | **Weeks 17-18 Swapped** | `WS-24-EXT · 0bebb675` | **Supplied as a grid**, not searched — cover week moved to 18, midday turn at `12:00–20:30`. Clears every hard gate; not yet shape-searched | 5 | 9 | 6 in 24 |
 | **Clean Final** | `CF-24-EXT · 6d21169b` | **Supplied as a Word table**, not searched — the Weekday Lates line revised again: the 9h10 Saturday closer shortened to 8h40 and the cover week back at 17 | 3 | 9 | 4 in 24 |
 | **Clean Final Tuned** | `CFT-24-M3 · ae1a15bd` | *Clean Final* with **three cells retimed** and nothing else — Saturday's demand fit 28.5→20.5 and Sunday's 62.4→44.9, every headcount, cover week and contracted hour unchanged | 3 | 9 | 4 in 24 |
+| **Clean Final Ten** | `TN-24-R7 · 84b60df9` | *Clean Final Tuned* with **a tenth Sunday duty added** (`15:25–23:25`) and the wheel then **reordered, whole weeks only** — Sunday's fit 44.9→35.3, ten on a Sunday met, every week pattern intact | **2** | 6 | 5 in 24 |
 
 The four searched proposals — *Same Turns*, *By the Book*, *Quarter To*, *Eight Forty* — clear every hard rule — Chiltern's 13-day limit, twelve hours between duties, the exact
 35-hour contracted week — and meet the December staffing shape (four to open, three through to
@@ -219,6 +220,41 @@ in the design and half an hour above the floor — an 11:30 start would hold 13h
 heaviest day by minutes (7,780 against Monday's 6,225), and those are the same fact. That is a weekday-table
 question, not a three-cell one.
 
+**Clean Final Ten** answers the next ask: *give it a tenth Sunday shift, fit demand better, and improve
+the fatigue factors*. The first two are one cell. Every placement of a tenth Sunday duty was measured
+— every line with a Sunday rest day, every start on the five-minute grid, four lengths, 1,771 placements
+clearing a 12h30 rest — and the curve is unambiguous: an evening turn, **`15:25–23:25`**, takes Sunday's
+misfit from 44.9 to **35.3** and meets the December headcount of ten. **But on the parent's line order
+that turn trips a factor wherever it goes**: a worked Sunday joins the week before to the week after,
+so either FF11 (more than 13 shifts without a 48-hour break) or the 55-hour week appears. Only two lines
+could take *any* Sunday duty without a new factor, and both placements made the fit worse.
+
+So the third ask decided the method: **the wheel was reordered, whole weeks only** — `optimise.mjs`
+gained a `LINES_ONLY=1` switch that restricts it to swapping entire lines, which is the smallest edit
+that can move a fatigue factor because the factors are properties of which week follows which. Every
+week pattern in *Tuned* is still here unedited (except the one that gained the Sunday cell — the
+parent's week 24, now line 5); 16 of the 20 working weeks change line number and 7 lines stay put.
+Result: factors present **3 → 2**, longest run **9 → 6**, full weekends off 4 → 5, worst seven-day
+window 51.6h → 50.9h, tightest rest 12h30. Coverage, headcounts and the contract are invariant by
+construction and asserted by the script; the day multisets are exactly *Tuned*'s plus the one Sunday
+cell. `RULES=1 LINES_ONLY=1 node optimise.mjs cea-clean-final-ten-start.json 20000 2 7` reproduces the
+grid byte-for-byte (checked), which is what the `R7` in the code says.
+
+**Two other answers were measured and both are committed**, because the PDF names them in its
+alternatives table. `tooling/clean-final-ten-alt-fewswaps.json` is the *smallest* reorder that reaches
+two factors — a greedy four whole-line swaps, 17 lines untouched — and it shows what small costs: the
+run stays at 8, weekends fall to 3, and the 55-hour window sits at 54.7, eighteen minutes from the line.
+`tooling/clean-final-ten-alt-full.json` is the full search with duties free to move between weeks: one
+factor (FF19 at 4), six weekends, **13 of 20 weeks a single turn** — and 19 of the 20 working weeks
+rewritten. *Clean Final Ten* is the middle of those three.
+
+**What it costs, stated on its own pages.** Sunday now closes with five where the shape asks three (the
+parent already closed with four; a `15:20–23:20` turn keeps it at four for 0.6 of fit). Sixteen line
+numbers move, and a line number is what a member knows. The week that gains the Sunday works a late
+into three earlies across one rest day — legal by 30h55, and the one week whose *shape* a member would
+notice. FF15 sits exactly on its threshold of 4. And nothing the parent left open is answered here:
+Saturday's 5/3 open and close, 12 on a Saturday, 4.35 days, Thursday at 60.8.
+
 **Two corrections to this tooling came out of building it**, both of the same shape — a sentence that read
 as checked and was not. `supplied.mjs` rendered the stock *"two candidates tied on every rule; the fit
 decided it"* under the alternatives table of a design whose whole method page says **there were no
@@ -238,7 +274,8 @@ December default, `Q`/`R` table B with the closer at 15:45 and the two 06:20 ope
 contract — `Q` to 14:00 and 14:50, Saturday's own opening times; `R` to 14:30; `E` the December rules
 re-solved with no duty over 8h40, `tooling/eight-forty-table.json`) · search seed. A trailing `p` (`BB-24-D21p`) is the rules-only run with no
 week-coherence term, kept as a comparator. The fingerprint is the first eight hex characters of
-SHA-256 over the 24 × 7 cells in line order. `CFT-24-M3`'s **`M3` is a move count, not a seed** — three
+SHA-256 over the 24 × 7 cells in line order. `TN-24-R7` is a reorder: `R7` is `optimise.mjs`'s seed in rules mode, the same reading as `FT-24-R21`.
+`CFT-24-M3`'s **`M3` is a move count, not a seed** — three
 retimed cells — and it is spelled that way because a two-character suffix in this scheme otherwise reads as a
 search seed, which would be a claim this design cannot support.
 
@@ -278,6 +315,7 @@ PROPOSAL=BB EXTRA=results/best-RDpure-21.json node final.mjs results/best-RD-*.j
 PROPOSAL=QT node final.mjs results/best-Q-*.json results/best-R-*.json
 PROPOSAL=EF node final.mjs results/best-RE-*.json
 node wl4-run.mjs                      # Weekday Lates 4: all four placements of the 14-17 block x 3 seeds (12 runs)
+RULES=1 LINES_ONLY=1 node optimise.mjs <design>.json 20000 2 7   # reorder WHOLE WEEKS only, fatigue-first (Clean Final Ten)
 node supplied.mjs <design>.json "<Name>" "<strap>" <CODE>   # render a SUPPLIED or DERIVED design (no search to describe)
 node shots.mjs <rendered>.html       # A4 page screenshots + a height check against the printable page
 ```
