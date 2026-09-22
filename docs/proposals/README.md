@@ -13,13 +13,13 @@ and every figure in a PDF is computed from the cells it shows — nothing is typ
 | **By the Book** | `BB-24-D7 · 0f14abce` | The workspace's December duty table (the owner's rules in table form), the rotation searched for the ORR factors | **0** | 6 | 6 in 24 |
 | **Quarter To** | `QT-24-Q34 · 70cf9874` | *Same Turns* with the weekday closer at 15:45 and no duty over 8h40 — the two 06:20 openers run on to Saturday's own opening times to keep the contract, so the closer is the only time nobody works today | **0** | 6 | 6 in 24 |
 | **Eight Forty** | `EF-24-E21 · 0cf19f56` | *By the Book* with no duty over 8h40 — the December table re-solved under the same rules with the ceiling at 8h40 (its earlies had run to 9h30), then the rotation searched for the ORR factors as *By the Book* was | **0** | 6 | 6 in 24 |
-| **Weekday Lates** | `WL-24-EXT · a52ec588` | **Supplied as a Word table**, not searched — weekday lates at 16:25, Saturdays left alone | 5 (as today's link) | 9 | 6 in 24 |
+| **Weekday Lates** | `WL-24-EXT · a52ec588` | **Supplied as a Word table**, not searched — weekday lates at 16:25, Saturdays left alone | 5, or **4 as rostered** | 9 | 6 in 24 |
 | **Fifteen Turns** | `FT-24-EXT · 9a028392` | **Supplied as a grid**, not searched — the shortest turn table yet and a perfect cover spread, but **it does not clear two gates** | 7 | 9 | 2 in 24 |
 | **Fifteen Turns Repaired** | `FT-24-R21 · b76bf9e1` | The same design with both gates **repaired** and the rotation re-searched — every duty, headcount and coverage hour unchanged | **1** | 6 | 6 in 24 |
 | **Weekday Lates 2** | `WL2-24-R21 · 33f70893` | Weekday Lates with the `08:30–17:00` turns re-timed into the evening to cover the 17:00 peak, then re-searched | **1** | 6 | 6 in 24 |
 | **Weekday Lates 3** | `WL3-24-F7 · a6234195` | The same evening fix with **weeks 13–17 kept exactly as written**, then searched fatigue-first | **1** (FF19, at its floor) | 6 | 4 in 24 |
 | **Weeks 17-18 Swapped** | `WS-24-EXT · 0bebb675` | **Supplied as a grid**, not searched — cover week moved to 18, midday turn at `12:00–20:30`. Clears every hard gate; not yet shape-searched | 5 | 9 | 6 in 24 |
-| **Targeted Fatigue Redo** | `TF-24-EXT · 8eef9a13` | **Supplied as a grid**, not searched — *Weeks 17-18 Swapped* re-ordered BY HAND to cut fatigue. Same duties, same days, identical coverage; MRSF cleared, FF11 not | 4 | 9 | 5 in 24 |
+| **Targeted Fatigue Redo** | `TF-24-EXT · 8eef9a13` | **Supplied as a grid**, not searched — *Weeks 17-18 Swapped* re-ordered BY HAND to cut fatigue. Same duties, same days, identical coverage; MRSF cleared, FF11 depends on how a cover week is worked | 4, or **3 as rostered** | 9 | 5 in 24 |
 
 The four searched proposals — *Same Turns*, *By the Book*, *Quarter To*, *Eight Forty* — clear every hard rule — Chiltern's 13-day limit, twelve hours between duties, the exact
 35-hour contracted week — and meet the December staffing shape (four to open, three through to
@@ -154,19 +154,66 @@ hour-by-hour coverage curve at every quarter-hour of the week. The contract chec
 42,000 minutes against 20 working lines × 35h, and all 24 of the document's own stated weekly totals
 match their cells to the minute.
 
-**It set out to clear two flags; one cleared and one did not, and the difference is a definition.**
-The worst seven-day total falls from **60.6 hours to 54.7**, under the 55-hour row — the document's
-estimate of "about 54h40" is right. But it reports the other as "dropping from about 15 duties to 9",
-and those are two different measures: **9** is the longest run of consecutive worked DAYS, which is
-correct and inside the 13-day limit, while **FF11 counts shifts between 48-hour breaks and a single
-rest day is not one**. On that measure it is at **15**, down from 16 and still above the threshold of
-13. FF11 is still present. Factors fall five to four, but not uniformly — FF19 rises 7 to 8, full
-weekends off fall 6 to 5, and single-turn weeks fall 6 of 20 to 4.
+**It set out to clear two flags. One cleared outright; the other turned out to depend on something
+the link does not decide.** The worst seven-day total falls from **60.6 hours to 54.7**, under the
+55-hour row — the document's estimate of "about 54h40" is right. The second is the interesting one.
+It reports the run "dropping from about 15 duties to 9", and there are three different measures in
+that sentence. **9** is the longest run of consecutive worked DAYS, correct and inside the 13-day
+limit. **FF11 counts shifts between 48-hour breaks, and a single rest day is not one** — on that
+measure this design is at **15 in the worst case**, over the threshold of 13, but **12 as rostered**,
+under it. The whole difference is the cover week; see the section below. Factors fall five to four
+(three as rostered), but not uniformly — FF19 rises 7 to 8, full weekends off fall 6 to 5, and
+single-turn weeks fall 6 of 20 to 4.
 
 **It is the clearest case yet for the paragraph above.** Everything still flagged is a property of
 which week sits beside which; on this exact duty table the same work done by `optimise.mjs` reaches
 one factor and a six-or-seven-day run with the coverage curve untouched. It is listed as supplied,
 deliberately, so the hand-made baseline stays on the record beside the searched result.
+
+## The two readings of a cover week
+
+**Every sheet here now prints two answers on one row, and the gap between them is a question for the
+roster office rather than a mark against a design.**
+
+A cover week is `SPARE` on all seven days and worked on **four** of them — the roster clerk places
+them, and the link does not say which four. So every run-based rule has a range rather than an
+answer, and the app's own modules report the top of it: a cover day counts towards a run, capped at
+four a week, and never supplies a break.
+
+**That ceiling is correct and it is reachable.** Enumerated, 22 Sep 2026: of the **35** ways to place
+four duties in seven days, exactly **10** leave no two rest days together — and those 10 are
+precisely the placements that reproduce the app's figure. It is not an over-count; the pre-v19.79
+behaviour (a cover week as seven worked days) was, and this is what replaced it.
+
+**But it needs the week SPLIT.** Work the four together, which is what a cover week looks like on the
+roster, and the three rest days are necessarily together too — so the week always supplies a
+48-hour break and can never BRIDGE the blocks either side of it. That is the *as rostered* figure.
+
+**Checked on every run row, on all thirteen designs: FF11 is the only one where the two differ.** The
+longest-run figure, the 12-consecutive-days row, the 7×8h row and FF15 give the same answer under
+both, which the hard-limits row on page 5 now says out loud rather than leaving to be assumed. On
+**two** designs FF11 differs either side of the threshold:
+
+| | worst case | as rostered |
+|---|---|---|
+| Weekday Lates | **14** — present | **10** — clear |
+| Targeted Fatigue Redo | **15** — present | **12** — clear |
+| Fifteen Turns | 14 — present | 14 — present |
+| Weeks 17-18 Swapped | 16 — present | 16 — present |
+| every other design | 9–12 — clear | 9–11 — clear |
+
+The last two breach on **either** reading, so nothing about cover-week placement rescues them —
+*Weeks 17-18 Swapped*'s 16 contains no cover week at all.
+
+**The row's colour still follows the ceiling**, deliberately: a reader who takes one number from the
+cell takes the cautious one. Printing only the ceiling would flag designs that are clear as rostered;
+printing only the block reading is the false-assurance failure `links-fatigue.js` names as its own
+dominant risk. `tooling/cover-placement.mjs` carries the argument and does the arithmetic, running
+the app's own scanners over a grid whose cover weeks have been materialised — it decides what a
+cover day IS, and never what a run is.
+
+**Open, and it is the owner's to answer:** does the roster clerk ever split a cover week day-on-day-off?
+If never, the block reading is the real one and the ceiling is a footnote.
 
 **The code**: family (`ST` / `BB` / `QT` / `EF`) · rotation length · duty table (`A`/`B` today's times, `D` the
 December default, `Q`/`R` table B with the closer at 15:45 and the two 06:20 openers run on to keep the
@@ -211,7 +258,20 @@ PROPOSAL=BB EXTRA=results/best-RDpure-21.json node final.mjs results/best-RD-*.j
 PROPOSAL=QT node final.mjs results/best-Q-*.json results/best-R-*.json
 PROPOSAL=EF node final.mjs results/best-RE-*.json
 node shots.mjs <rendered>.html       # A4 page screenshots + a height check against the printable page
+node regenerate.mjs --check           # every proposal's fingerprint, without rendering
+node regenerate.mjs                  # re-render EVERY sheet from the same inputs that produced it
 ```
+
+`regenerate.mjs` holds every proposal's build arguments as data, so a change to `render.mjs` or
+`report-data.mjs` can be applied to all of them with one command. It was written because the twelve
+build commands existed only in shell history and a README block covering four of them, and the other
+eight had to be recovered by reading the name and strap back out of the rendered HTML — which works
+until somebody deletes an HTML file. It refuses to finish if a fingerprint moves: the same grid in
+must give the same eight hex characters out, because a proposal's identity is its cells and a
+printout that has been in a room must go on matching its name. `--check` does that and nothing else.
+*(While writing it: `quarter-two.json` and its meta held the FIFTEEN TURNS grid, not Quarter To — a
+working name that outlived its design. Renamed to `fifteen-turns.json`; Quarter To is searched and has
+no supplied grid.)*
 
 `anneal.mjs` is the search: every move keeps each day's duties exactly as the table says (a swap
 between two lines on one day, or two whole lines changing places), so coverage, contract and

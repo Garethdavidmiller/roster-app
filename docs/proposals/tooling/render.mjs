@@ -65,10 +65,31 @@ export async function renderPdf(D, out) {
   const ff = (a, code, t) => a.fatigue.results.find(r => r.code === code && (!t || r.title.includes(t)));
   const icon = st => st === 'present' ? '⚠' : st === 'clear' ? '✓' : st === 'standing' ? '●' : '–';
   const cls = st => st === 'present' ? 'check-warn-row' : st === 'clear' ? 'check-good' : 'check-neutral';
+  // ── THE TWO READINGS OF A COVER WEEK, ON THE ONE ROW THEY MOVE ────────────────────────────────
+  // A cover week is worked four days of seven and the link does not say which four, so every run
+  // row has a range. The app reports the ceiling: the four SPLIT day-on-day-off, which supplies no
+  // 48-hour break and bridges the blocks either side. That ceiling is real and reachable — of the
+  // 35 placements, the 10 with no two rest days together reproduce it exactly — but it needs the
+  // clerk to split the week, and a cover week worked as a BLOCK always supplies a break.
+  //
+  // Measured across every design in this folder, FF11 is the ONLY row where the two readings
+  // differ, and on one design they differ either side of the threshold. So both are printed, on
+  // that row, each with its own mark; `cover-placement.mjs` carries the argument. Printing only the
+  // ceiling flags designs that are clear as rostered; printing only the block reading is the
+  // false-assurance failure links-fatigue.js names as its dominant risk. The status COLOUR of the
+  // row still follows the ceiling — a reader who takes nothing else from the cell takes the
+  // cautious number.
+  const asRos = (a, code) => code === 'FF11' ? a.asRostered?.ff11?.worst ?? null : null;
+  const rosStatus = v => v === null ? null : (v > 13 ? 'present' : 'clear');
   const rowsFF = P.fatigue.results.map(r => { const t = T.fatigue.results.find(x => x.code === r.code && x.title === r.title);
     const val = x => x ? (x.status === 'n/a' ? '–' : (x.value ?? '')) : '';
+    const second = (a, code, have) => { const v = have ? asRos(a, code) : null; return v === null ? ''
+      : `<span class="ff-alt ff-${rosStatus(v)}">${icon(rosStatus(v))} ${v} as rostered</span>`; };
     return `<tr class="ff-${r.status}"><td class="ff-code">${r.code}</td><td class="ff-title">${esc(r.title)}${r.confirm?' <span class="muted">(definition to confirm)</span>':''}<span class="ff-fam">${esc(r.family)}</span></td>
-      <td class="ff-st ff-${t?.status}">${icon(t?.status)} ${esc(val(t))}</td><td class="ff-st ff-${r.status}">${icon(r.status)} ${esc(val(r))}</td></tr>`; }).join('');
+      <td class="ff-st ff-${t?.status}">${icon(t?.status)} ${esc(val(t))}${second(T, r.code, !!t)}</td><td class="ff-st ff-${r.status}">${icon(r.status)} ${esc(val(r))}${second(P, r.code, true)}</td></tr>`; }).join('');
+  // Factors present under the block reading — the same count, less FF11 when only the ceiling fires.
+  const presentRos = a => a.fatigue.present - ((asRos(a, 'FF11') !== null
+    && (ff(a, 'FF11')?.status === 'present') && rosStatus(asRos(a, 'FF11')) === 'clear') ? 1 : 0);
 
   const tableRows = (() => {
     const times = new Set([...T.tableRows.map(r=>r.time), ...P.tableRows.map(r=>r.time)]);
@@ -137,7 +158,8 @@ td.up { background: color-mix(in srgb, var(--success-green) 10%, white); } td.do
 .check-row { font-size: 10.5px; padding: 6px 9px; } .check-rows { gap: 5px; }
 table.ff { border-collapse: collapse; width: 100%; font-size: 9.5px; } table.ff td { padding: 2px 6px; border-bottom: 1px solid var(--border-light); vertical-align: top; } table.ff th { text-align: left; font-size: 9px; text-transform: uppercase; color: var(--text-mid); background: var(--surface-sunken); padding: 4px 6px; }
 .ff-code { font-weight: 800; color: var(--primary-blue); white-space: nowrap; width: 38px; } .ff-fam { display: inline; font-size: 8.5px; color: var(--text-light); margin-left: 6px; }
-.ff-st { white-space: nowrap; font-weight: 700; width: 92px; } .ff-present { color: color-mix(in srgb, var(--warning-amber) 55%, black); } .ff-clear { color: color-mix(in srgb, var(--success-green) 80%, black); } .ff-standing { color: var(--text-mid); } .ff-n\\/a { color: var(--text-light); font-weight: 400; }
+.ff-st { white-space: nowrap; font-weight: 700; width: 108px; }
+.ff-alt { display: block; font-size: 8.5px; font-weight: 600; margin-top: 1px; } .ff-present { color: color-mix(in srgb, var(--warning-amber) 55%, black); } .ff-clear { color: color-mix(in srgb, var(--success-green) 80%, black); } .ff-standing { color: var(--text-mid); } .ff-n\\/a { color: var(--text-light); font-weight: 400; }
 tr.ff-present td { background: color-mix(in srgb, var(--warning-amber) 8%, white); }
 pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken); padding: 8px 10px; border-radius: var(--radius-sm); font-family: ui-monospace, Menlo, Consolas, monospace; white-space: pre; margin: 0; }
 .foot-id b { color: var(--primary-blue); }
@@ -182,7 +204,7 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
       chip(rests === 0, `<strong>${rests}</strong> rest${rests === 1 ? '' : 's'} under 12h`),
     ].join('');
   })()}
-   <span class="sum-chip sum-chip--${P.fatigue.present?'warn':'ok'}">${P.fatigue.present?'⚠':'✓'} <strong>${P.fatigue.present}</strong> fatigue factor${P.fatigue.present===1?'':'s'} present <span class="muted">(today: ${T.fatigue.present})</span></span></div>
+   <span class="sum-chip sum-chip--${P.fatigue.present?'warn':'ok'}">${P.fatigue.present?'⚠':'✓'} <strong>${P.fatigue.present}</strong> fatigue factor${P.fatigue.present===1?'':'s'} present${presentRos(P) !== P.fatigue.present ? ` <span class="muted">— ${presentRos(P)} as rostered</span>` : ''} <span class="muted">(today: ${T.fatigue.present})</span></span></div>
   <div class="tiles">
     ${BB ? `<div class="tile"><b>${P.feel.distinctTimes} turns</b><span class="l">in the December duty table</span><span class="s">searched against the timetable; lates shorter than earlies; on the quarter hour except the open and close</span></div>`
          : EF ? `<div class="tile"><b>${P.feel.distinctTimes} turns</b><span class="l">in the December table, capped</span><span class="s">searched against the timetable under the 8h40 rule; lates shorter than earlies; the longest duty is ${hm(ef.longest)}</span></div>`
@@ -199,7 +221,7 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
              return `<div class="tile"><b>${shared} of ${mine.length}</b><span class="l">shift times are today's</span><span class="s">${shared === mine.length ? 'every time on the sheet is one people already work — nothing new to learn' : `${mine.length - shared} ${mine.length - shared === 1 ? 'time is new' : 'times are new'}; the rest are turns people already work`}</span></div>`;
            })()}
     <div class="tile"><b>${P.checks.longestStretch} days</b><span class="l">longest run of worked days</span><span class="s">today's link reaches ${T.checks.longestStretch}; Chiltern's limit is ${MAX_CONSECUTIVE_WORKED_DAYS}</span></div>
-    ${RULES ? `<div class="tile"><b>${P.fatigue.present} of 25</b><span class="l">fatigue factors present</span><span class="s">today's link has ${T.fatigue.present}; every other factor is clear or does not apply</span></div>`
+    ${RULES ? `<div class="tile"><b>${P.fatigue.present} of 25</b><span class="l">fatigue factors present</span><span class="s">${presentRos(P) !== P.fatigue.present ? `${presentRos(P)} with cover weeks worked as a block; ` : ''}today's link has ${T.fatigue.present}; every other factor is clear or does not apply</span></div>`
          : `<div class="tile"><b>${P.feel.oneTurn} of ${P.feel.workingLines}</b><span class="l">working weeks are one turn</span><span class="s">same clock time all week, as ${T.feel.oneTurn} of today's ${T.feel.workingLines} are</span></div>`}
     <div class="tile"><b>${P.checks.weekendsOff} in 24</b><span class="l">full weekends off</span><span class="s">${P.checks.weekendsOffPct}% of the rotation, against ${T.checks.weekendsOffPct}% today (${T.checks.weekendsOff} in 20)</span></div>
     <div class="tile"><b>${P.feel.spareLines.length} cover weeks</b><span class="l">lines ${P.feel.spareLines.join(', ')}</span><span class="s">${meta.coverNote ?? `evenly spaced six lines apart — today's sit at ${T.feel.spareLines.join(', ')}`}</span></div>
@@ -279,7 +301,7 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
   <div class="mast"><div><div class="eyebrow">The rules it is assessed against</div><h1>The checks sheet</h1><div class="sub">Hard limits first — met or not. Then the ORR good-practice fatigue factors, which report what is present and never pass or fail a design.</div></div></div>
   <h2>Hard limits <span class="muted" style="font-weight:400;font-size:10px">— a design either meets these or cannot be run</span></h2>
   <div class="check-rows">
-    <div class="check-row ${hard.status==='ok'?'check-good':'check-bad'}"><span class="check-icon ${hard.status==='ok'?'check-tick':'check-cross'}">${hard.status==='ok'?'✓':'✕'}</span><div class="check-body"><b>${esc(hard.title)}</b> — longest possible run <b>${hard.value}</b> days (today: ${hardT.value})<div class="check-sub">${esc(hard.detail)}<br><span class="muted">Basis: ${esc(hard.basis)}. Configured from Chiltern practice; the policy citation is outstanding, so this is stated as the app states it.</span></div></div></div>
+    <div class="check-row ${hard.status==='ok'?'check-good':'check-bad'}"><span class="check-icon ${hard.status==='ok'?'check-tick':'check-cross'}">${hard.status==='ok'?'✓':'✕'}</span><div class="check-body"><b>${esc(hard.title)}</b> — longest possible run <b>${hard.value}</b> days (today: ${hardT.value})<div class="check-sub">${esc(hard.detail)} ${P.asRostered.consecDays.worst === hard.value ? `Worked as a BLOCK of four rather than split day-on-day-off, the answer is the same — <b>${P.asRostered.consecDays.worst}</b> days — so this row does not depend on how a cover week is placed.` : `Worked as a BLOCK of four rather than split day-on-day-off it is <b>${P.asRostered.consecDays.worst}</b> days.`}<br><span class="muted">Basis: ${esc(hard.basis)}. Configured from Chiltern practice; the policy citation is outstanding, so this is stated as the app states it.</span></div></div></div>
     <div class="check-row ${P.checks.turnarounds.length ? 'check-warn-row' : 'check-good'}"><span class="check-icon ${P.checks.turnarounds.length ? '' : 'check-tick'}">${P.checks.turnarounds.length ? '⚠' : '✓'}</span><div class="check-body"><b>At least 12 hours between duties</b> — <b>${P.checks.turnarounds.length}</b> rests under 12h anywhere in the rotation, Saturday-into-Sunday and line-into-line included (today: ${T.checks.turnarounds.length})<div class="check-sub">The generator refuses a design it cannot repair to this; the search here never produced one.</div></div></div>
     <div class="check-row check-good"><span class="check-icon check-tick">✓</span><div class="check-body"><b>The contracted week, exactly</b> — <b>${hmFromHours(P.hours.exSunday)}</b> average Mon–Sat over the 24 lines, cover weeks counted as contracted weeks<div class="check-sub">700h of duty a week across 20 working lines. Sundays (${P.hours.sundayHours.toFixed(2)}h) sit on top as RDW, as they do today. Individual weeks range ${hm(Math.min(...P.totals.rows.filter(r=>!r.assumed).map(r=>r.exSundayMinutes)))}–${hm(Math.max(...P.totals.rows.map(r=>r.exSundayMinutes)))}; only the average is the contract.</div></div></div>
   </div>
@@ -295,7 +317,7 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
 <section class="page">
   <div class="mast"><div><div class="eyebrow">The rules it is assessed against · continued</div><h1>ORR fatigue factors</h1><div class="sub">Good practice guidelines — Fatigue Factors, p3 (December 2021). ⚠ present · ✓ clear · ● standing, a property of the operation · – not applicable. Nathan assesses against this list.</div></div></div>
   <table class="ff"><thead><tr><th>Code</th><th>Factor</th><th>Today's link</th><th>Proposed</th></tr></thead><tbody>${rowsFF}</tbody></table>
-  <p class="muted">Present: ${P.fatigue.present} (today ${T.fatigue.present}) · standing: ${P.fatigue.standing} · FF2 fires on every 06:20 duty, so it is a property of the station's opening time rather than of any design. A cover week's four duties are counted in the worst case for every run figure. This sheet is an aid to a conversation, not a fatigue risk assessment.</p>
+  <p class="muted">Present: ${P.fatigue.present}${presentRos(P) !== P.fatigue.present ? ` in the worst case, <b>${presentRos(P)}</b> as rostered` : ''} (today ${T.fatigue.present}${presentRos(T) !== T.fatigue.present ? `/${presentRos(T)}` : ''}) · standing: ${P.fatigue.standing} · FF2 fires on every 06:20 duty, so it is a property of the station's opening time rather than of any design. <b>Two readings of a cover week, on the one row they move.</b> A cover week is worked four days of seven and the link does not say which four, so a run figure is a range. The headline number is the ceiling &mdash; the four split day-on-day-off, which supplies no 48-hour break and joins the blocks either side. It is reachable: of the 35 ways to place four duties in seven days, the 10 that leave no two rest days together produce exactly it. Worked as a BLOCK, which is what a cover week looks like on the roster, the three rest days fall together and the week always supplies a break &mdash; that is the <i>as rostered</i> figure beneath it. Checked on every row: FF11 is the only one where the two differ. Which reading applies is a question for the roster office, not for this sheet. This sheet is an aid to a conversation, not a fatigue risk assessment.</p>
   <div class="foot"><span>Page 6 of 8 — The checks sheet: fatigue factors</span><span class="foot-id"><b>${esc(meta.identity.name)}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
 </section>
 

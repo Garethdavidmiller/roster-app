@@ -1,5 +1,6 @@
 // Everything the PDF states, computed by the app's own modules for BOTH the live roster and the proposal.
 import { readFileSync } from 'node:fs';
+import { asRosteredRuns } from './cover-placement.mjs';
 import { runDesignChecks, weeklyHours, lineTotals, calcHourlyCoverage, classifyShift, startMinutes, endMinutes, dutyMinutes, DAYS, hmFromHours } from '../../../links-design.js';
 import { assessFatigue } from '../../../links-fatigue.js';
 import { assessHardLimits, MAX_CONSECUTIVE_WORKED_DAYS } from '../../../links-limits.js';
@@ -36,7 +37,12 @@ export function assess(p, lines) {
   const tableRows = Object.entries(table).map(([time, c]) => ({ time, weekday: Math.max(0, ...Object.values(c.weekday)), sat: c.sat, sun: c.sun, minutes: dutyMinutes(time), family: family(time) }))
     .sort((a, b) => startMinutes(a.time) - startMinutes(b.time) || endMinutes(a.time) - endMinutes(b.time));
   const daily = {}; for (const d of DAYS) daily[d] = keys.filter(k => p[k][d] !== 'RD' && p[k][d] !== 'SPARE').length;
-  return { checks, hours, totals, fatigue, hard, adj, hourly, tableRows, daily, feel: feel(p, lines) };
+  // The SECOND reading of every run row: a cover week worked as one block of four rather than
+  // split day-on-day-off. `cover-placement.mjs` has the argument; measured across all thirteen
+  // designs in this folder, FF11 is the ONLY row it moves — and on one of them it moves the
+  // verdict. A sheet that printed one number was answering a question nobody asked.
+  const asRostered = asRosteredRuns(p, lines);
+  return { checks, hours, totals, fatigue, hard, adj, hourly, tableRows, daily, asRostered, feel: feel(p, lines) };
 }
 
 export function today() { const p = {}; for (let i = 1; i <= 20; i++) p[String(i)] = { ...weeklyRoster[String(i)] }; return { patterns: p, lines: 20 }; }
