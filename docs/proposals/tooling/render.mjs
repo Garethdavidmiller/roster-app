@@ -287,7 +287,11 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
   <table class="t"><thead><tr><th>Rule</th><th>Proposal</th><th></th></tr></thead><tbody>
   ${meta.designRules.map(r => `<tr><td>${esc(r.rule)}</td><td>${r.ok?'✓':'✕'} ${esc(r.value)}</td><td class="muted">${esc(r.note)}</td></tr>`).join('')}
   </tbody></table>
-  <h2>Two things to settle before it is frozen</h2>
+  <!-- The heading used to be the literal "Two things to settle" while every proposal it rendered
+       listed four or five. A heading that miscounts the list under it is the kind of small untruth
+       a reader checks and then stops trusting the rest for, so it is overridable. The default is
+       unchanged in substance and carries no count. -->
+  <h2>${esc(meta.openQuestionsHeading ?? 'To settle before it is frozen')}</h2>
   <p>${meta.openQuestions}</p>
   <div class="foot"><span>Page 5 of 8 — The checks sheet: hard limits and design figures</span><span class="foot-id"><b>${esc(meta.identity.name)}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
 </section>
