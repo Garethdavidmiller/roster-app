@@ -19,6 +19,7 @@ and every figure in a PDF is computed from the cells it shows — nothing is typ
 | **Weekday Lates 2** | `WL2-24-R21 · 33f70893` | Weekday Lates with the `08:30–17:00` turns re-timed into the evening to cover the 17:00 peak, then re-searched | **1** | 6 | 6 in 24 |
 | **Weekday Lates 3** | `WL3-24-F7 · a6234195` | The same evening fix with **weeks 13–17 kept exactly as written**, then searched fatigue-first | **1** (FF19, at its floor) | 6 | 4 in 24 |
 | **Weeks 17-18 Swapped** | `WS-24-EXT · 0bebb675` | **Supplied as a grid**, not searched — cover week moved to 18, midday turn at `12:00–20:30`. Clears every hard gate; not yet shape-searched | 5 | 9 | 6 in 24 |
+| **Targeted Fatigue Redo** | `TF-24-EXT · 8eef9a13` | **Supplied as a grid**, not searched — *Weeks 17-18 Swapped* re-ordered BY HAND to cut fatigue. Same duties, same days, identical coverage; MRSF cleared, FF11 not | 4 | 9 | 5 in 24 |
 
 The four searched proposals — *Same Turns*, *By the Book*, *Quarter To*, *Eight Forty* — clear every hard rule — Chiltern's 13-day limit, twelve hours between duties, the exact
 35-hour contracted week — and meet the December staffing shape (four to open, three through to
@@ -144,6 +145,28 @@ and on the two designs already run through `optimise.mjs` the same work took the
 one and the run from nine to six with the coverage curve asserted identical. Its cover spread is also
 one line out (7, 6, 5, 6), which that search fixes for free. It is listed un-searched deliberately,
 so the baseline it was supplied at stays on the record.
+
+**Targeted Fatigue Redo** (`TF-24-EXT · 8eef9a13`) is that same design re-ordered **by hand**, as a
+series of named same-day duty swaps each argued in its own document. Its central claim — that every
+duty moved stays on the same weekday, so the shifts available on each day are preserved — was checked
+and **holds exactly**: each day's duty multiset is identical to *Weeks 17-18 Swapped*'s, and so is the
+hour-by-hour coverage curve at every quarter-hour of the week. The contract checksums too: Mon–Sat is
+42,000 minutes against 20 working lines × 35h, and all 24 of the document's own stated weekly totals
+match their cells to the minute.
+
+**It set out to clear two flags; one cleared and one did not, and the difference is a definition.**
+The worst seven-day total falls from **60.6 hours to 54.7**, under the 55-hour row — the document's
+estimate of "about 54h40" is right. But it reports the other as "dropping from about 15 duties to 9",
+and those are two different measures: **9** is the longest run of consecutive worked DAYS, which is
+correct and inside the 13-day limit, while **FF11 counts shifts between 48-hour breaks and a single
+rest day is not one**. On that measure it is at **15**, down from 16 and still above the threshold of
+13. FF11 is still present. Factors fall five to four, but not uniformly — FF19 rises 7 to 8, full
+weekends off fall 6 to 5, and single-turn weeks fall 6 of 20 to 4.
+
+**It is the clearest case yet for the paragraph above.** Everything still flagged is a property of
+which week sits beside which; on this exact duty table the same work done by `optimise.mjs` reaches
+one factor and a six-or-seven-day run with the coverage curve untouched. It is listed as supplied,
+deliberately, so the hand-made baseline stays on the record beside the searched result.
 
 **The code**: family (`ST` / `BB` / `QT` / `EF`) · rotation length · duty table (`A`/`B` today's times, `D` the
 December default, `Q`/`R` table B with the closer at 15:45 and the two 06:20 openers run on to keep the
