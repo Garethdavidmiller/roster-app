@@ -36,7 +36,11 @@ const DEF = buildDefaultTargets().slots;
 const defRows = k => DEF.filter(r => r[k] > 0).map(r => [r.time, r[k]]);
 // E (12 Sep 2026): "Eight Forty" — By the Book's rules with no duty over 8h40, the table re-searched by
 // table-book.mjs and read from its output so the anneal cannot drift from what that search found.
-const EF = VARIANT === 'E' ? JSON.parse(readFileSync(new URL('./eight-forty-table.json', import.meta.url), 'utf8')).slots : null;
+// G (22 Sep 2026): "By the Book 2" -- Eight Forty's 8h40 cap with two 14:00-22:30 ticket-office turns pinned
+// Monday to Saturday and two on a Sunday, the table placed by place-structures.mjs and read from its output
+// for the same reason E's is: so the anneal cannot drift from what that search found.
+const TABLE_FILE = { E: './eight-forty-table.json', G: './by-the-book-2-table.json' }[VARIANT];
+const EF = TABLE_FILE ? JSON.parse(readFileSync(new URL(TABLE_FILE, import.meta.url), 'utf8')).slots : null;
 const efRows = k => EF.filter(r => r[k] > 0).map(r => [r.time, r[k]]);
 const SAT_ = VARIANT === 'D' ? defRows('sat') : EF ? efRows('sat') : null, SUN_ = VARIANT === 'D' ? defRows('sun') : EF ? efRows('sun') : null, WK_ = VARIANT === 'D' ? defRows('weekday') : EF ? efRows('weekday') : null;
 const SAT0 = [['06:20-14:00',1],['06:20-14:50',3],['08:00-16:30',2],['12:00-20:00',1],['14:30-22:00',2],['14:00-22:30',1],['14:45-23:55',4]];

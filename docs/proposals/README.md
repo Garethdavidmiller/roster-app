@@ -13,6 +13,7 @@ and every figure in a PDF is computed from the cells it shows — nothing is typ
 | **By the Book** | `BB-24-D7 · 0f14abce` | The workspace's December duty table (the owner's rules in table form), the rotation searched for the ORR factors | **0** | 6 | 6 in 24 |
 | **Quarter To** | `QT-24-Q34 · 70cf9874` | *Same Turns* with the weekday closer at 15:45 and no duty over 8h40 — the two 06:20 openers run on to Saturday's own opening times to keep the contract, so the closer is the only time nobody works today | **0** | 6 | 6 in 24 |
 | **Eight Forty** | `EF-24-E21 · 0cf19f56` | *By the Book* with no duty over 8h40 — the December table re-solved under the same rules with the ceiling at 8h40 (its earlies had run to 9h30), then the rotation searched for the ORR factors as *By the Book* was | **0** | 6 | 6 in 24 |
+| **By the Book 2** | `B2-24-G21 · 02f3c005` | *Eight Forty* with **the ticket office written in** — two `14:00-22:30` a day Mon–Sat and two `13:30-22:00` on Sunday, fixed before the search; demand fit ahead of the count of times. Saturday's fit is the best in the folder (8.1), Sunday's the price (35.8) | **0** | 6 | 5 in 24 |
 | **Weekday Lates** | `WL-24-EXT · a52ec588` | **Supplied as a Word table**, not searched — weekday lates at 16:25, Saturdays left alone | 5, or **4 as rostered** | 9 | 6 in 24 |
 | **Fifteen Turns** | `FT-24-EXT · 9a028392` | **Supplied as a grid**, not searched — the shortest turn table yet and a perfect cover spread, but **it does not clear two gates** | 7 | 9 | 2 in 24 |
 | **Fifteen Turns Repaired** | `FT-24-R21 · b76bf9e1` | The same design with both gates **repaired** and the rotation re-searched — every duty, headcount and coverage hour unchanged | **1** | 6 | 6 in 24 |
@@ -46,6 +47,58 @@ cannot average its earlies more than 24 minutes longer than its lates (this tabl
 30), and four distinct opener finishes cost twelve off-quarter times against *By the Book*'s three. Its
 weekday demand fit (75.3) is the worst of the four; its rotation matches *By the Book* and *Quarter To* on
 every rule figure.
+
+**By the Book 2** (`B2-24-G21 · 02f3c005`) is *Eight Forty* with **the ticket office written in**: two
+`14:00-22:30` turns every day Monday to Saturday and two `13:30-22:00` on a Sunday, fixed before anything
+else was searched (owner, 22 Sep 2026). Same 8h40 ceiling, same December rules, and **demand fit ahead of
+the count of distinct times** — the owner's ordering, and the search's pick order.
+
+**What the pinned turns did to the rules, stated rather than smoothed over.** An 8h30 late duty demands,
+under By the Book's ordering pin, that *every other early be longer than 8h30* — and an 8h40 ceiling
+cannot give four distinct openers above 8h30. That is the whole reason *Eight Forty*'s longest late is
+8h25. So the two ticket-office turns are treated as an operational GIVEN: enumerated around
+(`PIN_N`/`PIN_MIN` on `table-book.mjs`), and outside the early-versus-late comparison, while every other
+rule — headcount, window, the :05/:10 grid, the cover curve — still counts them. Two further pins were
+read differently for them and both readings are on the sheet: *"five still on at 22:00"* is a **floor**
+(four Saturday closers plus the pair make six by arithmetic, and the rule exists so the evening is not
+thin, which six does not offend), and a pinned turn finishing **at** 22:00 counts as on at 22:00 (two
+people working to the hour are what the rule is for) while design duties keep the strict reading, so
+*Eight Forty*'s own Saturday assesses exactly as before.
+
+**The table, and what fit-first bought:**
+
+| | weekday | Saturday | Sunday |
+|---|---|---|---|
+| demand fit (lower is better) | **67.9** (Eight Forty 70.4) | **8.1** (16.4) | **35.8** (20.9) |
+| distinct turns · starts · finishes | 11 · 7 · 9 | 11 · 9 · 9 | 8 · 5 · 7 |
+| minutes | 7,000 | 7,000 | 4,780 (Eight Forty 4,820) |
+| longest duty | 8h40 | 8h40 | 8h40 |
+
+Saturday is the clear win — a fit of 8.1 is the best of any table in this folder, and the two 14:00 starts
+land on the Wembley afternoon. **Sunday is the clear cost**, and it should be read as one: the pair sits
+across Sunday's quietest afternoon hours, so the fit is worse than *Eight Forty*'s by a wide margin, and
+Sunday pays 40 fewer minutes than that table did. The weekday is a shade better on fit and identical on
+the count of times. The 8h30 cap the owner first asked for is **impossible** under these rules — that
+finding is in the tooling section below — which is why this sits at 8h40.
+
+**How the table was found, and why not the way Eight Forty's was.** `table-book.mjs`'s own anneal
+walks lengths and start times together; at a tight cap or with two duties pinned it cannot find tables
+that provably exist (it reported "no feasible weekday table" at 8h35 and 8h30, where direct placement
+finds one at 8h30). `place-structures.mjs` enumerates every legal set of LENGTHS and places each one —
+139,017 weekday structures with the pins out, of which 12 placed feasibly; 18,616 Saturday, 931 placed;
+24,942 Sunday at its total, 3,601 placed. `assemble-table.mjs` writes the record the anneal and the
+renderer read. Then the rotation was searched fatigue-first exactly as *By the Book* and *Eight Forty*
+were: `MODE=rules node anneal.mjs G 100000 5 <seed>`, seeds 7, 13, 21 and 34.
+
+**The rotation.** Four seeds; seed 21 is the one kept, and it is the only one of the four that clears
+every fatigue factor — **zero present, FF19 at 0**, longest run 6, worst seven-day total 51.9h, no rest
+under 12 hours, 11 of 20 weeks on a single turn. The other three carry one factor (FF19 at 3, 4 and 5)
+in exchange for a sixth weekend off, and the family's documented pick — rules first, weekends after —
+takes the zero. That puts *By the Book 2* level with *By the Book* and *Eight Forty* on the ORR panel,
+with the ticket office rostered on every day of the week.
+
+**What it did not do:** the whole-rotation count of distinct times is **26, the same as *Eight Forty***.
+Fit-first bought Saturday and cost Sunday; it did not shrink the vocabulary, and the sheet says so.
 
 **`EXT` is not a search code.** *Weekday Lates* arrived from outside the workspace as a Word table and
 was assessed here; there is no table variant, no seed and nothing to reproduce, which is what the `EXT`
@@ -388,9 +441,37 @@ PROPOSAL=QT node final.mjs results/best-Q-*.json results/best-R-*.json
 PROPOSAL=EF node final.mjs results/best-RE-*.json
 node wl4-run.mjs                      # Weekday Lates 4: all four placements of the 14-17 block x 3 seeds (12 runs)
 node shots.mjs <rendered>.html       # A4 page screenshots + a height check against the printable page
+CAP=520 PIN_N=2 PIN_MIN=1020 PIN="14:00-22:30x2" AT22_FLOOR=1 CLS=sat node place-structures.mjs
+                                     # a day table by placing EVERY enumerated length structure (By the Book 2)
+node assemble-table.mjs by-the-book-2-table.json b2-weekday.json b2-sat.json b2-sun.json
+MODE=rules node anneal.mjs G 100000 5 7    # By the Book 2 family: table G, seeds 7 13 21 34
+PROPOSAL=B2 node final.mjs results/best-RG-*.json
+CAP=510 COUNT=1 node table-book.mjs  # how many length structures a cap admits, WITHOUT searching -- a zero is a proof
 node regenerate.mjs --check           # every proposal's fingerprint, without rendering
 node regenerate.mjs                  # re-render EVERY sheet from the same inputs that produced it
 ```
+
+**`table-book.mjs`'s own search is unreliable at a tight cap, and that matters because its failure reads
+like impossibility** (22 Sep 2026). It anneals over lengths and start times together; at By the Book's
+9h30 or Eight Forty's 8h40 the space is enormous and it finds an answer easily. Tighten the cap and the
+space collapses — measured by enumeration, `COUNT=1`:
+
+| max shift | weekday | Saturday | Sunday |
+|---|---|---|---|
+| 8h40 | 540,737 | 84,116 | 9,651 |
+| 8h35 | 13,925 | 1,083 | 363 |
+| **8h30** | **62** | **1** | **1** |
+
+At 8h35 and 8h30 the anneal reports "no feasible weekday table"; `place-structures.mjs` — enumerate every
+legal set of LENGTHS, then place each one, since inside a structure the only freedom is where the middles
+start — finds one at 8h30. So the old answer was *"we could not find one"*, not *"there is not one"*, and
+only the second belongs in a document. What it then establishes: **8h30 is impossible under these rules**,
+as a proof rather than a failure to find — Saturday has exactly one set of lengths at that cap and it
+cannot meet the Saturday evening rules. The reason is arithmetic and has nothing to do with a minimum
+shift: a weekday pays 7,000 minutes across 14 duties, so the mean duty is 8h20 whatever else is true, and a
+cap of 8h30 leaves 140 minutes of headroom across the whole day. 8h35 clears only by giving up most of the
+late-shorter-than-early margin (weekday 23 against a pin of 30, Saturday 10 against 20), which is why
+*By the Book 2* sits at 8h40.
 
 `regenerate.mjs` holds every proposal's build arguments as data, so a change to `render.mjs` or
 `report-data.mjs` can be applied to all of them with one command. It was written because the twelve

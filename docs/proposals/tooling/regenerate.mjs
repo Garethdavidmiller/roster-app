@@ -44,6 +44,7 @@ export const SEARCHED = [
     { proposal: 'BB', fp: '0f14abce', globs: ['results/best-RD-*.json'], env: { EXTRA: 'results/best-RDpure-21.json' } },
     { proposal: 'QT', fp: '70cf9874', globs: ['results/best-Q-*.json', 'results/best-R-*.json'] },
     { proposal: 'EF', fp: '0cf19f56', globs: ['results/best-RE-*.json'] },
+    { proposal: 'B2', fp: '02f3c005', globs: ['results/best-RG-*.json'] },
 ];
 
 const expand = g => { const [dir, pat] = [g.slice(0, g.lastIndexOf('/')), g.slice(g.lastIndexOf('/') + 1)];

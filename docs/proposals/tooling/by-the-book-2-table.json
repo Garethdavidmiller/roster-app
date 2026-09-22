@@ -1,0 +1,229 @@
+{
+ "cap": 520,
+ "pins": {
+  "weekday": "14:00-22:30x2",
+  "sat": "14:00-22:30x2",
+  "sun": "13:30-22:00x2"
+ },
+ "at22": "floor",
+ "sunTotal": 4780,
+ "totals": {
+  "weekday": 7000,
+  "sat": 7000,
+  "sun": 4780
+ },
+ "fit": {
+  "weekday": 67.9,
+  "sat": 8.1,
+  "sun": 35.8
+ },
+ "distinct": {
+  "weekday": {
+   "starts": 7,
+   "finishes": 9,
+   "turns": 11
+  },
+  "sat": {
+   "starts": 9,
+   "finishes": 9,
+   "turns": 12
+  },
+  "sun": {
+   "starts": 5,
+   "finishes": 7,
+   "turns": 9
+  }
+ },
+ "longest": 520,
+ "offQuarter": [
+  "07:20",
+  "10:55",
+  "13:55",
+  "14:50",
+  "14:55",
+  "15:20",
+  "15:35",
+  "15:40",
+  "15:50",
+  "15:55",
+  "16:20",
+  "16:25",
+  "17:55",
+  "19:35",
+  "22:25",
+  "22:50"
+ ],
+ "counts": {
+  "weekday": {
+   "structures": 139017,
+   "placed": 12
+  },
+  "sat": {
+   "structures": 18616,
+   "placed": 931
+  },
+  "sun": {
+   "structures": 24942,
+   "placed": 3601
+  }
+ },
+ "slots": [
+  {
+   "time": "06:20-13:45",
+   "weekday": 1,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "06:20-13:55",
+   "weekday": 0,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "06:20-14:50",
+   "weekday": 1,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "06:20-14:55",
+   "weekday": 1,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "06:20-15:00",
+   "weekday": 1,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "07:15-14:15",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 1
+  },
+  {
+   "time": "07:15-15:35",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 1
+  },
+  {
+   "time": "07:15-15:50",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 1
+  },
+  {
+   "time": "07:15-15:55",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 1
+  },
+  {
+   "time": "07:20-16:00",
+   "weekday": 0,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "07:45-16:25",
+   "weekday": 0,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "09:15-17:55",
+   "weekday": 2,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "10:55-19:35",
+   "weekday": 2,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "13:30-22:00",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 2
+  },
+  {
+   "time": "14:00-22:00",
+   "weekday": 1,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "14:00-22:30",
+   "weekday": 2,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "15:00-22:50",
+   "weekday": 0,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "15:20-22:25",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 1
+  },
+  {
+   "time": "15:20-23:25",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 1
+  },
+  {
+   "time": "15:40-23:55",
+   "weekday": 0,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "15:45-23:55",
+   "weekday": 1,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "15:50-23:55",
+   "weekday": 1,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "15:55-23:25",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 1
+  },
+  {
+   "time": "15:55-23:55",
+   "weekday": 0,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "16:00-23:25",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 1
+  },
+  {
+   "time": "16:20-23:55",
+   "weekday": 1,
+   "sat": 0,
+   "sun": 0
+  }
+ ],
+ "spareLines": 4
+}
