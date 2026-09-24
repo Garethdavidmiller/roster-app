@@ -745,6 +745,12 @@ CAP=520 PIN_N=2 PIN_MIN=1020 PIN="14:00-22:30x2" AT22_FLOOR=1 CLS=sat PICK=share
 node assemble-table.mjs by-the-book-2-table.json b2-weekday.json b2-sat.json b2-sun.json
 MODE=rules node anneal.mjs G 100000 5 7    # By the Book 2 family: table G, seeds 7 13 21 34
 PROPOSAL=B2 node final.mjs results/best-RG-*.json
+CLS=sat node weekend-table.mjs > q2-sat.txt; CLS=sun node weekend-table.mjs > q2-sun.txt
+                                     # Quarter To 2: Saturday and Sunday searched again under the cap, in Quarter To's spirit
+                                     # (the JSON line at the end of each is the day file; ALLOW_TODAY_ENDS=1 admits today's 22:00 Saturday finish)
+PINS=none CAP=520 node assemble-table.mjs quarter-to-2-table.json q2-weekday.json q2-sat.json q2-sun.json
+MODE=feel  node anneal.mjs W 100000 5 7    # Quarter To 2 family: table W, seeds 7 13 21 34
+PROPOSAL=Q2 node final.mjs results/best-W-*.json
 CAP=510 COUNT=1 node table-book.mjs  # how many length structures a cap admits, WITHOUT searching -- a zero is a proof
 node regenerate.mjs --check           # every proposal's fingerprint, without rendering
 node regenerate.mjs                  # re-render EVERY sheet from the same inputs that produced it

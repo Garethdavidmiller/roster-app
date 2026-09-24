@@ -1,0 +1,25 @@
+sat: pool 219 turns (17 known) · known-only tables feasible 209 · one-new-turn tables feasible 10708 (exhaustive, 56s) · sampled 2,356,284,285 · feasible 14584 · floor 2 · total 7100 · fit ceiling 32.7 (Quarter To's sat 32.7)
+  best by familiarity (fewest new turns with fit ≤ 32.7, then fit): 8 turns · 6 starts + 8 finishes · 0 new · fit 14.4 · pays 7100 · thinnest hour 4.5
+    06:20-14:00 x1  06:20-14:20 x1  06:20-14:50 x2  07:15-15:45 x2  08:00-16:30 x1  13:30-22:00 x2  14:00-22:30 x1  15:15-23:55 x4
+  best by fit (then fewest new turns): 8 turns · 6 starts + 8 finishes · 1 new · fit 13.5 · pays 7100 · thinnest hour 4.5
+    06:20-14:00 x1  06:20-14:20 x1  06:20-14:50 x2  07:00-15:30 x2  08:00-16:30 x1  13:30-22:00 x2  14:00-22:30 x1  15:15-23:55 x4
+  best fit at each count of new turns:
+      0 new: 8 turns · 6 starts + 8 finishes · 0 new · fit 14.4 · pays 7100 · thinnest hour 4.5
+    06:20-14:00 x1  06:20-14:20 x1  06:20-14:50 x2  07:15-15:45 x2  08:00-16:30 x1  13:30-22:00 x2  14:00-22:30 x1  15:15-23:55 x4
+      1 new: 8 turns · 6 starts + 8 finishes · 1 new · fit 13.5 · pays 7100 · thinnest hour 4.5
+    06:20-14:00 x1  06:20-14:20 x1  06:20-14:50 x2  07:00-15:30 x2  08:00-16:30 x1  13:30-22:00 x2  14:00-22:30 x1  15:15-23:55 x4
+      2 new: 6 turns · 6 starts + 6 finishes · 2 new · fit 23.3 · pays 7100 · thinnest hour 4.5
+    06:20-14:45 x4  07:00-15:30 x3  11:00-19:30 x1  13:30-21:00 x1  14:00-22:30 x1  15:15-23:55 x4
+      3 new: 6 turns · 6 starts + 6 finishes · 3 new · fit 19 · pays 7100 · thinnest hour 4.5
+    06:20-15:00 x4  07:15-15:45 x3  10:15-17:45 x1  13:30-22:00 x1  15:00-22:30 x1  15:15-23:55 x4
+      4 new: 6 turns · 5 starts + 6 finishes · 4 new · fit 16.3 · pays 7100 · thinnest hour 4.5
+    06:20-14:30 x1  06:20-14:50 x3  07:30-16:00 x3  13:45-22:00 x2  14:30-22:30 x1  15:15-23:55 x4
+      5 new: 9 turns · 8 starts + 8 finishes · 5 new · fit 15.7 · pays 7100 · thinnest hour 4.5
+    06:20-14:45 x3  06:20-15:00 x1  07:15-15:45 x2  09:15-17:45 x1  09:45-18:15 x1  14:00-22:30 x1  14:15-22:00 x1  15:15-23:55 x3  15:45-23:55 x1
+      6 new: 8 turns · 7 starts + 7 finishes · 6 new · fit 16.2 · pays 7100 · thinnest hour 4.5
+    06:20-14:30 x1  06:20-15:00 x3  07:15-15:45 x2  08:30-16:45 x1  13:45-22:00 x2  14:15-22:30 x1  15:15-23:55 x2  15:30-23:55 x2
+      7 new: 8 turns · 7 starts + 7 finishes · 7 new · fit 17.9 · pays 7100 · thinnest hour 4.5
+    06:20-14:30 x1  06:20-15:00 x3  07:15-15:15 x1  08:30-17:00 x2  13:45-22:00 x2  14:15-22:30 x1  15:15-23:55 x3  15:30-23:55 x1
+      8 new: 9 turns · 8 starts + 7 finishes · 8 new · fit 29.3 · pays 7100 · thinnest hour 4.5
+    06:20-14:45 x2  06:20-15:00 x2  07:00-15:30 x1  07:45-16:15 x2  11:30-20:00 x2  14:15-22:30 x1  15:15-23:55 x2  15:30-23:55 x1  16:15-23:55 x1
+JSON ["06:20-14:00","06:20-14:20","06:20-14:50","06:20-14:50","07:15-15:45","07:15-15:45","08:00-16:30","13:30-22:00","13:30-22:00","14:00-22:30","15:15-23:55","15:15-23:55","15:15-23:55","15:15-23:55"]

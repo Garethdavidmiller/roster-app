@@ -1,0 +1,143 @@
+{
+ "cap": 520,
+ "pins": null,
+ "at22": "exact",
+ "sunTotal": 5130,
+ "totals": {
+  "weekday": 6980,
+  "sat": 7100,
+  "sun": 5130
+ },
+ "fit": {
+  "weekday": 46.2,
+  "sat": 23.1,
+  "sun": 61.4
+ },
+ "distinct": {
+  "weekday": {
+   "starts": 5,
+   "finishes": 6,
+   "turns": 6
+  },
+  "sat": {
+   "starts": 7,
+   "finishes": 8,
+   "turns": 8
+  },
+  "sun": {
+   "starts": 4,
+   "finishes": 4,
+   "turns": 4
+  }
+ },
+ "longest": 520,
+ "offQuarter": [
+  "14:50"
+ ],
+ "counts": {
+  "sat": {
+   "pool": 212,
+   "known": 15,
+   "knownFeasible": 81,
+   "oneNewFeasible": 4923,
+   "feasible": 8422,
+   "fresh": 0,
+   "qtFit": 32.7,
+   "todayFit": 45.7,
+   "ifTodayEnds": {
+    "knownFeasible": 209,
+    "fresh": 0,
+    "fit": 14.4,
+    "duties": [
+     "06:20-14:00 x1",
+     "06:20-14:20 x1",
+     "06:20-14:50 x2",
+     "07:15-15:45 x2",
+     "08:00-16:30 x1",
+     "13:30-22:00 x2",
+     "14:00-22:30 x1",
+     "15:15-23:55 x4"
+    ]
+   }
+  },
+  "sun": {
+   "pool": 193,
+   "known": 9,
+   "knownFeasible": 0,
+   "oneNewFeasible": 28,
+   "feasible": 7110,
+   "fresh": 1,
+   "qtFit": 80.6,
+   "todayFit": 65.9
+  }
+ },
+ "slots": [
+  {
+   "time": "06:20-14:00",
+   "weekday": 2,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "06:20-14:50",
+   "weekday": 2,
+   "sat": 3,
+   "sun": 0
+  },
+  {
+   "time": "07:15-15:45",
+   "weekday": 0,
+   "sat": 2,
+   "sun": 4
+  },
+  {
+   "time": "08:00-16:30",
+   "weekday": 3,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "11:00-19:30",
+   "weekday": 0,
+   "sat": 1,
+   "sun": 1
+  },
+  {
+   "time": "13:00-21:00",
+   "weekday": 0,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "13:30-22:00",
+   "weekday": 2,
+   "sat": 0,
+   "sun": 2
+  },
+  {
+   "time": "14:00-22:30",
+   "weekday": 2,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "14:45-23:25",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 3
+  },
+  {
+   "time": "15:15-23:55",
+   "weekday": 0,
+   "sat": 4,
+   "sun": 0
+  },
+  {
+   "time": "15:45-23:55",
+   "weekday": 3,
+   "sat": 0,
+   "sun": 0
+  }
+ ],
+ "spareLines": 4
+}

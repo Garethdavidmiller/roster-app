@@ -31,7 +31,8 @@ const slots = [...rows.values()].sort((a, b) => a.time.localeCompare(b.time));
 const total = ds => ds.reduce((a, t) => a + L(t), 0);
 const record = {
     cap: Number(process.env.CAP ?? 520),
-    pins: { weekday: process.env.PIN_WK ?? '14:00-22:30x2', sat: process.env.PIN_SAT ?? '14:00-22:30x2', sun: process.env.PIN_SUN ?? '13:30-22:00x2' },
+    // PINS=none for a table with no pinned duties (Quarter To 2); the defaults are By the Book 2's pair.
+    pins: process.env.PINS === 'none' ? null : { weekday: process.env.PIN_WK ?? '14:00-22:30x2', sat: process.env.PIN_SAT ?? '14:00-22:30x2', sun: process.env.PIN_SUN ?? '13:30-22:00x2' },
     at22: process.env.AT22_FLOOR ? 'floor' : 'exact',
     sunTotal: total(days.sun),
     totals: { weekday: total(days.weekday), sat: total(days.sat), sun: total(days.sun) },

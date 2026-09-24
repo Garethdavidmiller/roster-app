@@ -8,7 +8,7 @@ import { generateLink, ROTATING_LINES, DAYS } from '../../../links-design.js';
 import { buildDefaultTargets } from '../../../links-default-targets.js';
 import { reorderLines, applyOrder, OBJECTIVES } from '../../../links-adjacency.js';
 
-const PROPOSAL = process.env.PROPOSAL ?? 'ST';   // ST = Same Turns · BB = By the Book · QT = Quarter To (ST with the closer at 15:45) · EF = Eight Forty (BB with no duty over 8h40) · B2 = By the Book 2 (EF's cap, two ticket-office turns pinned)
+const PROPOSAL = process.env.PROPOSAL ?? 'ST';   // ST = Same Turns · BB = By the Book · QT = Quarter To (ST with the closer at 15:45) · EF = Eight Forty (BB with no duty over 8h40) · B2 = By the Book 2 (EF's cap, two ticket-office turns pinned) · Q2 = Quarter To 2 (QT's weekday, Saturday and Sunday rebuilt under the cap)
 const files = process.argv.slice(2).filter(existsSync);
 // Demand fit of a design's weekday cover against the December 2026 timetable curve (same formula as fit.mjs):
 // squared distance between each hour's share of cover and its share of traffic, inside the window.
@@ -38,10 +38,10 @@ const G = assess(gp, 24); const gEval = evaluate(gp);
 const fingerprint = p => createHash('sha256').update(JSON.stringify(Object.keys(p).sort((a,b)=>a-b).map(k => DAYS.map(d => p[k][d])))).digest('hex').slice(0, 8);
 // FAMILY from the result file itself, not from the PROPOSAL env — a comparator row must carry its own
 // family's code. Tables Q and R are Same Turns' table B with the closer at 15:45 (see anneal.mjs).
-const famOf = c => c.mode === 'rules' ? (c.variant === 'E' ? 'EF' : c.variant === 'G' ? 'B2' : 'BB') : /^[QR]$/.test(String(c.variant)) ? 'QT' : 'ST';
-const NAMES = { BB: 'By the Book', ST: 'Same Turns', QT: 'Quarter To', EF: 'Eight Forty', B2: 'By the Book 2' };
+const famOf = c => c.mode === 'rules' ? (c.variant === 'E' ? 'EF' : c.variant === 'G' ? 'B2' : 'BB') : /^[QR]$/.test(String(c.variant)) ? 'QT' : c.variant === 'W' ? 'Q2' : 'ST';
+const NAMES = { BB: 'By the Book', ST: 'Same Turns', QT: 'Quarter To', EF: 'Eight Forty', B2: 'By the Book 2', Q2: 'Quarter To 2' };
 // EF: the table search's own record — how many length structures paid the day, how many placed, the fits.
-const efTable = PROPOSAL === 'EF' ? JSON.parse(readFileSync('eight-forty-table.json', 'utf8')) : PROPOSAL === 'B2' ? JSON.parse(readFileSync('by-the-book-2-table.json', 'utf8')) : null;
+const efTable = PROPOSAL === 'EF' ? JSON.parse(readFileSync('eight-forty-table.json', 'utf8')) : PROPOSAL === 'B2' ? JSON.parse(readFileSync('by-the-book-2-table.json', 'utf8')) : PROPOSAL === 'Q2' ? JSON.parse(readFileSync('quarter-to-2-table.json', 'utf8')) : null;
 const codeFor = c => `${famOf(c)}-24-${c.variant}${c.seed ?? '?'}`;
 const identity = PROPOSAL === 'BB' ? {
   name: 'By the Book', strap: 'The December 2026 timetable rules, built for the fatigue factors',
@@ -55,6 +55,10 @@ const identity = PROPOSAL === 'BB' ? {
   name: 'By the Book 2', strap: 'Eight Forty, with the ticket office rostered — two 14:00–22:30 a day',
   code: codeFor(win), fingerprint: fingerprint(P.patterns), table: win.variant, seed: win.seed,
   lineage: 'Family B2 — “Eight Forty” (EF-24-E21 · 0cf19f56) with the ticket office written in: two 14:00–22:30 turns every day Monday to Saturday and two 13:30–22:00 on a Sunday, fixed before the rest of the day was searched. Same 8h40 ceiling, same December 2026 timetable rules, demand fit ahead of the count of distinct times (owner, 22 Sep 2026). The rotation was then searched for the ORR factors exactly as “By the Book” and “Eight Forty” were. Compare with “Eight Forty”, “By the Book” (BB-24-D7 · 0f14abce) and “Same Turns” (ST-24-B7 · d15e1b74).',
+} : PROPOSAL === 'Q2' ? {
+  name: 'Quarter To 2', strap: 'Quarter To, with Saturday and Sunday rebuilt under the cap',
+  code: codeFor(win), fingerprint: fingerprint(P.patterns), table: win.variant, seed: win.seed,
+  lineage: 'Family Q2 — “Quarter To” (QT-24-Q34 · 70cf9874) with its own open question answered: the 8h40 cap reaches the weekend. The weekday is Quarter To’s table Q unchanged; Saturday and Sunday were searched again from today’s clock times and the quarter hour, under the December 2026 headcounts and nothing over 8h40, and the rotation was then searched exactly as Quarter To was. Compare with “Quarter To”, “Same Turns” (ST-24-B7 · d15e1b74) and “By the Book” (BB-24-D7 · 0f14abce).',
 } : PROPOSAL === 'QT' ? {
   name: 'Quarter To', strap: "Same Turns, with the closing turn starting at quarter to four",
   code: codeFor(win), fingerprint: fingerprint(P.patterns), table: win.variant, seed: win.seed,
@@ -72,12 +76,12 @@ const alternatives = [];
 // 1117px against 1032 — shots.mjs), so QT shows the winner, the runner-up and the other table's best.
 const shown = PROPOSAL === 'QT'
   ? [...new Set([cands[0], cands[1], cands.find(c => c.variant !== cands[0].variant)].filter(Boolean))]
-  : PROPOSAL === 'EF' || PROPOSAL === 'B2' ? cands.slice(0, 2) : cands;
+  : PROPOSAL === 'EF' || PROPOSAL === 'B2' || PROPOSAL === 'Q2' ? cands.slice(0, 2) : cands;
 for (const c of shown) { const A = assess(c.patterns, 24); alternatives.push(alt(`${codeFor(c)} · ${fingerprint(c.patterns)}${c === win ? ` — <b>${identity.name}</b> (this proposal)` : c === cands[1] ? ' — runner-up' : ''}`, A, { cost: c.cost }, c === win, c.patterns)); }
 alternatives.push(alt(`Workspace default · ${fingerprint(gp)} (Dec 2026 table, generated)`, G, gEval, false, gp));
 for (const x of (process.env.EXTRA ?? '').split(',').filter(existsSync)) { const e = JSON.parse(readFileSync(x, 'utf8')); alternatives.push(alt(`${codeFor(e)}p · ${fingerprint(e.patterns)} — rules only, no coherence term`, assess(e.patterns, 24), null, false, e.patterns)); }
 // The siblings: the OTHER shipped proposals, so a reader can put this one beside them on one table.
-const siblings = PROPOSAL === 'BB' ? ['best-B-7.json'] : PROPOSAL === 'QT' ? ['best-B-7.json', 'best-RD-7.json'] : PROPOSAL === 'EF' ? ['best-RD-7.json', 'best-B-7.json', 'best-Q-34.json'] : PROPOSAL === 'B2' ? ['best-RE-21.json', 'best-RD-7.json', 'best-B-7.json'] : ['best-RD-7.json'];
+const siblings = PROPOSAL === 'BB' ? ['best-B-7.json'] : PROPOSAL === 'QT' ? ['best-B-7.json', 'best-RD-7.json'] : PROPOSAL === 'EF' ? ['best-RD-7.json', 'best-B-7.json', 'best-Q-34.json'] : PROPOSAL === 'B2' ? ['best-RE-21.json', 'best-RD-7.json', 'best-B-7.json'] : PROPOSAL === 'Q2' ? ['best-Q-34.json', 'best-B-7.json', 'best-RD-7.json'] : ['best-RD-7.json'];
 for (const sibling of siblings.map(f => `results/${f}`).concat(siblings).filter(existsSync).filter((f, i, a) => a.findIndex(x => x.endsWith(f.split('/').pop())) === i)) { const sb = JSON.parse(readFileSync(sibling, 'utf8')); alternatives.push(alt(`${codeFor(sb)} · ${fingerprint(sb.patterns)} — <b>${NAMES[famOf(sb)]}</b> (a sibling proposal)`, assess(sb.patterns, 24), null, false, sb.patterns)); }
 const tp24 = {}; for (let i = 1; i <= 24; i++) tp24[i] = T.patterns[String(((i-1)%20)+1)];
 alternatives.push(alt("Today's 20-line link (for scale)", T, null, false, null)); alternatives[alternatives.length-1].fit = weekdayFit(tp24);
@@ -118,7 +122,7 @@ const sundayOut = demand.movementsOutside(demand.movements.sun, 7*60+15, 23*60+2
 // (table B, best-B-7.json) — so the PDF cannot name a stretch the cells do not carry — and, for each new
 // finish, whether it is a time somebody already works (Q's are Saturday's opening turns).
 const stretch = (() => {
-  if (PROPOSAL !== 'QT') return null;
+  if (PROPOSAL !== 'QT' && PROPOSAL !== 'Q2') return null;   // Q2 carries Q's weekday, so the same stretch
   const bFile = ['results/best-B-7.json', 'best-B-7.json'].find(existsSync); if (!bFile) return null;
   const B = assess(JSON.parse(readFileSync(bFile, 'utf8')).patterns, 24);
   const wk = A => A.tableRows.filter(r => r.weekday > 0);
@@ -163,15 +167,23 @@ const otherTableFit = cands.filter(c => c.variant !== win.variant).map(c => c.fi
 const efRecord = PROPOSAL === 'B2' && existsSync('eight-forty-table.json') ? JSON.parse(readFileSync('eight-forty-table.json', 'utf8')) : null;
 const meta = {
   otherTableFit, efFit: efRecord?.fit ?? null,
-  date: PROPOSAL === 'B2' ? '22 September 2026' : PROPOSAL === 'QT' || PROPOSAL === 'EF' ? '12 September 2026' : '8 September 2026',
-  tables: PROPOSAL === 'QT' ? 42 : 81, steps: PROPOSAL === 'QT' || PROPOSAL === 'EF' || PROPOSAL === 'B2' ? '100,000' : '60,000', restarts: PROPOSAL === 'QT' || PROPOSAL === 'EF' || PROPOSAL === 'B2' ? 'five' : 'four',
-  runs: PROPOSAL === 'QT' ? 'four seeded runs per table, two tables' : PROPOSAL === 'BB' || PROPOSAL === 'EF' || PROPOSAL === 'B2' ? 'four seeded runs' : 'three seeded runs per table',
+  date: PROPOSAL === 'Q2' ? '24 September 2026' : PROPOSAL === 'B2' ? '22 September 2026' : PROPOSAL === 'QT' || PROPOSAL === 'EF' ? '12 September 2026' : '8 September 2026',
+  tables: PROPOSAL === 'QT' || PROPOSAL === 'Q2' ? 42 : 81, steps: ['QT', 'EF', 'B2', 'Q2'].includes(PROPOSAL) ? '100,000' : '60,000', restarts: ['QT', 'EF', 'B2', 'Q2'].includes(PROPOSAL) ? 'five' : 'four',
+  runs: PROPOSAL === 'QT' ? 'four seeded runs per table, two tables' : ['BB', 'EF', 'B2', 'Q2'].includes(PROPOSAL) ? 'four seeded runs' : 'three seeded runs per table',
   efTable,
   stretch, pickSentence: pickNote + rulesOnlyNote + (cands.length > shown.length ? ` The other ${cands.length - shown.length} seeded results are in <span class="tt">results/</span> (${cands.filter(c => !shown.includes(c)).map(c => `${c.variant}${c.seed}`).join(', ')}); none stands higher on the pick than the rows shown.` : ''),
   candidateFiles: cands.map(c => c.file), winnerVariant: win.variant,
   sundayNote: `Sunday: ${sundayOut.after?.length ?? 5} December 2026 timetable movements fall after the 23:25 finish (the last at 23:54, three of them arrivals) — the standing question on whether Sunday's window moves; the window is stored per design, so the proposal can be rebuilt to either answer.`,
   designRules: rules, alternatives, identity,
-  openQuestions: PROPOSAL === 'B2' ? (() => {
+  openQuestions: PROPOSAL === 'Q2' ? (() => {
+    // Every figure READ: the longest duty from the finished table, the fits from assess() on this grid,
+    // Quarter To's and today's, the Sunday total from the table record, the new times against today's table.
+    const hm = m => `${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`; const T2 = efTable;
+    const qFile = ['results/best-Q-34.json', 'best-Q-34.json'].find(existsSync); const QA = qFile ? assess(JSON.parse(readFileSync(qFile, 'utf8')).patterns, 24) : null;
+    const longest = Math.max(...P.tableRows.map(r => r.minutes));
+    const fresh = cls => P.tableRows.filter(r => r[cls] > 0 && !todayTimes.has(r.time)).map(r => r.time);
+    const fs = fresh('sat'), fu = fresh('sun');
+    return `<b>The cap reaches the weekend.</b> Every duty on this sheet is ${hm(longest)} or under. <i>Quarter To</i> carried Saturday's 14:45–23:55 (9h10) and Sunday's 14:30–23:25 (8h55) over from today unchanged and said so on its page 6; here both days were searched again. Saturday still pays 7,100 minutes with four at the open, four through to the close and five on after 22:00; Sunday pays ${T2.totals.sun.toLocaleString('en-GB')} minutes against <i>Quarter To</i>'s 5,145 (Sunday sits outside the contract, so the cap alone takes ${5145 - T2.totals.sun} off it). <b>What it cost in familiarity.</b> ${fs.length ? `Saturday works ${fs.length} turn${fs.length === 1 ? '' : 's'} nobody works today (${fs.join(', ')})` : 'Every Saturday turn is one people work today'}; ${fu.length ? `Sunday ${fu.length} (${fu.join(', ')})` : 'every Sunday turn is one people work today'}. <b>What it bought in shape.</b> Saturday's fit is ${P.fits.sat} against <i>Quarter To</i>'s ${QA?.fits.sat ?? '—'} and today's ${T.fits.sat}; Sunday's ${P.fits.sun} against ${QA?.fits.sun ?? '—'} and ${T.fits.sun} (lower is more even). <b>The openers' finish.</b> Moving the closer to 15:45 takes ${stretch?.closerShift ?? 30} minutes off three duties a day, and the contract is exact, so the two 06:20 openers run on — ${stretch ? stretch.turns.map(t => `${t.from.slice(0,5)} to ${t.to.split('-')[1]}`).join(' and ') : 'see page 4'}${stretch?.allOnToday ? ', which are Saturday’s own opening times' : ''}; as <i>Quarter To</i>. <b>Late-turn length</b> is inherited from <i>Same Turns</i> and still not met. <b>Sunday's finish</b> — five December 2026 timetable movements fall after 23:25; the proposal inherits today's window deliberately rather than deciding it.`; })() : PROPOSAL === 'B2' ? (() => {
     const hm = m => `${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`; const T2 = efTable;
     const shared = P.tableRows.filter(r => todayTimes.has(r.time)).map(r => r.time);
     return `<b>The ticket office is written in, and it changed what the rules could give.</b> Two <span class="tt">14:00-22:30</span> turns Monday to Saturday and two <span class="tt">13:30-22:00</span> on a Sunday were fixed before anything else was searched (owner, 22 Sep 2026). They sit outside the early-versus-late ordering rule, which an 8h30 late would otherwise make unsatisfiable under an 8h40 ceiling. <b>Two pins are read differently for them, and only for them:</b> "five still on at 22:00" is a floor (four Saturday closers plus the pair make six by arithmetic, and the rule exists so the evening is not thin), and a pinned turn finishing AT 22:00 counts as on at 22:00, while design duties keep the strict reading, so <i>Eight Forty</i>'s Saturday assesses as before. <b>Fit before count</b> (owner): ${T2.fit.weekday} weekday, ${T2.fit.sat} Saturday, ${T2.fit.sun} Sunday against <i>Eight Forty</i>'s ${efRecord?.fit.weekday ?? '—'}, ${efRecord?.fit.sat ?? '—'} and ${efRecord?.fit.sun ?? '—'}. Saturday is the best table in the folder; Sunday is the price — the pair sits across its quietest afternoon, and Sunday pays ${T2.sunTotal.toLocaleString('en-GB')} minutes against 4,820. <b>Familiarity.</b> ${shared.length ? `${shared.length} of ${P.tableRows.length} turns ${shared.length === 1 ? 'is a time' : 'are times'} people work today (${shared.join(', ')})` : `none of the ${P.tableRows.length} turns is a time people work today`}. <b>Sunday's finish</b> — five December 2026 timetable movements fall after 23:25; the window is inherited, not decided.`; })() : PROPOSAL === 'EF' ? (() => {
