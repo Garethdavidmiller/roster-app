@@ -476,6 +476,16 @@ The page has five parts, and every number on it is computed from the design's ow
   would work those weeks read them first; the cover-week question to the roster office; the source of
   the 13-day limit. "Only then does the factor count mean anything."
 
+**A plain-English pass went with it** (owner: "a clarity and for-dummies pass, with some aesthetic polish").
+Where a word is used, it is now explained: a page guide at the top of page 2; the eight roster words
+(link, line, turn, rest day, cover week, Sunday, the contract, a one-turn week) under the grid on page
+3; how to read the heat chart and what the fit figure is, in one sentence each, on page 5; what the
+ORR list is and what ⚠ present actually means, above the fatigue table on page 7, with each factor's
+family shown as a chip; "in plain terms" above the method on page 8, one version for a searched design
+and one for a supplied one; and what the fingerprint is, on page 9 where the cells are. Polish: zebra
+striping on the reading tables, a coloured top edge per criteria tier, and the December 2026 timetable
+named in full wherever the sheets said a bare "December".
+
 A design's `meta.json` may override any part of it under `frame` (`question`, `stands`, `cannot`,
 `read`, `family`); none does yet — the family framing was checked against all nineteen and holds. The
 one thing the page deliberately does not do is add a number: a composite score would make the problem
