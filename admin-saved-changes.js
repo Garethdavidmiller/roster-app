@@ -29,6 +29,7 @@ import { TYPES, rowValueText } from './admin-shift-types.js';
 import { getAllOverrides, removeFromCache, isTruncated, coversAllStaff, OVERRIDES_QUERY_CAP, loadOverrides } from './admin-override-store.js';
 
 import { setStatus } from './status-text.js';
+import { withSlowSaveNotice } from './slow-save.js';
 // ── INJECTED ──────────────────────────────────────────────────────────────────
 let _currentIsAdmin   = false;
 let _currentIsManager = false;
@@ -277,7 +278,7 @@ async function _handleDelete(e) {
         // Wrap in writeWithClaimRetry so a just-provisioned manager on a pre-`manager`-claim token
         // self-heals (force-refresh + retry once) instead of a hard permission-denied — parity with
         // the executeSave / recordRangeOverrides / bulk-delete write paths.
-        await writeWithClaimRetry(() => deleteDoc(doc(db, COLLECTIONS.overrides, btn.dataset.id ?? '')));
+        await withSlowSaveNotice(writeWithClaimRetry(() => deleteDoc(doc(db, COLLECTIONS.overrides, btn.dataset.id ?? ''))));
         removeFromCache([btn.dataset.id ?? '']);
         renderTable();
         _onAfterSave();
@@ -352,11 +353,11 @@ function _initOverridesTable() {
             try {
                 // Re-runnable thunk (fresh batch each attempt) so a stale-claim manager's bulk delete
                 // self-heals once via writeWithClaimRetry rather than erroring.
-                await writeWithClaimRetry(async () => {
+                await withSlowSaveNotice(writeWithClaimRetry(async () => {
                     const batch = writeBatch(db);
                     ids.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
                     await batch.commit();
-                });
+                }));
                 removeFromCache(ids);
                 renderTable();
                 _onAfterSave();

@@ -1499,6 +1499,14 @@ What a save did, said day by day (v21.38). Pure.
 - A REMOVED day is named, not omitted: an absence in a receipt reads as the receipt being short, not as a change. Its old value is deliberately not repeated (it invites reading as the new one)
 - `removed` must be captured BEFORE the batch commits — afterwards the rows are gone
 
+### `slow-save.js`
+Say so when a save is waiting for signal (v24.21). The watcher is pure (timers injected); the notice is one reference-counted live line.
+- `watchSlowCommit(promise, { ms, onSlow, onDone, setTimer, clearTimer })` → the SAME promise. `onSlow` fires once if still unsettled after `ms`; `onDone` fires on settlement only if `onSlow` did
+- `withSlowSaveNotice(promise)` — wraps an app write: after `SLOW_SAVE_MS` shows `#slowSaveNotice` (`role="status"`), hides it on settlement. Pass-through: the caller's receipt and error paths are unchanged
+- `SLOW_SAVE_MS` (8000) · `SLOW_SAVE_TEXT`
+- **Why:** with `persistentLocalCache` a write lands on the phone first and `commit()` then waits for the server with no limit — on a weak signal the Save button sat on "Saving…" and read as a freeze
+- **It never says "saved"** (a held write can still be refused when it arrives) and **never re-enables the button** (every save mints new ids, so a second tap duplicates). Wired into all six admin override writes; `window.__E2E.slowSaveMs` is a test seam only
+
 ### `admin-shift-types.js`
 The shift-type table (v21.38). Pure data, no imports — which is what lets every consumer read it without importing the coordinator back.
 - `TYPES` — per-type metadata (label, pill, fixed, fixedValue)
