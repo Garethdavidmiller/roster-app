@@ -12,6 +12,7 @@ and every figure in a PDF is computed from the cells it shows — nothing is typ
 | **Same Turns** | `ST-24-B7 · d15e1b74` | Today's 20-line link widened to 24 in today's own shift times and week shapes | 1 (FF19, one jump) | 6 | 6 in 24 |
 | **By the Book** | `BB-24-D7 · 0f14abce` | The workspace's December duty table (the owner's rules in table form), the rotation searched for the ORR factors | **0** | 6 | 6 in 24 |
 | **Quarter To** | `QT-24-Q34 · 70cf9874` | *Same Turns* with the weekday closer at 15:45 and no duty over 8h40 — the two 06:20 openers run on to Saturday's own opening times to keep the contract, so the closer is the only time nobody works today | **0** | 6 | 6 in 24 |
+| **Quarter To 2** | `Q2-24-W21 · 7ea671d5` | *Quarter To* with its own open question answered: **Saturday and Sunday searched again under the 8h40 cap** from today's clock times and the quarter hour — Saturday entirely in today's times (fit 23.1 against 32.7), Sunday one new turn, the capped closer (61.4 against 80.6); every one of its 20 working weeks is one turn | 1 (FF19, one jump) | 6 | 6 in 24 |
 | **Eight Forty** | `EF-24-E21 · 0cf19f56` | *By the Book* with no duty over 8h40 — the December table re-solved under the same rules with the ceiling at 8h40 (its earlies had run to 9h30), then the rotation searched for the ORR factors as *By the Book* was | **0** | 6 | 6 in 24 |
 | **By the Book 2** | `B2-24-G21 · 02f3c005` | *Eight Forty* with **the ticket office written in** — two `14:00-22:30` a day Mon–Sat and two `13:30-22:00` on Sunday, fixed before the search; demand fit ahead of the count of times. Saturday's fit is the best in the folder (8.1), Sunday's the price (35.8) | **0** | 6 | 5 in 24 |
 | **Weekday Lates** | `WL-24-EXT · a52ec588` | **Supplied as a Word table**, not searched — weekday lates at 16:25, Saturdays left alone | 5, or **4 as rostered** | 9 | 6 in 24 |
@@ -39,9 +40,10 @@ time anyone works today. Each PDF states this on its page 6. **The two 12 Sep pr
 closer and the 8h40 cap are briefs to set beside *Same Turns* and *By the Book*, and neither changes the
 December rules the workspace pins in `links-default-targets.js`. *Quarter To* (12 Sep 2026) is *Same Turns*
 with two things asked for — the closer at 15:45, nothing over 8h40 — and it clears every fatigue factor
-where *Same Turns* has one present; its open question is the cap's reach, since Saturday's 14:45–23:55
+where *Same Turns* has one present; its open question was the cap's reach, since Saturday's 14:45–23:55
 (9h10) and Sunday's 14:30–23:25 (8h55) are today's own turns carried over unchanged, and shortening
-Saturday's closer leaves 7,004 minutes a weekday that no table of today's turns reaches. *Eight Forty*
+Saturday's closer leaves 7,004 minutes a weekday that no table of today's turns reaches. *Quarter To 2*
+(24 Sep 2026) answers it — the weekend searched again rather than trimmed; see its own section below. *Eight Forty*
 (12 Sep 2026) is *By the Book* under the cap, and the cap is not a trim there: 14 duties paying 7,000
 minutes average 8h20, so a ceiling twenty minutes above the mean forces every long early to 8h30–8h40 and
 every late to 7h45–8h25, and the owner's late-shorter-than-early lever shrinks to five minutes at the
@@ -703,11 +705,61 @@ it: a proposal needs the rotation searched again (`MODE=rules node anneal.mjs` o
 gain of two turns did not look like it earned four seeded runs without the owner seeing the numbers
 first. The Saturday is in the folder if it does.
 
+## Quarter To 2 — Saturday and Sunday genuinely rebuilt (24 Sep 2026)
+
+*Quarter To* is the strongest case in the folder for keeping today's times, and its page 6 carried its
+own weakest point: the 8h40 cap it is named for reached the weekday only. Saturday's 14:45–23:55 (9h10)
+and Sunday's 14:30–23:25 (8h55) were *Same Turns*' tables carried over, and the sheet said that reaching
+the weekend "is a different proposal". The owner asked for that proposal, with the weekend
+**genuinely rebuilt** rather than trimmed to the cap.
+
+**What "rebuilt" means here** (`tooling/weekend-table.mjs`). Saturday's 14 duties still pay 7,100 minutes
+(the Q weekday pays 6,980 and Monday to Saturday is an equality at 42,000), with four at the 06:20 open,
+four through to 23:55 and exactly five on after 22:00, as the sheets' rule rows read the December
+headcounts. Sunday's ten keep four at 07:15 and three to 23:25 and pay between 5,100 and 5,145 —
+Sunday sits outside the contract, and *Quarter To*'s pays 5,145. Every duty is 7h–8h40. Starts and
+finishes are the quarter hours **plus every clock time somebody works today** (13:35, 14:50 …), no :05 or
+:10 but the window's own, nothing finishing in the hour before the close unless it is a closer, and an
+evening finish only when the ticket office closes — 22:30 on a Saturday (owner, 22 Sep 2026), 22:00 on a
+Sunday. The thinnest fully-covered hour may not fall below today's.
+
+**The pick is *Quarter To*'s own order, with one guard.** Fewest turns nobody works today, then demand fit
+against the December 2026 timetable curve, then fewer distinct turns — but only among tables **at least as
+even as the day *Quarter To* inherited** (its Saturday 32.7, its Sunday 80.6, read from `best-Q-34`, never
+typed). A weekend rebuilt "under the cap" that followed the timetable worse than the one it replaced
+would not be a rebuild. Every table made only of known turns is enumerated exhaustively, then every
+table with exactly one new turn, and a seeded search covers the rest; the first version of the
+exhaustive pass had a pruning bug that hid most of the known-only space and reported zero where there
+are 81, which is why the pass now prints its own count.
+
+| Day | picked | new turns | fit | *Quarter To*'s | today's | pays |
+|---|---|---|---|---|---|---|
+| Saturday | `06:20-14:00 ×1 · 06:20-14:50 ×3 · 07:15-15:45 ×2 · 08:00-16:30 ×1 · 11:00-19:30 ×1 · 13:00-21:00 ×1 · 14:00-22:30 ×1 · 15:15-23:55 ×4` | **0** | **23.1** | 32.7 | 45.7 | 7,100 |
+| Sunday | `07:15-15:45 ×4 · 11:00-19:30 ×1 · 13:30-22:00 ×2 · 14:45-23:25 ×3` | 1 (the capped closer) | **61.4** | 80.6 | 65.9 | 5,130 |
+
+The Saturday is built entirely from times people work today — 07:15–15:45 and 13:00–21:00 are Sunday's
+turns, 15:15–23:55 the weekday closer — and follows the Saturday curve better than *Quarter To*'s and far
+better than today's. The Sunday closer cannot be a known turn under the cap (today's 14:30–23:25 is 8h55),
+so one new time was the floor, and the search found it: 14:45–23:25, fifteen minutes later. The rotation
+was then annealed on the assembled table exactly as *Quarter To* was (`MODE=feel`, table `W`), and the
+picker's order chose seed 21: no rest under 12h, a longest run of 6, six full weekends off, one fatigue
+factor present (FF19, one week-to-week jump of more than two hours — *Quarter To* has none, *Same Turns*
+the same one), and **every one of the 20 working weeks a single turn**, which no other sheet in the folder
+manages. Nine of its eleven times are worked today; the two that are not are the 15:45 closer and the
+Sunday closer.
+
+**One question the search raised rather than settled**, on the sheet's page 6. Today's Saturday works
+two 14:30–22:00 turns, and the ticket-office rule excludes a 22:00 Saturday finish. Admit it
+(`ALLOW_TODAY_ENDS=1`) and a Saturday of **fit 14.4**, still entirely in today's times, exists
+(`06:20-14:00 ×1 · 06:20-14:20 ×1 · 06:20-14:50 ×2 · 07:15-15:45 ×2 · 08:00-16:30 ×1 · 13:30-22:00 ×2 ·
+14:00-22:30 ×1 · 15:15-23:55 ×4`). Whether 22:00 is a Saturday handover point is the room's to say; the
+run is in `tooling/q2-sat-today-ends.txt` and the table is rebuilt in a minute either way.
+
 ## Files
 
 | File | Use |
 |---|---|
-| `<Name>-<code>-<fingerprint>.pdf` | the proposal, 8 pages A4 — **force-added** (`git add -f`), because `.gitignore` ignores every `*.pdf` in the tree |
+| `<Name>-<code>-<fingerprint>.pdf` | the proposal, 9 pages A4 — **force-added** (`git add -f`), because `.gitignore` ignores every `*.pdf` in the tree |
 | `<Name>-<code>-import.txt` | line number then Sunday–Saturday, tab-separated — paste into **Links → Import** |
 | `<Name>-<code>.json` | the same rotation in the app's own `{ name, patterns }` shape — also importable |
 
