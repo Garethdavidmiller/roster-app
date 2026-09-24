@@ -203,9 +203,9 @@ wrong fact. v24.20 heard "usually only falls on a Sunday as it is uncontracted" 
 Sunday rest day and a Mon–Sat question. The owner corrected it on 24 Sep 2026 (v24.22): **`NA` means
 not available and always means absent**, written Monday to Saturday and a clerical error on a Sunday;
 **`NS` is the Sunday code**, not available on a Sunday. So `NA`/`N/A` is the app's Absent day
-Mon–Sat and `RD` on a Sunday (a Sunday cannot hold an absence), `NS` is `RD` on Sunday and a question
-elsewhere, and the prompt still reports the code rather than deciding — two of the three answers
-depend on the column. The deterministic read is 291 of 297 rather than 288 — `NA` never needed the
+Mon–Sat and `RD` on a Sunday (a Sunday cannot hold an absence), `NS` is `RD` on Sunday and `SICK` on a
+weekday (the owner's second answer that day: a weekday `NS` is also absent), and the prompt still
+reports the code rather than deciding — every answer depends on the column. The deterministic read is 291 of 297 rather than 288 — `NA` never needed the
 model. `PIDD TRG` ×4, `Until 10:30` and `Medical` are what remain, and the last two genuinely want a
 person.
 

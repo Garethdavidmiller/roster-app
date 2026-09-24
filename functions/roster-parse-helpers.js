@@ -485,16 +485,19 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
             // ── "NA" IS AN ABSENCE; "NS" IS THE SUNDAY CODE (v24.22, correcting v24.20) ──────────
             // Owner, 24 Sep 2026: NA ALWAYS means absent (Mon–Sat; a clerical error on a Sunday);
             // NS is the Sunday code. v24.20 had made NA a Sunday rest day and a Mon–Sat QUESTION.
-            // The rules and the argument live in cell-day-rules.js; the prompt reports the code.
-            // A Sunday NA is RD, not SICK — a Sunday cannot hold an absence, and the Sunday scans
-            // below treat NA as blank-equivalent, so SICK would read as a left-shift. It is warned.
+            // NS on a weekday is also absent (owner, same day), so the two codes share one rule
+            // and differ only in which day is the clerical error, which is what each warning says.
+            // The rules live in cell-day-rules.js; the prompt reports the code. A Sunday NA is RD,
+            // not SICK — a Sunday cannot hold an absence, and the Sunday scans below treat NA as
+            // blank-equivalent, so SICK would read as a left-shift.
             if (isNotAvailable(raw)) {
                 if (dayIndex === SUNDAY) console.warn(`[parseRosterPDF] ${entry.memberName}: NA on Sunday — a clerical error on the sheet (NA is a Mon–Sat absence code); recorded as the rest day a Sunday already is`);
                 shifts[date] = notAvailableMeaning(dayIndex);
                 continue;
             }
             if (isNotAvailableSunday(raw)) {
-                shifts[date] = notAvailableSundayMeaning(dayIndex, DAY_LABELS[dayIndex]);
+                if (dayIndex !== SUNDAY) console.warn(`[parseRosterPDF] ${entry.memberName}: NS on ${DAY_LABELS[dayIndex]} — the Sunday code on a weekday (a clerical error on the sheet); recorded as Absent, as NA would be`);
+                shifts[date] = notAvailableSundayMeaning(dayIndex);
                 continue;
             }
 
@@ -606,7 +609,7 @@ function normaliseScanValue(raw, dayIndex) {
     const s = String(raw).trim();
     if (BLANK_SCAN_TOKENS.has(s.toUpperCase())) return 'RD';
     if (isNotAvailable(s)) return dayIndex === undefined ? null : notAvailableMeaning(dayIndex);
-    if (isNotAvailableSunday(s)) return dayIndex === SUNDAY ? 'RD' : null;   // Mon–Sat NS is a question, not a signal
+    if (isNotAvailableSunday(s)) return dayIndex === undefined ? null : notAvailableSundayMeaning(dayIndex);
     const norm = normaliseShift(s);
     return norm.startsWith('UNKNOWN|') ? null : norm;
 }

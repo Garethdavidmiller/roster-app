@@ -30,8 +30,9 @@
  *                         keeps the Sunday scans' blank-equivalence intact). The coordinator warns,
  *                         because the owner says a Sunday `NA` is an error worth noticing.
  *   `NS`        Sunday  → `RD` (not available and not working coincide — nobody is contracted)
- *               Mon–Sat → a QUESTION for the admin: the Sunday code on a contracted day is not
- *                         something this module should guess at.
+ *               Mon–Sat → `SICK` (owner, 24 Sep 2026: "NS on a weekday should also mean absent").
+ *               So the two codes carry ONE rule and differ only in which day is the clerical
+ *               error — `NA` on a Sunday, `NS` on a weekday — which is what the warnings say.
  *   blank       Sunday  → `RD`; Mon–Sat → a question (v22.19, unchanged).
  *
  * ── AND WHY NOT LEAVE THEM WHERE THEY WERE ──────────────────────────────────────────────────────
@@ -118,17 +119,14 @@ function notAvailableMeaning(dayIndex) {
 }
 
 /**
- * What an `NS` cell means on this day: a rest day on the Sunday it is written for, and a question
- * anywhere else — the Sunday code on a contracted day is not this module's to guess.
+ * What an `NS` cell means on this day: the rest day a Sunday already is, and — on a weekday, where
+ * the Sunday code is a clerical error — an absence, exactly as `NA` (owner, 24 Sep 2026).
  *
  * @param {number} dayIndex  0 = Sunday
- * @param {string} dayLabel  for the reviewer's message
- * @returns {string}
+ * @returns {'SICK'|'RD'}
  */
-function notAvailableSundayMeaning(dayIndex, dayLabel) {
-    return dayIndex === SUNDAY
-        ? 'RD'
-        : `UNKNOWN|marked NS (not available on a Sunday) on a contracted ${dayLabel || 'day'} — check the PDF`;
+function notAvailableSundayMeaning(dayIndex) {
+    return notAvailableMeaning(dayIndex);
 }
 
 module.exports = {

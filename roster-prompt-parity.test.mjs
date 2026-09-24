@@ -117,8 +117,10 @@ describe('every code the PROMPT names is either accepted by the parser or waived
      *                  is. v24.20 had heard "usually only falls on a Sunday" and made it a Sunday
      *                  rest day and a Mon–Sat question. The prompt used to say `Return "RD"`,
      *                  unconditionally, before either; it now reports the code and stops.
-     *   NS             "Not available on a SUNDAY" — a different code from NA: RD on Sunday, a
-     *                  question for the admin on a contracted day.
+     *   NS             "Not available on a SUNDAY" — a different code from NA with the SAME
+     *                  answers: RD on Sunday, Absent on a weekday (owner, 24 Sep 2026: "NS on a
+     *                  weekday should also mean absent"). The two differ only in which day is the
+     *                  clerical error, which is what the coordinator's warnings say.
      *
      * This is a DIFFERENT waiver from the one above and must stay different: that one says a human
      * decision was delegated to the model, this one says it was taken by the coordinator where the

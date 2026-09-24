@@ -545,14 +545,16 @@ describe('buildSafeEntries', () => {
             }
         });
 
-        test('NS on MONDAY TO SATURDAY goes to an admin, and says which day and why', () => {
-            for (const [day, date] of [['Mon', '2026-03-30'], ['Fri', '2026-04-03']]) {
-                const got = String(buildSafeEntries([row(day, 'NS')], HEADERS, DATES)[0].shifts[date]);
-                assert.ok(got.startsWith('UNKNOWN|'), `${day} was written as ${got} instead of being flagged`);
-                assert.match(got, /\bNS\b/, 'the reviewer must be told what the cell said');
-                assert.match(got, /Sunday/, 'and what the code means');
-                assert.match(got, /contracted/i, 'and why that is a question rather than an answer');
-            }
+        test('NS on MONDAY TO SATURDAY is an absence too — the Sunday code on a weekday is a clerical error', () => {
+            // Owner, 24 Sep 2026: "NS on a weekday should also mean absent". The coordinator says
+            // it saw one, because the code is on the wrong day, but it records what it means.
+            const warn = console.warn; const seen = []; console.warn = m => seen.push(String(m));
+            try {
+                for (const [day, date] of [['Mon', '2026-03-30'], ['Fri', '2026-04-03']]) {
+                    assert.equal(buildSafeEntries([row(day, 'NS')], HEADERS, DATES)[0].shifts[date], 'SICK', `${day} NS`);
+                }
+            } finally { console.warn = warn; }
+            assert.ok(seen.some(m => /NS on Monday/.test(m)), 'the coordinator says it saw a weekday NS');
         });
 
         test('neither is confused with a code that merely contains those letters', () => {
@@ -1325,8 +1327,9 @@ describe('normaliseScanValue', () => {
             assert.equal(normaliseScanValue(t, 0), 'RD', `${t} on Sunday`);
             assert.equal(normaliseScanValue(t, 3), 'SICK', `${t} on a Wednesday`);
         }
+        assert.equal(normaliseScanValue('NS'), null, 'NS without a day');
         assert.equal(normaliseScanValue('NS', 0), 'RD');
-        assert.equal(normaliseScanValue('NS', 2), null, 'a Mon–Sat NS is a question for the review, not a scan signal');
+        assert.equal(normaliseScanValue('NS', 2), 'SICK', 'a weekday NS is an absence, as NA is');
         for (const t of ['NAT', 'ANA']) {
             assert.equal(normaliseScanValue(t, 1), null, `${t} is not a code`);
         }
