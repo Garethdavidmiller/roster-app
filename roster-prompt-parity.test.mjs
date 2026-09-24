@@ -87,7 +87,7 @@ describe('the code table has ONE home, and both prompts interpolate it', () => {
 //
 // Test 2 below checks parser → prompt: every code `normaliseShift` accepts is asked for. The
 // MIRROR was never checked, and three real rosters found what was hiding in it: the prompt says
-// "NA or N/A or NS = Not available. Return \"RD\"", and `normaliseShift('NA')` returns
+// "NA or N/A or NS = Not available. Return \"RD\"" (as it read until v24.20), and `normaliseShift('NA')` returns
 // `UNKNOWN|NA`. It works today only because the prompt makes the MODEL do the conversion, so the
 // parser never sees the code — a division of labour nothing wrote down and nothing enforced.
 //
@@ -111,15 +111,14 @@ describe('every code the PROMPT names is either accepted by the parser or waived
      * Codes `buildSafeEntries` answers ITSELF, before `normaliseShift` is ever called — because
      * their meaning depends on WHICH DAY the cell is in, which a per-cell normaliser cannot know.
      *
-     *   NA · N/A · NS  "Not available" (v24.20). The prompt used to say `Return "RD"`,
-     *                  unconditionally, and this entry sat in TRANSLATED_BY_THE_MODEL above saying
-     *                  so — noting it was "the first thing to fix if a deterministic pass ever
-     *                  replaces it". That fix is this. The OWNER's fact is what decides it: NA
-     *                  means not available and "usually only falls on a Sunday as it is
-     *                  uncontracted". On Sunday, not-available and not-working are the same thing
-     *                  because nobody is contracted to be there, so RD is right. Monday to
-     *                  Saturday the person IS contracted, the two stop being the same, and the cell
-     *                  goes to an admin instead of being quietly written as a rest day.
+     *   NA · N/A       "Not available" — an ABSENCE (owner's correction, 24 Sep 2026, v24.22):
+     *                  the app's Absent day Monday to Saturday, and on a Sunday — where it is a
+     *                  clerical error and no absence can be held — the rest day a Sunday already
+     *                  is. v24.20 had heard "usually only falls on a Sunday" and made it a Sunday
+     *                  rest day and a Mon–Sat question. The prompt used to say `Return "RD"`,
+     *                  unconditionally, before either; it now reports the code and stops.
+     *   NS             "Not available on a SUNDAY" — a different code from NA: RD on Sunday, a
+     *                  question for the admin on a contracted day.
      *
      * This is a DIFFERENT waiver from the one above and must stay different: that one says a human
      * decision was delegated to the model, this one says it was taken by the coordinator where the

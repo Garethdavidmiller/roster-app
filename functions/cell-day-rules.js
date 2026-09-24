@@ -4,19 +4,35 @@
  * functions/cell-day-rules.js — what a roster cell MEANS, given which day of the week it sits in.
  * Requires nothing: no Firebase, no HTTP, no clock. Imported by `functions/roster-parse-helpers.js`.
  *
- * ── WHY THIS IS ITS OWN MODULE ──────────────────────────────────────────────────────────────────
+ * ── THREE RULES, ONE REASON ─────────────────────────────────────────────────────────────────────
  *
- * Two rules live here and they are the same rule twice, which is the argument for keeping them
- * together rather than beside the loop that applies them:
+ * Three cell kinds live here because each one's meaning turns on the same fact — **Sunday is
+ * uncontracted** — and a per-cell normaliser cannot know which column it is reading:
  *
  *   · a cell the model reported as EMPTY
- *   · a cell the model reported as "not available" (`NA` / `N/A` / `NS`)
+ *   · a cell marked `NA` / `N/A` — NOT AVAILABLE, which is an ABSENCE
+ *   · a cell marked `NS` — NOT AVAILABLE ON A SUNDAY
  *
- * Both are an ANSWER on Sunday and a QUESTION every other day, and for one reason: **Sunday is
- * uncontracted**. Nobody is rostered to be there, so "nothing written" and "not available" both
- * mean the same as "not working", and `RD` states it correctly. Monday to Saturday the person IS
- * contracted; the two stop coinciding, and writing `RD` would record a rest day the sheet never
- * claimed — silently, in the one place a silent wrong answer is worst.
+ * ── THE OWNER'S CORRECTION (24 Sep 2026) ────────────────────────────────────────────────────────
+ *
+ * v24.20 read `NA` as "an answer on Sunday and a question everywhere else", on the owner's earlier
+ * words that it "usually only falls on a Sunday as it is uncontracted". That was the wrong fact,
+ * and the owner corrected it: **`NA` means not available and ALWAYS means absent.** It is normally
+ * written Monday to Saturday; on a Sunday it is a clerical error. **`NS` is the Sunday code** — not
+ * available on a Sunday — and the two are different codes, not spellings of one.
+ *
+ * So the rules are now:
+ *
+ *   `NA`/`N/A`  Mon–Sat → `SICK` (the app's Absent day — the reason is never stored, GDPR)
+ *               Sunday  → `RD`, because a Sunday cannot hold an absence (CLAUDE.md, the six-layer
+ *                         Sunday rule: the client's Sunday layer strips a Sunday `SICK` to `RD`
+ *                         regardless, so writing `RD` here says the same thing one step earlier and
+ *                         keeps the Sunday scans' blank-equivalence intact). The coordinator warns,
+ *                         because the owner says a Sunday `NA` is an error worth noticing.
+ *   `NS`        Sunday  → `RD` (not available and not working coincide — nobody is contracted)
+ *               Mon–Sat → a QUESTION for the admin: the Sunday code on a contracted day is not
+ *                         something this module should guess at.
+ *   blank       Sunday  → `RD`; Mon–Sat → a question (v22.19, unchanged).
  *
  * ── AND WHY NOT LEAVE THEM WHERE THEY WERE ──────────────────────────────────────────────────────
  *
@@ -24,7 +40,7 @@
  * never listed, and a header it listed with nothing in it — and its own comment records why that
  * matters: *"Both were 'RD' until v22.19, so the fix had to be made twice or it would have been
  * made nowhere the model actually goes."* A rule written out per call site is a rule that can be
- * fixed in one of them. Here there is one function and three call sites, and they cannot disagree.
+ * fixed in one of them. Here each rule is one function, and its call sites cannot disagree.
  *
  * The history behind the blank rule — three real rosters, 50 member rows, 24 blank Sundays against
  * 5 blank Mon–Sat cells all belonging to one person, and why the model's three "independent layers"
@@ -34,10 +50,11 @@
 /** The token the prompt returns for a cell with no text in it. */
 const BLANK_CELL_TOKEN = 'BLANK';
 
-/**
- * The ways a roster says "not available". `NS` and `N/A` are spellings, not separate meanings.
- */
-const NOT_AVAILABLE_TOKENS = new Set(['NA', 'N/A', 'NS']);
+/** The ways a roster writes "not available" — an absence. `N/A` is a spelling of `NA`. */
+const NOT_AVAILABLE_TOKENS = new Set(['NA', 'N/A']);
+
+/** The Sunday code: "not available on a Sunday". A different code from `NA`, not a spelling of it. */
+const NOT_AVAILABLE_SUNDAY_TOKENS = new Set(['NS']);
 
 /** Sunday's index in a Sunday-first week. Named because `0` alone reads as "the first column". */
 const SUNDAY = 0;
@@ -54,17 +71,27 @@ function isPhysicallyBlank(raw) {
     return s === '' || s.toUpperCase() === BLANK_CELL_TOKEN;
 }
 
+/** @param {any} raw @param {Set<string>} tokens */
+function isWholeCell(raw, tokens) {
+    if (raw === undefined || raw === null) return false;
+    return tokens.has(String(raw).trim().toUpperCase());
+}
+
 /**
- * Did the model report this cell as "not available"?
+ * Is this cell `NA` / `N/A` — not available, an absence?
  *
  * Matches the WHOLE cell, never a substring: `NAT` and `ANA` are not this, and a time is not this.
  * @param {any} raw
  * @returns {boolean}
  */
-function isNotAvailable(raw) {
-    if (raw === undefined || raw === null) return false;
-    return NOT_AVAILABLE_TOKENS.has(String(raw).trim().toUpperCase());
-}
+function isNotAvailable(raw) { return isWholeCell(raw, NOT_AVAILABLE_TOKENS); }
+
+/**
+ * Is this cell `NS` — not available on a Sunday?
+ * @param {any} raw
+ * @returns {boolean}
+ */
+function isNotAvailableSunday(raw) { return isWholeCell(raw, NOT_AVAILABLE_SUNDAY_TOKENS); }
 
 /**
  * What an EMPTY cell means on this day.
@@ -80,29 +107,39 @@ function blankCellMeaning(dayIndex, dayLabel) {
 }
 
 /**
- * What a "not available" cell means on this day.
+ * What an `NA` cell means on this day: an ABSENCE Monday to Saturday; on a Sunday, where it is a
+ * clerical error and no absence can be held, the rest day the Sunday already is.
  *
- * The owner's fact is what decides it (20 Sep 2026): `NA` means NOT AVAILABLE, and "usually only
- * falls on a Sunday as it is uncontracted". The prompt used to answer this itself — `Return "RD"`,
- * unconditionally, for every day — which is the same mistake the blank rule exists to undo: a model
- * deciding what a cell MEANS when the meaning depends on a column the model is not asked to know.
+ * @param {number} dayIndex  0 = Sunday
+ * @returns {'SICK'|'RD'}
+ */
+function notAvailableMeaning(dayIndex) {
+    return dayIndex === SUNDAY ? 'RD' : 'SICK';
+}
+
+/**
+ * What an `NS` cell means on this day: a rest day on the Sunday it is written for, and a question
+ * anywhere else — the Sunday code on a contracted day is not this module's to guess.
  *
  * @param {number} dayIndex  0 = Sunday
  * @param {string} dayLabel  for the reviewer's message
  * @returns {string}
  */
-function notAvailableMeaning(dayIndex, dayLabel) {
+function notAvailableSundayMeaning(dayIndex, dayLabel) {
     return dayIndex === SUNDAY
         ? 'RD'
-        : `UNKNOWN|marked NA (not available) on a contracted ${dayLabel || 'day'} — check the PDF`;
+        : `UNKNOWN|marked NS (not available on a Sunday) on a contracted ${dayLabel || 'day'} — check the PDF`;
 }
 
 module.exports = {
     BLANK_CELL_TOKEN,
     NOT_AVAILABLE_TOKENS,
+    NOT_AVAILABLE_SUNDAY_TOKENS,
     SUNDAY,
     isPhysicallyBlank,
     isNotAvailable,
+    isNotAvailableSunday,
     blankCellMeaning,
     notAvailableMeaning,
+    notAvailableSundayMeaning,
 };

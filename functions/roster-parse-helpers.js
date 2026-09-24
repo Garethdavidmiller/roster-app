@@ -372,8 +372,8 @@ const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Fri
 // It is matched CASE-INSENSITIVELY and the scan set below shares it, so `parsed`, `sundayScan` and
 // `columnScan` cannot end up with three subtly different ideas of what empty looks like.
 const {
-    BLANK_CELL_TOKEN, NOT_AVAILABLE_TOKENS,
-    isPhysicallyBlank, isNotAvailable, blankCellMeaning, notAvailableMeaning,
+    BLANK_CELL_TOKEN, NOT_AVAILABLE_TOKENS, NOT_AVAILABLE_SUNDAY_TOKENS, SUNDAY,
+    isPhysicallyBlank, isNotAvailable, isNotAvailableSunday, blankCellMeaning, notAvailableMeaning, notAvailableSundayMeaning,
 } = require('./cell-day-rules');
 
 function buildSafeEntries(parsedMembers, columnHeaders, dates) {
@@ -482,21 +482,19 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
                 continue;
             }
 
-            // ── "NOT AVAILABLE" IS AN ANSWER ON SUNDAY AND A QUESTION EVERYWHERE ELSE (v24.20) ──
-            //
-            // Exactly the blank-cell rule above, for exactly the same reason, and it is the owner's
-            // fact that joins them: NA means NOT AVAILABLE, and it "usually only falls on a Sunday
-            // as it is uncontracted". On Sunday, not-available and not-working are the same thing
-            // BECAUSE nobody is contracted to be there — which is what makes RD the right answer.
-            // That equivalence is precisely what stops being true Monday to Saturday, where the
-            // person IS contracted and "not available" is a statement about them, not a rest day.
-            //
-            // The prompt used to answer this itself ("Return \"RD\""), unconditionally, for every
-            // day. That is the same mistake the blank rule was created to undo: a model deciding
-            // what a cell MEANS when the meaning depends on which column it is in, which the model
-            // is not asked to know. The prompt now reports `NA` and this decides.
+            // ── "NA" IS AN ABSENCE; "NS" IS THE SUNDAY CODE (v24.22, correcting v24.20) ──────────
+            // Owner, 24 Sep 2026: NA ALWAYS means absent (Mon–Sat; a clerical error on a Sunday);
+            // NS is the Sunday code. v24.20 had made NA a Sunday rest day and a Mon–Sat QUESTION.
+            // The rules and the argument live in cell-day-rules.js; the prompt reports the code.
+            // A Sunday NA is RD, not SICK — a Sunday cannot hold an absence, and the Sunday scans
+            // below treat NA as blank-equivalent, so SICK would read as a left-shift. It is warned.
             if (isNotAvailable(raw)) {
-                shifts[date] = notAvailableMeaning(dayIndex, DAY_LABELS[dayIndex]);
+                if (dayIndex === SUNDAY) console.warn(`[parseRosterPDF] ${entry.memberName}: NA on Sunday — a clerical error on the sheet (NA is a Mon–Sat absence code); recorded as the rest day a Sunday already is`);
+                shifts[date] = notAvailableMeaning(dayIndex);
+                continue;
+            }
+            if (isNotAvailableSunday(raw)) {
+                shifts[date] = notAvailableSundayMeaning(dayIndex, DAY_LABELS[dayIndex]);
                 continue;
             }
 
@@ -558,7 +556,8 @@ function applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, da
         // Case A: scan says the Sunday cell is blank, but the AI put SOMETHING there. The AI's own
         // separate Sunday scan is the authority, so this is a misread — almost always the
         // dropped-blank-Sunday LEFT-SHIFT of the whole row.
-        const isBlank = ['BLANK', '', 'RD', 'EMPTY', '-', 'N/A', 'NA'].includes(scanStr);
+        // NA and NS on a Sunday are both blank-equivalent: the rest day a Sunday already is (cell-day-rules.js).
+        const isBlank = ['BLANK', '', 'RD', 'EMPTY', '-', 'N/A', 'NA', 'NS'].includes(scanStr);
         if (isBlank && sunShift !== 'RD') {
             if (entry.shifts[satDate] === 'RD') {
                 // Clean left-shift signature (Sat empty) → RIGHT-shift the whole row to undo it:
@@ -586,22 +585,28 @@ function applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, da
 
 // ── Column-scan cross-check (the general day-shift defence) ─────────────────
 
-// Scan tokens that mean "this cell is empty" — mirrors the Case-A blank set above.
-const BLANK_SCAN_TOKENS = new Set([BLANK_CELL_TOKEN, '', 'RD', 'EMPTY', '-', 'N/A', 'NA', 'OFF']);
+// Scan tokens that mean "this cell is empty" on ANY day. NA and NS are NOT here (v24.22): their
+// meaning depends on the day, so normaliseScanValue asks cell-day-rules.js with the day index.
+const BLANK_SCAN_TOKENS = new Set([BLANK_CELL_TOKEN, '', 'RD', 'EMPTY', '-', 'OFF']);
 
 /**
  * Normalise a raw columnScan cell value to the same vocabulary as the row read,
  * so the two are comparable. Returns null when there is NO usable signal
  * (missing member/day, or the scan value itself is unreadable) — the cross-check
  * must fail OPEN to today's behaviour on absent signal, never invent one.
+ * `NA` and `NS` are decided BY THE DAY (cell-day-rules.js), so the caller passes the column's day
+ * index; without one they are no signal rather than a guess — the fail-open rule above.
  * @param {any} raw
+ * @param {number} [dayIndex]  0 = Sunday; omit when the column is unknown
  * @returns {string|null}
  */
-function normaliseScanValue(raw) {
+function normaliseScanValue(raw, dayIndex) {
     if (raw === undefined || raw === null) return null;
     if (typeof raw !== 'string' && typeof raw !== 'number') return null;   // inherited fn / object → no signal
     const s = String(raw).trim();
     if (BLANK_SCAN_TOKENS.has(s.toUpperCase())) return 'RD';
+    if (isNotAvailable(s)) return dayIndex === undefined ? null : notAvailableMeaning(dayIndex);
+    if (isNotAvailableSunday(s)) return dayIndex === SUNDAY ? 'RD' : null;   // Mon–Sat NS is a question, not a signal
     const norm = normaliseShift(s);
     return norm.startsWith('UNKNOWN|') ? null : norm;
 }
@@ -677,7 +682,7 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
             if (dayIndex === undefined) continue;
             const colObj = columnScan[header];
             if (!colObj || typeof colObj !== 'object') continue;
-            const v = normaliseScanValue(colObj[entry.memberName]);
+            const v = normaliseScanValue(colObj[entry.memberName], dayIndex);
             if (v !== null) colRead[dates[dayIndex]] = v;
         }
 
@@ -1364,7 +1369,9 @@ module.exports = {
     buildSafeEntries,
     BLANK_CELL_TOKEN,
     NOT_AVAILABLE_TOKENS,
+    NOT_AVAILABLE_SUNDAY_TOKENS,
     isNotAvailable,
+    isNotAvailableSunday,
     isPhysicallyBlank,
     applySundayScanCorrections,
     applyColumnScanCrossCheck,
