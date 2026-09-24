@@ -1,7 +1,7 @@
 // Pick the winner, offer it to the app's own reorder, assess today + proposal + comparators, render.
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { assess, today, tryAppReorder, demand, hmFromHours, family, startMinutes, endMinutes } from './report-data.mjs';
+import { assess, today, tryAppReorder, demand, hmFromHours, family, startMinutes, endMinutes, weekdayFit } from './report-data.mjs';
 import { evaluate } from './anneal.mjs';
 import { renderPdf } from './render.mjs';
 import { generateLink, ROTATING_LINES, DAYS } from '../../../links-design.js';
@@ -12,13 +12,6 @@ const PROPOSAL = process.env.PROPOSAL ?? 'ST';   // ST = Same Turns · BB = By t
 const files = process.argv.slice(2).filter(existsSync);
 // Demand fit of a design's weekday cover against the December curve (same formula as fit.mjs):
 // squared distance between each hour's share of cover and its share of traffic, inside the window.
-import { calcHourlyCoverage } from '../../../links-design.js';
-function weekdayFit(p) {
-  const cov = (h => { const WD=['mon','tue','wed','thu','fri']; return Array.from({length:24},(_,i)=>WD.reduce((a,d)=>a+h[d].hours[i],0)/5); })(calcHourlyCoverage(p, 24)); const cars = demand.profile.weekday.cars; const ws = 6*60+20, we = 23*60+55;
-  const hrs = []; for (let h = 6; h <= 23; h++) hrs.push(h); const frac = h => Math.max(0, Math.min(we,(h+1)*60) - Math.max(ws,h*60)) / 60;
-  const D = hrs.reduce((a,h)=>a+cars[h]*frac(h),0), C = hrs.reduce((a,h)=>a+cov[h],0);
-  return +hrs.reduce((a,h)=>a+((cars[h]*frac(h)/D)-(cov[h]/C))**2*1e4,0).toFixed(1);
-}
 // How many times on a candidate's sheet nobody works today — a tiebreak AFTER rules and fit, before the
 // search's own score (v23.70). Zero for every Same Turns candidate, equal across By the Book's, and the
 // thing that separates Quarter To's two tables: Q's stretched openers are Saturday's own times.

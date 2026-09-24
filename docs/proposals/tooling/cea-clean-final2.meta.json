@@ -1,4 +1,5 @@
 {
+ "parent": { "file": "weeks1718.json", "name": "Weeks 17-18 Swapped", "code": "WS-24-EXT" },
  "identity": {
   "lineage": "Supplied as a Word table (CEA_Roster_Clean_Final_2) and assessed here — not produced by the proposal search. It is a further revision of the WEEKDAY LATES line: against “Weeks 17-18 Swapped” (WS-24-EXT · 0bebb675) fifteen lines differ, and the two substantive moves are that the cover week returns from line 18 to line 17, and the 14:45–23:55 Saturday closer — 9h10, the longest turn in that family — is shortened to 15:15–23:55 at 8h40. Compare with “Same Turns” (ST-24-B7 · d15e1b74) and “By the Book” (BB-24-D7 · 0f14abce), both built by the search and judged by these same modules."
  },

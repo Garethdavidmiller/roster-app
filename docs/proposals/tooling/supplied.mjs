@@ -9,7 +9,7 @@
 //   node supplied.mjs <patterns.json> "<Name>" "<strap>" <CODE>
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { assess, today, demand, startMinutes, endMinutes } from './report-data.mjs';
+import { assess, today, demand, startMinutes, endMinutes, weekdayFit } from './report-data.mjs';
 import { renderPdf } from './render.mjs';
 import { generateLink, ROTATING_LINES, DAYS, calcHourlyCoverage } from '../../../links-design.js';
 import { buildDefaultTargets } from '../../../links-default-targets.js';
@@ -22,16 +22,22 @@ const patterns = JSON.parse(readFileSync(file, 'utf8'));
 const OVER = existsSync(file.replace(/\.json$/, '.meta.json'))
   ? JSON.parse(readFileSync(file.replace(/\.json$/, '.meta.json'), 'utf8')) : {};
 
-function weekdayFit(p) {
-  const cov = (h => { const WD=['mon','tue','wed','thu','fri']; return Array.from({length:24},(_,i)=>WD.reduce((a,d)=>a+h[d].hours[i],0)/5); })(calcHourlyCoverage(p, 24)), cars = demand.profile.weekday.cars;
-  const ws = 6*60+20, we = 23*60+55, hrs = []; for (let h = 6; h <= 23; h++) hrs.push(h);
-  const frac = h => Math.max(0, Math.min(we,(h+1)*60) - Math.max(ws,h*60)) / 60;
-  const D = hrs.reduce((a,h)=>a+cars[h]*frac(h),0), C = hrs.reduce((a,h)=>a+cov[h],0);
-  return +hrs.reduce((a,h)=>a+((cars[h]*frac(h)/D)-(cov[h]/C))**2*1e4,0).toFixed(1);
-}
 const fingerprint = p => createHash('sha256').update(JSON.stringify(Object.keys(p).sort((a,b)=>a-b).map(k => DAYS.map(d => p[k][d])))).digest('hex').slice(0, 8);
 
 const P = { patterns, lines: 24, ...assess(patterns, 24) };
+
+// CHANGED CELLS AGAINST THE PARENT (24 Sep 2026). A hand-edited design names its parent in its
+// meta.json (`parent: { file, name, code }`) and the cells that differ are OUTLINED on the page 2
+// grid, so a reader sees the edit rather than reconstructing it from the lineage prose. Only a
+// LOCAL edit is worth this — a re-searched or reordered child differs on most of the grid, and
+// outlining a hundred cells says nothing — which is why the searched and reordered designs carry no
+// `parent` key. The count is stated in the legend and never typed.
+const changed = (() => {
+  if (!OVER.parent?.file || !existsSync(OVER.parent.file)) return null;
+  const q = JSON.parse(readFileSync(OVER.parent.file, 'utf8')); const pp = q.patterns ?? q; const cells = [];
+  for (let k = 1; k <= 24; k++) for (const d of DAYS) if (patterns[String(k)][d] !== pp[String(k)][d]) cells.push(`${k}|${d}`);
+  return { cells, lines: new Set(cells.map(c => c.split('|')[0])).size, parent: OVER.parent };
+})();
 const T0 = today(); const T = { ...T0, ...assess(T0.patterns, T0.lines) };
 
 // Comparators: the workspace's own December default, and the two searched proposals beside this file.
@@ -79,7 +85,7 @@ const rules = [
   { rule: 'Three through to the close; four on a Saturday', value: `${wdCnt(t => t.endsWith('23:55'))} weekday · ${cnt('sat', t => t.endsWith('23:55'))} Saturday · ${cnt('sun', t => t.endsWith('23:25'))} Sunday`, ok: wdMin(t => t.endsWith('23:55')) === 3 && cnt('sat', t => t.endsWith('23:55')) === 4 && cnt('sun', t => t.endsWith('23:25')) === 3, note: '' },
   { rule: 'Five still on duty at 22:00', value: `${wdCnt(t => endMinutes(t) > 22*60)} weekday · ${cnt('sat', t => endMinutes(t) > 22*60)} Saturday`, ok: wdMin(t => endMinutes(t) > 22*60) === 5 && cnt('sat', t => endMinutes(t) > 22*60) === 5, note: 'a 22:00 finish is not "on at 22:00"' },
   { rule: 'Fourteen on a Saturday, ten on a Sunday', value: `${P.daily.sat} · ${P.daily.sun}`, ok: P.daily.sat === 14 && P.daily.sun === 10, note: '' },
-  { rule: 'Cover weeks, evenly spread', value: `${P.feel.spareLines.length} weeks at lines ${P.feel.spareLines.join(', ')} — gaps ${P.adj.spareGaps.join(', ')}`, ok: P.adj.spareExcess === 0, note: 'the December shape asks for FOUR (DEFAULT_COVER_WEEKS), evenly spread — this row fails on the SPREAD, not the count' },
+  { rule: 'Cover weeks, evenly spread', value: `${P.feel.spareLines.length} weeks at lines ${P.feel.spareLines.join(', ')} — gaps ${P.adj.spareGaps.join(', ')}`, ok: P.feel.spareLines.length === 4 && P.adj.spareExcess === 0, note: P.feel.spareLines.length !== 4 ? `the December shape asks for four; this design has ${P.feel.spareLines.length}` : P.adj.spareExcess === 0 ? '' : 'the December shape asks for four, evenly spread — the count is right; the spread is not' },
   { rule: 'About 4.2 days a week worked, Mon–Sat', value: `${P.totals.daysAverage.toFixed(2)} over the ${P.feel.workingLines} working lines`, ok: Math.abs(P.totals.daysAverage - 4.2) < 0.15, note: '' },
   { rule: 'No :05 or :10 times except the open and close', value: P.tableRows.every(r => !/[:](05|10)$/.test(r.time.split('-')[0]) && !/[:](05|10)$/.test(r.time.split('-')[1])) ? 'none' : 'present', ok: P.tableRows.every(r => !/[:](05|10)$/.test(r.time.split('-')[0]) && !/[:](05|10)$/.test(r.time.split('-')[1])), note: '' },
   (() => { const rows = P.tableRows.filter(r => r.weekday > 0 || r.sat > 0);
@@ -101,9 +107,10 @@ const sundayOut = demand.movementsOutside(demand.movements.sun, 7*60+15, 23*60+2
 const meta = {
   date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
   tables: '—', steps: '—', kind: 'EXT',
+  changed,
   identity: { name: NAME, strap: STRAP, code: CODE, fingerprint: fingerprint(patterns), table: '—', seed: '—',
     lineage: 'Supplied as a Word table and assessed here — not produced by the proposal search. Compare with “Same Turns” (ST-24-B7 · d15e1b74) and “By the Book” (BB-24-D7 · 0f14abce), both of which were built by the search and judged by the same modules.' },
-  h7: 'Where it came from, and how to load it',
+  h7: 'Where it came from',
   sub7: 'Checkable rather than reproducible: there is no search behind it, and every figure is computed from the cells',
   methodHeading: 'Where this design came from',
   method: `<p><b>1 · It was supplied, not searched.</b> This rotation arrived as a Word table and was read straight into the app's own shape — 24 lines, Sunday to Saturday, cover weeks as whole weeks. No table was enumerated for it, no grid was annealed and no seed produced it, so unlike <i>Same Turns</i> and <i>By the Book</i> there is no search to reproduce. What can be reproduced is every figure on these pages: they are computed from the cells opposite.</p>

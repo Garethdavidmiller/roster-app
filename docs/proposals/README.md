@@ -529,6 +529,62 @@ search seed, which would be a claim this design cannot support.
 owner-relayed figures with no document behind them (class C — `docs/KNOWN_LIMITATIONS.md` → Links),
 and the 13-day limit's policy citation is outstanding. Neither PDF is a recommendation; both say so.
 
+## One fit, on minutes — and what a second pass over the sheets found (24 Sep 2026)
+
+The owner asked whether the sheets could be improved and what was missing. Two things were wrong before
+anything was missing.
+
+**Page 3 typed four of its headcounts.** The "Changed — the December headcount" table computed its first
+three rows from the cells and carried the next four as literals — `4 → 4 unchanged`, `2 → 3`, `2 → 4 four on
+a Saturday`, `4 → 5` — on every sheet, under a masthead that says *figures on this page are computed, not
+typed*. On *Cover at Seventeen* it said Saturday closes with four while page 5, correctly, said three. The
+rows are now computed per day class (`weekday range · Sat · Sun`, today and proposed) by `headcounts()` in
+`tooling/report-data.mjs`, and the last column names the days that miss the rule rather than asserting it.
+
+**There were two demand-fit measures, and they disagreed on a direction.** `fit.mjs`, which chose every
+searched table, measures cover in duty MINUTES per hour. `supplied.mjs` and `final.mjs` each carried a copy
+of the same formula fed with `calcHourlyCoverage`, which counts a HEAD in every hour a duty touches — a 06:20
+start is a whole person in the 06:00 hour, a 23:55 finish a whole person at 23:00 — and that is exactly where
+these designs differ. On heads, *Clean Final Tuned*'s three retimes made Sunday **worse** (88.2 → 93.2); on
+minutes they made it **better** (62.4 → 44.9), which is the figure the Clean Final narrative was written on
+while its weekday figures beside it were on heads. One definition now, `weekdayFit` and `dayFit` in
+`report-data.mjs`, on minutes, and both renderers call it. **Every `Wk fit` on every sheet moved**: *Cover at
+Seventeen* 42.1 → 34.4, *Same Turns* 58.5 → 46.3, *By the Book* 41.1 → 30.8, today's link 56 → 44.7. The
+ordering between designs did not change on any sheet checked. *Saturday Four*'s own 11.4 / 11.8 in its section
+above are `sat-table.mjs`'s search score, Wembley-weighted, and stay as written; on the shared measure its
+Saturday reads 12.6 on page 4.
+
+**What was added, all computed, none of it typed:**
+
+- **Page 4 — a `fit` column** on every cover row, today's and proposed, per day and per distinct weekday, so
+  the figure the searches were run on is beside the chart it describes rather than on a different page as a
+  weekday mean.
+- **Page 5 — the tightest rest and where it falls** on the 12-hour row (`13h 35m — line 20 Fri 16:25-23:55
+  into Sat 13:30-22:00`), with today's beside it. `0 rests under 12h` told a reader nothing about a design
+  half an hour from the floor; *Clean Final Tuned*'s 12h30 was in this file and on no page.
+- **Page 2 — three things on the grid.** A **Turns** column (distinct clock times in the week, Sunday
+  included; the page 1 one-turn tile line by line, and the count in the footer). A **Minutes** row (duty
+  minutes per day, Mon–Sat summed to the 42,000 the contract is paid in — figures *Clean Final*'s note had
+  to carry in prose). And on a hand-edited design, **the cells that differ from its parent outlined**, with
+  the count in the legend: `Changed against Three Mondays (TM-24-EXT) — 14 cells on 2 lines`. The parent is
+  named in the design's `meta.json`; only local edits carry one (TF, TM, C17, S4, WS, CF, CFT), because a
+  re-searched or reordered child differs on most of the grid and outlining a hundred cells says nothing.
+- **Page 7 — the alternatives table runs full width** under the two text columns. In the right-hand column
+  its design names wrapped to six lines each.
+- **Provenance** — page 1 and page 8 state the app version whose modules produced the figures
+  (`Marylebone Roster v24.21`), because the rule modules change between releases and a sheet in a drawer
+  should say which ones judged it.
+- `tooling/regenerate.mjs` now **ships** each render's PDF, JSON and import block into this folder under the
+  folder's names; that was a hand-typed copy per proposal, which is how a folder ends up with a PDF from one
+  render and a JSON from another. **It had already happened**: the first shipped run rewrote
+  `Weekday-Lates-2-WL2-24-R21.json` and its import block, which until then held *Fifteen Turns Repaired*'s
+  grid under Weekday Lates 2's name — the PDF was right, the two files beside it were not.
+- The page 4 "Reading it" callout on the searched families said its Saturday-weighting and two-peaks
+  sentences twice; once now.
+
+**Every fingerprint is unchanged**, checked by `regenerate.mjs --check` after the pass: these are changes
+to what the sheets say about the cells, not to the cells.
+
 ## Files
 
 | File | Use |
