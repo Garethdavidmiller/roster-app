@@ -136,27 +136,45 @@ const stretch = (() => {
   return { closer, closerShift: closer.from && closer.to ? startMinutes(closer.to) - startMinutes(closer.from) : null, turns, weekly: turns.reduce((n, t) => n + t.people * t.each * 5, 0), allOnToday: turns.every(t => t.onToday) };
 })();
 // Which rule (or the fit) separated the winner from the runner-up — computed, so page 8 cannot claim a tie that was not one.
+// EVERY family reads this (24 Sep 2026): Same Turns' and By the Book's sentences were typed literals in
+// render.mjs, true on the day they were written and checked by nothing after it.
 const pickNote = (() => {
   const [a, b] = cands; if (!b) return 'One candidate.';
+  const oneTable = cands.every(c => c.variant === a.variant);
+  const sameFit = new Set(cands.map(c => c.fit)).size === 1;
+  const lead = cands.length > 2 && cands.every(c => c.facts.present === 0) ? `All ${cands.length} candidates clear every factor${oneTable ? ' and share one table' : ''}${sameFit ? ', so the fit is identical' : ''}; ` : '';
+  const cap = w => lead ? w : w.charAt(0).toUpperCase() + w.slice(1);
   const rules = [['turnarounds', 'rest'], ['longest', 'the longest run'], ['present', 'fatigue factors present']];
-  for (const [k, w] of rules) if (a.facts[k] !== b.facts[k]) return `${w} decided it (${a.facts[k]} against ${b.facts[k]} for the runner-up).`;
-  if (a.facts.weekends !== b.facts.weekends) return `full weekends off decided it (${a.facts.weekends} against ${b.facts.weekends}).`;
+  for (const [k, w] of rules) if (a.facts[k] !== b.facts[k]) return `${lead}${cap(w)} decided it (${a.facts[k]} against ${b.facts[k]} for the runner-up).`;
+  if (a.facts.weekends !== b.facts.weekends) return `${lead}${cap('full weekends off')} decided it (${a.facts.weekends} against ${b.facts.weekends}), and the runner-up is named so it can be asked for.`;
   if (a.fit !== b.fit) return `The top two tied on every rule; the fit decided it (${a.fit} against ${b.fit}), and the runner-up is named so it can be asked for.`;
   return `The top two tied on every rule and on fit; the search's own score decided it (${a.cost.toFixed(0)} against ${b.cost.toFixed(0)}).`;
 })();
+// What the coherence term cost against the factors, READ from the rules-only row (EXTRA) beside the winner.
+const rulesOnlyNote = (() => {
+  const ro = alternatives.filter(x => /rules only/.test(x.name)); if (!ro.length) return '';
+  const winRow = alternatives.find(x => x.chosen); const d = winRow.present - Math.min(...ro.map(x => x.present));
+  return ` The rules-only row shows what the coherence term cost against the factors: ${d <= 0 ? 'nothing' : `${d} more present`}.`;
+})();
+// Same Turns' two-table comparison and By the Book 2's Eight Forty comparison, READ rather than typed
+// (24 Sep 2026): the sheet said 57.7 / 58.5 / 69.5 — heads-per-hour figures from before the one fit on
+// minutes — and would have gone on saying so. Today's figure is the alternatives table's own row (tp24).
+const otherTableFit = cands.filter(c => c.variant !== win.variant).map(c => c.fit).sort((a, b) => a - b)[0] ?? null;
+const efRecord = PROPOSAL === 'B2' && existsSync('eight-forty-table.json') ? JSON.parse(readFileSync('eight-forty-table.json', 'utf8')) : null;
 const meta = {
+  otherTableFit, efFit: efRecord?.fit ?? null,
   date: PROPOSAL === 'B2' ? '22 September 2026' : PROPOSAL === 'QT' || PROPOSAL === 'EF' ? '12 September 2026' : '8 September 2026',
   tables: PROPOSAL === 'QT' ? 42 : 81, steps: PROPOSAL === 'QT' || PROPOSAL === 'EF' || PROPOSAL === 'B2' ? '100,000' : '60,000', restarts: PROPOSAL === 'QT' || PROPOSAL === 'EF' || PROPOSAL === 'B2' ? 'five' : 'four',
   runs: PROPOSAL === 'QT' ? 'four seeded runs per table, two tables' : PROPOSAL === 'BB' || PROPOSAL === 'EF' || PROPOSAL === 'B2' ? 'four seeded runs' : 'three seeded runs per table',
   efTable,
-  stretch, pickSentence: pickNote + (cands.length > shown.length ? ` The other ${cands.length - shown.length} seeded results are in <span class="tt">results/</span> (${cands.filter(c => !shown.includes(c)).map(c => `${c.variant}${c.seed}`).join(', ')}); none stands higher on the pick than the rows shown.` : ''),
+  stretch, pickSentence: pickNote + rulesOnlyNote + (cands.length > shown.length ? ` The other ${cands.length - shown.length} seeded results are in <span class="tt">results/</span> (${cands.filter(c => !shown.includes(c)).map(c => `${c.variant}${c.seed}`).join(', ')}); none stands higher on the pick than the rows shown.` : ''),
   candidateFiles: cands.map(c => c.file), winnerVariant: win.variant,
   sundayNote: `Sunday: ${sundayOut.after?.length ?? 5} December 2026 timetable movements fall after the 23:25 finish (the last at 23:54, three of them arrivals) — the standing question on whether Sunday's window moves; the window is stored per design, so the proposal can be rebuilt to either answer.`,
   designRules: rules, alternatives, identity,
   openQuestions: PROPOSAL === 'B2' ? (() => {
     const hm = m => `${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`; const T2 = efTable;
     const shared = P.tableRows.filter(r => todayTimes.has(r.time)).map(r => r.time);
-    return `<b>The ticket office is written in, and it changed what the rules could give.</b> Two <span class="tt">14:00-22:30</span> turns Monday to Saturday and two <span class="tt">13:30-22:00</span> on a Sunday were fixed before anything else was searched (owner, 22 Sep 2026). They sit outside the early-versus-late ordering rule, which an 8h30 late would otherwise make unsatisfiable under an 8h40 ceiling. <b>Two pins are read differently for them, and only for them:</b> "five still on at 22:00" is a floor (four Saturday closers plus the pair make six by arithmetic, and the rule exists so the evening is not thin), and a pinned turn finishing AT 22:00 counts as on at 22:00, while design duties keep the strict reading, so <i>Eight Forty</i>'s Saturday assesses as before. <b>Fit before count</b> (owner): ${T2.fit.weekday} weekday, ${T2.fit.sat} Saturday, ${T2.fit.sun} Sunday against <i>Eight Forty</i>'s 70.4, 16.4 and 20.9. Saturday is the best table in the folder; Sunday is the price — the pair sits across its quietest afternoon, and Sunday pays ${T2.sunTotal.toLocaleString('en-GB')} minutes against 4,820. <b>Familiarity.</b> ${shared.length ? `${shared.length} of ${P.tableRows.length} turns ${shared.length === 1 ? 'is a time' : 'are times'} people work today (${shared.join(', ')})` : `none of the ${P.tableRows.length} turns is a time people work today`}. <b>Sunday's finish</b> — five December 2026 timetable movements fall after 23:25; the window is inherited, not decided.`; })() : PROPOSAL === 'EF' ? (() => {
+    return `<b>The ticket office is written in, and it changed what the rules could give.</b> Two <span class="tt">14:00-22:30</span> turns Monday to Saturday and two <span class="tt">13:30-22:00</span> on a Sunday were fixed before anything else was searched (owner, 22 Sep 2026). They sit outside the early-versus-late ordering rule, which an 8h30 late would otherwise make unsatisfiable under an 8h40 ceiling. <b>Two pins are read differently for them, and only for them:</b> "five still on at 22:00" is a floor (four Saturday closers plus the pair make six by arithmetic, and the rule exists so the evening is not thin), and a pinned turn finishing AT 22:00 counts as on at 22:00, while design duties keep the strict reading, so <i>Eight Forty</i>'s Saturday assesses as before. <b>Fit before count</b> (owner): ${T2.fit.weekday} weekday, ${T2.fit.sat} Saturday, ${T2.fit.sun} Sunday against <i>Eight Forty</i>'s ${efRecord?.fit.weekday ?? '—'}, ${efRecord?.fit.sat ?? '—'} and ${efRecord?.fit.sun ?? '—'}. Saturday is the best table in the folder; Sunday is the price — the pair sits across its quietest afternoon, and Sunday pays ${T2.sunTotal.toLocaleString('en-GB')} minutes against 4,820. <b>Familiarity.</b> ${shared.length ? `${shared.length} of ${P.tableRows.length} turns ${shared.length === 1 ? 'is a time' : 'are times'} people work today (${shared.join(', ')})` : `none of the ${P.tableRows.length} turns is a time people work today`}. <b>Sunday's finish</b> — five December 2026 timetable movements fall after 23:25; the window is inherited, not decided.`; })() : PROPOSAL === 'EF' ? (() => {
     const hm = m => `${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`;
     const wk = P.tableRows.filter(r => r.weekday > 0); const E = wk.filter(r => startMinutes(r.time) < 11*60).map(r => r.minutes).sort((a,b)=>a-b), L = wk.filter(r => startMinutes(r.time) >= 11*60).map(r => r.minutes);
     const gap = E.filter(x => x > Math.max(...L)).sort((a,b)=>a-b)[0] - Math.max(...L);

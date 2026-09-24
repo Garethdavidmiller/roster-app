@@ -15,6 +15,7 @@
 // THE PICK is the owner's brief for By the Book 2, in order: fewest distinct start and finish times,
 // then demand fit. CLS / CAP / GAP / PSTEPS / SEED are environment knobs; CAP and GAP are read by
 // table-book.mjs itself, so the pins this honours are its pins, not a second copy of them.
+import { readFileSync } from 'node:fs';
 import { violations, structures } from './table-book.mjs';
 import { DEC_2026_DEMAND } from '../../../links-demand.js';
 
@@ -30,7 +31,14 @@ const PIN = (process.env.PIN ?? '').split(',').filter(Boolean).map(p => {
     return { s: m(a), e: m(b), L: m(b) - m(a), n: Number(n ?? 1) };
 });
 // FIT FIRST (owner): demand fit outranks the count of distinct times. PICK=times reverses it.
+// PICK=share (24 Sep 2026, "By the Book 2 with fewer shift times"): prefer turns another day class already
+// works -- SHARE names that day's placed file (b2-weekday.json) -- then this day's own count, then fit.
+// Each day's own ceiling is already at its floor (a weekday fails at 6 starts, a Sunday at 4), so the only
+// lever left on the rotation's total is reuse between days, and Saturday shares the weekday's window.
+// Whatever PICK says, the run records the best table under ALL THREE orderings, so one pass shows the trade.
 const PICK = process.env.PICK ?? 'fit';
+const SHARE = process.env.SHARE ? new Set(JSON.parse(readFileSync(process.env.SHARE, 'utf8'))) : null;
+if (PICK === 'share' && !SHARE) { console.error('PICK=share needs SHARE=<placed day .json>'); process.exit(2); }
 let _s = (Number(process.env.SEED ?? 7) >>> 0) || 7;
 const rnd = () => { _s ^= _s << 13; _s >>>= 0; _s ^= _s >> 17; _s ^= _s << 5; _s >>>= 0; return _s / 4294967296; };
 
@@ -66,7 +74,16 @@ function fit(d) {
     return +hrs.reduce((a, h) => a + ((cars[h]*frac(h)/D) - (cov(h)/C))**2 * 1e4, 0).toFixed(1);
 }
 
-let n = 0, feas = 0, best = null, closest = { c: Infinity, v: null };
+const hm = m => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+const turnsOf = d => [...new Set(d.map(x => `${hm(x.s)}-${hm(x.e)}`))];
+const unshared = d => SHARE ? turnsOf(d).filter(t => !SHARE.has(t)).length : 0;
+const KEYS = {
+    fit:   d => fit(d) * 1000 + nTimes(d),
+    times: d => nTimes(d) * 1000 + fit(d),
+    share: d => unshared(d) * 1e6 + nTimes(d) * 1000 + fit(d),
+};
+const bests = Object.fromEntries(Object.keys(KEYS).map(k => [k, null]));
+let n = 0, feas = 0, closest = { c: Infinity, v: null };
 for (const st of structures(CLS)) {
     n++;
     let cur = build(st); if (!cur) continue; let cc = cost(cur);
@@ -77,14 +94,15 @@ for (const st of structures(CLS)) {
     }
     if (cc > 0) { if (cc < closest.c) closest = { c: cc, v: violations(CLS, cur).map(([m]) => m) }; continue; }
     feas++;
-    const key = PICK === 'times' ? nTimes(cur) * 1000 + fit(cur) : fit(cur) * 1000 + nTimes(cur);
-    if (!best || key < best.key) best = { key, d: clone(cur), t: nTimes(cur), f: fit(cur) };
+    for (const [k, keyOf] of Object.entries(KEYS)) { if (k === 'share' && !SHARE) continue;
+        const key = keyOf(cur); if (!bests[k] || key < bests[k].key) bests[k] = { key, d: clone(cur), t: nTimes(cur), f: fit(cur), u: unshared(cur) }; }
 }
-const hm = m => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+const best = bests[PICK];
 console.log(`${CLS}: ${n} structures, ${feas} placed feasibly`);
+for (const [k, b] of Object.entries(bests)) if (b && k !== PICK) console.log(`  (by ${k}: ${b.t} times · fit ${b.f}${SHARE ? ` · ${b.u} turns not in SHARE` : ''} — ${[...b.d].sort((a, b) => a.s - b.s || a.e - b.e).map(x => `${hm(x.s)}-${hm(x.e)}`).join(' | ')})`);
 if (!best) { console.log(`  NONE. Closest cost ${closest.c.toFixed(1)}: ${(closest.v ?? ['no structure could be built']).join('; ')}`); process.exit(1); }
 const srt = [...best.d].sort((a, b) => a.s - b.s || a.e - b.e);
-console.log(`  best: ${new Set(srt.map(x=>x.s)).size} starts + ${new Set(srt.map(x=>x.e)).size} finishes = ${best.t} times · fit ${best.f}`);
+console.log(`  best by ${PICK}: ${new Set(srt.map(x=>x.s)).size} starts + ${new Set(srt.map(x=>x.e)).size} finishes = ${best.t} times · fit ${best.f}${SHARE ? ` · ${best.u} of ${turnsOf(srt).length} turns not in SHARE` : ''}`);
 console.log('  ' + srt.map(x => `${hm(x.s)}-${hm(x.e)}`).join(' | '));
 console.log('  lengths: ' + srt.map(x => { const L = x.e - x.s; return `${Math.floor(L/60)}h${String(L%60).padStart(2,'0')}`; }).join(' '));
 console.log('JSON ' + JSON.stringify(srt.map(x => `${hm(x.s)}-${hm(x.e)}`)));
