@@ -658,9 +658,50 @@ sheets regenerated, fingerprints unchanged.
   so beside it. Every supplied design carries its preparation date in its meta file, so a re-render
   never re-dates it.
 
-Left as decisions rather than fixed: page 7 names a person ("Nathan assesses against this list") in a
-folder the Pages mirror serves, and Same Turns' page 8 pick sentence is a typed literal that happens to
-be true where the other four searched families compute theirs.
+Two were left as decisions and then taken (24 Sep 2026, owner: "do your suggestions"):
+
+- **Page 7 named a person** ("Nathan assesses against this list") in a folder the Pages mirror serves.
+  It now says what the eyebrow already says — this is the list the link is assessed against — and
+  names nobody. (`Email-to-Nathan.md` still carries the name in its title; it is a draft email, and
+  renaming it is a separate call.)
+- **Two pick sentences were typed literals.** Same Turns' ("Two candidates tied on every rule; the fit
+  decided it") and By the Book's ("All four candidates … full weekends off decided it (6 against 5) …
+  the coherence term cost … nothing") were strings in `render.mjs`, true on the day they were written
+  and checked by nothing after it. Every searched family now reads `pickSentence` from `final.mjs`,
+  which compares the winner with the runner-up rule by rule; By the Book's "what the coherence term
+  cost" is read from the rules-only row beside it. Same Turns' sentence now carries the fit figures
+  (46.3 against 63.7), which the literal did not.
+- **And a third the re-render exposed:** Same Turns' method page compared its two tables with typed
+  figures — "57.7 today, 58.5 here … A 69.5" — which were heads-per-hour numbers from before the one
+  fit on minutes. It reads 44.7, 46.3 and 63.7 from the same rows the alternatives table prints. By
+  the Book 2's "against Eight Forty's 70.4, 16.4 and 20.9" is read from `eight-forty-table.json` the
+  same way. No fingerprint moved.
+
+## By the Book 2 with fewer shift times — measured, not built (24 Sep 2026)
+
+The owner asked whether *By the Book 2* could carry fewer shift times. The first pass settled that each
+day's own ceiling is already at its floor: the weekday fails at six starts and the Sunday at four, with
+"too many starts" the binding miss both times. The rotation holds 26 distinct turns, and the reason is
+not any one day — it is that Saturday shares the weekday's window and yet brings 6 turns of its own.
+
+So `place-structures.mjs` gained a third pick, `PICK=share`, which prefers turns a named day already
+works (`SHARE=b2-weekday.json`), then the day's own count, then fit — and records the best table under
+all three orderings in one pass, so the trade is read off one run. The run reproduces the committed
+Saturday under `fit` exactly, which is the regression check. What it found:
+
+| Saturday picked by | turns of its own | shared with the weekday | Saturday fit | rotation turns | rotation clock times | off the quarter hour |
+|---|---|---|---|---|---|---|
+| fit (committed, `b2-sat.json`) | 6 of 12 | 6 | 8.1 | 26 | 31 | 16 |
+| share (`b2-sat-share.json`) | 4 of 12 | 8 | 11.8 | 24 | 30 | 15 |
+
+Eight shared is the ceiling by arithmetic, not a search limit: the weekday has four openers, three
+closers and the pinned pair, so a Saturday of four openers and four closers can reuse at most those
+eight, and its fourth closer and its middles are new whatever happens. The lever is therefore worth
+**two turns and one clock time across the whole rotation**, and it costs Saturday a third of its fit
+(8.1 → 11.8 — still the best Saturday in the folder; *Eight Forty*'s is 16.4). No sheet was built from
+it: a proposal needs the rotation searched again (`MODE=rules node anneal.mjs` on a new table), and a
+gain of two turns did not look like it earned four seeded runs without the owner seeing the numbers
+first. The Saturday is in the folder if it does.
 
 ## Files
 
@@ -699,6 +740,8 @@ node supplied.mjs <design>.json "<Name>" "<strap>" <CODE>   # render a SUPPLIED 
 node shots.mjs <rendered>.html       # A4 page screenshots + a height check against the printable page
 CAP=520 PIN_N=2 PIN_MIN=1020 PIN="14:00-22:30x2" AT22_FLOOR=1 CLS=sat node place-structures.mjs
                                      # a day table by placing EVERY enumerated length structure (By the Book 2)
+CAP=520 PIN_N=2 PIN_MIN=1020 PIN="14:00-22:30x2" AT22_FLOOR=1 CLS=sat PICK=share SHARE=b2-weekday.json node place-structures.mjs
+                                     # the same Saturday, preferring turns the weekday already works ("fewer shift times")
 node assemble-table.mjs by-the-book-2-table.json b2-weekday.json b2-sat.json b2-sun.json
 MODE=rules node anneal.mjs G 100000 5 7    # By the Book 2 family: table G, seeds 7 13 21 34
 PROPOSAL=B2 node final.mjs results/best-RG-*.json
