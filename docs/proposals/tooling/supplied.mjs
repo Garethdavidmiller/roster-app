@@ -40,7 +40,7 @@ const changed = (() => {
 })();
 const T0 = today(); const T = { ...T0, ...assess(T0.patterns, T0.lines) };
 
-// Comparators: the workspace's own December default, and the two searched proposals beside this file.
+// Comparators: the workspace's own December 2026 duty-table default, and the two searched proposals beside this file.
 const dt = buildDefaultTargets();
 const g = generateLink({ slots: dt.slots, spareLines: dt.spareLines, lines: ROTATING_LINES });
 const ALL = Object.fromEntries(OBJECTIVES.map(o => [o.key, true]));
@@ -71,7 +71,7 @@ const tp24 = {}; for (let i = 1; i <= 24; i++) tp24[i] = T.patterns[String(((i-1
 alternatives.push(alt("Today's 20-line link (for scale)", T, false, null));
 alternatives[alternatives.length-1].fit = weekdayFit(tp24);
 
-// ── The December design figures, every one CHECKED ON THIS DESIGN. Same expressions as final.mjs,
+// ── The December 2026 timetable design figures, every one CHECKED ON THIS DESIGN. Same expressions as final.mjs,
 //    so a rule this design misses reads as missed rather than quietly going unstated.
 const cnt = (day, pred) => Object.values(P.patterns).filter(r => r[day] !== 'RD' && r[day] !== 'SPARE' && pred(r[day])).length;
 // Weekdays are not one day: a range across Mon-Fri where they differ, and the WORST weekday decides a pass
@@ -85,7 +85,7 @@ const rules = [
   { rule: 'Three through to the close; four on a Saturday', value: `${wdCnt(t => t.endsWith('23:55'))} weekday · ${cnt('sat', t => t.endsWith('23:55'))} Saturday · ${cnt('sun', t => t.endsWith('23:25'))} Sunday`, ok: wdMin(t => t.endsWith('23:55')) === 3 && cnt('sat', t => t.endsWith('23:55')) === 4 && cnt('sun', t => t.endsWith('23:25')) === 3, note: '' },
   { rule: 'Five still on duty at 22:00', value: `${wdCnt(t => endMinutes(t) > 22*60)} weekday · ${cnt('sat', t => endMinutes(t) > 22*60)} Saturday`, ok: wdMin(t => endMinutes(t) > 22*60) === 5 && cnt('sat', t => endMinutes(t) > 22*60) === 5, note: 'a 22:00 finish is not "on at 22:00"' },
   { rule: 'Fourteen on a Saturday, ten on a Sunday', value: `${P.daily.sat} · ${P.daily.sun}`, ok: P.daily.sat === 14 && P.daily.sun === 10, note: '' },
-  { rule: 'Cover weeks, evenly spread', value: `${P.feel.spareLines.length} weeks at lines ${P.feel.spareLines.join(', ')} — gaps ${P.adj.spareGaps.join(', ')}`, ok: P.feel.spareLines.length === 4 && P.adj.spareExcess === 0, note: P.feel.spareLines.length !== 4 ? `the December shape asks for four; this design has ${P.feel.spareLines.length}` : P.adj.spareExcess === 0 ? '' : 'the December shape asks for four, evenly spread — the count is right; the spread is not' },
+  { rule: 'Cover weeks, evenly spread', value: `${P.feel.spareLines.length} weeks at lines ${P.feel.spareLines.join(', ')} — gaps ${P.adj.spareGaps.join(', ')}`, ok: P.feel.spareLines.length === 4 && P.adj.spareExcess === 0, note: P.feel.spareLines.length !== 4 ? `the December 2026 staffing shape asks for four; this design has ${P.feel.spareLines.length}` : P.adj.spareExcess === 0 ? '' : 'the December 2026 staffing shape asks for four, evenly spread — the count is right; the spread is not' },
   { rule: 'About 4.2 days a week worked, Mon–Sat', value: `${P.totals.daysAverage.toFixed(2)} over the ${P.feel.workingLines} working lines`, ok: Math.abs(P.totals.daysAverage - 4.2) < 0.15, note: '' },
   { rule: 'No :05 or :10 times except the open and close', value: P.tableRows.every(r => !/[:](05|10)$/.test(r.time.split('-')[0]) && !/[:](05|10)$/.test(r.time.split('-')[1])) ? 'none' : 'present', ok: P.tableRows.every(r => !/[:](05|10)$/.test(r.time.split('-')[0]) && !/[:](05|10)$/.test(r.time.split('-')[1])), note: '' },
   (() => { const rows = P.tableRows.filter(r => r.weekday > 0 || r.sat > 0);
@@ -114,14 +114,14 @@ const meta = {
   sub7: 'Checkable rather than reproducible: there is no search behind it, and every figure is computed from the cells',
   methodHeading: 'Where this design came from',
   method: `<p><b>1 · It was supplied, not searched.</b> This rotation arrived as a Word table and was read straight into the app's own shape — 24 lines, Sunday to Saturday, cover weeks as whole weeks. No table was enumerated for it, no grid was annealed and no seed produced it, so unlike <i>Same Turns</i> and <i>By the Book</i> there is no search to reproduce. What can be reproduced is every figure on these pages: they are computed from the cells opposite.</p>
-  <p><b>2 · The judge is the same.</b> Scored by the workspace's own modules — <span class="tt">runDesignChecks</span>, <span class="tt">weeklyHours</span>, <span class="tt">assessHardLimits</span>, <span class="tt">assessFatigue</span>, <span class="tt">scoreOrder</span>, <span class="tt">calcHourlyCoverage</span> — with no figure typed by hand and none softened. Where the design misses one of the December rules, the table opposite says so rather than omitting the row.</p>
-  <p><b>3 · What that means for the room.</b> A supplied design is judged on the same evidence as a searched one, and it carries the same class-C caveats: the 24-line length, the cover-week count and the December headcounts are owner-relayed figures, and the 13-day limit's policy citation is still outstanding. This is not a recommendation.</p>`,
+  <p><b>2 · The judge is the same.</b> Scored by the workspace's own modules — <span class="tt">runDesignChecks</span>, <span class="tt">weeklyHours</span>, <span class="tt">assessHardLimits</span>, <span class="tt">assessFatigue</span>, <span class="tt">scoreOrder</span>, <span class="tt">calcHourlyCoverage</span> — with no figure typed by hand and none softened. Where the design misses one of the December 2026 timetable rules, the table opposite says so rather than omitting the row.</p>
+  <p><b>3 · What that means for the room.</b> A supplied design is judged on the same evidence as a searched one, and it carries the same class-C caveats: the 24-line length, the cover-week count and the December 2026 headcounts are owner-relayed figures, and the 13-day limit's policy citation is still outstanding. This is not a recommendation.</p>`,
   // The stock paragraph under the alternatives table narrates a SEARCH — "two candidates tied on
   // every rule; the fit decided it". There were no candidates: that is the whole point of this
   // renderer, and the sentence was quietly contradicting the method page opposite it. A supplied or
   // derived design gets a truthful default instead; a per-design meta may still override it.
-  pickNote: `  <p class="muted"><b>How to read this table:</b> nothing here was picked by a search &mdash; this design was supplied or derived, and the rows are the comparisons it is being judged against. <i>Wk fit</i> is how evenly the WEEKDAY cover follows the December traffic curve (lower is better; today's link scores what it scores), so it says nothing about Saturday or Sunday. <b>Score</b> is the search's own feel objective and is blank here, because no search produced this design &mdash; a blank is not a bad score. The workspace default is the app's own December table, generated and reordered with every switch on.</p>`,
-  sundayNote: `Sunday: ${sundayOut.after?.length ?? 5} December movements fall after the 23:25 finish — the standing question on whether Sunday's window moves; the window is stored per design, so this proposal can be rebuilt to either answer.`,
+  pickNote: `  <p class="muted"><b>How to read this table:</b> nothing here was picked by a search &mdash; this design was supplied or derived, and the rows are the comparisons it is being judged against. <i>Wk fit</i> is how evenly the WEEKDAY cover follows the December 2026 timetable traffic curve (lower is better; today's link scores what it scores), so it says nothing about Saturday or Sunday. <b>Score</b> is the search's own feel objective and is blank here, because no search produced this design &mdash; a blank is not a bad score. The workspace default is the app's own December 2026 duty table, generated and reordered with every switch on.</p>`,
+  sundayNote: `Sunday: ${sundayOut.after?.length ?? 5} December 2026 timetable movements fall after the 23:25 finish — the standing question on whether Sunday's window moves; the window is stored per design, so this proposal can be rebuilt to either answer.`,
   designRules: rules, alternatives,
   // 23 turns in the union against Same Turns' 18: the one-column duty table overflows onto a tenth
   // page at the default size, so this design takes the dense recipe By the Book already uses.
@@ -131,14 +131,14 @@ const meta = {
   intro2: `<p>It was not drawn by this app. It arrived as a Word table — a proposal from outside the workspace — and was read straight into the app's own shape, then judged by the same modules that judge a design the workspace generated itself: <span class="tt">runDesignChecks</span>, <span class="tt">weeklyHours</span>, <span class="tt">assessHardLimits</span>, <span class="tt">assessFatigue</span>, <span class="tt">scoreOrder</span> and <span class="tt">calcHourlyCoverage</span>. There is no search behind it and nothing to reproduce; what can be checked is every figure on these pages, each computed from the cells on page 7. Paste those cells into Links &rarr; Import and the workspace restates all of it.</p>`,
   eyebrow3: 'A supplied design, assessed',
   h3: 'Same feel, more people',
-  sub3: 'What this design keeps of today, and where the December headcounts differ',
+  sub3: 'What this design keeps of today, and where the December 2026 headcounts differ',
   // The stock sentence quotes Same Turns' own 6,980/7,100 split. This design does NOT have a uniform
   // weekday table, so that line would be false here — the figures below are computed from the cells.
   dutyNote: `Why the duties land where they do: Monday to Saturday totals exactly ${monSat.toLocaleString('en-GB')} minutes, which is 20 &times; 35h to the minute, so the contract is paid. But unlike a table built day-uniform, <b>the weekdays here are not equal</b> &mdash; ${WK.map((m,i)=>`${['Mon','Tue','Wed','Thu','Fri'][i]} ${m.toLocaleString('en-GB')}`).join(' &middot; ')}, and Saturday ${SAT.toLocaleString('en-GB')}. Monday is the lightest day by some margin and Thursday the heaviest; that is a property of the design rather than a fault, but it is the first thing to put to the roster office, because it decides how much cover each day really has.`,
   // COMPUTED default. The first default was Weekday Lates' own prose — its 9h10 closer, its cover-week
-  // gaps and a "five" the December shape never asked for — and every supplied design without a meta
+  // gaps and a "five" the December 2026 staffing shape never asked for — and every supplied design without a meta
   // file would have inherited those figures as its own. Weekday Lates keeps its prose in its meta.
-  openQuestions: `<b>The December figures this design does not meet:</b> ${rules.filter(r => !r.ok).map(r => `${r.rule.replace(/^[A-Z]/, c => c.toLowerCase())} (${r.value})`).join('; ') || 'none — every row on this page is met'}. <b>Sunday's finish</b> — ${sundayOut.after?.length ?? 5} December movements fall after 23:25; this design inherits today's window rather than deciding it.`,
+  openQuestions: `<b>The December 2026 timetable figures this design does not meet:</b> ${rules.filter(r => !r.ok).map(r => `${r.rule.replace(/^[A-Z]/, c => c.toLowerCase())} (${r.value})`).join('; ') || 'none — every row on this page is met'}. <b>Sunday's finish</b> — ${sundayOut.after?.length ?? 5} December 2026 timetable movements fall after 23:25; this design inherits today's window rather than deciding it.`,
 };
 
 writeFileSync('supplied-import.txt', Array.from({ length: 24 }, (_, i) => `${i+1}\t${DAYS.map(d => P.patterns[String(i+1)][d] === 'SPARE' ? 'SP' : P.patterns[String(i+1)][d]).join('\t')}`).join('\n'));
