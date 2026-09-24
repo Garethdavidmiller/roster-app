@@ -34,6 +34,16 @@ function demandRow(name, cars, peak, bucket, shutFrom) {
   const cells = cars.map((c, h) => { if (h < 5) return null; const b = bucket(c, peak); const shut = h >= shutFrom; return `<td class="cov-heat-cell dem-cell dem-b${b}${shut?' dem-shut':''}">${c ? c : ''}</td>`; }).filter(Boolean).join('');
   return `<tr><th class="cov-heat-day dem-day">${name}</th>${cells}</tr>`;
 }
+// WEEKDAYS ARE NOT ONE DAY (owner, 24 Sep 2026). Every site that said "Monday to Friday" read TUESDAY. For
+// the searched families that is exact -- every weekday works the same table -- but eleven of the sixteen
+// proposals here were supplied or hand-edited and their weekdays differ, Cover at Seventeen's midday cover
+// running 6, 8, 11, 11, 10 across the week under one row. Today's own link differs too (Mon/Wed against
+// Tue/Thu/Fri). So: one row per DISTINCT weekday pattern, labelled by the days it covers. A design whose
+// weekdays are identical still prints one row, now honestly labelled; nothing is averaged away.
+const WD = ['mon','tue','wed','thu','fri'], WDL = { mon:'Mon', tue:'Tue', wed:'Wed', thu:'Thu', fri:'Fri' };
+const weekdayGroups = hourly => { const g = []; for (const d of WD) { const k = hourly[d].hours.join(','); const f = g.find(x => x.key === k); if (f) f.days.push(d); else g.push({ key: k, days: [d], hours: hourly[d].hours }); } return g; };
+const groupLabel = days => days.length === 5 ? 'Mon–Fri' : days.map(d => WDL[d]).join(' · ');
+const wdRange = daily => { const v = WD.map(d => daily[d]); const lo = Math.min(...v), hi = Math.max(...v); return lo === hi ? String(lo) : `${lo}–${hi}`; };
 const hourHead = () => `<tr><th class="cov-heat-hour"></th>${Array.from({length:19},(_,i)=>`<th class="cov-heat-hour">${String(i+5).padStart(2,'0')}</th>`).join('')}</tr>`;
 
 export async function renderPdf(D, out) {
@@ -156,7 +166,7 @@ td.up { background: color-mix(in srgb, var(--success-green) 10%, white); } td.do
 .print-grid td.tot-cell { font-size: 9px; padding: 0 3px; } .cov-foot { font-weight: 800; color: var(--text-dark); } .cov-sub { display: block; font-weight: 500; font-size: 8px; color: var(--shift-spare-text); }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; } .legend > span { white-space: nowrap; } .legend .muted { white-space: normal; flex-basis: 100%; }
 .legend-x { font-size: 9.5px; color: var(--text-mid); margin-top: 6px; } .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: -1px; margin-right: 4px; }
-.cov-heat { border-collapse: collapse; width: 100%; } .cov-heat th, .cov-heat td { border: 1px solid var(--border-light); text-align: center; } .cov-heat-cell { height: 20px; min-width: 0; font-size: 9px; } .cov-heat-day { text-align: left !important; padding: 0 6px; white-space: nowrap; font-size: 9px; }
+.cov-heat { border-collapse: collapse; width: 100%; } .cov-heat th, .cov-heat td { border: 1px solid var(--border-light); text-align: center; } .cov-heat-cell { height: 20px; min-width: 0; font-size: 9px; } .cov-heat--dense .cov-heat-cell { height: 15px; font-size: 8.5px; } .cov-heat-day { text-align: left !important; padding: 0 6px; white-space: nowrap; font-size: 9px; }
 .check-row { font-size: 10.5px; padding: 6px 9px; } .check-rows { gap: 5px; }
 table.ff { border-collapse: collapse; width: 100%; font-size: 9.5px; } table.ff td { padding: 2px 6px; border-bottom: 1px solid var(--border-light); vertical-align: top; } table.ff th { text-align: left; font-size: 9px; text-transform: uppercase; color: var(--text-mid); background: var(--surface-sunken); padding: 4px 6px; }
 .ff-code { font-weight: 800; color: var(--primary-blue); white-space: nowrap; width: 38px; } .ff-fam { display: inline; font-size: 8.5px; color: var(--text-light); margin-left: 6px; }
@@ -263,7 +273,7 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
   </tbody></table></div>
   <div><h2>Changed — the December headcount</h2>
   <table class="t changed"><thead><tr><th>People on duty</th><th class="num">Today</th><th class="num">Proposed</th><th>Why</th></tr></thead><tbody>
-  <tr><td>Monday to Friday</td><td class="num">${T.daily.tue}</td><td class="num"><b>${P.daily.tue}</b></td><td class="muted">the contract: 20 working lines × 35h has to be worked somewhere</td></tr>
+  <tr><td>Monday to Friday</td><td class="num">${wdRange(T.daily)}</td><td class="num"><b>${wdRange(P.daily)}</b></td><td class="muted">the contract: 20 working lines × 35h has to be worked somewhere</td></tr>
   <tr><td>Saturday</td><td class="num">${T.daily.sat}</td><td class="num"><b>${P.daily.sat}</b></td><td class="muted">owner’s figure for December, leaning late for events</td></tr>
   <tr><td>Sunday</td><td class="num">${T.daily.sun}</td><td class="num"><b>${P.daily.sun}</b></td><td class="muted">owner’s figure for December</td></tr>
   <tr><td>Opening at 06:20 (07:15 Sunday)</td><td class="num">4</td><td class="num"><b>4</b></td><td class="muted">unchanged</td></tr>
@@ -290,10 +300,14 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
 
 <section class="page">
   <div class="mast"><div><div class="eyebrow">Cover against the service</div><h1>People on duty, hour by hour</h1><div class="sub">Cover today and proposed against the measured December 2026 timetable (arrivals and departures, weighted by train length). A darker orange hour carries more of the day's traffic.</div></div></div>
-  ${['weekday','sat','sun'].map(cls => { const dayT = cls==='weekday'?'tue':cls, dayP = dayT; const win = cls==='sun' ? [7,23] : [6,23]; const shut = cls==='sun' ? 23 : 24;
+  ${['weekday','sat','sun'].map(cls => { const win = cls==='sun' ? [7,23] : [6,23]; const shut = cls==='sun' ? 23 : 24;
     const name = cls==='weekday'?'Monday to Friday':cls==='sat'?'Saturday':'Sunday';
-    const max = Math.max(...T.hourly[dayT].hours, ...P.hourly[dayP].hours);
-    return `<h2>${name} <span class="muted" style="font-weight:400;font-size:10px">window ${cls==='sun'?'07:15–23:25':'06:20–23:55'}</span></h2><table class="cov-heat">${hourHead()}${heatRow('Today', T.hourly[dayT].hours, max)}${heatRow('Proposed', P.hourly[dayP].hours, max)}${demandRow('Dec 2026 traffic', D.demand.profile[cls].cars, D.demand.peak, D.demand.bucket, shut)}</table>`; }).join('')}
+    const gT = cls==='weekday' ? weekdayGroups(T.hourly) : [{ days:[cls], hours: T.hourly[cls].hours }];
+    const gP = cls==='weekday' ? weekdayGroups(P.hourly) : [{ days:[cls], hours: P.hourly[cls].hours }];
+    const max = Math.max(...gT.flatMap(g => g.hours), ...gP.flatMap(g => g.hours));
+    const lab = (who, g, n) => n === 1 ? who : `${who} ${groupLabel(g.days)}`;
+    const varies = cls==='weekday' && (gT.length > 1 || gP.length > 1);
+    return `<h2>${name} <span class="muted" style="font-weight:400;font-size:10px">window ${cls==='sun'?'07:15–23:25':'06:20–23:55'}${varies ? ' · one row per distinct weekday' : ''}</span></h2><table class="cov-heat${varies ? ' cov-heat--dense' : ''}">${hourHead()}${gT.map(g => heatRow(lab('Today', g, gT.length), g.hours, max)).join('')}${gP.map(g => heatRow(lab('Proposed', g, gP.length), g.hours, max)).join('')}${demandRow('Dec 2026 traffic', D.demand.profile[cls].cars, D.demand.peak, D.demand.bucket, shut)}</table>`; }).join('')}
   <p class="muted" style="margin-top:10px">Spare cover is not in these figures — a cover week carries no times, so the rows are a floor. ${meta.sundayNote}</p>
   <div class="callout"><b>Reading it.</b> ${RULES ? 'The table’s times were searched against this curve on a five-minute grid, so the cover follows the traffic as closely as the day’s fixed minutes allow — the weekday’s two peaks are one duty length apart, which is why cover stays fairly flat between them. Saturday’s 17:00–22:00 was weighted for events. ' : ''}The proposal raises the whole day rather than reshaping it, which is what the December brief asked for — the station rosters posts (ticket office, gateline, passenger assist) plus break cover, and a post needs someone on it whether the hour carries 23 trains or 5. The one hour the search was allowed to favour is Saturday's 17:00–22:00, for events. The weekday's two peaks are a duty length apart, so cover stays fairly flat between them by arithmetic, not neglect.</div>
   <div class="foot"><span>Page 4 of 8 — Cover against the timetable</span><span class="foot-id"><b>${esc(meta.identity.name)}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>

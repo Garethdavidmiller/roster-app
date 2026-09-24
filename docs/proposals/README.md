@@ -352,6 +352,29 @@ figure is unchanged. Saturday's headcount is still **12 against the December sha
 the real limit on how much shape Saturday can carry: 5,895 minutes over a 17h35 day is a mean of 5.6 people,
 so there is little headroom to build a peak whatever the table.
 
+## Weekdays are not one day
+
+**Every sheet's "Monday to Friday" figures read Tuesday** until 24 Sep 2026, when the owner asked why a
+design whose weekdays differ was shown one weekday row. For the four searched families that shortcut was
+exact — every weekday works the same duty table, so Tuesday *is* the week. For the eleven supplied and
+hand-edited designs it was not: *Cover at Seventeen*'s midday cover runs **6, 8, 11, 11, 10** across the
+week, and the sheet printed one line. Today's own link differs too (Mon/Wed against Tue/Thu/Fri).
+
+Six sites carried it, and all six are fixed the same way — **by distinct pattern, never by average**:
+
+- **Page 4, the hour-by-hour chart** — one row per distinct weekday pattern, labelled by the days it covers
+  (`Proposed Mon`, `Today Tue · Thu · Fri`). A design whose weekdays are identical still prints one row,
+  now honestly labelled `Mon–Fri`; nothing is averaged away.
+- **Page 3, the Monday-to-Friday headcount** — a range where the days differ (`13–16`).
+- **The three December rule rows** (four at the open, three to the close, five at 22:00) — a range across
+  the weekdays, and the **worst** weekday decides the tick.
+- **The weekday demand-fit score** (`Wk fit` in every alternatives table) — now the mean over Mon–Fri. This
+  is the one figure that MOVES on the hand-edited sheets, because Tuesday was never representative of them;
+  the searched families' figures are unchanged, since their five weekdays are one.
+
+Every fingerprint is unchanged by this: it is a change to what the sheets say about the cells, not to the
+cells.
+
 ## The two readings of a cover week
 
 **Every sheet here now prints two answers on one row, and the gap between them is a question for the

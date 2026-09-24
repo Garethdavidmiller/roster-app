@@ -23,7 +23,7 @@ const OVER = existsSync(file.replace(/\.json$/, '.meta.json'))
   ? JSON.parse(readFileSync(file.replace(/\.json$/, '.meta.json'), 'utf8')) : {};
 
 function weekdayFit(p) {
-  const cov = calcHourlyCoverage(p, 24).tue.hours, cars = demand.profile.weekday.cars;
+  const cov = (h => { const WD=['mon','tue','wed','thu','fri']; return Array.from({length:24},(_,i)=>WD.reduce((a,d)=>a+h[d].hours[i],0)/5); })(calcHourlyCoverage(p, 24)), cars = demand.profile.weekday.cars;
   const ws = 6*60+20, we = 23*60+55, hrs = []; for (let h = 6; h <= 23; h++) hrs.push(h);
   const frac = h => Math.max(0, Math.min(we,(h+1)*60) - Math.max(ws,h*60)) / 60;
   const D = hrs.reduce((a,h)=>a+cars[h]*frac(h),0), C = hrs.reduce((a,h)=>a+cov[h],0);
@@ -68,11 +68,16 @@ alternatives[alternatives.length-1].fit = weekdayFit(tp24);
 // ── The December design figures, every one CHECKED ON THIS DESIGN. Same expressions as final.mjs,
 //    so a rule this design misses reads as missed rather than quietly going unstated.
 const cnt = (day, pred) => Object.values(P.patterns).filter(r => r[day] !== 'RD' && r[day] !== 'SPARE' && pred(r[day])).length;
+// Weekdays are not one day: a range across Mon-Fri where they differ, and the WORST weekday decides a pass
+// (owner, 24 Sep 2026 -- every one of these rows read Tuesday and called it the week).
+const WDAYS = ['mon','tue','wed','thu','fri'];
+const wdMin = pred => Math.min(...WDAYS.map(d => cnt(d, pred)));
+const wdCnt = pred => { const v = WDAYS.map(d => cnt(d, pred)); const lo = Math.min(...v), hi = Math.max(...v); return lo === hi ? String(lo) : `${lo}–${hi}`; };
 const hm = m => `${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`;
 const rules = [
-  { rule: 'Four on at the open, every day', value: `${cnt('tue', t => t.startsWith('06:20'))} weekday · ${cnt('sat', t => t.startsWith('06:20'))} Saturday · ${cnt('sun', t => t.startsWith('07:15'))} Sunday`, ok: cnt('tue', t => t.startsWith('06:20')) === 4 && cnt('sat', t => t.startsWith('06:20')) === 4 && cnt('sun', t => t.startsWith('07:15')) === 4, note: '' },
-  { rule: 'Three through to the close; four on a Saturday', value: `${cnt('tue', t => t.endsWith('23:55'))} weekday · ${cnt('sat', t => t.endsWith('23:55'))} Saturday · ${cnt('sun', t => t.endsWith('23:25'))} Sunday`, ok: cnt('tue', t => t.endsWith('23:55')) === 3 && cnt('sat', t => t.endsWith('23:55')) === 4 && cnt('sun', t => t.endsWith('23:25')) === 3, note: '' },
-  { rule: 'Five still on duty at 22:00', value: `${cnt('tue', t => endMinutes(t) > 22*60)} weekday · ${cnt('sat', t => endMinutes(t) > 22*60)} Saturday`, ok: cnt('tue', t => endMinutes(t) > 22*60) === 5 && cnt('sat', t => endMinutes(t) > 22*60) === 5, note: 'a 22:00 finish is not "on at 22:00"' },
+  { rule: 'Four on at the open, every day', value: `${wdCnt(t => t.startsWith('06:20'))} weekday · ${cnt('sat', t => t.startsWith('06:20'))} Saturday · ${cnt('sun', t => t.startsWith('07:15'))} Sunday`, ok: wdMin(t => t.startsWith('06:20')) === 4 && cnt('sat', t => t.startsWith('06:20')) === 4 && cnt('sun', t => t.startsWith('07:15')) === 4, note: '' },
+  { rule: 'Three through to the close; four on a Saturday', value: `${wdCnt(t => t.endsWith('23:55'))} weekday · ${cnt('sat', t => t.endsWith('23:55'))} Saturday · ${cnt('sun', t => t.endsWith('23:25'))} Sunday`, ok: wdMin(t => t.endsWith('23:55')) === 3 && cnt('sat', t => t.endsWith('23:55')) === 4 && cnt('sun', t => t.endsWith('23:25')) === 3, note: '' },
+  { rule: 'Five still on duty at 22:00', value: `${wdCnt(t => endMinutes(t) > 22*60)} weekday · ${cnt('sat', t => endMinutes(t) > 22*60)} Saturday`, ok: wdMin(t => endMinutes(t) > 22*60) === 5 && cnt('sat', t => endMinutes(t) > 22*60) === 5, note: 'a 22:00 finish is not "on at 22:00"' },
   { rule: 'Fourteen on a Saturday, ten on a Sunday', value: `${P.daily.sat} · ${P.daily.sun}`, ok: P.daily.sat === 14 && P.daily.sun === 10, note: '' },
   { rule: 'Cover weeks, evenly spread', value: `${P.feel.spareLines.length} weeks at lines ${P.feel.spareLines.join(', ')} — gaps ${P.adj.spareGaps.join(', ')}`, ok: P.adj.spareExcess === 0, note: 'the December shape asks for five' },
   { rule: 'About 4.2 days a week worked, Mon–Sat', value: `${P.totals.daysAverage.toFixed(2)} over the ${P.feel.workingLines} working lines`, ok: Math.abs(P.totals.daysAverage - 4.2) < 0.15, note: '' },
