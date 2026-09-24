@@ -35,7 +35,7 @@ the close and four on a Saturday, five still on at 22:00, fourteen on a Saturday
 four cover weeks at lines 1, 7, 13, 19). They differ on exactly one thing, and it is a people
 question rather than a rules one: *Same Turns* keeps 15 turns people already work and does not meet
 the late-shorter-than-early lever; *By the Book* meets every rule and none of its 19 turns is a
-time anyone works today. Each PDF states this on its page 5. **The two 12 Sep proposals are comparison examples, not base rules** (owner, 13 Sep 2026): the 15:45
+time anyone works today. Each PDF states this on its page 6. **The two 12 Sep proposals are comparison examples, not base rules** (owner, 13 Sep 2026): the 15:45
 closer and the 8h40 cap are briefs to set beside *Same Turns* and *By the Book*, and neither changes the
 December rules the workspace pins in `links-default-targets.js`. *Quarter To* (12 Sep 2026) is *Same Turns*
 with two things asked for — the closer at 15:45, nothing over 8h40 — and it clears every fatigue factor
@@ -45,7 +45,7 @@ Saturday's closer leaves 7,004 minutes a weekday that no table of today's turns 
 (12 Sep 2026) is *By the Book* under the cap, and the cap is not a trim there: 14 duties paying 7,000
 minutes average 8h20, so a ceiling twenty minutes above the mean forces every long early to 8h30–8h40 and
 every late to 7h45–8h25, and the owner's late-shorter-than-early lever shrinks to five minutes at the
-boundary. Two of *By the Book*'s pins gave way to arithmetic and the PDF says so on page 5: a Saturday
+boundary. Two of *By the Book*'s pins gave way to arithmetic and the PDF says so on page 6: a Saturday
 cannot average its earlies more than 24 minutes longer than its lates (this table has 20; the rule asks
 30), and four distinct opener finishes cost twelve off-quarter times against *By the Book*'s three. Its
 weekday demand fit (75.3) is the worst of the four; its rotation matches *By the Book* and *Quarter To* on
@@ -328,7 +328,7 @@ only legal finish is **22:30**, because that is when the ticket office closes �
 put two turns at 22:15, fifteen minutes short of a real handover, which is exactly the sort of time a search
 invents and a station cannot use. And the demand TARGET for 15:00–23:00 is lifted 15% for **Wembley**:
 Chiltern serves Wembley Stadium out of Marylebone, and an event fills trains the measured curve already
-counts, so the curve understates those hours. The traffic row printed on page 4 is still the measured one.
+counts, so the curve understates those hours. The traffic row printed on page 5 is still the measured one.
 
 **The fit, both ways:** against the measured curve alone it is **11.4** where today's Saturday is 20.7;
 against the Wembley-weighted target **11.8** where today's is 32.8. The weight is deliberately gentle — it
@@ -445,6 +445,52 @@ touching an hour rather than duty minutes, see *One fit, on minutes* — and now
 sheet uses; Thursday is still the worst weekday, at 48.8 rather than 60.8. Every Clean Final sheet was
 regenerated after both fixes.
 
+## The decision frame — page 2 of every sheet (24 Sep 2026)
+
+An external comment, accepted by the owner: the calculation was already exhaustive; what the sheets
+lacked was **decision structure, an evidence hierarchy, staff validation and a plain statement of
+uncertainty**. The ORR's guidance treats its factor list as one input to be triangulated, never as the
+answer — and the sheets' page 7 said so in a footnote while every tile above it invited a reader to
+count factors. So every sheet now carries a page **before** the figures, and every later page moved up
+one (nine pages; the README's page references were updated with them).
+
+The page has five parts, and every number on it is computed from the design's own cells:
+
+- **The question** this design answers, framed per family, and the ONE design it is read against —
+  Same Turns and Quarter To against By the Book; the rules family against Quarter To; the hand-built
+  line against both searched answers and, within the line, its own parent. Not against all nineteen.
+- **The criteria in three tiers.** Hard, which a design meets or cannot be run (12h rest, the 13-day
+  limit, the exact contract), with this design's pass or fail. Soft, which the room weighs (December
+  headcounts met of four, factors present, demand fit, times worked today, weekends). Preference,
+  which is staff's to state and not the tool's (early against late, the new times, the longest duty).
+- **How much each figure can bear** — a table grading every figure the later pages rely on: the cell
+  arithmetic is firm; the 13-day threshold is firm in figure and unconfirmed in source; the December
+  headcounts are provisional (owner-relayed, class C); the fatigue count is advisory only, with the
+  number of factors still "definition to confirm" stated; the demand fit is indicative; the familiarity
+  count is firm but a proxy; and a search score is **not to be weighed**.
+- **What no page here can tell you** — staff acceptability of the new times (named), how the roster
+  clerk places a cover week (the one thing that moves the 48-hour-break figure, both readings shown),
+  leave and sickness cover, Wembley event days, and — where it is true — that Sunday's fit is worse
+  than today's.
+- **Before it is frozen** — the lines that hold the times nobody works today, named, so the people who
+  would work those weeks read them first; the cover-week question to the roster office; the source of
+  the 13-day limit. "Only then does the factor count mean anything."
+
+**A plain-English pass went with it** (owner: "a clarity and for-dummies pass, with some aesthetic polish").
+Where a word is used, it is now explained: a page guide at the top of page 2; the eight roster words
+(link, line, turn, rest day, cover week, Sunday, the contract, a one-turn week) under the grid on page
+3; how to read the heat chart and what the fit figure is, in one sentence each, on page 5; what the
+ORR list is and what ⚠ present actually means, above the fatigue table on page 7, with each factor's
+family shown as a chip; "in plain terms" above the method on page 8, one version for a searched design
+and one for a supplied one; and what the fingerprint is, on page 9 where the cells are. Polish: zebra
+striping on the reading tables, a coloured top edge per criteria tier, and the December 2026 timetable
+named in full wherever the sheets said a bare "December".
+
+A design's `meta.json` may override any part of it under `frame` (`question`, `stands`, `cannot`,
+`read`, `family`); none does yet — the family framing was checked against all nineteen and holds. The
+one thing the page deliberately does not do is add a number: a composite score would make the problem
+it exists to answer worse.
+
 ## Weekdays are not one day
 
 **Every sheet's "Monday to Friday" figures read Tuesday** until 24 Sep 2026, when the owner asked why a
@@ -455,10 +501,10 @@ week, and the sheet printed one line. Today's own link differs too (Mon/Wed agai
 
 Six sites carried it, and all six are fixed the same way — **by distinct pattern, never by average**:
 
-- **Page 4, the hour-by-hour chart** — one row per distinct weekday pattern, labelled by the days it covers
+- **Page 5, the hour-by-hour chart** — one row per distinct weekday pattern, labelled by the days it covers
   (`Proposed Mon`, `Today Tue · Thu · Fri`). A design whose weekdays are identical still prints one row,
   now honestly labelled `Mon–Fri`; nothing is averaged away.
-- **Page 3, the Monday-to-Friday headcount** — a range where the days differ (`13–16`).
+- **Page 4, the Monday-to-Friday headcount** — a range where the days differ (`13–16`).
 - **The three December rule rows** (four at the open, three to the close, five at 22:00) — a range across
   the weekdays, and the **worst** weekday decides the tick.
 - **The weekday demand-fit score** (`Wk fit` in every alternatives table) — now the fit of the AVERAGE
@@ -491,7 +537,7 @@ roster, and the three rest days are necessarily together too — so the week alw
 
 **Checked on every run row, on all thirteen designs: FF11 is the only one where the two differ.** The
 longest-run figure, the 12-consecutive-days row, the 7×8h row and FF15 give the same answer under
-both, which the hard-limits row on page 5 now says out loud rather than leaving to be assumed. On
+both, which the hard-limits row on page 6 now says out loud rather than leaving to be assumed. On
 **two** designs FF11 differs either side of the threshold:
 
 | | worst case | as rostered |
@@ -534,10 +580,10 @@ and the 13-day limit's policy citation is outstanding. Neither PDF is a recommen
 The owner asked whether the sheets could be improved and what was missing. Two things were wrong before
 anything was missing.
 
-**Page 3 typed four of its headcounts.** The "Changed — the December headcount" table computed its first
+**Page 4 typed four of its headcounts.** The "Changed — the December headcount" table computed its first
 three rows from the cells and carried the next four as literals — `4 → 4 unchanged`, `2 → 3`, `2 → 4 four on
 a Saturday`, `4 → 5` — on every sheet, under a masthead that says *figures on this page are computed, not
-typed*. On *Cover at Seventeen* it said Saturday closes with four while page 5, correctly, said three. The
+typed*. On *Cover at Seventeen* it said Saturday closes with four while page 6, correctly, said three. The
 rows are now computed per day class (`weekday range · Sat · Sun`, today and proposed) by `headcounts()` in
 `tooling/report-data.mjs`, and the last column names the days that miss the rule rather than asserting it.
 
@@ -552,26 +598,26 @@ while its weekday figures beside it were on heads. One definition now, `weekdayF
 Seventeen* 42.1 → 34.4, *Same Turns* 58.5 → 46.3, *By the Book* 41.1 → 30.8, today's link 56 → 44.7. The
 ordering between designs did not change on any sheet checked. *Saturday Four*'s own 11.4 / 11.8 in its section
 above are `sat-table.mjs`'s search score, Wembley-weighted, and stay as written; on the shared measure its
-Saturday reads 12.6 on page 4.
+Saturday reads 12.6 on page 5.
 
 **What was added, all computed, none of it typed:**
 
-- **Page 4 — a `fit` column** on every cover row, today's and proposed, per day and per distinct weekday, so
+- **Page 5 — a `fit` column** on every cover row, today's and proposed, per day and per distinct weekday, so
   the figure the searches were run on is beside the chart it describes rather than on a different page as a
   weekday mean.
-- **Page 5 — the tightest rest and where it falls** on the 12-hour row (`13h 35m — line 20 Fri 16:25-23:55
+- **Page 6 — the tightest rest and where it falls** on the 12-hour row (`13h 35m — line 20 Fri 16:25-23:55
   into Sat 13:30-22:00`), with today's beside it. `0 rests under 12h` told a reader nothing about a design
   half an hour from the floor; *Clean Final Tuned*'s 12h30 was in this file and on no page.
-- **Page 2 — three things on the grid.** A **Turns** column (distinct clock times in the week, Sunday
+- **Page 3 — three things on the grid.** A **Turns** column (distinct clock times in the week, Sunday
   included; the page 1 one-turn tile line by line, and the count in the footer). A **Minutes** row (duty
   minutes per day, Mon–Sat summed to the 42,000 the contract is paid in — figures *Clean Final*'s note had
   to carry in prose). And on a hand-edited design, **the cells that differ from its parent outlined**, with
   the count in the legend: `Changed against Three Mondays (TM-24-EXT) — 14 cells on 2 lines`. The parent is
   named in the design's `meta.json`; only local edits carry one (TF, TM, C17, S4, WS, CF, CFT), because a
   re-searched or reordered child differs on most of the grid and outlining a hundred cells says nothing.
-- **Page 7 — the alternatives table runs full width** under the two text columns. In the right-hand column
+- **Page 8 — the alternatives table runs full width** under the two text columns. In the right-hand column
   its design names wrapped to six lines each.
-- **Provenance** — page 1 and page 8 state the app version whose modules produced the figures
+- **Provenance** — page 1 and page 9 state the app version whose modules produced the figures
   (`Marylebone Roster v24.21`), because the rule modules change between releases and a sheet in a drawer
   should say which ones judged it.
 - `tooling/regenerate.mjs` now **ships** each render's PDF, JSON and import block into this folder under the
@@ -579,7 +625,7 @@ Saturday reads 12.6 on page 4.
   render and a JSON from another. **It had already happened**: the first shipped run rewrote
   `Weekday-Lates-2-WL2-24-R21.json` and its import block, which until then held *Fifteen Turns Repaired*'s
   grid under Weekday Lates 2's name — the PDF was right, the two files beside it were not.
-- The page 4 "Reading it" callout on the searched families said its Saturday-weighting and two-peaks
+- The page 5 "Reading it" callout on the searched families said its Saturday-weighting and two-peaks
   sentences twice; once now.
 
 **Every fingerprint is unchanged**, checked by `regenerate.mjs --check` after the pass: these are changes
@@ -593,14 +639,14 @@ sheets regenerated, fingerprints unchanged.
   The column now counts Monday-to-Friday clock times, and the bold mark and footer use the page 1
   tile's own definition from `feel()`: one clock time Mon–Fri and one early-or-late family across
   every worked day.
-- **Page 3 said "all already on today's roster" on 14 sheets** whose page 1 counted 5 to 13 new
+- **Page 4 said "all already on today's roster" on 14 sheets** whose page 1 counted 5 to 13 new
   times; the label only branched for the searched families. It is computed from the new-times count
   on every family now.
 - **Content ran under the footer on seven pages** by 4 to 17px — a page can be inside the height gate
   and still do that, because the footer is absolutely positioned. `shots.mjs` now measures the footer
   gap as well as the height, and the cover masthead, tiles, headings and the design-figures table
   gave back the room.
-- **Weekday Lates' page 5 still said the shape asks for five cover weeks.** That was `supplied.mjs`'s
+- **Weekday Lates' page 6 still said the shape asks for five cover weeks.** That was `supplied.mjs`'s
   default open-questions text — Weekday Lates' own prose, with its own figures, which any supplied
   design without a meta file would have inherited as its own. The default is computed now (the
   December rows the design fails, and the Sunday window), and Weekday Lates keeps its prose in a meta
@@ -612,8 +658,8 @@ sheets regenerated, fingerprints unchanged.
   so beside it. Every supplied design carries its preparation date in its meta file, so a re-render
   never re-dates it.
 
-Left as decisions rather than fixed: page 6 names a person ("Nathan assesses against this list") in a
-folder the Pages mirror serves, and Same Turns' page 7 pick sentence is a typed literal that happens to
+Left as decisions rather than fixed: page 7 names a person ("Nathan assesses against this list") in a
+folder the Pages mirror serves, and Same Turns' page 8 pick sentence is a typed literal that happens to
 be true where the other four searched families compute theirs.
 
 ## Files
