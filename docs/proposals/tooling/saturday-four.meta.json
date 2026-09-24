@@ -1,0 +1,32 @@
+{
+ "parent": { "file": "cover-at-seventeen.json", "name": "Cover at Seventeen", "code": "C17-24-EXT" },
+ "sub1": "Cover at Seventeen with Saturday rebuilt — nine turns down to four and six start times down to three, weighted toward the Saturday late for Wembley",
+ "eyebrow3": "Saturday rebuilt, the rest untouched",
+ "h3": "Same feel, more people",
+ "sub3": "What this design keeps of today, and where the December headcounts differ",
+ "coverNote": "gaps of 6, 5, 5, 8 around the wheel — unchanged; this revision touched Saturday only",
+ "methodHeading": "Where this design came from",
+ "h7": "Where it came from",
+ "sub7": "The Saturday table was searched; everything else is carried over unchanged from Cover at Seventeen",
+ "method": "<p><b>1 · Saturday only, and that is checkable.</b> Against <i>Cover at Seventeen</i>, <b>zero</b> cells outside the Saturday column differ. Saturday still has <b>12 people</b> and still pays <b>5,895 minutes</b>, so Monday to Saturday is 42,000 minutes against 20 working lines &times; 35h — exactly, as before. The contract could not move, because the budget the search was given was the one Saturday already had.</p><p><b>2 · The table was searched, not drawn.</b> Every multiset of 12 duties paying exactly 5,895 minutes was tried, from a pool of quarter-hour starts and finishes (plus the 06:20 open and the 23:55 close), each duty between 7h00 and 8h40 — about 130 million tables, from a SEEDED search, so it reproduces. Two rules from the owner are built into the pool rather than applied afterwards: in the 21:00–23:00 band the only legal finish is <b>22:30</b>, because that is when the ticket office closes, and the demand TARGET for 15:00–23:00 is lifted 15% for <b>Wembley</b> — Chiltern serves Wembley Stadium out of Marylebone, and an event fills trains the timetable curve already counts. They were scored by the same demand measure the other proposals use, against the measured December Saturday curve, with fewer distinct turns as the tie-break and a floor under the thinnest hour so nothing could be won by hollowing out the evening.</p><p><b>3 · Then the weeks were moved, on Saturday alone.</b> Which line holds which Saturday duty was searched exhaustively under the 12-hour rest rule — Friday into Saturday on the same line, and Saturday into the next line's Sunday. 90 assignments clear it; the one printed is the best of them on the fatigue figures.</p><p><b>4 · The judge is the workspace's own</b> — <span class=\"tt\">runDesignChecks</span>, <span class=\"tt\">weeklyHours</span>, <span class=\"tt\">assessHardLimits</span>, <span class=\"tt\">assessFatigue</span>, <span class=\"tt\">scoreOrder</span> and <span class=\"tt\">calcHourlyCoverage</span>, with nothing typed by hand.</p>",
+ "openQuestions": "<b>Saturday was running flat against a curve that is not.</b> Cover sat at six people for most of the day — the same six at 10:00, when demand peaks at 92 cars, as at 13:00, when it falls to 64. <b>Nine turns become four, and six start times become three:</b> <span class=\"tt\">06:20-14:45</span> five times, <span class=\"tt\">09:30-16:30</span> once, and 15:15 starting BOTH late turns — <span class=\"tt\">15:15-22:30</span> twice, off when the ticket office closes, and <span class=\"tt\">15:15-23:55</span> four times, through to the station close. Finishes fall from seven to four. The thinnest fully-covered hour rises from <b>3.0 people to 4.7</b>, and the longest Saturday duty falls from <b>9h10 to 8h40</b>, so Saturday now sits under the cap the rest of this folder works to. <b>The late carries a little more, on purpose.</b> Against the measured curve alone the fit is 11.4 where today's Saturday is 20.7; against the Wembley-weighted target it is 11.8 where today's is 32.8. The weight is deliberately gentle and it buys half a person at 16:00 and half at 22:00, paid for by half at 08:00 and half at 09:00. A heavier weight was tried and rejected: at 1.25 it buys a whole person at 16:00 and gives a whole one back at 09:00, where the curve reads 81 cars. 1.10, 1.15 and 1.20 all return this same table, so the answer does not balance on the knob. <b>One December rule is now met that was not.</b> Four people through to the close, against three before. <b>One is not, and cannot be.</b> The rule asks for four at the open and Saturday still has five. That is not a search failure: no table of 12 duties paying 5,895 minutes, drawn from this pool, puts four at the open AND four at the close, at any evening floor. Four at the open needs either a different Saturday headcount or minutes moved in from a weekday, and both are outside what this revision was allowed to touch. <b>What it cost.</b> The worst rolling seven-day total rises from <b>53.1 hours to 53.5</b>, still well under 55. Every other figure is unchanged — three factors present on both readings, FF11 at 13, the nine-day run, five weekends off, no rest under 12 hours and no hard-limit breach. Saturday's headcount is still <b>12 against the December shape's fourteen</b>, and that is the real limit on how much shape Saturday can carry: 5,895 minutes across a 17h35 day is a mean of 5.6 people, so there is little headroom to build a peak whatever the table.",
+ "identity": {
+  "lineage": "The FIFTH revision in one line, and the first to change a DUTY rather than the order of the weeks: “Weeks 17-18 Swapped” (WS-24-EXT · 0bebb675) → “Targeted Fatigue Redo” (TF-24-EXT · 8eef9a13) → “Three Mondays” (TM-24-EXT · fe90c0b8) → “Cover at Seventeen” (C17-24-EXT · edc1b731) → this, whose Saturday table was searched from scratch on Saturday's own minute budget. Monday to Friday and Sunday are carried over cell for cell."
+ },
+ "denseDuty": true,
+ "denseAlts": true,
+ "extraAlternatives": [
+  {
+   "label": "C17-24-EXT — before Saturday was rebuilt",
+   "file": "cover-at-seventeen.json"
+  },
+  {
+   "label": "WS-24-EXT — where the line started",
+   "file": "weeks1718.json"
+  },
+  {
+   "label": "WL4-24-F7 — the same work, searched",
+   "file": "weekday-lates-4.json"
+  }
+ ]
+}

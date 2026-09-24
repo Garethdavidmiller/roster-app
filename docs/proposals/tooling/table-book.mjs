@@ -36,7 +36,9 @@ const STEPS = Number(process.argv[2] ?? 200000), RESTARTS = Number(process.argv[
 // mean gap is unreachable — the same arithmetic as Saturday's, with five earlies facing five lates — so the search
 // walks DOWN from 5,000 in five-minute steps and takes the LARGEST Sunday total at which every pin holds. By the
 // Book's own Sunday pays 4,965.
-let SUN_TOTAL = 5000; const SUN_FLOOR = 4600;
+// SUN_TOTAL is env-readable so a CALLER can pin it (place-structures.mjs sweeps it the way main does).
+// The default is unchanged, so the walk-down below behaves exactly as before when nothing sets it.
+let SUN_TOTAL = Number(process.env.SUN_TOTAL ?? 5000); const SUN_FLOOR = 4600;
 const WIN = { weekday: [6*60+20, 23*60+55], sat: [6*60+20, 23*60+55], sun: [7*60+15, 23*60+25] };
 const N = { weekday: 14, sat: 14, sun: 10 }, CLOSERS = { weekday: 3, sat: 4, sun: 3 }, OPENERS = 4, AT22 = 5;
 const TOTAL = { weekday: 7000, sat: 7000, sun: null };   // Sunday is outside the contract (its search total is SUN_TOTAL)
@@ -50,7 +52,21 @@ const LATE_FROM = 11*60;
 // morning middles at the cap — 3,105 plus a short early that must itself be below every late (≤ 480) — so the
 // gap tops out at (2 x 3,585 − 7,000) / 7 = 24 minutes, and ten restarts stop at 23. The pin is held at 20 on a
 // Saturday and 30 elsewhere; the PDF reports the day's own figure. Every OTHER ordering pin still holds.
-const MEAN_GAP = { weekday: 30, sat: 20, sun: 30 };
+// GAP overrides the weekday/Sunday pin from the environment, defaults unchanged, so the SAME solver can be
+// asked what a tighter cap costs instead of a second copy of it being written. At CAP=510 (8h30) the pin at 30
+// is unreachable for the reason the header gives one notch up: 14 duties paying 7,000 minutes mean 8h20, so a
+// ceiling of 8h30 leaves the whole set inside a band 10 minutes wide at the top and there is no room to open a
+// half-hour mean gap between earlies and lates. Sweep it to find what the cap really allows.
+// PINNED DUTIES (By the Book 2, owner 22 Sep 2026): the ticket office wants two 14:00-22:30 turns Monday to
+// Saturday and two 13:00-21:30 on a Sunday. They are an operational GIVEN, not a design choice, so they
+// are taken out of the day before the length structures are enumerated (PIN_N duties, PIN_MIN minutes)
+// and added back by the caller for placement -- and they sit OUTSIDE the early-vs-late ordering pin,
+// because an 8h30 late would otherwise demand every early be longer than 8h30, which an 8h40 cap cannot
+// give four distinct openers. Every OTHER rule (count, window, headcount at 22:00, cover, :05/:10) still
+// counts them. Defaults 0, so nothing changes unless a caller asks.
+const PIN_N = Number(process.env.PIN_N ?? 0), PIN_MIN = Number(process.env.PIN_MIN ?? 0);
+const GAP_ENV = process.env.GAP ? Number(process.env.GAP) : null;
+const MEAN_GAP = { weekday: GAP_ENV ?? 30, sat: GAP_ENV !== null ? Math.min(GAP_ENV, 20) : 20, sun: GAP_ENV ?? 30 };
 const hhmm = m => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
 const timeOf = d => `${hhmm(d.s)}-${hhmm(d.e)}`;
 
@@ -73,7 +89,9 @@ export function violations(cls, duties, weekday = null) {
   // no shadow opener: nothing starts in the 40 minutes after the open (By the Book's first arrival is 55 after)
   for (const d of duties) if (d.s > open && d.s < open + 40) push(`shadow opener ${timeOf(d)}`);
   // ordering: one short early, then every late, then every other early
-  const lates = duties.filter(d => d.s >= LATE_FROM).map(d => d.e - d.s), earlies = duties.filter(d => d.s < LATE_FROM).map(d => d.e - d.s);
+  // Pinned (role 'p') duties are outside the ordering comparison -- see PIN_N above.
+  const ord = duties.filter(d => d.role !== 'p');
+  const lates = ord.filter(d => d.s >= LATE_FROM).map(d => d.e - d.s), earlies = ord.filter(d => d.s < LATE_FROM).map(d => d.e - d.s);
   if (lates.length < 3 || earlies.length < 3) push('premise: both kinds');
   else {
     const lmin = Math.min(...lates), lmax = Math.max(...lates);
@@ -84,7 +102,14 @@ export function violations(cls, duties, weekday = null) {
     const longs = earlies.filter(x => x > lmax); if (longs.length) { const gap = Math.min(...longs) - lmax; if (gap < 5 || gap > 60) push(`gap ${gap}`, Math.max(5 - gap, gap - 60) / 5); }
     const mean = xs => xs.reduce((a, b) => a + b, 0) / xs.length; if (mean(earlies) - mean(lates) < MEAN_GAP[cls]) push(`means ${(mean(earlies) - mean(lates)).toFixed(0)}`, (MEAN_GAP[cls] - (mean(earlies) - mean(lates))) / 5);
   }
-  const at22 = duties.filter(d => d.s <= 22*60 && d.e > 22*60); if (at22.length !== AT22) push(`at 22:00 ${at22.length}`, Math.abs(at22.length - AT22));
+  // "Five still on at 22:00" is EXACT by default. AT22_FLOOR=1 reads it as a minimum -- for By the Book 2,
+  // where two pinned 14:00-22:30 ticket-office turns plus Saturday's four closers make six at 22:00 by
+  // arithmetic, and the rule exists so the evening is not thin, which six does not offend.
+  // A PINNED turn that finishes AT 22:00 is on at 22:00 -- the ticket office is open until then, and two people
+  // working to the hour are exactly what "still on at 22:00" is for. Design duties keep the strict reading
+  // (finish AFTER 22:00), so Eight Forty's two 14:00-22:00 Saturday turns still do not count, as before.
+  const at22 = duties.filter(d => d.s <= 22*60 && (d.role === 'p' ? d.e >= 22*60 : d.e > 22*60));
+  if (process.env.AT22_FLOOR ? at22.length < AT22 : at22.length !== AT22) push(`at 22:00 ${at22.length}`, Math.abs(at22.length - AT22));
   if (at22.filter(d => d.e === close).length !== CLOSERS[cls]) push('closers not among the five');
   // the busiest hour is never a trough
   const hours = []; for (let h = Math.ceil(open/60); h < close/60; h++) hours.push(h);
@@ -166,7 +191,7 @@ function* fill(groups, gi, remaining, acc) {
   yield* rec(0, 0, remaining, []);
 }
 export function* structures(cls) {
-  const n = N[cls], nc = CLOSERS[cls], total = cls === 'sun' ? SUN_TOTAL : TOTAL[cls]; const nm = n - OPENERS - nc;
+  const n = N[cls] - PIN_N, nc = CLOSERS[cls], total = (cls === 'sun' ? SUN_TOTAL : TOTAL[cls]) - PIN_MIN; const nm = n - OPENERS - nc;
   const oL = openerLens(cls), cL = closerLens(cls);
   for (const lmax of lens) for (const lmin of lens.filter(L => L <= lmax)) {
     const lateVals = lens.filter(L => L >= lmin && L <= lmax), longVals = lens.filter(L => L > lmax && L - lmax <= 60), shortVals = lens.filter(L => L < lmin);
@@ -255,6 +280,18 @@ function inEnumeration(cls, ds) {
 }
 
 if (process.argv[1]?.endsWith('table-book.mjs')) {
+  // COUNT=1 enumerates the LENGTH structures and stops. The anneal only PLACES a structure, so a zero
+  // here is a proof that no table can pay the day under the pins, not a search that gave up -- which is
+  // the difference between "we could not find one" and "there is not one", and the only one worth
+  // printing in a document.
+  if (process.env.COUNT) {
+    for (const cls of ['weekday', 'sat', 'sun']) {
+      if (cls === 'sun') SUN_TOTAL = Number(process.env.SUN_TOTAL ?? 4965);
+      let n = 0; for (const _ of structures(cls)) n++;
+      console.log(`CAP=${CAP} GAP=${MEAN_GAP[cls]} ${cls}: ${n} length structures`);
+    }
+    process.exit(0);
+  }
   const show = ds => [...ds].sort((a, b) => a.s - b.s || a.e - b.e).map(d => `${timeOf(d)} ${Math.floor((d.e-d.s)/60)}h${String((d.e-d.s)%60).padStart(2,'0')}`).join(' | ');
   const found = {}; const counts = {};
   for (const cls of ['weekday', 'sat', 'sun']) {
@@ -277,6 +314,6 @@ if (process.argv[1]?.endsWith('table-book.mjs')) {
   console.log('rows', slots.length, '· off-quarter times', [...off].join(', ') || 'none', '(By the Book: 3)');
   const bb = buildDefaultTargets().slots; console.log('times shared with By the Book:', slots.filter(s => bb.some(b => b.time === s.time)).map(s => s.time).join(', ') || 'none');
   const satMoves = found.sat.d.filter(d => !found.weekday.d.some(w => w.s === d.s && w.e === d.e)).length;
-  writeFileSync('eight-forty-table.json', JSON.stringify({ cap: CAP, seed: SEED0, steps: STEPS, restarts: RESTARTS, sunTotal: SUN_TOTAL, counts, meanGap, fit: { weekday: +fit('weekday', found.weekday.d).toFixed(1), sat: +fit('sat', found.sat.d).toFixed(1), sun: +fit('sun', found.sun.d).toFixed(1) }, satMoves, offQuarter: [...off], slots, spareLines: 4 }, null, 1));
-  console.log('wrote eight-forty-table.json');
+  writeFileSync(process.env.OUT ?? 'eight-forty-table.json', JSON.stringify({ cap: CAP, seed: SEED0, steps: STEPS, restarts: RESTARTS, sunTotal: SUN_TOTAL, counts, meanGap, fit: { weekday: +fit('weekday', found.weekday.d).toFixed(1), sat: +fit('sat', found.sat.d).toFixed(1), sun: +fit('sun', found.sun.d).toFixed(1) }, satMoves, offQuarter: [...off], slots, spareLines: 4 }, null, 1));
+  console.log('wrote', process.env.OUT ?? 'eight-forty-table.json');
 }
