@@ -27,7 +27,7 @@ const fingerprint = p => createHash('sha256').update(JSON.stringify(Object.keys(
 const P = { patterns, lines: 24, ...assess(patterns, 24) };
 
 // CHANGED CELLS AGAINST THE PARENT (24 Sep 2026). A hand-edited design names its parent in its
-// meta.json (`parent: { file, name, code }`) and the cells that differ are OUTLINED on the page 2
+// meta.json (`parent: { file, name, code }`) and the cells that differ are OUTLINED on the page 3
 // grid, so a reader sees the edit rather than reconstructing it from the lineage prose. Only a
 // LOCAL edit is worth this — a re-searched or reordered child differs on most of the grid, and
 // outlining a hundred cells says nothing — which is why the searched and reordered designs carry no
@@ -128,7 +128,7 @@ const meta = {
   denseDuty: true,
   sub1: 'A 24-line link supplied as a Word table and assessed here — weekday lates at 16:25, Saturdays left as they are, and every turn a time people already work',
   coverNote: `gaps of ${P.adj.spareGaps.join(', ')} around the wheel — today's sit at 1, 7, 12, 17`,
-  intro2: `<p>It was not drawn by this app. It arrived as a Word table — a proposal from outside the workspace — and was read straight into the app's own shape, then judged by the same modules that judge a design the workspace generated itself: <span class="tt">runDesignChecks</span>, <span class="tt">weeklyHours</span>, <span class="tt">assessHardLimits</span>, <span class="tt">assessFatigue</span>, <span class="tt">scoreOrder</span> and <span class="tt">calcHourlyCoverage</span>. There is no search behind it and nothing to reproduce; what can be checked is every figure on these pages, each computed from the cells on page 6. Paste those cells into Links &rarr; Import and the workspace restates all of it.</p>`,
+  intro2: `<p>It was not drawn by this app. It arrived as a Word table — a proposal from outside the workspace — and was read straight into the app's own shape, then judged by the same modules that judge a design the workspace generated itself: <span class="tt">runDesignChecks</span>, <span class="tt">weeklyHours</span>, <span class="tt">assessHardLimits</span>, <span class="tt">assessFatigue</span>, <span class="tt">scoreOrder</span> and <span class="tt">calcHourlyCoverage</span>. There is no search behind it and nothing to reproduce; what can be checked is every figure on these pages, each computed from the cells on page 7. Paste those cells into Links &rarr; Import and the workspace restates all of it.</p>`,
   eyebrow3: 'A supplied design, assessed',
   h3: 'Same feel, more people',
   sub3: 'What this design keeps of today, and where the December headcounts differ',
