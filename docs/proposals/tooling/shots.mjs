@@ -5,6 +5,10 @@ await pg.goto(new URL(process.argv[2] ?? 'Marylebone-CEA-Link-Dec2026-24-line-pr
 await pg.addStyleTag({ content: 'body{width:710px;margin:0 auto} .page{page-break-after:auto;margin-bottom:24px;outline:1px dashed #c00}' });
 const hs = await pg.$$eval('.page', els => els.map(e => Math.round(e.getBoundingClientRect().height)));
 console.log('section heights px (limit 1032):', hs.join(', '));
+// A page can be under the height limit and still run its last paragraph under the absolutely
+// positioned footer — seven pages did, by 4 to 17px. Gap = footer top minus the lowest content edge.
+const gaps = await pg.$$eval('.page', els => els.map(p => { const foot = p.querySelector('.foot'); let maxB = 0; for (const el of p.querySelectorAll('*')) { if (el === foot || foot.contains(el)) continue; const r = el.getBoundingClientRect(); if (r.height && r.bottom > maxB) maxB = r.bottom; } return Math.round(foot.getBoundingClientRect().top - maxB); }));
+console.log('footer gaps px (must be > 0):', gaps.join(', '), gaps.some(g => g <= 0) ? '  <-- OVERLAP' : '');
 const secs = await pg.$$('.page');
 for (let i = 0; i < secs.length; i++) await secs[i].screenshot({ path: `page-${i+1}.png` });
 await b.close();

@@ -1,4 +1,5 @@
 {
+ "date": "22 September 2026",
  "parent": { "file": "cea-clean-final2.json", "name": "Clean Final", "code": "CF-24-EXT" },
  "identity": {
   "lineage": "DERIVED, not supplied and not searched: it is “Clean Final” (CF-24-EXT · 6d21169b) with THREE cells retimed, and nothing else. The code's M3 counts those three moves — it is not a table or a seed, because no table was enumerated and no grid annealed. Each move keeps its duty's LENGTH, so the contract, the headcounts, the cover weeks and every line's 35h are invariant by construction rather than by re-checking."
