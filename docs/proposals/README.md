@@ -585,6 +585,37 @@ Saturday reads 12.6 on page 4.
 **Every fingerprint is unchanged**, checked by `regenerate.mjs --check` after the pass: these are changes
 to what the sheets say about the cells, not to the cells.
 
+**A check of that pass, the same day, found six defects — two of them its own.** All fixed, all 19
+sheets regenerated, fingerprints unchanged.
+
+- **The grid footer contradicted page 1 on every sheet.** The Turns column counted the whole week's
+  clock times, so its footer said Same Turns had 4 one-turn weeks where page 1, 3 and 7 say 18 of 20.
+  The column now counts Monday-to-Friday clock times, and the bold mark and footer use the page 1
+  tile's own definition from `feel()`: one clock time Mon–Fri and one early-or-late family across
+  every worked day.
+- **Page 3 said "all already on today's roster" on 14 sheets** whose page 1 counted 5 to 13 new
+  times; the label only branched for the searched families. It is computed from the new-times count
+  on every family now.
+- **Content ran under the footer on seven pages** by 4 to 17px — a page can be inside the height gate
+  and still do that, because the footer is absolutely positioned. `shots.mjs` now measures the footer
+  gap as well as the height, and the cover masthead, tiles, headings and the design-figures table
+  gave back the room.
+- **Weekday Lates' page 5 still said the shape asks for five cover weeks.** That was `supplied.mjs`'s
+  default open-questions text — Weekday Lates' own prose, with its own figures, which any supplied
+  design without a meta file would have inherited as its own. The default is computed now (the
+  December rows the design fails, and the Sunday window), and Weekday Lates keeps its prose in a meta
+  file of its own.
+- **The 12-hour row said "the search here never produced one"** on eight designs that were never
+  searched. A supplied design's row now says it was checked, not generated.
+- **The searched sheets said "Prepared 8 September" while citing v24.21.** `meta.date` is when the
+  design was prepared and is stated as that; when a sheet is re-rendered on a later day it now says
+  so beside it. Every supplied design carries its preparation date in its meta file, so a re-render
+  never re-dates it.
+
+Left as decisions rather than fixed: page 6 names a person ("Nathan assesses against this list") in a
+folder the Pages mirror serves, and Same Turns' page 7 pick sentence is a typed literal that happens to
+be true where the other four searched families compute theirs.
+
 ## Files
 
 | File | Use |

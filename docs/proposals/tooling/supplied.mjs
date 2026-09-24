@@ -135,7 +135,10 @@ const meta = {
   // The stock sentence quotes Same Turns' own 6,980/7,100 split. This design does NOT have a uniform
   // weekday table, so that line would be false here — the figures below are computed from the cells.
   dutyNote: `Why the duties land where they do: Monday to Saturday totals exactly ${monSat.toLocaleString('en-GB')} minutes, which is 20 &times; 35h to the minute, so the contract is paid. But unlike a table built day-uniform, <b>the weekdays here are not equal</b> &mdash; ${WK.map((m,i)=>`${['Mon','Tue','Wed','Thu','Fri'][i]} ${m.toLocaleString('en-GB')}`).join(' &middot; ')}, and Saturday ${SAT.toLocaleString('en-GB')}. Monday is the lightest day by some margin and Thursday the heaviest; that is a property of the design rather than a fault, but it is the first thing to put to the roster office, because it decides how much cover each day really has.`,
-  openQuestions: `<b>Late-turn length.</b> The lates here run longer than the earlies, which is the reverse of the December preference — the 14:45–23:55 Saturday closer is 9h10 against a longest early of 8h30. <b>Cover weeks.</b> Four, at lines 1, 7, 12 and 17, where the December shape asks for five evenly spread. <b>Sunday's finish</b> — five December movements fall after 23:25; this design inherits today's window rather than deciding it.`,
+  // COMPUTED default. The first default was Weekday Lates' own prose — its 9h10 closer, its cover-week
+  // gaps and a "five" the December shape never asked for — and every supplied design without a meta
+  // file would have inherited those figures as its own. Weekday Lates keeps its prose in its meta.
+  openQuestions: `<b>The December figures this design does not meet:</b> ${rules.filter(r => !r.ok).map(r => `${r.rule.replace(/^[A-Z]/, c => c.toLowerCase())} (${r.value})`).join('; ') || 'none — every row on this page is met'}. <b>Sunday's finish</b> — ${sundayOut.after?.length ?? 5} December movements fall after 23:25; this design inherits today's window rather than deciding it.`,
 };
 
 writeFileSync('supplied-import.txt', Array.from({ length: 24 }, (_, i) => `${i+1}\t${DAYS.map(d => P.patterns[String(i+1)][d] === 'SPARE' ? 'SP' : P.patterns[String(i+1)][d]).join('\t')}`).join('\n'));

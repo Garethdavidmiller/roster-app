@@ -2,7 +2,7 @@
 // the app's rendering rather than an imitation of it. Own CSS covers only what a sheet of paper needs.
 import { writeFileSync } from 'node:fs';
 import { chromium } from '../../../node_modules/playwright/index.mjs';
-import { classifyShift, DAYS, hmFromHours, dutyMinutes, startMinutes, endMinutes, MAX_CONSECUTIVE_WORKED_DAYS } from './report-data.mjs';
+import { classifyShift, DAYS, hmFromHours, dutyMinutes, startMinutes, endMinutes, MAX_CONSECUTIVE_WORKED_DAYS, family } from './report-data.mjs';
 import { APP_VERSION } from '../../../roster-data.js';
 
 const ROOT = new URL('../../../', import.meta.url).href.replace(/\/$/, '');
@@ -16,11 +16,15 @@ function gridHtml(p, lines, totals, daily, opts = {}) {
   for (let pos = 1; pos <= lines; pos++) {
     const row = p[String(pos)]; const t = totals.rows[pos-1];
     const cells = DAYS.map(d => `<td class="shift-cell${changed.has(`${pos}|${d}`) ? ' cell-changed' : ''}"><span class="shift-cell-btn type-${classifyShift(row[d])}">${label(row[d])}</span></td>`).join('');
-    // Turns: distinct clock times in the week, Sunday included — a member's own measure of a week's
-    // shape, and the page 1 "working weeks are one turn" tile made visible line by line.
-    const turns = t.assumed ? null : new Set(DAYS.map(d => row[d]).filter(x => x !== 'RD' && x !== 'SPARE')).size; if (turns === 1) oneTurn++;
+    // Turns: distinct clock times MONDAY TO FRIDAY. The bold mark and the footer count use the page 1
+    // tile's own definition from feel() — one clock time Mon–Fri AND one shift family across every
+    // worked day, the weekend included — so the three agree. The first version counted the whole
+    // week's clock times and its footer contradicted page 1 on every sheet (Same Turns: 4 against 18).
+    const wkTimes = t.assumed ? null : new Set(['mon','tue','wed','thu','fri'].map(d => row[d]).filter(x => x !== 'RD')).size;
+    const fams = new Set(DAYS.map(d => row[d]).filter(x => x !== 'RD' && x !== 'SPARE').map(family));
+    const isOne = !t.assumed && wkTimes <= 1 && fams.size <= 1; if (isOne) oneTurn++;
     const ex = t.assumed ? `<td class="tot-cell tot-assumed">${hm(t.exSundayMinutes)}</td><td class="tot-cell tot-assumed">${hm(t.allMinutes)}</td><td class="tot-cell tot-assumed">—</td><td class="tot-cell tot-assumed">—</td>`
-      : `<td class="tot-cell">${hm(t.exSundayMinutes)}</td><td class="tot-cell${t.allMinutes===t.exSundayMinutes?' tot-same':''}">${hm(t.allMinutes)}</td><td class="tot-cell">${t.days}</td><td class="tot-cell${turns === 1 ? ' tot-one' : ''}">${turns}</td>`;
+      : `<td class="tot-cell">${hm(t.exSundayMinutes)}</td><td class="tot-cell${t.allMinutes===t.exSundayMinutes?' tot-same':''}">${hm(t.allMinutes)}</td><td class="tot-cell">${t.days}</td><td class="tot-cell${isOne ? ' tot-one' : ''}">${wkTimes}</td>`;
     rows.push(`<tr><td class="pos-num">${pos}</td>${cells}${ex}</tr>`);
   }
   const cover = DAYS.map(d => `<td class="tot-cell cov-foot">${daily[d]}<span class="cov-sub">SP ${opts.spare}</span></td>`).join('');
@@ -29,7 +33,7 @@ function gridHtml(p, lines, totals, daily, opts = {}) {
   const minutes = DAYS.map(d => { let m = 0; for (let k = 1; k <= lines; k++) { const x = p[String(k)][d]; if (x !== 'RD' && x !== 'SPARE') m += dutyMinutes(x); } return m; });
   const monSat = minutes.slice(1).reduce((a, b) => a + b, 0), n = v => v.toLocaleString('en-GB');
   return `<table class="links-grid print-grid"><thead><tr><th class="col-pos">Line</th>${DAYS.map(d=>`<th>${DAY_LABEL[d]}</th>`).join('')}
-    <th class="col-total">Mon–Sat<span class="col-total-sub">hours</span></th><th class="col-total">All week<span class="col-total-sub">hours</span></th><th class="col-total">Days worked<span class="col-total-sub">Mon–Sat</span></th><th class="col-total col-turns">Turns<span class="col-total-sub">in the week</span></th></tr></thead>
+    <th class="col-total">Mon–Sat<span class="col-total-sub">hours</span></th><th class="col-total">All week<span class="col-total-sub">hours</span></th><th class="col-total">Days worked<span class="col-total-sub">Mon–Sat</span></th><th class="col-total col-turns">Turns<span class="col-total-sub">Mon–Fri</span></th></tr></thead>
     <tbody>${rows.join('')}</tbody>
     <tfoot><tr><td class="pos-num cov-foot-label">Cover</td>${cover}<td class="tot-cell tot-avg">${opts.avgEx}</td><td class="tot-cell tot-avg">${opts.avgAll}</td><td class="tot-cell tot-avg">${opts.avgDays}</td><td class="tot-cell tot-avg">${oneTurn}<span class="cov-sub">one turn</span></td></tr>
     <tr class="min-row"><td class="pos-num cov-foot-label">Minutes</td>${minutes.map(m => `<td class="tot-cell min-cell">${n(m)}</td>`).join('')}<td class="tot-cell tot-avg">${n(monSat)}</td><td class="tot-cell tot-avg">${n(monSat + minutes[0])}</td><td class="tot-cell tot-avg"></td><td class="tot-cell tot-avg"></td></tr></tfoot></table>`;
@@ -57,6 +61,9 @@ const hourHead = () => `<tr><th class="cov-heat-hour"></th>${Array.from({length:
 
 export async function renderPdf(D, out) {
   const { today: T, prop: P, meta } = D;
+  // meta.date is when the DESIGN was prepared; a re-render changes what the sheet says, so it says so.
+  const RENDERED = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  const prepared = meta.date === RENDERED ? `Prepared ${meta.date}` : `Prepared ${meta.date} · re-rendered ${RENDERED}`;
   // Page 3's headcount rows, COMPUTED per day class (weekday range · Sat · Sun). They were four typed
   // literals (4→4, 2→3, 2→4, 4→5) on every sheet until 24 Sep 2026 — see headcounts() in report-data.
   const rng = o => { const v = WD.map(d => o[d]); const lo = Math.min(...v), hi = Math.max(...v); return lo === hi ? String(lo) : `${lo}–${hi}`; };
@@ -150,7 +157,7 @@ html, body { background: white !important; color: var(--text-dark); padding: 0 !
 .mast h1 { margin: 2px 0 2px; font-size: 22px; font-weight: 800; color: white; letter-spacing: -.2px; }
 .mast .sub { color: rgba(255,255,255,.78); font-size: 11.5px; }
 .mast .meta { color: rgba(255,255,255,.55); font-size: 9.5px; margin-top: 4px; }
-.cover .mast { padding: 26px 28px 22px; border-radius: 14px; }
+.cover .mast { padding: 20px 28px 16px; border-radius: 14px; }
 .cover .mast h1 { font-size: 30px; }
 .ident { display: grid; grid-template-columns: 1fr 1.35fr; gap: 0; margin: 14px 0 0; border: 2px solid var(--accent-gold); border-radius: var(--radius); overflow: hidden; }
 .ident-main { background: var(--accent-gold); color: var(--primary-blue); padding: 14px 18px; }
@@ -161,13 +168,14 @@ html, body { background: white !important; color: var(--text-dark); padding: 0 !
 .ident-row { display: grid; grid-template-columns: 62px 1fr; gap: 8px; font-size: 9.5px; align-items: baseline; }
 .ident-k { font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; color: var(--text-light); }
 .ident-v { color: var(--text-dark); } .ident-v.tt { font-weight: 800; color: var(--primary-blue); font-size: 11px; }
-.strip { margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 6px 8px; padding: 10px 12px; background: var(--surface-sunken); border-radius: var(--radius); }
-.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 14px 0; }
+.strip { margin: 10px 0 0; display: flex; flex-wrap: wrap; gap: 6px 8px; padding: 10px 12px; background: var(--surface-sunken); border-radius: var(--radius); }
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 10px 0; }
 .tile { border-left: 4px solid var(--accent-gold); background: var(--surface-sunken); padding: 10px 12px; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
 .tile b { display: block; font-size: 22px; font-weight: 800; color: var(--primary-blue); letter-spacing: -.3px; }
 .tile .l { display: block; font-size: 11px; font-weight: 600; color: var(--text-dark); margin-top: 2px; }
 .tile .s { display: block; font-size: 9.5px; color: var(--text-mid); margin-top: 2px; }
-h2 { font-size: 14px; color: var(--primary-blue); margin: 16px 0 6px; font-weight: 800; }
+h2 { font-size: 14px; color: var(--primary-blue); margin: 13px 0 5px; font-weight: 800; }
+.rules td, .rules th { padding: 2px 6px; }
 h3 { font-size: 11.5px; color: var(--primary-blue); margin: 12px 0 4px; font-weight: 700; }
 p { margin: 4px 0 8px; } .muted { color: var(--text-mid); font-weight: 400; }
 .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; } .cols.duty { grid-template-columns: 62% 1fr; gap: 14px; } .dutyt td, .dutyt th { padding: 2px 6px; } .bb-dense .dutyt td { padding: 1px 6px; font-size: 9px; line-height: 1.3; } .bb-dense p.muted { font-size: 9.5px; line-height: 1.35; } .ef-tight .dutyt td { padding: 0 6px; line-height: 1.2; } .ef-tight p.muted { font-size: 9px; line-height: 1.3; } .changed td:nth-child(4) { width: 34%; } .stack { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
@@ -186,7 +194,7 @@ td.up { background: color-mix(in srgb, var(--success-green) 10%, white); } td.do
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; } .legend > span { white-space: nowrap; } .legend .muted { white-space: normal; flex-basis: 100%; }
 .legend-x { font-size: 9.5px; color: var(--text-mid); margin-top: 6px; } .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: -1px; margin-right: 4px; }
 .cov-heat { border-collapse: collapse; width: 100%; } .cov-heat th, .cov-heat td { border: 1px solid var(--border-light); text-align: center; } .cov-heat-cell { height: 20px; min-width: 0; font-size: 9px; } .cov-heat--dense .cov-heat-cell { height: 15px; font-size: 8.5px; } .cov-heat-day { text-align: left !important; padding: 0 6px; white-space: nowrap; font-size: 9px; }
-.check-row { font-size: 10.5px; padding: 5px 9px; } .check-rows { gap: 4px; }
+.check-row { font-size: 10.5px; padding: 4px 9px; } .check-rows { gap: 3px; } p.oq { font-size: 10px; line-height: 1.36; }
 table.ff { border-collapse: collapse; width: 100%; font-size: 9.5px; } table.ff td { padding: 2px 6px; border-bottom: 1px solid var(--border-light); vertical-align: top; } table.ff th { text-align: left; font-size: 9px; text-transform: uppercase; color: var(--text-mid); background: var(--surface-sunken); padding: 4px 6px; }
 .ff-code { font-weight: 800; color: var(--primary-blue); white-space: nowrap; width: 38px; } .ff-fam { display: inline; font-size: 8.5px; color: var(--text-light); margin-left: 6px; }
 .ff-st { white-space: nowrap; font-weight: 700; width: 108px; }
@@ -212,7 +220,7 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
 <section class="page cover">
   <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer</div><h1>Proposed CEA Link — December 2026</h1>
   <div class="sub">${meta.sub1 ?? (BB ? 'A 24-line link built from the December staffing rules and judged on the ORR fatigue factors — nothing carried over from today’s roster except the rules' : B2 ? 'The December rules with no duty over 8h40 and the ticket office written in — two 14:00–22:30 turns a day Monday to Saturday, two 13:30–22:00 on a Sunday — judged on the ORR fatigue factors' : EF ? 'A 24-line link built from the December staffing rules with no duty over 8h40, judged on the ORR fatigue factors — nothing carried over from today’s roster except the rules' : QT ? 'The existing 20-line link, widened to 24 people, with the closing turn starting at 15:45 — the same shape of week, one more cover cycle, and one turn a little longer to keep the contract' : 'The existing 20-line link, widened to 24 people — the same turns, the same shape of week, one more cover cycle')}</div>
-  <div class="meta">Prepared ${meta.date} · built for the December 2026 timetable and assessed by the workspace's own rule modules (Marylebone Roster v${APP_VERSION}) · figures on this page are computed, not typed</div></div></div>
+  <div class="meta">${prepared} · built for the December 2026 timetable and assessed by the workspace's own rule modules (Marylebone Roster v${APP_VERSION}) · figures on this page are computed, not typed</div></div></div>
   <div class="ident"><div class="ident-main"><div class="ident-eyebrow">Proposal</div><div class="ident-name">${esc(meta.identity.name)}</div><div class="ident-strap">${esc(meta.identity.strap)}</div></div>
    <div class="ident-side"><div class="ident-row"><span class="ident-k">Code</span><span class="ident-v tt">${esc(meta.identity.code)}</span></div><div class="ident-row"><span class="ident-k">Fingerprint</span><span class="ident-v tt">${esc(meta.identity.fingerprint)}</span></div><div class="ident-row"><span class="ident-k">Built from</span><span class="ident-v">duty table ${esc(meta.identity.table)} · seed ${esc(String(meta.identity.seed))} · 24 lines · 4 cover weeks</span></div><div class="ident-row"><span class="ident-k">Lineage</span><span class="ident-v">${esc(meta.identity.lineage)}</span></div></div></div>
   <div class="strip">${(() => {
@@ -277,7 +285,7 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
 <section class="page">
   <div class="mast"><div><div class="eyebrow">The rotation</div><h1>The 24-line link</h1><div class="sub">Sunday to Saturday per line; everyone moves down one line each week and line 24 goes back to line 1. Hours and days at the right, cover beneath.</div></div></div>
   <div style="margin-top:10px">${gridHtml(P.patterns, 24, P.totals, P.daily, { spare: 4, avgEx: hmFromHours(P.hours.exSunday), avgAll: hmFromHours(P.hours.all), avgDays: P.totals.daysAverage.toFixed(2), changed: meta.changed ? new Set(meta.changed.cells) : null })}</div>
-  <div class="legend"><span><i style="background:color-mix(in srgb, var(--shift-early-fill) 16%, white)"></i>Early turns</span><span><i style="background:color-mix(in srgb, var(--shift-late-fill) 16%, white)"></i>Late turns</span><span><i style="background:color-mix(in srgb, var(--accent-gold) 22%, white)"></i>Cover (spare) week — four duties of seven, any turn</span><span><i style="background:var(--surface-sunken);border:1px solid var(--border-mid)"></i>Rest day</span>${meta.changed ? `<span><i class="i-changed"></i>Changed against <em>${esc(meta.changed.parent.name)}</em> (${esc(meta.changed.parent.code)}) — ${meta.changed.cells.length} cell${meta.changed.cells.length === 1 ? '' : 's'} on ${meta.changed.lines} line${meta.changed.lines === 1 ? '' : 's'}</span>` : ''}<span class="muted">Mon–Sat hours average ${hmFromHours(P.hours.exSunday)} over 24 lines, a cover week counted as a contracted week · days worked average over the 20 working lines · Turns: distinct clock times in the week · Minutes: duty minutes per day, and Mon–Sat is the contract (20 × 35h = 42,000)</span></div>
+  <div class="legend"><span><i style="background:color-mix(in srgb, var(--shift-early-fill) 16%, white)"></i>Early turns</span><span><i style="background:color-mix(in srgb, var(--shift-late-fill) 16%, white)"></i>Late turns</span><span><i style="background:color-mix(in srgb, var(--accent-gold) 22%, white)"></i>Cover (spare) week — four duties of seven, any turn</span><span><i style="background:var(--surface-sunken);border:1px solid var(--border-mid)"></i>Rest day</span>${meta.changed ? `<span><i class="i-changed"></i>Changed against <em>${esc(meta.changed.parent.name)}</em> (${esc(meta.changed.parent.code)}) — ${meta.changed.cells.length} cell${meta.changed.cells.length === 1 ? '' : 's'} on ${meta.changed.lines} line${meta.changed.lines === 1 ? '' : 's'}</span>` : ''}<span class="muted">Mon–Sat hours average ${hmFromHours(P.hours.exSunday)} over 24 lines, a cover week counted as a contracted week · days worked average over the 20 working lines · Turns: distinct clock times Monday to Friday, <b>bold</b> where the week is one turn (one clock time Mon–Fri and one early-or-late family across every worked day — the page 1 figure) · Minutes: duty minutes per day, and Mon–Sat is the contract (20 × 35h = 42,000)</span></div>
   <div class="foot"><span>Page 2 of 8 — The 24-line grid</span><span class="foot-id"><b>${esc(meta.identity.name)}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
 </section>
 
@@ -292,7 +300,7 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
   ${feelRow('Single rest days between duties <span class="muted">(not a 48h break)</span>', `${T.feel.isolatedRest}`, `${P.feel.isolatedRest}`)}
   ${feelRow('Days worked in a week <span class="muted">(lines × days)</span>', Object.entries(T.feel.daysHist).map(([d,n])=>`${n}×${d}`).join(', '), Object.entries(P.feel.daysHist).map(([d,n])=>`${n}×${d}`).join(', '))}
   ${feelRow('Cover (spare) weeks <span class="muted">(whole weeks)</span>', `lines ${T.feel.spareLines.join(', ')}`, `lines ${P.feel.spareLines.join(', ')}`)}
-  ${feelRow(`Distinct shift times <span class="muted">(${BB ? 'none on today’s roster' : EF ? (ef.sharedToday.length ? `${ef.sharedToday.length} on today’s roster` : 'none on today’s roster') : QT ? `all but ${newTimes.length} on today’s roster` : 'all already on today’s roster'})</span>`, `${T.feel.distinctTimes}`, `${P.feel.distinctTimes}`)}
+  ${feelRow(`Distinct shift times <span class="muted">(${BB ? 'none on today’s roster' : EF ? (ef.sharedToday.length ? `${ef.sharedToday.length} on today’s roster` : 'none on today’s roster') : newTimes.length ? `all but ${newTimes.length} on today’s roster` : 'all already on today’s roster'})</span>`, `${T.feel.distinctTimes}`, `${P.feel.distinctTimes}`)}
   ${feelRow('Mon–Sat hours, average week <span class="muted">(the contract)</span>', hmFromHours(T.hours.exSunday), hmFromHours(P.hours.exSunday))}
   ${feelRow('Sunday duties <span class="muted">(not contracted; half the working lines)</span>', `${T.hours.sundayDuties} of ${T.feel.workingLines} lines`, `${P.hours.sundayDuties} of ${P.feel.workingLines} lines`)}
   </tbody></table></div>
@@ -342,11 +350,11 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
   <h2>Hard limits <span class="muted" style="font-weight:400;font-size:10px">— a design either meets these or cannot be run</span></h2>
   <div class="check-rows">
     <div class="check-row ${hard.status==='ok'?'check-good':'check-bad'}"><span class="check-icon ${hard.status==='ok'?'check-tick':'check-cross'}">${hard.status==='ok'?'✓':'✕'}</span><div class="check-body"><b>${esc(hard.title)}</b> — longest possible run <b>${hard.value}</b> days (today: ${hardT.value})<div class="check-sub">${esc(hard.detail)} ${P.asRostered.consecDays.worst === hard.value ? `Worked as a BLOCK of four rather than split day-on-day-off, the answer is the same — <b>${P.asRostered.consecDays.worst}</b> days — so this row does not depend on how a cover week is placed.` : `Worked as a BLOCK of four rather than split day-on-day-off it is <b>${P.asRostered.consecDays.worst}</b> days.`}<br><span class="muted">Basis: ${esc(hard.basis)}. Configured from Chiltern practice; the policy citation is outstanding, so this is stated as the app states it.</span></div></div></div>
-    <div class="check-row ${P.checks.turnarounds.length ? 'check-warn-row' : 'check-good'}"><span class="check-icon ${P.checks.turnarounds.length ? '' : 'check-tick'}">${P.checks.turnarounds.length ? '⚠' : '✓'}</span><div class="check-body"><b>At least 12 hours between duties</b> — <b>${P.checks.turnarounds.length}</b> rests under 12h anywhere in the rotation, Saturday-into-Sunday and line-into-line included (today: ${T.checks.turnarounds.length})<div class="check-sub">Tightest anywhere: <b>${restLine(P.rest)}</b> (today's tightest: ${T.rest ? hm(T.rest.minutes) : '—'}). The generator refuses a design it cannot repair to this; the search here never produced one.</div></div></div>
+    <div class="check-row ${P.checks.turnarounds.length ? 'check-warn-row' : 'check-good'}"><span class="check-icon ${P.checks.turnarounds.length ? '' : 'check-tick'}">${P.checks.turnarounds.length ? '⚠' : '✓'}</span><div class="check-body"><b>At least 12 hours between duties</b> — <b>${P.checks.turnarounds.length}</b> rests under 12h anywhere in the rotation, Saturday-into-Sunday and line-into-line included (today: ${T.checks.turnarounds.length})<div class="check-sub">Tightest anywhere: <b>${restLine(P.rest)}</b> (today's tightest: ${T.rest ? hm(T.rest.minutes) : '—'}). ${meta.kind === 'EXT' ? 'The generator refuses a design it cannot repair to this; this design was checked against it, not generated.' : 'The generator refuses a design it cannot repair to this; the search here never produced one.'}</div></div></div>
     <div class="check-row check-good"><span class="check-icon check-tick">✓</span><div class="check-body"><b>The contracted week, exactly</b> — <b>${hmFromHours(P.hours.exSunday)}</b> average Mon–Sat over the 24 lines, cover weeks counted as contracted weeks<div class="check-sub">700h of duty a week across 20 working lines. Sundays (${P.hours.sundayHours.toFixed(2)}h) sit on top as RDW, as they do today. Individual weeks range ${hm(Math.min(...P.totals.rows.filter(r=>!r.assumed).map(r=>r.exSundayMinutes)))}–${hm(Math.max(...P.totals.rows.map(r=>r.exSundayMinutes)))}; only the average is the contract.</div></div></div>
   </div>
   <h2>December design figures <span class="muted" style="font-weight:400;font-size:10px">— the staffing shape agreed for the new timetable</span></h2>
-  <table class="t"><thead><tr><th>Rule</th><th>Proposal</th><th></th></tr></thead><tbody>
+  <table class="t rules"><thead><tr><th>Rule</th><th>Proposal</th><th></th></tr></thead><tbody>
   ${meta.designRules.map(r => `<tr><td>${esc(r.rule)}</td><td>${r.ok?'✓':'✕'} ${esc(r.value)}</td><td class="muted">${esc(r.note)}</td></tr>`).join('')}
   </tbody></table>
   <!-- The heading used to be the literal "Two things to settle" while every proposal it rendered
@@ -354,7 +362,7 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
        a reader checks and then stops trusting the rest for, so it is overridable. The default is
        unchanged in substance and carries no count. -->
   <h2>${esc(meta.openQuestionsHeading ?? 'To settle before it is frozen')}</h2>
-  <p>${meta.openQuestions}</p>
+  <p class="oq">${meta.openQuestions}</p>
   <div class="foot"><span>Page 5 of 8 — The checks sheet: hard limits and design figures</span><span class="foot-id"><b>${esc(meta.identity.name)}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
 </section>
 
@@ -387,7 +395,7 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
   <div class="cols paste"><p class="muted">Links → Import, then paste the whole block below. Line number, then Sunday to Saturday; SP is a cover week. The workspace re-runs every check on these pages from the pasted cells, so nothing here has to be taken on trust — and the two designers can edit it there like any other design.</p>
   <p class="muted">The same rotation is also supplied beside this PDF as <span class="tt">${esc(meta.identity.name.replace(/ /g,'-'))}-${esc(meta.identity.code)}-import.txt</span> (tab-separated, pastes directly) and <span class="tt">${esc(meta.identity.name.replace(/ /g,'-'))}-${esc(meta.identity.code)}.json</span> (the app's own format).</p></div>
   <pre class="imp" style="margin-top:8px; font-size: 9px; line-height: 1.6; padding: 12px 14px">${esc(importPadded)}</pre>
-  <p class="muted" style="margin-top:10px">Prepared ${meta.date}. Every figure in this document was computed by the Marylebone Roster app's Links modules (v${APP_VERSION}) from exactly these cells; import them and the workspace's Design checks, hard limits, fatigue factors and coverage cards will restate them.</p>
+  <p class="muted" style="margin-top:10px">${prepared}. Every figure in this document was computed by the Marylebone Roster app's Links modules (v${APP_VERSION}) from exactly these cells; import them and the workspace's Design checks, hard limits, fatigue factors and coverage cards will restate them.</p>
   <div class="foot"><span>Page 8 of 8 — Import</span><span class="foot-id"><b>${esc(meta.identity.name)}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
 </section>
 </body></html>`;
