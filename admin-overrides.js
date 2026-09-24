@@ -34,6 +34,7 @@ import { replacedTypeForSwap } from './al-swapped-days.js';
 import { isWorkingDate } from './al-entitlement.js';
 import { checkShiftRules } from './admin-shift-rules.js';
 import { buildSaveReceipt } from './admin-save-receipt.js';
+import { withSlowSaveNotice } from './slow-save.js';
 
 // ── PRIVATE STATE ─────────────────────────────────────────────────────────────
 let _currentUser      = '';
@@ -212,7 +213,9 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
         // stale-claim `permission-denied` (a just-provisioned manager on a pre-`manager`-claim token).
         // A WriteBatch can't be re-committed, so the batch (and newDocs) is rebuilt on each attempt;
         // the thunk RETURNS newDocs so the retry's fresh doc IDs are the ones we cache below.
-        const newDocs = await writeWithClaimRetry(async () => {
+        // withSlowSaveNotice: on a weak signal the commit waits for the server with no limit, and
+        // the button alone reads as a freeze. It explains the wait and changes nothing else (slow-save.js).
+        const newDocs = await withSlowSaveNotice(writeWithClaimRetry(async () => {
             const batch = writeBatch(db);
             /** @type {any[]} */
             const docs = [];
@@ -244,7 +247,7 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
             });
             await batch.commit();
             return docs;
-        });
+        }));
 
         // A RECEIPT, NOT A COUNT (v21.38). "2 added, 1 removed" cannot answer the question a manager
         // actually has — did I change the days I meant to? — and the commonest real mistake here
@@ -481,7 +484,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
         const slice = ops.slice(i, i + CHUNK);
         let res;
         try {
-            res = await writeWithClaimRetry(async () => {
+            res = await withSlowSaveNotice(writeWithClaimRetry(async () => {
                 /** @type {any[]} */
                 const docs   = [];
                 const delIds = new Set();
@@ -505,7 +508,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
                 });
                 await batch.commit();
                 return { docs, delIds };
-            });
+            }));
         } catch (err) {
             // A chunk failed AFTER earlier chunks committed → Firestore holds partial data the
             // in-memory cache doesn't reflect (the cache update below never runs). Resync from

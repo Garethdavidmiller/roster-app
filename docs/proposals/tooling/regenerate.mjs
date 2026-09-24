@@ -15,7 +15,7 @@
 // depend on those files and not on a re-run of the annealer, which would take hours and is not
 // deterministic across Node versions in the way the candidates are.
 import { execFileSync } from 'node:child_process';
-import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync, copyFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { DAYS } from '../../../links-design.js';
 
@@ -36,6 +36,10 @@ export const SUPPLIED = [
     { file: 'three-mondays.json',     name: 'Three Mondays',         code: 'TM-24-EXT',  fp: 'fe90c0b8', strap: 'The eight-day run across weeks 14-15 broken by rotating three Monday duties' },
     { file: 'cover-at-seventeen.json', name: 'Cover at Seventeen',    code: 'C17-24-EXT', fp: 'edc1b731', strap: 'Lines 17 and 18 swapped back - the cover week returns to 17, and FF11 clears' },
     { file: 'saturday-four.json',     name: 'Saturday Four',        code: 'S4-24-EXT',  fp: '481ba9ed', strap: 'Saturday rebuilt - four turns, three start times, weighted to the late for Wembley' },
+    // The three Clean Final sheets were built in a parallel session (#1513) and registered here on the merge.
+    { file: 'cea-clean-final2.json',       name: 'Clean Final',       code: 'CF-24-EXT',  fp: '6d21169b', strap: 'The Weekday Lates line revised - the long Saturday closer shortened' },
+    { file: 'cea-clean-final2-tuned.json', name: 'Clean Final Tuned', code: 'CFT-24-M3',  fp: 'ae1a15bd', strap: 'Clean Final with three cells retimed - the Sunday bulge broken and the Saturday morning filled' },
+    { file: 'cea-clean-final-ten.json',    name: 'Clean Final Ten',   code: 'TN-24-R7',   fp: '84b60df9', strap: 'A tenth Sunday shift and a reordered wheel - fewer factors, a shorter run' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
@@ -53,6 +57,13 @@ const expand = g => { const [dir, pat] = [g.slice(0, g.lastIndexOf('/')), g.slic
 
 const checkOnly = process.argv.includes('--check');
 const only = process.argv.find(a => a.startsWith('--only='))?.slice(7);
+// SHIP: copy each render's three artefacts up into docs/proposals under the names the folder uses
+// (`<Name>-<CODE>-<fp>.pdf`, `<Name>-<CODE>.json`, `<Name>-<CODE>-import.txt`). This used to be a
+// hand-typed cp per proposal after every regeneration, and a hand-typed cp is how a folder ends up
+// with a PDF from one render and a JSON from another. --no-ship leaves the outputs in tooling/.
+const ship = !process.argv.includes('--no-ship');
+const shipFiles = (base, fp, json, imp) => { if (!ship) return;
+    copyFileSync(`${base}-${fp}.pdf`, `../${base}-${fp}.pdf`); copyFileSync(json, `../${base}.json`); copyFileSync(imp, `../${base}-import.txt`); };
 let failed = 0, done = 0;
 
 for (const s of SUPPLIED) {
@@ -64,6 +75,7 @@ for (const s of SUPPLIED) {
     if (checkOnly) { console.log(`ok   ${s.code}  ${got}`); done++; continue; }
     process.stdout.write(`render ${s.code} … `);
     execFileSync('node', ['supplied.mjs', s.file, s.name, s.strap, s.code], { stdio: 'inherit' });
+    shipFiles(`${s.name.replace(/ /g, '-')}-${s.code}`, s.fp, 'supplied.json', 'supplied-import.txt');
     done++;
 }
 for (const t of SEARCHED) {
@@ -73,6 +85,8 @@ for (const t of SEARCHED) {
     if (checkOnly) { console.log(`ok   ${t.proposal}  (${files.length} candidates)`); done++; continue; }
     process.stdout.write(`render ${t.proposal} … `);
     execFileSync('node', ['final.mjs', ...files], { stdio: 'inherit', env: { ...process.env, PROPOSAL: t.proposal, ...(t.env ?? {}) } });
+    const pdf = readdirSync('.').find(f => f.endsWith(`-${t.fp}.pdf`)); if (!pdf) throw new Error(`${t.proposal}: no PDF ending -${t.fp}.pdf was written — did the pick change?`);
+    shipFiles(pdf.slice(0, -`-${t.fp}.pdf`.length), t.fp, 'proposal.json', 'proposal-import.txt');
     done++;
 }
 console.log(`\n${done} proposal${done === 1 ? '' : 's'}${failed ? `, ${failed} FAILED` : ''}`);
