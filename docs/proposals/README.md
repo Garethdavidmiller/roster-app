@@ -742,10 +742,12 @@ turns, 15:15–23:55 the weekday closer — and follows the Saturday curve bette
 better than today's. The Sunday closer cannot be a known turn under the cap (today's 14:30–23:25 is 8h55),
 so one new time was the floor, and the search found it: 14:45–23:25, fifteen minutes later. The rotation
 was then annealed on the assembled table exactly as *Quarter To* was (`MODE=feel`, table `W`), and the
-picker's order chose seed 21: no rest under 12h, a longest run of 6, six full weekends off, one fatigue
-factor present (FF19, one week-to-week jump of more than two hours — *Quarter To* has none, *Same Turns*
-the same one), and **every one of the 20 working weeks a single turn**, which no other sheet in the folder
-manages. Nine of its eleven times are worked today; the two that are not are the 15:45 closer and the
+picker's order chose seed 21 of eight (7, 13, 21, 34, 41, 55, 68, 89 — the first four all carried one
+factor where *Quarter To* has none, so four more were run; every one of the eight carries it, which makes
+it a property of the table rather than of a seed): no rest under 12h, a longest run of 6, six full
+weekends off, one fatigue factor present (FF19, one week-to-week jump of more than two hours — *Same
+Turns* has the same one), and **every one of the 20 working weeks a single turn**, which no other sheet
+in the folder manages. Nine of its eleven times are worked today; the two that are not are the 15:45 closer and the
 Sunday closer.
 
 **One question the search raised rather than settled**, on the sheet's page 6. Today's Saturday works
@@ -801,7 +803,7 @@ CLS=sat node weekend-table.mjs > q2-sat.txt; CLS=sun node weekend-table.mjs > q2
                                      # Quarter To 2: Saturday and Sunday searched again under the cap, in Quarter To's spirit
                                      # (the JSON line at the end of each is the day file; ALLOW_TODAY_ENDS=1 admits today's 22:00 Saturday finish)
 PINS=none CAP=520 node assemble-table.mjs quarter-to-2-table.json q2-weekday.json q2-sat.json q2-sun.json
-MODE=feel  node anneal.mjs W 100000 5 7    # Quarter To 2 family: table W, seeds 7 13 21 34
+MODE=feel  node anneal.mjs W 100000 5 7    # Quarter To 2 family: table W, seeds 7 13 21 34 41 55 68 89
 PROPOSAL=Q2 node final.mjs results/best-W-*.json
 CAP=510 COUNT=1 node table-book.mjs  # how many length structures a cap admits, WITHOUT searching -- a zero is a proof
 node regenerate.mjs --check           # every proposal's fingerprint, without rendering

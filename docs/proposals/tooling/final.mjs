@@ -169,7 +169,7 @@ const meta = {
   otherTableFit, efFit: efRecord?.fit ?? null,
   date: PROPOSAL === 'Q2' ? '24 September 2026' : PROPOSAL === 'B2' ? '22 September 2026' : PROPOSAL === 'QT' || PROPOSAL === 'EF' ? '12 September 2026' : '8 September 2026',
   tables: PROPOSAL === 'QT' || PROPOSAL === 'Q2' ? 42 : 81, steps: ['QT', 'EF', 'B2', 'Q2'].includes(PROPOSAL) ? '100,000' : '60,000', restarts: ['QT', 'EF', 'B2', 'Q2'].includes(PROPOSAL) ? 'five' : 'four',
-  runs: PROPOSAL === 'QT' ? 'four seeded runs per table, two tables' : ['BB', 'EF', 'B2', 'Q2'].includes(PROPOSAL) ? 'four seeded runs' : 'three seeded runs per table',
+  runs: PROPOSAL === 'QT' ? 'four seeded runs per table, two tables' : PROPOSAL === 'Q2' ? 'eight seeded runs' : ['BB', 'EF', 'B2'].includes(PROPOSAL) ? 'four seeded runs' : 'three seeded runs per table',
   efTable,
   stretch, pickSentence: pickNote + rulesOnlyNote + (cands.length > shown.length ? ` The other ${cands.length - shown.length} seeded results are in <span class="tt">results/</span> (${cands.filter(c => !shown.includes(c)).map(c => `${c.variant}${c.seed}`).join(', ')}); none stands higher on the pick than the rows shown.` : ''),
   candidateFiles: cands.map(c => c.file), winnerVariant: win.variant,
