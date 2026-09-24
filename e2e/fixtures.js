@@ -73,7 +73,17 @@ export const writeBatch = () => {
         set: (/** @type {any} */ _ref, /** @type {any} */ data) => { e2e.batchWrites.push(data); },
         update: noop,
         delete: noop,
-        commit: () => Promise.resolve(),
+        // HOLD SEAM (v24.21): with window.__E2E.holdCommits set, a commit stays pending until the
+        // test calls window.__E2E.releaseCommits() — the way a real commit waits on a weak signal
+        // for the server's answer. That wait is what slow-save.js explains, and without a way to
+        // make it happen here the notice could only be tested as a unit, never as wired.
+        commit: () => {
+            if (!e2e.holdCommits) return Promise.resolve();
+            return new Promise(resolve => {
+                (e2e._held = e2e._held || []).push(resolve);
+                e2e.releaseCommits = () => { const h = e2e._held || []; e2e._held = []; h.forEach(r => r()); };
+            });
+        },
     };
 };
 // runTransaction(db, fn): runs the update fn against the SEEDED rows (v19.41 — it used to hand back

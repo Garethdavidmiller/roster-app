@@ -255,7 +255,7 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
   <p class="muted" style="margin:0">06:20–13:30 is the one short early; every other early (8h25–9h30) is longer than every late (7h15–8h10), which is the lever against unpopular lates. None of the 19 turns is a time people work today — that is the whole difference between this family and <i>Same Turns</i>, and it is the question to put to the room rather than to the tool.</p>` : `<p class="muted" style="margin:0">Read the table in three blocks: ${ef.monSat} turns Monday to Saturday alike${ef.wkOnly ? ` (and ${ef.wkOnly} the weekday keeps to itself)` : ''}, Saturday's own ${ef.satOwn}, and Sunday's ${ef.sunOwn} for its 07:15–23:25 window. Openers stagger by their finish and closers by their start so nobody hands over a cliff. ${ef.onQ} of the ${ef.instances} start and finish instances sit on :00, :15, :30 or :45; the ${ef.off.length} that do not (${ef.off.join(', ')}) are what four distinct opener finishes cost under a cap that leaves the long earlies about twenty minutes of room — <i>By the Book</i> has three such times.</p>
   <p class="muted" style="margin:0">${ef.shortEarly.time} is the one short early; every other early (${ef.longRange}) is longer than every late (${ef.lateRange}) — the lever against unpopular lates, at the only size the cap allows: the shortest long early is ${ef.gap} minutes longer than the longest late, where <i>By the Book</i> had fifteen and an hour on average. ${ef.sharedToday.length ? `${ef.sharedToday.length} of the ${ef.rows} turns ${ef.sharedToday.length === 1 ? 'is a time' : 'are times'} people work today (${ef.sharedToday.join(', ')})` : `None of the ${ef.rows} turns is a time people work today`} — the same trade as <i>By the Book</i>, and the question to put to the room rather than to the tool.</p>`}</div>`
   : `<h2>${QT ? "The duty table — today's times, the closer at 15:45" : "The duty table, in today's times"}</h2>
-  <div class="cols duty${meta.denseDuty ? ' bb-dense' : ''}"><div>
+  <div class="cols duty${meta.denseDuty ? ' bb-dense' : ''}${meta.tightDuty ? ' ef-tight' : ''}"><div>
   <table class="t dutyt"><thead><tr><th>Turn</th><th class="num">Wk</th><th class="num">Sat</th><th class="num">Sun</th><th class="num">Wk</th><th class="num">Sat</th><th class="num">Sun</th></tr></thead><tbody>${tableRows}</tbody></table></div>
   <div><p class="muted">Busiest weekday · Saturday · Sunday. The first three columns are what the 20-line link does now; the last three are the proposal. Green cells grew, amber shrank, a struck-through row is a time the proposal does not use.</p>
   ${QT && S ? `<p class="muted">The 15:45 closer is ${S.closerShift} minutes shorter than the 15:15 turn it replaces — three a day, ${S.closerShift * 15} minutes a week — and with today's turns alone no table reaches 42,000 exactly. The two 06:20 openers run on to put them back: ${stretchWords}, ${S.weekly} minutes a week${S.allOnToday ? " — and those are Saturday's own opening times" : ''}. Nothing runs over 8h30; the other ways of doing it under the 8h40 rule are on page 7.</p>` : ''}
@@ -287,7 +287,11 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
   <table class="t"><thead><tr><th>Rule</th><th>Proposal</th><th></th></tr></thead><tbody>
   ${meta.designRules.map(r => `<tr><td>${esc(r.rule)}</td><td>${r.ok?'✓':'✕'} ${esc(r.value)}</td><td class="muted">${esc(r.note)}</td></tr>`).join('')}
   </tbody></table>
-  <h2>Two things to settle before it is frozen</h2>
+  <!-- The heading used to be the literal "Two things to settle" while every proposal it rendered
+       listed four or five. A heading that miscounts the list under it is the kind of small untruth
+       a reader checks and then stops trusting the rest for, so it is overridable. The default is
+       unchanged in substance and carries no count. -->
+  <h2>${esc(meta.openQuestionsHeading ?? 'To settle before it is frozen')}</h2>
   <p>${meta.openQuestions}</p>
   <div class="foot"><span>Page 5 of 8 — The checks sheet: hard limits and design figures</span><span class="foot-id"><b>${esc(meta.identity.name)}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
 </section>

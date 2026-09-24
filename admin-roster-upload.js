@@ -22,6 +22,7 @@ import { computeCellStates, guardCopy, RDW_PREFIX, isRdwEncoded, stripRdw, isUnk
 export { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange, computeCellStates };
 import { setStatus } from './status-text.js';
 import { assessRosterAlignment, driftCopy, stopCopy, geometryCopy } from './roster-alignment.js';
+import { withSlowSaveNotice } from './slow-save.js';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -98,7 +99,7 @@ export async function _saveOverrideBatches(toWrite, currentUser) {
     for (let i = 0; i < toWrite.length; i += CHUNK) {
         const chunk = toWrite.slice(i, i + CHUNK);
         try {
-        await writeWithClaimRetry(async () => {
+        await withSlowSaveNotice(writeWithClaimRetry(async () => {
             const batch = writeBatch(db);
             for (const { memberName, date, value, baseShift, replaceId, deleteOnly, replacedFrom } of chunk) {
                 if (deleteOnly) {
@@ -145,7 +146,7 @@ export async function _saveOverrideBatches(toWrite, currentUser) {
                     serverTimestamp()));
             }
             await batch.commit();
-        });
+        }));
         _committedChunks++;
         } catch (err) {
             // A chunk failed after earlier chunks committed → partial roster import is now in

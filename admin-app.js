@@ -48,6 +48,7 @@ import { recordPageLatency, markPageReady, markMilestone } from './perf-reporter
 import { setStatus } from './status-text.js';
 import { initAdminWeekSwipe } from './admin-week-swipe.js';
 import { resolveDeepLink, createDeepLinkLanding } from './admin-deep-link.js';
+import { withSlowSaveNotice } from './slow-save.js';
 
 /**
  * Programmatically open a collapsible card body, keeping the collapse control's ARIA state
@@ -1301,11 +1302,11 @@ export function init() {
         try {
             // Re-runnable thunk (fresh batch each attempt) so a stale-claim manager's period delete
             // self-heals via writeWithClaimRetry — parity with the other override write paths.
-            await writeWithClaimRetry(async () => {
+            await withSlowSaveNotice(writeWithClaimRetry(async () => {
                 const batch = writeBatch(db);
                 deleteIds.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
                 await batch.commit();
-            });
+            }));
             removeFromCache(idSet);   // drops the deleted rows; does NOT widen coverage (v21.38)
             renderTable();
             updateALBanner();

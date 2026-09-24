@@ -2069,6 +2069,49 @@ test('admin: saving reports the DAYS it changed, not just how many', async ({ pa
     expect(await lines.count(), 'the headline must agree with its own receipt').toBe(stated);
 });
 
+// ── A SAVE WAITING FOR SIGNAL SAYS SO (v24.21) ────────────────────────────────────────────────────
+//
+// Reported from the field: a shift change sat on "Saving 1 change…" with nothing else on screen, the
+// manager swiped the app closed, and on reopening found it had saved. The write was held on the phone
+// the whole time — Firestore's commit waits for the SERVER to answer, with no limit. The defect was the
+// silence. This holds a commit open through the REAL Change-a-Shift path and checks three things: the
+// notice appears while it waits, it never claims the change is saved, and it goes when the write lands
+// and the ordinary receipt takes over. The unit test proves the watcher; only this proves it is wired.
+test('admin: a save that is waiting for the server says so, and the notice clears when it lands', async ({ page }) => {
+    await page.addInitScript(() => {
+        window.__E2E = { ...(window.__E2E || {}), authUser: true, holdCommits: true, slowSaveMs: 300 };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    // The same fixed, all-working week the receipt test uses, and for the same reason: annual leave on
+    // a rest day is asked about and refused until answered, which is not what this test is about.
+    await page.locator('#fieldDate').evaluate((el) => {
+        /** @type {HTMLInputElement} */ (el).value = '2027-01-11';
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await expect(page.locator('#weekNavLabel')).toContainText('Jan 2027');
+    await page.locator('#bulkSelMonFri').click();
+    await page.locator('#bulkTypePills .pill-annual_leave').click();
+    await page.locator('#bulkApplyBtn').click();
+    await page.locator('#saveBtn').click();
+
+    const notice = page.locator('#slowSaveNotice');
+    await expect(notice).toBeVisible({ timeout: 5000 });
+    await expect(notice).toContainText('Waiting for signal');
+    await expect(notice).toContainText('held on this phone');
+    await expect(notice, 'a held write can still be refused — it must never be called saved').not.toContainText(/saved/i);
+    await expect(notice).toHaveAttribute('role', 'status');
+    // The button stays disabled while the write is unconfirmed: freeing it would invite a second
+    // save of the same days, and every save mints new document ids.
+    await expect(page.locator('#saveBtn')).toBeDisabled();
+    await expect(page.locator('#formFeedback')).not.toContainText('changes saved for');
+
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseCommits());
+    await expect(notice).toBeHidden({ timeout: 5000 });
+    await expect(page.locator('#formFeedback')).toContainText('changes saved for', { timeout: 10000 });
+});
+
 // ── SUNDAY IS NOT A CONTRACTED DAY — LAYERS 1 AND 2, AS THE GRID ACTUALLY DRAWS THEM ────────────
 //
 // CLAUDE.md's Sunday rule has six enforcement layers and says none of them is removable alone. Two

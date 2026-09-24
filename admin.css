@@ -1250,6 +1250,31 @@
             transform: translateX(-50%) translateY(0);
         }
 
+        /* ---- Waiting for signal (v24.21, slow-save.js) ----
+           One live line while a write waits on the server. It sits ABOVE the save toast's lane
+           (bottom 24px) rather than in it, because the toast can arrive while this is still up:
+           the second of two waiting writes finishing. Navy like the toast, but NOT a pill and not
+           nowrap — it is a sentence a member must read to the end, and at 375px that is three lines. */
+        #slowSaveNotice {
+            position: fixed;
+            left: 16px;
+            right: 16px;
+            bottom: calc(max(24px, env(safe-area-inset-bottom)) + 52px);
+            max-width: 480px;
+            margin: 0 auto;
+            background: var(--primary-blue);
+            color: white;
+            font-size: var(--type-small);
+            font-weight: 600;
+            line-height: 1.4;
+            padding: 10px 14px;
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-3);
+            z-index: 7500;
+        }
+        #slowSaveNotice[hidden] { display: none; }
+        @media print { #slowSaveNotice { display: none; } }
+
         /* .card-collapsible-header/.card-collapsible-body/.collapse-chevron — consolidated into shared.css */
 
         /* Cultural calendar + login overlay CSS moved to shared.css (v11.06) */
