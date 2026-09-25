@@ -33,7 +33,15 @@ const mm = t => +t.slice(0, 2) * 60 + +t.slice(3);
 const hm = m => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
 const WIN = { weekday: [6*60+20, 23*60+55], sat: [6*60+20, 23*60+55], sun: [7*60+15, 23*60+25] }; const [OPEN, CLOSE] = WIN[CLS];
 const N = { weekday: 14, sat: 14, sun: 10 }[CLS], OPENERS = 4, CLOSERS = { weekday: 3, sat: 4, sun: 3 }[CLS], AT22 = CLS === 'sun' ? null : 5;
-const PINS = { weekday: [['06:20-14:20', 3], ['14:00-22:30', 2], ['15:45-23:55', 3]], sat: [['14:00-22:30', 1]], sun: [['13:00-21:30', 1]] }[CLS];
+// MOVE (owner, 25 Sep 2026: "would it be better if you could move one or two turn times? not the pinned ticket
+// office ones or the number of openers or closers"): the ticket-office pins (14:00-22:30, 13:00-21:30) never move;
+// MOVE=openers lets the three 06:20-14:20 openers keep their count but choose ONE finish together; MOVE=closers
+// lets the three 15:45-23:55 closers choose ONE start together; MOVE=both frees both. Weekday only — the
+// weekend's other pins are counts, not times.
+const MOVE = new Set((process.env.MOVE ?? '').split(',').filter(Boolean));
+const PINS = { weekday: [...(MOVE.has('openers') || MOVE.has('both') ? [] : [['06:20-14:20', 3]]), ['14:00-22:30', 2], ...(MOVE.has('closers') || MOVE.has('both') ? [] : [['15:45-23:55', 3]])], sat: [['14:00-22:30', 1]], sun: [['13:00-21:30', 1]] }[CLS];
+const SHARED_OPENERS = CLS === 'weekday' && (MOVE.has('openers') || MOVE.has('both')) ? 3 : 0;   // at least this many openers on ONE turn
+const SHARED_CLOSERS = CLS === 'weekday' && (MOVE.has('closers') || MOVE.has('both'));            // every closer on ONE turn
 const OPENER_MIN_END = CLS === 'sat' ? { count: 2, end: 14*60+20 } : null;   // "two openers on Saturday until at least 14:20"
 const EVENING = { weekday: [22*60, 22*60+30], sat: [22*60+30], sun: [21*60+30] }[CLS];
 const TOTAL_MIN = Number(process.env.TOTAL_MIN ?? process.env.TOTAL ?? (CLS === 'sun' ? 5100 : 7000)), TOTAL_MAX = Number(process.env.TOTAL_MAX ?? process.env.TOTAL ?? (CLS === 'sun' ? 5145 : 7000));
@@ -77,6 +85,8 @@ function consider(free) {   // free: [[pool, n], ...] — the pins are added her
   const nC = all.filter(([p]) => p.e === CLOSE).reduce((a, [, n]) => a + n, 0); if (nC !== CLOSERS) return;
   if (AT22 !== null) { const at22 = all.filter(([p]) => p.e > 22*60).reduce((a, [, n]) => a + n, 0); if (at22 !== AT22) return; }
   if (OPENER_MIN_END) { const late = openers.filter(([p]) => p.e >= OPENER_MIN_END.end).reduce((a, [, n]) => a + n, 0); if (late < OPENER_MIN_END.count) return; }
+  if (SHARED_OPENERS && !openers.some(([, n]) => n >= SHARED_OPENERS)) return;
+  if (SHARED_CLOSERS && all.filter(([p]) => p.e === CLOSE).length !== 1) return;
   const c = cover(all); const thin = thinnest(c); if (thin < FLOOR - 1e-9) return;
   const fit = dayFit(c, CLS); const turns = all.length; const fresh = all.filter(([p]) => !TODAY.has(p.t)).length;
   feasible++;
@@ -138,9 +148,9 @@ while (Date.now() - t0 < BUDGET) {
 const show = (label, b) => { if (!b) { console.log(`  ${label}: none`); return; }
   console.log(`  ${label}: ${b.turns} turns · ${b.starts} starts + ${b.ends} finishes · ${b.fresh} new · fit ${b.fit} · pays ${b.total} · thinnest hour ${b.thin}`);
   console.log('    ' + b.duties.map(([t, n]) => `${t} x${n}`).join('  ')); };
-console.log(`${CLS}: pins ${PINS.map(([t, n]) => `${t} x${n}`).join(', ')} · free ${FREE} (${needO} opener, ${needC} closer, ${needM} middle) · pool ${POOL.length} (${KNOWN_POOL.length} known) · known-only feasible ${EXHAUSTIVE ? knownFeasible : '—'} · one-new feasible ${EXHAUSTIVE ? `${oneNewFeasible} (${(oneNewMs/1000).toFixed(0)}s)` : '—'} · sampled ${sampled.toLocaleString()} · feasible ${feasible} · floor ${FLOOR} · total ${TOTAL_MIN}${TOTAL_MAX !== TOTAL_MIN ? `–${TOTAL_MAX}` : ''} · cap ${HI}`);
+console.log(`${CLS}: ${MOVE.size ? `MOVE=${[...MOVE].join(',')} · ` : ''}pins ${PINS.map(([t, n]) => `${t} x${n}`).join(', ')} · free ${FREE} (${needO} opener, ${needC} closer, ${needM} middle) · pool ${POOL.length} (${KNOWN_POOL.length} known) · known-only feasible ${EXHAUSTIVE ? knownFeasible : '—'} · one-new feasible ${EXHAUSTIVE ? `${oneNewFeasible} (${(oneNewMs/1000).toFixed(0)}s)` : '—'} · sampled ${sampled.toLocaleString()} · feasible ${feasible} · floor ${FLOOR} · total ${TOTAL_MIN}${TOTAL_MAX !== TOTAL_MIN ? `–${TOTAL_MAX}` : ''} · cap ${HI}`);
 show('best by fit (then fewest new turns)', bestBy.fit); show('best by familiarity (fewest new turns, then fit)', bestBy.known);
 console.log('  best fit at each count of new turns:'); for (const k of Object.keys(byNew).sort((a, b) => a - b)) show(`    ${k} new`, byNew[k]);
 const chosen = bestBy[PICK]; if (!chosen) { if (process.env.OUT) writeFileSync(process.env.OUT, JSON.stringify({ cls: CLS, total: TOTAL_MIN, feasible: 0 })); process.exit(1); }
-if (process.env.OUT) writeFileSync(process.env.OUT, JSON.stringify({ cls: CLS, total: chosen.total, fit: chosen.fit, fresh: chosen.fresh, turns: chosen.turns, duties: chosen.duties, counts: { pool: POOL.length, known: KNOWN_POOL.length, knownFeasible, oneNewFeasible, feasible, sampled }, floor: FLOOR, cap: HI, bestKnown: bestBy.known && { fit: bestBy.known.fit, fresh: bestBy.known.fresh, duties: bestBy.known.duties } }, null, 1));
+if (process.env.OUT) writeFileSync(process.env.OUT, JSON.stringify({ cls: CLS, move: [...MOVE], total: chosen.total, fit: chosen.fit, fresh: chosen.fresh, turns: chosen.turns, duties: chosen.duties, counts: { pool: POOL.length, known: KNOWN_POOL.length, knownFeasible, oneNewFeasible, feasible, sampled }, floor: FLOOR, cap: HI, bestKnown: bestBy.known && { fit: bestBy.known.fit, fresh: bestBy.known.fresh, duties: bestBy.known.duties } }, null, 1));
 console.log('JSON ' + JSON.stringify(chosen.duties.flatMap(([t, n]) => Array(n).fill(t))));
