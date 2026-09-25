@@ -87,6 +87,19 @@ function buildAuthEndpoints({ VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_UR
  *     orphanSweepFailed?: true,
  *     orphanDryRun?: true, orphansToDisable?: string[] }   // last two: dry-run preview only
  */
+/**
+ * Whether an existing account at a roster email must be TAKEN BACK before its claims are stamped
+ * (v24.24): only when it carries NO custom claim. Only the Admin SDK or the console can set one, so
+ * any claim means this server or an admin touched it. Not `name`: that would also reset an admin
+ * given `{ admin: true }` by hand — the recovery admin-auth.js suggests — mid-click.
+ * @param {{ customClaims?: Record<string, any>|null }} user
+ * @returns {boolean}
+ */
+function mustReclaim(user) {
+    const c = user && user.customClaims;
+    return !c || Object.keys(c).length === 0;
+}
+
 const setupRosterAuth = onRequest(
     {
         region:        'europe-west2',
@@ -137,6 +150,7 @@ const setupRosterAuth = onRequest(
         const designerMembers = new Set(cfg.designer);
         const created  = [];
         const skipped  = [];
+        const reclaimed = [];
         const disabled = [];
         const failed   = [];
         // Emails of members whose name+email derivation succeeded — the authoritative
@@ -186,20 +200,48 @@ const setupRosterAuth = onRequest(
                 if (err.code === 'auth/email-already-exists') {
                     // Fetch UID so we can still (re)apply claims, and re-enable
                     // if the account was previously disabled (returning staff member).
+                    let reclaiming = false;
                     try {
                         const existing = await getAuth().getUserByEmail(email);
                         uid = existing.uid;
-                        if (existing.disabled) {
-                            await getAuth().updateUser(uid, { disabled: false });
-                            console.log(`[setupRosterAuth] Re-enabled returning member: ${email}`);
+                        if (mustReclaim(existing)) {
+                            reclaiming = true;
+                            // AN ACCOUNT THIS SERVER NEVER STAMPED (v24.24). Every account the server
+                            // creates gets its claims in the same run, so one at a roster email with no
+                            // server claim at all was registered from outside — the gap v24.23 left,
+                            // where a stranger signs up a new starter's derived email before Set up
+                            // accounts reaches it. Adopting it as found would hand that stranger the
+                            // member's claims. So take it back first: the password becomes the one the
+                            // member would have been given, the display name the roster's, and every
+                            // session on it is revoked. Reported by name, so the admin can tell the
+                            // member what their password now is.
+                            await getAuth().updateUser(uid, { password, displayName: name, disabled: false });
+                            await getAuth().revokeRefreshTokens(uid);
+                            reclaimed.push(name);
+                            console.warn(`[setupRosterAuth] Reclaimed an account with no server claims: ${email}`);
+                            // The same Settings nudge an admin reset gives. Best-effort: a missed
+                            // nudge does not make the take-back a failure.
+                            try {
+                                await getFirestore().collection('passwordStatus').doc(name).set(
+                                    { resetAt: FieldValue.serverTimestamp() }, { merge: true });
+                            } catch (stampErr) {
+                                console.error(`[setupRosterAuth] resetAt stamp failed after reclaim for ${name}`, stampErr && stampErr.code);
+                            }
+                        } else {
+                            if (existing.disabled) {
+                                await getAuth().updateUser(uid, { disabled: false });
+                                console.log(`[setupRosterAuth] Re-enabled returning member: ${email}`);
+                            }
+                            skipped.push(name);
                         }
-                        skipped.push(name);
                     } catch (lookupErr) {
-                        // Lookup/re-enable failed: the account exists but we couldn't act on
-                        // it, so claims won't be applied. Report it as a real failure, not a
-                        // benign skip, so the result reflects what actually happened.
-                        failed.push(`${name} (lookup-failed: ${lookupErr.message})`);
-                        console.error(`[setupRosterAuth] Lookup/re-enable failed for ${name}: ${lookupErr.message}`);
+                        // Couldn't act on the account, so NO claims: `uid` is cleared (it was set
+                        // before the failing call). Stamping after a failed take-back would give the
+                        // outsider the member's claims, and the next run would adopt it for good.
+                        uid = undefined;
+                        const what = reclaiming ? 'reclaim-failed' : 'lookup-failed';
+                        failed.push(`${name} (${what}: ${lookupErr.message})`);
+                        console.error(`[setupRosterAuth] ${what} for ${name}: ${lookupErr.message}`);
                     }
                 } else {
                     const reason = err.code || err.message || 'unknown';
@@ -277,7 +319,7 @@ const setupRosterAuth = onRequest(
         }
 
         res.json({
-            created, skipped, disabled, failed,
+            created, skipped, reclaimed, disabled, failed,
             ...(orphanSweepFailed ? { orphanSweepFailed: true } : {}),
             // Present only for a removeOrphans request WITHOUT confirm — the admin previews these,
             // then re-submits with confirmOrphanRemoval:true to actually disable them.
