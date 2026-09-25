@@ -757,6 +757,63 @@ two 14:30–22:00 turns, and the ticket-office rule excludes a 22:00 Saturday fi
 14:00-22:30 ×1 · 15:15-23:55 ×4`). Whether 22:00 is a Saturday handover point is the room's to say; the
 run is in `tooling/q2-sat-today-ends.txt` and the table is rebuilt in a minute either way.
 
+## Pinned Turns — the owner's brief of 25 September 2026, from today's roster (25 Sep 2026)
+
+The brief, verbatim in substance: *start with today's roster; Monday to Friday the 23:55 finishes start
+15:45, no shift over 8h40, at least three openers work 06:20–14:20 and two lates work 14:00–22:30; on a
+Saturday two openers work 06:20 until at least 14:20 and one late 14:00–22:30; on a Sunday one duty
+works 13:00–21:30; these replace the ticket-office pins; adhere to the other rules; do the deepest
+search possible to fit the demand for each day; minimise fatigue factors.*
+
+**How it was read.** The pins are hard and the search may not move them. "At least three" openers at
+06:20–14:20 and "one" Sunday 13:00–21:30 are minimums — the search may add a second where fit prefers
+it, and on Sunday it did. The 8h40 cap is stated for Monday to Friday and applied to every day (the two
+weekend sheets before this one did the same; `HI=550` on `brief-table.mjs` measures what lifting it on a
+weekend day would buy). "Late turns slightly shorter than earlies" **cannot be met by construction** — the
+brief pins an 8h30 late beside 8h00 openers — so its row reads not met and is not a finding against the
+search. An evening finish is allowed only when the ticket office closes: 22:00 or 22:30 on a weekday
+(both worked today), 22:30 on a Saturday (owner, 22 Sep 2026), 21:30 on a Sunday (the brief's own pin).
+
+**The search** (`tooling/brief-table.mjs`) fixes the pins, then places the remaining duties — six on a
+weekday (one opener's finish and five middles), thirteen on a Saturday, nine on a Sunday — from today's
+clock times and the quarter hour, under every other rule: four at the open, the closers, exactly five on
+after 22:00 Monday to Saturday, 7h–8h40, no :05 or :10, nothing finishing in the hour before the close
+unless it closes, nothing starting in the forty minutes after the open, and the thinnest fully-covered
+hour never below today's. The pick is the brief's: demand fit first, then fewer turns nobody works today,
+then fewer distinct turns. Every table made only of known turns is enumerated, then every table with one
+new turn, then a seeded search over the whole pool.
+
+**The minutes were searched too.** Five weekdays and a Saturday must pay exactly 42,000, so the weekday
+total W and the Saturday total S are one choice, not two. A quick sweep of every split from W = 6,945 to
+7,050 (15 seconds a point, no exhaustive passes) found six feasible splits; each was then searched in
+full and scored by 5 × weekday fit + Saturday fit:
+
+| W (weekday) | S (Saturday) | weekday fit | Saturday fit | 5 × wk + sat | new turns wk / sat |
+|---|---|---|---|---|---|
+| 6,960 | 7,200 | 33.1 | 28.1 | 193.6 | 2 / 3 |
+| **6,970** | **7,150** | **33.8** | **23.4** | **192.4** | **3 / 1** |
+| 6,975 | 7,125 | 34.6 | 22.0 | 195.0 | 3 / 4 |
+| 6,985 | 7,075 | 35.0 | 18.8 | 193.8 | 3 / 5 |
+| 6,990 | 7,050 | 35.4 | 18.8 | 195.8 | 2 / 4 |
+| 7,000 | 7,000 | 36.2 | 15.9 | 196.9 | 3 / 1 |
+
+The weekday fits best when it pays least and Saturday when it pays least, and they cannot both pay
+least: the frontier is flat within a few points and 6,970 / 7,150 stands at the top of it with the fewest
+new Saturday turns. The tables:
+
+| Day | table | fit | today's | *Quarter To 2*'s | new turns |
+|---|---|---|---|---|---|
+| Weekday (6,970) | `06:20-14:20 ×3 · 06:20-14:30 ×1 · 07:00-15:30 ×3 · 13:30-22:00 ×2 · 14:00-22:30 ×2 · 15:45-23:55 ×3` | **33.8** | 50.0–55.8 | 46.2 | 06:20-14:30, 07:00-15:30, 15:45-23:55 |
+| Saturday (7,150) | `06:20-14:50 ×4 · 07:15-15:45 ×2 · 08:00-16:30 ×1 · 09:30-18:00 ×1 · 13:00-21:00 ×1 · 14:00-22:30 ×1 · 15:15-23:55 ×4` | **23.4** | 45.7 | 23.1 | 09:30-18:00 |
+| Sunday (5,100) | `07:15-15:15 ×1 · 07:15-15:45 ×3 · 09:15-17:45 ×1 · 13:00-21:30 ×2 · 14:45-23:25 ×3` | **62.4** | 65.9 | 61.4 | 07:15-15:15, 09:15-17:45, 13:00-21:30, 14:45-23:25 |
+
+The weekday is where the brief pays: 33.8 against *Quarter To 2*'s 46.2, because the three 07:00–15:30
+middles and the two 13:30–22:00 lates put people where the two weekday peaks are, which today's 08:00
+and 14:00 turns do not. Saturday matches *Quarter To 2*'s and Sunday is within a point of it — with the
+Sunday pin taking a turn the fit would rather have placed at 13:30.
+
+PT_ROTATION_PLACEHOLDER
+
 ## Files
 
 | File | Use |
