@@ -1605,9 +1605,12 @@ mock. The lesson that produced it is worth keeping: a surface test proves the ha
 not that any of them works, and the Calendar PIN outage was a mint path that had never once run in
 production.
 
-**Still not covered at handler level**, in the order they are worth doing:
-- **`getSignInStats`** — the one Auth handler left. Deliberately last: it is a READ, it returns four
-  integers and no identity, and its aggregation is already pinned by `summariseSignIns`.
+**Every handler is now covered.** The last two closed on 25 Sep 2026:
+- ~~**`getSignInStats`**~~ — **CLOSED.** `auth-endpoints.test.mjs` drives it for real: the population
+  is the server roster minus its admins, every page of accounts is read, the body carries four
+  integers and no identity, nothing is written, a failure is a 500 rather than a count of zero, and
+  it is admin-only. Five mutations, all caught (admins counted, every account counted, only the first
+  page read, identities in the body, an error swallowed as zeros).
 - ~~**The Documents domain**~~ — **CLOSED v22.02.** `documents-endpoints.test.mjs` executes
   `ingestHuddle`, the three `onDocumentCreated` triggers and the scheduled pay reminder against a
   fake Firestore, a fake Storage and a recording transport, organised by cost: a DOUBLE push (both
@@ -1649,9 +1652,20 @@ out of the barrier; Overtime's chained `.finally()` site; paycalc's `afterAuth` 
 severed) plus one negative control confirming it stays quiet on paycalc's legitimate second call
 site in `_showUnsupportedRole`.
 
-**Still genuinely untested:** the Firestore read/write layer in the page modules (behind the
-gstatic-CDN import). Before adding new untested behaviour there, consider whether a unit or
-integration test can be added first.
+**The Firestore read/write layer is now reachable, and its riskiest calls are tested** (25 Sep 2026).
+`firebase-client.js` could not be loaded in Node at all — it imports the SDK from the gstatic CDN, Node
+refuses an `https:` specifier, and `mock.module` resolves before it replaces. A resolve hook
+(`test-fixtures/firebase-sdk/resolve-gstatic.mjs`) now answers those URLs with a recording fake, and
+`firebase-client.test.mjs` drives the real module: push-subscription ownership, the member's own
+documents and the one-retry claim refresh, the password change that must never be reported as failed,
+re-authentication on a transient error, the admin endpoints' forced token refresh, the public reset
+request's absent token, and the analytics writers. Twelve mutations, eleven caught; the survivor (the
+signed-out guard on the document URL) is held again one layer down and says so in the test.
+
+**What is still not covered there:** the read paths that shape admin screens (`getClientErrors`,
+`getUsageStats`, `getPerfStats`) and the upload engine, which is tested through `documents-client.js`
+already. The harness makes any of them a few lines; before adding new behaviour to that file, add the
+test with it.
 
 ### Legacy override types still in Firestore
 Types `"allocated"`, `"overtime"`, `"swap"` are no longer creatable via the UI but
