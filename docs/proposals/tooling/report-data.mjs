@@ -1,5 +1,5 @@
 // Everything the PDF states, computed by the app's own modules for BOTH the live roster and the proposal.
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { asRosteredRuns } from './cover-placement.mjs';
 import { runDesignChecks, weeklyHours, lineTotals, calcHourlyCoverage, classifyShift, startMinutes, endMinutes, endMinutesAbs, dutyMinutes, DAYS, hmFromHours } from '../../../links-design.js';
 import { assessFatigue } from '../../../links-fatigue.js';
@@ -112,6 +112,37 @@ export function assess(p, lines) {
   // verdict. A sheet that printed one number was answering a question nobody asked.
   const asRostered = asRosteredRuns(p, lines);
   return { checks, hours, totals, fatigue, hard, adj, hourly, tableRows, daily, asRostered, feel: feel(p, lines), rest: tightestRest(p, lines), fits: fitsOf(p, lines), heads: headcounts(p, lines) };
+}
+
+/** Every SHIPPED rotation in docs/proposals, assessed — so a sheet can say where it stands in the folder
+ *  ("the best of 21 on weekday fit", "one of six with no factor present") as a computed fact rather than a
+ *  claim. Read at render time from `<Name>-<CODE>.json`; the sheet being rendered is in the set, which is
+ *  what "best in the folder is this one" means. Cached per process. */
+let _folder = null;
+export function folderStats(dir = new URL('..', import.meta.url)) {
+  if (_folder) return _folder;
+  const T0 = today(); const todays = new Set(assess(T0.patterns, T0.lines).tableRows.map(r => r.time));
+  const out = [];
+  for (const f of readdirSync(dir)) {
+    const m = /^(.*)-([A-Z][A-Z0-9]*-24-[A-Z0-9]+)\.json$/.exec(f); if (!m) continue;
+    try {
+      const j = JSON.parse(readFileSync(new URL(f, dir), 'utf8')); const p = j.patterns ?? j; const lines = Object.keys(p).length;
+      const A = assess(p, lines);
+      out.push({ file: f, name: m[1].replace(/-/g, ' '), code: m[2], wk: weekdayFit(p, lines), sat: A.fits.sat, sun: A.fits.sun,
+        present: A.fatigue.present, weekends: A.checks.weekendsOff, run: A.checks.longestStretch, rest: A.rest?.minutes ?? null,
+        oneTurn: A.feel.oneTurn, workingLines: A.feel.workingLines, distinct: A.feel.distinctTimes,
+        newTimes: A.tableRows.filter(r => !todays.has(r.time)).length, turnarounds: A.checks.turnarounds.length });
+    } catch { /* a JSON that is not a rotation is not the folder's business */ }
+  }
+  _folder = out; return out;
+}
+/** Where a value sits in the folder on one metric: lowest, highest, how many share the best, and the rank. */
+export function folderRank(metric, value, lowerIsBetter = true) {
+  const vals = folderStats().map(d => d[metric]).filter(v => v !== null && v !== undefined && !Number.isNaN(v));
+  if (!vals.length) return null;
+  const best = lowerIsBetter ? Math.min(...vals) : Math.max(...vals), worst = lowerIsBetter ? Math.max(...vals) : Math.min(...vals);
+  const better = vals.filter(v => lowerIsBetter ? v < value : v > value).length;
+  return { n: vals.length, best, worst, rank: better + 1, ties: vals.filter(v => v === value).length, isBest: value === best };
 }
 
 export function today() { const p = {}; for (let i = 1; i <= 20; i++) p[String(i)] = { ...weeklyRoster[String(i)] }; return { patterns: p, lines: 20 }; }

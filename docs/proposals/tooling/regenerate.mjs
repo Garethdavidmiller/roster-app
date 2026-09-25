@@ -52,7 +52,7 @@ export const SEARCHED = [
     { proposal: 'Q2', fp: '7ea671d5', globs: ['results/best-W-*.json'] },
     // PT ran in both modes; fatigue-first (RP) cleared every factor where like-today (P) kept one or two, so RP
     // is the family and the best like-today result is shown beside it as a labelled row.
-    { proposal: 'PT', fp: '931e5bfd', globs: ['results/best-RP-*.json'], env: { OTHER_MODE: 'results/best-P-13.json' } },
+    { proposal: 'PT', fp: 'dae6292e', globs: ['results/best-RP-*.json'], env: { OTHER_MODE: 'results/best-P-13.json' } },
 ];
 
 const expand = g => { const [dir, pat] = [g.slice(0, g.lastIndexOf('/')), g.slice(g.lastIndexOf('/') + 1)];
@@ -94,4 +94,12 @@ for (const t of SEARCHED) {
     done++;
 }
 console.log(`\n${done} proposal${done === 1 ? '' : 's'}${failed ? `, ${failed} FAILED` : ''}`);
+// A SHIPPED PDF THAT GIT DOES NOT TRACK IS NOT SHIPPED. `.gitignore` ignores every *.pdf, so `git add docs/proposals`
+// updates the PDFs already tracked and silently skips a NEW one; Quarter To 2's and Pinned Turns' PDFs sat on disk
+// for a day while their JSON and import files were on main (25 Sep 2026). This refuses to report success while any
+// PDF in the folder is untracked, and names the command that fixes it.
+if (ship && !checkOnly) {
+    const untracked = readdirSync('..').filter(f => f.endsWith('.pdf')).filter(f => { try { execFileSync('git', ['ls-files', '--error-unmatch', `../${f}`], { stdio: 'ignore' }); return false; } catch { return true; } });
+    if (untracked.length) { console.log(`\nNOT TRACKED BY GIT — run: git add -f ${untracked.map(f => `docs/proposals/${f}`).join(' ')}`); process.exit(1); }
+}
 process.exit(failed ? 1 : 0);
