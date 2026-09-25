@@ -13,7 +13,7 @@ and every figure in a PDF is computed from the cells it shows — nothing is typ
 | **By the Book** | `BB-24-D7 · 0f14abce` | The workspace's December duty table (the owner's rules in table form), the rotation searched for the ORR factors | **0** | 6 | 6 in 24 |
 | **Quarter To** | `QT-24-Q34 · 70cf9874` | *Same Turns* with the weekday closer at 15:45 and no duty over 8h40 — the two 06:20 openers run on to Saturday's own opening times to keep the contract, so the closer is the only time nobody works today | **0** | 6 | 6 in 24 |
 | **Quarter To 2** | `Q2-24-W21 · 7ea671d5` | *Quarter To* with its own open question answered: **Saturday and Sunday searched again under the 8h40 cap** from today's clock times and the quarter hour — Saturday entirely in today's times (fit 23.1 against 32.7), Sunday one new turn, the capped closer (61.4 against 80.6); every one of its 20 working weeks is one turn | 1 (FF19, one jump) | 6 | 6 in 24 |
-| **Pinned Turns** | `PT-24-P34 · 931e5bfd` | **The owner's brief of 25 Sep 2026** from today's roster: Mon–Fri 15:45 closers, three 06:20–14:20 openers, two 14:00–22:30 lates and an 8h40 cap; Saturday two long openers and a 14:00–22:30; Sunday a 13:00–21:30 — the rest of each day fitted to the timetable (weekday fit 33.8), the rotation fatigue-first | **0** | 6 | 6 in 24 |
+| **Pinned Turns** | `PT-24-P34 · dae6292e` | **The owner's brief of 25 Sep 2026** from today's roster: Mon–Fri 15:45 closers, three 06:20–14:20 openers, two 14:00–22:30 lates and an 8h40 cap; Saturday two long openers and a 14:00–22:30; Sunday a 13:00–21:30 — the rest of each day fitted to the timetable (weekday fit 32.1, one turn off the quarter hour), the rotation fatigue-first | **0** | 6 | 6 in 24 |
 | **Eight Forty** | `EF-24-E21 · 0cf19f56` | *By the Book* with no duty over 8h40 — the December table re-solved under the same rules with the ceiling at 8h40 (its earlies had run to 9h30), then the rotation searched for the ORR factors as *By the Book* was | **0** | 6 | 6 in 24 |
 | **By the Book 2** | `B2-24-G21 · 02f3c005` | *Eight Forty* with **the ticket office written in** — two `14:00-22:30` a day Mon–Sat and two `13:30-22:00` on Sunday, fixed before the search; demand fit ahead of the count of times. Saturday's fit is the best in the folder (8.1), Sunday's the price (35.8) | **0** | 6 | 5 in 24 |
 | **Weekday Lates** | `WL-24-EXT · a52ec588` | **Supplied as a Word table**, not searched — weekday lates at 16:25, Saturdays left alone | 5, or **4 as rostered** | 9 | 6 in 24 |
@@ -829,11 +829,14 @@ Sunday pin taking a turn the fit would rather have placed at 13:30.
 factor costs more than any feel term) and like-today. Fatigue-first cleared **every factor on all four
 seeds**; like-today kept one or two on every seed. So the family is the fatigue-first run, and the best
 like-today result is a labelled row on page 9 for comparison. The pick among the four is seed 34 (six
-full weekends off, the search's own lowest score): `PT-24-P34 · 931e5bfd` — no rest under 12h, a longest
-run of 6, six full weekends off, **zero fatigue factors present**, 15 of 20 working weeks a single turn,
-and 8 of its 16 times worked today. Beside *Quarter To 2*: a weekday fit of 33.8 against 46.2 and no
-factor against one, paid for in familiarity — eight new times against two — and in a Sunday that the
-pin makes marginally less even than the one searched freely.
+full weekends off, the search's own lowest score): `PT-24-P34 · dae6292e` — no rest under 12h, a longest
+run of 6, six full weekends off, **zero fatigue factors present**, 14 of 20 working weeks a single turn,
+and 9 of its 16 times worked today. Beside *Quarter To 2*: a weekday fit of 32.1 against 46.2 and no
+factor against one, paid for in familiarity — seven new times against two — and in a Sunday that the
+pin makes marginally less even than the one searched freely. (The sheet first shipped as `931e5bfd` on
+the on-grid table at 33.8, with 15 one-turn weeks and 8 of 16 times today's; the moved table replaced
+it the same day, re-annealed in both modes with the same result — fatigue-first clears every factor on
+all four seeds, like-today keeps one or two.)
 
 ## The shape of a sheet — headline, how to read it, then the depth (25 Sep 2026)
 
