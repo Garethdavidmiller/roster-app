@@ -44,7 +44,9 @@ const defRows = k => DEF.filter(r => r[k] > 0).map(r => [r.time, r[k]]);
 // P (25 Sep 2026): "Pinned Turns" -- the owner's brief from today's roster (brief-table.mjs), assembled by
 // assemble-table.mjs and read from its output. Run in BOTH modes: MODE=rules to minimise the factors, MODE=feel
 // for the like-today comparison; the picker takes whichever mode carries fewer factors.
-const TABLE_FILE = { E: './eight-forty-table.json', G: './by-the-book-2-table.json', W: './quarter-to-2-table.json', P: './pinned-turns-table.json' }[VARIANT];
+// N (25 Sep 2026): "Pinned Turns 2" -- the same pins with EVERY OTHER TIME ON THE QUARTER HOUR (quarter-table.mjs:
+// the weekday and Sunday enumerated to a proof, the Saturday too), assembled and read as P is; both modes, as P.
+const TABLE_FILE = { E: './eight-forty-table.json', G: './by-the-book-2-table.json', W: './quarter-to-2-table.json', P: './pinned-turns-table.json', N: './pinned-turns-2-table.json' }[VARIANT];
 const EF = TABLE_FILE ? JSON.parse(readFileSync(new URL(TABLE_FILE, import.meta.url), 'utf8')).slots : null;
 const efRows = k => EF.filter(r => r[k] > 0).map(r => [r.time, r[k]]);
 const SAT_ = VARIANT === 'D' ? defRows('sat') : EF ? efRows('sat') : null, SUN_ = VARIANT === 'D' ? defRows('sun') : EF ? efRows('sun') : null, WK_ = VARIANT === 'D' ? defRows('weekday') : EF ? efRows('weekday') : null;
