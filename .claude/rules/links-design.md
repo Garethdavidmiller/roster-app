@@ -258,6 +258,20 @@ the two views cannot report a design differently four seconds apart, and **it sc
 **An UNCHANGED figure still renders, muted.** Showing only what moved would leave the reader unable
 to tell "identical" from "not measured", which is this app's most repeated defect class.
 
+**Under the strip, what the difference MEANS** (v24.25 — `links-compare-analysis.js`, rendered by
+`renderAnalysis`). Three groups for both designs: **against the service** (hours with trains and
+nobody on, each design read against its OWN window, and people on at each day's busiest hour by
+train length), **hard limits**, and **fatigue factors** (the ones whose finding changes with both
+readings; the ones that only moved a figure behind a disclosure; the ones present in BOTH named; the
+rest counted). Every figure is the single-design card's own function called the same way, and
+nothing is scored. It is the gap the plan recorded as deferred until real proposals existed.
+Three things it must not state more strongly than the Design checks card does, each found by review
+before it shipped: the **weekday** busiest-hour row is the FEWEST on duty on any of Mon–Fri, naming the
+day (reading Monday for all five showed a bare Friday as staffed); every moved factor carries its
+**threshold** and its **"definition to confirm"** flag, and a floor note when hours are a floor; and
+the limit heading is `LIMIT_CLAIM`, derived from `POLICY_SOURCE_CONFIRMED`, never typed. A window edit
+made in compare mode re-renders it.
+
 **The compare cells are `<span>`, not `<button>`** (v22.60). They cannot be operated —
 `.links-grid--compare` sets `pointer-events: none` and each carried `tabindex="-1"` — so as buttons
 they announced hundreds of controls to a screen reader that do nothing when reached. The class stays

@@ -4,6 +4,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ROTATING_LINES, weeklyHours, hmFromHours } from './links-design.js';
+import { readFileSync } from 'node:fs';
+import { LIMIT_CLAIM } from './links-limits.js';
 
 const els = /** @type {Record<string, any>} */ ({});
 function mkEl() {
@@ -25,7 +27,7 @@ function mkEl() {
     };
 }
 function resetDom() {
-    for (const id of ['compareGridsWrap', 'compareHeadA', 'compareHeadB', 'compareGridBodyRowsA', 'compareGridBodyRowsB', 'compareGridFootA', 'compareGridFootB', 'compareSummary', 'compareFilter']) els[id] = mkEl();
+    for (const id of ['compareGridsWrap', 'compareHeadA', 'compareHeadB', 'compareGridBodyRowsA', 'compareGridBodyRowsB', 'compareGridFootA', 'compareGridFootB', 'compareSummary', 'compareFilter', 'compareAnalysis']) els[id] = mkEl();
     // The button lives inside `compareFilter`'s innerHTML, which a fake DOM does not parse. Standing
     // it up here is what lets a test PRESS it — the alternative is exposing the flag for tests,
     // which would leave the one line that actually flips it uncovered.
@@ -528,4 +530,84 @@ test('scroll sync: the column being scrolled is never yanked back by its partner
         assert.equal(a.scrollLeft, 52.4,
             'A keeps the position the designer actually scrolled to — the echo must not write back');
     }, undefined, Math.floor);
+});
+
+
+// ── WHAT THE DIFFERENCE MEANS (v24.25) ─────────────────────────────────────────────────────────────
+//
+// The analysis under the strip: cover against the service, the hard limits and the fatigue factors,
+// for both designs. The arithmetic is pinned in links-compare-analysis.test.mjs; these pin that the
+// COMPARE VIEW actually renders it — the wiring the plan's "deferred, not rejected" entry asked for.
+// Real designs, so the rows asserted are ones a designer would read.
+const proposal = (/** @type {string} */ f) =>
+    JSON.parse(readFileSync(new URL(`./docs/proposals/${f}`, import.meta.url), 'utf8')).patterns;
+
+/** Compare two real proposals, and return the analysis HTML. */
+function analysisOf(/** @type {any} */ pa, /** @type {any} */ pb, /** @type {any} */ extraB = {}) {
+    resetDom();
+    const designs = [{ id: 'a', name: 'A', patterns: pa }, { id: 'b', name: 'B', patterns: pb, ...extraB }];
+    const c = initLinksCompare(makeDeps({ getDesigns: () => designs, getDesign: () => designs[0] }).deps);
+    c.toggleCompareMode();
+    return els.compareAnalysis.innerHTML;
+}
+
+test('analysis: the three questions a comparison is for are all answered', () => {
+    const html = analysisOf(proposal('Pinned-Turns-PT-24-P34.json'), proposal('Fifteen-Turns-FT-24-EXT.json'));
+    for (const h of ['Against the service', 'Company limits', 'Fatigue factors']) assert.match(html, new RegExp(h));
+    assert.match(html, /Hours with trains and nobody on/);
+    assert.match(html, /Fewest on duty at the busiest hour — Mon–Fri 17:00/);
+    assert.match(html, /Fewest on: this design /, 'and it names the day that is fewest');
+});
+
+test('analysis: the limit heading is DERIVED from the policy switch, never typed (v20.08)', () => {
+    const html = analysisOf(proposal('Pinned-Turns-PT-24-P34.json'), proposal('Fifteen-Turns-FT-24-EXT.json'));
+    assert.ok(html.includes(LIMIT_CLAIM), 'the same claim the Design checks card states');
+    assert.doesNotMatch(html, /Hard limits/, 'v24.25 typed a stronger heading than the evidence carries');
+});
+
+test('analysis: a to-confirm factor says so, and each moved factor states its threshold', () => {
+    const html = analysisOf(proposal('Pinned-Turns-PT-24-P34.json'), proposal('Fifteen-Turns-FT-24-EXT.json'));
+    assert.match(html, /definition to confirm/);
+    assert.match(html, /FF11[\s\S]*?threshold 13/);
+});
+
+test('analysis: a factor whose finding changes is shown with BOTH readings', () => {
+    const html = analysisOf(proposal('Pinned-Turns-PT-24-P34.json'), proposal('Fifteen-Turns-FT-24-EXT.json'));
+    assert.match(html, /FF11[\s\S]*?clear \(11\) → present \(14\)/, 'FF11 moves from clear to present');
+    assert.match(html, /Factors present[\s\S]*?0 → 7/);
+});
+
+test('analysis: a factor present in both designs is NAMED, not folded into a count', () => {
+    const ft = proposal('Fifteen-Turns-FT-24-EXT.json');
+    const html = analysisOf(ft, ft);
+    assert.match(html, /Present in both: /);
+    assert.match(html, /FF11 More than 13 consecutive shifts/);
+    assert.match(html, /No factor changes its finding between the two designs/);
+});
+
+test('analysis: unchanged rows still render, muted — "the same" is not "not measured"', () => {
+    const pt = proposal('Pinned-Turns-PT-24-P34.json');
+    const html = analysisOf(pt, pt);
+    assert.match(html, /compare-sum-val--same[^>]*>0 → 0</, 'a zero-to-zero row is still drawn');
+    assert.match(html, /read the same in both/);
+});
+
+test('analysis: two designs staffed over different hours are called out as not like for like', () => {
+    const pt = proposal('Pinned-Turns-PT-24-P34.json');
+    const narrow = { monSat: { start: '06:20', end: '23:55' }, sun: { start: '07:15', end: '21:00' } };
+    assert.match(analysisOf(pt, pt, { window: narrow }), /staffed over different hours/);
+    assert.doesNotMatch(analysisOf(pt, pt), /staffed over different hours/);
+});
+
+test('analysis: the section is NOT a live region — it is long, and the strip above already is one', () => {
+    const html = readFileSync(new URL('./links.html', import.meta.url), 'utf8');
+    const tag = html.match(/<section id="compareAnalysis"[^>]*>/)?.[0] ?? '';
+    assert.ok(tag, 'the section exists in the page');
+    assert.doesNotMatch(tag, /role="status"|aria-live/);
+});
+
+test('analysis: a figure that moved without changing the finding is behind its own disclosure', () => {
+    const html = analysisOf(proposal('Pinned-Turns-PT-24-P34.json'), proposal('Pinned-Turns-2-P2-24-N13.json'));
+    assert.match(html, /<details class="compare-an-more"><summary>\d+ more moved a figure without changing the finding/);
+    assert.match(html, /FF11[\s\S]*?clear \(11\) → clear \(9\)/);
 });

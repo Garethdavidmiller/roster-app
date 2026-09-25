@@ -80,6 +80,7 @@
     <link rel="modulepreload" href="./links-target-sets-store.js">
     <link rel="modulepreload" href="./links-tips.js">
     <link rel="modulepreload" href="./links-window.js">
+    <link rel="modulepreload" href="./links-compare-analysis.js">
     <link rel="modulepreload" href="./login-overlay.js">
     <link rel="modulepreload" href="./ls.js">
     <link rel="modulepreload" href="./nav-panel.js">
@@ -405,6 +406,12 @@
                          region, so a control inside it has its label re-announced on every render.
                          Filled by `renderCompareFilter`; hidden when there is nothing to filter to. -->
                     <div id="compareFilter" class="compare-filter" hidden></div>
+                    <!-- WHAT THE DIFFERENCE MEANS (v24.25): cover against the service, the hard
+                         limits and the fatigue factors, for both designs. Not a live region — it is
+                         long, and a screen reader re-reading it on every render would drown the
+                         strip above, which is. Filled by `renderAnalysis` in links-compare.js from
+                         the pure `compareDesigns` (links-compare-analysis.js). -->
+                    <section id="compareAnalysis" class="compare-analysis" aria-label="What the difference means"></section>
                     <div class="compare-col">
                         <div class="compare-col-head compare-col-head--a" id="compareHeadA"></div>
                         <div class="links-grid-wrapper compare-grid-scroll" tabindex="0" role="group" aria-labelledby="compareHeadA">

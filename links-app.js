@@ -392,6 +392,7 @@ export function init() {
             dirty = true;
             updateSaveBtn();
             renderCoverageCard();   // repaints the editor, so the moved flag follows the change
+            compare.renderCompare();   // the column heads and the analysis read the window too (v24.25)
         }
 
         for (const row of /** @type {const} */ (['monSat', 'sun'])) {
@@ -405,6 +406,7 @@ export function init() {
             dirty = true;
             updateSaveBtn();
             renderCoverageCard();   // repaints the editor too — no separate paint() needed
+            compare.renderCompare();
         });
         return paint;
     }
