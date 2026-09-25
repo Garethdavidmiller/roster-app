@@ -1,14 +1,15 @@
 # LATENCY.md — sign-in and Calendar start
 
-*Renamed from `LATENCY_PLAN.md` (8 Sep 2026). Its own summary says it best: "This is no longer a
-programme of engineering. It is TWO OPEN ITEMS and a close-out rule." Phase 1 shipped, Phase 3 was
-priced and declined, Phase 4's trigger never fired. It holds the measurements and the decision rule.*
+*Renamed from `LATENCY_PLAN.md` (8 Sep 2026). **CLOSED 19 Sep 2026** — every item in the table below
+is answered and nothing is open; see THE CLOSING READ. Phase 1 shipped, Phase 2 closed on its own rule,
+Phase 3 was priced and declined, Phase 4's trigger never fired. It holds the measurements and the
+decision rules, kept for whoever reopens the question.*
 
 
 *Created August 2026 (at v21.30), external review. Not version-stamped; not a runtime asset.*
 
-**This is no longer a programme of engineering. It is TWO OPEN ITEMS and a close-out rule** (deep
-review, 30 Aug 2026). It began as four phases to do in measured order; the measuring is what ended
+**This is no longer a programme of engineering.** On 30 Aug 2026 it was two open items and a
+close-out rule (deep review); by 19 Sep 2026 both items were answered, as the table shows. It began as four phases to do in measured order; the measuring is what ended
 that. Phase 1 shipped. Phase 3 was priced at 4.6–52 ms against a wall of over a second and
 **declined**. Phase 4's trigger did not fire. What remains is not work:
 

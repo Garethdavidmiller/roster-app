@@ -1635,10 +1635,11 @@ raises, nothing renders differently, and nothing went red. Measured rather than 
 test in `e2e/calendar.spec.js` with it. e2e could never have seen it — the page renders identically either way.
 
 That mattered more than an ordinary coverage gap because of what depends on it. `recordPageLatency`
-is the wire the **mid-October latency reading** runs on (MAINTENANCE_CALENDAR; `LATENCY.md` → THE
-FULL-MONTH READ → item 6), including `readyProvisional`, the measurement added at v23.70 to separate
-the two readings of the fast path that the aggregate cannot. A regression there would not look like
-an error — it would look like a thinner sample that still reads as data.
+is the wire every latency reading runs on, including `readyProvisional`, the measurement added at
+v23.70 to separate the two readings of the fast path that the aggregate cannot. That reading was
+taken on 19 Sep 2026 (`LATENCY.md` → THE CLOSING READ) and the file is closed, but the wire stays in
+use for the App Speed card. A regression there would not look like an error — it would look like a
+thinner sample that still reads as data.
 
 `page-contract-parity.test.mjs` now pins all seven coordinators: each calls all three, and each call
 sits inside that page's declared auth barrier rather than at module scope. All seven were correctly

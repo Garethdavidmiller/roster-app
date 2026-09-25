@@ -503,7 +503,9 @@ understood when the option was chosen. It also does nothing for URLs already in 
 `roles/iam.serviceAccountTokenCreator` on the runtime service account, granted to ITSELF. Without it
 every call answers 503 — which the client is required to treat as "use the stored URL", so a missing
 grant degrades to today's behaviour rather than to a dead button. RECOVERY_RUNBOOK.md holds the
-grant; `ARCHITECTURE.md` EXC-007 stays open until the client half ships and the old URLs are rotated.
+grant. The client half shipped at v24.19 (the nav drawer, `calendar-doc-viewer.js` and
+`calendar-huddle-viewer.js` all fetch the short-lived URL through `document-url.js`), so
+`ARCHITECTURE.md` EXC-007 now stays open only until the old URLs are rotated.
 
 **And one action needs no decision at all.** Rotation is a step every option shares, and it can be
 taken alone: re-writing the objects turns "whoever ever held a URL" into "whoever held one since the
