@@ -27,8 +27,10 @@ const RULES = readFileSync(new URL('./firestore.rules', import.meta.url), 'utf8'
 describe('who may be handed a URL — and it must MIRROR firestore.rules', () => {
 
     test('the three doors the rules open, and nothing else', () => {
-        assert.equal(C.mayReceiveDocumentUrl({ name: 'G. Miller', email: 'g.miller@myb-roster.local',
+        assert.equal(C.mayReceiveDocumentUrl({ name: 'G. Miller', member: 'G. Miller', email: 'g.miller@myb-roster.local',
             firebase: { sign_in_provider: 'password' } }), true, 'a member, on the account that name derives to');
+        assert.equal(C.mayReceiveDocumentUrl({ name: 'G. Miller', email: 'g.miller@myb-roster.local',
+            firebase: { sign_in_provider: 'password' } }), false, 'v24.27: the same account WITHOUT the server-set member claim');
         // v24.23: a bare `name` is a self-set display name as often as it is a member, exactly as
         // `isMember()` in the rules — so it is NOT a door on its own.
         assert.equal(C.mayReceiveDocumentUrl({ name: 'G. Miller' }), false, 'a bare name string');

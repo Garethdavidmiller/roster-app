@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '24.26';
+export const APP_VERSION = '24.27';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -177,7 +177,11 @@ export const CONFIG = {
     //   The sweep has SETTLED and the B3 STRICT override-isolation rule shipped (v16.29): the
     //   no-name/legacy escape is gone and overrides now require a matching `name`/admin/manager claim.
     //   See SECURITY_RELEASE_PLAN.md → B3.
-    CLAIM_EPOCH:                      2,
+    //   RAISED to 3 at v24.27, the release in which the rules and endpoints begin REQUIRING the
+    //   server-set `member` claim. Set up accounts stamped it at v24.24; this makes every device fetch
+    //   a token carrying it on next open rather than within the hour (KNOWN_LIMITATIONS → "The member
+    //   claim").
+    CLAIM_EPOCH:                      3,
     // In-place sign-in (AUTH_ARCHITECTURE.md → "Phase 9 — Remove the post-login reload"). When a
     // protected page's login overlay confirms a sign-in, OFF (false) = today's behaviour: the
     // overlay's onSuccess does `window.location.reload()` and the reloaded page re-runs init. ON

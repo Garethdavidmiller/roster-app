@@ -1819,7 +1819,7 @@ they are latent, owner-territory, or within a documented tolerance. Each is real
 
 ---
 
-## The member claim — the residual after v24.23 (open)
+## The member claim — one optional console step remains
 
 **What v24.23 closed.** Every member rule and endpoint used to believe `request.auth.token.name` on
 sight. Firebase fills `name` from the account's DISPLAY NAME, which any session may set for itself,
@@ -1830,7 +1830,7 @@ The shared PIN account was created with a display name, so every PIN session alr
 to; one account per email makes that the real member. `firestore.rules` (`isMember`) and
 `functions/member-identity.js` apply it, and both are tested against every roster name.
 
-**What it does not close — and it is wider than this entry first said.** The binding asks whether
+**What it did not close, until v24.27 — and it was wider than this entry first said.** The binding asks whether
 the email matches the name; it does not ask whether the name is ON THE ROSTER. So anybody can sign up
 from the client at an address that derives from a name nobody has — `z.zzz@myb-roster.local`, display
 name "Z. Zzz" — and that token passes `isMember()` in full: every member's overrides, the three
@@ -1858,17 +1858,18 @@ which Set up accounts would then have adopted. Both exist because client sign-up
    Staff Login Accounts audit lists every member as needing it (their claims lack `member`), which is
    the signal working, not a fault. Then wait an hour, so every live token has refreshed onto the new
    claim.
-3. **Next release — require it.** `isMember` in `firestore.rules` and `memberNameFromClaims` in
+3. **SHIPPED v24.27 — require it.** `isMember` in `firestore.rules` and `memberNameFromClaims` in
    `functions/member-identity.js` believe a member only when `member == name`, on top of the v24.23
-   email binding. From then on a self-registered account carries nothing the rules or endpoints
-   believe. This cannot ship before step 2: a token without `member` would lose every member read
-   and write.
-4. **Not a free step — client sign-up in the Firebase console.** Turning it off would close the
-   invented-name case today, before step 3. But the app still signs in ANONYMOUSLY
-   (`calendar-access.js`, `session.js`), and the console's sign-up switch may block new anonymous
-   accounts too — read its description before switching, and check a private-window Calendar still
-   loads afterwards. After step 3 it grants nothing either way.
+   email binding, and `CLAIM_EPOCH` rose to 3 so every device fetches a token carrying the claim on
+   its next open. A self-registered account — at an invented name's address or a real member's —
+   now carries nothing the rules or endpoints believe. Shipped after step 2, as it had to be: a
+   token without `member` loses every member read and write.
+4. **Client sign-up in the Firebase console — hygiene now, not a control.** After step 3 it grants
+   nothing. If it is ever switched off, remember the app still signs in ANONYMOUSLY
+   (`calendar-access.js`, `session.js`) and the switch may block new anonymous accounts too — check a
+   private-window Calendar still loads afterwards.
 
-**Step 3 is what closes this, so it should follow step 2 as soon as the hour has passed** — every day
-between them is a day the invented-name case stays open.
+For a new starter, running "Set up accounts" promptly is still good practice, but it is no longer the
+security control: an account registered at their email before that run is refused everywhere, and
+the run takes it back.
 

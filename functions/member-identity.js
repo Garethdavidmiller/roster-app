@@ -21,6 +21,13 @@
  *
  * It returns the NAME rather than a boolean so a caller cannot check the binding and then read the
  * unchecked field anyway: the only way to a member name from a token is through here.
+ *
+ * ── AND THE SERVER-ONLY CLAIM (v24.27) ──────────────────────────────────────────────────────────
+ *
+ * The binding left one door: a name with no account yet could be registered by anybody at its
+ * derived email, and that account passed it. `member` is a custom claim setupRosterAuth stamps, equal
+ * to the name, which nothing a client can do produces — so it is required here too, exactly as
+ * `isMember()` requires it. KNOWN_LIMITATIONS.md → "The member claim".
  */
 
 const { nameToEmail } = require('./roster-parse-helpers');
@@ -36,6 +43,7 @@ function memberNameFromClaims(claims) {
     if (typeof name !== 'string' || !name) return null;
     if (claims.firebase?.sign_in_provider !== 'password') return null;
     if (typeof claims.email !== 'string' || !claims.email) return null;
+    if (claims.member !== name) return null;
     return claims.email.toLowerCase() === nameToEmail(name).toLowerCase() ? name : null;
 }
 
