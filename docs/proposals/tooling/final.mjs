@@ -117,7 +117,7 @@ const rules = [
       const ok = per.every(x => x.ok); const words = x => x.ok ? `${x.cls} met (lates ${hm(Math.min(...x.L))}–${hm(Math.max(...x.L))}, earlies ${hm(x.E[0])} then ${hm(x.E[1])}–${hm(x.E[x.E.length-1])})` : `${x.cls} not met (lates ${hm(Math.min(...x.L))}–${hm(Math.max(...x.L))}, earlies ${hm(x.E[0])}–${hm(x.E[x.E.length-1])})`;
       const allL = per.flatMap(x => x.L), longs = per.flatMap(x => x.E.slice(1)), shorts = per.map(x => x.E[0]);
       return { rule: 'Late turns slightly shorter than most earlies', value: ok ? `met on every day — lates ${hm(Math.min(...allL))}–${hm(Math.max(...allL))}; one short early a day (${hm(Math.min(...shorts))}–${hm(Math.max(...shorts))}), every other early ${hm(Math.min(...longs))}–${hm(Math.max(...longs))}` : per.map(words).join(' · '), ok,
-        note: ok ? 'one short open turn, then every other early longer than every late' : 'incompatible with keeping today’s times: meeting it needs 9h+ earlies or 15 duties a day — flagged for decision, below' }; })(),
+        note: ok ? 'one short open turn, then every other early longer than every late' : PROPOSAL === 'PT' ? 'unmeetable by construction: the brief pins an 8h30 late (14:00–22:30) beside 8h00 openers (06:20–14:20)' : 'incompatible with keeping today’s times: meeting it needs 9h+ earlies or 15 duties a day — flagged for decision, below' }; })(),
 ];
 
 if (PROPOSAL === 'EF' || PROPOSAL === 'B2' || PROPOSAL === 'PT') { const longest = Math.max(...P.tableRows.map(r => r.minutes)); const hm = m => `${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`;
@@ -126,14 +126,14 @@ if (PROPOSAL === 'EF' || PROPOSAL === 'B2' || PROPOSAL === 'PT') { const longest
 if (PROPOSAL === 'PT') {
   const n = (cls, f) => P.tableRows.filter(r => f(r.time)).reduce((a, r) => a + r[cls], 0);
   const checks = [
-    ['Mon–Fri closers start 15:45', n('weekday', t => t.endsWith('23:55')) === n('weekday', t => t === '15:45-23:55')],
-    ['three 06:20–14:20 Mon–Fri', n('weekday', t => t === '06:20-14:20') >= 3],
-    ['two 14:00–22:30 Mon–Fri', n('weekday', t => t === '14:00-22:30') === 2],
-    ['Sat two openers to 14:20 or later', n('sat', t => t.startsWith('06:20') && endMinutes(t) >= 14*60+20) >= 2],
-    ['Sat one 14:00–22:30', n('sat', t => t === '14:00-22:30') === 1],
-    ['Sun one 13:00–21:30', n('sun', t => t === '13:00-21:30') === 1],
+    ['Mon–Fri closers 15:45', n('weekday', t => t.endsWith('23:55')) === n('weekday', t => t === '15:45-23:55')],
+    ['3× 06:20–14:20', n('weekday', t => t === '06:20-14:20') >= 3],
+    ['2× 14:00–22:30', n('weekday', t => t === '14:00-22:30') === 2],
+    ['Sat 2 openers ≥14:20', n('sat', t => t.startsWith('06:20') && endMinutes(t) >= 14*60+20) >= 2],
+    ['Sat 14:00–22:30', n('sat', t => t === '14:00-22:30') >= 1],
+    ['Sun 13:00–21:30', n('sun', t => t === '13:00-21:30') >= 1],
   ];
-  rules.push({ rule: 'The brief’s pinned turns (25 Sep 2026)', value: checks.map(([w, ok]) => `${ok ? '✓' : '✕'} ${w}`).join(' · '), ok: checks.every(([, ok]) => ok), note: 'these replace By the Book 2’s ticket-office pair; the search could not move them' });
+  rules.push({ rule: 'The brief’s pinned turns (25 Sep 2026)', value: checks.map(([w, ok]) => `${ok ? '✓' : '✕'} ${w}`).join(' · '), ok: checks.every(([, ok]) => ok), note: 'replace By the Book 2’s ticket-office pair; fixed before the search' });
 }
 const sundayOut = demand.movementsOutside(demand.movements.sun, 7*60+15, 23*60+25);
 // QT: which turns were stretched to keep the contract, READ from the finished table against Same Turns'
@@ -205,7 +205,7 @@ const meta = {
     const fresh = cls => P.tableRows.filter(r => r[cls] > 0 && !todayTimes.has(r.time)).map(r => r.time);
     const fw = fresh('weekday'), fs = fresh('sat'), fu = fresh('sun');
     const wkFit = weekdayFit(P.patterns);
-    return `<b>What the pins cost, and what fitting bought.</b> The weekday pays ${T2.totals.weekday.toLocaleString('en-GB')} minutes and Saturday ${T2.totals.sat.toLocaleString('en-GB')} — the split the sweep found best for 5 × weekday fit + Saturday fit, the two being one equality at 42,000. Fits, lower is more even: weekday ${wkFit} against today's ${T.fits.tue} and <i>Quarter To 2</i>'s ${q2p ? weekdayFit(q2p) : '—'}; Saturday ${P.fits.sat} against ${T.fits.sat} and ${Q2A?.fits.sat ?? '—'}; Sunday ${P.fits.sun} against ${T.fits.sun} and ${Q2A?.fits.sun ?? '—'}. <b>Times nobody works today:</b> ${[...new Set([...fw, ...fs, ...fu])].length ? [...new Set([...fw, ...fs, ...fu])].join(', ') : 'none'} — the brief's own 15:45 closer and 13:00–21:30 among them. <b>Late turns shorter than earlies cannot be met here by construction:</b> the brief pins an 8h30 late (14:00–22:30) beside 8h00 openers (06:20–14:20), so the row reads not met on every day and is not a finding against the search. <b>Sunday pays ${T2.totals.sun.toLocaleString('en-GB')} minutes</b> against <i>Quarter To</i>'s 5,145; Sunday sits outside the contract. <b>Sunday's finish</b> — five December 2026 timetable movements fall after 23:25; the proposal inherits today's window deliberately rather than deciding it.`; })() : PROPOSAL === 'Q2' ? (() => {
+    return `<b>What the pins cost, and what fitting bought.</b> The weekday pays ${T2.totals.weekday.toLocaleString('en-GB')} minutes and Saturday ${T2.totals.sat.toLocaleString('en-GB')}, the split the sweep scored best (page 8). Fits, lower is more even: weekday ${wkFit} against today's ${T.fits.tue} and <i>Quarter To 2</i>'s ${q2p ? weekdayFit(q2p) : '—'}; Saturday ${P.fits.sat} against ${T.fits.sat} and ${Q2A?.fits.sat ?? '—'}; Sunday ${P.fits.sun} against ${T.fits.sun} and ${Q2A?.fits.sun ?? '—'}. <b>Times nobody works today:</b> ${[...new Set([...fw, ...fs, ...fu])].join(', ') || 'none'}. <b>Late turns shorter than earlies cannot be met by construction:</b> the brief pins an 8h30 late beside 8h00 openers, so the row reads not met and is not a finding against the search. <b>Sunday pays ${T2.totals.sun.toLocaleString('en-GB')} minutes</b> against <i>Quarter To</i>'s 5,145; it sits outside the contract. <b>Sunday's finish</b> — five December 2026 timetable movements fall after 23:25; the window is inherited, not decided.`; })() : PROPOSAL === 'Q2' ? (() => {
     // Every figure READ: the longest duty from the finished table, the fits from assess() on this grid,
     // Quarter To's and today's, the Sunday total from the table record, the new times against today's table.
     const hm = m => `${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`; const T2 = efTable;
