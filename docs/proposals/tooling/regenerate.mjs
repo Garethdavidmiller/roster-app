@@ -53,6 +53,9 @@ export const SEARCHED = [
     // PT ran in both modes; fatigue-first (RP) cleared every factor where like-today (P) kept one or two, so RP
     // is the family and the best like-today result is shown beside it as a labelled row.
     { proposal: 'PT', fp: 'dae6292e', globs: ['results/best-RP-*.json'], env: { OTHER_MODE: 'results/best-P-13.json' } },
+    // P2 ran in both modes too, with the same outcome: fatigue-first (RN) cleared every factor on all four seeds, like-today (N)
+    // kept one (FF19) on every seed. The like-today best is the labelled comparison row.
+    { proposal: 'P2', fp: '33a78cbe', globs: ['results/best-RN-*.json'], env: { OTHER_MODE: 'results/best-N-7.json' } },
 ];
 
 const expand = g => { const [dir, pat] = [g.slice(0, g.lastIndexOf('/')), g.slice(g.lastIndexOf('/') + 1)];

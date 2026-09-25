@@ -13,6 +13,7 @@ and every figure in a PDF is computed from the cells it shows — nothing is typ
 | **By the Book** | `BB-24-D7 · 0f14abce` | The workspace's December duty table (the owner's rules in table form), the rotation searched for the ORR factors | **0** | 6 | 6 in 24 |
 | **Quarter To** | `QT-24-Q34 · 70cf9874` | *Same Turns* with the weekday closer at 15:45 and no duty over 8h40 — the two 06:20 openers run on to Saturday's own opening times to keep the contract, so the closer is the only time nobody works today | **0** | 6 | 6 in 24 |
 | **Quarter To 2** | `Q2-24-W21 · 7ea671d5` | *Quarter To* with its own open question answered: **Saturday and Sunday searched again under the 8h40 cap** from today's clock times and the quarter hour — Saturday entirely in today's times (fit 23.1 against 32.7), Sunday one new turn, the capped closer (61.4 against 80.6); every one of its 20 working weeks is one turn | 1 (FF19, one jump) | 6 | 6 in 24 |
+| **Pinned Turns 2** | `P2-24-N13 · 33a78cbe` | *Pinned Turns*' pins with **every other time rewritten onto the quarter hour** (the pinned 06:20–14:20 the one exception, and the contract's arithmetic needs it) and **no more shift times a day than *Pinned Turns*** — each day enumerated to a proof (weekday fit 33.8, Saturday 22.9, Sunday 62.4; 14 distinct turns in the week), the rotation fatigue-first | **0** | 6 | 6 in 24 |
 | **Pinned Turns** | `PT-24-P34 · dae6292e` | **The owner's brief of 25 Sep 2026** from today's roster: Mon–Fri 15:45 closers, three 06:20–14:20 openers, two 14:00–22:30 lates and an 8h40 cap; Saturday two long openers and a 14:00–22:30; Sunday a 13:00–21:30 — the rest of each day fitted to the timetable (weekday fit 32.1, one turn off the quarter hour), the rotation fatigue-first | **0** | 6 | 6 in 24 |
 | **Eight Forty** | `EF-24-E21 · 0cf19f56` | *By the Book* with no duty over 8h40 — the December table re-solved under the same rules with the ceiling at 8h40 (its earlies had run to 9h30), then the rotation searched for the ORR factors as *By the Book* was | **0** | 6 | 6 in 24 |
 | **By the Book 2** | `B2-24-G21 · 02f3c005` | *Eight Forty* with **the ticket office written in** — two `14:00-22:30` a day Mon–Sat and two `13:30-22:00` on Sunday, fixed before the search; demand fit ahead of the count of times. Saturday's fit is the best in the folder (8.1), Sunday's the price (35.8) | **0** | 6 | 5 in 24 |
@@ -930,7 +931,16 @@ seven-turn table's thirteen); the cap costs 1.6 of fit for two fewer shift times
 would cost 3.3 more. Sunday at today's four turns would read 68.2 against 62.4. The sheet ships the
 capped tables and states the ladder on its page 7.
 
-ROTATION-TBD
+**The rotation was searched in both of the anneal's modes**, four seeds each, exactly as *Pinned Turns*'
+was, and with the same outcome: fatigue-first cleared **every factor on all four seeds**; like-today kept
+one (FF19) on every seed. So the family is the fatigue-first run and the best like-today result is a
+labelled row on page 9. The pick among the four is seed 13 (six full weekends off, one hybrid week; seed
+7 scores lower on the search's own objective but leaves only four weekends off): `P2-24-N13 · 33a78cbe`
+— no rest under 12h, a longest run of 6, six full weekends off, **zero fatigue factors present**, 16 of
+20 working weeks a single turn, fourteen distinct turns in the week (*Pinned Turns* has sixteen, today's
+roster eighteen), and 6 of its 14 times worked today. Beside *Pinned Turns*: the same rules result, a
+weekday fit 1.7 worse and a Saturday half a point better, every unpinned time on the quarter hour, two
+fewer shift times to hold.
 
 ## The shape of a sheet — headline, how to read it, then the depth (25 Sep 2026)
 
