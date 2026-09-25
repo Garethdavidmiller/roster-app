@@ -2344,9 +2344,13 @@
             touch-action: manipulation;
         }
         @media (hover: hover) and (pointer: fine) {
-            .staged-discard-btn:hover { border-color: rgba(255,255,255,0.7); color: white; }
-            .staged-save-btn:hover    { background: var(--accent-gold-dark); }
+            .staged-discard-btn:hover:not(:disabled) { border-color: rgba(255,255,255,0.7); color: white; }
+            .staged-save-btn:hover:not(:disabled)    { background: var(--accent-gold-dark); }
         }
+        /* Both are disabled while a save is held (v24.23), and without this they stayed gold and
+           outlined with a pointer cursor — live-looking buttons that did nothing, which reads as the
+           freeze the "waiting for signal" line exists to explain (v24.26). */
+        .staged-save-btn:disabled, .staged-discard-btn:disabled { opacity: 0.55; cursor: default; }
         .staged-discard-btn:focus-visible { outline: var(--focus-outline-gold); outline-offset: 2px; }
         .staged-save-btn:focus-visible    { outline: var(--focus-outline); outline-offset: 2px; }
 

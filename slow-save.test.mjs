@@ -62,6 +62,9 @@ test('the threshold and the wording', () => {
     assert.doesNotMatch(SLOW_SAVE_TEXT, /\bsaved\b/i);
     assert.match(SLOW_SAVE_TEXT, /held on this device/, 'not "phone": the roster upload runs on desktop');
     assert.doesNotMatch(SLOW_SAVE_TEXT, /!/, 'calm tone — no exclamation marks');
+    // v24.26: a second tab leaves the SDK on a memory-only cache, and a refused write is retried only
+    // while the page is open — so "you can leave" was a claim that could lose the change.
+    assert.doesNotMatch(SLOW_SAVE_TEXT, /can leave/i);
 });
 
 test('a BATCHED save never tells the reader they can leave (v24.23)', () => {

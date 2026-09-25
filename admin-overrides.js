@@ -21,7 +21,7 @@ import { initSavedChanges, renderTable, resetTableMemberFilter } from './admin-s
 import { initWeekEditor, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, updateSaveBtn,
          resetBulkPills, resetStagedRows, _hasStagedEdits, setSaveInFlight } from './admin-week-editor.js';
 export { TYPES, PILL_TYPES, renderTable, resetTableMemberFilter,
-         renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, updateSaveBtn, resetBulkPills, _hasStagedEdits };
+         renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, updateSaveBtn, resetBulkPills, _hasStagedEdits, setSaveInFlight };
 import { initOverrideStore, getAllOverrides, setAllOverrides, removeFromCache, mutateCache,
          whenOverridesReady, whenLoadSettled, isOverrideCacheLoaded, hasOverrideAuthorityFor,
          loadOverrides, ensureMemberLoaded } from './admin-override-store.js';

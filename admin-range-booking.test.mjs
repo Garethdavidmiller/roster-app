@@ -350,6 +350,27 @@ describe('a control that never comes back', () => {
         assert.equal(el('alSaveBtn').disabled, true, 'no range selected ⇒ nothing to save');
     });
 
+    test('while a save is HELD, a preview refresh does not re-arm Save, and a second tap writes nothing', async () => {
+        // v24.26. updatePreview runs on a swap answer, a date change and admin-app's _refreshAlPreview,
+        // and it set `disabled` from the form alone — so during a slow save Save came back live under
+        // its "Saving…" label. The held save's documents are not in the cache yet, so a second tap
+        // booked every day again: leave counted twice.
+        const { section } = wire();
+        setRange(section, '2026-10-05', '2026-10-06');
+        /** @type {(v: any) => void} */ let release = () => {};
+        _record = () => new Promise((r) => { release = r; });
+        const first = save();
+        await Promise.resolve();
+        section.updatePreview();
+        assert.equal(el('alSaveBtn').disabled, true, 'Save stays disabled while the first save waits');
+        _record = async () => ({ workingCount: 2 });   // a second write, if one happens, lands at once
+        await save();
+        assert.equal(_writes.length, 1, 'the second tap must not write the range again');
+        release({ workingCount: 2 });
+        await first;
+        assert.equal(el('alSaveBtn').textContent, 'Record Annual Leave', 'and it recovers when the save lands');
+    });
+
     test('a save the range makes pointless leaves the button alive', async () => {
         // Every day in the range is a rest day: `workingCount` comes back 0, the write is a no-op,
         // and the range is deliberately KEPT so the admin can adjust it rather than re-enter it.

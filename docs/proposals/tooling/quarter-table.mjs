@@ -1,8 +1,11 @@
 // A day table to the OWNER'S BRIEF of 25 Sep 2026 with EVERY UNPINNED TIME ON THE QUARTER HOUR — "Pinned Turns 2".
 //
 // The owner's second question of the day: "What if you can rewrite the rest of the times apart from the pinned
-// turns? But they must start and finish on non-confusing times." Pinned Turns kept today's clock times where it
-// could (07:00–15:40, 06:20–14:50, 14:45–23:25); this search drops that aim entirely. The PINS stand exactly as
+// turns? But they must start and finish on non-confusing times." Pinned Turns' unpinned times were not all on the
+// quarter hour: besides the pinned 06:20–14:20 it works 06:20–14:50 (drawn from today's clock times — people work it
+// today) and 07:00–15:40 (the one five-minute move FINE=1 allowed — nobody works it today). Familiarity was never
+// what kept either: 07:00–15:40 and 14:45–23:25 are both on Pinned Turns' own list of times nobody works today.
+// This search drops today's clock times and the five-minute moves entirely. The PINS stand exactly as
 // briefed (Mon–Fri 06:20–14:20 x3, 14:00–22:30 x2, 15:45–23:55 x3 · Sat two openers from 06:20 until at least
 // 14:20 and one 14:00–22:30 · Sun one 13:00–21:30); every other duty starts and finishes on :00, :15, :30 or :45,
 // or at the window's own instants (06:20 open, 23:55 close; 07:15 and 23:25 on a Sunday). The one further time

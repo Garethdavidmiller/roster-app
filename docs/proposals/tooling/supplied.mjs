@@ -67,9 +67,10 @@ for (const x of (OVER.extraAlternatives ?? [])) {
   alternatives.push(alt(`${x.label} · ${fingerprint(pp)}`, assess(pp, 24), false, pp));
 }
 alternatives.push(alt(`Workspace default · ${fingerprint(gp)} (Dec 2026 table, generated)`, assess(gp, 24), false, gp));
-const tp24 = {}; for (let i = 1; i <= 24; i++) tp24[i] = T.patterns[String(((i-1)%20)+1)];
+// Today's weekday fit is the 20-line link's own (T.wkFit), never the link padded to 24 by repeating
+// lines 1–4 — that read 44.7 against the real 51.1. See `wkFit` in report-data.mjs.
 alternatives.push(alt("Today's 20-line link (for scale)", T, false, null));
-alternatives[alternatives.length-1].fit = weekdayFit(tp24);
+alternatives[alternatives.length-1].fit = T.wkFit;
 
 // ── The December 2026 timetable design figures, every one CHECKED ON THIS DESIGN. Same expressions as final.mjs,
 //    so a rule this design misses reads as missed rather than quietly going unstated.

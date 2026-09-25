@@ -151,6 +151,22 @@ describe('every code the PROMPT names is either accepted by the parser or waived
             + 'converts it) or DECIDED_BY_THE_DAY (buildSafeEntries answers it, because the meaning '
             + 'depends on the column) — with a reason. Do not widen the regex to make it disappear.');
     });
+
+    // THE WAIVER HAS A PRICE, AND THIS IS IT (v24.26). A code in DECIDED_BY_THE_DAY is exempt above
+    // because the model is meant to REPORT it and leave the decision to the coordinator — but nothing
+    // held the prompt to that. Reverting its row to the pre-v24.20 `Return "RD"` left this whole file
+    // green, and in production the model would then turn every weekday NA into a rest day before the
+    // coordinator ever saw the code. So each waived code's row must ask for the code back, verbatim.
+    test('every code decided by the day is REPORTED by the prompt, never answered by it', () => {
+        const rows = promptSection().split('\n').map(l => l.trim()).filter(l => /^-\s/.test(l));
+        const REPORT_AS = /** @type {Record<string, string>} */ ({ 'NA': 'NA', 'N/A': 'NA', 'NS': 'NS' });
+        for (const code of DECIDED_BY_THE_DAY) {
+            const row = rows.find(l => new RegExp(`^-\\s+(?:[A-Z/.]+\\s+or\\s+)*${code.replace('/', '\\/')}(?:\\s+or\\s+[A-Z/.]+)*\\s*=`).test(l));
+            assert.ok(row, `${code}: the prompt has no row for it`);
+            const first = /Return "([^"]+)"/.exec(row)?.[1];
+            assert.equal(first, REPORT_AS[code], `${code}: the row must ask for "${REPORT_AS[code]}" back, and asks for "${first}"`);
+        }
+    });
 });
 
 describe('the roster prompt must not tell the AI to ignore a status code', () => {
