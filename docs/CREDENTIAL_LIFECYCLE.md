@@ -43,7 +43,7 @@ owner decides what is worth doing and when.
 | 4 | **Keep both kinds of Calendar access** (§4) | Not a change — a decision to record, because "make named sign-in mandatory" keeps suggesting itself | — |
 | 5 | **C5 — retire the surname entirely** (§7) | The milestone. Two possible routes, and which one is taken is an **open owner decision** | Removes a whole credential class from the threat model |
 | 6 | **Retire the anonymous fallback** (§5) | Migration machinery that has outlived its migration is debt | Fewer identity states, so fewer future auth races |
-| 7 | **Calendar start latency, IF the field data confirms it** (§6) | Already instrumented and deliberately not yet acted on | — |
+| 7 | ~~**Calendar start latency, IF the field data confirms it**~~ (§6) | **DONE** — confirmed 5 Sep 2026 and shipped at v22.97 as the provisional paint; kept by owner decision on 19 Sep | — |
 | 8 | **C2 — verified work-email recovery** (§8) | Needs a mail relay that does not exist, and needs #1 first so it is a SECOND route rather than the only one | Admin reset becomes true break-glass |
 | 9 | **Passkeys** (§9) | Excellent fit, blocked on serving from one origin | — |
 | — | **Entra / Microsoft SSO** (§10) | Only if Chiltern formally adopts the app | Supersedes most of this file |
@@ -266,8 +266,11 @@ can do, and §1 is the thing that would need rolling back.
 
 ## 6 · The Calendar start round trip
 
-Already instrumented, already priced, and deliberately not yet acted on — the reading that would
-justify it is named in `LATENCY.md` → Phase 2, and the trade in `ROADMAP.md`.
+**DONE.** The field data confirmed the predicted signature on 5 Sep 2026 and this shipped at v22.97
+as the provisional paint, under all four conditions below; `AUTH_AND_SESSIONS.md` invariant 17 is
+the contract that now owns it. The closing read on 19 Sep found the path rarely fires, and the owner
+kept it because its revoke branch is a security guard (`LATENCY.md` → THE CLOSING READ;
+`DECISIONS.md`). The design as it was written before it shipped follows, unchanged.
 
 **If the field data confirms the predicted signature**, the preferred answer is the repository's
 Option 3: for a named member holding an otherwise-valid 60-day local session, paint their cached
@@ -283,8 +286,8 @@ Four conditions, and they are what make it a policy rather than an optimisation:
 4. **The marking is honest.** "Updating" means the app has not yet been told this is still you.
 
 This is `AUTH_AND_SESSIONS.md`'s question, not the performance plan's: it decides how much a local
-session is allowed to MEAN before the server has agreed with it. That contract already records it
-as the one open decision on the boundary.
+session is allowed to MEAN before the server has agreed with it. That contract recorded it as the one
+open decision on the boundary, and it has since answered it as invariant 17.
 
 ---
 

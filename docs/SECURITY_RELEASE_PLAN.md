@@ -282,10 +282,11 @@ Three design points that flow from this and still govern any future rule change:
 > `PASSWORD_DESIGN.md` relates to Track C. Keep each to its half — the v19.00 sweep found these two files
 > already contradicting each other once (the "≈ zero cost" claim below, since corrected).
 
-> **Status: the read closure is BUILT and SOAKING, and is NOT yet in force; INDIVIDUAL
-> authentication is undecided.** (Corrected v21.63 — this blockquote said "the READ is closed" from
-> v20.12, which was true of the CLIENT and false of the boundary. See the correction note below: it
-> is the same defect this file was created to prevent, committed inside the file that owns status.)
+> **Status: the read closure is IN FORCE since 26 Aug 2026 (v21.78); INDIVIDUAL authentication is
+> undecided.** (Corrected v21.63 — this blockquote said "the READ is closed" from v20.12, which was
+> true of the CLIENT and false of the boundary. Then, from 26 Aug until 25 Sep 2026, its first line
+> still said "NOT yet in force" while the paragraph beneath it recorded the deletion — the second
+> instance of the defect the correction note below describes, found by a documentation sweep.)
 >
 > The tightened rule is written, tested and deployed — `overrides` reads require a member `name`
 > claim, `admin`, or the shared staff-PIN `calendarViewer` capability. The bare `allow read;` that
@@ -321,8 +322,10 @@ the table; a section that restates it can drift from it, and did, for eleven rel
 What is genuinely NOT closed either way is *individual* authentication — the PIN is one code for the
 whole station. See `AUTH_PLAN.md` → E2 for how a server-validated shared credential answered the
 decision gate in a way the phase list did not contain, and for the list of what it deliberately
-leaves open. The `huddles`/`circulars`/`newsletters` reads stay OPEN by design (notification taps
-have no session).
+leaves open. The `huddles`/`circulars`/`newsletters` reads were OPEN by design until 7 Sep 2026
+(notification taps have no session); the owner then decided the documents are not visible without
+the PIN or a password, and the rules closed those reads at v23.18. What stays open is the FILES half,
+the permanent bearer URLs (E6 below; `ARCHITECTURE.md` EXC-007).
 
 > *Historic, kept for the reasoning:* Today five of six pages sit behind a named login; the
 > **calendar (`index.html`) is deliberately public** — it runs an *anonymous* Firebase session and
@@ -370,8 +373,9 @@ REST). Staged:
   call, which is no barrier to anyone willing to script it. The staff PIN replaced it: `overrides`
   reads require a member `name` claim **or** the `calendarViewer` capability, and anonymous is denied
   outright. That clears the **E5** bar for the read without paying E3's front-door cost. Full
-  argument: `AUTH_PLAN.md` → E2. The one piece of E2 still outstanding is the **three document
-  collections**, which remain openly readable and are now E6's business, not E2's.
+  argument: `AUTH_PLAN.md` → E2. The **three document collections**, the one piece left over from E2,
+  were closed at v23.18 under E6 (the reads require access; the files' bearer URLs are E6's remaining
+  half).
 - **E3: require named on the calendar, SOFT posture.** Flip `PAGE_POLICIES.calendar` to require named,
   wire the shared `login-overlay.js`, gate on `ENFORCE_NAMED_SESSION` in a **soft** posture first —
   measure how many launches hit the wall. Client UX only; the rules are unchanged at this phase.

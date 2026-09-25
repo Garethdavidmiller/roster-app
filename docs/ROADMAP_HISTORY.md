@@ -87,6 +87,164 @@ part.**
 ---
 
 
+## Calendar start latency — CLOSED 19 Sep 2026, moved 25 Sep 2026
+
+Two ROADMAP entries whose questions were answered, moved here verbatim. **The service-worker
+revalidation storm** was answered NO on 12 Sep 2026: full-sweep boots were over a second exactly as
+often as every boot (78% against 78%), so the worker is real and costs the member nothing measurable
+(`LATENCY.md` → THE FULL-MONTH READ → item 4). **Sign-in and Calendar start latency** closed with
+`LATENCY.md` itself on 19 Sep 2026: Phase 1 shipped, Phase 2 closed on its own decision rule, Phase 3
+was priced and declined, and the identity round trip it pointed at was answered by the fast path
+(v22.97), which the closing read found rarely fires and which stays by owner decision (`DECISIONS.md`).
+The entries below still say 'open' and 'the next reading will settle this'; that was true when they
+were written. What settled them is in `LATENCY.md`.
+
+#### Calendar start — the service-worker revalidation storm (NEW v22.90, MEASURED v22.92, READABLE v23.00)
+**Status:** SECONDARY hypothesis (demoted 5 Sep 2026 on field evidence); mechanism and volume measured, cost now READABLE on the card — **the next App Speed visit can settle this** · **Owner:** Gareth — the treatment is an architecture decision · **Would change:** `service-worker.js` SWR branch
+
+**The instrument was WRITE-ONLY from v22.94 until v23.00**, and that is worth recording rather than
+quietly fixing: `swrCount` and `readyHeavySwr` were written on every Calendar load and read by
+nothing — no summariser, no card row — so the measurement this entry rests on could not actually be
+taken, while still costing a Firestore write per open. Found by external review of the release that
+added it. The readout is now on the App Speed card ("What the app's background worker was doing"),
+so **this entry is answerable at the next reading**: if the full-sweep boots are no slower than
+`Shifts shown` overall, the worker is not what staff are waiting for and this closes.
+
+**Demoted, and by the evidence rather than by losing interest.** The September App Speed read shows
+installed-app and browser opens within about three points of each other on the code metric (~17% vs
+~20% over a second), so there is no sign that the installed PWA — where the service worker actually
+runs — is where the delay lives. The identity path has direct field evidence; this does not. It is
+still worth the controlled test below, and it is no longer a candidate for the main cause.
+
+**Raised by external review, 5 Sep 2026, and the mechanism is confirmed in code even though the
+effect is not.** On a warm cache the SWR branch serves each managed JS/CSS file from Cache Storage
+and then background-revalidates it — at most once per SW PROCESS lifetime, and an Android SW is
+killed when idle, so "once per process" approximates "once per app launch". That is ~49 modules plus
+CSS issuing background requests while the page is making the one request the member is waiting for.
+
+**The step that makes it concrete, measured 5 Sep 2026:** Firebase Hosting serves the app's JS/CSS
+with `Cache-Control: no-cache`. Those revalidations are therefore real conditional requests, not
+silent browser-cache hits. The SWR branch's own comment already names the hazard — *"pure radio /
+connection contention against the page's own Firestore traffic"* — which is why the per-request
+version was replaced by the per-process one.
+
+**The proposed treatment is cache-first WITHIN a version**, on the grounds that the mandatory bump
+rule makes same-version content immutable. **One correction to that argument, because the honest
+version is stronger:** a same-version deploy is not hypothetical — **v22.29 shipped twice**, and
+`CLAUDE.md` records that this SWR pass is the ONLY thing that self-heals it. What makes cache-first
+defensible now is not that the case cannot happen but that CI catches it first: the `version` job
+("a runtime change must claim a version main has not") refuses a duplicate before it reaches main.
+
+**THE VOLUME IS NOW MEASURED, 5 Sep 2026 — and it is the number the hypothesis needed.** Counted at
+the server, not in the browser, against a local origin serving the same `Cache-Control: no-cache`
+Firebase Hosting sends:
+
+| Calendar open | Requests reaching the server |
+|---|---|
+| warm cache, **worker just woken** (`_revalidated` empty) | **55** — 53 of them JS/CSS |
+| warm cache, worker already awake | **2** |
+
+**53 extra requests on the first open after the service worker wakes**, and on Android the worker is
+killed when idle, so that is not an edge case — it is close to every open. The mechanism is exactly
+as the review described it, and the size is now a fact rather than an estimate.
+
+**Read that as REQUESTS, not bytes, or it will be over-stated.** In production each one is a
+conditional request that answers `304` with no body, so the cost is 53 round trips and their
+share of the connection — not 53 downloads. That is the whole reason the figure alone does not
+settle the case: 53 round trips are nothing on a desk and are not nothing on a phone radio
+alongside the `accounts:lookup` the member is actually waiting for.
+
+**This entry previously said the experiment could not be run from a session container. That was
+wrong, and the correction is worth keeping** because it was wrong in the direction that stops work
+happening: the proxy does block gstatic, but `e2e/fixtures.js` stubs the SDK at the network layer and
+`playwright.offline.mjs` allows service workers, which is how `e2e/offline.spec.js` has been
+exercising the real worker all along. The tooling to measure this was already in the repo.
+
+**THE FIELD HALF IS NOW INSTRUMENTED (v22.94).** The 53 is a local measurement on one machine; what
+real staff phones do was unknown, and that is the review's second suggested metric. The service
+worker now answers a read-only `REVALIDATION_COUNT` message with the size of the set it already
+keeps, and `perf-reporter.js` records two samples at `ready`: **`swrCount`** in the review's own
+bands (0 / 1–10 / 11–30 / 31+), and **`readyHeavySwr`** — `ready` again, on the heavy band only, so
+its distribution is directly comparable with `ready` overall. A COUNT and never a URL; a browser
+that cannot answer records NOTHING rather than a zero, because "no revalidation happened" is the
+finding under test.
+
+**IT WAS INSTRUMENTED AND NOT READABLE FOR SIX RELEASES, AND THIS ENTRY SAID OTHERWISE (found
+v23.00, closed v23.01).** From v22.94 it claimed the two samples "answer both halves of the review's
+question". They could not answer anything: `perf-stats.js` carried `SWR_COUNT_BUCKETS`,
+`bucketSwrCount` and `SWR_HEAVY_BUCKET` with no summariser over them, and `operations-speed.js`
+mentioned neither metric — so every Calendar open paid a MessageChannel round trip, a bounded wait
+and one or two Firestore increments onto a surface where nobody could read the result back.
+
+The contrast with `readyUpdate` (v22.92) is why it went unnoticed for so long: that one shipped
+writer, summariser, card row and e2e together and was answerable the day it landed. This was the
+estate's named blind spot — the rule tested, the wiring not — arrived at from the other end: the
+RECORDING had eleven unit cases and a live-worker e2e, and the READING did not exist at all.
+
+**Of the three ways to close it — render it, stop writing it, or leave it accruing deliberately with
+this paragraph as the record — the answer was to RENDER it, and v23.01 did.** `summariseSwrCounts`
+and `summariseHeavySwrOpens` now feed the App Speed card's "What the app's background worker was
+doing" block. Nothing was ever broken; it was a half-built instrument, and the half that was missing
+was the half that was the point.
+
+**A live worker confirms the local figure independently.** Driven through a real registered service
+worker (`e2e/offline.spec.js`), the count reads **0 on a first install** — the precache warm-up
+writes through `cache.put` and never touches the SWR branch — and **52 after a warm reload**, against
+the 53 requests counted at the server. Two different instruments, one machine, the same number.
+
+**What is still NOT measured, and it is the half that decides the case: what those 53 requests COST a
+member.** They are free on localhost and are not free on a phone radio, and no emulation here would
+be faithful enough to argue from. The reading wanted is the ladder's `authBoot`/`rosterLive`
+milestones on a real device, with the storm and without.
+
+**Do not ship a treatment on this reasoning alone.** Two candidates, and they are not equivalent:
+
+  · **Cache-first within a version.** The review's proposal, on the grounds that the mandatory bump
+    rule makes same-version content immutable. **One correction, because the honest version is
+    stronger:** a same-version deploy is not hypothetical — **v22.29 shipped twice**, and `CLAUDE.md`
+    records that this SWR pass is the ONLY thing that self-heals it. What makes cache-first
+    defensible now is not that the case cannot happen but that CI catches it first: the `version` job
+    refuses a duplicate before it reaches main. It also drops the self-heal entirely.
+  · **Keep SWR, move WHEN it runs** — the same shape as v22.90's fix, and it keeps the self-heal.
+    The revalidation currently fires the instant the cached copy is served, i.e. straight into the
+    boot's critical path. Draining it after the page marks itself ready would cost the member
+    nothing and still refresh every asset. It needs a timeout fallback, or a page that never reaches
+    `ready` never revalidates.
+
+Both touch behaviour that `CLAUDE.md` lists under *"never change without discussion"*, which is why
+neither is in this release.
+
+
+#### Sign-in and Calendar start latency
+**Status:** Phase 1 shipped (v21.29–30) · **PHASE 3'S TRIGGER HAS FIRED** (confirmed 30 Aug 2026) · **Owner:** Gareth · **Plan:** `LATENCY.md`
+
+The measurement landed before the work, deliberately, and it has now answered. **This entry belongs
+under NOW rather than LATER the moment the work is scheduled** — it is left here only because
+starting it is a decision nobody has taken yet, not because a trigger is still awaited.
+
+Two readings a week apart (22 and 30 Aug 2026, the second on 2,226 Calendar opens) agree: the wall is
+`page start → Recognised` at **52% over one second**, three times its nearest rival, and everything
+downstream inherits it. The code is ready inside ½s and **21% of page opens still take over three
+seconds to become usable** — everything a member waits for is after the code has loaded.
+
+**Phase 3 was then measured before being built, and it is NOT the treatment** (30 Aug 2026,
+`experiments/auth-firestore-split-proof/`). Splitting Firebase Auth from Firestore saves 4.6 ms on a
+desktop and 52 ms at 6× CPU throttling, against a wall of over a second — the entire auth boot is
+229 ms on a throttled device. **The wall is ONE network round trip**: every boot issues a single
+`accounts:lookup` to validate the stored user, unconditionally, and `Recognised` waits for it;
+injecting 300 ms of latency moved the milestone by 336 ms.
+
+So the open item is no longer "do Phase 3". It is a **security trade** — whether the app may paint
+from a locally-stored identity before the server has confirmed it — and it belongs to
+`CALENDAR_DATA.md` and `AUTH_AND_SESSIONS.md`, not to a performance plan.
+
+**Phase 2 is now the largest open item, and it was instrumented rather than started** (v21.99). Its
+value rests entirely on how many loads reach a grid through the authoritative read rather than from
+the local cache — a cache-served load cannot be helped by narrowing that read — and nothing measured
+the split. The App Speed card now carries it, with the reading rule in the plan. **Phase 4 / the
+bundler is measurably not the problem.**
+
+
 ## "Fill this year from calendar" — SHIPPED v22.06–v22.09, moved 9 Sep 2026
 
 **Moved VERBATIM from ROADMAP.md, where it had sat under NEXT as "Possible · Trigger: owner

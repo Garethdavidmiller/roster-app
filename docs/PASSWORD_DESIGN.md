@@ -784,6 +784,8 @@ seeded row (so a ghost row and a cleared row look different), and `__E2E.docsDel
 `__E2E.hangPasswordWrite` make the two races reproducible instead of timing-dependent.
 
 **Still open from the review, by choice not oversight:** App Check (Track D — an owner decision, and
-the reason it was declined in June 2026 still stands on its own terms); moving absence data behind
-authentication (Track E, undecided); and the remaining FIP country source URLs, which need one
-verified per-country link each rather than a guessed pattern.
+the reason it was declined in June 2026 still stands on its own terms); INDIVIDUAL authentication
+(Track E, undecided — absence data itself has been behind a named session or the staff PIN since
+26 Aug 2026, so what remains open is whether each person signs in rather than a station sharing a
+code); and the remaining FIP country source URLs, which need one verified per-country link each
+rather than a guessed pattern.
