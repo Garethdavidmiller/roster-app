@@ -464,6 +464,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // anyway restores that: it succeeds under today's rules, and once reads require a session it
         // fails into the same fallback rather than stalling first.
         const authOrSoon = Promise.race([authReady, new Promise(r => setTimeout(r, DOC_AUTH_WAIT_MS))]);
+        // The short-lived url is requested ALONGSIDE the document read (v24.23) — the server picks
+        // the latest document itself, so it needs nothing the read returns, and in series the blank
+        // tab waited for two round trips back to back. It never rejects (document-url.js).
+        const signedP = authOrSoon.then(() => fetchSignedDocumentUrl(/** @type {any} */ (docId)));
         Promise.race([authOrSoon.then(() => fetchFn()), timed]).then(/** @param {any} data */ async data => {
             const url = data?.storageUrl;
             const safeUrl = isSafeStorageUrl(url) ? url : null;
@@ -477,7 +481,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                 // `docId` is 'circular' | 'newsletter', which is exactly the KIND the endpoint
                 // takes; a null is ordinary (no IAM grant, lapsed claim, timeout) and the stored
                 // url is then used, as it was before this existed.
-                const signed = await fetchSignedDocumentUrl(/** @type {any} */ (docId));
+                const signed = await signedP;
                 const open = resolveDocumentOpenUrl({ signed, stored: safeUrl, fileType: data.fileType });
                 // Unreachable while `safeUrl` is non-null (resolveDocumentOpenUrl would have to
                 // reject BOTH urls), but it is the branch that hands a url to window.open, so it

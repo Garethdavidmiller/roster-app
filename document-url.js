@@ -21,8 +21,9 @@
  * "carry on the old way", and the old way is what a member saw yesterday.
  *
  * The cases that reach `null` are all NORMAL:
- *   · 503 — the IAM grant (`serviceAccountTokenCreator`) is not in place. **This is the state the
- *           app ships in**, and the entire reason the fallback exists.
+ *   · 503 — the IAM grant (`serviceAccountTokenCreator`) is missing. RECOVERY_RUNBOOK.md records it
+ *           as granted on the shared runtime account, so this is the exception — but it is still the
+ *           reason the fallback exists.
  *   · 403 — a session with no `name`/`admin`/`calendarViewer` claim: a lapsed token, not an
  *           intruder — the document surfaces are already gated on the client.
  *   · 404 — nothing published yet. The caller's own "no document" branch handles it.
@@ -43,12 +44,17 @@ export const DOCUMENT_URL_ENDPOINT = 'https://europe-west2-myb-roster.cloudfunct
 export const DOCUMENT_URL_TIMEOUT_MS = 8_000;
 
 /**
+ * @typedef {{ url: string, expiresAt: number, fileType: string|null }} SignedDocumentUrl
+ */
+
+/**
  * Ask for a short-lived url for the latest document of `kind`.
  *
  * @param {string} kind  'huddle' | 'circular' | 'newsletter'
  * @param {() => Promise<string>} getToken  supplies a Firebase ID token
  * @param {typeof fetchWithTimeout} [doFetch]  seam for tests; defaults to the real one
- * @returns {Promise<string|null>} the url, or null to use the stored one
+ * @returns {Promise<SignedDocumentUrl|null>} the signed url with its expiry and the file type of the
+ *   document the SERVER signed, or null to use the stored one
  */
 export async function requestSignedDocumentUrl(kind, getToken, doFetch = fetchWithTimeout) {
     try {
@@ -63,10 +69,20 @@ export async function requestSignedDocumentUrl(kind, getToken, doFetch = fetchWi
             console.warn(`[documentUrl] ${kind}: server said ${r.status} — using the stored url`);
             return null;
         }
-        const { url } = await r.json();
+        const { url, expiresAt, fileType } = await r.json();
         // A 200 carrying no url is a server we do not recognise. Treat it as no url rather than
         // handing `undefined` onward to be opened.
-        return typeof url === 'string' && url ? url : null;
+        if (typeof url !== 'string' || !url) return null;
+        // ── THE EXPIRY AND THE FILE TYPE TRAVEL WITH THE URL (v24.23) ───────────────────────────
+        // v24.19 kept the url alone. Two things were lost with the rest. The EXPIRY: the url is
+        // minted when a viewer opens, and a member who locks the phone and taps twenty minutes
+        // later was handed a dead link, because nothing could tell it had lapsed. And the FILE TYPE
+        // of the document the server actually signed: the server signs the LATEST, which is not
+        // always the copy the client is holding, so wrapping by the client's own fileType could open
+        // a .docx directly (it downloads) or send a PDF to the Office viewer. A url with no
+        // readable expiry is not used — the stored one is right there.
+        if (!Number.isFinite(expiresAt)) return null;
+        return { url, expiresAt, fileType: typeof fileType === 'string' ? fileType : null };
     } catch (err) {
         console.warn(`[documentUrl] ${kind}: could not mint a short-lived url —`, err);
         return null;

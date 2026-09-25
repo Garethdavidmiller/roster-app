@@ -146,7 +146,7 @@ export async function _saveOverrideBatches(toWrite, currentUser) {
                     serverTimestamp()));
             }
             await batch.commit();
-        }));
+        }), { batched: toWrite.length > CHUNK });
         _committedChunks++;
         } catch (err) {
             // A chunk failed after earlier chunks committed → partial roster import is now in
@@ -633,7 +633,8 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 + `📄 Download the original roster (${esc(pdfFile.name)})</button>`);
         }
 
-        if (parsedResult.crossCheck && parsedResult.crossCheck !== 'complete') {
+        // 'not-applicable' (v24.23): the grid placed every day, so there is nothing to double-check.
+        if (parsedResult.crossCheck && parsedResult.crossCheck !== 'complete' && parsedResult.crossCheck !== 'not-applicable') {
             const ccNote = document.createElement('div');
             ccNote.className = 'roster-crosscheck-note';
             ccNote.setAttribute('role', 'status');

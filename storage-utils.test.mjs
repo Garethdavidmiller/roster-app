@@ -7,7 +7,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { isSafeStorageUrl, isDocxUpload, officeViewerUrl, resolveDocumentOpenUrl, sixMonthCutoffISO, legacyDocPath, versionedDocPath, uploadMimeType } from './storage-utils.js';
+import { isSafeStorageUrl, isDocxUpload, officeViewerUrl, resolveDocumentOpenUrl, SIGNED_URL_MARGIN_MS, sixMonthCutoffISO, legacyDocPath, versionedDocPath, uploadMimeType } from './storage-utils.js';
 
 describe('isSafeStorageUrl', () => {
     test('accepts a Firebase download URL under this project bucket', () => {
@@ -211,5 +211,43 @@ describe('resolveDocumentOpenUrl — the signed url, the stored one, and the .do
             const r = resolveDocumentOpenUrl({ signed: SIGNED, stored: STORED, fileType });
             assert.equal(r.url, SIGNED, `fileType=${JSON.stringify(fileType)} was wrapped`);
         }
+    });
+});
+
+// ── A SIGNED URL IS CHOSEN ONLY WHILE IT IS STILL LIVE, AND WRAPPED BY ITS OWN TYPE (v24.23) ──────
+describe('resolveDocumentOpenUrl — resolved at the tap, not at the mint', () => {
+    const SIGNED_URL = 'https://storage.googleapis.com/myb-roster.appspot.com/huddles/x.docx?X-Goog-Expires=900';
+    const STORED = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/huddles%2Fx.pdf?token=abc';
+    const NOW = Date.UTC(2026, 8, 25, 12, 0);
+    const minted = (/** @type {number} */ msLeft, fileType = 'pdf') => ({ url: SIGNED_URL, expiresAt: NOW + msLeft, fileType });
+
+    test('a live signed url is used', () => {
+        const r = resolveDocumentOpenUrl({ signed: minted(10 * 60_000), stored: STORED, fileType: 'pdf' }, NOW);
+        assert.equal(r.signed, true);
+        assert.equal(r.url, SIGNED_URL);
+    });
+
+    test('a LAPSED one falls back to the stored url — the member who came back after 20 minutes', () => {
+        const r = resolveDocumentOpenUrl({ signed: minted(-5 * 60_000), stored: STORED, fileType: 'pdf' }, NOW);
+        assert.equal(r.signed, false);
+        assert.equal(r.url, STORED);
+    });
+
+    test('one within the margin falls back too — the Office viewer fetches AFTER the tap', () => {
+        const r = resolveDocumentOpenUrl({ signed: minted(SIGNED_URL_MARGIN_MS - 1), stored: STORED, fileType: 'pdf' }, NOW);
+        assert.equal(r.signed, false);
+        assert.ok(SIGNED_URL_MARGIN_MS >= 30_000, 'too small a margin to cover the viewer\'s own fetch');
+    });
+
+    test('the SERVER\'s file type wraps a signed url — the client may be holding an older document', () => {
+        // The client's copy is a PDF; the server signed the latest, a .docx. Opening a .docx directly
+        // downloads it, so the wrap must follow the file actually signed.
+        const r = resolveDocumentOpenUrl({ signed: minted(10 * 60_000, 'docx'), stored: STORED, fileType: 'pdf' }, NOW);
+        assert.equal(r.url, officeViewerUrl(SIGNED_URL));
+    });
+
+    test('…and the document\'s own type wraps the stored url it falls back to', () => {
+        const r = resolveDocumentOpenUrl({ signed: minted(-1, 'docx'), stored: STORED, fileType: 'pdf' }, NOW);
+        assert.equal(r.url, STORED, 'a stored PDF must not be sent to the Office viewer because a lapsed signed one was a .docx');
     });
 });

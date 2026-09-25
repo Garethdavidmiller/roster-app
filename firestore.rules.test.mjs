@@ -16,6 +16,8 @@ import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebas
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { nameToEmail } from './auth-identity.js';
+import { teamMembers } from './roster-member-data.js';
 import {
     setDoc, getDoc, addDoc, deleteDoc, updateDoc, getDocs,
     collection, doc, serverTimestamp, increment,
@@ -47,11 +49,21 @@ function staffDb(uid = 'uid_staff')    { return testEnv.authenticatedContext(uid
 /** Authenticated admin (admin custom claim). */
 function adminDb()                     { return testEnv.authenticatedContext('uid_admin', { admin: true }).firestore(); }
 /** Authenticated user with a name claim (for staffContact + override isolation). */
-function namedDb(name, uid = 'uid_n')  { return testEnv.authenticatedContext(uid, { name }).firestore(); }
+/**
+ * The claims a REAL member's token carries (v24.23). A `name` is believed only when the session
+ * signed in with a password AND its email is the one that name derives to — see the header of the
+ * member helpers in firestore.rules. Every member-shaped context in this file goes through this, so
+ * a test that forgot the binding would be testing a token production never issues.
+ * @param {string} name @param {Record<string, any>} [extra]
+ */
+function memberClaims(name, extra = {}) {
+    return { name, email: nameToEmail(name), firebase: { sign_in_provider: 'password' }, ...extra };
+}
+function namedDb(name, uid = 'uid_n')  { return testEnv.authenticatedContext(uid, memberClaims(name)).firestore(); }
 /** Authenticated manager (manager + name claims) — writes overrides on behalf of any member (B2). */
-function managerDb(name, uid = 'uid_mgr') { return testEnv.authenticatedContext(uid, { manager: true, name }).firestore(); }
+function managerDb(name, uid = 'uid_mgr') { return testEnv.authenticatedContext(uid, memberClaims(name, { manager: true })).firestore(); }
 /** Authenticated links designer (linksDesigner + name claims) — writes linkDesigns (H2). */
-function designerDb(name = 'S. Silva', uid = 'uid_designer') { return testEnv.authenticatedContext(uid, { name, linksDesigner: true }).firestore(); }
+function designerDb(name = 'S. Silva', uid = 'uid_designer') { return testEnv.authenticatedContext(uid, memberClaims(name, { linksDesigner: true })).firestore(); }
 /** The shared staff Calendar viewer (v20.12) — the identity the four-digit PIN mints. Exactly one
  *  claim, no `name`: it is a CAPABILITY ("may read the Calendar"), not a person. Modelled with the
  *  real uid so a rule that ever keyed on the uid rather than the claim would be caught here too. */
@@ -965,7 +977,7 @@ describe('passwordStatus (PASSWORD_DESIGN §6)', () => {
         // admin tier. The create/update rule keys off `token.name == memberName`, so an admin can only
         // self-write; another member's doc still fails even WITH the admin claim (the `adminDb()` case
         // above passes partly because it has no name claim — this proves the constraint on the real token).
-        const adminNamed = testEnv.authenticatedContext('uid_admin', { admin: true, name: 'G. Miller' }).firestore();
+        const adminNamed = testEnv.authenticatedContext('uid_admin', memberClaims('G. Miller', { admin: true })).firestore();
         await assertFails(setDoc(doc(adminNamed, 'passwordStatus', 'S. Silva'), { passwordSetAt: serverTimestamp() }));
         // …and CAN still stamp their OWN record (an admin is also a member setting their own password).
         // merge:true so it's an update touching ONLY passwordSetAt — this suite has no clearFirestore,
@@ -1212,7 +1224,7 @@ describe('linkTargetSets — saved generator target sets, per-creator write (v21
         });
     }
     const designerAs = (name, uidSuffix) =>
-        testEnv.authenticatedContext('uid_' + uidSuffix, { name, linksDesigner: true }).firestore();
+        testEnv.authenticatedContext('uid_' + uidSuffix, memberClaims(name, { linksDesigner: true })).firestore();
 
     test('read matches linkDesigns: named yes, admin yes, anonymous and claim-less no', async () => {
         await assertSucceeds(getDocs(collection(namedDb('S. Silva'), 'linkTargetSets')));
@@ -1255,7 +1267,7 @@ describe('linkTargetSets — saved generator target sets, per-creator write (v21
     test('the ADMIN can overwrite and delete anyone\'s set (break-glass, as the design bin has)', async () => {
         const id = uid();
         await seedSet(id, 'S. Silva');
-        const adminNamed = testEnv.authenticatedContext('uid_admin', { admin: true, name: 'G. Miller' }).firestore();
+        const adminNamed = testEnv.authenticatedContext('uid_admin', memberClaims('G. Miller', { admin: true })).firestore();
         await assertSucceeds(setDoc(doc(adminNamed, 'linkTargetSets', id), SET('S. Silva', 'G. Miller')));
         await assertSucceeds(deleteDoc(doc(adminNamed, 'linkTargetSets', id)));
     });
@@ -1955,5 +1967,80 @@ describe('overtimeWindows', () => {
         await seed();
         await assertSucceeds(getDocs(collection(managerDb('H. Croft'), 'overtimeWindows', WEEK, 'participants')));
         await assertSucceeds(getDocs(collection(managerDb('H. Croft'), 'overtimeWindows', WEEK, 'submissions')));
+    });
+});
+
+// ── A `name` IS BELIEVED ONLY FROM THE MEMBER'S OWN ACCOUNT (v24.23 — critical) ────────────────────
+//
+// Firebase fills a token's `name` from the account's DISPLAY NAME, which any session may set for
+// itself. Until v24.23 every member rule trusted that field on sight, and the audit proved in the
+// emulator that an anonymous session calling itself "G. Miller" could read every override, read his
+// work email and write annual leave into his record. Each case below is one of the four ways a
+// `name` can arrive WITHOUT being the member, and every one must now be refused — while the real
+// member, whose token is the same name on the account that name derives to, still gets through.
+describe('a name claim is believed only from the member\'s own account (v24.23)', () => {
+    const as = (/** @type {string} */ uid, /** @type {Record<string, any>} */ claims) =>
+        testEnv.authenticatedContext(uid, claims).firestore();
+    const alFor = (/** @type {string} */ who) => ({
+        date: '2026-10-05', memberName: who, type: 'annual_leave', value: 'AL', note: '',
+        source: 'manual', createdAt: serverTimestamp(), changedBy: who,
+    });
+    const IMPOSTORS = {
+        // An anonymous session that set its own display name — the route the audit exploited.
+        'anonymous + self-set name': { name: 'G. Miller', firebase: { sign_in_provider: 'anonymous' } },
+        // The shared PIN account: a custom-token session. Its display name must never count.
+        'PIN session + a name': { name: 'G. Miller', calendarViewer: true, firebase: { sign_in_provider: 'custom' } },
+        // A password account somebody registered for themselves, renamed to a member.
+        'password account, wrong email': { name: 'G. Miller', email: 'attacker@myb-roster.local', firebase: { sign_in_provider: 'password' } },
+        // The right email but not a password sign-in (e.g. a federated provider, were one enabled).
+        'right email, wrong provider': { name: 'G. Miller', email: nameToEmail('G. Miller'), firebase: { sign_in_provider: 'google.com' } },
+        // A name with no email at all.
+        'no email': { name: 'G. Miller', firebase: { sign_in_provider: 'password' } },
+    };
+
+    for (const [label, claims] of Object.entries(IMPOSTORS)) {
+        test(`${label}: cannot write another member's annual leave`, async () => {
+            await assertFails(setDoc(doc(as('uid_x', claims), 'overrides', uid()), alFor('G. Miller')));
+        });
+        test(`${label}: cannot read that member's work email`, async () => {
+            await assertFails(getDoc(doc(as('uid_x', claims), 'staffContact', 'G. Miller')));
+        });
+        test(`${label}: cannot read link designs through the member door`, async () => {
+            await assertFails(getDocs(collection(as('uid_x', claims), 'linkDesigns')));
+        });
+    }
+
+    test('an anonymous self-named session cannot read overrides at all', async () => {
+        await assertFails(getDocs(collection(as('uid_x', IMPOSTORS['anonymous + self-set name']), 'overrides')));
+    });
+
+    test('the REAL member still reads, and still writes their own leave', async () => {
+        const real = namedDb('G. Miller');
+        await assertSucceeds(getDocs(collection(real, 'overrides')));
+        await assertSucceeds(setDoc(doc(real, 'overrides', uid()), alFor('G. Miller')));
+    });
+
+    test('the real member of a hyphenated name is bound the same way', async () => {
+        // nameToEmail strips the hyphen; the rules copy must too, or this member is locked out.
+        const real = namedDb('C. Francisco-Charles');
+        await assertSucceeds(setDoc(doc(real, 'overrides', uid()), alFor('C. Francisco-Charles')));
+    });
+
+    test('EVERY name on the roster is recognised on its own account — nobody is locked out', async () => {
+        // The rules derive the expected email from the name (`memberEmailFor`), and the app derives
+        // the account's real email the same way (`nameToEmail`). If the two ever disagree for one
+        // name, that member's every read and write is refused — a lockout of one person that no
+        // other test in this file would notice. So this runs the rules' derivation, in the real
+        // rules engine, against the app's, for every name the roster holds, hidden rows included.
+        const names = teamMembers.map(m => m.name);
+        assert.ok(names.length > 40, `expected the whole roster, got ${names.length} names`);
+        for (const name of names) {
+            await assertSucceeds(getDocs(collection(namedDb(name, 'uid_' + name.replace(/\W/g, '')), 'overrides')))
+                .catch(err => { throw new Error(`${name} (${nameToEmail(name)}) is locked out: ${err.message}`); });
+        }
+    });
+
+    test('a real member still cannot write somebody else\'s leave', async () => {
+        await assertFails(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), alFor('S. Silva')));
     });
 });

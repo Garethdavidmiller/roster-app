@@ -19,7 +19,7 @@ import { db, collection, doc, serverTimestamp, writeBatch, auth, writeWithClaimR
 import { TYPES, PILL_TYPES, WORKED_OVERRIDE_TYPES } from './admin-shift-types.js';
 import { initSavedChanges, renderTable, resetTableMemberFilter } from './admin-saved-changes.js';
 import { initWeekEditor, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, updateSaveBtn,
-         resetBulkPills, resetStagedRows, _hasStagedEdits } from './admin-week-editor.js';
+         resetBulkPills, resetStagedRows, _hasStagedEdits, setSaveInFlight } from './admin-week-editor.js';
 export { TYPES, PILL_TYPES, renderTable, resetTableMemberFilter,
          renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, updateSaveBtn, resetBulkPills, _hasStagedEdits };
 import { initOverrideStore, getAllOverrides, setAllOverrides, removeFromCache, mutateCache,
@@ -181,7 +181,7 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
     // pending (early after a slow-auth page load), a double-tap could pass the collector twice —
     // each run deletes existingId idempotently but MINTS ITS OWN new doc → duplicate overrides
     // for the same member/date. The finally below re-enables on every exit path.
-    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = `Saving ${total} change${total !== 1 ? 's' : ''}…`; }
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = `Saving ${total} change${total !== 1 ? 's' : ''}…`; } setSaveInFlight(true);
 
     await sessionReady;
     // Don't mutate the cache until the initial load has settled — otherwise the in-flight initial
@@ -197,14 +197,14 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
     if (writeMembers.some(m => !hasOverrideAuthorityFor(m))) {
         _showError("Couldn't load your saved changes — reload the page before making changes.");
         if (saveBtn) { saveBtn.textContent = 'Save changes'; }
-        updateSaveBtn();
+        setSaveInFlight(false);
         return;
     }
     if (!auth.currentUser) {
         _showError("You've been signed out — please sign in again.");
         // This early return is before the try/finally — restore the button state it can't.
         if (saveBtn) { saveBtn.textContent = 'Save changes'; }
-        updateSaveBtn();
+        setSaveInFlight(false);
         return;
     }
 
@@ -314,7 +314,7 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
             : "Couldn't save — check your connection and try again.");
     } finally {
         if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save changes'; }
-        updateSaveBtn();
+        setSaveInFlight(false);
     }
 }
 
@@ -508,7 +508,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
                 });
                 await batch.commit();
                 return { docs, delIds };
-            }));
+            }), { batched: ops.length > CHUNK });
         } catch (err) {
             // A chunk failed AFTER earlier chunks committed → Firestore holds partial data the
             // in-memory cache doesn't reflect (the cache update below never runs). Resync from

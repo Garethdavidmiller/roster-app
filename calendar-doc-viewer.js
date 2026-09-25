@@ -134,6 +134,11 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
             // for a session, then read anyway; today that succeeds, and once reads require a session
             // it fails into the catch below, which now offers a retry.
             const authOrSoon = Promise.race([authReady, _delay(DOC_AUTH_WAIT_MS)]);
+            // The short-lived url is requested ALONGSIDE the document read (v24.23), not after it:
+            // the server picks the latest document itself, so the request needs nothing the read
+            // returns, and in series every open paid for two round trips one after the other.
+            // Its own promise never rejects (document-url.js), so it cannot fail the read.
+            const signedP = authOrSoon.then(() => (seq === _openSeq ? fetchSignedDocumentUrl(/** @type {any} */ (key)) : null));
             const doc = await Promise.race([
                 authOrSoon.then(() => (seq === _openSeq ? d.fetch() : null)),
                 _delay(DOC_FETCH_TIMEOUT_MS).then(() => { throw new Error('doc-fetch-timeout'); }),
@@ -150,16 +155,16 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
                 // signing window (15 min) is sized for exactly this chain.
                 // A null here is ORDINARY — no IAM grant yet, a lapsed claim, a timeout — and
                 // resolveDocumentOpenUrl then uses the stored url, which is what shipped before.
-                const signed = await fetchSignedDocumentUrl(/** @type {any} */ (key));
+                const signed = await signedP;
                 if (seq !== _openSeq) return;   // a newer tap superseded this one while we waited
-                const open = resolveDocumentOpenUrl({ signed, stored: doc.storageUrl, fileType: doc.fileType });
-                if (!open) { showMessage(d.empty, 'doc-viewer-empty'); return; }
+                if (!resolveDocumentOpenUrl({ signed, stored: doc.storageUrl, fileType: doc.fileType })) {
+                    showMessage(d.empty, 'doc-viewer-empty'); return;
+                }
                 bodyEl.textContent = '';
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = 'doc-open-btn';
                 btn.textContent = `📄 Open ${d.label}`;
-                const openUrl = open.url;
                 // Real user gesture → window.open opens a Custom Tab over the standalone app.
                 // Counted here (not on viewer open) so the count means the document was actually
                 // opened — mirroring the nav-drawer path (v18.20; admin-excluded, anonymous).
@@ -167,7 +172,12 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
                     // Identity: null on a first-run device — the DEFAULT selection is the
                     // developer, and excluding on it would drop fresh visitors' opens (v18.22).
                     recordOpen(key, isFirstRun() ? null : getCurrentMember()?.name ?? null);
-                    window.open(openUrl, '_blank', 'noopener');
+                    // Resolved AT THE TAP (v24.23), synchronously so the gesture survives: the
+                    // signed url was minted when the viewer opened, and a member who locked the
+                    // phone and came back twenty minutes later was handed a lapsed link. A url near
+                    // its expiry is passed over for the stored one, which never lapses.
+                    const open = resolveDocumentOpenUrl({ signed, stored: doc.storageUrl, fileType: doc.fileType });
+                    if (open) window.open(open.url, '_blank', 'noopener');
                 });
                 bodyEl.appendChild(btn);
                 btn.focus();

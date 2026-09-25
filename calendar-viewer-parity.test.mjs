@@ -81,8 +81,11 @@ describe('Contract A — one identity, three languages', () => {
             'the overrides read rule must require an authenticated identity');
         assert.ok(block.includes(`request.auth.token.${CALENDAR_VIEWER_CLAIM} == true`),
             'the viewer capability is not accepted for override reads — the PIN would unlock nothing');
-        assert.ok(block.includes("'name' in request.auth.token"),
-            'a real member would be denied override reads');
+        // isMember(), not a bare `'name' in token` (v24.23): Firebase copies a SELF-SET display name
+        // into `name`, so the bare check admitted an anonymous session that named itself a member.
+        assert.ok(block.includes('isMember()'), 'a real member would be denied override reads');
+        assert.ok(!block.includes("'name' in request.auth.token"),
+            'a bare name claim is a door again — any session can set its own display name');
     });
 
     test('the viewer is NOT granted a write anywhere in the rules', () => {

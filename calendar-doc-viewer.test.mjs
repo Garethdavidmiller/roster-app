@@ -316,6 +316,20 @@ describe('doc viewer — which URL the member actually opens (v24.19)', () => {
             + 'hands the member a url for somebody else\'s document');
     });
 
+    test('a signed url that LAPSED before the tap is passed over for the stored one (v24.23)', async () => {
+        // Minted when the viewer opened; the member locked the phone and came back. The click must
+        // decide at the TAP, or it hands over a link that no longer works.
+        _circularImpl = () => Promise.resolve({ storageUrl: STORED, fileType: 'pdf' });
+        _signedImpl   = () => Promise.resolve({ url: SIGNED, expiresAt: Date.now() - 60_000, fileType: 'pdf' });
+        assert.equal(await openedUrl(), STORED, 'a lapsed short-lived url was opened');
+    });
+
+    test('a LIVE signed url object opens as the signed url', async () => {
+        _circularImpl = () => Promise.resolve({ storageUrl: STORED, fileType: 'pdf' });
+        _signedImpl   = () => Promise.resolve({ url: SIGNED, expiresAt: Date.now() + 10 * 60_000, fileType: 'pdf' });
+        assert.equal(await openedUrl(), SIGNED);
+    });
+
     test('the url is minted BEFORE the click, so the gesture is not spent', async () => {
         // The constraint that shaped this design. `window.open` without a user gesture is
         // pop-up-blocked and drops the PWA out of standalone, so the fetch must have finished by

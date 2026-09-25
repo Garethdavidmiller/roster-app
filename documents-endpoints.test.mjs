@@ -229,6 +229,10 @@ async function ingest(/** @type {any} */ eps, /** @type {any} */ reqOpts) {
 
 // ── ingestHuddle ───────────────────────────────────────────────────────────────────────────────
 
+/** A REAL member's decoded token (v24.23): the name, on the password account that name derives to.
+ *  A bare `{ name }` is what a self-renamed anonymous session looks like, and is refused now. */
+const MEMBER_GM = { name: 'G. Miller', email: 'g.miller@myb-roster.local', firebase: { sign_in_provider: 'password' } };
+
 describe('ingestHuddle — the refusals, and that a refusal writes NOTHING', () => {
     test('a wrong bearer token is a 401 with no Storage write, no doc, no push', async () => {
         const b = build();
@@ -518,8 +522,24 @@ describe('getDocumentUrl — the door, and that it is exactly the rules\' door',
         assert.deepEqual(w.signed, [], 'a caller the rules would refuse got a URL');
     });
 
+    test('a `name` that is not the member\'s own account is NO door (v24.23)', async () => {
+        // Firebase copies a self-set display name into `name`. Each of these is a real way a token
+        // arrives carrying "G. Miller" without being him, and the member door must refuse all of them.
+        for (const claims of [
+            { name: 'G. Miller', firebase: { sign_in_provider: 'anonymous' } },
+            { name: 'G. Miller', firebase: { sign_in_provider: 'custom' } },
+            { name: 'G. Miller', email: 'attacker@myb-roster.local', firebase: { sign_in_provider: 'password' } },
+            { name: 'G. Miller' },
+        ]) {
+            const w = build({ seed: PUBLISHED });
+            w.setClaims(claims);
+            assert.equal((await askForUrl(w.eps, { kind: 'huddle' })).code, 403, `${JSON.stringify(claims)} got a URL`);
+            assert.deepEqual(w.signed, [], 'an impostor reached the signer');
+        }
+    });
+
     test('each of the three doors is admitted', async () => {
-        for (const claims of [{ name: 'G. Miller' }, { admin: true }, { calendarViewer: true }]) {
+        for (const claims of [MEMBER_GM, { admin: true }, { calendarViewer: true }]) {
             const w = build({ seed: PUBLISHED });
             w.setClaims(claims);
             const out = await askForUrl(w.eps, { kind: 'huddle' });
@@ -544,7 +564,7 @@ describe('getDocumentUrl — the caller names a KIND and never a path', () => {
         for (const [kind, path] of [['huddle', 'huddles/2026-08-30.pdf'],
             ['circular', 'circulars/2026-08-28.docx'], ['newsletter', 'newsletters/2026-08-01.docx']]) {
             const w = build({ seed: PUBLISHED });
-            w.setClaims({ name: 'G. Miller' });
+            w.setClaims(MEMBER_GM);
             const out = await askForUrl(w.eps, { kind });
             assert.equal(out.code, 200, `${kind}: ${JSON.stringify(out.body)}`);
             assert.equal(w.signed.at(-1).path, path, `${kind} signed the wrong object`);
@@ -586,7 +606,7 @@ describe('getDocumentUrl — the body may not be parsed, and that must not read 
     // `req.body.kind` passes the whole of the rest of this file, which is why this block exists.
     test('a RAW BUFFER body is honoured, exactly as a parsed object is', async () => {
         const w = build({ seed: PUBLISHED });
-        w.setClaims({ name: 'G. Miller' });
+        w.setClaims(MEMBER_GM);
         const out = await askForUrl(w.eps, Buffer.from(JSON.stringify({ kind: 'huddle' })));
         assert.equal(out.code, 200,
             `an unparsed body was refused (${out.code}: ${JSON.stringify(out.body)}). firebase-functions `
@@ -616,7 +636,7 @@ describe('getDocumentUrl — the URL is SHORT-LIVED, which is the whole point', 
 
     test('it signs for READ, with an expiry a quarter of an hour out', async () => {
         const w = build({ seed: PUBLISHED });
-        w.setClaims({ name: 'G. Miller' });
+        w.setClaims(MEMBER_GM);
         const before = Date.now();
         const out = await askForUrl(w.eps, { kind: 'circular' });
         assert.equal(out.code, 200);
@@ -653,7 +673,7 @@ describe('getDocumentUrl — a signing failure must not strand a member', () => 
 
     test('the IAM case answers 503, so the client can fall back rather than show a dead button', async () => {
         const w = build({ seed: PUBLISHED });
-        w.setClaims({ name: 'G. Miller' });
+        w.setClaims(MEMBER_GM);
         w.failSigning();
         const out = await askForUrl(w.eps, { kind: 'huddle' });
         assert.equal(out.code, 503,
@@ -677,7 +697,7 @@ describe('getDocumentUrl — it signs the kind it was asked for, and says nothin
         const w = build({ seed: {
             'circulars/2026-08-28': { date: '2026-08-28', storagePath: 'roster/2026-08-28.pdf', fileType: 'pdf' },
         } });
-        w.setClaims({ name: 'G. Miller' });
+        w.setClaims(MEMBER_GM);
         const out = await askForUrl(w.eps, { kind: 'circular' });
         assert.equal(out.code, 503, 'a cross-collection storagePath was signed');
         assert.equal(out.body.url, undefined);
@@ -689,7 +709,7 @@ describe('getDocumentUrl — it signs the kind it was asked for, and says nothin
         const w = build({ seed: {
             'circulars/2026-08-28': { date: '2026-08-28', storagePath: 'huddles/2026-08-28.pdf', fileType: 'pdf' },
         } });
-        w.setClaims({ name: 'G. Miller' });
+        w.setClaims(MEMBER_GM);
         assert.equal((await askForUrl(w.eps, { kind: 'circular' })).code, 503);
     });
 
@@ -697,7 +717,7 @@ describe('getDocumentUrl — it signs the kind it was asked for, and says nothin
         // The direction a tightening gets wrong. Without this, deleting the whole check and
         // returning false would leave the two tests above green.
         const w = build({ seed: PUBLISHED });
-        w.setClaims({ name: 'G. Miller' });
+        w.setClaims(MEMBER_GM);
         const out = await askForUrl(w.eps, { kind: 'circular' });
         assert.equal(out.code, 200);
         assert.ok(out.body.url, 'a correctly-pathed circular did not sign');
@@ -713,7 +733,7 @@ describe('getDocumentUrl — it signs the kind it was asked for, and says nothin
         console.log = (...a) => { said.push(a.map(String).join(' ')); };
         try {
             const w = build({ seed: PUBLISHED });
-            w.setClaims({ name: 'G. Miller' });
+            w.setClaims(MEMBER_GM);
             assert.equal((await askForUrl(w.eps, { kind: 'huddle' })).code, 200);
         } finally {
             console.log = realLog;

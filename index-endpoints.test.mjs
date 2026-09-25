@@ -218,6 +218,7 @@ function makeAuth({ token = { admin: true, name: 'G. Miller' }, viewerExists = f
             throw Object.assign(new Error('no such user'), { code: 'auth/user-not-found' });
         },
         createUser: async (props) => { ops.push({ op: 'createUser', props }); return { uid: props.uid }; },
+        updateUser: async (uid, props) => { ops.push({ op: 'updateUser', uid, props }); return { uid }; },
         setCustomUserClaims: async (uid, claims) => {
             ops.push({ op: 'setCustomUserClaims', uid, claims });
             if (authFail.setCustomUserClaims) throw new Error(authFail.setCustomUserClaims);
@@ -615,6 +616,22 @@ describe('the token is the entire product, and a claimless one is indistinguisha
         assert.equal(made.props.uid, CALENDAR_VIEWER_UID);
         assert.equal('email' in made.props, false);
         assert.equal('password' in made.props, false);
+        // …and NO display name (v24.23): Firebase copies it into every token's `name`, which is the
+        // field member rules key on. The old label made every PIN session look like a named member.
+        assert.equal('displayName' in made.props, false, 'the viewer account must not be created with a display name');
+    });
+
+    test('every unlock CLEARS the shared account\'s display name (v24.23)', async () => {
+        // A PIN holder can rename this shared account from their own session; before v24.23 that
+        // name reached every later PIN token. Clearing it on each unlock means one holder's choice
+        // cannot outlive their own session.
+        const { ops } = build({ viewerExists: true });
+        const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
+        assert.equal(out.code, 200);
+        const cleared = ops.find((o) => o.op === 'updateUser');
+        assert.ok(cleared, 'the unlock did not touch the account\'s profile');
+        assert.equal(cleared.uid, CALENDAR_VIEWER_UID);
+        assert.deepEqual(cleared.props, { displayName: null });
     });
 
     test('a mint that fails hands out nothing (rule 4)', async () => {
@@ -771,6 +788,14 @@ describe('parseRosterPDF — the geometry path', () => {
         assert.ok(!blocks.some(b => b.type === 'document'),
             'the PDF was attached on the geometry path — the model can re-read the table and '
             + 'undo the grid\'s day assignment, which is the one thing this path exists to prevent');
+    });
+
+    test('a grid-placed read is not flagged as "couldn\'t be double-checked" (v24.23)', async () => {
+        // The cell prompt asks for no column re-read, so the cross-check never runs on this path —
+        // and 'unavailable' made the review tell the admin to double-check every day by hand on the
+        // one path where the PDF's own grid placed each of them.
+        const out = await onGeometryPath();
+        assert.equal(out.body.crossCheck, 'not-applicable');
     });
 
     test('the LEGACY path still requires columnHeaders — the guard was narrowed, not removed', async () => {

@@ -36,6 +36,7 @@ const { parseStrictIsoDate, isPayCutoffDay, fileSignatureMatches, buildPushPaylo
 const { mayReceiveDocumentUrl, resolveKind, kindFromBody, signedUrlExpiry, SIGNED_URL_TTL_MS,
     isSignablePathForKind } = require('./doc-url-core');
 const { setupWebPush, fanOutPush } = require('./push');
+const { memberNameFromClaims } = require('./member-identity');
 
 /**
  * Build the document-domain endpoints. Called once from index.js with the shared infra.
@@ -750,7 +751,7 @@ const sendPayReminderNotification = onSchedule(
             // works, and both survive without an identity. If named document auditing is ever
             // WANTED, that is a decision to take deliberately and write down, not to inherit from
             // a debug log.
-            const door = claims.admin === true ? 'admin' : (typeof claims.name === 'string' ? 'member' : 'pin');
+            const door = claims.admin === true ? 'admin' : (memberNameFromClaims(claims) ? 'member' : 'pin');
             console.log(`[getDocumentUrl] signed ${kind.kind} for a ${door} `
                 + `(${SIGNED_URL_TTL_MS / 60000} min)`);
             return res.status(200).json({ url, expiresAt, fileType: data.fileType || null });

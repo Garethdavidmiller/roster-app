@@ -52,6 +52,7 @@ const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestor
 const OT = require('./overtime-core');
 const { setupWebPush, sendTargetedPush } = require('./push');
 const { nameToEmail, buildPushPayload } = require('./roster-parse-helpers');
+const { memberNameFromClaims } = require('./member-identity');
 
 /** Collection root. One name, used everywhere, so a typo cannot create a parallel universe. */
 const WINDOWS = 'overtimeWindows';
@@ -261,15 +262,16 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             res.status(401).json({ error: 'Unauthorised' });
             return null;
         }
-        // The Calendar viewer holds `calendarViewer` and nothing else — no name, no roles — so it
-        // falls out here with every other identity that is not a member. Named explicitly in the
-        // test suite rather than left to follow from the absence of a name claim.
-        if (typeof decoded.name !== 'string' || !decoded.name) {
+        // A `name` is believed only from the member's own password account (v24.23): Firebase fills
+        // `name` from a self-editable display name, so a bare string check let an anonymous session
+        // — or the PIN account, which carried one — answer as any member. member-identity.js.
+        const name = memberNameFromClaims(decoded);
+        if (!name) {
             res.status(403).json({ error: 'Forbidden — a member identity is required' });
             return null;
         }
         return {
-            name:    decoded.name,
+            name,
             uid:     decoded.uid,
             admin:   decoded.admin === true,
             manager: decoded.manager === true,

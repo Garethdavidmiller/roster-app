@@ -3576,3 +3576,30 @@ body.auth-ready .boot-placeholder { display: none; }
     white-space: nowrap;
     border: 0;
 }
+
+/* ---- Waiting for signal (v24.21, slow-save.js; moved here from admin.css at v24.23) ----
+   In shared.css because the roster upload that wraps its writes runs on OPERATIONS, which does not
+   load admin.css — there the notice rendered as unstyled text at the foot of the page, i.e. not at all.
+   One live line while a write waits on the server. It sits ABOVE the save toast's lane
+   (bottom 24px) rather than in it, because the toast can arrive while this is still up:
+   the second of two waiting writes finishing. Navy like the toast, but NOT a pill and not
+   nowrap — it is a sentence a member must read to the end, and at 375px that is three lines. */
+#slowSaveNotice {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    bottom: calc(max(24px, env(safe-area-inset-bottom)) + 52px);
+    max-width: 480px;
+    margin: 0 auto;
+    background: var(--primary-blue);
+    color: white;
+    font-size: var(--type-small);
+    font-weight: 600;
+    line-height: 1.4;
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-3);
+    z-index: 7500;
+}
+#slowSaveNotice[hidden] { display: none; }
+@media print { #slowSaveNotice { display: none; } }

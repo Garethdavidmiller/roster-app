@@ -2184,3 +2184,28 @@ test('calendar: Team View opens on the month you were browsing, not the current 
     expect(label, `team week label while browsing ${browsing}`).toMatch(new RegExp(`^${want.sunDate}\\b`));
     expect(label, `team week label while browsing ${browsing}`).toMatch(new RegExp(`${want.tail}$`));
 });
+
+// ── THE HUDDLE BUTTON WORKS THE MOMENT IT IS DRAWN (v24.23) ────────────────────────────────────────
+//
+// v24.19 drew "📄 Open Huddle" and only attached its click handler AFTER a short-lived link came back
+// from the server — up to eight seconds on a cold function, longer on a weak signal — so a member who
+// tapped straight away got a button that did nothing. The link request is HELD open here for the whole
+// test, which is the case that broke: the tap must still open the Huddle, on the stored url, at once.
+test('huddle: the Open button works immediately, while the short-lived link is still pending', async ({ page }) => {
+    const STORED = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/huddles%2F2026-09-25.pdf?alt=media&token=e2e';
+    await page.addInitScript((stored) => {
+        window.__E2E = { ...(window.__E2E || {}), authUser: true,
+            huddleDoc: { date: '2026-09-25', storageUrl: stored, fileType: 'pdf' } };
+        /** @type {any} */ (window).__opened = [];
+        window.open = /** @type {any} */ ((url) => { /** @type {any} */ (window).__opened.push(String(url)); return null; });
+    }, STORED);
+    // The link request never answers — the slow signal, frozen.
+    await page.route('**/getDocumentUrl', () => new Promise(() => {}));
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/#huddle');
+    const btn = page.locator('#huddleOpenFileBtn');
+    await expect(btn).toBeVisible({ timeout: 15_000 });
+    await btn.click();
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__opened), { timeout: 3000 })
+        .toEqual([STORED]);
+});
