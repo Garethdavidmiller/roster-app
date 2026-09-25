@@ -172,6 +172,10 @@ function makeDb(seed = {}) {
  *                                  The module requires it at LOAD time, so the stub has to enter
  *                                  require.cache before auth-endpoints.js does
  * @param {object[]} o.existingUsers accounts that already exist, for listUsers / already-exists
+ * @param {number}  o.usersPerPage   how many accounts one listUsers page returns. The real SDK caps a
+ *                                  page at 1000 and hands back a pageToken; the roster is ~50, so a
+ *                                  handler that read only page one would pass every test that did not
+ *                                  set this, and undercount the moment the project outgrew a page
  */
 function build({
     adminResolves = true,
@@ -183,6 +187,7 @@ function build({
     tokenRevoked = false,
     rosterJson = null,
     existingUsers = null,
+    usersPerPage = Infinity,
 } = {}) {
     const sends = [];
     /** Every Auth MUTATION, in order. The point of recording rather than counting: a test asking
@@ -242,7 +247,17 @@ function build({
             authOps.push({ op: 'setCustomUserClaims', uid, claims });
             if (authFail.setCustomUserClaims) throw new Error(authFail.setCustomUserClaims);
         },
-        listUsers: async () => ({ users: [...users.values()], pageToken: undefined }),
+        listUsers: async (max, pageToken) => {
+            // Paged the way the SDK pages: an opaque token for the next start, none on the last page.
+            // Recorded, so a test can tell "read every page" from "read the first and stopped".
+            authOps.push({ op: 'listUsers', max, pageToken });
+            if (authFail.listUsers) throw new Error(authFail.listUsers);
+            const all = [...users.values()];
+            const start = pageToken ? Number(pageToken) : 0;
+            const size = Math.min(max ?? Infinity, usersPerPage);
+            const next = start + size < all.length ? String(start + size) : undefined;
+            return { users: all.slice(start, start + size), pageToken: next };
+        },
     };
     // Injected at the MODULAR entry points, which is what the handlers require since the
     // firebase-admin v14 migration — the old single `firebase-admin` root export no longer
@@ -978,6 +993,135 @@ describe('getAccountSetupGaps — the provisioning audit', () => {
         assert.equal(out.code, 200);
         assert.equal(out.body.refused, 'no-accounts-visible');
         assert.deepEqual(out.body.setUp, []);
+    });
+});
+
+
+// ── getSignInStats ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The exact sign-in count, driven for real — the last Auth handler with no handler-level test
+ * (KNOWN_LIMITATIONS → "Still not covered at handler level"). It was left last deliberately: it is
+ * a read, it returns four integers, and `summariseSignIns` pins its arithmetic next door. What the
+ * pure test cannot see is the WIRING, and every property below is a property of the wiring:
+ *
+ *   · the population is the SERVER roster minus its admins — an allowlist the handler builds — so an
+ *     account in the project that is not on the roster (a leaver the sweep missed, anything else
+ *     created there) changes nothing, and an admin never counts;
+ *   · it reads EVERY page of accounts, not the first;
+ *   · no identity leaves it — the body is four integers, which is the contract that justified
+ *     building it rather than a per-account usage log;
+ *   · it is a read and changes nothing, and it is admin-only.
+ *
+ * Organised by cost. A body that carried an email would turn an aggregate into an attendance record;
+ * a count taken from the wrong population is a wrong number on a card that calls itself exact.
+ */
+describe('getSignInStats — the exact sign-in count', () => {
+    const { resolveRosterAuthConfig, nameToEmail } = require('./functions/roster-parse-helpers.js');
+    const rosterCfg = resolveRosterAuthConfig(require('./functions/roster-members.json'));
+    const adminSet = new Set(rosterCfg.admin);
+    const members = rosterCfg.processMembers.filter((n) => !adminSet.has(n));
+    const DAY = 24 * 60 * 60 * 1000;
+    const ago = (days) => new Date(Date.now() - days * DAY).toUTCString();
+    const account = (name, lastSignIn, extra = {}) => ({
+        uid: uidFor(name), email: nameToEmail(name), displayName: name, disabled: false,
+        metadata: { lastSignInTime: lastSignIn }, ...extra,
+    });
+    const getReq = (headers = { authorization: 'Bearer tok' }) => ({ ...reqWith(undefined, headers), method: 'GET' });
+
+    test('it counts the roster, and says nothing about WHO', async () => {
+        // Three members in three states, plus everyone else never signed in: the four integers,
+        // and nothing else — no email, no name, no uid anywhere in the body.
+        const [a, b, c] = members;
+        const users = members.map((n) => account(n, n === a ? ago(1) : n === b ? ago(10) : n === c ? ago(90) : null));
+        const { eps } = build({ existingUsers: users });
+        const out = await call(eps.getSignInStats, getReq());
+        assert.equal(out.code, 200);
+        assert.deepEqual(out.body, { total: members.length, last7: 1, last30: 2, neverSignedIn: members.length - 3 });
+        const body = JSON.stringify(out.body);
+        for (const u of users) {
+            assert.ok(!body.includes(u.email) && !body.includes(u.displayName) && !body.includes(u.uid),
+                `the body must carry no identity — found ${u.displayName}`);
+        }
+    });
+
+    test('an admin never counts, however recently they signed in', async () => {
+        const users = [...members.map((n) => account(n, null)), ...rosterCfg.admin.map((n) => account(n, ago(0)))];
+        const { eps } = build({ existingUsers: users });
+        const out = await call(eps.getSignInStats, getReq());
+        assert.equal(out.body.total, members.length, 'admins are left out of the allowlist');
+        assert.equal(out.body.last7, 0);
+    });
+
+    test('an account that is not on the SERVER roster changes nothing', async () => {
+        // The v18.97 fix, and why it is an allowlist: a leaver the orphan sweep missed used to
+        // inflate both the total and the never-signed-in figure on a card headed "exact".
+        const base = members.map((n) => account(n, null));
+        const { eps: e1 } = build({ existingUsers: base });
+        const { eps: e2 } = build({ existingUsers: [...base,
+            { uid: 'uid_gone', email: 'z.gone@myb-roster.local', displayName: 'Z. Gone', disabled: false, metadata: { lastSignInTime: ago(1) } },
+            { uid: 'uid_x', email: 'someone@example.com', disabled: false, metadata: { lastSignInTime: null } }] });
+        assert.deepEqual((await call(e2.getSignInStats, getReq())).body, (await call(e1.getSignInStats, getReq())).body);
+    });
+
+    test('a disabled member is not a provisioned account', async () => {
+        const users = members.map((n, i) => account(n, null, i === 0 ? { disabled: true } : {}));
+        const { eps } = build({ existingUsers: users });
+        assert.equal((await call(eps.getSignInStats, getReq())).body.total, members.length - 1);
+    });
+
+    test('it reads EVERY page of accounts, not only the first', async () => {
+        // Two accounts a page: a handler that stopped at page one would count two members and
+        // report a plausible, small, wrong number.
+        const users = members.map((n) => account(n, ago(2)));
+        const { eps, authOps } = build({ existingUsers: users, usersPerPage: 2 });
+        const out = await call(eps.getSignInStats, getReq());
+        assert.equal(out.body.total, members.length);
+        assert.equal(out.body.last7, members.length);
+        const pages = authOps.filter((o) => o.op === 'listUsers');
+        assert.equal(pages.length, Math.ceil(members.length / 2), 'one listUsers call per page');
+        assert.equal(pages[0].pageToken, undefined, 'the first page is asked for without a token');
+        assert.ok(pages.slice(1).every((p) => typeof p.pageToken === 'string'), 'every later page carries the token it was handed');
+    });
+
+    test('it changes NOTHING while it counts', async () => {
+        const { eps, authOps, db } = build({ existingUsers: members.map((n) => account(n, ago(1))) });
+        await call(eps.getSignInStats, getReq());
+        assert.deepEqual(authOps.filter((o) => AUTH_MUTATIONS.includes(o.op)), [], 'no account is created, changed or re-claimed');
+        assert.deepEqual(db._dump('passwordStatus'), {}, 'and no Firestore is written');
+    });
+
+    test('a failure reading accounts is a 500, never a count of zero', async () => {
+        // Zero is a plausible answer on this card ("nobody has signed in"), so a swallowed error that
+        // came back as zeros would be read as a fact. The refusal must survive as a refusal.
+        const { eps } = build({ existingUsers: members.map((n) => account(n, ago(1))), authFail: { listUsers: 'quota' } });
+        const out = await call(eps.getSignInStats, getReq());
+        assert.equal(out.code, 500);
+        assert.equal(out.body.total, undefined);
+    });
+
+    describe('and it is admin-only', () => {
+        const users = () => members.map((n) => account(n, ago(1)));
+        test('no token → 401, and no account is listed', async () => {
+            const { eps, authOps } = build({ token: null, existingUsers: users() });
+            const out = await call(eps.getSignInStats, getReq({}));
+            assert.equal(out.code, 401);
+            assert.equal(out.body.total, undefined);
+            assert.equal(authOps.filter((o) => o.op === 'listUsers').length, 0, 'refused before it reads');
+        });
+        test('a member token → 403, and no account is listed', async () => {
+            const { eps, authOps } = build({ token: { name: MEMBER }, existingUsers: users() });
+            assert.equal((await call(eps.getSignInStats, getReq())).code, 403);
+            assert.equal(authOps.filter((o) => o.op === 'listUsers').length, 0);
+        });
+        test('a MANAGER token → 403 as well', async () => {
+            const { eps } = build({ token: { manager: true, name: MANAGER }, existingUsers: users() });
+            assert.equal((await call(eps.getSignInStats, getReq())).code, 403);
+        });
+        test('a POST is refused — this endpoint only ever reads', async () => {
+            const { eps } = build({ existingUsers: users() });
+            assert.equal((await call(eps.getSignInStats, asAdmin({}))).code, 405);
+        });
     });
 });
 
