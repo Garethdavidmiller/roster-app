@@ -50,6 +50,9 @@ export const SEARCHED = [
     { proposal: 'EF', fp: '0cf19f56', globs: ['results/best-RE-*.json'] },
     { proposal: 'B2', fp: '02f3c005', globs: ['results/best-RG-*.json'] },
     { proposal: 'Q2', fp: '7ea671d5', globs: ['results/best-W-*.json'] },
+    // PT ran in both modes; fatigue-first (RP) cleared every factor where like-today (P) kept one or two, so RP
+    // is the family and the best like-today result is shown beside it as a labelled row.
+    { proposal: 'PT', fp: '931e5bfd', globs: ['results/best-RP-*.json'], env: { OTHER_MODE: 'results/best-P-13.json' } },
 ];
 
 const expand = g => { const [dir, pat] = [g.slice(0, g.lastIndexOf('/')), g.slice(g.lastIndexOf('/') + 1)];
