@@ -805,6 +805,11 @@ CLS=sat node weekend-table.mjs > q2-sat.txt; CLS=sun node weekend-table.mjs > q2
 PINS=none CAP=520 node assemble-table.mjs quarter-to-2-table.json q2-weekday.json q2-sat.json q2-sun.json
 MODE=feel  node anneal.mjs W 100000 5 7    # Quarter To 2 family: table W, seeds 7 13 21 34 41 55 68 89
 PROPOSAL=Q2 node final.mjs results/best-W-*.json
+CLS=weekday TOTAL=6990 node brief-table.mjs   # Pinned Turns: a day to the owner's 25 Sep brief, the rest fitted (CLS=sat TOTAL=42000-5W; CLS=sun)
+                                     # the split W is swept 6,945..7,050 with MS=15000 EXHAUSTIVE=0 and picked by 5 x weekday fit + Saturday fit
+PIN_WK="06:20-14:20x3,14:00-22:30x2,15:45-23:55x3" PIN_SAT="14:00-22:30x1" PIN_SUN="13:00-21:30x1" CAP=520 node assemble-table.mjs pinned-turns-table.json pt-weekday.json pt-sat.json pt-sun.json
+MODE=rules node anneal.mjs P 100000 5 7    # Pinned Turns: table P in BOTH modes (MODE=feel too), seeds 7 13 21 34; the mode with fewer factors is kept
+PROPOSAL=PT node final.mjs results/best-RP-*.json   # or best-P-*.json if like-today carried fewer factors
 CAP=510 COUNT=1 node table-book.mjs  # how many length structures a cap admits, WITHOUT searching -- a zero is a proof
 node regenerate.mjs --check           # every proposal's fingerprint, without rendering
 node regenerate.mjs                  # re-render EVERY sheet from the same inputs that produced it

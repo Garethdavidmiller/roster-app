@@ -43,6 +43,9 @@ const record = {
     // carries, so render.mjs's method page reads it the same way.
     offQuarter: [...new Set(Object.values(days).flat().flatMap(t => t.split('-')).filter(x => ![0, 15, 30, 45].includes(m(x) % 60) && !['06:20', '23:55', '07:15', '23:25'].includes(x)))].sort(),
     counts: process.env.COUNTS_JSON ? JSON.parse(process.env.COUNTS_JSON) : undefined,
+    // EXTRA_JSON: any further fields the sheet reads off the record (Pinned Turns: the free-duty counts per
+    // day and the minute-split sweep), merged as given so the renderer never has to type them.
+    ...(process.env.EXTRA_JSON ? JSON.parse(process.env.EXTRA_JSON) : {}),
     slots, spareLines: 4,
 };
 writeFileSync(out, JSON.stringify(record, null, 1));
