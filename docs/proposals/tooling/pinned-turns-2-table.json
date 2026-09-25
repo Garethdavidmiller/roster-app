@@ -14,7 +14,7 @@
  },
  "fit": {
   "weekday": 33.8,
-  "sat": 21.3,
+  "sat": 22.9,
   "sun": 62.4
  },
  "distinct": {
@@ -24,9 +24,9 @@
    "turns": 6
   },
   "sat": {
-   "starts": 7,
-   "finishes": 9,
-   "turns": 9
+   "starts": 6,
+   "finishes": 7,
+   "turns": 7
   },
   "sun": {
    "starts": 4,
@@ -53,23 +53,29 @@
    "msPerRestart": 10000,
    "annealSteps": 5138168,
    "annealBest": 33.8,
-   "hits": 6
+   "hits": 6,
+   "feasibleAll": 1838306
   },
   "sat": {
    "pool": 204,
    "openerTurns": 8,
    "closerTurns": 7,
    "middleTurns": 182,
-   "feasible": 1654421,
+   "feasible": 31239,
+   "bounded": true,
    "exhaustive": true,
    "nodes": 2185258,
-   "leaves": 1654092,
-   "pruned": 530793,
+   "leaves": 1862741,
+   "pruned": 322144,
    "restarts": 8,
-   "msPerRestart": 20000,
+   "msPerRestart": 15000,
    "annealSteps": 25569715,
    "annealBest": 21.3,
-   "hits": 8
+   "hits": 8,
+   "calibratedOn": "uncapped",
+   "uncappedFeasible": 1654421,
+   "uncappedBest": 21.3,
+   "feasibleAll": 2184885
   },
   "sun": {
    "pool": 175,
@@ -85,7 +91,8 @@
    "msPerRestart": 10000,
    "annealSteps": 12359535,
    "annealBest": 62.4,
-   "hits": 6
+   "hits": 6,
+   "feasibleAll": 2561
   }
  },
  "grid": "quarter",
@@ -202,6 +209,8 @@
   {
    "turns": 6,
    "fit": 26.2,
+   "starts": 5,
+   "ends": 6,
    "duties": [
     [
      "06:20-14:20",
@@ -227,11 +236,14 @@
      "15:15-23:55",
      4
     ]
-   ]
+   ],
+   "proven": true
   },
   {
    "turns": 7,
    "fit": 22.9,
+   "starts": 6,
+   "ends": 7,
    "duties": [
     [
      "06:20-14:20",
@@ -261,23 +273,26 @@
      "15:15-23:55",
      4
     ]
-   ]
+   ],
+   "proven": true
   },
   {
    "turns": 8,
    "fit": 21.7,
+   "starts": 6,
+   "ends": 8,
    "duties": [
     [
      "06:20-14:20",
      1
     ],
     [
-     "06:20-14:45",
-     2
+     "06:20-14:30",
+     1
     ],
     [
      "06:20-15:00",
-     1
+     2
     ],
     [
      "07:00-15:30",
@@ -299,11 +314,14 @@
      "15:15-23:55",
      4
     ]
-   ]
+   ],
+   "proven": true
   },
   {
    "turns": 9,
    "fit": 21.3,
+   "starts": 7,
+   "ends": 9,
    "duties": [
     [
      "06:20-14:20",
@@ -341,11 +359,14 @@
      "15:15-23:55",
      4
     ]
-   ]
+   ],
+   "proven": true
   },
   {
    "turns": 10,
    "fit": 21.7,
+   "starts": 8,
+   "ends": 10,
    "duties": [
     [
      "06:20-14:20",
@@ -387,11 +408,14 @@
      "15:15-23:55",
      4
     ]
-   ]
+   ],
+   "proven": true
   },
   {
    "turns": 11,
    "fit": 22.1,
+   "starts": 9,
+   "ends": 10,
    "duties": [
     [
      "06:20-14:20",
@@ -437,14 +461,147 @@
      "15:30-23:55",
      1
     ]
-   ]
+   ],
+   "proven": true
   }
  ],
  "search": {
   "weekday": "p2-weekday.txt",
   "sat": "p2-sat.txt",
-  "sun": "p2-sun.txt"
+  "sun": "p2-sun.txt",
+  "satUncapped": "p2-sat-uncapped.txt",
+  "weekdayUnbounded": "p2-weekday-unbounded.txt",
+  "satUnbounded": "p2-sat-unbounded.txt"
  },
+ "turnCap": {
+  "weekday": 6,
+  "sat": 7,
+  "sun": 5,
+  "yardstick": "Pinned Turns — no day works more distinct turns than PT-24-P34 does on that day (owner, 25 Sep 2026: a sensible number of shift times, not too complex)",
+  "today": {
+   "weekday": 8,
+   "sat": 6,
+   "sun": 4
+  }
+ },
+ "sunAlternatives": [
+  {
+   "turns": 4,
+   "fit": 68.2,
+   "duties": [
+    [
+     "07:15-15:45",
+     4
+    ],
+    [
+     "09:30-17:30",
+     1
+    ],
+    [
+     "13:00-21:30",
+     2
+    ],
+    [
+     "14:45-23:25",
+     3
+    ]
+   ],
+   "proven": true
+  },
+  {
+   "turns": 5,
+   "fit": 62.4,
+   "duties": [
+    [
+     "07:15-15:15",
+     1
+    ],
+    [
+     "07:15-15:45",
+     3
+    ],
+    [
+     "09:15-17:45",
+     1
+    ],
+    [
+     "13:00-21:30",
+     2
+    ],
+    [
+     "14:45-23:25",
+     3
+    ]
+   ],
+   "proven": true
+  },
+  {
+   "turns": 6,
+   "fit": 62.5,
+   "duties": [
+    [
+     "07:15-15:15",
+     1
+    ],
+    [
+     "07:15-15:45",
+     3
+    ],
+    [
+     "09:15-17:45",
+     1
+    ],
+    [
+     "11:30-20:00",
+     1
+    ],
+    [
+     "13:00-21:30",
+     1
+    ],
+    [
+     "14:45-23:25",
+     3
+    ]
+   ],
+   "proven": true
+  },
+  {
+   "turns": 7,
+   "fit": 62.6,
+   "duties": [
+    [
+     "07:15-15:30",
+     1
+    ],
+    [
+     "07:15-15:45",
+     3
+    ],
+    [
+     "09:15-17:45",
+     1
+    ],
+    [
+     "11:30-20:00",
+     1
+    ],
+    [
+     "13:00-21:30",
+     1
+    ],
+    [
+     "14:45-23:25",
+     2
+    ],
+    [
+     "15:00-23:25",
+     1
+    ]
+   ],
+   "proven": true
+  }
+ ],
  "slots": [
   {
    "time": "06:20-14:20",
@@ -459,15 +616,9 @@
    "sun": 0
   },
   {
-   "time": "06:20-14:45",
-   "weekday": 0,
-   "sat": 2,
-   "sun": 0
-  },
-  {
    "time": "06:20-15:00",
    "weekday": 0,
-   "sat": 1,
+   "sat": 3,
    "sun": 0
   },
   {
@@ -489,25 +640,13 @@
    "sun": 3
   },
   {
-   "time": "08:15-16:45",
-   "weekday": 0,
-   "sat": 1,
-   "sun": 0
-  },
-  {
    "time": "09:15-17:45",
    "weekday": 0,
-   "sat": 0,
+   "sat": 2,
    "sun": 1
   },
   {
-   "time": "09:30-18:00",
-   "weekday": 0,
-   "sat": 1,
-   "sun": 0
-  },
-  {
-   "time": "12:30-21:00",
+   "time": "13:00-21:00",
    "weekday": 0,
    "sat": 1,
    "sun": 0

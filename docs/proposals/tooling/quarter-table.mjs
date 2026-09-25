@@ -52,6 +52,10 @@ const EXHAUSTIVE = process.env.EXHAUSTIVE !== '0', MS = Number(process.env.MS ??
 // BOUND=0 disables the branch-and-bound, so the enumeration visits EVERY feasible table and the count it reports is the
 // true size of the space rather than the number the bound let through — slower, and the only way to state that figure.
 const BOUND = process.env.BOUND !== '0';
+// MAX_TURNS=n caps the DISTINCT TURNS a day may work (pins included) — "a sensible number of shift times, not too complex"
+// (owner, 25 Sep 2026). It is a hard rule, not a tie-break, so that the bound is taken against the best table UNDER the
+// cap: with the cap as a mere preference, a seven-turn table could be pruned by a nine-turn incumbent it would have beaten.
+const MAX_TURNS = Number(process.env.MAX_TURNS ?? 99);
 
 const T0 = today(); const todayRows = assess(T0.patterns, T0.lines).tableRows; const TODAY = new Set(todayRows.map(r => r.time));
 const legalEnd = e => e === CLOSE || (e <= CLOSE - 60 && (!(e > 21*60 && e < 23*60) || EVENING.includes(e)));
@@ -93,7 +97,7 @@ function evaluate(counts, cov) {   // counts and cov INCLUDE the pins
   for (let i = 0; i < POOL.length; i++) { const k = counts[i]; if (!k) continue; const p = POOL[i]; if (k > MAX_PER) return null;
     total += p.L*k; n += k; turns++; starts.add(p.s); ends.add(p.e); if (!TODAY.has(p.t)) fresh++;
     if (p.s === OPEN) { nO += k; if (OPENER_MIN_END && p.e >= OPENER_MIN_END.end) lateO += k; } if (p.e === CLOSE) nC += k; if (p.e > 22*60) at22 += k; }
-  if (n !== N || total < TOTAL_MIN || total > TOTAL_MAX || nO !== OPENERS || nC !== CLOSERS) return null;
+  if (n !== N || total < TOTAL_MIN || total > TOTAL_MAX || nO !== OPENERS || nC !== CLOSERS || turns > MAX_TURNS) return null;
   if (AT22 !== null && at22 !== AT22) return null; if (OPENER_MIN_END && lateO < OPENER_MIN_END.count) return null;
   let thin = Infinity; for (const h of FULL) if (cov[h] < thin) thin = cov[h]; if (thin < FLOOR - 1e-9) return null;
   const fit = fitOf(cov, total/60);
@@ -189,13 +193,13 @@ if (EXHAUSTIVE && TOTAL_MIN === TOTAL_MAX) exhaustive(); else if (EXHAUSTIVE) ex
 const show = (label, b) => { if (!b) { console.log(`  ${label}: none`); return; }
   console.log(`  ${label}: ${b.turns} turns · ${b.starts} starts + ${b.ends} finishes · ${b.fresh} new · fit ${b.fit} · pays ${b.total} · thinnest hour ${b.thin}`);
   console.log('    ' + b.duties.map(([t, n]) => `${t} x${n}`).join('  ')); };
-console.log(`${CLS}: pins ${PINS.map(([t, n]) => `${t} x${n}`).join(', ')} · free ${FREE} (${needO} opener, ${needC} closer, ${needM} middle) · pool ${POOL.length} (${openersPool.length} opener, ${closersPool.length} closer, ${midPool.length} middle turns) · floor ${FLOOR} · total ${TOTAL_MIN}${TOTAL_MAX !== TOTAL_MIN ? `–${TOTAL_MAX}` : ''} · cap ${HI}`);
+console.log(`${CLS}: ${MAX_TURNS < 99 ? `at most ${MAX_TURNS} distinct turns · ` : ''}pins ${PINS.map(([t, n]) => `${t} x${n}`).join(', ')} · free ${FREE} (${needO} opener, ${needC} closer, ${needM} middle) · pool ${POOL.length} (${openersPool.length} opener, ${closersPool.length} closer, ${midPool.length} middle turns) · floor ${FLOOR} · total ${TOTAL_MIN}${TOTAL_MAX !== TOTAL_MIN ? `–${TOTAL_MAX}` : ''} · cap ${HI}`);
 console.log(`  anneal: ${RESTARTS} restarts x ${MS} ms · ${annealSteps.toLocaleString()} steps · best ${annealBest} · restarts within 0.05 of the final best: ${hits} of ${RESTARTS} · per restart ${restartBest.join(' ')}`);
 console.log(`  feasible tables ${exhaustiveDone ? (BOUND ? `finished and scored ${feasible.toLocaleString()} (the bound abandoned ${pruned.toLocaleString()} partial tables as provably worse; BOUND=0 counts them all)` : `${feasible.toLocaleString()} — every one, no bound`) : `seen by the anneal ${annealDistinct.toLocaleString()}`} · exhaustive ${exhaustiveDone ? 'COMPLETE — the best is proven' : EXHAUSTIVE ? 'incomplete' : 'skipped'}${exhaustiveDone && annealBest !== null ? ` · anneal ${annealBest === best.fit ? 'found the optimum' : `stopped at ${annealBest}, optimum ${best.fit}`}` : ''}`);
 show('best by fit (then fewest turns)', best);
 console.log('  best at each count of distinct turns:'); for (const k of Object.keys(byTurns).sort((a, b) => a - b)) show(`    ${k} turns`, byTurns[k]);
 if (!best) { if (process.env.OUT) writeFileSync(process.env.OUT, JSON.stringify({ cls: CLS, total: TOTAL_MIN, feasible: 0 })); process.exit(1); }
 if (process.env.OUT) writeFileSync(process.env.OUT, JSON.stringify({ cls: CLS, grid: 'quarter', total: best.total, fit: best.fit, fresh: best.fresh, turns: best.turns, duties: best.duties,
-  counts: { pool: POOL.length, openerTurns: openersPool.length, closerTurns: closersPool.length, middleTurns: midPool.length, feasible: exhaustiveDone ? feasible : annealDistinct, bounded: BOUND, exhaustive: exhaustiveDone, nodes, leaves, pruned, restarts: RESTARTS, msPerRestart: MS, annealSteps, annealBest, hits }, floor: FLOOR, cap: HI,
+  maxTurns: MAX_TURNS < 99 ? MAX_TURNS : null, counts: { pool: POOL.length, openerTurns: openersPool.length, closerTurns: closersPool.length, middleTurns: midPool.length, feasible: exhaustiveDone ? feasible : annealDistinct, bounded: BOUND, exhaustive: exhaustiveDone, nodes, leaves, pruned, restarts: RESTARTS, msPerRestart: MS, annealSteps, annealBest, hits }, floor: FLOOR, cap: HI,
   byTurns: Object.fromEntries(Object.entries(byTurns).map(([k, r]) => [k, { fit: r.fit, fresh: r.fresh, starts: r.starts, ends: r.ends, duties: r.duties }])) }, null, 1));
 console.log('JSON ' + JSON.stringify(best.duties.flatMap(([t, n]) => Array(n).fill(t))));

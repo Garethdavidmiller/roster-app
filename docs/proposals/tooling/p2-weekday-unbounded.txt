@@ -1,0 +1,16 @@
+  exhaustive: 8 opener sets x 1 closer sets = 8 combinations · 1,838,682 bounded nodes (0 pruned) · 1,838,306 finished tables evaluated
+weekday: pins 06:20-14:20 x3, 14:00-22:30 x2, 15:45-23:55 x3 · free 6 (1 opener, 0 closer, 5 middle) · pool 211 (8 opener, 7 closer, 189 middle turns) · floor 3 · total 6970 · cap 520
+  anneal: 2 restarts x 3000 ms · 293,931 steps · best 33.8 · restarts within 0.05 of the final best: 2 of 2 · per restart 33.8 33.8
+  feasible tables 1,838,306 — every one, no bound · exhaustive COMPLETE — the best is proven · anneal found the optimum
+  best by fit (then fewest turns): 6 turns · 5 starts + 6 finishes · 3 new · fit 33.8 · pays 6970 · thinnest hour 4
+    06:20-14:20 x3  06:20-14:30 x1  07:00-15:30 x3  13:30-22:00 x2  14:00-22:30 x2  15:45-23:55 x3
+  best at each count of distinct turns:
+      6 turns: 6 turns · 5 starts + 6 finishes · 3 new · fit 33.8 · pays 6970 · thinnest hour 4
+    06:20-14:20 x3  06:20-14:30 x1  07:00-15:30 x3  13:30-22:00 x2  14:00-22:30 x2  15:45-23:55 x3
+      7 turns: 7 turns · 6 starts + 7 finishes · 3 new · fit 34.2 · pays 6970 · thinnest hour 4
+    06:20-14:20 x3  06:20-14:30 x1  07:00-15:30 x2  07:15-15:45 x1  13:30-22:00 x2  14:00-22:30 x2  15:45-23:55 x3
+      8 turns: 8 turns · 7 starts + 7 finishes · 4 new · fit 34.6 · pays 6970 · thinnest hour 4
+    06:20-14:20 x3  06:20-14:45 x1  07:00-15:30 x2  07:15-15:45 x1  13:30-22:00 x1  13:45-22:00 x1  14:00-22:30 x2  15:45-23:55 x3
+      9 turns: 9 turns · 7 starts + 8 finishes · 5 new · fit 35.7 · pays 6970 · thinnest hour 4
+    06:20-14:20 x3  06:20-15:00 x1  07:00-15:15 x1  07:00-15:30 x1  07:15-15:45 x1  13:30-22:00 x1  13:45-22:00 x1  14:00-22:30 x2  15:45-23:55 x3
+JSON ["06:20-14:20","06:20-14:20","06:20-14:20","06:20-14:30","07:00-15:30","07:00-15:30","07:00-15:30","13:30-22:00","13:30-22:00","14:00-22:30","14:00-22:30","15:45-23:55","15:45-23:55","15:45-23:55"]

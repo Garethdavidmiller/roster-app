@@ -850,8 +850,13 @@ or :45, or at the window's own instant (06:20 open, 23:55 close; 07:15 and 23:25
 further time allowed is the owner's own pinned turn **06:20–14:20**, which any day may use as an opener —
 a time the brief itself set cannot be a confusing one. **Familiarity is not a criterion**: *Pinned Turns*
 kept 07:00–15:40, 06:20–14:50 and 14:45–23:25 because people work them today; this sheet keeps nothing
-for that reason, and the pick is demand fit, then fewer distinct turns, then fewer distinct starts and
-finishes. Every other rule is *Pinned Turns*': four at the open, three through to the close (four on a
+for that reason. **A sensible number of shift times, not too complex** (owner, the same afternoon, on
+seeing a nine-turn Saturday): no day may work more distinct turns than *Pinned Turns* does on that day —
+6 on a weekday, 7 on a Saturday, 5 on a Sunday (today's roster works 8 / 6 / 4) — and under that cap the
+pick is demand fit, then fewer distinct turns, then fewer distinct starts and finishes. The cap is a hard
+rule in the enumeration rather than a preference, because the bound has to be taken against the best
+table UNDER it — as a preference, a seven-turn Saturday could be pruned by the nine-turn table it would
+have beaten. Every other rule is *Pinned Turns*': four at the open, three through to the close (four on a
 Saturday), exactly five on after 22:00 Monday to Saturday, 7h–8h40, nothing finishing in the hour
 before the close unless it closes, an evening finish only when the ticket office does, the thinnest
 fully-covered hour never below today's.
@@ -872,11 +877,17 @@ the over-covered hours are a lower bound on the finished fit, and a partial tabl
 beats the incumbent is abandoned. A simulated anneal with restarts supplies the incumbent first and is
 the calibration — on every day it reached the enumerated optimum on every restart:
 
-| Day | opener × closer sets | feasible tables (every one scored) | anneal restarts at the optimum | best fit |
+| Day | opener × closer sets | feasible tables (`BOUND=0`, every one visited) | anneal restarts at the optimum | best fit |
 |---|---|---|---|---|
-| Weekday (6,970) | 8 × 1 | 741,722 | 6 of 6 | **33.8** |
-| Saturday (7,150) | 215 × 210 = 45,150 | 1,654,421 | 8 of 8 | **21.3** |
+| Weekday (6,970) | 8 × 1 | 1,838,306 | 6 of 6 | **33.8** |
+| Saturday (7,150) | 215 × 210 = 45,150 | 2,184,885 (31,239 under the seven-turn cap) | 8 of 8 (uncapped) | **22.9** under the cap; 21.3 at nine turns |
 | Sunday (5,100–5,145) | 210 × 84 = 17,640 | 2,561 | 6 of 6 | **62.4** |
+
+The bounded runs finish far fewer tables (741,722 weekday, 1,654,092 Saturday) because the bound
+abandons a partial table the moment its over-covered hours alone are worse than the incumbent; the
+unbounded runs were made so the size of each space could be stated rather than the size the bound let
+through. The Saturday anneal cannot construct a capped table at all — its calibration is the uncapped
+run, same pool, same rules — so under the cap the enumeration stands alone, which is what a proof is for.
 
 **The split was searched too**, as *Pinned Turns*' was, and this time every point is a proof rather than
 a sample. The grid can pay a weekday at 10 mod 15 (a quarter-hour fourth opener) or 0 mod 15 (the fourth
@@ -889,32 +900,35 @@ the lowest 5 × weekday fit + Saturday fit kept:
 | 6,945 | 7,275 | 32.4 | — | — |
 | 6,955 | 7,225 | 32.8 | — | — |
 | 6,960 | 7,200 | 33.1 | — proven: none (two 06:20–14:20 openers are needed for the arithmetic, and then no five middles reach the remainder) | — |
-| **6,970** | **7,150** | **33.8** | **21.3** | **190.3** |
+| **6,970** | **7,150** | **33.8** | **22.9** under the cap (21.3 uncapped) | **191.9** |
 | 6,975 | 7,125 | — no weekday pays it (five middles would average over 8h30) | 20.2 | — |
-| 6,985 | 7,075 | 35.0 | 17.6 | 192.6 |
+| 6,985 | 7,075 | 35.0 | 17.6 uncapped | 192.6 at best |
 | 6,990 | 7,050 | — | 16.7 | — |
-| 7,000 | 7,000 | 36.2 | 14.7 | 195.7 |
+| 7,000 | 7,000 | 36.2 | 14.7 uncapped | 195.7 at best |
 
 The weekday wants to pay less and Saturday wants to pay more, and the contract lets neither: the three
 feasible splits sit within five points and 6,970 / 7,150 — *Pinned Turns*' own split — stands at the
-top. The tables, beside *Pinned Turns*':
+top, and the cap cannot change that (the other two splits lose by more than the cap costs even with
+their Saturdays uncapped). The tables, beside *Pinned Turns*':
 
 | Day | table | fit | *Pinned Turns*' | today's | new turns |
 |---|---|---|---|---|---|
 | Weekday (6,970) | `06:20-14:20 ×3 · 06:20-14:30 ×1 · 07:00-15:30 ×3 · 13:30-22:00 ×2 · 14:00-22:30 ×2 · 15:45-23:55 ×3` | **33.8** | 32.1 | 50.0–55.8 | 06:20-14:30, 07:00-15:30, 15:45-23:55 |
-| Saturday (7,150) | `06:20-14:20 ×1 · 06:20-14:45 ×2 · 06:20-15:00 ×1 · 07:00-15:30 ×2 · 08:15-16:45 ×1 · 09:30-18:00 ×1 · 12:30-21:00 ×1 · 14:00-22:30 ×1 · 15:15-23:55 ×4` | **21.3** | 23.4 | 45.7 | 06:20-14:45, 06:20-15:00, 07:00-15:30, 08:15-16:45, 09:30-18:00, 12:30-21:00 |
+| Saturday (7,150) | `06:20-14:20 ×1 · 06:20-15:00 ×3 · 07:00-15:30 ×2 · 09:15-17:45 ×2 · 13:00-21:00 ×1 · 14:00-22:30 ×1 · 15:15-23:55 ×4` | **22.9** | 23.4 | 45.7 | 06:20-15:00, 07:00-15:30, 09:15-17:45 |
 | Sunday (5,100) | `07:15-15:15 ×1 · 07:15-15:45 ×3 · 09:15-17:45 ×1 · 13:00-21:30 ×2 · 14:45-23:25 ×3` | **62.4** | 62.4 | 65.9 | 07:15-15:15, 09:15-17:45, 13:00-21:30, 14:45-23:25 |
 
 **What the grid cost and bought.** The weekday gives back 1.7 of fit — *Pinned Turns*' 07:00–15:40 was
 worth exactly that, and it is the one weekday time that sheet has off the quarter hour. Saturday gains
-2.1, because 06:20–14:45 and 06:20–15:00 openers spread the morning where four 06:20–14:50 stacked it.
-Sunday is the same table: *Pinned Turns*' Sunday was already on the quarter hour, and the enumeration
-shows nothing on the grid beats it under the 13:00–21:30 pin. **Saturday with fewer turns**: the best-fit
-Saturday has nine distinct turns; seven reach 22.9 (`06:20-14:20 ×1 · 06:20-15:00 ×3 · 07:00-15:30 ×2 ·
-09:15-17:45 ×2 · 13:00-21:00 ×1 · 14:00-22:30 ×1 · 15:15-23:55 ×4`), still better than *Pinned Turns*'
-23.4, and six reach 26.2. The sheet ships the best fit, as asked, and states the seven-turn table on its
-page 7 — that is a fit-for-simplicity trade for the room, not the search. Every alternative at each
-turn count is in `tooling/p2-sat.txt`.
+half a point at the same seven turns, and of its three turns nobody works today one, 07:00–15:30, is
+the weekday's own — so the week holds fourteen distinct turns against *Pinned Turns*' sixteen. Sunday is the same table: *Pinned Turns*' Sunday was
+already on the quarter hour, and the enumeration shows nothing on the grid beats it under the
+13:00–21:30 pin. **The Saturday ladder, every rung proven** (`tooling/p2-sat-unbounded.txt`): 6 turns →
+26.2 · **7 → 22.9** · 8 → 21.7 · 9 → 21.3 · 10 → 21.7 · 11 → 22.1. The best-fitting Saturday of all has
+nine distinct turns (`06:20-14:20 ×1 · 06:20-14:45 ×2 · 06:20-15:00 ×1 · 07:00-15:30 ×2 · 08:15-16:45 ×1 ·
+09:30-18:00 ×1 · 12:30-21:00 ×1 · 14:00-22:30 ×1 · 15:15-23:55 ×4`, sixteen clock times against the
+seven-turn table's thirteen); the cap costs 1.6 of fit for two fewer shift times to hold, and today's six
+would cost 3.3 more. Sunday at today's four turns would read 68.2 against 62.4. The sheet ships the
+capped tables and states the ladder on its page 7.
 
 ROTATION-TBD
 

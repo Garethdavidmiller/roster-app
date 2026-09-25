@@ -1,20 +1,12 @@
-  exhaustive: 215 opener sets x 210 closer sets = 45150 combinations · 2,185,258 bounded nodes (530,793 pruned) · 1,654,092 finished tables evaluated
-sat: pins 14:00-22:30 x1 · free 13 (4 opener, 4 closer, 5 middle) · pool 204 (8 opener, 7 closer, 182 middle turns) · floor 2 · total 7150 · cap 520
-  anneal: 8 restarts x 20000 ms · 25,569,715 steps · best 21.3 · restarts within 0.05 of the final best: 8 of 8 · per restart 21.3 21.3 21.3 21.3 21.3 21.3 21.3 21.3
-  distinct feasible tables seen 1,654,421 · exhaustive COMPLETE — the best is proven · anneal found the optimum
-  best by fit (then fewest turns): 9 turns · 7 starts + 9 finishes · 6 new · fit 21.3 · pays 7150 · thinnest hour 4.5
-    06:20-14:20 x1  06:20-14:45 x2  06:20-15:00 x1  07:00-15:30 x2  08:15-16:45 x1  09:30-18:00 x1  12:30-21:00 x1  14:00-22:30 x1  15:15-23:55 x4
+  exhaustive: 215 opener sets x 210 closer sets = 45150 combinations · 2,185,258 bounded nodes (322,144 pruned) · 1,862,741 finished tables evaluated
+sat: at most 7 distinct turns · pins 14:00-22:30 x1 · free 13 (4 opener, 4 closer, 5 middle) · pool 204 (8 opener, 7 closer, 182 middle turns) · floor 2 · total 7150 · cap 520
+  anneal: 8 restarts x 15000 ms · 0 steps · best null · restarts within 0.05 of the final best: 0 of 8 · per restart        
+  feasible tables finished and scored 31,239 (the bound abandoned 322,144 partial tables as provably worse; BOUND=0 counts them all) · exhaustive COMPLETE — the best is proven
+  best by fit (then fewest turns): 7 turns · 6 starts + 7 finishes · 3 new · fit 22.9 · pays 7150 · thinnest hour 4.5
+    06:20-14:20 x1  06:20-15:00 x3  07:00-15:30 x2  09:15-17:45 x2  13:00-21:00 x1  14:00-22:30 x1  15:15-23:55 x4
   best at each count of distinct turns:
       6 turns: 6 turns · 5 starts + 6 finishes · 2 new · fit 26.2 · pays 7150 · thinnest hour 4.5
     06:20-14:20 x1  06:20-15:00 x3  07:15-15:45 x3  12:45-21:00 x2  14:00-22:30 x1  15:15-23:55 x4
       7 turns: 7 turns · 6 starts + 7 finishes · 3 new · fit 22.9 · pays 7150 · thinnest hour 4.5
     06:20-14:20 x1  06:20-15:00 x3  07:00-15:30 x2  09:15-17:45 x2  13:00-21:00 x1  14:00-22:30 x1  15:15-23:55 x4
-      8 turns: 8 turns · 6 starts + 8 finishes · 5 new · fit 21.7 · pays 7150 · thinnest hour 4.5
-    06:20-14:20 x1  06:20-14:45 x2  06:20-15:00 x1  07:00-15:30 x2  09:15-17:45 x2  12:30-21:00 x1  14:00-22:30 x1  15:15-23:55 x4
-      9 turns: 9 turns · 7 starts + 9 finishes · 6 new · fit 21.3 · pays 7150 · thinnest hour 4.5
-    06:20-14:20 x1  06:20-14:45 x2  06:20-15:00 x1  07:00-15:30 x2  08:15-16:45 x1  09:30-18:00 x1  12:30-21:00 x1  14:00-22:30 x1  15:15-23:55 x4
-      10 turns: 10 turns · 8 starts + 10 finishes · 6 new · fit 21.7 · pays 7150 · thinnest hour 4.5
-    06:20-14:20 x1  06:20-14:30 x1  06:20-15:00 x2  07:00-15:30 x1  07:15-15:45 x1  08:15-16:45 x1  09:30-18:00 x1  12:30-21:00 x1  14:00-22:30 x1  15:15-23:55 x4
-      11 turns: 11 turns · 9 starts + 10 finishes · 7 new · fit 22.1 · pays 7150 · thinnest hour 4.5
-    06:20-14:20 x1  06:20-14:45 x1  06:20-15:00 x2  07:00-15:30 x1  07:15-15:45 x1  08:15-16:45 x1  09:30-18:00 x1  12:30-21:00 x1  14:00-22:30 x1  15:15-23:55 x3  15:30-23:55 x1
-JSON ["06:20-14:20","06:20-14:45","06:20-14:45","06:20-15:00","07:00-15:30","07:00-15:30","08:15-16:45","09:30-18:00","12:30-21:00","14:00-22:30","15:15-23:55","15:15-23:55","15:15-23:55","15:15-23:55"]
+JSON ["06:20-14:20","06:20-15:00","06:20-15:00","06:20-15:00","07:00-15:30","07:00-15:30","09:15-17:45","09:15-17:45","13:00-21:00","14:00-22:30","15:15-23:55","15:15-23:55","15:15-23:55","15:15-23:55"]
